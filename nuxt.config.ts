@@ -5,7 +5,7 @@ export default defineNuxtConfig({
   css: ['~/assets/css/main.css'],
   nitro: {
     prerender: {
-      routes: ['/']
+      routes: ['/', '404']
     }
   },
   postcss: {
