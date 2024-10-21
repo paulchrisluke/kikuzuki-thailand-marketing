@@ -9,12 +9,10 @@
     "preview": "nuxt preview",
     "postinstall": "nuxt prepare"
   },
-  "dependencies": {
-    "nuxt": "^3.13.0",
-    "vue": "latest",
-    "vue-router": "latest"
-  },
   "devDependencies": {
+    "vue": "latest",
+    "vue-router": "latest",
+    "nuxt": "^3.8.2",
     "@tailwindcss/typography": "^0.5.15",
     "autoprefixer": "^10.4.20",
     "postcss": "^8.4.47",
