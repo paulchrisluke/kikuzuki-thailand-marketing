@@ -4,9 +4,6 @@ export default defineNuxtConfig({
   devtools: { enabled: true },
   nitro: {
     static: true,  // This ensures Nitro generates a fully static build
-    output: {
-      dir: 'dist',  // This sets the output directory to 'dist' without './'
-    }
   },
   css: ['~/assets/css/main.css'],
   postcss: {
