@@ -5,7 +5,8 @@ export default defineNuxtConfig({
   nitro: {
     static: true,
     prerender: {
-      autoSubfolderIndex: false
+      autoSubfolderIndex: false,
+      routes: ['/'] // Add root route for prerendering
     }
   },
   css: ['~/assets/css/main.css'],
