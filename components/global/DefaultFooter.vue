@@ -1,16 +1,16 @@
 <template>
   <div>
-    <footer ref="footerRef" class="bg-black pt-16 pb-8">
+    <footer ref="footerRef" class="bg-black pt-16 pb-8 px-4">
       <div class="xl:max-w-[1170px] max-w-full mx-auto w-full md:px-5 px-0">
         <div class="text-center pb-[79px]">
-          <ul class="flex items-center justify-center gap-6">
-            <li><a href="#"><img src="~/assets/images/tiktok.svg" alt="TikTok"></a></li>
-            <li><a href="#"><img src="~/assets/images/insta.svg" alt="Instagram"></a></li>
-            <li><a href="#"><img src="~/assets/images/twitter.svg" alt="Twitter"></a></li>
-            <li><a href="#"><img src="~/assets/images/youtube.svg" alt="Youtube"></a></li>
-            <li><a href="#"><img src="~/assets/images/facebook.svg" alt="Facebook"></a></li>
-            <li><a href="#"><img src="~/assets/images/linkedin.svg" alt="Linkedin"></a></li>
-            <li><a href="#"><img src="~/assets/images/pinterest.svg" alt="Pinterest"></a></li>
+          <ul class=" md:space-x-5 flex items-center justify-center gap-6 w-3/4 md:w-3/5 xl:w-4/5 mx-auto">
+            <li><a href="#"><img class="w-20" src="~/assets/images/tiktok.svg" alt="TikTok"></a></li>
+            <li><a href="#"><img class="w-20" src="~/assets/images/insta.svg" alt="Instagram"></a></li>
+            <li><a href="#"><img class="w-20" src="~/assets/images/twitter.svg" alt="Twitter"></a></li>
+            <li><a href="#"><img class="w-20" src="~/assets/images/youtube.svg" alt="Youtube"></a></li>
+            <li><a href="#"><img class="w-20" src="~/assets/images/facebook.svg" alt="Facebook"></a></li>
+            <li><a href="#"><img class="w-20" src="~/assets/images/linkedin.svg" alt="Linkedin"></a></li>
+            <li><a href="#"><img class="w-20" src="~/assets/images/pinterest.svg" alt="Pinterest"></a></li>
           </ul>
           <a href="#" class="inline-flex my-[52px] mx-0">
             <img src="~/assets/images/ftr-brand.svg" alt="Brand" class="md:h-auto h-[130px] object-cover object-center">
