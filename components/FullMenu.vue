@@ -12,7 +12,7 @@
                  <a href="#" class="text-base text-white font-normal">eat.sando</a>
               </li> -->
               <li class="flex mb-2 items-center justify-center gap-2">
-                 <button @click="showOrderModal = true"class="text-base text-black bg-white font-semibold py-0 px-8 h-[50px] leading-[18px] hover:bg-transparent hover:border-white hover:text-white flex items-center justify-center border border-solid border-transparent rounded-[48px]">
+                 <button @click="showOrderModal = true" class="text-base text-black bg-white font-semibold py-0 px-8 h-[50px] leading-[18px] hover:bg-transparent hover:border-white hover:text-white flex items-center justify-center border border-solid border-transparent rounded-[48px]">
                    Order Now
                  </button>
               </li>
