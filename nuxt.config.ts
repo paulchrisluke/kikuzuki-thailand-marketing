@@ -3,9 +3,9 @@ export default defineNuxtConfig({
   compatibilityDate: '2024-04-03',
   devtools: { enabled: true },
   css: ['~/assets/css/main.css'],
-  nitro: {
-    prerender: {
-      routes: ['/', '404']
+  hooks: {
+    'prerender:routes' ({ routes }) {
+      routes.clear() // Do not generate any routes (except the defaults)
     }
   },
   postcss: {
