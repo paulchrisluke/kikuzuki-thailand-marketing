@@ -2,6 +2,10 @@
 export default defineNuxtConfig({
   app: {
     head: {
+      title: 'Sand-O | Authentic Shokupan Bread',
+      htmlAttrs: {
+        lang: 'en',
+      },
       meta: [
         { property: 'og:title', content: 'Sand-O | Authentic Shokupan Bread' },
         { property: 'og:description', content: 'Come taste the 8th wonder of the world. Authentic Shokupan Bread, where dreams come true.' },
