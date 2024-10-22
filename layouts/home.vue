@@ -5,6 +5,7 @@
       <MenuToggle :isOpen="menuOpen" @toggle="toggleMenu" />
       <!-- Full Menu Component -->
       <FullMenu :isOpen="menuOpen" @close="toggleMenu" />
+      <default-footer />
   </div>
 </template>
 <script setup>

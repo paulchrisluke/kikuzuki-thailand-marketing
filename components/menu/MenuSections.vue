@@ -2,7 +2,7 @@
   <section class="xl:pt-[111px] pt-[38px] md:pb-0 pb-[100px]">
     <div class="xl:max-w-[1170px] max-w-full mx-auto w-full md:px-5 px-0">
       <div v-if="weekText" class="text-center xl:pb-[120px] lg:pb-[60px] pb-11">
-        <span class="text-white text-center lg:text-base text-xs font-medium leading-normal bg-orange-600 h-[34px] lg:h-10 px-3.5 lg:px-4 inline-flex items-center justify-center mb-[14px] lg:mb-7">{{ weekText }}</span>
+        <span class="text-white text-center lg:text-base text-xs font-medium leading-normal bg-red-600 h-[34px] lg:h-10 px-3.5 lg:px-4 inline-flex items-center justify-center mb-[14px] lg:mb-7">{{ weekText }}</span>
         <h1 class="text-black text-center xl:text-[76px] lg:text-[56px] text-[38px] leading-10 lg:leading-[70px] font-extrabold xl:leading-[76px]">{{ title }}</h1>
       </div>
       <div

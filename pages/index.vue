@@ -6,10 +6,7 @@
       :title="title"
       :sections="menuSections"
     />
-
     <buy-on-amazon />
-
-    <default-footer />
   </div>
 </template>
 

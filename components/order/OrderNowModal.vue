@@ -15,18 +15,66 @@
           <h2 class="text-xl font-bold mb-4 text-center">Order</h2>
   
           <!-- Order options -->
-          <ul class="space-y-4 text-center">
+          <ul class="space-y-4 text-center px-12">
             <li>
-              <a href="https://squareup.com" target="_blank" class="block bg-black text-white py-2 px-4 rounded-lg">Order with Square</a>
+                <a href="https://www.squareup.com" target="_blank" class="outline outline-2 block text-black py-4 px-6 rounded-lg">
+                    <div class="flex items-center justify-between w-full">
+                        <div class="flex-1 flex items-center">
+                           
+                        </div>
+                        <div class="flex-1 flex items-center justify-center">
+                            <img src="~/assets/images/square.svg" class="w-32" alt="Square logo" />
+                        </div>
+                        <div class="flex-1 flex justify-end">
+                            <img src="~/assets/images/arrow-right.svg" class="w-8" alt="Right arrow" />
+                        </div>
+                    </div>
+                </a>
             </li>
             <li>
-              <a href="https://www.doordash.com" target="_blank" class="block bg-black text-white py-2 px-4 rounded-lg">Order with DoorDash</a>
+                <a href="https://www.doordash.com" target="_blank" class="outline outline-2 block text-black py-4 px-6 rounded-lg">
+                    <div class="flex items-center justify-between w-full">
+                        <div class="flex-1 flex items-center">
+                           
+                        </div>
+                        <div class="flex-1 flex items-center justify-center">
+                            <img src="~/assets/images/doordash.svg" class="w-40" alt="DoorDash logo" />
+                        </div>
+                        <div class="flex-1 flex justify-end">
+                            <img src="~/assets/images/arrow-right.svg" class="w-8" alt="Right arrow" />
+                        </div>
+                    </div>
+                </a>
             </li>
             <li>
-              <a href="https://www.grubhub.com" target="_blank" class="block bg-black text-white py-2 px-4 rounded-lg">Order with Grubhub</a>
+                <a href="https://www.grubhub.com" target="_blank" class="outline outline-2 block text-black py-4 px-6 rounded-lg">
+                    <div class="flex items-center justify-between w-full">
+                        <div class="flex-1 flex items-center">
+                           
+                        </div>
+                        <div class="flex-1 flex items-center justify-center">
+                            <img src="~/assets/images/grubhub.png" class="w-40" alt="Grubhub logo" />
+                        </div>
+                        <div class="flex-1 flex justify-end">
+                            <img src="~/assets/images/arrow-right.svg" class="w-8" alt="Right arrow" />
+                        </div>
+                    </div>
+                </a>
             </li>
             <li>
-              <a href="https://www.ubereats.com" target="_blank" class="block bg-black text-white py-2 px-4 rounded-lg">Order with Uber Eats</a>
+                <a href="https://www.ubereats.com" target="_blank" class="outline outline-2 block text-black py-4 px-6 rounded-lg">
+                    <div class="flex items-center justify-between w-full">
+                        <div class="flex-1 flex items-center">
+                           
+                        </div>
+                        <div class="flex-1 flex items-center justify-center">
+                            <img src="~/assets/images/ubereats.svg" class="w-40" alt="Uber Eats logo" />
+                        </div>
+                        <div class="flex-1 flex justify-end">
+                            <img src="~/assets/images/arrow-right.svg" class="w-8" alt="Right arrow" />
+                        </div>
+                    </div>
+                </a>
             </li>
           </ul>
   
