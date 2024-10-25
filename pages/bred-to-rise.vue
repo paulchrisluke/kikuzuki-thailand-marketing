@@ -23,16 +23,11 @@
       </div>
 
       <div class="mx-auto prose lg:prose-xl px-4 sm:px-8 py-10 sm:py-20 max-w-7xl">
-        <div class="lg:hidden mb-8">
-          <img src="~/assets/images/initiative-min.png" alt="Initiative" class="w-full h-auto object-contain" />
-        </div>
-        <h2 class="text-2xl sm:text-3xl lg:text-4xl mb-6">Community Uprising Initiative</h2>
+        <h2 class="text-2xl sm:text-3xl lg:text-4xl mb-6">Breaking Bread: Where Community and Change Meet</h2>
         <div class="flex flex-col lg:flex-row items-start">
           <div class="flex-1 lg:pr-8 w-full lg:w-2/3">
-            <p class="text-base sm:text-lg"> At <strong> Bred to Rise</strong>, we focus on empowering local communities by providing the tools and resources 
-                  needed for personal transformation. Whether it's through healthy meals, fitness programs, or 
-                  mental wellness workshops, we aim to uplift individuals facing challenges such as mental health 
-                  struggles, addiction recovery, or life after incarceration.</p>
+            <p class="text-base sm:text-lg"> <strong> Bred to Rise</strong>, we believe that true transformation begins with connection. Just like the act of breaking bread brings people together,
+               our programs foster unity and mutual support. Whether you're sharing a meal, participating in a fitness class, or attending a wellness workshop, every interaction strengthens the fabric of our community. We aim to uplift individuals facing challenges such as mental health struggles, addiction recovery, or life after incarceration.</p>
             <p class="text-base sm:text-lg">Our community partners—including gyms, bakeries, schools, and wellness centers—play a vital role 
               in delivering our programs. Together, we build environments where people can rise stronger, one step at a time. 
               To connect with a Bred to Rise program or explore ways to support our efforts, click below.</p> 
@@ -42,7 +37,7 @@
               </button>
             </div>
           </div>
-          <div class="flex-shrink-0 mt-8 lg:mt-0 lg:ml-12 w-full lg:w-1/3 hidden lg:block">
+          <div class="flex-shrink-0 mt-8 lg:mt-0 lg:ml-12 w-full lg:w-1/3">
             <img src="~/assets/images/initiative-min.png" alt="Initiative" class="w-full h-auto object-contain" />
           </div>
         </div>
