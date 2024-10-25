@@ -28,9 +28,9 @@
           <div class="flex-1 lg:pr-8 w-full lg:w-2/3">
             <p class="text-base sm:text-lg"> At <strong> Bred to Rise</strong>, we believe that true transformation begins with connection. Just like the act of <i>breaking bread</i> brings people together,
                our programs foster unity and mutual support. Whether you're sharing a meal, participating in a fitness class, or attending a wellness workshop, every interaction strengthens the fabric of our community. We aim to uplift individuals facing challenges such as mental health struggles, addiction recovery, or life after incarceration.</p>
-            <p class="text-base sm:text-lg">Our community partners—including gyms, bakeries, schools, and wellness centers—play a vital role 
+            <p class="text-base sm:text-lg">Our community partners— including gyms, bakeries, schools, and wellness centers—play a vital role 
               in delivering our programs. Together, we build environments where people can rise stronger, one step at a time. 
-              To connect with a Bred to Rise program or explore ways to support our efforts, click below.</p> 
+              To connect with a Bred to Rise program or explore ways to support our efforts, please click below.</p> 
             <div class="mt-8 mb-8 lg:mb-0">
               <button class="bg-black text-white px-6 sm:px-8 py-3 sm:py-4 rounded-full text-base sm:text-lg font-bold hover:bg-gray-800 transition duration-300">
                 Inquire
