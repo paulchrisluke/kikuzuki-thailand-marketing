@@ -36,9 +36,9 @@
                       Each creation honors Japanese tradition with a modern twist, always offering something new to enjoy.
                     </p>
                   </div>
-                  <a href="#"
+                  <!-- <a href="#"
                     class="text-black text-[16px] font-semibold leading-[18px] rounded-full bg-white px-8 h-[50px] inline-flex items-center justify-center border gap-1.5 border-transparent">Buy
-                    on <span class="mt-[7px]"><img src="~/assets/images/amazon.svg" alt=""></span></a>
+                    on <span class="mt-[7px]"><img src="~/assets/images/amazon.svg" alt=""></span></a> -->
                 </div>
               </div>
               <div class="md:w-2/5">

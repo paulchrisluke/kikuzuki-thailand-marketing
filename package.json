@@ -10,9 +10,10 @@
     "postinstall": "nuxt prepare"
   },
   "devDependencies": {
-    "nuxt": "^3.13.2",
     "@tailwindcss/typography": "^0.5.15",
     "autoprefixer": "^10.4.20",
+    "nuxt": "^3.13.2",
+    "nuxt-gtag": "3.0.2",
     "postcss": "^8.4.47",
     "tailwindcss": "^3.4.14",
     "vue": "latest",

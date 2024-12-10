@@ -1,6 +1,10 @@
 // https://nuxt.com/docs/api/configuration/nuxt-config
 export default defineNuxtConfig({
-
+  modules: ['nuxt-gtag'],
+  gtag: {
+    enabled: process.env.NODE_ENV === 'production',
+    id: 'G-Z18L1Y4G7K'
+  },
   app: {
     head: {
       title: 'Sand-O | Authentic Shokupan Bread',
@@ -25,13 +29,17 @@ export default defineNuxtConfig({
       ]
     },
   },
+
   compatibilityDate: '2024-04-03',
   devtools: { enabled: true },
   css: ['~/assets/css/main.css'],
+
   postcss: {
     plugins: {
       tailwindcss: {},
       autoprefixer: {},
     },
-  }
+  },
+
+  modules: ['nuxt-gtag']
 })

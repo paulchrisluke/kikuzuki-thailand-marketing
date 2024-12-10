@@ -24,7 +24,7 @@ definePageMeta({
   layout: 'home'
 })
 
-const weekText = "Week of Oct 14-21"
+const weekText = "Week of Dec 09-15 (rotating sandos)"
 const title = "Featured Flavors"
 const menuSections = [
   {
