@@ -42,7 +42,7 @@ const menuSections = [
   {
     id: "Potato",
     title: "Potato Korokke Katsu",
-    description: "Our Egg Salad sandwich is a classic comfort food made with creamy, perfectly seasoned egg salad on your choice of bread. It's topped with crisp lettuce and served with a side of pickles for a satisfying meal.",
+    description: "Our potato sandwich is a classic comfort food made with creamy, perfectly seasoned egg salad on your choice of bread. It's topped with crisp lettuce and served with a side of pickles for a satisfying meal.",
     image: images['potato-katsu']
   },
   {
