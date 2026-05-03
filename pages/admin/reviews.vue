@@ -1,9 +1,8 @@
 <template>
-  <main class="min-h-screen bg-white">
-    <section class="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
-      <div class="flex flex-col gap-6 border-b border-gray-200 pb-8 lg:flex-row lg:items-end lg:justify-between">
-        <div>
-          <p class="text-sm font-medium text-gray-500">Admin</p>
+  <div>
+    <div class="flex flex-col gap-6 border-b border-gray-200 pb-8 lg:flex-row lg:items-end lg:justify-between">
+      <div>
+        <p class="text-sm font-medium text-gray-500">Admin</p>
           <h1 class="mt-2 text-3xl font-semibold text-gray-900">Review Moderation</h1>
           <p class="mt-3 max-w-2xl text-sm leading-6 text-gray-600">
             Approve guest reviews before they appear on menu detail pages and in review schema.
@@ -194,11 +193,11 @@
           </article>
         </div>
       </section>
-    </section>
-  </main>
-</template>
+    </div>
+  </template>
 
 <script setup>
+definePageMeta({ layout: 'admin' })
 import { menuData } from '~/data/menu'
 
 const tokenStorageKey = 'kikuzuki-reviews-admin-token'
