@@ -6,6 +6,19 @@
       :title="title"
       :sections="menuSections"
     />
+    <!-- View Full Menu CTA -->
+    <div class="bg-black text-white py-16 px-4 text-center">
+      <div class="max-w-4xl mx-auto">
+        <h2 class="text-3xl md:text-4xl font-bold mb-4">Discover Our Full Menu</h2>
+        <p class="text-lg mb-8 opacity-90">Explore our complete selection of authentic Japanese robatayaki dishes</p>
+        <NuxtLink 
+          to="/menu" 
+          class="inline-block bg-white text-black px-8 py-4 rounded-full font-semibold text-lg hover:bg-gray-200 transition-colors"
+        >
+          View Full Menu →
+        </NuxtLink>
+      </div>
+    </div>
     <buy-on-amazon />
   </div>
 </template>
@@ -39,6 +52,42 @@ useSeoMeta({
   twitterImage: '/og-image.jpg'
 })
 
+useSchemaOrg([
+  {
+    '@type': 'Restaurant',
+    name: 'Take Me Away by KIKUZUKI',
+    description: 'Authentic Japanese robatayaki izakaya in Krabi, Thailand offering fresh ingredients and traditional flavors',
+    url: 'https://www.kikuzuki-thailand.com',
+    telephone: '+66-76-XXX-XXXX',
+    email: 'info@kikuzuki-thailand.com',
+    address: {
+      '@type': 'PostalAddress',
+      streetAddress: 'Southern Thailand',
+      addressLocality: 'Krabi',
+      addressRegion: 'Krabi Province',
+      postalCode: '81000',
+      addressCountry: 'TH'
+    },
+    geo: {
+      '@type': 'GeoCoordinates',
+      latitude: 8.0572977,
+      longitude: 98.7493211
+    },
+    openingHoursSpecification: [{
+      '@type': 'OpeningHoursSpecification',
+      dayOfWeek: ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'],
+      opens: '10:00',
+      closes: '22:00'
+    }],
+    priceRange: '$$',
+    servesCuisine: ['Japanese', 'Robatayaki', 'Izakaya'],
+    hasMap: 'https://maps.app.goo.gl/2KJfCAfH1idnRBqz6',
+    sameAs: [
+      'https://www.facebook.com/kikuzuki-thailand',
+      'https://www.instagram.com/kikuzuki-thailand'
+    ]
+  }
+])
 
 const weekText = "Week of Dec 09-15 (rotating sandos)"
 const title = "Featured Flavors"
