@@ -30,14 +30,7 @@
       show-view-more
     />
 
-    <!-- Q&A Preview -->
-    <RestaurantQA
-      :qa="googleBusiness.qa"
-      :limit="2"
-      show-view-more
-      bg="gray"
-      description="Frequently asked questions from our guests"
-    />
+    <!-- Q&A: available when GBP API quota approved -->
 
     <!-- About teaser -->
     <RestaurantAbout
@@ -59,7 +52,9 @@
         <div v-for="(media, index) in googleBusiness.media.slice(0, 4)" :key="media.name" class="aspect-square overflow-hidden rounded-2xl shadow-sm">
           <img :src="media.googleUrl" :alt="media.description || 'KIKUZUKI'" class="w-full h-full object-cover hover:scale-110 transition-transform duration-500">
         </div>
-        <div v-if="!googleBusiness.media.length" v-for="i in 4" :key="i" class="aspect-square bg-stone-100 rounded-2xl animate-pulse"></div>
+        <template v-if="!googleBusiness.media.length">
+          <div v-for="i in 4" :key="i" class="aspect-square bg-stone-100 rounded-2xl animate-pulse"></div>
+        </template>
       </div>
     </AppSection>
 
@@ -158,7 +153,6 @@
 </template>
 
 <script setup>
-import { menuData } from '~/data/menu'
 import AppHero from '~/components/ui/AppHero.vue'
 import AppButton from '~/components/ui/AppButton.vue'
 import AppSection from '~/components/ui/AppSection.vue'
@@ -195,7 +189,6 @@ const starRatingMap = {
 // Business data computed properties
 const businessTitle = computed(() => googleBusiness.value?.business?.title || 'Take Me Away by KIKUZUKI')
 const businessSubtitle = computed(() => googleBusiness.value?.business?.profile?.description || 'Authentic Japanese Robatayaki Experience in Krabi')
-const businessDescription = computed(() => googleBusiness.value?.business?.profile?.description || '')
 const businessPrimaryPhoto = computed(() => googleBusiness.value?.media?.[0])
 const businessAddress = computed(() => {
   const addr = googleBusiness.value?.business?.storefrontAddress
@@ -207,7 +200,6 @@ const businessPhone = computed(() => googleBusiness.value?.business?.phoneNumber
 const businessHours = computed(() => getTodayGoogleHours(googleBusiness.value?.business?.regularHours))
 const specialHoursNotice = computed(() => getSpecialHoursNotice(googleBusiness.value?.business?.specialHours))
 const googlePosts = computed(() => googleBusiness.value?.posts || [])
-const latestPosts = computed(() => googlePosts.value.slice(0, 3))
 const businessCoordinates = computed(() => {
   const coords = googleBusiness.value?.business?.latlng
   return coords ? { lat: coords.latitude, lng: coords.longitude } : null
@@ -219,14 +211,6 @@ const googleReviewText = review => typeof review.comment === 'string'
   ? review.comment
   : review.comment?.text ?? ''
 
-const formatDate = (dateString) => {
-  if (!dateString) return ''
-  return new Date(dateString).toLocaleDateString('en-US', {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric'
-  })
-}
 
 const googleReviewSummary = computed(() => {
   const summary = googleBusiness.value?.business?.reviewSummary
@@ -307,33 +291,7 @@ const restaurantStructuredData = computed(() => {
     ]
   }
 
-  // Add Menu Schema if products exist
-  const products = googleBusiness.value?.products || []
-  if (products.length > 0) {
-    schema.hasMenu = {
-      '@type': 'Menu',
-      name: 'KIKUZUKI Menu',
-      mainEntityOfPage: 'https://www.kikuzuki-thailand.com/menu',
-      hasMenuSection: [
-        {
-          '@type': 'MenuSection',
-          name: 'Signature Dishes',
-          hasMenuItem: products.slice(0, 10).map(p => ({
-            '@type': 'MenuItem',
-            name: p.title,
-            description: p.description,
-            offers: p.price ? {
-              '@type': 'Offer',
-              price: p.price.toString(),
-              priceCurrency: 'THB'
-            } : undefined,
-            image: p.media?.[0]?.googleUrl
-          }))
-        }
-      ]
-    }
-  }
-
+  
   if (googleReviewSummary.value) {
     schema.aggregateRating = {
       '@type': 'AggregateRating',

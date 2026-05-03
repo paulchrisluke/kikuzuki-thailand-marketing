@@ -78,13 +78,12 @@
 <script setup>
 import AppHero from '~/components/ui/AppHero.vue'
 const { data: googleBusiness } = await useFetch('/api/google-business/public', {
+  key: 'google-business-public',
   default: () => ({
     business: null,
     reviews: [],
     media: [],
     posts: [],
-    products: [],
-    qa: [],
     errors: [],
     syncedAt: null
   })

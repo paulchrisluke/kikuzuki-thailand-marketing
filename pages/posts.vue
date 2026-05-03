@@ -23,36 +23,12 @@ import AppHero from '~/components/ui/AppHero.vue'
 import RestaurantPosts from '~/components/google/RestaurantPosts.vue'
 
 const { data: googleBusiness } = await useFetch('/api/google-business/public', {
+  key: 'google-business-public',
   default: () => ({
     business: null,
     reviews: [],
     media: [],
-    posts: [
-      {
-        name: 'mock-post-1',
-        title: 'New Seasonal Menu: Autumn Flavors',
-        summary: 'Experience the essence of autumn with our newly launched seasonal dishes. From grilled mushrooms to slow-cooked wagyu, discover the rich flavors of the harvest season.',
-        createTime: '2024-03-15T10:00:00Z',
-        media: [{ googleUrl: '/images/menu/steak.png' }]
-      },
-      {
-        name: 'mock-post-2',
-        title: 'Songkran Festival Celebration',
-        summary: 'Join us for a special robatayaki feast during the Songkran holidays! We will be serving traditional favorites with a modern Japanese twist.',
-        createTime: '2024-03-10T14:30:00Z',
-        media: [{ googleUrl: '/images/menu/chicken.png' }],
-        event: { title: 'Songkran Special' }
-      },
-      {
-        name: 'mock-post-3',
-        title: 'Now Open for Lunch!',
-        summary: 'By popular demand, KIKUZUKI is now open for lunch service starting this weekend. Join us for premium bento boxes and light robatayaki sets.',
-        createTime: '2024-03-05T09:15:00Z',
-        media: [{ googleUrl: '/images/menu/egg-salad.png' }]
-      }
-    ],
-    products: [],
-    qa: [],
+    posts: [],
     errors: [],
     syncedAt: null
   })

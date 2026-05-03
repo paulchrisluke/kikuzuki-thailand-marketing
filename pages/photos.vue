@@ -36,56 +36,12 @@
 <script setup>
 import AppHero from '~/components/ui/AppHero.vue'
 const { data: googleBusiness } = await useFetch('/api/google-business/public', {
+  key: 'google-business-public',
   default: () => ({
     business: null,
     reviews: [],
-    media: [
-      {
-        name: 'accounts/123456789/locations/987654321/media/1',
-        googleUrl: '/images/menu/placeholder-food.jpg',
-        description: 'Grilled salmon robatayaki with seasonal vegetables',
-        createTime: '2024-03-15T12:00:00Z',
-        mediaFormat: 'PHOTO'
-      },
-      {
-        name: 'accounts/123456789/locations/987654321/media/2',
-        googleUrl: '/images/menu/placeholder-food.jpg',
-        description: 'Traditional yakitori skewers assortment',
-        createTime: '2024-03-14T18:30:00Z',
-        mediaFormat: 'PHOTO'
-      },
-      {
-        name: 'accounts/123456789/locations/987654321/media/3',
-        googleUrl: '/images/menu/placeholder-food.jpg',
-        description: 'Cozy interior dining area with robatayaki grill',
-        createTime: '2024-03-13T20:15:00Z',
-        mediaFormat: 'PHOTO'
-      },
-      {
-        name: 'accounts/123456789/locations/987654321/media/4',
-        googleUrl: '/images/menu/placeholder-food.jpg',
-        description: 'Fresh seafood selection for grilling',
-        createTime: '2024-03-12T16:45:00Z',
-        mediaFormat: 'PHOTO'
-      },
-      {
-        name: 'accounts/123456789/locations/987654321/media/5',
-        googleUrl: '/images/menu/placeholder-food.jpg',
-        description: 'Exterior view of KIKUZUKI restaurant at night',
-        createTime: '2024-03-11T19:00:00Z',
-        mediaFormat: 'PHOTO'
-      },
-      {
-        name: 'accounts/123456789/locations/987654321/media/6',
-        googleUrl: '/images/menu/placeholder-food.jpg',
-        description: 'Chef preparing robatayaki over charcoal flame',
-        createTime: '2024-03-10T17:30:00Z',
-        mediaFormat: 'PHOTO'
-      }
-    ],
+    media: [],
     posts: [],
-    products: [],
-    qa: [],
     errors: [],
     syncedAt: null
   })

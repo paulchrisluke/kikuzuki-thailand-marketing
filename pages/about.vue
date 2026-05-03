@@ -55,13 +55,12 @@ import RestaurantAbout from '~/components/google/RestaurantAbout.vue'
 import AppSection from '~/components/ui/AppSection.vue'
 
 const { data: googleBusiness } = await useFetch('/api/google-business/public', {
+  key: 'google-business-public',
   default: () => ({
     business: null,
     reviews: [],
     media: [],
     posts: [],
-    products: [],
-    qa: [],
     errors: [],
     syncedAt: null
   })
