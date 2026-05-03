@@ -138,5 +138,23 @@ export default defineNuxtConfig({
         'https://www.instagram.com/kikuzuki-thailand'
       ]
     }
+  },
+
+  // Nitro configuration for Cloudflare deployment
+  nitro: {
+    preset: 'cloudflare-module',
+    cloudflare: {
+      deployConfig: true,
+      wrangler: {
+        name: 'kikuzuki-thailand-marketing',
+        d1_databases: [
+          {
+            binding: 'REVIEWS_DB',
+            database_name: 'kikuzuki-reviews',
+            database_id: '57cc9c44-1a23-41c3-8ec9-6b404c12ca2c'
+          }
+        ]
+      }
+    }
   }
 })
