@@ -5,10 +5,26 @@ export interface MenuItem {
   price: number
   priceCurrency: string
   image: string
+  images?: string[]
   available: boolean
   slug: string
   allergens: string[]
+  ingredients?: string[]
+  dietaryNotes?: string[]
+  preparation?: string
+  servingNote?: string
+  reviews?: MenuReview[]
   featured: boolean
+}
+
+export interface MenuReview {
+  id: string
+  author: string
+  title: string
+  rating: number
+  content: string
+  date: string
+  datetime: string
 }
 
 export interface MenuSection {
