@@ -44,3 +44,19 @@
       </div>
     </article>
 </template>
+
+<script setup>
+useSeoMeta({
+  title: 'Bred to Rise - Community Initiative | Take Me Away by KIKUZUKI',
+  description: 'Bred to Rise is a non-profit initiative supporting mental wellness, nutrition, and personal development in Thailand. Learn about our community programs and how we help individuals rise to their full potential.',
+  ogTitle: 'Bred to Rise - Community Initiative | Take Me Away by KIKUZUKI',
+  ogDescription: 'Supporting communities through mental wellness, nutrition, and personal development programs in southern Thailand.',
+  ogImage: '/og-image.jpg',
+  ogUrl: 'https://www.kikuzuki-thailand.com/about',
+  ogType: 'website',
+  twitterCard: 'summary_large_image',
+  twitterTitle: 'Bred to Rise - Community Initiative',
+  twitterDescription: 'Non-profit initiative supporting mental wellness and personal development in Thailand.',
+  twitterImage: '/og-image.jpg'
+})
+</script>

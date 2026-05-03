@@ -7,20 +7,12 @@ export default defineNuxtConfig({
   
   app: {
     head: {
-      title: 'Take Me Away by KIKUZUKI | Authentic Thai Cuisine',
       htmlAttrs: {
         lang: 'en',
       },
       meta: [
         { charset: 'utf-8' },
         { name: 'viewport', content: 'width=device-width, initial-scale=1' },
-        { property: 'og:title', content: 'Take Me Away by KIKUZUKI | Authentic Thai Cuisine' },
-        { property: 'og:description', content: 'Experience authentic Thai cuisine at Take Me Away by KIKUZUKI. Fresh ingredients, traditional flavors, and unforgettable dining experience in southern Thailand.' },
-        { property: 'og:image', content: '/og-image.jpg' },
-        { property: 'og:video', content: '/og-video.mp4' },
-        { property: 'og:url', content: 'https://www.kikuzuki-thailand.com' },
-        { property: 'og:type', content: 'website' },
-        { property: 'og:site_name', content: 'Take Me Away by KIKUZUKI' },
         { name: 'theme-color', content: '#000000' }
       ],
       link: [
@@ -44,8 +36,8 @@ export default defineNuxtConfig({
   // SEO Configuration
   site: {
     url: 'https://www.kikuzuki-thailand.com',
-    name: 'Take Me Away by KIKUZUKI | Authentic Thai Cuisine',
-    description: 'Experience authentic Thai cuisine at Take Me Away by KIKUZUKI. Fresh ingredients, traditional flavors, and unforgettable dining experience in southern Thailand.',
+    name: 'Take Me Away by KIKUZUKI | Japanese Robatayaki Izakaya',
+    description: 'Experience authentic Japanese robatayaki at Take Me Away by KIKUZUKI in Krabi, Thailand. Fresh ingredients, traditional flavors, and unforgettable dining experience in southern Thailand.',
     defaultLocale: 'en',
   },
 
@@ -99,7 +91,7 @@ export default defineNuxtConfig({
     identity: {
       type: 'Restaurant',
       name: 'Take Me Away by KIKUZUKI',
-      description: 'Authentic Thai cuisine restaurant in southern Thailand offering fresh ingredients and traditional flavors',
+      description: 'Authentic Japanese robatayaki izakaya in Krabi, Thailand offering fresh ingredients and traditional flavors',
       url: 'https://www.kikuzuki-thailand.com',
       logo: '/og-image.jpg',
       image: '/og-image.jpg',
@@ -111,14 +103,19 @@ export default defineNuxtConfig({
         addressCountry: 'TH'
       },
       geo: {
-        latitude: 8.0573,
-        longitude: 98.7445
+        latitude: 8.0572977,
+        longitude: 98.7493211
       },
       telephone: '+66-76-XXX-XXXX',
       email: 'info@kikuzuki-thailand.com',
-      openingHours: 'Mo-Su 10:00-22:00',
+      openingHoursSpecification: [{
+        dayOfWeek: ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'],
+        opens: '10:00',
+        closes: '22:00'
+      }],
       priceRange: '$$',
-      servesCuisine: 'Thai',
+      servesCuisine: ['Japanese', 'Robatayaki', 'Izakaya'],
+      hasMap: 'https://maps.app.goo.gl/2KJfCAfH1idnRBqz6',
       sameAs: [
         'https://www.facebook.com/kikuzuki-thailand',
         'https://www.instagram.com/kikuzuki-thailand'

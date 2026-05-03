@@ -84,3 +84,19 @@
         </p>
 </article>
 </template>
+
+<script setup>
+useSeoMeta({
+  title: 'Privacy Policy | Take Me Away by KIKUZUKI',
+  description: 'Privacy Policy for Take Me Away by KIKUZUKI. Learn how we collect, use, and protect your personal information when you interact with our restaurant website and services in Thailand.',
+  ogTitle: 'Privacy Policy | Take Me Away by KIKUZUKI',
+  ogDescription: 'Our commitment to protecting your privacy and personal data when dining with us in southern Thailand.',
+  ogImage: '/og-image.jpg',
+  ogUrl: 'https://www.kikuzuki-thailand.com/privacy-policy',
+  ogType: 'website',
+  twitterCard: 'summary',
+  twitterTitle: 'Privacy Policy - Take Me Away by KIKUZUKI',
+  twitterDescription: 'How we protect your privacy and personal information at our Thai restaurant.',
+  twitterImage: '/og-image.jpg'
+})
+</script>

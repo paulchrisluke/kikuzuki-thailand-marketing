@@ -66,3 +66,19 @@
        </p>
 </article>
 </template>
+
+<script setup>
+useSeoMeta({
+  title: 'Terms and Conditions | Take Me Away by KIKUZUKI',
+  description: 'Terms and Conditions for Take Me Away by KIKUZUKI. Read our terms of service for ordering, delivery, payments, and using our Thai restaurant website and services.',
+  ogTitle: 'Terms and Conditions | Take Me Away by KIKUZUKI',
+  ogDescription: 'Our terms of service for dining, delivery, and online orders at our authentic Thai restaurant in southern Thailand.',
+  ogImage: '/og-image.jpg',
+  ogUrl: 'https://www.kikuzuki-thailand.com/terms-and-conditions',
+  ogType: 'website',
+  twitterCard: 'summary',
+  twitterTitle: 'Terms and Conditions - Take Me Away by KIKUZUKI',
+  twitterDescription: 'Terms of service for our Thai restaurant and online ordering platform.',
+  twitterImage: '/og-image.jpg'
+})
+</script>

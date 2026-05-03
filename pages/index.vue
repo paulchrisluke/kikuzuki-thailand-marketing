@@ -24,6 +24,22 @@ definePageMeta({
   layout: 'home'
 })
 
+// SEO Meta for home page
+useSeoMeta({
+  title: 'Take Me Away by KIKUZUKI | Japanese Robatayaki Izakaya in Krabi',
+  description: 'Experience authentic Japanese robatayaki at Take Me Away by KIKUZUKI in Krabi, Thailand. Fresh ingredients, traditional flavors, and unforgettable dining experience in southern Thailand.',
+  ogTitle: 'Take Me Away by KIKUZUKI | Japanese Robatayaki Izakaya in Krabi',
+  ogDescription: 'Authentic Japanese robatayaki izakaya in Krabi, Thailand. Fresh ingredients, traditional flavors, and unforgettable dining experience.',
+  ogImage: '/og-image.jpg',
+  ogUrl: 'https://www.kikuzuki-thailand.com',
+  ogType: 'website',
+  twitterCard: 'summary_large_image',
+  twitterTitle: 'Take Me Away by KIKUZUKI - Japanese Robatayaki Izakaya',
+  twitterDescription: 'Experience authentic Japanese robatayaki in beautiful Krabi, Thailand.',
+  twitterImage: '/og-image.jpg'
+})
+
+
 const weekText = "Week of Dec 09-15 (rotating sandos)"
 const title = "Featured Flavors"
 const menuSections = [
