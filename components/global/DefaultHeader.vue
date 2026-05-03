@@ -1,94 +1,99 @@
 <template>
   <header class="bg-black text-white sticky top-0 z-50">
     <div class="container mx-auto px-4">
-      <nav class="flex justify-between items-center h-16">
-        <!-- Logo -->
-        <NuxtLink to="/" class="inline-flex items-center">
-          <img src="~/assets/images/brand.svg" alt="Take Me Away by KIKUZUKI" class="h-8" />
-        </NuxtLink>
+      <nav class="flex items-center h-16">
+        <!-- Left: Logo -->
+        <div class="flex-1 flex items-center">
+          <NuxtLink to="/" class="inline-flex items-center">
+            <img src="~/assets/images/brand.svg" alt="Take Me Away by KIKUZUKI" class="h-8" />
+          </NuxtLink>
+        </div>
 
-        <!-- Desktop Navigation -->
-        <div class="hidden md:flex items-center gap-8">
+        <!-- Center: Desktop Navigation -->
+        <div class="hidden md:flex items-center justify-center gap-10">
           <NuxtLink
             v-for="link in navLinks"
             :key="link.to"
             :to="link.to"
-            class="text-white/80 hover:text-white transition-colors font-medium"
+            class="text-white/80 hover:text-white transition-colors font-medium text-sm tracking-wide"
             active-class="text-white"
           >
             {{ link.label }}
           </NuxtLink>
         </div>
 
-        <!-- Right side: language switcher + reserve CTA -->
-        <div class="hidden md:flex items-center gap-4">
-          <!-- Language switcher dropdown -->
-          <div class="relative" @click.stop>
-            <button
-              @click="languageDropdownOpen = !languageDropdownOpen"
-              class="flex items-center gap-2 text-xs font-medium text-white/80 hover:text-white transition-colors px-2 py-1 rounded"
-            >
-              <span>{{ getCurrentLocaleFlag() }}</span>
-              <span>{{ currentLocale.toUpperCase() }}</span>
-              <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
-              </svg>
-            </button>
-            
-            <!-- Dropdown menu -->
-            <Transition
-              enter-active-class="transition-all duration-200 ease-out"
-              enter-from-class="opacity-0 scale-95"
-              enter-to-class="opacity-100 scale-100"
-              leave-active-class="transition-all duration-150 ease-in"
-              leave-from-class="opacity-100 scale-100"
-              leave-to-class="opacity-0 scale-95"
-            >
-              <div
-                v-if="languageDropdownOpen"
-                class="absolute top-full right-0 mt-2 bg-white rounded-lg shadow-lg border border-gray-200 py-2 min-w-[120px]"
-                @click.stop
+        <!-- Right side: language switcher + reserve CTA + mobile hamburger -->
+        <div class="flex-1 flex items-center justify-end gap-4">
+          <!-- Desktop side CTAs -->
+          <div class="hidden md:flex items-center gap-6">
+            <!-- Language switcher dropdown -->
+            <div class="relative" @click.stop>
+              <button
+                @click="languageDropdownOpen = !languageDropdownOpen"
+                class="flex items-center gap-2 text-[10px] font-bold text-white/60 hover:text-white transition-colors px-2 py-1 rounded uppercase tracking-widest"
               >
-                <button
-                  v-for="locale in availableLocales"
-                  :key="locale.code"
-                  @click="switchLocale(locale.code); languageDropdownOpen = false"
-                  class="flex items-center gap-2 w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors"
-                  :class="{ 'bg-gray-100': currentLocale === locale.code }"
+                <span>{{ getCurrentLocaleFlag() }}</span>
+                <span>{{ currentLocale }}</span>
+                <svg class="w-3 h-3 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+                </svg>
+              </button>
+              
+              <!-- Dropdown menu -->
+              <Transition
+                enter-active-class="transition-all duration-200 ease-out"
+                enter-from-class="opacity-0 scale-95"
+                enter-to-class="opacity-100 scale-100"
+                leave-active-class="transition-all duration-150 ease-in"
+                leave-from-class="opacity-100 scale-100"
+                leave-to-class="opacity-0 scale-95"
+              >
+                <div
+                  v-if="languageDropdownOpen"
+                  class="absolute top-full right-0 mt-2 bg-stone-900 rounded-lg shadow-2xl border border-white/10 py-2 min-w-[140px]"
+                  @click.stop
                 >
-                  <span>{{ getLocaleFlag(locale.code) }}</span>
-                  <span>{{ locale.name }}</span>
-                </button>
-              </div>
-            </Transition>
+                  <button
+                    v-for="locale in availableLocales"
+                    :key="locale.code"
+                    @click="switchLocale(locale.code); languageDropdownOpen = false"
+                    class="flex items-center gap-3 w-full px-4 py-2 text-xs text-white/70 hover:text-white hover:bg-white/5 transition-colors"
+                    :class="{ 'text-white bg-white/10 font-bold': currentLocale === locale.code }"
+                  >
+                    <span class="text-base">{{ getLocaleFlag(locale.code) }}</span>
+                    <span>{{ locale.name }}</span>
+                  </button>
+                </div>
+              </Transition>
+            </div>
+            <!-- Reserve CTA -->
+            <NuxtLink
+              to="/reservations"
+              class="text-xs font-bold text-black bg-white px-8 h-9 flex items-center rounded-full hover:bg-stone-200 transition-colors uppercase tracking-wider"
+            >
+              Reserve
+            </NuxtLink>
           </div>
-          <!-- Reserve CTA -->
-          <NuxtLink
-            to="/reservations"
-            class="text-sm font-semibold text-black bg-white px-6 h-10 flex items-center rounded-full hover:bg-white/90 transition-colors"
-          >
-            Reserve
-          </NuxtLink>
-        </div>
 
-        <!-- Mobile hamburger -->
-        <button
-          @click="mobileOpen = !mobileOpen"
-          class="md:hidden flex flex-col gap-1.5 p-2"
-          :aria-expanded="mobileOpen"
-          aria-label="Toggle navigation"
-        >
-          <span
-            v-for="i in 3"
-            :key="i"
-            class="block w-6 h-0.5 bg-white transition-all duration-300"
-            :class="{
-              'translate-y-2 rotate-45': i === 1 && mobileOpen,
-              'opacity-0': i === 2 && mobileOpen,
-              '-translate-y-2 -rotate-45': i === 3 && mobileOpen
-            }"
-          />
-        </button>
+          <!-- Mobile hamburger -->
+          <button
+            @click="mobileOpen = !mobileOpen"
+            class="md:hidden flex flex-col gap-1.5 p-2"
+            :aria-expanded="mobileOpen"
+            aria-label="Toggle navigation"
+          >
+            <span
+              v-for="i in 3"
+              :key="i"
+              class="block w-6 h-0.5 bg-white transition-all duration-300"
+              :class="{
+                'translate-y-2 rotate-45': i === 1 && mobileOpen,
+                'opacity-0': i === 2 && mobileOpen,
+                '-translate-y-2 -rotate-45': i === 3 && mobileOpen
+              }"
+            />
+          </button>
+        </div>
       </nav>
 
       <!-- Mobile menu -->
@@ -193,12 +198,7 @@ onMounted(() => {
 
 const navLinks = [
   { to: '/menu', label: 'Menu' },
-  { to: '/reviews', label: 'Reviews' },
-  { to: '/photos', label: 'Photos' },
-  { to: '/posts', label: 'Posts' },
-  { to: '/qa', label: 'Q&A' },
   { to: '/location', label: 'Location' },
-  { to: '/about', label: 'About' },
   { to: '/contact', label: 'Contact' },
 ]
 

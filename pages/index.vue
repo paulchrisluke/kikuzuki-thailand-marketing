@@ -127,10 +127,10 @@
     </AppSection>
 
     <!-- Contact CTA -->
-    <AppSection bg="black" padding="large">
-      <div class="text-center">
+    <AppSection bg="black" padding="none">
+      <div class="text-center pt-24">
         <h2 class="text-3xl md:text-5xl font-bold text-white mb-6 italic">Ready to Experience KIKUZUKI?</h2>
-        <p class="text-white/60 mb-10 max-w-2xl mx-auto">
+        <p class="text-white/60 mb-10 max-w-2xl mx-auto font-light">
           Whether you're joining us for a casual dinner or a special celebration, we look forward to serving you the finest Japanese cuisine in Krabi.
         </p>
         <div class="flex flex-col md:flex-row items-center justify-center gap-6">

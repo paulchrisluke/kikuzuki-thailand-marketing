@@ -46,6 +46,7 @@ const navLinks = [
   { to: '/admin', label: 'Dashboard' },
   { to: '/admin/reviews', label: 'Reviews' },
   { to: '/admin/connection', label: 'Connection' },
+  { to: '/admin/content', label: 'Content' },
   { to: '/admin/insights', label: 'Insights' },
 ]
 

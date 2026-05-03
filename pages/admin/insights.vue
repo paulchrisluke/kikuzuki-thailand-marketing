@@ -7,25 +7,25 @@
 
     <!-- Stat Cards -->
     <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-      <div class="bg-white rounded-2xl border border-stone-200 p-6">
+      <div class="bg-white rounded-3xl border border-stone-200 p-6">
         <div class="text-sm text-stone-400 mb-2">Total clicks</div>
         <div class="text-2xl font-bold text-gray-900">
           {{ gscData?.totals?.clicks ?? '—' }}
         </div>
       </div>
-      <div class="bg-white rounded-2xl border border-stone-200 p-6">
+      <div class="bg-white rounded-3xl border border-stone-200 p-6">
         <div class="text-sm text-stone-400 mb-2">Total impressions</div>
         <div class="text-2xl font-bold text-gray-900">
           {{ gscData?.totals?.impressions ?? '—' }}
         </div>
       </div>
-      <div class="bg-white rounded-2xl border border-stone-200 p-6">
+      <div class="bg-white rounded-3xl border border-stone-200 p-6">
         <div class="text-sm text-stone-400 mb-2">Average position</div>
         <div class="text-2xl font-bold text-gray-900">
           {{ gscData?.totals?.position ? formatPosition(gscData.totals.position) : '—' }}
         </div>
       </div>
-      <div class="bg-white rounded-2xl border border-stone-200 p-6">
+      <div class="bg-white rounded-3xl border border-stone-200 p-6">
         <div class="text-sm text-stone-400 mb-2">Sessions this week</div>
         <div class="text-2xl font-bold text-gray-900">
           {{ analyticsData?.sessions ?? '—' }}
