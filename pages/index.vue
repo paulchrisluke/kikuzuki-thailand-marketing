@@ -33,6 +33,8 @@
       </div>
     </AppSection>
 
+    <RestaurantReviews />
+
     <!-- About teaser -->
     <AppSection bg="black" padding="default">
       <div class="grid md:grid-cols-2 gap-12 items-center">
@@ -92,6 +94,7 @@ import AppHero from '~/components/ui/AppHero.vue'
 import AppButton from '~/components/ui/AppButton.vue'
 import AppSection from '~/components/ui/AppSection.vue'
 import MenuItemCard from '~/components/menu/MenuItemCard.vue'
+import RestaurantReviews from '~/components/google/RestaurantReviews.vue'
 
 definePageMeta({
   layout: 'home'

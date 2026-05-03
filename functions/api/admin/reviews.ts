@@ -1,4 +1,8 @@
+import { isAdminRequest } from '../../_shared/admin-auth'
+
 interface Env {
+  AUTH_COOKIE_SECRET?: string
+  GOOGLE_ADMIN_EMAILS?: string
   REVIEWS_DB: D1Database
   REVIEWS_ADMIN_TOKEN?: string
 }
@@ -12,16 +16,11 @@ const json = (body: unknown, init: ResponseInit = {}) =>
     }
   })
 
-const isAuthorized = (request: Request, token?: string) => {
-  if (!token) return false
-  return request.headers.get('Authorization') === `Bearer ${token}`
-}
-
 const cleanStatus = (status: string | null) =>
   ['pending', 'approved', 'rejected'].includes(status ?? '') ? status : 'pending'
 
 export const onRequestGet: PagesFunction<Env> = async ({ env, request }) => {
-  if (!isAuthorized(request, env.REVIEWS_ADMIN_TOKEN)) {
+  if (!(await isAdminRequest(request, env))) {
     return json({ error: 'Unauthorized' }, { status: 401 })
   }
 
@@ -48,7 +47,7 @@ export const onRequestGet: PagesFunction<Env> = async ({ env, request }) => {
 }
 
 export const onRequestPatch: PagesFunction<Env> = async ({ env, request }) => {
-  if (!isAuthorized(request, env.REVIEWS_ADMIN_TOKEN)) {
+  if (!(await isAdminRequest(request, env))) {
     return json({ error: 'Unauthorized' }, { status: 401 })
   }
 
