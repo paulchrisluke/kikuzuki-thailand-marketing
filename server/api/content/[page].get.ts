@@ -8,15 +8,7 @@ export default defineEventHandler(async (event) => {
   const env = cloudflareEnv(event)
   const db = env.REVIEWS_DB
 
-  // Handle missing database in development
-  if (!db) {
-    return {
-      content: [
-        { id: '1', page, field: 'hero', content: null, hero_title: 'Take Me Away by KIKUZUKI', hero_subtitle: 'Authentic Japanese Robatayaki Experience in Krabi', hero_video_url: null, updated_at: new Date().toISOString() }
-      ],
-      hasDrafts: false
-    }
-  }
+  if (!env.REVIEWS_DB) throw createError({ statusCode: 503, message: 'Database unavailable' })
 
   const isAdmin = await isAdminRequest(toWebRequest(event), env)
 

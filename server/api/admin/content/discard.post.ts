@@ -14,12 +14,7 @@ export default defineEventHandler(async (event) => {
   }
   const db = env.REVIEWS_DB
 
-  if (!db) {
-    throw createError({ 
-      statusCode: 500, 
-      statusMessage: 'Database not available. Ensure you are running with Wrangler or D1 binding is configured.' 
-    })
-  }
+  if (!env.REVIEWS_DB) throw createError({ statusCode: 503, message: 'Database unavailable' })
 
   if (all) {
     await discardAllDrafts(db)

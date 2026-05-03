@@ -436,23 +436,22 @@ const publishing = ref(false)
 const discardPending = ref(false)
 
 const loadPageContent = async () => {
-  try {
-    const res = await $fetch<{ content: any[]; hasDrafts: boolean }>(
-      `/api/content/${selectedPageId.value}`
-    )
-    const map: Record<string, string> = {}
-    for (const row of res.content || []) {
-      if (row.field === 'hero' && !row.content) {
-        if (row.hero_title)     map['hero.title']    = row.hero_title
-        if (row.hero_subtitle)  map['hero.subtitle'] = row.hero_subtitle
-        if (row.hero_video_url) map['hero.video']    = row.hero_video_url
-        continue
-      }
+  const res = await $fetch<{ content: any[]; hasDrafts: boolean }>(
+    `/api/content/${selectedPageId.value}`
+  )
+  const map: Record<string, string> = {}
+  for (const row of res.content || []) {
+    if (row.field === 'hero') {
+      // Hero fields use dedicated columns
+      if (row.hero_title) map['hero.title'] = row.hero_title
+      if (row.hero_subtitle) map['hero.subtitle'] = row.hero_subtitle
+      if (row.hero_video_url) map['hero.video'] = row.hero_video_url
+    } else {
       map[row.field] = row.content || ''
     }
-    currentValues.value = map
-    serverHasDrafts.value = res.hasDrafts ?? false
-  } catch { /* non-critical */ }
+  }
+  currentValues.value = map
+  serverHasDrafts.value = res.hasDrafts ?? false
 }
 
 // Load on mount

@@ -38,12 +38,7 @@ export default defineEventHandler(async (event) => {
   const env = cloudflareEnv(event)
   const db = env.REVIEWS_DB
 
-  if (!db) {
-    return jsonResponse({
-      ...emptySnapshot,
-      errors: [{ source: 'db', message: 'No snapshot available. Run sync from /admin.' }]
-    })
-  }
+  if (!env.REVIEWS_DB) throw createError({ statusCode: 503, message: 'Database unavailable' })
 
   const row = await db.prepare(
     `SELECT business_json AS businessJson,
