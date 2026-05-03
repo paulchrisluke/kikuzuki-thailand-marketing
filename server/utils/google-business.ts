@@ -138,7 +138,8 @@ export const syncGoogleBusiness = async (env: GoogleBusinessEnv): Promise<Google
     'metadata',
     'priceLevel',
     'labels',
-    'serviceItems'
+    'serviceItems',
+    'openInfo'
   ].join(',')
 
   try {

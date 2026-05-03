@@ -59,8 +59,44 @@ export const getSiteContentField = async (db: D1Database, page: string, field: s
   return result ?? null
 }
 
-export const upsertSiteContent = async (db: D1Database, content: Omit<SiteContent, 'updated_at'>) => {
-  await db.prepare(`
+
+
+// Draft Management
+export const getDraftContent = async (db: D1Database, page: string): Promise<SiteContent[]> => {
+  const { results } = await db.prepare(
+    `SELECT id, page, field, content, hero_title, hero_subtitle, hero_video_url, updated_at 
+     FROM site_content_drafts WHERE page = ? ORDER BY field`
+  ).bind(page).all<SiteContent>()
+  return results ?? []
+}
+
+export const buildUpsertDraftStmt = (db: D1Database, content: Omit<SiteContent, 'updated_at'>) => {
+  return db.prepare(`
+    INSERT INTO site_content_drafts (id, page, field, content, hero_title, hero_subtitle, hero_video_url)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT(page, field) DO UPDATE SET 
+      content = excluded.content,
+      hero_title = excluded.hero_title,
+      hero_subtitle = excluded.hero_subtitle,
+      hero_video_url = excluded.hero_video_url,
+      updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+  `).bind(
+    content.id || crypto.randomUUID(),
+    content.page,
+    content.field,
+    content.content || null,
+    content.hero_title || null,
+    content.hero_subtitle || null,
+    content.hero_video_url || null
+  )
+}
+
+export const upsertDraftContent = async (db: D1Database, content: Omit<SiteContent, 'updated_at'>) => {
+  await buildUpsertDraftStmt(db, content).run()
+}
+
+export const buildUpsertSiteStmt = (db: D1Database, content: Omit<SiteContent, 'updated_at'>) => {
+  return db.prepare(`
     INSERT INTO site_content (id, page, field, content, hero_title, hero_subtitle, hero_video_url)
     VALUES (?, ?, ?, ?, ?, ?, ?)
     ON CONFLICT(page, field) DO UPDATE SET 
@@ -77,7 +113,55 @@ export const upsertSiteContent = async (db: D1Database, content: Omit<SiteConten
     content.hero_title || null,
     content.hero_subtitle || null,
     content.hero_video_url || null
-  ).run()
+  )
+}
+
+export const upsertSiteContent = async (db: D1Database, content: Omit<SiteContent, 'updated_at'>) => {
+  await buildUpsertSiteStmt(db, content).run()
+}
+
+export const publishDrafts = async (db: D1Database, page: string) => {
+  console.log(`[content-management.ts] publishDrafts called for page: ${page}`)
+  const drafts = await getDraftContent(db, page)
+  if (drafts.length === 0) {
+    console.log(`[content-management.ts] No drafts found for page: ${page}, aborting.`)
+    return
+  }
+  
+  const stmts = drafts.map(draft => buildUpsertSiteStmt(db, draft))
+  stmts.push(db.prepare(`DELETE FROM site_content_drafts WHERE page = ?`).bind(page))
+  
+  console.log(`[content-management.ts] Executing db.batch with ${stmts.length} statements for publish...`)
+  await db.batch(stmts)
+  console.log(`[content-management.ts] db.batch completed successfully.`)
+}
+
+export const publishAllDrafts = async (db: D1Database) => {
+  const { results: drafts } = await db.prepare(
+    `SELECT id, page, field, content, hero_title, hero_subtitle, hero_video_url, updated_at FROM site_content_drafts ORDER BY page, field`
+  ).all<SiteContent>()
+  
+  if (!drafts || drafts.length === 0) return
+
+  const stmts = drafts.map(draft => buildUpsertSiteStmt(db, draft))
+  stmts.push(db.prepare(`DELETE FROM site_content_drafts`))
+  
+  await db.batch(stmts)
+}
+
+export const discardDrafts = async (db: D1Database, page: string) => {
+  await db.prepare(`DELETE FROM site_content_drafts WHERE page = ?`).bind(page).run()
+}
+
+export const discardAllDrafts = async (db: D1Database) => {
+  await db.prepare(`DELETE FROM site_content_drafts`).run()
+}
+
+export const getDraftStatus = async (db: D1Database, page?: string): Promise<{ hasDrafts: boolean; count: number }> => {
+  const row = page
+    ? await db.prepare(`SELECT COUNT(*) as count FROM site_content_drafts WHERE page = ?`).bind(page).first<{ count: number }>()
+    : await db.prepare(`SELECT COUNT(*) as count FROM site_content_drafts`).first<{ count: number }>()
+  return { hasDrafts: (row?.count ?? 0) > 0, count: row?.count ?? 0 }
 }
 
 // Staff Profiles
@@ -153,3 +237,4 @@ export const upsertAwardRecognition = async (db: D1Database, award: Omit<AwardRe
 export const deleteAwardRecognition = async (db: D1Database, id: string) => {
   await db.prepare(`DELETE FROM awards_recognition WHERE id = ?`).bind(id).run()
 }
+

@@ -9,8 +9,13 @@
 
     <!-- Photo Gallery -->
     <div class="max-w-6xl mx-auto px-4 py-12">
-      <div v-if="googleMedia.length" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        <div v-for="media in googleMedia" :key="media.name" class="group relative overflow-hidden rounded-lg shadow-lg hover:shadow-xl transition-shadow">
+      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <!-- Real photos -->
+        <div 
+          v-for="media in googleMedia" 
+          :key="media.name" 
+          class="group relative overflow-hidden rounded-lg shadow-lg hover:shadow-xl transition-shadow"
+        >
           <img 
             :src="media.googleUrl" 
             :alt="media.description || 'KIKUZUKI restaurant photo'"
@@ -23,11 +28,13 @@
             </div>
           </div>
         </div>
-      </div>
 
-      <!-- No Photos Placeholder -->
-      <div v-else class="text-center text-gray-400 p-24 bg-stone-50 rounded-3xl border border-dashed border-stone-200">
-        <p class="italic">Our gallery is updated via Google Business Profile. Please check back soon for new photos.</p>
+        <!-- Placeholder cards when no photos -->
+        <template v-if="googleMedia.length === 0">
+          <div v-for="i in 9" :key="`placeholder-${i}`" class="aspect-square bg-stone-100 rounded-lg flex items-center justify-center">
+            <span class="text-stone-300 text-xs font-medium text-center px-4">Photo from<br>Google Business</span>
+          </div>
+        </template>
       </div>
     </div>
   </div>

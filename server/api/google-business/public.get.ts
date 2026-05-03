@@ -18,6 +18,20 @@ const parseJson = (value: string | null) => {
   }
 }
 
+// Extract establishment year from Google Business openInfo
+const extractEstablishmentYear = (business: any): string | null => {
+  if (!business?.openInfo?.openingDate) return null
+  
+  try {
+    // Google Business opening date format: YYYY-MM-DD
+    const openingDate = business.openInfo.openingDate
+    const year = openingDate.split('-')[0]
+    return year && /^\d{4}$/.test(year) ? year : null
+  } catch {
+    return null
+  }
+}
+
 export default defineEventHandler(async (event) => {
   setHeader(event, 'cache-control', 'public, max-age=300') // 5 minutes cache
 
@@ -50,8 +64,14 @@ export default defineEventHandler(async (event) => {
   }
 
   try {
+    const business = parseJson(row.businessJson)
+    const establishmentYear = extractEstablishmentYear(business)
+    
     return {
-      business: parseJson(row.businessJson),
+      business: {
+        ...business,
+        establishmentYear
+      },
       reviews: parseJson(row.reviewsJson) ?? [],
       media: parseJson(row.mediaJson) ?? [],
       posts: parseJson(row.postsJson) ?? [],

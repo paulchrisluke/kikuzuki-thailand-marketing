@@ -1,9 +1,10 @@
 <template>
   <div class="font-poppins overflow-x-hidden">
-    <default-header />
+    <DefaultHeader />
     <main>
       <slot />
     </main>
-    <default-footer />
+    <DefaultFooter />
+    <AppToast />
   </div>
 </template>

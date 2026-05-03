@@ -1,5 +1,5 @@
 <template>
-  <AppSection :bg="bg" :padding="padding" v-if="reviews.length > 0">
+  <AppSection :bg="bg" :padding="padding">
     <div v-if="showTitle" class="flex flex-col gap-4 mb-12 md:flex-row md:items-end md:justify-between border-b border-gray-200 pb-8">
       <div>
         <h2 class="text-base font-semibold text-black tracking-wide uppercase">Guest Experience</h2>
@@ -18,6 +18,7 @@
     </div>
 
     <div :class="['grid gap-8', layoutClass]">
+      <!-- Real reviews -->
       <article
         v-for="review in displayedReviews"
         :key="review.reviewId || review.name || review.createTime"
@@ -53,9 +54,30 @@
           </div>
         </div>
       </article>
+
+      <!-- Placeholder cards when no reviews -->
+      <template v-if="reviews.length === 0">
+        <div v-for="i in (limit || 3)" :key="`placeholder-${i}`" class="flex flex-col rounded-2xl bg-white p-8 shadow-sm border border-gray-100">
+          <div class="flex items-center gap-1 text-yellow-400 mb-4">
+            <span v-for="i in 5" :key="i" class="text-sm">☆</span>
+          </div>
+          <div class="flex-grow space-y-3">
+            <div class="h-3 bg-stone-200 rounded animate-pulse"></div>
+            <div class="h-3 bg-stone-200 rounded animate-pulse w-4/5"></div>
+            <div class="h-3 bg-stone-200 rounded animate-pulse w-3/4"></div>
+          </div>
+          <div class="mt-6 flex items-center gap-3 pt-6 border-t border-gray-50">
+            <div class="h-10 w-10 rounded-full bg-stone-200 animate-pulse"></div>
+            <div class="flex-1">
+              <div class="h-4 bg-stone-200 rounded animate-pulse mb-2"></div>
+              <div class="h-3 bg-stone-200 rounded animate-pulse w-20"></div>
+            </div>
+          </div>
+        </div>
+      </template>
     </div>
     
-    <div v-if="showViewMore" class="mt-12 text-center">
+    <div v-if="showViewMore && reviews.length > 0" class="mt-12 text-center">
       <AppButton to="/reviews" variant="secondary" size="md">
         View All Guest Reviews
       </AppButton>

@@ -1,5 +1,5 @@
 <template>
-  <AppSection :bg="bg" :padding="padding" v-if="posts.length > 0">
+  <AppSection :bg="bg" :padding="padding">
     <div v-if="showTitle" class="flex flex-col gap-4 mb-12 md:flex-row md:items-end md:justify-between border-b border-gray-200 pb-8">
       <div>
         <h2 class="text-base font-semibold text-black tracking-wide uppercase">Latest Updates</h2>
@@ -9,6 +9,7 @@
     </div>
 
     <div :class="['grid gap-8', layoutClass]">
+      <!-- Real posts -->
       <article 
         v-for="post in displayedPosts" 
         :key="post.name" 
@@ -87,18 +88,31 @@
           </AppButton>
         </div>
       </article>
+
+      <!-- Placeholder cards when no posts -->
+      <template v-if="posts.length === 0 && showEmptyState">
+        <div v-for="i in (limit || 3)" :key="`placeholder-${i}`" class="flex flex-col bg-white border border-gray-100 rounded-3xl overflow-hidden">
+          <div class="aspect-[4/5] bg-stone-100 flex items-center justify-center">
+            <span class="text-stone-300 text-xs font-medium text-center px-4">News from<br>Google Business</span>
+          </div>
+          <div class="p-8 flex flex-col flex-grow">
+            <div class="h-3 bg-stone-200 rounded animate-pulse mb-3"></div>
+            <div class="h-6 bg-stone-200 rounded animate-pulse mb-4"></div>
+            <div class="flex-1 space-y-2">
+              <div class="h-3 bg-stone-200 rounded animate-pulse"></div>
+              <div class="h-3 bg-stone-200 rounded animate-pulse w-4/5"></div>
+            </div>
+          </div>
+        </div>
+      </template>
     </div>
 
-    <div v-if="showViewMore && limit" class="mt-12 text-center">
+    <div v-if="showViewMore && limit && posts.length > 0" class="mt-12 text-center">
       <AppButton to="/posts" variant="secondary" size="md">
         View All Updates
       </AppButton>
     </div>
   </AppSection>
-  
-  <div v-else-if="showEmptyState" class="text-center text-gray-400 p-24 bg-stone-50 rounded-3xl border border-dashed border-stone-200 m-4">
-    <p class="italic">Our latest updates are synchronized with Google Business Profile. Please check back soon for news and events.</p>
-  </div>
 </template>
 
 <script setup>

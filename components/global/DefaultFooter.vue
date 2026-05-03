@@ -37,8 +37,8 @@
 
         <!-- Experience Links -->
         <div class="flex flex-col">
-          <h4 class="font-bold text-xs mb-8 uppercase tracking-[0.2em] text-white/30">Experience</h4>
-          <ul class="space-y-4 text-sm text-white/60">
+          <h4 class="font-bold text-xs mb-8 uppercase tracking-[0.2em] text-white/60">Experience</h4>
+          <ul class="space-y-4 text-sm text-white/80">
             <li><NuxtLink to="/menu" class="hover:text-white transition-colors">Menu</NuxtLink></li>
             <li><NuxtLink to="/reservations" class="hover:text-white transition-colors">Reservations</NuxtLink></li>
             <li><NuxtLink to="/photos" class="hover:text-white transition-colors">Gallery</NuxtLink></li>
@@ -48,8 +48,8 @@
 
         <!-- Discover Links -->
         <div class="flex flex-col">
-          <h4 class="font-bold text-xs mb-8 uppercase tracking-[0.2em] text-white/30">Discover</h4>
-          <ul class="space-y-4 text-sm text-white/60">
+          <h4 class="font-bold text-xs mb-8 uppercase tracking-[0.2em] text-white/60">Discover</h4>
+          <ul class="space-y-4 text-sm text-white/80">
             <li><NuxtLink to="/reviews" class="hover:text-white transition-colors">Reviews</NuxtLink></li>
             <li><NuxtLink to="/posts" class="hover:text-white transition-colors">Latest Updates</NuxtLink></li>
             <li><NuxtLink to="/qa" class="hover:text-white transition-colors">Q&A</NuxtLink></li>
@@ -58,8 +58,8 @@
 
         <!-- Connect Links -->
         <div class="flex flex-col">
-          <h4 class="font-bold text-xs mb-8 uppercase tracking-[0.2em] text-white/30">Connect</h4>
-          <ul class="space-y-4 text-sm text-white/60">
+          <h4 class="font-bold text-xs mb-8 uppercase tracking-[0.2em] text-white/60">Connect</h4>
+          <ul class="space-y-4 text-sm text-white/80">
             <li><NuxtLink to="/location" class="hover:text-white transition-colors">Find Us</NuxtLink></li>
             <li><NuxtLink to="/contact" class="hover:text-white transition-colors">Contact Us</NuxtLink></li>
             <li><a href="https://www.instagram.com/kikuzuki-thailand" target="_blank" class="hover:text-white transition-colors">Instagram</a></li>
@@ -69,7 +69,7 @@
       </div>
 
       <!-- Bottom Bar -->
-      <div class="flex flex-col items-center pt-8 border-t border-white/5 text-[9px] uppercase tracking-[0.25em] text-white/20 font-medium">
+      <div class="flex flex-col items-center pt-8 border-t border-white/5 text-[9px] uppercase tracking-[0.25em] text-white/40 font-medium">
         <div class="flex flex-wrap justify-center gap-x-8 gap-y-4 mb-4">
           <NuxtLink to="/privacy-policy" class="hover:text-white transition-colors">Privacy Policy</NuxtLink>
           <NuxtLink to="/terms-and-conditions" class="hover:text-white transition-colors">Terms & Conditions</NuxtLink>

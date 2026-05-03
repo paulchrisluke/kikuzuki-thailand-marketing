@@ -92,6 +92,26 @@ export default defineNuxtConfig({
   sitemap: {},
 
   
+  // Components configuration
+  components: [
+    {
+      path: '~/components/ui',
+      pathPrefix: false,
+    },
+    {
+      path: '~/components/global',
+      pathPrefix: false,
+    },
+    {
+      path: '~/components/google',
+      pathPrefix: false,
+    },
+    {
+      path: '~/components/menu',
+      pathPrefix: false,
+    }
+  ],
+
   // Nitro configuration for Cloudflare deployment
   nitro: {
     preset: 'cloudflare-module',

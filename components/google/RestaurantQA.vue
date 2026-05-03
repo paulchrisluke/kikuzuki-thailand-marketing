@@ -1,5 +1,5 @@
 <template>
-  <AppSection :bg="bg" :padding="padding" v-if="qa.length > 0">
+  <AppSection :bg="bg" :padding="padding">
     <div v-if="showTitle" class="flex flex-col gap-4 mb-12 md:flex-row md:items-end md:justify-between border-b border-gray-200 pb-8">
       <div>
         <h2 class="text-base font-semibold text-black tracking-wide uppercase">Questions & Answers</h2>
@@ -9,6 +9,7 @@
     </div>
 
     <div class="grid gap-6">
+      <!-- Real Q&A items -->
       <div 
         v-for="item in displayedQA" 
         :key="item.name"
@@ -41,18 +42,38 @@
           No answer yet.
         </div>
       </div>
+
+      <!-- Placeholder Q&A cards when no items -->
+      <template v-if="qa.length === 0 && showEmptyState">
+        <div v-for="i in 3" :key="`placeholder-${i}`" class="bg-white border border-gray-100 rounded-3xl p-8 shadow-sm">
+          <div class="flex items-start gap-4 mb-6">
+            <div class="h-10 w-10 shrink-0 rounded-full bg-stone-100 flex items-center justify-center text-stone-300 font-bold text-sm">
+              Q
+            </div>
+            <div class="flex-1">
+              <div class="h-6 bg-stone-200 rounded animate-pulse mb-2"></div>
+              <div class="h-4 bg-stone-200 rounded animate-pulse w-32"></div>
+            </div>
+          </div>
+          <div class="flex items-start gap-4 bg-gray-50 rounded-2xl p-6">
+            <div class="h-8 w-8 shrink-0 rounded-full bg-stone-200 animate-pulse flex items-center justify-center text-white font-bold text-xs">
+              A
+            </div>
+            <div class="flex-1 space-y-2">
+              <div class="h-3 bg-stone-200 rounded animate-pulse"></div>
+              <div class="h-3 bg-stone-200 rounded animate-pulse w-4/5"></div>
+            </div>
+          </div>
+        </div>
+      </template>
     </div>
 
-    <div v-if="showViewMore && limit" class="mt-12 text-center">
+    <div v-if="showViewMore && limit && qa.length > 0" class="mt-12 text-center">
       <AppButton to="/qa" variant="secondary" size="md">
         View All Questions
       </AppButton>
     </div>
   </AppSection>
-
-  <div v-else-if="showEmptyState" class="text-center text-gray-400 p-24 bg-stone-50 rounded-3xl border border-dashed border-stone-200 m-4">
-    <p class="italic">Have a question? Check out our frequently asked questions or contact us directly.</p>
-  </div>
 </template>
 
 <script setup>
