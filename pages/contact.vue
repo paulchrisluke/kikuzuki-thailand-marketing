@@ -123,6 +123,7 @@
 </template>
 
 <script setup>
+import { getTodayGoogleHours, getSchemaOpeningHours } from '~/utils/formatters'
 import AppHero from '~/components/ui/AppHero.vue'
 const { data: googleBusiness } = await useFetch('/api/google-business/public', {
   key: 'google-business-public',
@@ -161,24 +162,21 @@ useSeoMeta({
   twitterImage: '/og-image.jpg'
 })
 
-useSchemaOrg([{
-  '@type': 'Restaurant',
-  name: businessName.value || 'Take Me Away by KIKUZUKI',
-  telephone: businessPhone.value || '+66-76-XXX-XXXX',
-  address: {
-    '@type': 'PostalAddress',
-    streetAddress: businessAddress.value || 'Southern Thailand',
-    addressLocality: googleBusiness.value?.business?.storefrontAddress?.locality || 'Krabi',
-    addressRegion: googleBusiness.value?.business?.storefrontAddress?.administrativeArea || 'Krabi Province',
-    postalCode: googleBusiness.value?.business?.storefrontAddress?.postalCode || '81000',
-    addressCountry: 'TH'
-  },
-  email: 'info@kikuzuki-thailand.com',
-  openingHoursSpecification: [{
-    '@type': 'OpeningHoursSpecification',
-    dayOfWeek: ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'],
-    opens: '10:00',
-    closes: '22:00'
-  }]
-}])
+useSchemaOrg([
+  computed(() => ({
+    '@type': 'Restaurant',
+    name: businessName.value || 'Take Me Away by KIKUZUKI',
+    telephone: businessPhone.value || '+66-76-XXX-XXXX',
+    address: {
+      '@type': 'PostalAddress',
+      streetAddress: businessAddress.value || 'Southern Thailand',
+      addressLocality: googleBusiness.value?.business?.storefrontAddress?.locality || 'Krabi',
+      addressRegion: googleBusiness.value?.business?.storefrontAddress?.administrativeArea || 'Krabi Province',
+      postalCode: googleBusiness.value?.business?.storefrontAddress?.postalCode || '81000',
+      addressCountry: 'TH'
+    },
+    email: 'info@kikuzuki-thailand.com',
+    openingHoursSpecification: getSchemaOpeningHours(googleBusiness.value?.business?.regularHours)
+  }))
+])
 </script>

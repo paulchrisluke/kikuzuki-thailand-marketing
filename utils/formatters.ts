@@ -35,7 +35,14 @@ export const getTodayGoogleHours = (regularHours: any) => {
 }
 
 export const getSchemaOpeningHours = (regularHours: any) => {
-  if (!regularHours || !regularHours.periods) return []
+  if (!regularHours || !regularHours.periods) {
+    return [{
+      '@type': 'OpeningHoursSpecification',
+      dayOfWeek: ['Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'],
+      opens: '12:00',
+      closes: '22:30'
+    }]
+  }
 
   const dayMap: Record<string, string> = {
     MONDAY: 'Monday',
