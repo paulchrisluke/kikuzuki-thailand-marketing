@@ -1,5 +1,5 @@
 <template>
-  <div class="relative w-full bg-black text-white overflow-hidden" :style="minHeight">
+  <div class="relative w-full bg-black text-white overflow-hidden" :style="heroStyle">
     <!-- Background image slot -->
     <div v-if="image" class="absolute inset-0">
       <img :src="image" :alt="title" class="w-full h-full object-cover opacity-50" />
@@ -18,9 +18,9 @@
     </div>
 
     <!-- Content -->
-    <div class="relative z-10 max-w-6xl mx-auto px-4 flex flex-col items-center justify-center text-center h-full" :style="minHeight">
-      <h1 class="text-4xl md:text-6xl font-bold mb-4 leading-tight">{{ props.title }}</h1>
-      <p v-if="props.subtitle" class="text-lg md:text-xl opacity-90 max-w-2xl">{{ props.subtitle }}</p>
+    <div class="relative z-10 max-w-6xl mx-auto px-4 flex flex-col items-center justify-center text-center h-full" :style="heroStyle">
+      <h1 :class="titleClass">{{ props.title }}</h1>
+      <p v-if="props.subtitle" :class="subtitleClass">{{ props.subtitle }}</p>
       <div v-if="$slots.cta" class="mt-8">
         <slot name="cta" />
       </div>
@@ -34,8 +34,33 @@ const props = defineProps({
   subtitle: { type: String, default: null },
   image: { type: String, default: null },
   video: { type: String, default: null },
-  height: { type: String, default: '60vh' }
+  height: { type: String, default: null },
+  size: {
+    type: String,
+    default: 'page',
+    validator: v => ['home', 'page', 'compact'].includes(v)
+  }
 })
 
-const minHeight = computed(() => ({ minHeight: props.height }))
+const heights = {
+  home: '100vh',
+  page: '34vh',
+  compact: '24vh'
+}
+
+const heroStyle = computed(() => ({ minHeight: props.height ?? heights[props.size] }))
+
+const titleClass = computed(() => [
+  'font-bold leading-tight',
+  props.size === 'home' || props.height === '100vh'
+    ? 'text-4xl md:text-6xl mb-4'
+    : 'text-3xl md:text-5xl mb-3'
+])
+
+const subtitleClass = computed(() => [
+  'opacity-90 max-w-2xl',
+  props.size === 'home' || props.height === '100vh'
+    ? 'text-lg md:text-xl'
+    : 'text-base md:text-lg'
+])
 </script>

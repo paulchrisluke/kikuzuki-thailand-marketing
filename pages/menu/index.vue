@@ -3,10 +3,11 @@
     <AppHero
       title="Our Menu"
       subtitle="Authentic Japanese Robatayaki Izakaya"
+      size="page"
     />
 
     <!-- Menu Introduction -->
-    <AppSection bg="gray" padding="lg">
+    <AppSection bg="gray" padding="default">
       <div class="max-w-4xl mx-auto prose prose-lg">
         <p class="text-gray-700 mb-4 leading-relaxed">
           Indulge in the culinary artistry of our base Japanese menu, a symphony of flavors featuring your favourite Japanese Izakaya and Robatayaki Cusine.

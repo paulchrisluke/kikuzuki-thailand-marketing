@@ -1,20 +1,23 @@
 <template>
   <div class="min-h-screen bg-white">
-    <AppHero :title="item?.name ?? 'Menu Item'" :subtitle="category?.name" />
-    <AppBreadcrumb :crumbs="[
+    <AppBreadcrumb v-if="item" :crumbs="[
       { to: '/', label: 'Home' },
       { to: '/menu', label: 'Menu' },
       { to: `/menu/${item?.slug}`, label: item?.name }
     ]" />
 
     <!-- Item Details -->
-    <div class="max-w-6xl mx-auto px-4 py-12" v-if="item">
+    <div class="max-w-6xl mx-auto px-4 pt-6 pb-12" v-if="item">
+      <div class="mb-8">
+        <p class="text-sm font-medium text-gray-500 mb-2">{{ category?.name }}</p>
+        <h1 class="text-3xl md:text-5xl font-bold text-gray-900 leading-tight">{{ item.name }}</h1>
+      </div>
       <div class="grid md:grid-cols-2 gap-12">
         <!-- Image Section -->
         <div>
           <div class="bg-gray-200 rounded-lg h-96 flex items-center justify-center mb-6">
             <img 
-              v-if="item.image && item.image !== '/images/menu/PLACEHOLDER_IMAGE.png'" 
+              v-if="item.image && !item.image.includes('PLACEHOLDER')" 
               :src="item.image" 
               :alt="item.name" 
               class="w-full h-full object-cover rounded-lg"
@@ -26,7 +29,6 @@
         <!-- Details Section -->
         <div>
           <div class="mb-6">
-            <h2 class="text-2xl md:text-3xl font-bold text-gray-900 mb-4">{{ item.name }}</h2>
             <p class="text-lg text-gray-700 mb-6">{{ item.description }}</p>
             
             <!-- Price -->
@@ -42,11 +44,11 @@
             </div>
 
             <!-- Allergens -->
-            <div class="mb-6" v-if="item.allergens && item.allergens.length > 0">
+            <div class="mb-6" v-if="visibleAllergens.length > 0">
               <h3 class="text-lg font-semibold text-gray-900 mb-2">Allergens</h3>
               <div class="flex flex-wrap gap-2">
                 <span 
-                  v-for="allergen in item.allergens" 
+                  v-for="allergen in visibleAllergens" 
                   :key="allergen"
                   class="inline-block bg-yellow-100 text-yellow-800 px-2 py-1 rounded text-xs font-medium"
                 >
@@ -99,6 +101,7 @@
 
 <script setup>
 import { menuData } from '~/data/menu'
+import AppBreadcrumb from '~/components/ui/AppBreadcrumb.vue'
 
 const route = useRoute()
 
@@ -110,6 +113,10 @@ const { item, category } = computed(() => {
   }
   return { item: null, category: null }
 }).value
+
+const visibleAllergens = computed(() =>
+  item?.allergens?.filter(allergen => !allergen.includes('PLACEHOLDER')) ?? []
+)
 
 // SEO Meta
 useSeoMeta({

@@ -144,8 +144,6 @@
     </div>
   </header>
 
-  <!-- Spacer to prevent content sitting behind fixed header -->
-  <div class="h-16" />
 </template>
 
 <script setup>

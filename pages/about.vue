@@ -3,10 +3,11 @@
     <AppHero
       title="About KIKUZUKI"
       subtitle="Authentic Japanese Robatayaki Experience in Krabi"
+      size="page"
     />
 
     <!-- Brand Story Section -->
-    <AppSection bg="white" padding="lg">
+    <AppSection bg="white" padding="default">
       <div class="mb-16">
         <h2 class="text-2xl md:text-3xl font-bold text-gray-900 mb-6">About Us</h2>
         <div class="prose prose-lg max-w-none">

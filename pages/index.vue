@@ -4,7 +4,7 @@
     <AppHero
       title="Take Me Away by KIKUZUKI"
       subtitle="Authentic Japanese Robatayaki Izakaya in Krabi, Thailand"
-      height="100vh"
+      size="home"
       video="/videos/hero-video.mp4"
     >
       <template #cta>
