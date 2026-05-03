@@ -57,11 +57,15 @@ const sign = async (payload: string, secret: string) => {
   return base64UrlEncode(signature)
 }
 
-export const authorizedEmails = (env: AdminAuthEnv) =>
-  (env.GOOGLE_ADMIN_EMAILS ?? 'paulchrisluke@gmail.com')
+export const authorizedEmails = (env: AdminAuthEnv) => {
+  if (!env.GOOGLE_ADMIN_EMAILS) {
+    throw new Error('Missing GOOGLE_ADMIN_EMAILS configuration.')
+  }
+  return env.GOOGLE_ADMIN_EMAILS
     .split(',')
     .map(email => email.trim().toLowerCase())
     .filter(Boolean)
+}
 
 export const createAdminSessionCookie = async (email: string, env: AdminAuthEnv) => {
   const secret = env.AUTH_COOKIE_SECRET ?? env.REVIEWS_ADMIN_TOKEN
