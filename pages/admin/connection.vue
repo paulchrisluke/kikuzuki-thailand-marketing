@@ -33,12 +33,31 @@
               Last updated: {{ publicData?.syncedAt ? formatDate(publicData.syncedAt) : 'Syncing now...' }}
             </p>
           </div>
-          <button
-            @click="confirmUnlink"
-            class="flex-shrink-0 text-sm font-semibold text-red-600 bg-red-50 px-6 py-3 rounded-xl hover:bg-red-100 transition-colors"
-          >
-            Unlink Account
-          </button>
+          <div v-if="!unlinkPending" class="flex-shrink-0">
+            <button
+              @click="confirmUnlink"
+              class="text-sm font-semibold text-red-600 bg-red-50 px-6 py-3 rounded-xl hover:bg-red-100 transition-colors"
+            >
+              Unlink Account
+            </button>
+          </div>
+          <div v-else class="flex-shrink-0 space-y-2">
+            <p class="text-sm text-stone-600">Are you sure? Your website will stop receiving updates until you reconnect.</p>
+            <div class="flex gap-2">
+              <button
+                @click="executeUnlink"
+                class="text-sm font-semibold text-red-600 bg-red-50 px-4 py-2 rounded-lg hover:bg-red-100 transition-colors"
+              >
+                Confirm
+              </button>
+              <button
+                @click="cancelUnlink"
+                class="text-sm font-medium text-stone-600 bg-stone-100 px-4 py-2 rounded-lg hover:bg-stone-200 transition-colors"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -104,19 +123,12 @@ const { data: publicData, refresh } = await useFetch('/api/google-business/publi
 const syncing = ref(false)
 const syncMessage = ref('')
 const syncError = ref(false)
+const unlinkPending = ref(false)
 
 const syncErrors = computed(() => publicData.value?.errors?.filter(e => e.source !== 'db') ?? [])
 
-// Determine if we are linked based on syncedAt or error messages
-const isLinked = computed(() => {
-  if (publicData.value?.syncedAt) return true
-  if (syncMessage.value.toLowerCase().includes('refresh token')) return false
-  if (syncMessage.value.toLowerCase().includes('sign in')) return false
-  // If syncing hasn't failed with an auth error, we're likely unlinked if syncedAt is null and syncError is true (we attempted and failed).
-  // But wait, the API might return "Missing Google OAuth client configuration." or similar.
-  if (syncError.value && !publicData.value?.syncedAt) return false
-  return publicData.value?.syncedAt !== null || syncing.value
-})
+// Determine if we are linked based on syncedAt
+const isLinked = computed(() => Boolean(publicData.value?.syncedAt))
 
 const triggerSync = async () => {
   syncing.value = true
@@ -142,22 +154,32 @@ const triggerSync = async () => {
 }
 
 const confirmUnlink = async () => {
-  if (confirm('Are you sure you want to unlink your Google Business Profile? Your website will stop receiving updates until you reconnect.')) {
-    try {
-      await $fetch('/api/admin/google-business/unlink', { method: 'POST' })
-      syncMessage.value = 'Account unlinked.'
-      syncError.value = true // Force unlinked state to show
-      await refresh()
-    } catch (e) {
-      alert('Failed to unlink account.')
-    }
+  unlinkPending.value = true
+}
+
+const executeUnlink = async () => {
+  try {
+    await $fetch('/api/admin/google-business/unlink', { method: 'POST' })
+    syncMessage.value = 'Account unlinked.'
+    syncError.value = true // Force unlinked state to show
+    await refresh()
+  } catch (e) {
+    syncMessage.value = 'Failed to unlink account.'
+    syncError.value = true
+  } finally {
+    unlinkPending.value = false
   }
 }
 
+const cancelUnlink = () => {
+  unlinkPending.value = false
+}
+
 onMounted(() => {
-  if (!publicData.value?.syncedAt) {
-    triggerSync()
-  }
+  const age = publicData.value?.syncedAt 
+    ? Date.now() - new Date(publicData.value.syncedAt).getTime()
+    : Infinity
+  if (age > 1000 * 60 * 60) triggerSync() // only if older than 1 hour
 })
 
 const formatDate = (iso) => {
