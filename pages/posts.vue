@@ -60,21 +60,23 @@ useSeoMeta({
   twitterImage: '/og-image.jpg'
 })
 
-useSchemaOrg([{
-  '@type': 'Restaurant',
-  name: 'Take Me Away by KIKUZUKI',
-  mainEntity: {
-    '@type': 'ItemList',
-    itemListElement: googlePosts.value.map(post => ({
-      '@type': 'Article',
-      headline: post.title,
-      datePublished: post.createTime,
-      author: {
-        '@type': 'Organization',
-        name: 'Take Me Away by KIKUZUKI'
-      },
-      image: post.media?.[0]?.googleUrl || '/og-image.jpg'
-    }))
-  }
-}])
+useSchemaOrg([
+  computed(() => ({
+    '@type': 'Restaurant',
+    name: 'Take Me Away by KIKUZUKI',
+    mainEntity: {
+      '@type': 'ItemList',
+      itemListElement: googlePosts.value.map(post => ({
+        '@type': 'Article',
+        headline: post.title,
+        datePublished: post.createTime,
+        author: {
+          '@type': 'Organization',
+          name: 'Take Me Away by KIKUZUKI'
+        },
+        image: post.media?.[0]?.googleUrl || '/og-image.jpg'
+      }))
+    }
+  }))
+])
 </script>

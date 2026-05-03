@@ -47,7 +47,7 @@
             </div>
           </div>
           <p class="mt-2 text-sm leading-6 text-gray-500">
-            Only `paulchrisluke@gmail.com` is allowed by default.
+            Access is restricted to authorized admin accounts.
           </p>
         </div>
 

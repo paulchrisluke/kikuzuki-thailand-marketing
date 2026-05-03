@@ -104,7 +104,7 @@ useSeoMeta({
 })
 
 useSchemaOrg([
-  {
+  computed(() => ({
     '@type': 'Restaurant',
     name: 'Take Me Away by KIKUZUKI',
     hasMenu: {
@@ -126,7 +126,7 @@ useSchemaOrg([
         }))
       }))
     }
-  },
+  })),
   {
     '@type': 'BreadcrumbList',
     itemListElement: [

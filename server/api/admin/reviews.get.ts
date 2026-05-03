@@ -28,8 +28,7 @@ export default defineEventHandler(async (event) => {
        LIMIT 100`
 
   if (!env.REVIEWS_DB) {
-    console.warn('REVIEWS_DB not available in Cloudflare environment, returning mock data')
-    return jsonResponse({ reviews: [] })
+    throw createError({ statusCode: 503, message: 'Database unavailable' })
   }
 
   const statement = env.REVIEWS_DB.prepare(query)

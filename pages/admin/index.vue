@@ -65,6 +65,9 @@
                 <span v-if="isSyncing" class="animate-spin text-xl">↻</span>
                 {{ isSyncing ? 'Syncing...' : 'Sync Now' }}
               </button>
+              <div v-if="syncMessage" :class="syncError ? 'text-red-400' : 'text-green-400'" class="mt-3 text-sm font-medium">
+                {{ syncMessage }}
+              </div>
             </div>
 
             <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
@@ -117,6 +120,8 @@ const { data: session } = await useFetch('/api/auth/session')
 const { data: publicData } = await useFetch('/api/google-business/public')
 
 const isSyncing = ref(false)
+const syncMessage = ref('')
+const syncError = ref(false)
 const currentAccountId = ref('')
 const currentLocationId = ref('')
 
@@ -147,14 +152,16 @@ const handleLogout = async () => {
 
 const triggerSync = async () => {
   isSyncing.value = true
+  syncMessage.value = ''
+  syncError.value = false
   try {
     await $fetch('/api/admin/google-business/sync', { method: 'POST' })
-    alert('Sync completed successfully!')
-    // Refresh public data
-    const { data: newData } = await useFetch('/api/google-business/public', { key: Date.now().toString() })
-    publicData.value = newData.value
+    syncMessage.value = 'Sync completed successfully'
+    syncError.value = false
+    await refreshNuxtData('google-business-public')
   } catch (e) {
-    alert('Sync failed. Please check your Google Business API credentials.')
+    syncMessage.value = 'Sync failed — check API credentials'
+    syncError.value = true
   } finally {
     isSyncing.value = false
   }
@@ -163,6 +170,7 @@ const triggerSync = async () => {
 const copyToClipboard = (text) => {
   if (!text) return
   navigator.clipboard.writeText(text)
-  alert('Copied to clipboard!')
+  syncMessage.value = 'Copied to clipboard!'
+  syncError.value = false
 }
 </script>

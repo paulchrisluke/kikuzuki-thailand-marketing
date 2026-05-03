@@ -87,22 +87,24 @@ useSeoMeta({
   twitterImage: '/og-image.jpg'
 })
 
-useSchemaOrg([{
-  '@type': 'Restaurant',
-  name: 'Take Me Away by KIKUZUKI',
-  review: googleReviews.value.map(review => ({
-    '@type': 'Review',
-    author: {
-      '@type': 'Person',
-      name: review.reviewer?.displayName || 'Google guest'
-    },
-    datePublished: review.createTime,
-    reviewBody: googleReviewText(review),
-    reviewRating: {
-      '@type': 'Rating',
-      ratingValue: googleReviewRating(review),
-      bestRating: 5
-    }
+useSchemaOrg([
+  computed(() => ({
+    '@type': 'Restaurant',
+    name: 'Take Me Away by KIKUZUKI',
+    review: googleReviews.value.map(review => ({
+      '@type': 'Review',
+      author: {
+        '@type': 'Person',
+        name: review.reviewer?.displayName || 'Google guest'
+      },
+      datePublished: review.createTime,
+      reviewBody: googleReviewText(review),
+      reviewRating: {
+        '@type': 'Rating',
+        ratingValue: googleReviewRating(review),
+        bestRating: 5
+      }
+    }))
   }))
-}])
+])
 </script>

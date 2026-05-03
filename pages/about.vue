@@ -86,9 +86,11 @@ useSeoMeta({
   twitterImage: '/og-image.jpg'
 })
 
-useSchemaOrg([{
-  '@type': 'Restaurant',
-  name: 'Take Me Away by KIKUZUKI',
-  description: businessDescription.value || 'Authentic Japanese robatayaki izakaya in Krabi, Thailand offering traditional Japanese grilling experiences with a focus on quality ingredients and culinary craftsmanship.'
-}])
+useSchemaOrg([
+  computed(() => ({
+    '@type': 'Restaurant',
+    name: 'Take Me Away by KIKUZUKI',
+    description: businessDescription.value || 'Authentic Japanese robatayaki izakaya in Krabi, Thailand offering traditional Japanese grilling experiences with a focus on quality ingredients and culinary craftsmanship.'
+  }))
+])
 </script>

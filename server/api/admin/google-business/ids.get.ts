@@ -1,6 +1,7 @@
 import { toWebRequest } from 'h3'
 import { isAdminRequest } from '../../../utils/admin-auth'
 import { cloudflareEnv, jsonResponse } from '../../../utils/api-response'
+import { getGoogleAccessToken } from '../../../utils/google-business'
 
 export default defineEventHandler(async (event) => {
   const env = cloudflareEnv(event)
@@ -12,29 +13,8 @@ export default defineEventHandler(async (event) => {
   // In our system, we store the refresh token in D1 or env.
   // For discovery, we can try to get a fresh token if we have the refresh token.
   
-  const clientId = env.GOOGLE_CLIENT_ID
-  const clientSecret = env.GOOGLE_CLIENT_SECRET
-  const refreshToken = env.GOOGLE_REFRESH_TOKEN // Assuming it's in env for now, or we fetch from DB
-
-  if (!clientId || !clientSecret || !refreshToken) {
-    return jsonResponse({ 
-      error: 'Incomplete configuration', 
-      details: 'Please ensure CLIENT_ID, CLIENT_SECRET, and REFRESH_TOKEN are available.' 
-    }, { status: 400 })
-  }
-
   try {
-    const tokenResponse = await $fetch('https://oauth2.googleapis.com/token', {
-      method: 'POST',
-      body: {
-        refresh_token: refreshToken,
-        client_id: clientId,
-        client_secret: clientSecret,
-        grant_type: 'refresh_token'
-      }
-    }) as any
-
-    const accessToken = tokenResponse.access_token
+    const accessToken = await getGoogleAccessToken(env)
 
     // List Accounts
     const accountsResponse = await $fetch('https://mybusinessaccountmanagement.googleapis.com/v1/accounts', {

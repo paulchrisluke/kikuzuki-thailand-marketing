@@ -162,13 +162,15 @@ useSeoMeta({
   twitterImage: '/og-image.jpg'
 })
 
-useSchemaOrg([{
-  '@type': 'Restaurant',
-  name: 'Take Me Away by KIKUZUKI',
-  telephone: '+66-76-XXX-XXXX',
-  potentialAction: {
-    '@type': 'ReservationAction',
-    target: 'tel:+6676XXXXXX'
-  }
-}])
+useSchemaOrg([
+  computed(() => ({
+    '@type': 'Restaurant',
+    name: 'Take Me Away by KIKUZUKI',
+    telephone: '+66-76-XXX-XXXX',
+    potentialAction: {
+      '@type': 'ReservationAction',
+      target: 'tel:+6676XXXXXX'
+    }
+  }))
+])
 </script>

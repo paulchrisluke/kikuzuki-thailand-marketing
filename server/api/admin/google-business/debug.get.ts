@@ -44,11 +44,10 @@ export default defineEventHandler(async (event) => {
   }
 
   // Step 4: Test Reviews API
-  const accountId = env.GOOGLE_BUSINESS_ACCOUNT_ID?.trim()
-  if (accountId && locName) {
+  if (locName) {
     try {
       const r = await fetch(
-        `https://mybusiness.googleapis.com/v4/accounts/${accountId}/${locName}/reviews?pageSize=1`,
+        `https://mybusinessreviews.googleapis.com/v1/${locName}/reviews?pageSize=1`,
         { headers: { Authorization: `Bearer ${accessToken}` } }
       )
       const body = await r.json()
@@ -57,7 +56,7 @@ export default defineEventHandler(async (event) => {
       results.reviewsApi = { error: e instanceof Error ? e.message : String(e) }
     }
   } else {
-    results.reviewsApi = 'SKIPPED - missing account or location ID'
+    results.reviewsApi = 'SKIPPED - missing location ID'
   }
 
   return results

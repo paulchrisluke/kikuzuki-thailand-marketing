@@ -15,7 +15,7 @@ export default defineEventHandler(async (event) => {
   const url = getRequestURL(event)
   const expectedToken = env.GOOGLE_PUBSUB_PUSH_TOKEN
 
-  if (expectedToken && url.searchParams.get('token') !== expectedToken) {
+  if (!expectedToken || url.searchParams.get('token') !== expectedToken) {
     return jsonResponse({ error: 'Unauthorized' }, { status: 401 })
   }
 

@@ -73,13 +73,15 @@ useSeoMeta({
   twitterImage: '/og-image.jpg'
 })
 
-useSchemaOrg([{
-  '@type': 'Restaurant',
-  name: 'Take Me Away by KIKUZUKI',
-  photo: googleMedia.value.map(media => ({
-    '@type': 'Photograph',
-    url: media.googleUrl,
-    description: media.description || 'KIKUZUKI restaurant photo'
+useSchemaOrg([
+  computed(() => ({
+    '@type': 'Restaurant',
+    name: 'Take Me Away by KIKUZUKI',
+    photo: googleMedia.value.map(media => ({
+      '@type': 'Photograph',
+      url: media.googleUrl,
+      description: media.description || 'KIKUZUKI restaurant photo'
+    }))
   }))
-}])
+])
 </script>

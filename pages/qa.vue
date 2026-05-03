@@ -56,19 +56,21 @@ useSeoMeta({
   twitterImage: '/og-image.jpg'
 })
 
-useSchemaOrg([{
-  '@type': 'Restaurant',
-  name: 'Take Me Away by KIKUZUKI',
-  mainEntity: {
-    '@type': 'FAQPage',
+useSchemaOrg([
+  computed(() => ({
+    '@type': 'Restaurant',
+    name: 'Take Me Away by KIKUZUKI',
     mainEntity: {
-      '@type': 'Question',
-      name: 'Customer Questions About KIKUZUKI',
-      acceptedAnswer: {
-        '@type': 'Answer',
-        text: 'Find answers to common questions about our Japanese robatayaki restaurant, menu, and services.'
+      '@type': 'FAQPage',
+      mainEntity: {
+        '@type': 'Question',
+        name: 'Customer Questions About KIKUZUKI',
+        acceptedAnswer: {
+          '@type': 'Answer',
+          text: 'Find answers to common questions about our Japanese robatayaki restaurant, menu, and services.'
+        }
       }
     }
-  }
-}])
+  }))
+])
 </script>
