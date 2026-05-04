@@ -1,6 +1,5 @@
 export interface AdminAuthEnv {
   AUTH_COOKIE_SECRET?: string
-  GOOGLE_ADMIN_EMAILS?: string
   REVIEWS_ADMIN_TOKEN?: string
 }
 
@@ -57,16 +56,6 @@ const sign = async (payload: string, secret: string) => {
   return base64UrlEncode(signature)
 }
 
-export const authorizedEmails = (env: AdminAuthEnv) => {
-  if (!env.GOOGLE_ADMIN_EMAILS) {
-    throw new Error('Missing GOOGLE_ADMIN_EMAILS configuration.')
-  }
-  return env.GOOGLE_ADMIN_EMAILS
-    .split(',')
-    .map(email => email.trim().toLowerCase())
-    .filter(Boolean)
-}
-
 export const createAdminSessionCookie = async (email: string, env: AdminAuthEnv) => {
   const secret = env.AUTH_COOKIE_SECRET ?? env.REVIEWS_ADMIN_TOKEN
   if (!secret) throw new Error('Missing AUTH_COOKIE_SECRET')
@@ -98,7 +87,7 @@ export const readAdminSession = async (request: Request, env: AdminAuthEnv) => {
   try {
     const session = JSON.parse(base64UrlDecode(payload)) as { email?: string; exp?: number }
     if (!session.email || !session.exp || session.exp < Math.floor(Date.now() / 1000)) return null
-    if (!authorizedEmails(env).includes(session.email.toLowerCase())) return null
+    
     return { email: session.email.toLowerCase() }
   } catch {
     return null
