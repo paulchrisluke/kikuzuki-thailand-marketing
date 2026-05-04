@@ -472,11 +472,8 @@ const handleSaveDraft = async () => {
     })
     localHasChanges.value = false
     serverHasDrafts.value = true
-    
-    // Send postMessage to iframe to refresh content instead of full reload
-    if (previewFrame.value?.contentWindow) {
-      previewFrame.value.contentWindow.postMessage({ type: 'admin:refresh-content' }, '*')
-    }
+    iframeLoading.value = true
+    iframeSrc.value = currentPagePath.value + '?t=' + Date.now()
   } catch (error: any) {
     const msg = error?.response?._data?.statusMessage || error.message || 'Unknown error'
     addToast(`Save failed: ${msg}`, 'error')

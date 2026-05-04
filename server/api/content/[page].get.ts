@@ -4,6 +4,8 @@ import { isAdminRequest } from '~/server/utils/admin-auth'
 import { cloudflareEnv } from '~/server/utils/api-response'
 
 export default defineEventHandler(async (event) => {
+  setHeader(event, 'cache-control', 'no-store')
+  
   const page = event.context.params?.page || 'home'
   const env = cloudflareEnv(event)
   const db = env.REVIEWS_DB

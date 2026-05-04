@@ -82,15 +82,7 @@ export const usePageContent = (pageName?: string) => {
   const getFieldDef_ = (field: string): FieldDefinition | undefined =>
     getFieldDef(page.value, field)
 
-  // Add postMessage listener for admin refresh requests
-onMounted(() => {
-  window.addEventListener('message', (e) => {
-    if (e.data?.type === 'admin:refresh-content') {
-      refresh()
-    }
-  })
-})
-
+  
 return {
     page,
     contentMap,
