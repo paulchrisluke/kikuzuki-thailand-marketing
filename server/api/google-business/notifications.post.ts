@@ -1,4 +1,4 @@
-import { syncGoogleBusiness } from '../../utils/google-business'
+import { getGoogleBusinessData } from '../../utils/google-business'
 import { cloudflareEnv, jsonResponse } from '../../utils/api-response'
 
 const decodePubSubData = (data?: string) => {
@@ -41,7 +41,9 @@ export default defineEventHandler(async (event) => {
   ).bind(eventId, eventType, locationName, reviewName, JSON.stringify({ body, decoded })).run()
 
   try {
-    await syncGoogleBusiness(env)
+    // Get location from event data for sync
+    const locationId = locationName ? locationName.split('/').pop() : undefined
+    await getGoogleBusinessData(env, locationId)
     await env.REVIEWS_DB.prepare(
       `UPDATE google_business_events SET status = 'synced' WHERE id = ?`
     ).bind(eventId).run()

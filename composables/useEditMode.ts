@@ -1,25 +1,32 @@
 import { ref, computed } from 'vue'
 import { useRoute, navigateTo } from '#app'
+import { useTenantSite } from './useTenantSite'
+import { useEditorContext } from './useEditorContext'
 
 type PendingChanges = Record<string, string>
 
-export const useEditMode = () => {
+export const useEditMode = (siteId?: string, locationId?: string | null) => {
   const route = useRoute()
   const { addToast } = useToast()
+  const { currentLocationId, setScope } = useEditorContext(siteId)
 
   const editMode = computed(() => route.query.edit === 'true')
   const hasChanges = ref(false)
   const pendingChanges = ref<PendingChanges>({})
+  const hasDrafts = ref(false)
   const saving = ref(false)
   const publishing = ref(false)
   const discarding = ref(false)
-  const hasDrafts = ref(false)
 
-  // Current page slug (normalised: / → home, /about → about, /menu/index → menu-index)
+  // Use provided locationId or fall back to current scope
+  const effectiveLocationId = computed(() => {
+    if (locationId !== undefined) return locationId
+    return currentLocationId.value
+  })
+
   const currentPage = computed(() => {
-    const p = route.path
-    if (p === '/') return 'home'
-    return p.replace(/^\//, '').replace(/\//g, '-')
+    const path = route.path
+    return path === '/' ? 'home' : path.replace(/^\//, '').replace(/\//g, '-')
   })
 
   const enterEditMode = () =>
@@ -48,9 +55,23 @@ export const useEditMode = () => {
 
     saving.value = true
     try {
-      await $fetch('/api/admin/content/draft', {
+      // Get site context from tenant
+      const tenant = await useTenantSite()
+      if (!tenant.siteId) {
+        throw new Error('No site context available')
+      }
+
+      const queryParams = new URLSearchParams()
+      if (effectiveLocationId.value) {
+        queryParams.set('locationId', effectiveLocationId.value)
+      }
+
+      await $fetch(`/api/editor/sites/${tenant.siteId}/content/draft?${queryParams.toString()}`, {
         method: 'POST',
-        body: { path: route.path, changes: pendingChanges.value }
+        body: { 
+          page: currentPage.value,
+          changes: pendingChanges.value
+        }
       })
       // Clear local pending state; draft now persists server-side
       pendingChanges.value = {}
@@ -69,9 +90,20 @@ export const useEditMode = () => {
       // Flush any local changes first
       if (hasChanges.value) await saveDraft()
 
-      await $fetch('/api/admin/content/publish', {
+      // Get site context from tenant
+      const tenant = await useTenantSite()
+      if (!tenant.siteId) {
+        throw new Error('No site context available')
+      }
+
+      const publishQueryParams = new URLSearchParams()
+      if (effectiveLocationId.value) {
+        publishQueryParams.set('locationId', effectiveLocationId.value)
+      }
+
+      await $fetch(`/api/editor/sites/${tenant.siteId}/content/publish?${publishQueryParams.toString()}`, {
         method: 'POST',
-        body: { path: route.path }
+        body: { page: currentPage.value }
       })
       hasDrafts.value = false
       addToast('Published successfully!', 'success')
@@ -86,7 +118,14 @@ export const useEditMode = () => {
     publishing.value = true
     try {
       if (hasChanges.value) await saveDraft()
-      await $fetch('/api/admin/content/publish', {
+      
+      // Get site context from tenant
+      const tenant = await useTenantSite()
+      if (!tenant.siteId) {
+        throw new Error('No site context available')
+      }
+
+      await $fetch(`/api/editor/sites/${tenant.siteId}/content/publish`, {
         method: 'POST',
         body: { all: true }
       })
@@ -105,9 +144,20 @@ export const useEditMode = () => {
 
     discarding.value = true
     try {
-      await $fetch('/api/admin/content/discard', {
+      // Get site context from tenant
+      const tenant = await useTenantSite()
+      if (!tenant.siteId) {
+        throw new Error('No site context available')
+      }
+
+      const discardQueryParams = new URLSearchParams()
+      if (effectiveLocationId.value) {
+        discardQueryParams.set('locationId', effectiveLocationId.value)
+      }
+
+      await $fetch(`/api/editor/sites/${tenant.siteId}/content/discard?${discardQueryParams.toString()}`, {
         method: 'POST',
-        body: { path: route.path }
+        body: { page: currentPage.value }
       })
       pendingChanges.value = {}
       hasChanges.value = false
@@ -122,7 +172,18 @@ export const useEditMode = () => {
 
   const checkDraftStatus = async () => {
     try {
-      const status = await $fetch<{ hasDrafts: boolean }>(`/api/admin/content/status?page=${currentPage.value}`)
+      // Get site context from tenant
+      const tenant = await useTenantSite()
+      if (!tenant.siteId) {
+        return // silently ignore - no site context
+      }
+
+      const statusQueryParams = new URLSearchParams({ page: currentPage.value })
+      if (effectiveLocationId.value) {
+        statusQueryParams.set('locationId', effectiveLocationId.value)
+      }
+
+      const status = await $fetch<{ hasDrafts: boolean }>(`/api/editor/sites/${tenant.siteId}/content/status?${statusQueryParams.toString()}`)
       hasDrafts.value = status.hasDrafts
     } catch {
       // silently ignore — not critical
@@ -138,6 +199,7 @@ export const useEditMode = () => {
     publishing,
     discarding,
     currentPage,
+    effectiveLocationId,
     enterEditMode,
     exitEditMode,
     toggleEditMode,

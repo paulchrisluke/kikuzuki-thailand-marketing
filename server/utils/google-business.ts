@@ -1,13 +1,16 @@
 import type { D1Database } from '@cloudflare/workers-types'
+import { encryptSecret, decryptSecret } from './encryption'
 
 export interface GoogleBusinessEnv {
   REVIEWS_DB: D1Database
   GOOGLE_CLIENT_ID?: string
   GOOGLE_CLIENT_SECRET?: string
   GOOGLE_BUSINESS_ACCOUNT_ID?: string
-  GOOGLE_BUSINESS_LOCATION_ID?: string
   GOOGLE_PUBSUB_TOPIC?: string
   GOOGLE_REFRESH_TOKEN?: string
+  GOOGLE_BUSINESS_CLIENT_ID?: string
+  GOOGLE_BUSINESS_CLIENT_SECRET?: string
+  GOOGLE_BUSINESS_REDIRECT_URI?: string
 }
 
 export interface GoogleBusinessSyncResult {
@@ -53,41 +56,20 @@ const googlePatch = async <T>(url: string, accessToken: string, body: unknown): 
   return (await response.json()) as T
 }
 
-export const locationName = (env: GoogleBusinessEnv) => {
-  const locationId = env.GOOGLE_BUSINESS_LOCATION_ID?.trim()
+export const locationName = (locationId?: string) => {
   if (!locationId) return ''
   return locationId.startsWith('locations/') ? locationId : `locations/${locationId}`
 }
 
-export const getGoogleRefreshToken = async (env: GoogleBusinessEnv) => {
-  if (env.GOOGLE_REFRESH_TOKEN) return env.GOOGLE_REFRESH_TOKEN
-  if (!env.REVIEWS_DB) return ''
-  const row = await env.REVIEWS_DB.prepare(
-    `SELECT refresh_token AS refreshToken FROM google_oauth_tokens WHERE provider = 'google'`
-  ).first<{ refreshToken: string }>()
-  return row?.refreshToken ?? ''
-}
-
-export const saveGoogleRefreshToken = async (env: GoogleBusinessEnv, refreshToken: string, scope = '') => {
-  if (!refreshToken || !env.REVIEWS_DB) return
-  await env.REVIEWS_DB.prepare(
-    `INSERT INTO google_oauth_tokens (provider, refresh_token, scope)
-     VALUES ('google', ?, ?)
-     ON CONFLICT(provider) DO UPDATE SET
-       refresh_token = excluded.refresh_token,
-       scope = excluded.scope,
-       updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')`
-  ).bind(refreshToken, scope).run()
-}
-
-export const getGoogleAccessToken = async (env: GoogleBusinessEnv) => {
-  if (!env.GOOGLE_CLIENT_ID || !env.GOOGLE_CLIENT_SECRET) {
-    throw new Error('Missing Google OAuth client configuration.')
+// Get access token for a specific connection
+export const getGoogleAccessTokenForSite = async (env: GoogleBusinessEnv, organizationId: string, siteId: string) => {
+  const connection = await getGoogleBusinessConnection(env, organizationId, siteId)
+  if (!connection) {
+    throw new Error('No Google Business connection found for this site.')
   }
 
-  const refreshToken = await getGoogleRefreshToken(env)
-  if (!refreshToken) {
-    throw new Error('No Google refresh token stored. Sign in through /admin/reviews first.')
+  if (!env.GOOGLE_CLIENT_ID || !env.GOOGLE_CLIENT_SECRET) {
+    throw new Error('Missing Google OAuth client configuration.')
   }
 
   const response = await fetch('https://oauth2.googleapis.com/token', {
@@ -96,7 +78,7 @@ export const getGoogleAccessToken = async (env: GoogleBusinessEnv) => {
     body: new URLSearchParams({
       client_id: env.GOOGLE_CLIENT_ID,
       client_secret: env.GOOGLE_CLIENT_SECRET,
-      refresh_token: refreshToken,
+      refresh_token: connection.encrypted_refresh_token, // It's decrypted in getGoogleBusinessConnection
       grant_type: 'refresh_token'
     })
   })
@@ -111,35 +93,47 @@ export const getGoogleAccessToken = async (env: GoogleBusinessEnv) => {
   return token.access_token
 }
 
-export const syncGoogleBusiness = async (env: GoogleBusinessEnv): Promise<GoogleBusinessSyncResult> => {
+// LEGACY - Keeping for minimal compatibility but it will fail if env.GOOGLE_REFRESH_TOKEN is missing
+export const getGoogleAccessToken = async (env: GoogleBusinessEnv) => {
+  if (env.GOOGLE_REFRESH_TOKEN && env.GOOGLE_CLIENT_ID && env.GOOGLE_CLIENT_SECRET) {
+    const response = await fetch('https://oauth2.googleapis.com/token', {
+      method: 'POST',
+      headers: { 'content-type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        client_id: env.GOOGLE_CLIENT_ID,
+        client_secret: env.GOOGLE_CLIENT_SECRET,
+        refresh_token: env.GOOGLE_REFRESH_TOKEN,
+        grant_type: 'refresh_token'
+      })
+    })
+    if (response.ok) {
+      const token = await response.json() as { access_token: string }
+      return token.access_token
+    }
+  }
+  throw new Error('Google refresh token not available.')
+}
+
+export const getGoogleBusinessData = async (env: GoogleBusinessEnv, locationId?: string) => {
+  // This function now needs to be called in a context where we have tokens, 
+  // or it will fall back to env-based tokens
   const accessToken = await getGoogleAccessToken(env)
-  const locName = locationName(env)
-  const errors: GoogleBusinessSyncResult['errors'] = []
+  const locName = locationName(locationId)
+  
   let business: unknown = null
   let reviews: unknown[] = []
   let media: unknown[] = []
   let posts: unknown[] = []
+  const errors: { source: string; message: string }[] = []
 
   if (!locName) {
-    throw new Error('Missing GOOGLE_BUSINESS_LOCATION_ID.')
+    return { business, reviews, media, posts, errors }
   }
 
   const readMask = [
-    'name',
-    'title',
-    'profile',
-    'storefrontAddress',
-    'phoneNumbers',
-    'websiteUri',
-    'regularHours',
-    'specialHours',
-    'categories',
-    'latlng',
-    'metadata',
-    'priceLevel',
-    'labels',
-    'serviceItems',
-    'openInfo'
+    'name', 'title', 'profile', 'storefrontAddress', 'phoneNumbers', 'websiteUri',
+    'regularHours', 'specialHours', 'categories', 'latlng', 'metadata',
+    'priceLevel', 'labels', 'serviceItems', 'openInfo'
   ].join(',')
 
   try {
@@ -181,53 +175,316 @@ export const syncGoogleBusiness = async (env: GoogleBusinessEnv): Promise<Google
     errors.push({ source: 'posts', message: error instanceof Error ? error.message : String(error) })
   }
 
-  const syncedAt = new Date().toISOString()
-  
-  if (env.REVIEWS_DB) {
-    await env.REVIEWS_DB.prepare(
-      `INSERT INTO google_business_snapshots (id, business_json, reviews_json, media_json, posts_json, errors_json, synced_at)
-       VALUES ('current', ?, ?, ?, ?, ?, ?)
-       ON CONFLICT(id) DO UPDATE SET
-         business_json = excluded.business_json,
-         reviews_json = excluded.reviews_json,
-         media_json = excluded.media_json,
-         posts_json = excluded.posts_json,
-         errors_json = excluded.errors_json,
-         synced_at = excluded.synced_at`
-    ).bind(
-      JSON.stringify(business),
-      JSON.stringify(reviews),
-      JSON.stringify(media),
-      JSON.stringify(posts),
-      JSON.stringify(errors),
-      syncedAt
-    ).run()
-  }
-
-  return { syncedAt, business, reviews, media, posts, errors }
+  return { syncedAt: new Date().toISOString(), business, reviews, media, posts, errors }
 }
 
-export const updateNotificationSetting = async (env: GoogleBusinessEnv) => {
-  const accountId = env.GOOGLE_BUSINESS_ACCOUNT_ID?.trim()
-  const pubsubTopic = env.GOOGLE_PUBSUB_TOPIC?.trim()
-  if (!accountId || !pubsubTopic) {
-    throw new Error('Missing GOOGLE_BUSINESS_ACCOUNT_ID or GOOGLE_PUBSUB_TOPIC.')
+// Google Business OAuth flow
+export interface GoogleBusinessConnection {
+  id: string
+  organization_id: string
+  site_id: string
+  connected_by_user_id: string
+  provider_account_email: string
+  encrypted_access_token: string
+  encrypted_refresh_token: string
+  scopes: string
+  expires_at?: string
+  status: 'active' | 'disabled' | 'error'
+  created_at: string
+  updated_at: string
+}
+
+export interface GoogleAccount {
+  name: string
+  accountName: string
+  type: string
+  role: string
+  verificationState: string
+}
+
+export interface GoogleLocation {
+  name: string
+  title: string
+  address?: {
+    streetAddress?: string
+    locality?: string
+    region?: string
+    postalCode?: string
+    country?: string
+  }
+  phoneNumbers?: {
+    primaryPhoneNumber?: string
+  }
+  websiteUri?: string
+  latlng?: {
+    latitude?: number
+    longitude?: number
+  }
+  categories?: {
+    primaryCategoryId?: string
+    displayName?: string
+  }[]
+  rating?: number
+  reviewCount?: number
+}
+
+// Generate OAuth authorization URL
+export const getGoogleBusinessAuthUrl = (env: GoogleBusinessEnv, state: string): string => {
+  const clientId = env.GOOGLE_BUSINESS_CLIENT_ID
+  const redirectUri = env.GOOGLE_BUSINESS_REDIRECT_URI
+  
+  if (!clientId || !redirectUri) {
+    throw new Error('Missing Google Business OAuth configuration')
   }
 
-  const accessToken = await getGoogleAccessToken(env)
-  return googlePatch(
-    `https://mybusinessnotifications.googleapis.com/v1/accounts/${accountId}/notificationSetting?updateMask=pubsubTopic,notificationTypes`,
-    accessToken,
-    {
-      name: `accounts/${accountId}/notificationSetting`,
-      pubsubTopic,
-      notificationTypes: [
-        'GOOGLE_UPDATE',
-        'NEW_REVIEW',
-        'UPDATED_REVIEW',
-        'NEW_CUSTOMER_MEDIA',
-        'VOICE_OF_MERCHANT_UPDATED'
-      ]
-    }
+  const scopes = [
+    'https://www.googleapis.com/auth/business.manage',
+    'https://www.googleapis.com/auth/userinfo.email'
+  ]
+
+  const params = new URLSearchParams({
+    client_id: clientId,
+    redirect_uri: redirectUri,
+    response_type: 'code',
+    scope: scopes.join(' '),
+    state,
+    access_type: 'offline',
+    prompt: 'consent'
+  })
+
+  return `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`
+}
+
+// Exchange OAuth code for tokens
+export const exchangeGoogleBusinessCode = async (
+  env: GoogleBusinessEnv,
+  code: string
+): Promise<{ accessToken: string; refreshToken: string; expiresIn: number; scope: string }> => {
+  const clientId = env.GOOGLE_BUSINESS_CLIENT_ID
+  const clientSecret = env.GOOGLE_BUSINESS_CLIENT_SECRET
+  const redirectUri = env.GOOGLE_BUSINESS_REDIRECT_URI
+
+  if (!clientId || !clientSecret || !redirectUri) {
+    throw new Error('Missing Google Business OAuth configuration')
+  }
+
+  const response = await fetch('https://oauth2.googleapis.com/token', {
+    method: 'POST',
+    headers: { 'content-type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({
+      client_id: clientId,
+      client_secret: clientSecret,
+      code,
+      redirect_uri: redirectUri,
+      grant_type: 'authorization_code'
+    })
+  })
+
+  if (!response.ok) {
+    const text = await response.text()
+    throw new Error(`Google OAuth token exchange failed: ${text}`)
+  }
+
+  const tokenData = await response.json() as {
+    access_token: string
+    refresh_token: string
+    expires_in: number
+    scope: string
+  }
+
+  return {
+    accessToken: tokenData.access_token,
+    refreshToken: tokenData.refresh_token,
+    expiresIn: tokenData.expires_in,
+    scope: tokenData.scope
+  }
+}
+
+// Store encrypted Google Business connection
+export const storeGoogleBusinessConnection = async (
+  env: GoogleBusinessEnv,
+  connection: Omit<GoogleBusinessConnection, 'id' | 'created_at' | 'updated_at'>
+): Promise<string> => {
+  if (!env.REVIEWS_DB) {
+    throw new Error('Database not available')
+  }
+
+  const connectionId = `gb-connection-${connection.organization_id}-${connection.site_id}`
+  const now = new Date().toISOString()
+
+  // Encrypt tokens
+  const encryptedAccessToken = await encryptSecret(connection.encrypted_access_token)
+  const encryptedRefreshToken = await encryptSecret(connection.encrypted_refresh_token)
+
+  await env.REVIEWS_DB.prepare(`
+    INSERT OR REPLACE INTO google_business_connections 
+    (id, organization_id, site_id, connected_by_user_id, provider_account_email,
+     encrypted_access_token, encrypted_refresh_token, scopes, expires_at, status, created_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).bind(
+    connectionId,
+    connection.organization_id,
+    connection.site_id,
+    connection.connected_by_user_id,
+    connection.provider_account_email,
+    encryptedAccessToken,
+    encryptedRefreshToken,
+    connection.scopes,
+    connection.expires_at,
+    connection.status,
+    now,
+    now
+  ).run()
+
+  return connectionId
+}
+
+// Get Google Business connection with decrypted tokens
+export const getGoogleBusinessConnection = async (
+  env: GoogleBusinessEnv,
+  organizationId: string,
+  siteId: string
+): Promise<GoogleBusinessConnection | null> => {
+  if (!env.REVIEWS_DB) {
+    return null
+  }
+
+  const connection = await env.REVIEWS_DB.prepare(`
+    SELECT * FROM google_business_connections 
+    WHERE organization_id = ? AND site_id = ? AND status = 'active'
+    LIMIT 1
+  `).bind(organizationId, siteId).first() as GoogleBusinessConnection | null
+
+  if (!connection) {
+    return null
+  }
+
+  // Decrypt tokens
+  connection.encrypted_access_token = await decryptSecret(connection.encrypted_access_token)
+  connection.encrypted_refresh_token = await decryptSecret(connection.encrypted_refresh_token)
+
+  return connection
+}
+
+// Get Google Business accounts
+export const getGoogleBusinessAccounts = async (
+  env: GoogleBusinessEnv,
+  accessToken: string
+): Promise<GoogleAccount[]> => {
+  const response = await googleJson<{ accounts?: GoogleAccount[] }>(
+    'https://mybusinessbusinessinformation.googleapis.com/v1/accounts',
+    accessToken
   )
+
+  return response.accounts || []
+}
+
+// Get Google Business locations for an account
+export const getGoogleBusinessLocations = async (
+  env: GoogleBusinessEnv,
+  accessToken: string,
+  accountId: string
+): Promise<GoogleLocation[]> => {
+  const readMask = [
+    'name', 'title', 'storefrontAddress', 'phoneNumbers', 'websiteUri',
+    'latlng', 'categories', 'rating', 'reviewCount'
+  ].join(',')
+
+  const response = await googleJson<{ locations?: GoogleLocation[] }>(
+    `https://mybusinessbusinessinformation.googleapis.com/v1/accounts/${accountId}/locations?readMask=${encodeURIComponent(readMask)}`,
+    accessToken
+  )
+
+  return response.locations || []
+}
+
+// Sync Google locations to business_locations table
+export const syncGoogleLocations = async (
+  env: GoogleBusinessEnv,
+  organizationId: string,
+  siteId: string,
+  connectionId: string,
+  locations: GoogleLocation[]
+): Promise<void> => {
+  if (!env.REVIEWS_DB) {
+    throw new Error('Database not available')
+  }
+
+  const now = new Date().toISOString()
+
+  for (const location of locations) {
+    const googleLocationId = location.name.split('/').pop() || ''
+    const slug = generateLocationSlug(location.title)
+
+    // Check if location already exists
+    const existing = await env.REVIEWS_DB.prepare(`
+      SELECT id FROM business_locations 
+      WHERE organization_id = ? AND site_id = ? AND google_location_id = ?
+      LIMIT 1
+    `).bind(organizationId, siteId, googleLocationId).first()
+
+    if (existing) {
+      // Update existing location
+      await env.REVIEWS_DB.prepare(`
+        UPDATE business_locations 
+        SET title = ?, address = ?, phone = ?, website_url = ?, 
+            latitude = ?, longitude = ?, rating = ?, review_count = ?,
+            last_synced_at = ?, updated_at = ?
+        WHERE organization_id = ? AND site_id = ? AND google_location_id = ?
+      `).bind(
+        location.title,
+        JSON.stringify(location.address),
+        location.phoneNumbers?.primaryPhoneNumber || null,
+        location.websiteUri || null,
+        location.latlng?.latitude || null,
+        location.latlng?.longitude || null,
+        location.rating || null,
+        location.reviewCount || null,
+        now,
+        now,
+        organizationId,
+        siteId,
+        googleLocationId
+      ).run()
+    } else {
+      // Insert new location
+      await env.REVIEWS_DB.prepare(`
+        INSERT INTO business_locations 
+        (id, organization_id, site_id, google_location_id, 
+         slug, title, address, phone, website_url, latitude, longitude, 
+         rating, review_count, is_primary, status, last_synced_at, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `).bind(
+        `location-${organizationId}-${siteId}-${googleLocationId}`,
+        organizationId,
+        siteId,
+        googleLocationId,
+        slug,
+        location.title,
+        JSON.stringify(location.address),
+        location.phoneNumbers?.primaryPhoneNumber || null,
+        location.websiteUri || null,
+        location.latlng?.latitude || null,
+        location.latlng?.longitude || null,
+        location.rating || null,
+        location.reviewCount || null,
+        false, // Not primary by default
+        'active',
+        now,
+        now,
+        now
+      ).run()
+    }
+  }
+}
+
+// Generate URL-friendly slug from location title
+function generateLocationSlug(title: string): string {
+  return title
+    .toLowerCase()
+    .replace(/[^a-z0-9\s-]/g, '')
+    .replace(/\s+/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-|-$/g, '')
+    || 'location'
 }

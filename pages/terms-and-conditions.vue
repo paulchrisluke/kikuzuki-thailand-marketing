@@ -8,39 +8,39 @@
     <article class="mx-auto prose lg:prose-xl py-12 px-8">
       <p><strong>Effective Date:</strong> October 21, 2024</p>
 
-      <p>Welcome to <strong>Take Me Away by KIKUZUKI</strong>. By accessing or using our website or services, you agree to be bound by the following terms and conditions. Please read them carefully.</p>
+      <p>Welcome to <strong>KrabiClaw</strong>. By accessing or using our website builder platform and services, you agree to be bound by the following terms and conditions. Please read them carefully.</p>
 
       <h2>1. Use of Our Services</h2>
       <ul>
           <li>You must be at least 18 years old or have permission from a legal guardian to use our services.</li>
-          <li>You agree to use our website and services only for lawful purposes.</li>
+          <li>You agree to use our website builder platform only for lawful purposes.</li>
           <li>We reserve the right to refuse service to anyone for any reason at any time.</li>
       </ul>
 
-      <h2>2. Reservations</h2>
+      <h2>2. Account Responsibilities</h2>
       <ul>
-          <li>All reservations are subject to availability.</li>
-          <li>We reserve the right to cancel or adjust reservations if necessary.</li>
-          <li>Please arrive on time. Reservations are held for 15 minutes.</li>
+          <li>You are responsible for maintaining the confidentiality of your account credentials.</li>
+          <li>You are responsible for all activities that occur under your account.</li>
+          <li>You must notify us immediately of any unauthorized use of your account.</li>
       </ul>
 
       <h2>3. Intellectual Property</h2>
       <ul>
-          <li>All content on this website, including text, graphics, logos, and images, is the property of Take Me Away by KIKUZUKI or its licensors.</li>
+          <li>All content on this website, including text, graphics, logos, and images, is the property of KrabiClaw or its licensors.</li>
           <li>You may not reproduce, distribute, or use any content without express permission.</li>
+          <li>You retain ownership of content you create using our platform.</li>
       </ul>
 
       <h2>4. Limitation of Liability</h2>
-      <p>Take Me Away by KIKUZUKI will not be held liable for any indirect, incidental, or consequential damages resulting from the use of our services.</p>
+      <p>KrabiClaw will not be held liable for any indirect, incidental, or consequential damages resulting from the use of our services.</p>
 
       <h2>5. Governing Law</h2>
       <p>These Terms and Conditions are governed by and construed in accordance with the laws of Thailand.</p>
 
       <h2>6. Contact Us</h2>
       <p>If you have any questions about these Terms and Conditions, please contact us at:</p>
-      <p><strong>Take Me Away by KIKUZUKI</strong><br>
-          117, Nong Thale, Krabi, 81000, Thailand<br>
-          Email: info@kikuzuki-thailand.com <br>
+      <p><strong>KrabiClaw</strong><br>
+          Email: legal@krabiclaw.com <br>
       </p>
     </article>
   </div>
@@ -49,17 +49,21 @@
 <script setup>
 import AppHero from '~/components/ui/AppHero.vue'
 
+definePageMeta({
+  layout: 'platform'
+})
+
 useSeoMeta({
-  title: 'Terms and Conditions | Take Me Away by KIKUZUKI',
-  description: 'Terms and Conditions for Take Me Away by KIKUZUKI. Read our terms of service for dining and using our website.',
-  ogTitle: 'Terms and Conditions | Take Me Away by KIKUZUKI',
-  ogDescription: 'Our terms of service for dining and online interaction.',
+  title: 'Terms and Conditions | KrabiClaw',
+  description: 'Terms and Conditions for KrabiClaw website builder platform. Read our terms of service for using our SaaS platform.',
+  ogTitle: 'Terms and Conditions | KrabiClaw',
+  ogDescription: 'Our terms of service for the website builder platform.',
   ogImage: '/og-image.jpg',
-  ogUrl: 'https://www.kikuzuki-thailand.com/terms-and-conditions',
+  ogUrl: '/terms-and-conditions',
   ogType: 'website',
   twitterCard: 'summary',
-  twitterTitle: 'Terms and Conditions - Take Me Away by KIKUZUKI',
-  twitterDescription: 'Terms of service for our Japanese restaurant.',
+  twitterTitle: 'Terms and Conditions - KrabiClaw',
+  twitterDescription: 'Terms of service for our website builder platform.',
   twitterImage: '/og-image.jpg'
 })
 </script>

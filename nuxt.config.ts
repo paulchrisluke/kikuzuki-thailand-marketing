@@ -1,6 +1,6 @@
 // https://nuxt.com/docs/api/configuration/nuxt-config
 export default defineNuxtConfig({
-  modules: ['nuxt-gtag', '@nuxtjs/robots', '@nuxtjs/sitemap', 'nuxt-schema-org', '@nuxtjs/i18n'],
+  modules: ['nuxt-gtag', '@nuxtjs/robots', '@nuxtjs/sitemap', 'nuxt-schema-org', '@nuxtjs/i18n', '@nuxt/ui'],
   gtag: {
     id: 'G-Z18L1Y4G7K'
   },
@@ -23,26 +23,33 @@ export default defineNuxtConfig({
   },
 
   compatibilityDate: '2024-11-01',
-  devtools: { enabled: true },
+  debug: false,
+  devtools: { enabled: false },
   css: ['~/assets/css/main.css'],
   runtimeConfig: {
     public: {
+      platformDomain: process.env.NUXT_PUBLIC_PLATFORM_DOMAIN || 'krabiclaw.com',
+      freeSiteDomain: process.env.NUXT_PUBLIC_FREE_SITE_DOMAIN || 'krabiclaw.com',
+      appName: process.env.NUXT_PUBLIC_APP_NAME || 'KrabiClaw',
       turnstileSiteKey: process.env.NUXT_PUBLIC_TURNSTILE_SITE_KEY || ''
-    }
+    },
+    // Server-only
+    platformDomain: process.env.PLATFORM_DOMAIN || 'krabiclaw.com'
   },
 
-  postcss: {
-    plugins: {
-      tailwindcss: {},
-      autoprefixer: {},
-    },
+  vite: {
+    server: {
+      watch: {
+        ignored: ['**/.wrangler/**', '**/.data/**', '**/node_modules/**', '**/.git/**', '**/.nuxt/**', '**/.output/**', '**/dist/**']
+      }
+    }
   },
 
   // SEO Configuration
   site: {
-    url: 'https://www.kikuzuki-thailand.com',
-    name: 'Take Me Away by KIKUZUKI | Japanese Robatayaki Izakaya',
-    description: 'Experience authentic Japanese robatayaki at Take Me Away by KIKUZUKI in Krabi, Thailand. Fresh ingredients, traditional flavors, and unforgettable dining experience in southern Thailand.',
+    url: 'https://krabiclaw.com',
+    name: 'KrabiClaw - Restaurant Website Builder',
+    description: 'Beautiful restaurant websites powered by AI. Build your restaurant website in minutes with our SaaS platform.',
     defaultLocale: 'en',
   },
 
@@ -78,14 +85,15 @@ export default defineNuxtConfig({
     strategy: 'prefix_except_default',
     detectBrowserLanguage: {
       useCookie: true,
-      fallbackLocale: 'en'
+      fallbackLocale: 'en',
+      redirectOn: 'root'
     }
   },
 
   // Robots.txt configuration
   robots: {
     allow: ['/'],
-    disallow: ['/admin', '/api'],
+    disallow: ['/dashboard', '/api'],
   },
 
   // Sitemap configuration
@@ -112,11 +120,24 @@ export default defineNuxtConfig({
     }
   ],
 
+  // Global watcher exclusions
+  watchers: {
+    chokidar: {
+      ignored: ['**/.wrangler/**', '**/.data/**', '**/node_modules/**', '**/.git/**', '**/.nuxt/**', '**/.output/**', '**/dist/**', '**/migrations/**']
+    }
+  },
+
   // Nitro configuration for Cloudflare deployment
   nitro: {
     preset: 'cloudflare-pages',
     cloudflare: {
       deployConfig: true
+    },
+    devServer: {
+      watch: ['server']
+    },
+    externals: {
+      inline: ['@opentelemetry/api']
     }
   }
 })

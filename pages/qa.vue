@@ -2,7 +2,7 @@
   <div class="min-h-screen bg-white">
     <AppHero
       title="Questions & Answers"
-      subtitle="Customer Inquiries About KIKUZUKI"
+      subtitle="Customer Inquiries About Our Restaurant"
       size="page"
     />
 
@@ -16,6 +16,7 @@
 </template>
 
 <script setup>
+definePageMeta({ layout: 'tenant' })
 import AppHero from '~/components/ui/AppHero.vue'
 import RestaurantQA from '~/components/google/RestaurantQA.vue'
 const { data: googleBusiness } = await useFetch('/api/google-business/public', {
@@ -43,31 +44,31 @@ const formatDate = (dateString) => {
 
 // SEO Meta
 useSeoMeta({
-  title: 'Q&A | Take Me Away by KIKUZUKI | Customer Questions',
-  description: 'Find answers to frequently asked questions about Take Me Away by KIKUZUKI in Krabi, Thailand. Browse customer inquiries and our responses about Japanese robatayaki dining.',
-  ogTitle: 'Q&A | Take Me Away by KIKUZUKI',
-  ogDescription: 'Customer questions and answers about our Japanese robatayaki restaurant in Krabi, Thailand.',
+  title: 'Q&A | Your Restaurant | Customer Questions',
+  description: 'Find answers to frequently asked questions about Your Restaurant in your city. Browse customer inquiries and our responses about authentic dining.',
+  ogTitle: 'Q&A | Your Restaurant',
+  ogDescription: 'Customer questions and answers about our authentic restaurant in your city.',
   ogImage: '/og-image.jpg',
   ogUrl: 'https://www.kikuzuki-thailand.com/qa',
   ogType: 'website',
   twitterCard: 'summary_large_image',
-  twitterTitle: 'Q&A - Take Me Away by KIKUZUKI',
-  twitterDescription: 'Customer questions and answers about our Japanese restaurant in Krabi, Thailand.',
+  twitterTitle: 'Q&A - Your Restaurant',
+  twitterDescription: 'Customer questions and answers about our Japanese restaurant in your city.',
   twitterImage: '/og-image.jpg'
 })
 
 useSchemaOrg([
   computed(() => ({
     '@type': 'Restaurant',
-    name: 'Take Me Away by KIKUZUKI',
+    name: 'Your Restaurant',
     mainEntity: {
       '@type': 'FAQPage',
       mainEntity: {
         '@type': 'Question',
-        name: 'Customer Questions About KIKUZUKI',
+        name: 'Customer Questions About Our Restaurant',
         acceptedAnswer: {
           '@type': 'Answer',
-          text: 'Find answers to common questions about our Japanese robatayaki restaurant, menu, and services.'
+          text: 'Find answers to common questions about our authentic restaurant, menu, and services.'
         }
       }
     }

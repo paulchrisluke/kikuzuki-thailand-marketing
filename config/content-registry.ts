@@ -1,4 +1,4 @@
-export type FieldSource = 'manual' | 'google' | 'static'
+export type FieldSource = 'manual' | 'google' | 'static' | 'computed'
 export type FieldType = 'text' | 'richtext' | 'image'
 
 export interface FieldDefinition {
@@ -26,14 +26,14 @@ export const contentRegistry: Record<string, PageDefinition> = {
         label: 'Hero Title',
         type: 'text',
         source: 'manual',
-        defaultValue: 'Take Me Away by KIKUZUKI',
+        defaultValue: 'Your Restaurant',
         placeholder: 'Enter hero title...'
       },
       'hero.subtitle': {
         label: 'Hero Subtitle',
         type: 'text',
         source: 'manual',
-        defaultValue: 'Authentic Japanese Robatayaki Experience in Krabi',
+        defaultValue: 'Authentic Experience in your city',
         placeholder: 'Enter hero subtitle...'
       },
       'hero.video': {
@@ -46,13 +46,13 @@ export const contentRegistry: Record<string, PageDefinition> = {
         label: 'CTA Heading',
         type: 'text',
         source: 'manual',
-        defaultValue: 'Ready to Experience KIKUZUKI?'
+        defaultValue: 'Ready to Experience OUR RESTAURANT?'
       },
       'cta.description': {
         label: 'CTA Description',
         type: 'richtext',
         source: 'manual',
-        defaultValue: "Whether you're joining us for a casual dinner or a special celebration, we look forward to serving you the finest Japanese cuisine in Krabi."
+        defaultValue: "Whether you're joining us for a casual dinner or a special celebration, we look forward to serving you the finest authentic cuisine in your city."
       },
       'business.name': {
         label: 'Business Name',
@@ -107,19 +107,19 @@ export const contentRegistry: Record<string, PageDefinition> = {
         label: 'Page Title',
         type: 'text',
         source: 'manual',
-        defaultValue: 'About KIKUZUKI'
+        defaultValue: 'About OUR RESTAURANT'
       },
       'hero.subtitle': {
         label: 'Page Subtitle',
         type: 'text',
         source: 'manual',
-        defaultValue: 'Authentic Japanese Robatayaki Experience in Krabi'
+        defaultValue: 'Authentic Experience in your city'
       },
       'story.intro': {
         label: 'Story Introduction',
         type: 'richtext',
         source: 'manual',
-        defaultValue: '<p class="text-xl font-medium text-gray-900 border-l-4 border-black pl-6 py-2">Kikuzuki Japanese Restaurant, nestled in the heart of Krabi, Thailand, is a culinary haven that specializes in the artful fusion of robatayaki and sushi.</p>'
+        defaultValue: '<p class="text-xl font-medium text-gray-900 border-l-4 border-black pl-6 py-2">Our Restaurant authentic Restaurant, nestled in the heart of your city, is a culinary haven that specializes in the artful fusion of fine dining.</p>'
       },
       'grill.title': {
         label: 'Grill Section Title',
@@ -131,7 +131,7 @@ export const contentRegistry: Record<string, PageDefinition> = {
         label: 'Grill Description',
         type: 'richtext',
         source: 'manual',
-        defaultValue: 'Renowned for its robatayaki, Kikuzuki showcases a mastery of grilling techniques, presenting a delectable array of skewered delights.'
+        defaultValue: 'Renowned for its authentic cuisine, Our Restaurant showcases a mastery of grilling techniques, presenting a delectable array of skewered delights.'
       },
       'sushi.title': {
         label: 'Sushi Section Title',
@@ -143,7 +143,7 @@ export const contentRegistry: Record<string, PageDefinition> = {
         label: 'Sushi Description',
         type: 'richtext',
         source: 'manual',
-        defaultValue: "Complementing the robatayaki experience is Kikuzuki's sushi selection, where skilled chefs artfully craft a variety of sushi rolls."
+        defaultValue: "Complementing the authentic cuisine experience is Our Restaurant's sushi selection, where skilled chefs artfully craft a variety of sushi rolls."
       },
       'journey.title': {
         label: 'Journey Section Title',
@@ -155,7 +155,7 @@ export const contentRegistry: Record<string, PageDefinition> = {
         label: 'Journey Body',
         type: 'richtext',
         source: 'manual',
-        defaultValue: '<p>Nestled amidst the tropical allure of Krabi, Thailand, Kikuzuki has an enchanting culinary tale.</p>'
+        defaultValue: '<p>Nestled amidst the tropical allure of your city, Our Restaurant has an enchanting culinary tale.</p>'
       },
       'experience.body': {
         label: 'Experience Description',
@@ -192,25 +192,25 @@ export const contentRegistry: Record<string, PageDefinition> = {
         label: 'Page Subtitle',
         type: 'text',
         source: 'manual',
-        defaultValue: 'Get in Touch with KIKUZUKI'
+        defaultValue: 'Get in Touch with OUR RESTAURANT'
       },
       'intro.body': {
         label: 'Introduction Text',
         type: 'richtext',
         source: 'manual',
-        defaultValue: '<p>For an unparalleled Japanese culinary experience in Krabi, Kikuzuki beckons you to transcend the virtual and savor the exquisite reality.</p>'
+        defaultValue: '<p>For an unparalleled authentic culinary experience in your city, Our Restaurant beckons you to transcend the virtual and savor the exquisite reality.</p>'
       },
       'social.facebook': {
         label: 'Facebook URL',
         type: 'text',
         source: 'manual',
-        defaultValue: 'https://www.facebook.com/kikuzuki-thailand'
+        defaultValue: 'https://www.facebook.com/your-restaurant'
       },
       'social.instagram': {
         label: 'Instagram URL',
         type: 'text',
         source: 'manual',
-        defaultValue: 'https://www.instagram.com/kikuzuki-thailand'
+        defaultValue: 'https://www.instagram.com/your-restaurant'
       },
       'business.name': { label: 'Business Name', type: 'text', source: 'google', googlePath: 'title' },
       'business.establishment_year': { label: 'Establishment Year', type: 'text', source: 'google', googlePath: 'establishmentYear' },
@@ -225,7 +225,7 @@ export const contentRegistry: Record<string, PageDefinition> = {
     path: '/location',
     fields: {
       'hero.title': { label: 'Page Title', type: 'text', source: 'manual', defaultValue: 'Location & Hours' },
-      'hero.subtitle': { label: 'Page Subtitle', type: 'text', source: 'manual', defaultValue: 'Visit Us in Krabi, Thailand' },
+      'hero.subtitle': { label: 'Page Subtitle', type: 'text', source: 'manual', defaultValue: 'Visit Us in your city' },
       'parking.info': {
         label: 'Parking Information',
         type: 'richtext',
@@ -251,7 +251,7 @@ export const contentRegistry: Record<string, PageDefinition> = {
     path: '/menu',
     fields: {
       'hero.title': { label: 'Page Title', type: 'text', source: 'manual', defaultValue: 'Our Menu' },
-      'hero.subtitle': { label: 'Page Subtitle', type: 'text', source: 'manual', defaultValue: 'Authentic Japanese Robatayaki Izakaya' },
+      'hero.subtitle': { label: 'Page Subtitle', type: 'text', source: 'manual', defaultValue: 'Authentic Dining' },
       'description': {
         label: 'Menu Introduction',
         type: 'richtext',
@@ -266,8 +266,8 @@ export const contentRegistry: Record<string, PageDefinition> = {
     label: 'Reservations',
     path: '/reservations',
     fields: {
-      'hero.title': { label: 'Page Title', type: 'text', source: 'manual', defaultValue: 'Reserve a Table at KIKUZUKI' },
-      'hero.subtitle': { label: 'Page Subtitle', type: 'text', source: 'manual', defaultValue: 'Book Your Authentic Japanese Robatayaki Experience' },
+      'hero.title': { label: 'Page Title', type: 'text', source: 'manual', defaultValue: 'Reserve a Table at OUR RESTAURANT' },
+      'hero.subtitle': { label: 'Page Subtitle', type: 'text', source: 'manual', defaultValue: 'Book Your Authentic Experience' },
       'policies.body': {
         label: 'Reservation Policies',
         type: 'richtext',
@@ -284,7 +284,7 @@ export const contentRegistry: Record<string, PageDefinition> = {
         label: 'Contact Email',
         type: 'text',
         source: 'manual',
-        defaultValue: 'info@kikuzuki-thailand.com'
+        defaultValue: 'info@your-restaurant.com'
       }
     }
   }

@@ -1,8 +1,8 @@
 <template>
   <div class="min-h-screen bg-white">
     <AppHero
-      :title="getField('hero.title', 'Reserve a Table at KIKUZUKI')"
-      :subtitle="getField('hero.subtitle', 'Book Your Authentic Japanese Robatayaki Experience')"
+      :title="getField('hero.title', 'Reserve a Table')"
+      :subtitle="getField('hero.subtitle', 'Book Your Authentic Dining Experience')"
       size="page"
     />
     <div class="max-w-6xl mx-auto px-4 py-12">
@@ -10,81 +10,100 @@
         <!-- Reservation Form -->
         <div>
           <h2 class="text-2xl md:text-3xl font-bold text-gray-900 mb-6">Make a Reservation</h2>
-          <div class="bg-gray-50 rounded-lg p-6">
-            <form class="space-y-4" @submit.prevent>
-              <div>
-                <label for="res-name" class="block text-sm font-medium text-gray-700 mb-1">Name *</label>
-                <input type="text" id="res-name" required class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-black">
-              </div>
-              <div>
-                <label for="res-email" class="block text-sm font-medium text-gray-700 mb-1">Email *</label>
-                <input type="email" id="res-email" required class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-black">
-              </div>
-              <div>
-                <label for="res-phone" class="block text-sm font-medium text-gray-700 mb-1">Phone *</label>
-                <input type="tel" id="res-phone" required class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-black">
-              </div>
+          <UCard class="bg-gray-50 rounded-lg">
+            <UForm @submit="handleReservation" class="space-y-6">
+              <UInput
+                id="res-name"
+                v-model="reservationForm.name"
+                label="Name"
+                required
+              />
+              <UInput
+                id="res-email"
+                v-model="reservationForm.email"
+                type="email"
+                label="Email"
+                required
+              />
+              <UInput
+                id="res-phone"
+                v-model="reservationForm.phone"
+                type="tel"
+                label="Phone"
+                required
+              />
               <div class="grid md:grid-cols-2 gap-4">
-                <div>
-                  <label for="res-date" class="block text-sm font-medium text-gray-700 mb-1">Date *</label>
-                  <input type="date" id="res-date" required class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-black">
-                </div>
-                <div>
-                  <label for="res-time" class="block text-sm font-medium text-gray-700 mb-1">Time *</label>
-                  <select id="res-time" required class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-black">
+                <UInput
+                  id="res-date"
+                  v-model="reservationForm.date"
+                  type="date"
+                  label="Date"
+                  required
+                />
+                <UInput
+                  id="res-time"
+                  v-model="reservationForm.time"
+                  label="Time"
+                  required
+                >
+                  <select v-model="reservationForm.time" class="w-full h-full bg-transparent">
                     <option value="">Select time</option>
                     <option v-for="h in timeSlots" :key="h" :value="h">{{ h }}</option>
                   </select>
-                </div>
+                </UInput>
               </div>
-              <div>
-                <label for="res-guests" class="block text-sm font-medium text-gray-700 mb-1">Guests *</label>
-                <select id="res-guests" required class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-black">
+              <UInput
+                id="res-guests"
+                v-model="reservationForm.guests"
+                label="Guests"
+                required
+              >
+                <select v-model="reservationForm.guests" class="w-full h-full bg-transparent">
                   <option value="">Select guests</option>
                   <option v-for="n in guestOptions" :key="n.value" :value="n.value">{{ n.label }}</option>
                 </select>
-              </div>
-              <div>
-                <label for="res-requests" class="block text-sm font-medium text-gray-700 mb-1">Special Requests</label>
-                <textarea id="res-requests" rows="3" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-black" placeholder="Dietary restrictions, seating preferences…" />
-              </div>
-              <button type="submit" class="w-full bg-black text-white py-3 px-4 rounded-md font-semibold hover:bg-gray-800 transition-colors">
+              </UInput>
+              <UTextarea
+                id="res-requests"
+                v-model="reservationForm.requests"
+                label="Special Requests"
+                placeholder="Dietary restrictions, seating preferences…"
+                :rows="3"
+              />
+              <UButton type="submit" color="primary" size="lg" class="w-full">
                 Make Reservation
-              </button>
-            </form>
-          </div>
+              </UButton>
+            </UForm>
+          </UCard>
         </div>
 
         <!-- Sidebar Info -->
         <div>
           <h2 class="text-2xl md:text-3xl font-bold text-gray-900 mb-6">Reservation Details</h2>
 
-          <div class="bg-gray-50 rounded-lg p-6 mb-6">
+          <UCard class="bg-gray-50 rounded-lg mb-6">
             <h3 class="text-lg font-semibold text-gray-900 mb-4">Contact Information</h3>
             <div class="space-y-2">
               <p class="text-gray-700"><strong>Phone:</strong> {{ contactPhone }}</p>
               <p class="text-gray-700"><strong>Email:</strong> {{ contactEmail }}</p>
             </div>
-          </div>
+          </UCard>
 
-          <div class="bg-gray-50 rounded-lg p-6 mb-6">
+          <UCard class="bg-gray-50 rounded-lg mb-6">
             <h3 class="text-lg font-semibold text-gray-900 mb-4">Reservation Policies</h3>
             <div v-html="policiesBody" />
-          </div>
+          </UCard>
 
           <div class="space-y-4">
-            <a
-              :href="`tel:${contactPhone.replace(/\s/g, '')}`"
-              class="block bg-black text-white text-center py-3 px-4 rounded-md font-semibold hover:bg-gray-800 transition-colors"
-            >
+            <UButton :to="`tel:${contactPhone.replace(/\s/g, '')}`" variant="outline" size="lg" class="w-full">
               Call: {{ contactPhone }}
-            </a>
-            <NuxtLink to="/contact" class="block bg-gray-100 text-center py-3 px-4 rounded-md font-semibold hover:bg-gray-200 transition-colors">
+            </UButton>
+            <UButton to="/contact" variant="ghost" size="lg" class="w-full">
               Send Message
-            </NuxtLink>
-            <NuxtLink to="/menu" class="block bg-gray-100 text-center py-3 px-4 rounded-md font-semibold hover:bg-gray-200 transition-colors">
+            </UButton>
+            <UButton to="/menu" variant="ghost" size="lg" class="w-full">
               View Menu
-            </NuxtLink>
+            </UButton>
           </div>
         </div>
       </div>
@@ -93,6 +112,7 @@
 </template>
 
 <script setup>
+definePageMeta({ layout: 'tenant' })
 import { usePageContent } from '~/composables/usePageContent'
 
 const { getField } = usePageContent('reservations')
@@ -121,10 +141,28 @@ const policiesBody = computed(() => getField('policies.body',
   '</ul>'
 ))
 
+// Reservation form data
+const reservationForm = ref({
+  name: '',
+  email: '',
+  phone: '',
+  date: '',
+  time: '',
+  guests: '',
+  requests: ''
+})
+
+const handleReservation = () => {
+  // Handle reservation submission
+  console.log('Reservation submitted:', reservationForm.value)
+}
+
+const { site } = await useTenantSite()
+
 useSeoMeta({
-  title: 'Reserve a Table | Take Me Away by KIKUZUKI | Krabi Thailand',
-  description: 'Reserve a table at KIKUZUKI, our authentic Japanese robatayaki restaurant in Krabi, Thailand.',
+  title: 'Reserve a Table | Restaurant',
+  description: 'Reserve a table at our restaurant.',
   ogImage: '/og-image.jpg',
-  ogUrl: 'https://www.kikuzuki-thailand.com/reservations'
+  ogUrl: `https://${site?.subdomain || 'restaurant'}.krabiclaw.com/reservations`
 })
 </script>

@@ -19,6 +19,7 @@
 </template>
 
 <script setup>
+definePageMeta({ layout: 'tenant' })
 import AppHero from '~/components/ui/AppHero.vue'
 import RestaurantPosts from '~/components/google/RestaurantPosts.vue'
 
@@ -47,23 +48,23 @@ const formatDate = (dateString) => {
 
 // SEO Meta
 useSeoMeta({
-  title: 'Posts | Take Me Away by KIKUZUKI | Business Updates',
-  description: 'Read the latest news, updates, and announcements from Take Me Away by KIKUZUKI in Krabi, Thailand. Stay informed about events, special offers, and restaurant news.',
-  ogTitle: 'Posts | Take Me Away by KIKUZUKI',
-  ogDescription: 'Business updates and news from our Japanese robatayaki restaurant in Krabi, Thailand.',
+  title: 'Posts | Restaurant Website | Business Updates',
+  description: 'Read the latest news, updates, and announcements from our restaurant. Stay informed about events, special offers, and restaurant news.',
+  ogTitle: 'Posts | Restaurant Website',
+  ogDescription: 'Business updates and news from our authentic restaurant.',
   ogImage: '/og-image.jpg',
-  ogUrl: 'https://www.kikuzuki-thailand.com/posts',
+  ogUrl: '/posts',
   ogType: 'website',
   twitterCard: 'summary_large_image',
-  twitterTitle: 'Posts - Take Me Away by KIKUZUKI',
-  twitterDescription: 'Latest updates from our Japanese restaurant in Krabi, Thailand.',
+  twitterTitle: 'Posts - Restaurant Website',
+  twitterDescription: 'Latest updates from our Japanese restaurant.',
   twitterImage: '/og-image.jpg'
 })
 
 useSchemaOrg([
   computed(() => ({
     '@type': 'Restaurant',
-    name: 'Take Me Away by KIKUZUKI',
+    name: 'Your Restaurant',
     mainEntity: {
       '@type': 'ItemList',
       itemListElement: googlePosts.value.map(post => ({
@@ -72,7 +73,7 @@ useSchemaOrg([
         datePublished: post.createTime,
         author: {
           '@type': 'Organization',
-          name: 'Take Me Away by KIKUZUKI'
+          name: 'Your Restaurant'
         },
         image: post.media?.[0]?.googleUrl || '/og-image.jpg'
       }))

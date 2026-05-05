@@ -1,7 +1,7 @@
 <template>
   <div>
     <AppHero
-      :title="getField('hero.title', 'About KIKUZUKI')"
+      :title="getField('hero.title', 'About Your Restaurant')"
       :subtitle="getField('hero.subtitle', 'Authentic Japanese Robatayaki Experience in Krabi')"
       size="page"
       :establishment-year="googleBusiness.value?.business?.establishmentYear"
@@ -18,11 +18,11 @@
         <div class="grid md:grid-cols-2 gap-12 pt-8">
           <div>
             <h3 class="text-2xl font-bold text-black mb-4">{{ getField('grill.title', 'Mastery of the Grill') }}</h3>
-            <p>{{ getField('grill.description', 'Renowned for its robatayaki, Kikuzuki showcases a mastery of grilling techniques, presenting a delectable array of skewered delights.') }}</p>
+            <p>{{ getField('grill.description', 'Renowned for its robatayaki, our restaurant showcases a mastery of grilling techniques, presenting a delectable array of skewered delights.') }}</p>
           </div>
           <div>
             <h3 class="text-2xl font-bold text-black mb-4">{{ getField('sushi.title', 'Artistry in Sushi') }}</h3>
-            <p>{{ getField('sushi.description', "Complementing the robatayaki experience is Kikuzuki's sushi selection, where skilled chefs artfully craft a variety of sushi rolls.") }}</p>
+            <p>{{ getField('sushi.description', "Complementing the robatayaki experience is our restaurant's sushi selection, where skilled chefs artfully craft a variety of sushi rolls.") }}</p>
           </div>
         </div>
 
@@ -43,6 +43,7 @@
 </template>
 
 <script setup>
+definePageMeta({ layout: 'tenant' })
 import { usePageContent } from '~/composables/usePageContent'
 
 const { getField } = usePageContent('about')
@@ -58,26 +59,26 @@ const googleMedia = computed(() => googleBusiness.value?.media || [])
 // Defaults moved to computeds to avoid inline template quote-escaping issues
 const storyIntro = computed(() => getField('story.intro',
   '<p class="text-xl font-medium text-gray-900 border-l-4 border-black pl-6 py-2">' +
-  'Kikuzuki Japanese Restaurant, nestled in the heart of Krabi, Thailand, is a culinary haven that specializes in the artful fusion of robatayaki and sushi.' +
+  'Your Restaurant, nestled in the heart of your city, is a culinary haven that specializes in the artful fusion of robatayaki and sushi.' +
   '</p>'
 ))
 
 const journeyBody = computed(() => getField('journey.body',
-  '<p>Nestled amidst the tropical allure of Krabi, Thailand, Kikuzuki has an enchanting culinary tale. ' +
-  'Beyond the sliding glazed door entrance and our Kikuzuki Giant red lucky cat, you are welcomed into a little piece of Japan.</p>' +
+  '<p>Nestled amidst the tropical allure of your city, our restaurant has an enchanting culinary tale. ' +
+  'Beyond the sliding glazed door entrance and our giant red lucky cat, you are welcomed into a little piece of Japan.</p>' +
   '<p>The restaurant, a symphony of warm wood and subtle lighting, immerses diners in an ambiance that transports them to the heart of Japan.</p>'
 ))
 
 const experienceBody = computed(() => getField('experience.body',
   '<p>Equally enticing is our sushi bar, a stage where culinary craftsmen orchestrate amazing flavors and textures. ' +
   'Committed to the freshest seafood, our sushi chefs weave magic into every dish.</p>' +
-  '<p>Kikuzuki stands as a beacon of gastronomic delight, where the legacy of robatayaki and the allure of sushi come together in a culinary tapestry.</p>'
+  '<p>Our restaurant stands as a beacon of gastronomic delight, where the legacy of robatayaki and the allure of sushi come together in a culinary tapestry.</p>'
 ))
 
 useSeoMeta({
-  title: 'About | Take Me Away by KIKUZUKI | Japanese Robatayaki Krabi',
-  description: 'Learn about KIKUZUKI, our authentic Japanese robatayaki restaurant in Krabi, Thailand.',
+  title: 'About | Restaurant Website',
+  description: 'Learn about our restaurant and our authentic dining experience.',
   ogImage: '/og-image.jpg',
-  ogUrl: 'https://www.kikuzuki-thailand.com/about'
+  ogUrl: '/about'
 })
 </script>

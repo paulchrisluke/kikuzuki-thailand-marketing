@@ -1,0 +1,96 @@
+// Subdomain validation API endpoint
+import { cloudflareEnv, jsonResponse } from '../../utils/api-response'
+
+const reservedSubdomains = [
+  'www', 'app', 'api', 'admin', 'dashboard', 'login', 'signup', 
+  'pricing', 'billing', 'support', 'help', 'docs', 'blog', 'posts', 
+  'qa', 'legal', 'terms', 'privacy', 'static', 'assets', 'cdn', 
+  'mail', 'status'
+]
+
+function validateSubdomainFormat(subdomain: string): { valid: boolean; reason?: string } {
+  if (!subdomain) {
+    return { valid: false, reason: 'Subdomain is required' }
+  }
+  
+  if (subdomain.length < 3) {
+    return { valid: false, reason: 'Subdomain must be at least 3 characters' }
+  }
+  
+  if (subdomain.length > 63) {
+    return { valid: false, reason: 'Subdomain must be 63 characters or less' }
+  }
+  
+  if (reservedSubdomains.includes(subdomain.toLowerCase())) {
+    return { valid: false, reason: 'This subdomain is reserved' }
+  }
+  
+  if (!/^[a-z0-9-]+$/.test(subdomain.toLowerCase())) {
+    return { valid: false, reason: 'Only letters, numbers, and hyphens are allowed' }
+  }
+  
+  if (subdomain.startsWith('-') || subdomain.endsWith('-')) {
+    return { valid: false, reason: 'Subdomain cannot start or end with a hyphen' }
+  }
+  
+  return { valid: true }
+}
+
+export default defineEventHandler(async (event) => {
+  const body = await readBody(event)
+  const { subdomain } = body
+  
+  if (!subdomain || typeof subdomain !== 'string') {
+    return jsonResponse({ 
+      available: false, 
+      message: 'Subdomain is required' 
+    }, { status: 400 })
+  }
+  
+  // Validate format
+  const formatValidation = validateSubdomainFormat(subdomain)
+  if (!formatValidation.valid) {
+    return jsonResponse({ 
+      available: false, 
+      message: formatValidation.reason 
+    }, { status: 400 })
+  }
+  
+  const env = cloudflareEnv(event)
+  const db = env.REVIEWS_DB
+  
+  if (!db) {
+    return jsonResponse({ 
+      available: false, 
+      message: 'Database not available' 
+    }, { status: 500 })
+  }
+  
+  try {
+    // Check if subdomain already exists
+    const existing = await db.prepare(`
+      SELECT id FROM sites 
+      WHERE subdomain = ? 
+      LIMIT 1
+    `).bind(subdomain.toLowerCase()).first()
+    
+    if (existing) {
+      return jsonResponse({ 
+        available: false, 
+        message: 'This subdomain is already taken' 
+      })
+    }
+    
+    return jsonResponse({ 
+      available: true, 
+      message: 'Available!' 
+    })
+    
+  } catch (error) {
+    console.error('Subdomain validation error:', error)
+    return jsonResponse({ 
+      available: false, 
+      message: 'Error checking subdomain availability' 
+    }, { status: 500 })
+  }
+})

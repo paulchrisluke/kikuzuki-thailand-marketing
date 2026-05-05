@@ -37,7 +37,7 @@
         <section class="mt-8 lg:col-span-7 lg:col-start-1 lg:row-span-3 lg:row-start-1 lg:mt-0" aria-labelledby="item-images-heading">
           <h2 id="item-images-heading" class="sr-only">Dish images</h2>
           <div class="grid grid-cols-1 gap-4 lg:grid-cols-2 lg:grid-rows-3 lg:gap-6">
-            <div class="overflow-hidden rounded-lg bg-gray-100 lg:col-span-2 lg:row-span-2">
+            <UCard class="bg-white rounded-lg overflow-hidden">
               <img
                 v-if="imageGallery[0]"
                 :src="imageGallery[0]"
@@ -47,14 +47,10 @@
               <div v-else class="flex aspect-[4/3] w-full items-center justify-center px-6 text-center">
                 <span class="text-sm text-gray-400">No image available yet</span>
               </div>
-            </div>
-            <div
-              v-for="image in secondaryImages"
-              :key="image"
-              class="hidden overflow-hidden rounded-lg bg-gray-100 lg:block"
-            >
+            </UCard>
+            <UCard v-for="image in secondaryImages" :key="image" class="hidden lg:block bg-gray-100 rounded-lg overflow-hidden">
               <img :src="image" :alt="item.name" class="aspect-square w-full object-cover" />
-            </div>
+            </UCard>
           </div>
         </section>
 
@@ -101,20 +97,17 @@
           <section class="mt-10" aria-labelledby="dining-notes-heading">
             <h3 id="dining-notes-heading" class="sr-only">Dining notes</h3>
             <dl class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
-              <div v-for="note in diningNotes" :key="note.name" class="rounded-lg border border-gray-200 bg-gray-50 p-5">
+              <UCard v-for="note in diningNotes" :key="note.name" class="border border-gray-200 bg-gray-50 p-5">
                 <dt class="text-sm font-medium text-gray-900">{{ note.name }}</dt>
                 <dd class="mt-1 text-sm leading-6 text-gray-500">{{ note.description }}</dd>
-              </div>
+              </UCard>
             </dl>
           </section>
 
           <div class="mt-8">
-            <NuxtLink
-              to="/menu"
-              class="inline-flex w-full items-center justify-center rounded-md bg-black px-6 py-3 text-sm font-semibold text-white transition-colors hover:bg-gray-800 sm:w-auto"
-            >
+            <UButton to="/menu" color="primary" size="lg">
               Back to menu
-            </NuxtLink>
+            </UButton>
           </div>
         </section>
       </div>
@@ -262,6 +255,8 @@
 </template>
 
 <script setup>
+definePageMeta({ layout: 'tenant' })
+import { useTenantSite } from '~/composables/useTenantSite'
 import { menuData } from '~/data/menu'
 import AppBreadcrumb from '~/components/ui/AppBreadcrumb.vue'
 
@@ -489,12 +484,12 @@ watch(() => item.value?.slug, async () => {
 
 // SEO Meta
 useSeoMeta({
-  title: () => item.value ? `${item.value.name} | Menu | Take Me Away by KIKUZUKI` : 'Menu Item Not Found | Take Me Away by KIKUZUKI',
+  title: () => item.value ? `${item.value.name} | Menu | Restaurant Website` : 'Menu Item Not Found | Restaurant Website',
   description: () => item.value ? item.value.description : 'The menu item you\'re looking for doesn\'t exist.',
-  ogTitle: () => item.value ? `${item.value.name} | Menu | Take Me Away by KIKUZUKI` : 'Menu Item Not Found',
+  ogTitle: () => item.value ? `${item.value.name} | Menu | Restaurant Website` : 'Menu Item Not Found',
   ogDescription: () => item.value ? item.value.description : 'Menu item not found',
   ogImage: () => schemaImage.value || '/og-image.jpg',
-  ogUrl: () => item.value ? `https://www.kikuzuki-thailand.com/menu/${item.value.slug}` : 'https://www.kikuzuki-thailand.com/menu',
+  ogUrl: () => item.value ? `/menu/${item.value.slug}` : '/menu',
   ogType: 'website',
   twitterCard: 'summary_large_image',
   twitterTitle: () => item.value ? item.value.name : 'Menu Item Not Found',
@@ -569,9 +564,9 @@ const schemaGraph = computed(() => {
     {
       '@type': 'BreadcrumbList',
       itemListElement: [
-        { '@type': 'ListItem', position: 1, name: 'Home', item: 'https://www.kikuzuki-thailand.com' },
-        { '@type': 'ListItem', position: 2, name: 'Menu', item: 'https://www.kikuzuki-thailand.com/menu' },
-        { '@type': 'ListItem', position: 3, name: item.value.name, item: `https://www.kikuzuki-thailand.com/menu/${item.value.slug}` }
+        { '@type': 'ListItem', position: 1, name: 'Home', item: '/' },
+        { '@type': 'ListItem', position: 2, name: 'Menu', item: '/menu' },
+        { '@type': 'ListItem', position: 3, name: item.value.name, item: `/menu/${item.value.slug}` }
       ]
     }
   ]

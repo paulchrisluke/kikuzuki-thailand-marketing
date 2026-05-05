@@ -34,7 +34,7 @@
           <div>
             <p class="text-gray-700 leading-relaxed text-sm mb-2">{{ item.topAnswer.text }}</p>
             <p class="text-[10px] text-stone-400 font-bold uppercase tracking-widest">
-              Response from KIKUZUKI • {{ formatDate(item.topAnswer.updateTime) }}
+              Response from Restaurant • {{ formatDate(item.topAnswer.updateTime) }}
             </p>
           </div>
         </div>
@@ -69,16 +69,16 @@
     </div>
 
     <div v-if="showViewMore && limit && qa.length > 0" class="mt-12 text-center">
-      <AppButton to="/qa" variant="secondary" size="md">
+      <UButton to="/qa" variant="outline" size="md">
         View All Questions
-      </AppButton>
+      </UButton>
     </div>
   </AppSection>
 </template>
 
 <script setup>
 import AppSection from '~/components/ui/AppSection.vue'
-import AppButton from '~/components/ui/AppButton.vue'
+import { UButton } from '#components'
 
 const props = defineProps({
   qa: {

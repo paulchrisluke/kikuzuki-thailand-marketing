@@ -11,7 +11,7 @@ defineProps({
   bg: {
     type: String,
     default: 'white',
-    validator: v => ['white', 'black', 'gray'].includes(v)
+    validator: v => ['white', 'black', 'gray', 'stone'].includes(v)
   },
   padding: {
     type: String,
@@ -23,7 +23,8 @@ defineProps({
 const backgrounds = {
   white: 'bg-white text-black',
   black: 'bg-black text-white',
-  gray: 'bg-gray-50 text-black'
+  gray: 'bg-gray-50 text-black',
+  stone: 'bg-stone-50 text-black'
 }
 
 const paddings = {

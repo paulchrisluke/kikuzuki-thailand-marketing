@@ -1,0 +1,117 @@
+// POST save draft
+import { cloudflareEnv, jsonResponse } from '../../../../../utils/api-response'
+import { upsertDraftContent } from '../../../../../utils/content-management'
+
+interface DraftRequest {
+  page: string
+  changes: Record<string, string>
+}
+
+export default defineEventHandler(async (event) => {
+  const siteId = getRouterParam(event, 'siteId')
+  const body = await readBody(event) as DraftRequest
+  const { page, changes } = body
+  
+  if (!siteId || !page || !changes) {
+    return jsonResponse({ 
+      error: 'Site ID, page, and changes are required' 
+    }, { status: 400 })
+  }
+  
+  const env = cloudflareEnv(event)
+  const db = env.REVIEWS_DB
+  
+  if (!db) {
+    return jsonResponse({ 
+      error: 'Database not available' 
+    }, { status: 500 })
+  }
+
+  // Get authenticated user
+  const headers = getHeaders(event)
+  const session = await $fetch('/api/auth/session', {
+    headers: {
+      cookie: headers.cookie || '',
+      authorization: headers.authorization || ''
+    }
+  })
+  
+  if (!session?.user?.id) {
+    return jsonResponse({ 
+      error: 'Authentication required' 
+    }, { status: 401 })
+  }
+
+  try {
+    // Verify user belongs to organization that owns the site
+    const site = await db.prepare(`
+      SELECT s.id, s.organization_id, s.name, s.status, s.onboarding_status
+      FROM sites s
+      JOIN organizations o ON s.organization_id = o.id
+      JOIN organization_members om ON o.id = om.organization_id
+      WHERE s.id = ? AND om.user_id = ? AND om.role = 'owner'
+      LIMIT 1
+    `).bind(siteId, session.user.id).first()
+    
+    if (!site) {
+      return jsonResponse({ 
+        error: 'Site not found or access denied' 
+      }, { status: 404 })
+    }
+
+    const locationId = getQuery(event).locationId as string || undefined
+
+    // Handle hero fields specially (from legacy code)
+    const heroFields = ['hero.title', 'hero.subtitle', 'hero.video']
+    const heroChange: Record<string, string | undefined> = {}
+    let hasHeroChange = false
+
+    for (const [field, value] of Object.entries(changes)) {
+      if (heroFields.includes(field)) {
+        hasHeroChange = true
+        if (field === 'hero.title')    heroChange.hero_title = value || undefined
+        if (field === 'hero.subtitle') heroChange.hero_subtitle = value || undefined
+        if (field === 'hero.video')    heroChange.hero_video_url = value || undefined
+      } else {
+        await upsertDraftContent(db, {
+          id: `${page}-${field}`,
+          organization_id: site.organization_id,
+          site_id: siteId,
+          location_id: locationId,
+          page,
+          field,
+          content: value,
+          hero_title: undefined,
+          hero_subtitle: undefined,
+          hero_video_url: undefined
+        })
+      }
+    }
+
+    // Handle hero field changes
+    if (hasHeroChange) {
+      await upsertDraftContent(db, {
+        id: `${page}-hero`,
+        organization_id: site.organization_id,
+        site_id: siteId,
+        location_id: locationId,
+        page,
+        field: 'hero',
+        content: undefined,
+        ...heroChange
+      })
+    }
+    
+    return jsonResponse({
+      success: true,
+      message: 'Draft saved successfully',
+      changesCount: Object.keys(changes).length
+    })
+    
+  } catch (error) {
+    console.error('Failed to save draft:', error)
+    return jsonResponse({ 
+      error: 'Failed to save draft' 
+    }, { status: 500 })
+  }
+})

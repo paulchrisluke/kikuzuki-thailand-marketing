@@ -2,14 +2,14 @@
   <div>
     <AppHero
       :title="getField('hero.title', 'Contact Us')"
-      :subtitle="getField('hero.subtitle', 'Get in Touch with KIKUZUKI')"
+      :subtitle="getField('hero.subtitle', 'Get in Touch with Your Restaurant')"
       size="page"
       :establishment-year="googleBusiness.value?.business?.establishmentYear"
     />
-    <div class="max-w-6xl mx-auto px-4 py-12">
-      <div class="bg-gray-50 rounded-lg p-8 mb-12">
+    <UContainer class="py-12">
+      <UCard class="mb-12">
         <div v-html="introBody" class="prose prose-lg max-w-none text-gray-700" />
-      </div>
+      </UCard>
 
       <div class="grid md:grid-cols-2 gap-12">
         <!-- Contact Details -->
@@ -36,53 +36,51 @@
           <div class="mt-8">
             <h3 class="font-semibold text-gray-900 mb-4">Follow Us</h3>
             <div class="flex space-x-4">
-              <a :href="getField('social.facebook', 'https://www.facebook.com/kikuzuki-thailand')" target="_blank" rel="noopener noreferrer" class="text-gray-600 hover:text-gray-900">Facebook</a>
-              <a :href="getField('social.instagram', 'https://www.instagram.com/kikuzuki-thailand')" target="_blank" rel="noopener noreferrer" class="text-gray-600 hover:text-gray-900">Instagram</a>
+              <a :href="getField('social.facebook', '#')" target="_blank" rel="noopener noreferrer" class="text-gray-600 hover:text-gray-900">Facebook</a>
+              <a :href="getField('social.instagram', '#')" target="_blank" rel="noopener noreferrer" class="text-gray-600 hover:text-gray-900">Instagram</a>
             </div>
           </div>
         </div>
 
-        <!-- Contact Form -->
+          <!-- Contact Form -->
         <div>
           <h2 class="text-2xl md:text-3xl font-bold text-gray-900 mb-6">Send Us a Message</h2>
-          <div class="bg-gray-50 rounded-lg p-6">
-            <form class="space-y-4" @submit.prevent>
-              <div>
-                <label for="name" class="block text-sm font-medium text-gray-700 mb-1">Name</label>
-                <input type="text" id="name" name="name" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-black">
-              </div>
-              <div>
-                <label for="email" class="block text-sm font-medium text-gray-700 mb-1">Email</label>
-                <input type="email" id="email" name="email" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-black">
-              </div>
-              <div>
-                <label for="message" class="block text-sm font-medium text-gray-700 mb-1">Message</label>
-                <textarea id="message" name="message" rows="4" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-black" />
-              </div>
-              <button type="submit" class="w-full bg-black text-white py-3 px-4 rounded-md font-semibold hover:bg-gray-800 transition-colors">
+          <UCard>
+            <UForm class="space-y-4" @submit.prevent>
+              <UFormGroup label="Name">
+                <UInput type="text" id="name" name="name" />
+              </UFormGroup>
+              <UFormGroup label="Email">
+                <UInput type="email" id="email" name="email" />
+              </UFormGroup>
+              <UFormGroup label="Message">
+                <UTextarea id="message" name="message" :rows="4" />
+              </UFormGroup>
+              <UButton type="submit" color="black" size="md" block>
                 Send Message
-              </button>
-            </form>
-          </div>
+              </UButton>
+            </UForm>
+          </UCard>
         </div>
       </div>
 
       <!-- Quick Actions -->
       <div class="mt-12 grid md:grid-cols-2 gap-6">
-        <NuxtLink to="/reservations" class="block bg-gray-100 rounded-lg p-6 hover:bg-gray-200 transition-colors">
+        <UCard to="/reservations" class="hover:shadow-md transition-shadow cursor-pointer">
           <h3 class="text-lg font-semibold text-gray-900 mb-2">Make a Reservation</h3>
           <p class="text-gray-700">Book your table online or call us directly</p>
-        </NuxtLink>
-        <NuxtLink to="/location" class="block bg-gray-100 rounded-lg p-6 hover:bg-gray-200 transition-colors">
+        </UCard>
+        <UCard to="/location" class="hover:shadow-md transition-shadow cursor-pointer">
           <h3 class="text-lg font-semibold text-gray-900 mb-2">Find Us</h3>
           <p class="text-gray-700">Get directions and view our location on Google Maps</p>
-        </NuxtLink>
+        </UCard>
       </div>
-    </div>
+    </UContainer>
   </div>
 </template>
 
 <script setup>
+definePageMeta({ layout: 'tenant' })
 import { getTodayGoogleHours } from '~/utils/formatters'
 import { usePageContent } from '~/composables/usePageContent'
 
@@ -103,15 +101,15 @@ const businessHours = computed(() => getTodayGoogleHours(googleBusiness.value?.b
 
 // Default moved to computed to avoid inline quote escaping issues
 const introBody = computed(() => getField('intro.body',
-  '<p class="mb-4 leading-relaxed">For an unparalleled Japanese culinary experience in Krabi, Kikuzuki beckons you to transcend the virtual and savor the exquisite reality. Our website offers a glimpse of the gastronomic symphony that awaits—robust robatayaki grills and artful sushi creations.</p>' +
-  '<p class="mb-4 leading-relaxed">Contact us to transform your online curiosity into a reservation, immersing yourself in the warm ambiance, skilled craftsmanship, and tantalizing flavors that define Kikuzuki.</p>' +
-  '<p class="font-semibold leading-relaxed">Elevate your senses; contact Kikuzuki for an unforgettable Japanese dining adventure.</p>'
+  '<p class="mb-4 leading-relaxed">For an unparalleled culinary experience, our restaurant beckons you to transcend the virtual and savor the exquisite reality. Our website offers a glimpse of the gastronomic symphony that awaits—robust grills and artful creations.</p>' +
+  '<p class="mb-4 leading-relaxed">Contact us to transform your online curiosity into a reservation, immersing yourself in the warm ambiance, skilled craftsmanship, and tantalizing flavors.</p>' +
+  '<p class="font-semibold leading-relaxed">Elevate your senses; contact us for an unforgettable dining adventure.</p>'
 ))
 
 useSeoMeta({
-  title: 'Contact | Take Me Away by KIKUZUKI | Krabi Thailand',
-  description: 'Contact Take Me Away by KIKUZUKI in Krabi, Thailand. Get our phone number, address, and send us a message.',
+  title: 'Contact | Restaurant Website',
+  description: 'Contact our restaurant. Get our phone number, address, and send us a message.',
   ogImage: '/og-image.jpg',
-  ogUrl: 'https://www.kikuzuki-thailand.com/contact'
+  ogUrl: '/contact'
 })
 </script>

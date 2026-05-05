@@ -19,10 +19,10 @@
 
     <div :class="['grid gap-8', layoutClass]">
       <!-- Real reviews -->
-      <article
+      <UCard
         v-for="review in displayedReviews"
         :key="review.reviewId || review.name || review.createTime"
-        class="flex flex-col rounded-2xl bg-white p-8 shadow-sm border border-gray-100 transition-all hover:shadow-md"
+        class="flex flex-col bg-white p-8 shadow-sm border border-gray-100 hover:shadow-md transition-all"
       >
         <div class="flex items-center gap-1 text-yellow-400 mb-4">
           <span v-for="i in 5" :key="i" class="text-sm">
@@ -38,7 +38,7 @@
 
         <!-- Review Reply -->
         <div v-if="review.reviewReply?.comment" class="mt-4 bg-gray-50 border border-gray-100 rounded-xl p-4 text-xs">
-          <p class="font-bold text-black mb-1">KIKUZUKI Response:</p>
+          <p class="font-bold text-black mb-1">Restaurant Response:</p>
           <p class="text-gray-600">{{ typeof review.reviewReply.comment === 'string' ? review.reviewReply.comment : review.reviewReply.comment?.text || '' }}</p>
         </div>
 
@@ -53,41 +53,41 @@
             </time>
           </div>
         </div>
-      </article>
+      </UCard>
 
       <!-- Placeholder cards when no reviews -->
       <template v-if="reviews.length === 0">
-        <div v-for="i in (limit || 3)" :key="`placeholder-${i}`" class="flex flex-col rounded-2xl bg-white p-8 shadow-sm border border-gray-100">
+        <UCard v-for="i in (limit || 3)" :key="`placeholder-${i}`" class="flex flex-col bg-white p-8 shadow-sm border border-gray-100">
           <div class="flex items-center gap-1 text-yellow-400 mb-4">
             <span v-for="i in 5" :key="i" class="text-sm">☆</span>
           </div>
           <div class="flex-grow space-y-3">
-            <div class="h-3 bg-stone-200 rounded animate-pulse"></div>
-            <div class="h-3 bg-stone-200 rounded animate-pulse w-4/5"></div>
-            <div class="h-3 bg-stone-200 rounded animate-pulse w-3/4"></div>
+            <USkeleton class="h-3" />
+            <USkeleton class="h-3 w-4/5" />
+            <USkeleton class="h-3 w-3/4" />
           </div>
           <div class="mt-6 flex items-center gap-3 pt-6 border-t border-gray-50">
-            <div class="h-10 w-10 rounded-full bg-stone-200 animate-pulse"></div>
+            <USkeleton class="h-10 w-10 rounded-full" />
             <div class="flex-1">
-              <div class="h-4 bg-stone-200 rounded animate-pulse mb-2"></div>
-              <div class="h-3 bg-stone-200 rounded animate-pulse w-20"></div>
+              <USkeleton class="h-4 mb-2" />
+              <USkeleton class="h-3 w-20" />
             </div>
           </div>
-        </div>
+        </UCard>
       </template>
     </div>
     
     <div v-if="showViewMore && reviews.length > 0" class="mt-12 text-center">
-      <AppButton to="/reviews" variant="secondary" size="md">
+      <UButton to="/reviews" variant="outline" size="md">
         View All Guest Reviews
-      </AppButton>
+      </UButton>
     </div>
   </AppSection>
 </template>
 
 <script setup>
 import AppSection from '~/components/ui/AppSection.vue'
-import AppButton from '~/components/ui/AppButton.vue'
+import { UButton } from '#components'
 
 const props = defineProps({
   reviews: {

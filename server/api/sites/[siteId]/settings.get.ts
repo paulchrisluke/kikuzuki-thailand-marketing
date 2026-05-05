@@ -1,0 +1,89 @@
+// GET site settings
+import { cloudflareEnv, jsonResponse } from '~/server/utils/api-response'
+
+export default defineEventHandler(async (event) => {
+  const siteId = getRouterParam(event, 'siteId')
+  
+  if (!siteId) {
+    return jsonResponse({ 
+      error: 'Site ID is required' 
+    }, { status: 400 })
+  }
+
+  const env = cloudflareEnv(event)
+  const db = env.REVIEWS_DB
+  
+  if (!db) {
+    return jsonResponse({ 
+      error: 'Database not available' 
+    }, { status: 500 })
+  }
+
+  // Get authenticated user
+  const headers = getHeaders(event)
+  const session = await $fetch('/api/auth/session', {
+    headers: {
+      cookie: headers.cookie || '',
+      authorization: headers.authorization || ''
+    }
+  })
+  
+  if (!session?.user?.id) {
+    return jsonResponse({ 
+      error: 'Authentication required' 
+    }, { status: 401 })
+  }
+
+  try {
+    // Verify user belongs to organization that owns the site
+    const site = await db.prepare(`
+      SELECT s.id, s.organization_id, s.name, s.subdomain, s.theme, s.status, 
+             s.primary_location_id, s.public_url, s.custom_domain_status,
+             s.brand_name, s.brand_description, s.logo_url, s.contact_email,
+             s.last_published_at, s.created_at, s.updated_at,
+             o.name as organization_name
+      FROM sites s
+      JOIN organizations o ON s.organization_id = o.id
+      JOIN organization_members om ON o.id = om.organization_id
+      WHERE s.id = ? AND om.user_id = ? AND om.role IN ('owner', 'admin', 'editor')
+      LIMIT 1
+    `).bind(siteId, session.user.id).first()
+    
+    if (!site) {
+      return jsonResponse({ 
+        error: 'Site not found or access denied' 
+      }, { status: 404 })
+    }
+
+    const settings = {
+      id: site.id,
+      organization_id: site.organization_id,
+      site_id: site.id,
+      name: site.name,
+      subdomain: site.subdomain,
+      theme: site.theme || 'saya',
+      status: site.status,
+      primary_location_id: site.primary_location_id,
+      public_url: site.public_url,
+      custom_domain_status: site.custom_domain_status || 'none',
+      brand_name: site.brand_name || site.name,
+      brand_description: site.brand_description,
+      logo_url: site.logo_url,
+      contact_email: site.contact_email,
+      last_published_at: site.last_published_at,
+      created_at: site.created_at,
+      updated_at: site.updated_at
+    }
+    
+    return jsonResponse({
+      success: true,
+      settings
+    })
+    
+  } catch (error) {
+    console.error('Failed to get site settings:', error)
+    return jsonResponse({ 
+      error: 'Failed to get site settings' 
+    }, { status: 500 })
+  }
+})

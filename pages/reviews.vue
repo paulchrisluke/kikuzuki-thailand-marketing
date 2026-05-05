@@ -2,7 +2,7 @@
   <div class="min-h-screen bg-white">
     <AppHero
       title="Customer Reviews"
-      subtitle="What Our Guests Say About KIKUZUKI"
+      subtitle="What Our Guests Say About Our Restaurant"
       size="page"
     />
 
@@ -17,6 +17,7 @@
 </template>
 
 <script setup>
+definePageMeta({ layout: 'tenant' })
 import AppHero from '~/components/ui/AppHero.vue'
 import RestaurantReviews from '~/components/google/RestaurantReviews.vue'
 const { data: googleBusiness } = await useFetch('/api/google-business/public', {
@@ -74,23 +75,23 @@ const formatDate = (dateString) => {
 
 // SEO Meta
 useSeoMeta({
-  title: 'Reviews | Take Me Away by KIKUZUKI | Customer Testimonials',
-  description: 'Read authentic customer reviews and testimonials for Take Me Away by KIKUZUKI in Krabi, Thailand. See what our guests say about our Japanese robatayaki restaurant.',
-  ogTitle: 'Reviews | Take Me Away by KIKUZUKI',
-  ogDescription: 'Customer reviews and testimonials for our Japanese robatayaki restaurant in Krabi, Thailand.',
+  title: 'Reviews | Your Restaurant | Customer Testimonials',
+  description: 'Read authentic customer reviews and testimonials for Your Restaurant in your city. See what our guests say about our authentic restaurant.',
+  ogTitle: 'Reviews | Your Restaurant',
+  ogDescription: 'Customer reviews and testimonials for our authentic restaurant in your city.',
   ogImage: '/og-image.jpg',
   ogUrl: 'https://www.kikuzuki-thailand.com/reviews',
   ogType: 'website',
   twitterCard: 'summary_large_image',
-  twitterTitle: 'Reviews - Take Me Away by KIKUZUKI',
-  twitterDescription: 'Customer reviews for our Japanese restaurant in Krabi, Thailand.',
+  twitterTitle: 'Reviews - Your Restaurant',
+  twitterDescription: 'Customer reviews for our Japanese restaurant in your city.',
   twitterImage: '/og-image.jpg'
 })
 
 useSchemaOrg([
   computed(() => ({
     '@type': 'Restaurant',
-    name: 'Take Me Away by KIKUZUKI',
+    name: 'Your Restaurant',
     review: googleReviews.value.map(review => ({
       '@type': 'Review',
       author: {

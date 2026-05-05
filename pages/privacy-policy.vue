@@ -8,16 +8,16 @@
     <article class="mx-auto prose lg:prose-xl py-12 px-8">
       <p><strong>Effective Date:</strong> October 21, 2024</p>
 
-      <p>At <strong>Take Me Away by KIKUZUKI</strong>, your privacy is our priority. This Privacy Policy explains how we collect, use, disclose, and protect your personal information when you interact with our website, services, or visit our physical location in Krabi, Thailand.</p>
+      <p>At <strong>KrabiClaw</strong>, your privacy is our priority. This Privacy Policy explains how we collect, use, disclose, and protect your personal information when you interact with our website builder platform and services.</p>
 
       <h2>1. Information We Collect</h2>
       <p>We may collect the following types of information:</p>
 
       <h3>A. Personal Information:</h3>
       <ul>
-          <li>Name</li>
-          <li>Email address</li>
-          <li>Phone number</li>
+          <li>Name and email address</li>
+          <li>Account credentials</li>
+          <li>Organization and site information</li>
           <li>Payment information (processed through secure payment providers)</li>
       </ul>
 
@@ -32,18 +32,19 @@
       <h2>2. How We Use Your Information</h2>
       <p>We use your information to:</p>
       <ul>
-          <li>Process reservations and orders</li>
-          <li>Communicate updates and promotional offers</li>
-          <li>Improve our services and enhance the user experience</li>
-          <li>Analyze trends and site performance</li>
+          <li>Provide and maintain our website builder platform</li>
+          <li>Process account registrations and subscriptions</li>
+          <li>Communicate service updates and support</li>
+          <li>Improve our platform and enhance user experience</li>
+          <li>Analyze trends and platform performance</li>
           <li>Ensure compliance with legal obligations</li>
       </ul>
 
       <h2>3. How We Share Your Information</h2>
       <p>We do not sell your personal information. We may share information with:</p>
       <ul>
-          <li>Third-party service providers (e.g., payment processors, analytics providers)</li>
-          <li>Legal authorities if required by law or to protect the rights, safety, or property of Take Me Away by KIKUZUKI.</li>
+          <li>Third-party service providers (e.g., hosting providers, analytics providers)</li>
+          <li>Legal authorities if required by law or to protect the rights, safety, or property of KrabiClaw.</li>
       </ul>
 
       <h2>4. Your Rights and Choices</h2>
@@ -54,9 +55,8 @@
 
       <h2>6. Contact Us</h2>
       <p>If you have any questions or concerns about this Privacy Policy, please contact us at:</p>
-      <p><strong>Take Me Away by KIKUZUKI</strong><br>
-          117, Nong Thale, Krabi, 81000, Thailand<br>
-          Email: info@kikuzuki-thailand.com <br>
+      <p><strong>KrabiClaw</strong><br>
+          Email: privacy@krabiclaw.com <br>
       </p>
     </article>
   </div>
@@ -65,16 +65,20 @@
 <script setup>
 import AppHero from '~/components/ui/AppHero.vue'
 
+definePageMeta({
+  layout: 'platform'
+})
+
 useSeoMeta({
-  title: 'Privacy Policy | Take Me Away by KIKUZUKI',
-  description: 'Privacy Policy for Take Me Away by KIKUZUKI. Learn how we collect, use, and protect your personal information in Thailand.',
-  ogTitle: 'Privacy Policy | Take Me Away by KIKUZUKI',
+  title: 'Privacy Policy | KrabiClaw',
+  description: 'Privacy Policy for KrabiClaw website builder platform. Learn how we collect, use, and protect your personal information.',
+  ogTitle: 'Privacy Policy | KrabiClaw',
   ogDescription: 'Our commitment to protecting your privacy and personal data.',
   ogImage: '/og-image.jpg',
-  ogUrl: 'https://www.kikuzuki-thailand.com/privacy-policy',
+  ogUrl: '/privacy-policy',
   ogType: 'website',
   twitterCard: 'summary',
-  twitterTitle: 'Privacy Policy - Take Me Away by KIKUZUKI',
+  twitterTitle: 'Privacy Policy - KrabiClaw',
   twitterDescription: 'How we protect your privacy and personal information.',
   twitterImage: '/og-image.jpg'
 })

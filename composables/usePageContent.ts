@@ -22,9 +22,16 @@ export const usePageContent = (pageName?: string) => {
     return name.replace(/^\//, '').replace(/\//g, '-')
   })
 
-  const { data, refresh } = useFetch(() => `/api/content/${page.value}`, {
-    key: computed(() => `content-${page.value}`),
-    server: true
+  const { isPlatform, siteId } = useTenantSite()
+
+  const { data, refresh } = useFetch(() => {
+    if (isPlatform) return null
+    if (!siteId) return null
+    return `/api/public/sites/${siteId}/content/${page.value}`
+  }, {
+    key: computed(() => `content-${siteId}-${page.value}`),
+    server: true,
+    immediate: !isPlatform && !!siteId
   })
 
   /** Map of field → ContentRow for quick lookup */

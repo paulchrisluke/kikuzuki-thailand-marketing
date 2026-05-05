@@ -1,0 +1,81 @@
+// Get billing status for organization
+import { cloudflareEnv, jsonResponse } from '../../utils/api-response'
+import { getOrganizationBillingStatus } from '../../utils/billing'
+
+export default defineEventHandler(async (event) => {
+  const env = cloudflareEnv(event)
+  const db = env.REVIEWS_DB
+  
+  if (!db) {
+    return jsonResponse({ 
+      error: 'Database not available' 
+    }, { status: 500 })
+  }
+
+  // Get authenticated user
+  const headers = getHeaders(event)
+  const session = await $fetch('/api/auth/session', {
+    headers: {
+      cookie: headers.cookie || '',
+      authorization: headers.authorization || ''
+    }
+  })
+  
+  if (!session?.user?.id) {
+    return jsonResponse({ 
+      error: 'Authentication required' 
+    }, { status: 401 })
+  }
+
+  // Get organization ID from query or user's active organization
+  const query = getQuery(event)
+  let organizationId = query.organizationId as string
+  
+  if (!organizationId) {
+    // Get user's first organization
+    const userOrg = await db.prepare(`
+      SELECT o.id FROM organizations o
+      JOIN organization_members om ON o.id = om.organization_id
+      WHERE om.user_id = ?
+      LIMIT 1
+    `).bind(session.user.id).first()
+    
+    if (!userOrg) {
+      return jsonResponse({ 
+        error: 'No organization found' 
+      }, { status: 404 })
+    }
+    
+    organizationId = userOrg.id
+  }
+
+  try {
+    // Verify user is member of organization
+    const membership = await db.prepare(`
+      SELECT role FROM organization_members 
+      WHERE organization_id = ? AND user_id = ?
+      LIMIT 1
+    `).bind(organizationId, session.user.id).first()
+    
+    if (!membership) {
+      return jsonResponse({ 
+        error: 'Access denied' 
+      }, { status: 403 })
+    }
+
+    // Get billing status
+    const billingStatus = await getOrganizationBillingStatus(env, db, organizationId)
+    
+    return jsonResponse({
+      success: true,
+      billing: billingStatus,
+      userRole: membership.role
+    })
+    
+  } catch (error) {
+    console.error('Failed to get billing status:', error)
+    return jsonResponse({ 
+      error: 'Failed to get billing status' 
+    }, { status: 500 })
+  }
+})

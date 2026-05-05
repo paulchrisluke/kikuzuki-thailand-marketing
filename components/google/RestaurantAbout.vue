@@ -6,7 +6,7 @@
         <img 
           v-if="image" 
           :src="image" 
-          :alt="title || 'KIKUZUKI'" 
+          :alt="title || 'Restaurant'" 
           class="w-full h-full object-cover hover:scale-105 transition-transform duration-1000"
         />
         <div v-else class="w-full h-full bg-stone-100 flex items-center justify-center border-2 border-dashed border-stone-200">
@@ -32,15 +32,15 @@
           
           <div v-if="!isTeaser" class="mt-16 pt-12 border-t border-stone-100 text-center">
             <p class="font-bold italic text-3xl text-black tracking-tight">
-              "Happy Guest, Happy Kikuzuki"
+              "Happy Guest, Happy Restaurant"
             </p>
           </div>
         </div>
 
         <div v-if="isTeaser" class="mt-10">
-          <AppButton to="/about" :variant="bg === 'black' ? 'white' : 'primary'" size="md">
+          <UButton to="/about" :variant="bg === 'black' ? 'outline' : 'solid'" :color="bg === 'black' ? 'white' : 'primary'" size="md">
             Our Full Story
-          </AppButton>
+          </UButton>
         </div>
       </div>
     </div>
@@ -49,7 +49,7 @@
 
 <script setup>
 import AppSection from '~/components/ui/AppSection.vue'
-import AppButton from '~/components/ui/AppButton.vue'
+import { UButton } from '#components'
 
 defineProps({
   title: {

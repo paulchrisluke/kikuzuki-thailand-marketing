@@ -1,0 +1,74 @@
+// GET draft status
+import { cloudflareEnv, jsonResponse } from '~/server/utils/api-response'
+import { getDraftStatus } from '~/server/utils/content-management'
+
+export default defineEventHandler(async (event) => {
+  const siteId = getRouterParam(event, 'siteId')
+  const page = getQuery(event).page as string || undefined
+  
+  if (!siteId) {
+    return jsonResponse({ 
+      error: 'Site ID is required' 
+    }, { status: 400 })
+  }
+  
+  const env = cloudflareEnv(event)
+  const db = env.REVIEWS_DB
+  
+  if (!db) {
+    return jsonResponse({ 
+      error: 'Database not available' 
+    }, { status: 500 })
+  }
+
+  // Get authenticated user
+  const headers = getHeaders(event)
+  const session = await $fetch('/api/auth/session', {
+    headers: {
+      cookie: headers.cookie || '',
+      authorization: headers.authorization || ''
+    }
+  })
+  
+  if (!session?.user?.id) {
+    return jsonResponse({ 
+      error: 'Authentication required' 
+    }, { status: 401 })
+  }
+
+  try {
+    // Verify user belongs to organization that owns the site
+    const site = await db.prepare(`
+      SELECT s.id, s.organization_id, s.name, s.status, s.onboarding_status
+      FROM sites s
+      JOIN organizations o ON s.organization_id = o.id
+      JOIN organization_members om ON o.id = om.organization_id
+      WHERE s.id = ? AND om.user_id = ? AND om.role IN ('owner', 'admin', 'editor')
+      LIMIT 1
+    `).bind(siteId, session.user.id).first()
+    
+    if (!site) {
+      return jsonResponse({ 
+        error: 'Site not found or access denied' 
+      }, { status: 404 })
+    }
+
+    const locationId = getQuery(event).locationId as string || undefined
+
+    const status = await getDraftStatus(db, site.organization_id, siteId, page, locationId)
+    
+    return jsonResponse({
+      success: true,
+      ...status,
+      siteId,
+      locationId,
+      page
+    })
+    
+  } catch (error) {
+    console.error('Failed to get draft status:', error)
+    return jsonResponse({ 
+      error: 'Failed to get draft status' 
+    }, { status: 500 })
+  }
+})

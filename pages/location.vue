@@ -1,14 +1,16 @@
 <template>
   <div class="min-h-screen bg-white">
-    <AppHero :title="getField('hero.title', 'Location & Hours')" :subtitle="getField('hero.subtitle', 'Visit Us in Krabi, Thailand')" size="page" :establishment-year="googleBusiness.value?.business?.establishmentYear" />
+    <AppHero :title="getField('hero.title', 'Location & Hours')" :subtitle="getField('hero.subtitle', 'Visit Us in your city')" size="page" :establishment-year="googleBusiness.value?.business?.establishmentYear" />
     <div class="max-w-6xl mx-auto px-4 py-12">
       <div class="mb-12">
         <h2 class="text-2xl md:text-3xl font-bold text-gray-900 mb-6">Find Us</h2>
         <div class="aspect-video bg-gray-200 rounded-lg overflow-hidden">
-          <iframe src="https://www.google.com/maps/embed?pb=!1m14!1m8!1m3!1d3950.432413181305!2d98.7493211!3d8.0572977!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x305195cf958f130b%3A0xd8ce9d779ecb9325!2sTake%20Me%20Away%20by%20KIKUZUKI!5e0!3m2!1sen!2sth!4v1777770384431!5m2!1sen!2sth" width="100%" height="100%" style="border:0;" allowfullscreen="" loading="lazy" referrerpolicy="no-referrer-when-downgrade" />
+          <div class="w-full h-full flex items-center justify-center">
+            <p class="text-stone-400 text-sm text-center px-4">Map will appear once<br>Google Business is linked</p>
+          </div>
         </div>
         <div class="mt-4 text-center">
-          <a href="https://maps.app.goo.gl/2KJfCAfH1idnRBqz6" target="_blank" rel="noopener noreferrer" class="inline-block bg-black text-white px-6 py-3 rounded-full font-semibold hover:bg-gray-800 transition-colors">Get Directions →</a>
+          <span class="inline-block bg-gray-300 text-gray-500 px-6 py-3 rounded-full font-semibold cursor-not-allowed">Get Directions →</span>
         </div>
       </div>
       <div class="grid md:grid-cols-2 gap-12 mb-12">
@@ -17,19 +19,19 @@
           <div class="space-y-6">
             <div>
               <h3 class="font-semibold text-gray-900 mb-1 uppercase tracking-wider text-xs">Restaurant</h3>
-              <p class="text-gray-700 text-lg">{{ businessName || 'Take Me Away by KIKUZUKI' }}</p>
+              <p class="text-gray-700 text-lg">{{ businessName || 'Your Restaurant' }}</p>
             </div>
             <div>
               <h3 class="font-semibold text-gray-900 mb-1 uppercase tracking-wider text-xs">Address</h3>
               <p class="text-gray-700 text-lg">
-                {{ businessAddress || 'Krabi, Thailand' }}
+                {{ businessAddress || 'Your City, Country' }}
                 <span v-if="!businessAddress" class="text-sm text-gray-400 block">Address will appear once Google Business is linked</span>
               </p>
             </div>
             <div>
               <h3 class="font-semibold text-gray-900 mb-1 uppercase tracking-wider text-xs">Phone</h3>
               <p class="text-gray-700 text-lg">
-                {{ businessPhone || '+66 XX XXX XXXX' }}
+                {{ businessPhone || '+1 XXX XXX XXXX' }}
                 <span v-if="!businessPhone" class="text-sm text-gray-400 block">Phone number will appear once Google Business is linked</span>
               </p>
             </div>
@@ -64,6 +66,7 @@
   </div>
 </template>
 <script setup>
+definePageMeta({ layout: 'tenant' })
 import { formatGoogleHours } from '~/utils/formatters'
 import { usePageContent } from '~/composables/usePageContent'
 const { getField } = usePageContent('location')
@@ -86,5 +89,5 @@ const defaultHours = [
 
 const parkingInfo = computed(() => getField('parking.info', ''))
 const extraNotes = computed(() => getField('extra.notes', ''))
-useSeoMeta({ title: 'Location & Hours | Take Me Away by KIKUZUKI | Krabi, Thailand', description: 'Find Take Me Away by KIKUZUKI in Krabi, Thailand. Get directions and check our opening hours.', ogImage: '/og-image.jpg', ogUrl: 'https://www.kikuzuki-thailand.com/location' })
+useSeoMeta({ title: 'Location & Hours | Restaurant Website', description: 'Find our restaurant location and check our opening hours.', ogImage: '/og-image.jpg', ogUrl: '/location' })
 </script>

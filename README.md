@@ -1,204 +1,198 @@
 # KIKUZUKI Thailand Marketing Website
 
-A modern Nuxt 3 application for KIKUZUKI Japanese Restaurant in Krabi, Thailand. Features include content management system, Google Business integration, review management, and multi-language support.
+A Nuxt 4 application for KIKUZUKI Japanese Restaurant in Krabi, Thailand. Deployed on **Cloudflare Pages** with a **D1 SQLite** database.
 
-## Features
+## Package Manager
 
-- **Content Management System**: Draft/publish workflow with Shopify-style editing
-- **Google Business Integration**: Auto-sync business data, reviews, and media
-- **Multi-language Support**: English, Thai, Japanese, Arabic
-- **Review Management**: Customer reviews with moderation
-- **Staff & Awards Management**: Dynamic staff profiles and recognition
-- **Analytics Integration**: Google Analytics 4 and Search Console
-- **Responsive Design**: Mobile-first with Tailwind CSS
-
-## Setup
-
-Make sure to install the dependencies:
+**This project uses yarn.** Do not use npm or pnpm — they will generate conflicting lockfiles.
 
 ```bash
-# yarn (recommended)
 yarn install
-
-# npm
-npm install
-
-# pnpm
-pnpm install
-
-# bun
-bun install
 ```
 
-## Development Server
+## Architecture
 
-Start the development server on `http://localhost:3000`:
+- **Runtime**: Cloudflare Pages + Pages Functions (Nitro `cloudflare-pages` preset)
+- **Database**: Cloudflare D1 (`REVIEWS_DB` binding — one database, all tables)
+- **Auth**: better-auth with multi-tenant support running inside Pages Functions
+- **Styling**: Tailwind CSS v3
+- **Languages**: English, Thai, Japanese, Arabic (nuxt-i18n)
+
+There is **no separate Worker** — everything runs as Pages Functions inside the same Cloudflare Pages project.
+
+## Scripts
+
+| Command | What it does |
+|---|---|
+| `yarn dev` | Nuxt dev server (localhost:3000). No D1 bindings — DB calls will error. Use for UI/styling only. |
+| `yarn build` | Production build with `cloudflare_pages` preset → outputs to `dist/` |
+| `yarn build:cf` | Alias for `nuxt build` (same preset) |
+| `yarn dev:cf` | Run `dist/` through Wrangler Pages dev with real D1 bindings (localhost:8788). Requires a prior build. |
+| `yarn preview` | Nuxt preview server |
+
+## Local Development with D1
+
+### 1. Database Setup (D1)
+
+The project uses Cloudflare D1. For local development, migrations are applied to a local SQLite file managed by Wrangler.
 
 ```bash
-# yarn
-yarn dev
-
-# npm
-npm run dev
-
-# pnpm
-pnpm run dev
-
-# bun
-bun run dev
+# Apply migrations locally
+yarn wrangler d1 migrations apply REVIEWS_DB --local
 ```
 
-## Production
+> [!NOTE]
+> Since this is a greenfield project, migrations have been consolidated into `0001_initial_schema.sql` for stability.
 
-Build the application for production:
+### 2. Environment Variables
+
+Create a `.env` file with the following (see `.env.example`):
+- `BETTER_AUTH_SECRET`: Generate with `openssl rand -base64 32`
+- `BETTER_AUTH_URL`: `http://localhost:8788` (for local dev)
+- `GOOGLE_CLIENT_ID` / `SECRET`: From Google Cloud Console
+
+### 3. Development Server
+
+We use `wrangler pages dev` to simulate the Cloudflare environment locally, including D1 bindings.
 
 ```bash
-# yarn
+# 1. Build the project
 yarn build
 
-# npm
-npm run build
+# 2. Run the local Cloudflare Pages server
+yarn dev:cf
+```
 
-# pnpm
-pnpm run build
+The app will be available at `http://localhost:8788`.
 
-# bun
-bun run build
+When you change server code, stop wrangler, rebuild, then restart:
+
+```bash
+yarn build && yarn dev:cf
+```
+
+### EMFILE fix (macOS)
+
+macOS defaults to 256 open files which crashes the watcher. Run this in your terminal before starting the dev server, or add it to your shell profile (`~/.zshrc`):
+
+```bash
+ulimit -n 65536
+```
+
+For a permanent fix (requires sudo, survives reboots):
+
+```bash
+sudo tee /Library/LaunchDaemons/limit.maxfiles.plist > /dev/null << 'EOF'
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+  <dict>
+    <key>Label</key><string>limit.maxfiles</string>
+    <key>ProgramArguments</key>
+    <array>
+      <string>launchctl</string><string>limit</string>
+      <string>maxfiles</string><string>65536</string><string>200000</string>
+    </array>
+    <key>RunAtLoad</key><true/>
+    <key>ServiceIPC</key><false/>
+  </dict>
+</plist>
+EOF
+sudo launchctl load -w /Library/LaunchDaemons/limit.maxfiles.plist
+```
+
+## Migrations
+
+All schema lives in `migrations/`. Files are applied in numeric order.
+
+| File | What it creates |
+|---|---|
+| `0001_reviews.sql` | `reviews` table |
+| `0002_google_business_sync.sql` | `google_business_snapshots`, `google_oauth_tokens` |
+| `0003_site_config.sql` | `site_config` table |
+| `0004_content_management.sql` | `site_content`, `staff_profiles`, `awards_recognition` |
+| `0005_content_drafts.sql` | `site_content_drafts` |
+| `0006_content_schema_v2.sql` | Schema v2 columns |
+| `0007_saas_platform_foundation.sql` | Multi-tenant: `organizations`, `sites`, `users` |
+| `0008_google_business_integration.sql` | `google_business_connections`, `business_locations` |
+| `0009_billing_entitlements.sql` | `subscriptions`, `entitlements` |
+| `0010_domains_onboarding.sql` | `custom_domains`, `onboarding_state` |
+| `0011_menu_management.sql` | `menu_items`, `menu_categories` |
+
+### Apply locally
+
+```bash
+wrangler d1 migrations apply REVIEWS_DB --local
+```
+
+### Apply to production
+
+```bash
+wrangler d1 migrations apply REVIEWS_DB --remote
+```
+
+### Run a specific migration manually (if needed)
+
+```bash
+wrangler d1 execute REVIEWS_DB --local --file migrations/0011_menu_management.sql
 ```
 
 ## Deployment
 
-### Cloudflare Pages (Recommended)
-
-This application uses a root `wrangler.toml` configuration for Cloudflare Pages deployment with D1 database:
-
 ```bash
-# Build and deploy
+# Build
 yarn build
+
+# Deploy to Cloudflare Pages
 npx wrangler pages deploy dist
 ```
 
-### Local Development
+Cloudflare Pages CI/CD will also trigger automatically on pushes to the connected branch.
 
-Two development modes are available:
+## Environment Variables
 
-#### Fast Development (Vite only)
-```bash
-yarn dev
-```
-- Fast hot-reload development without D1 bindings
-- Uses mock data for database operations
-- Best for UI/styling changes
-
-#### Full Cloudflare Development (with D1)
-```bash
-# Initial setup (run once)
-npx wrangler d1 execute kikuzuki-reviews --local --file migrations/0001_reviews.sql
-npx wrangler d1 execute kikuzuki-reviews --local --file migrations/0002_google_business_sync.sql
-npx wrangler d1 execute kikuzuki-reviews --local --file migrations/0003_site_config.sql
-npx wrangler d1 execute kikuzuki-reviews --local --file migrations/0004_content_management.sql
-npx wrangler d1 execute kikuzuki-reviews --local --file migrations/0005_content_drafts.sql
-# Note: 0006_content_schema_v2.sql may not be needed locally if columns already exist
-
-# Build once
-yarn build:cf
-
-# Start with D1 bindings
-yarn dev:cf
-```
-- Full Cloudflare Workers environment with D1 database
-- Real database operations and API testing
-- **New workflow**: Build once, then run dev server separately to avoid SIGTERM crashes
-- When making code changes: Stop wrangler, run `yarn build:cf`, then `yarn dev:cf`
-- Access at http://localhost:8788 (may vary if port in use)
-
-### Remote Database Management
-
-For remote D1 database operations:
+Set these in Cloudflare Pages dashboard → Settings → Environment Variables.
 
 ```bash
-# Query remote database
-npx wrangler d1 execute kikuzuki-reviews --remote --command "SELECT * FROM reviews LIMIT 10"
+# Google OAuth (admin login via better-auth)
+NUXT_PUBLIC_GOOGLE_CLIENT_ID=
+GOOGLE_CLIENT_SECRET=
 
-# Run migrations on remote
-npx wrangler d1 execute kikuzuki-reviews --remote --file migrations/0004_content_management.sql
+# Google Business API (auto-sync reviews/data)
+GOOGLE_CLIENT_ID=
+GOOGLE_BUSINESS_CLIENT_ID=
+GOOGLE_BUSINESS_CLIENT_SECRET=
+GOOGLE_BUSINESS_REDIRECT_URI=
+GOOGLE_BUSINESS_ACCOUNT_ID=
+GOOGLE_PUBSUB_TOPIC=
+
+# Analytics
+NUXT_PUBLIC_GA4_PROPERTY_ID=
+
+# Cloudflare Turnstile (contact form bot protection)
+NUXT_PUBLIC_TURNSTILE_SITE_KEY=
+
+# Stripe (billing)
+STRIPE_SECRET_KEY=
+STRIPE_WEBHOOK_SECRET=
 ```
 
-## Configuration
+For local development, copy `.env.example` to `.env`.
 
-### Nuxt Configuration
+## Admin Panel
 
-The application uses Nuxt 3 with Cloudflare Pages preset. Key configurations:
+Access at `/admin` — requires Google OAuth sign-in via better-auth.
 
-- **D1 Database**: Configured via root `wrangler.toml` with `REVIEWS_DB` binding
-- **Modules**: Google Analytics, robots.txt, sitemap, schema.org, i18n
-- **SEO**: Multi-language support with proper meta tags and structured data
-- **Components**: Auto-import from `components/ui`, `components/global`, `components/google`, `components/menu`
-- **Nitro Preset**: `cloudflare-pages` for optimal Pages compatibility
+## Database Schema (summary)
 
-### Database Schema
-
-The application uses D1 with these main tables:
-
-- `site_content` - Published content with draft/publish workflow
-- `site_content_drafts` - Draft content for admin editing
-- `reviews` - Customer reviews with moderation
-- `google_business_snapshots` - Synced Google Business data
-- `staff_profiles` - Staff member management
-- `awards_recognition` - Awards and achievements
-
-### Environment Variables
-
-Required environment variables:
-
-```bash
-# Google OAuth (for admin authentication)
-NUXT_PUBLIC_GOOGLE_CLIENT_ID=your_google_client_id
-GOOGLE_CLIENT_SECRET=your_google_client_secret
-
-# Google Analytics
-NUXT_PUBLIC_GA4_PROPERTY_ID=your_ga4_property_id
-
-# Cloudflare Turnstile (optional)
-NUXT_PUBLIC_TURNSTILE_SITE_KEY=your_turnstile_site_key
-```
-
-## Content Management
-
-The CMS provides:
-
-- **Draft/Publish Workflow**: Save drafts, preview changes, publish when ready
-- **Field-based Editing**: Individual field editing with live preview
-- **Google Business Integration**: Auto-sync business details, no manual override
-- **Staff & Awards Management**: Dynamic content for team and achievements
-- **Multi-language Support**: Content management across all supported languages
-
-Access the admin panel at `/admin` (requires Google authentication).
-
-## Architecture
-
-- **Frontend**: Nuxt 3 with Vue 3 Composition API
-- **Backend**: Nitro serverless functions on Cloudflare Workers
-- **Database**: Cloudflare D1 (SQLite)
-- **Styling**: Tailwind CSS with custom components
-- **Deployment**: Cloudflare Pages with automatic CI/CD
-
-## Development Notes
-
-- The application uses `useFetch` with proper SSR handling
-- Content management uses session-based authentication (no query params needed)
-- Google Business data is fetched and cached automatically
-- All API endpoints include proper error handling and validation
-- The codebase follows TypeScript best practices with proper typing
-
-## Contributing
-
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Test thoroughly
-5. Submit a pull request
-
-## License
-
-This project is proprietary software for KIKUZUKI Thailand.
+- `reviews` — customer reviews with moderation status
+- `google_business_snapshots` — cached Google Business API data
+- `google_oauth_tokens` — stored OAuth refresh tokens
+- `google_business_connections` — per-organization Google Business connections
+- `business_locations` — synced location data
+- `site_content` / `site_content_drafts` — CMS draft/publish workflow
+- `staff_profiles` / `awards_recognition` — team and achievements content
+- `organizations` / `sites` / `users` — multi-tenant SaaS foundation
+- `subscriptions` / `entitlements` — billing and plan management
+- `custom_domains` — custom domain management per site
+- `menu_items` / `menu_categories` — restaurant menu management

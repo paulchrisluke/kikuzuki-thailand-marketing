@@ -30,7 +30,7 @@
             <img 
               v-else
               :src="post.media[0].googleUrl" 
-              :alt="post.title || 'KIKUZUKI update'" 
+              :alt="post.title || 'Restaurant update'" 
               class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
             />
           </template>
@@ -40,9 +40,9 @@
           
           <!-- Type Badge Overlay -->
           <div class="absolute top-4 left-4 flex gap-2">
-            <span v-if="post.event" class="px-3 py-1 bg-white/90 backdrop-blur shadow-sm text-black text-[10px] font-bold uppercase rounded-full tracking-wider">Event</span>
-            <span v-else-if="post.offer" class="px-3 py-1 bg-white/90 backdrop-blur shadow-sm text-black text-[10px] font-bold uppercase rounded-full tracking-wider">Offer</span>
-            <span v-else class="px-3 py-1 bg-white/90 backdrop-blur shadow-sm text-black text-[10px] font-bold uppercase rounded-full tracking-wider">Update</span>
+            <UBadge v-if="post.event" color="white" variant="solid" size="xs" class="bg-white/90 backdrop-blur shadow-sm text-black">Event</UBadge>
+            <UBadge v-else-if="post.offer" color="white" variant="solid" size="xs" class="bg-white/90 backdrop-blur shadow-sm text-black">Offer</UBadge>
+            <UBadge v-else color="white" variant="solid" size="xs" class="bg-white/90 backdrop-blur shadow-sm text-black">Update</UBadge>
           </div>
         </div>
         
@@ -77,15 +77,16 @@
             <span class="transition-transform group-hover/link:translate-x-1">→</span>
           </NuxtLink>
           
-          <AppButton 
+          <UButton 
             v-else-if="post.callToAction"
             :to="post.callToAction.url"
-            variant="primary"
-            size="sm"
+            variant="solid"
+            color="primary"
+            size="md"
             class="self-start"
           >
             {{ post.callToAction.actionType.replace('_', ' ') }}
-          </AppButton>
+          </UButton>
         </div>
       </article>
 
@@ -108,16 +109,16 @@
     </div>
 
     <div v-if="showViewMore && limit && posts.length > 0" class="mt-12 text-center">
-      <AppButton to="/posts" variant="secondary" size="md">
+      <UButton to="/posts" variant="outline" size="md">
         View All Updates
-      </AppButton>
+      </UButton>
     </div>
   </AppSection>
 </template>
 
 <script setup>
 import AppSection from '~/components/ui/AppSection.vue'
-import AppButton from '~/components/ui/AppButton.vue'
+import { UButton } from '#components'
 
 const props = defineProps({
   posts: {
