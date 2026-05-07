@@ -1,7 +1,7 @@
-import { defineEventHandler, readBody, getHeaders } from 'h3'
+import { defineEventHandler, readBody } from 'h3'
 import { discardDrafts } from '~/server/utils/content-management'
 import { cloudflareEnv, jsonResponse } from '~/server/utils/api-response'
-import { createAuth } from '~/server/utils/auth'
+import { getAuthSession } from '~/server/utils/auth'
 
 export default defineEventHandler(async (event) => {
   const env = cloudflareEnv(event)
@@ -14,10 +14,7 @@ export default defineEventHandler(async (event) => {
   }
 
   // Get authenticated user
-  const auth = createAuth(env)
-  const session = await auth.api.getSession({
-    headers: getHeaders(event)
-  })
+  const session = await getAuthSession(event, env)
   
   if (!session?.user?.id) {
     return jsonResponse({ 

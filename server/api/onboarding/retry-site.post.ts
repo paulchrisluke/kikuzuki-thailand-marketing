@@ -1,5 +1,6 @@
 // Retry onboarding for failed/incomplete sites
 import { cloudflareEnv, jsonResponse } from '../../utils/api-response'
+import { getAuthSession } from '~/server/utils/auth'
 import { getSayaThemeSeedContent, getDefaultMenuSeedData } from '../../utils/content-seeding'
 
 interface RetrySiteRequest {
@@ -26,13 +27,7 @@ export default defineEventHandler(async (event) => {
   }
   
   // Get authenticated user from Better Auth session
-  const headers = getHeaders(event)
-  const session = await $fetch('/api/auth/get-session', {
-    headers: {
-      cookie: headers.cookie || '',
-      authorization: headers.authorization || ''
-    }
-  })
+  const session = await getAuthSession(event, env)
   
   if (!session?.user?.id) {
     return jsonResponse({ 

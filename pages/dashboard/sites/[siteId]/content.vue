@@ -340,6 +340,16 @@ const platformHostname = computed(() => {
 const siteData = ref(null)
 const siteName = computed(() => siteData.value?.name || 'Loading...')
 const siteDomain = computed(() => siteData.value?.subdomain ? `${siteData.value.subdomain}.${platformHostname}` : 'localhost:3000')
+const sitePreviewBaseUrl = computed(() => {
+  if (!siteData.value?.subdomain) return ''
+
+  const base = new URL(config.public.freeSiteDomain)
+  const hostname = base.hostname === 'localhost'
+    ? `${siteData.value.subdomain}.localhost`
+    : `${siteData.value.subdomain}.${base.hostname}`
+
+  return `${base.protocol}//${hostname}${base.port ? `:${base.port}` : ''}`
+})
 
 // Load site data
 const loadSiteData = async () => {
@@ -365,14 +375,17 @@ const selectedPageLabel = computed(() => pages.find(p => p.id === selectedPageId
 // ─── Iframe ───────────────────────────────────────────────────────────
 const previewFrame = ref<HTMLIFrameElement>()
 const iframeLoading = ref(true)
-// Use a key to force iframe reload when page changes
-const iframeKey = ref(0)
-const iframeSrc = ref('/')
+const previewReloadToken = ref(0)
+const iframeSrc = computed(() => {
+  if (!sitePreviewBaseUrl.value) return ''
+  const url = new URL(currentPagePath.value, sitePreviewBaseUrl.value)
+  if (previewReloadToken.value) url.searchParams.set('t', String(previewReloadToken.value))
+  return url.toString()
+})
 
 const onPageChange = () => {
   iframeLoading.value = true
   activeField.value = null
-  iframeSrc.value = currentPagePath.value
   loadPageContent()
 }
 
@@ -484,7 +497,7 @@ const discardPending = ref(false)
 const loadPageContent = async () => {
   try {
     const res = await $fetch<{ content: any[]; hasDrafts: boolean }>(
-      `/api/content/${selectedPageId.value}?siteId=${siteId}`
+      `/api/editor/sites/${siteId}/content/${selectedPageId.value}`
     )
     const map: Record<string, string> = {}
     for (const row of res.content || []) {
@@ -509,7 +522,6 @@ const loadPageContent = async () => {
 onMounted(async () => {
   await loadSiteData()
   await loadPageContent()
-  iframeSrc.value = currentPagePath.value
 })
 
 // ─── Actions ──────────────────────────────────────────────────────────
@@ -517,15 +529,15 @@ const handleSaveDraft = async () => {
   if (!localHasChanges.value) return
   saving.value = true
   try {
-    await $fetch('/api/dashboard/content/draft', {
+    await $fetch(`/api/editor/sites/${siteId}/content/draft`, {
       method: 'POST',
-      body: { path: currentPagePath.value, changes: currentValues.value, siteId: siteId },
+      body: { page: selectedPageId.value, changes: currentValues.value },
       credentials: 'include'
     })
     localHasChanges.value = false
     serverHasDrafts.value = true
     iframeLoading.value = true
-    iframeSrc.value = currentPagePath.value + '?t=' + Date.now()
+    previewReloadToken.value = Date.now()
   } catch (error: any) {
     const msg = error?.response?._data?.statusMessage || error.message || 'Unknown error'
     toast.add({ description: `Save failed: ${msg}`, color: 'red' })
@@ -539,15 +551,15 @@ const handlePublish = async () => {
   publishing.value = true
   try {
     if (localHasChanges.value) await handleSaveDraft()
-    await $fetch('/api/dashboard/content/publish', {
+    await $fetch(`/api/editor/sites/${siteId}/content/publish`, {
       method: 'POST',
-      body: { path: currentPagePath.value, siteId: siteId }
+      body: { page: selectedPageId.value }
     })
     serverHasDrafts.value = false
     localHasChanges.value = false
     toast.add({ description: 'Published live!', color: 'green' })
     iframeLoading.value = true
-    iframeSrc.value = currentPagePath.value + '?t=' + Date.now()
+    previewReloadToken.value = Date.now()
   } catch (error: any) {
     const msg = error?.response?._data?.statusMessage || error.message || 'Unknown error'
     toast.add({ description: `Publish failed: ${msg}`, color: 'red' })
@@ -563,16 +575,16 @@ const handleDiscard = async () => {
   }
   discardPending.value = false
   try {
-    await $fetch('/api/dashboard/content/discard', {
+    await $fetch(`/api/editor/sites/${siteId}/content/discard`, {
       method: 'POST',
-      body: { path: currentPagePath.value, siteId: siteId }
+      body: { page: selectedPageId.value }
     })
     localHasChanges.value = false
     serverHasDrafts.value = false
     await loadPageContent()
     toast.add({ description: 'Drafts discarded', color: 'blue' })
     iframeLoading.value = true
-    iframeSrc.value = currentPagePath.value + '?t=' + Date.now()
+    previewReloadToken.value = Date.now()
   } catch {
     toast.add({ description: 'Failed to discard', color: 'red' })
   }

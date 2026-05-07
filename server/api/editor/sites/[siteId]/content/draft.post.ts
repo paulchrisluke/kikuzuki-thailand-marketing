@@ -1,5 +1,6 @@
 // POST save draft
 import { cloudflareEnv, jsonResponse } from '../../../../../utils/api-response'
+import { getAuthSession } from '~/server/utils/auth'
 import { upsertDraftContent } from '../../../../../utils/content-management'
 
 interface DraftRequest {
@@ -28,13 +29,7 @@ export default defineEventHandler(async (event) => {
   }
 
   // Get authenticated user
-  const headers = getHeaders(event)
-  const session = await $fetch('/api/auth/get-session', {
-    headers: {
-      cookie: headers.cookie || '',
-      authorization: headers.authorization || ''
-    }
-  })
+  const session = await getAuthSession(event, env)
   
   if (!session?.user?.id) {
     return jsonResponse({ 
@@ -60,6 +55,13 @@ export default defineEventHandler(async (event) => {
     }
 
     const locationId = getQuery(event).locationId as string || undefined
+    const draftIdPrefix = [
+      'draft',
+      site.organization_id,
+      siteId,
+      locationId || 'site',
+      page
+    ].join('-')
 
     // Handle hero fields specially (from legacy code)
     const heroFields = ['hero.title', 'hero.subtitle', 'hero.video']
@@ -74,12 +76,15 @@ export default defineEventHandler(async (event) => {
         if (field === 'hero.video')    heroChange.hero_video_url = value || undefined
       } else {
         await upsertDraftContent(db, {
-          id: `${page}-${field}`,
+          id: `${draftIdPrefix}-${field}`,
           organization_id: site.organization_id,
           site_id: siteId,
           location_id: locationId,
           page,
           field,
+          value,
+          type: 'text',
+          source: 'manual',
           content: value,
           hero_title: undefined,
           hero_subtitle: undefined,
@@ -91,12 +96,14 @@ export default defineEventHandler(async (event) => {
     // Handle hero field changes
     if (hasHeroChange) {
       await upsertDraftContent(db, {
-        id: `${page}-hero`,
+        id: `${draftIdPrefix}-hero`,
         organization_id: site.organization_id,
         site_id: siteId,
         location_id: locationId,
         page,
         field: 'hero',
+        type: 'text',
+        source: 'manual',
         content: undefined,
         ...heroChange
       })

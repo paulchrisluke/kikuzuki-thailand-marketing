@@ -79,7 +79,7 @@ async function resolveTenantSite(host: string, event: any): Promise<any> {
   
   if (!db) return null
 
-  // Local development support (e.g., demo.localhost:8788)
+  // Local development support (e.g., demo.localhost)
   if (host.includes('.localhost')) {
     const subdomain = host.split('.')[0]
     return await db.prepare(`

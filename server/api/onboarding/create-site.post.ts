@@ -1,8 +1,8 @@
 // Site creation API with idempotency and rollback safety
 import { cloudflareEnv, jsonResponse } from '../../utils/api-response'
 import { getSayaThemeSeedContent, getDefaultMenuSeedData } from '../../utils/content-seeding'
-import { createAuth } from '../../utils/auth'
-import { defineEventHandler, getHeaders, readBody } from 'h3'
+import { getAuthSession } from '../../utils/auth'
+import { defineEventHandler, readBody } from 'h3'
 
 interface CreateSiteRequest {
   restaurantName: string
@@ -29,11 +29,7 @@ export default defineEventHandler(async (event) => {
   }
   
   // Get authenticated user from Better Auth session using server-side API
-  const auth = createAuth(cloudflareEnv(event))
-  
-  const session = await auth.api.getSession({
-    headers: getHeaders(event)
-  })
+  const session = await getAuthSession(event, env)
   
   if (!session?.user?.id) {
     return jsonResponse({ 

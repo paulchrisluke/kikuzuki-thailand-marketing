@@ -1,5 +1,6 @@
 // Get Google Business accounts and locations
 import { cloudflareEnv, jsonResponse } from '../../../utils/api-response'
+import { getAuthSession } from '~/server/utils/auth'
 import { getGoogleBusinessConnection, getGoogleBusinessAccounts, getGoogleBusinessLocations } from '../../../utils/google-business'
 
 export default defineEventHandler(async (event) => {
@@ -21,13 +22,7 @@ export default defineEventHandler(async (event) => {
   }
 
   // Get authenticated user
-  const headers = getHeaders(event)
-  const session = await $fetch('/api/auth/get-session', {
-    headers: {
-      cookie: headers.cookie || '',
-      authorization: headers.authorization || ''
-    }
-  })
+  const session = await getAuthSession(event, env)
   
   if (!session?.user?.id) {
     return jsonResponse({ 

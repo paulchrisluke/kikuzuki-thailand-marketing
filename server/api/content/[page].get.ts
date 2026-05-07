@@ -1,7 +1,7 @@
-import { defineEventHandler, setHeader, getRouterParam, getQuery, getHeaders, getRequestURL } from 'h3'
+import { defineEventHandler, setHeader, getRouterParam, getQuery } from 'h3'
 import { getPageContent, getDraftContent } from '~/server/utils/content-management'
 import { cloudflareEnv, jsonResponse } from '~/server/utils/api-response'
-import { createAuth } from '~/server/utils/auth'
+import { getAuthSession } from '~/server/utils/auth'
 
 export default defineEventHandler(async (event) => {
   setHeader(event, 'cache-control', 'no-store')
@@ -25,10 +25,7 @@ export default defineEventHandler(async (event) => {
   }
 
   // Get authenticated user from existing session
-  const auth = createAuth(env)
-  const session = await auth.api.getSession({
-    headers: getHeaders(event)
-  })
+  const session = await getAuthSession(event, env)
   
   if (!session?.user?.id) {
     return jsonResponse({ 
@@ -39,9 +36,11 @@ export default defineEventHandler(async (event) => {
   // Verify user belongs to organization that owns the site
   const site = await db.prepare(`
     SELECT s.id, s.organization_id FROM sites s
-    JOIN organization o ON s.organization_id = o.id
-    JOIN member om ON o.id = om.organizationId
-    WHERE s.id = ? AND om.userId = ?
+    WHERE s.id = ? AND s.organization_id IN (
+      SELECT o.id FROM organization o
+      JOIN member om ON o.id = om.organizationId
+      WHERE om.userId = ?
+    )
     LIMIT 1
   `).bind(siteId, session.user.id).first()
   

@@ -161,28 +161,13 @@ CREATE TABLE IF NOT EXISTS site_domains (
 -- Business Locations and Google Business
 --------------------------------------------------------------------------------
 
-CREATE TABLE IF NOT EXISTS integrations (
-  id TEXT PRIMARY KEY,
-  organization_id TEXT NOT NULL,
-  site_id TEXT NOT NULL,
-  type TEXT NOT NULL, -- 'google_business', 'whatsapp', 'google_analytics', 'instagram', etc.
-  provider TEXT NOT NULL, -- 'google', 'meta', 'twilio', etc.
-  status TEXT NOT NULL DEFAULT 'disconnected', -- 'connected', 'disconnected', 'error'
-  config TEXT, -- JSON config (tokens, settings, etc.)
-  metadata TEXT, -- JSON metadata (display name, features, etc.)
-  last_sync_at TEXT,
-  sync_errors TEXT, -- JSON array of recent errors
-  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
-  updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
-);
-
 CREATE TABLE IF NOT EXISTS business_locations (
   id TEXT PRIMARY KEY,
   organization_id TEXT NOT NULL,
   site_id TEXT NOT NULL,
   slug TEXT NOT NULL,
   google_location_id TEXT,
-  integration_id TEXT,
+  google_connection_id TEXT,
   title TEXT NOT NULL,
   address TEXT,
   city TEXT,
@@ -339,32 +324,16 @@ CREATE TABLE IF NOT EXISTS menus (
   FOREIGN KEY (location_id) REFERENCES business_locations(id) ON DELETE CASCADE
 );
 
-CREATE TABLE IF NOT EXISTS menu_categories (
-  id TEXT PRIMARY KEY,
-  organization_id TEXT NOT NULL,
-  site_id TEXT NOT NULL,
-  google_category_id TEXT, -- Google Business category ID
-  name TEXT NOT NULL,
-  display_order INTEGER NOT NULL DEFAULT 0,
-  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
-  updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
-  created_by TEXT
-);
-
 CREATE TABLE IF NOT EXISTS menu_items (
   id TEXT PRIMARY KEY,
   menu_id TEXT NOT NULL,
   section TEXT NOT NULL,
-  category_id TEXT, -- NEW: Link to menu_categories
   name TEXT NOT NULL,
   description TEXT,
   price TEXT,
   image_url TEXT,
   available BOOLEAN NOT NULL DEFAULT true,
   sort_order INTEGER NOT NULL DEFAULT 0,
-  source TEXT NOT NULL DEFAULT 'manual', -- NEW: 'manual', 'google_business', etc.
-  external_id TEXT, -- NEW: External system ID (e.g., Google Business)
-  last_synced_at TEXT, -- NEW: Last sync timestamp
   created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
   updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
   created_by TEXT,
@@ -456,21 +425,6 @@ CREATE TABLE IF NOT EXISTS onboarding_steps (
 --------------------------------------------------------------------------------
 -- Seed Data
 --------------------------------------------------------------------------------
-
--- Insert default menu categories that match Google Business
-INSERT OR IGNORE INTO menu_categories (id, organization_id, site_id, name, display_order, created_by) VALUES
-('default-appetizers', '', '', 'Appetizers', 1, 'system'),
-('default-main-courses', '', '', 'Main Courses', 2, 'system'),
-('default-desserts', '', '', 'Desserts', 3, 'system'),
-('default-beverages', '', '', 'Beverages', 4, 'system'),
-('default-sides', '', '', 'Side Dishes', 5, 'system');
-
--- Add indexes for performance
-CREATE INDEX IF NOT EXISTS idx_menu_items_category_id ON menu_items(category_id);
-CREATE INDEX IF NOT EXISTS idx_menu_items_source ON menu_items(source);
-CREATE INDEX IF NOT EXISTS idx_menu_categories_org_site ON menu_categories(organization_id, site_id);
-CREATE INDEX IF NOT EXISTS idx_integrations_org_site ON integrations(organization_id, site_id);
-CREATE INDEX IF NOT EXISTS idx_integrations_type ON integrations(type);
 
 INSERT INTO themes (id, name, slug, version, description, status)
 VALUES (

@@ -169,19 +169,4 @@ async function handleSubmit() {
   }
 }
 
-// Check if user already has organization/site and redirect
-onMounted(async () => {
-  try {
-    // Check onboarding status
-    const status = await $fetch('/api/onboarding/status')
-    // Only redirect if user has no organization at all (first-time setup)
-    // Allow users with existing organizations to create additional sites
-    if (!status.organization) {
-      await navigateTo('/dashboard')
-    }
-  } catch (error) {
-    console.error('Error checking onboarding status:', error)
-    // Stay on onboarding page if status check fails
-  }
-})
 </script>
