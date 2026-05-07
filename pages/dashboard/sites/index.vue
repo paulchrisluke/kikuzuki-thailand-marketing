@@ -23,6 +23,7 @@
             <p class="text-sm text-gray-600 dark:text-gray-400 mt-1">
               <span v-if="site.subdomain">{{ site.subdomain }}.{{ platformHostname }}</span>
               <span v-else-if="site.custom_domain">{{ site.custom_domain }}</span>
+              <span v-else>Unconfigured</span>
             </p>
             <div class="flex gap-2 mt-2">
               <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium"
@@ -38,7 +39,7 @@
             <UButton :to="`/dashboard/sites/${site.id}`" size="sm" variant="outline">
               Manage
             </UButton>
-            <UButton :href="getSiteUrl(site)" target="_blank" size="sm" variant="soft">
+            <UButton v-if="getSiteUrl(site)" :href="getSiteUrl(site)" target="_blank" size="sm" variant="soft">
               View Site
             </UButton>
           </div>
@@ -69,25 +70,34 @@ definePageMeta({
 })
 
 const config = useRuntimeConfig()
-const { data: response, pending } = await useFetch('/api/sites')
+const { data: response, pending, error } = await useFetch('/api/sites')
 const sites = computed(() => response.value?.sites || [])
 
 // Extract hostname for URLs
 const platformHostname = computed(() => {
-  const domain = config.public.freeSiteDomain
-  return domain.replace(/^https?:\/\//, '')
+  const domain = config.public?.freeSiteDomain || ''
+  return typeof domain === 'string' ? domain.replace(/^https?:\/\//, '') : ''
 })
 
 // Get site URL based on subdomain or custom domain
 const getSiteUrl = (site) => {
-  if (site.subdomain) {
-    const protocol = config.public.freeSiteDomain.startsWith('https://') ? 'https://' : 'http://'
+  const domain = config.public?.freeSiteDomain || ''
+  if (site.subdomain && platformHostname.value) {
+    const protocol = domain.startsWith('https://') ? 'https://' : 'http://'
     return `${protocol}${site.subdomain}.${platformHostname.value}`
   }
   if (site.custom_domain) {
     return `https://${site.custom_domain}`
   }
-  return '#'
+  return null
+}
+
+// Get error message
+const getErrorMessage = (error) => {
+  if (error && (error.message || error)) {
+    return error.message || error
+  }
+  return 'Failed to load sites'
 }
 
 // Get status styling

@@ -36,7 +36,8 @@ KrabiClaw is a **Shopify for restaurants** — a multi-tenant SaaS where restaur
 
 ### Runtime & Deployment
 - **Nuxt 4** + **Nitro** with `cloudflare-pages` preset
-- **Wrangler** for all local CF dev (`dev:cf` script), schema application, and deployments
+- Use `yarn dev` for local Nuxt development, `yarn build` for production build
+- **Wrangler** is used for schema application through the `schema:*` scripts in package.json
 - **D1** (SQLite) via `@atinux/kysely-d1` adapter — single database binding: `REVIEWS_DB`
 - Deploy: `nuxt build --preset=cloudflare_pages` → `wrangler pages deploy dist`
 

@@ -36,13 +36,13 @@ export default defineNuxtConfig({
   css: ['~/assets/css/main.css'],
   runtimeConfig: {
     public: {
-      platformDomain: process.env.NUXT_PUBLIC_PLATFORM_DOMAIN,
-      freeSiteDomain: process.env.NUXT_PUBLIC_FREE_SITE_DOMAIN,
-      appName: process.env.NUXT_PUBLIC_APP_NAME,
-      turnstileSiteKey: process.env.NUXT_PUBLIC_TURNSTILE_SITE_KEY
+      platformDomain: process.env.NUXT_PUBLIC_PLATFORM_DOMAIN || '',
+      freeSiteDomain: process.env.NUXT_PUBLIC_FREE_SITE_DOMAIN || '',
+      appName: process.env.NUXT_PUBLIC_APP_NAME || '',
+      turnstileSiteKey: process.env.NUXT_PUBLIC_TURNSTILE_SITE_KEY || ''
     },
     // Server-only
-    platformDomain: process.env.PLATFORM_DOMAIN
+    platformDomain: process.env.NUXT_PLATFORM_DOMAIN || ''
   },
 
   vite: {

@@ -1,6 +1,9 @@
 <script setup lang="ts">
 import { getFieldDef } from '~/config/content-registry'
 import type { FieldType } from '~/config/content-registry'
+import { computed } from 'vue'
+import { useEditMode } from '@/composables/useEditMode'
+import { navigateTo } from '#app'
 
 interface Props {
   /** Page slug e.g. "home", "about", "contact" */

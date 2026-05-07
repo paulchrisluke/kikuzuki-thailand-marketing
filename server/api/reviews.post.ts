@@ -60,7 +60,7 @@ export default defineEventHandler(async (event) => {
   const status: ReviewStatus = 'pending'
 
   await env.REVIEWS_DB.prepare(
-    `INSERT INTO reviews (id, menu_item_slug, author, rating, title, content, status, ip_hash, user_agent)
+    `INSERT INTO reviews (id, menu_item_slug, author_name, rating, title, content, status, ip_hash, user_agent)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
   ).bind(id, menuItemSlug, author, rating, title, content, status, ipHash, userAgent).run()
 

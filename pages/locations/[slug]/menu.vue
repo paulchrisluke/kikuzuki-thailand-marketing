@@ -95,6 +95,14 @@ if (!tenant.siteId || tenant.isPlatform) {
   })
 }
 
+// Check if location exists, else 404
+if (!location?.id) {
+  throw createError({
+    statusCode: 404,
+    statusMessage: 'Location not found'
+  })
+}
+
 // Check if user is authenticated
 const { isAuthenticated } = useAuth()
 
@@ -112,7 +120,7 @@ const {
 
 // Check if using brand menu as fallback
 const isUsingBrandMenu = computed(() => {
-  return menu.value?.location_id === null && location?.id
+  return menu.value?.location_id === null && !!location?.id
 })
 
 // Convert menu sections to format expected by MenuCategoryNav
@@ -127,10 +135,10 @@ const menuSections = computed(() => {
 const activeSection = ref(menuSections.value[0]?.id ?? '')
 
 // SEO
-useSeoMeta({ 
-  title: () => `${location?.title || 'Location'} Menu | Restaurant Website`, 
-  description: () => `Explore the menu at ${location?.title || 'our location'}.`, 
-  ogImage: '/og-image.jpg', 
-  ogUrl: () => `https://www.kikuzuki-thailand.com/locations/${route.params.slug}/menu` 
+useSeoMeta({
+  title: `${location?.title || 'Menu'} | ${tenant.site?.title || 'Restaurant'}`,
+  description: `View the menu for ${location?.title || 'this location'} at ${tenant.site?.title || 'our restaurant'}.`,
+  ogImage: '/og-image.jpg',
+  ogUrl: `https://${tenant.site?.subdomain || 'restaurant'}.krabiclaw.com/locations/${route.params.slug}/menu`
 })
 </script>

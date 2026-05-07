@@ -25,6 +25,8 @@ CREATE TABLE IF NOT EXISTS session (
   updatedAt TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
   ipAddress TEXT,
   userAgent TEXT,
+  activeOrganizationId TEXT,
+  activeTeamId TEXT,
   userId TEXT NOT NULL,
   FOREIGN KEY (userId) REFERENCES user(id) ON DELETE CASCADE
 );
@@ -161,6 +163,25 @@ CREATE TABLE IF NOT EXISTS site_domains (
 -- Business Locations and Google Business
 --------------------------------------------------------------------------------
 
+CREATE TABLE IF NOT EXISTS google_business_connections (
+  id TEXT PRIMARY KEY,
+  organization_id TEXT NOT NULL,
+  site_id TEXT NOT NULL,
+  connected_by_user_id TEXT NOT NULL,
+  provider_account_email TEXT NOT NULL,
+  encrypted_access_token TEXT NOT NULL,
+  encrypted_refresh_token TEXT NOT NULL,
+  scopes TEXT NOT NULL,
+  expires_at TEXT,
+  status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'disabled', 'error')),
+  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+  updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+  FOREIGN KEY (organization_id) REFERENCES organization(id) ON DELETE CASCADE,
+  FOREIGN KEY (site_id) REFERENCES sites(id) ON DELETE CASCADE,
+  FOREIGN KEY (connected_by_user_id) REFERENCES user(id) ON DELETE CASCADE,
+  UNIQUE(organization_id, site_id)
+);
+
 CREATE TABLE IF NOT EXISTS business_locations (
   id TEXT PRIMARY KEY,
   organization_id TEXT NOT NULL,
@@ -233,6 +254,10 @@ CREATE TABLE IF NOT EXISTS site_content (
   UNIQUE(organization_id, site_id, location_id, page, field)
 );
 
+CREATE UNIQUE INDEX IF NOT EXISTS idx_site_content_site_level_unique
+  ON site_content(organization_id, site_id, page, field)
+  WHERE location_id IS NULL;
+
 CREATE TABLE IF NOT EXISTS site_content_drafts (
   id TEXT PRIMARY KEY,
   organization_id TEXT NOT NULL,
@@ -254,6 +279,10 @@ CREATE TABLE IF NOT EXISTS site_content_drafts (
   FOREIGN KEY (location_id) REFERENCES business_locations(id) ON DELETE CASCADE,
   UNIQUE(organization_id, site_id, location_id, page, field)
 );
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_site_content_drafts_site_level_unique
+  ON site_content_drafts(organization_id, site_id, page, field)
+  WHERE location_id IS NULL;
 
 CREATE TABLE IF NOT EXISTS site_config (
   organization_id TEXT NOT NULL,
@@ -348,10 +377,8 @@ CREATE TABLE IF NOT EXISTS reviews (
   location_id TEXT,
   menu_item_slug TEXT,
   author_name TEXT,
-  author TEXT,
-  rating INTEGER NOT NULL,
+  rating INTEGER NOT NULL CHECK (rating BETWEEN 1 AND 5),
   title TEXT,
-  comment TEXT,
   content TEXT,
   status TEXT DEFAULT 'pending',
   source TEXT DEFAULT 'direct',
@@ -397,7 +424,6 @@ CREATE TABLE IF NOT EXISTS stripe_webhook_events (
   id TEXT PRIMARY KEY,
   stripe_event_id TEXT UNIQUE,
   event_type TEXT,
-  type TEXT,
   status TEXT DEFAULT 'pending',
   payload TEXT,
   error TEXT,

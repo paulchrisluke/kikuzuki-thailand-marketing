@@ -27,7 +27,12 @@ export const usePageContent = (pageName?: string) => {
   const { data, refresh } = useFetch(() => {
     if (isPlatform) return null
     if (!siteId) return null
-    return `/api/public/sites/${siteId}/content/${page.value}`
+    const url = `/api/public/sites/${siteId}/content/${page.value}`
+    const query = useRoute().query
+    if (query.preview === 'true') {
+      return `${url}?preview=true`
+    }
+    return url
   }, {
     key: computed(() => `content-${siteId}-${page.value}`),
     server: true,
@@ -52,11 +57,11 @@ export const usePageContent = (pageName?: string) => {
    */
   const getField = (field: string, defaultValue: string | null = null): string | null => {
     if (field === 'hero.title' || field === 'hero.subtitle' || field === 'hero.video') {
-      const row = contentMap.value['hero']
-      if (!row) return defaultValue
-      if (field === 'hero.title') return row.hero_title || defaultValue
-      if (field === 'hero.subtitle') return row.hero_subtitle || defaultValue
-      if (field === 'hero.video') return row.hero_video_url || defaultValue
+      const heroRow = contentMap.value['hero']
+      const fieldRow = contentMap.value[field]
+      if (field === 'hero.title') return heroRow?.hero_title || fieldRow?.content || defaultValue
+      if (field === 'hero.subtitle') return heroRow?.hero_subtitle || fieldRow?.content || defaultValue
+      if (field === 'hero.video') return heroRow?.hero_video_url || fieldRow?.content || defaultValue
     }
     const row = contentMap.value[field]
     if (!row) return defaultValue

@@ -10,6 +10,8 @@
       }
     ]"
     @click="handleClick"
+    v-bind="hoverable ? { role: 'button', tabindex: 0, 'aria-pressed': false } : {}"
+    @keydown="hoverable ? handleKeydown : undefined"
   >
     <slot />
   </div>
@@ -36,9 +38,9 @@ const props = defineProps({
 const emit = defineEmits(['click'])
 
 const variantClasses = {
-  default: 'bg-white border border-stone-200',
-  elevated: 'bg-white shadow-md border border-stone-200',
-  outlined: 'bg-white border-2 border-stone-300'
+  default: 'bg-white',
+  elevated: 'bg-white shadow-md', // shadow only, no border
+  outlined: 'bg-white' // no border here
 }
 
 const borderClasses = {
@@ -51,6 +53,14 @@ const borderClasses = {
 const handleClick = (event) => {
   if (props.hoverable) {
     emit('click', event)
+  }
+}
+
+const handleKeydown = (event) => {
+  if (!props.hoverable) return
+  if (event.key === 'Enter' || event.key === ' ') {
+    event.preventDefault()
+    handleClick(event)
   }
 }
 </script>

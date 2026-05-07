@@ -44,10 +44,10 @@ export function getStripe(env: BillingEnv): Stripe {
 export async function getOrganizationBillingStatus(
   env: BillingEnv, 
   db: any, 
-  organizationId: string
+  organization_id: string
 ): Promise<BillingStatus> {
   // Get entitlements
-  const entitlements = await getOrganizationEntitlements(env, db, organizationId)
+  const entitlements = await getOrganizationEntitlements(env, db, organization_id)
   
   // Get billing metadata from organization_billing table
   const billing = await db.prepare(`
@@ -55,7 +55,7 @@ export async function getOrganizationBillingStatus(
            current_period_end, cancel_at_period_end
     FROM organization_billing 
     WHERE organization_id = ?
-  `).bind(organizationId).first()
+  `).bind(organization_id).first()
   
   return {
     plan: billing?.plan || entitlements.plan || 'free',
@@ -72,12 +72,12 @@ export async function getOrganizationBillingStatus(
 export async function getOrganizationEntitlements(
   env: BillingEnv, 
   db: any, 
-  organizationId: string
+  organization_id: string
 ): Promise<Record<string, any>> {
   const entitlements = await db.prepare(`
     SELECT key, value FROM organization_entitlements 
     WHERE organization_id = ?
-  `).bind(organizationId).all()
+  `).bind(organization_id).all()
   
   const result: Record<string, any> = {}
   for (const entitlement of entitlements.results || []) {
@@ -116,7 +116,7 @@ export async function hasEntitlement(
 export async function setOrganizationEntitlementsFromPlan(
   env: BillingEnv, 
   db: any, 
-  organizationId: string, 
+  organization_id: string, 
   plan: string
 ): Promise<void> {
   const planEntitlements = getPlanEntitlements(plan)
@@ -127,15 +127,15 @@ export async function setOrganizationEntitlementsFromPlan(
       INSERT OR REPLACE INTO organization_entitlements 
       (id, organization_id, key, value, source, created_at, updated_at)
       VALUES (?, ?, ?, ?, ?, ?, ?)
-    `).bind(
-      `ent-${organizationId}-${key}`,
-      organizationId,
-      key,
-      String(value),
-      'system',
-      now,
-      now
-    ).run()
+      `).bind(
+        `ent-${organization_id}-${key}`,
+        organization_id,
+        key,
+        String(value),
+        'system',
+        now,
+        now
+      ).run()
   }
 }
 
@@ -191,15 +191,15 @@ function getPlanEntitlements(plan: string): Record<string, any> {
 export async function requireBillingAccess(
   env: BillingEnv, 
   db: any, 
-  organizationId: string, 
-  userId: string
+  organization_id: string, 
+  user_id: string
 ): Promise<void> {
   // Check if user is member of organization
   const membership = await db.prepare(`
-    SELECT role FROM member
-    WHERE organizationId = ? AND userId = ?
-    LIMIT 1
-  `).bind(organizationId, userId).first()
+      SELECT role FROM member
+      WHERE organizationId = ? AND userId = ?
+      LIMIT 1
+    `).bind(organization_id, user_id).first()
   
   if (!membership) {
     throw new Error('Access denied: Not a member of this organization')

@@ -1,28 +1,73 @@
 <template>
-  <!--
-    Full-screen Shopify-style content editor for multi-tenant sites.
-    Layout: [Left sidebar] [Center iframe] [Right edit panel (slide-in)]
-    Design matches existing admin design system: white cards, stone borders, rounded-3xl.
-  -->
-  <div class="flex h-screen bg-stone-50 overflow-hidden font-sans">
-
-    <!-- ─── Left Sidebar ──────────────────────────────────────────────── -->
-    <aside class="w-72 flex-shrink-0 bg-white border-r border-stone-200 flex flex-col h-full overflow-hidden">
-
-      <!-- Header -->
-      <div class="px-5 py-4 border-b border-stone-100 flex-shrink-0">
-        <div class="flex items-center justify-between mb-4">
-          <div>
-            <p class="text-[10px] font-bold uppercase tracking-widest text-stone-400 mb-0.5">Content Editor</p>
-            <h1 class="text-sm font-bold text-gray-900 tracking-tight italic">{{ siteName || 'Loading...' }}</h1>
+  <div class="flex h-screen flex-col overflow-hidden bg-gray-50 text-gray-900 dark:bg-gray-900 dark:text-white">
+    <header class="flex h-14 shrink-0 items-center justify-between border-b border-gray-200 bg-white px-3 dark:border-gray-800 dark:bg-gray-900">
+      <div class="flex min-w-0 items-center gap-2">
+        <UButton to="/dashboard/sites" icon="i-heroicons-arrow-left" color="neutral" variant="ghost" size="sm" aria-label="Back to sites" />
+        <UButton to="/dashboard" icon="i-heroicons-home" color="neutral" variant="ghost" size="sm" aria-label="Dashboard" />
+        <div class="h-6 w-px bg-gray-200 dark:bg-gray-800" />
+        <div class="min-w-0">
+          <div class="flex items-center gap-2">
+            <p class="truncate text-sm font-semibold text-gray-900 dark:text-white">{{ siteName }}</p>
+            <UBadge :color="serverHasDrafts || localHasChanges ? 'warning' : 'success'" variant="soft" size="xs">
+              {{ serverHasDrafts || localHasChanges ? 'Draft' : 'Live' }}
+            </UBadge>
           </div>
-          <UButton to="/dashboard" variant="ghost" color="neutral" size="xs" class="text-xs font-medium">← Back</UButton>
+          <p class="truncate text-xs text-gray-500 dark:text-gray-400">{{ siteDomain }}</p>
         </div>
+      </div>
 
-        <!-- Page selector -->
-        <div class="relative">
+      <div class="hidden min-w-0 items-center gap-2 md:flex">
+        <USelect
+          id="content-page-selector"
+          v-model="selectedPageId"
+          :items="pages"
+          value-key="id"
+          label-key="label"
+          class="w-44"
+          @update:model-value="onPageChange"
+        />
+        <UBadge color="neutral" variant="subtle" size="sm">{{ selectedPageLabel }}</UBadge>
+      </div>
+
+      <div class="flex items-center gap-2">
+        <UColorModeButton variant="ghost" color="neutral" size="sm" />
+        <UButton
+          :href="iframeSrc || undefined"
+          target="_blank"
+          icon="i-heroicons-arrow-top-right-on-square"
+          color="neutral"
+          variant="ghost"
+          size="sm"
+          aria-label="Open preview"
+          :disabled="!iframeSrc"
+        />
+        <UButton
+          :disabled="!localHasChanges || saving"
+          :loading="saving"
+          color="neutral"
+          variant="outline"
+          size="sm"
+          @click="handleSaveDraft"
+        >
+          Save draft
+        </UButton>
+        <UButton
+          id="content-publish-btn"
+          :disabled="publishing || (!localHasChanges && !serverHasDrafts)"
+          :loading="publishing"
+          color="primary"
+          size="sm"
+          @click="handlePublish"
+        >
+          Publish
+        </UButton>
+      </div>
+    </header>
+
+    <div class="grid min-h-0 flex-1 grid-cols-[20rem_minmax(0,1fr)_22rem] overflow-hidden">
+      <aside class="flex min-h-0 flex-col border-r border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-900">
+        <div class="border-b border-gray-200 p-3 dark:border-gray-800 md:hidden">
           <USelect
-            id="content-page-selector"
             v-model="selectedPageId"
             :items="pages"
             value-key="id"
@@ -30,173 +75,98 @@
             @update:model-value="onPageChange"
           />
         </div>
-      </div>
 
-      <!-- Draft status -->
-      <div class="px-5 py-2.5 border-b border-stone-100 flex-shrink-0 flex items-center justify-between">
-        <div class="flex items-center gap-2">
-          <UButton
-            @click="handleSaveDraft"
-            :disabled="!localHasChanges || saving"
-            size="xs"
-            variant="outline"
-          >
-            {{ saving ? 'Saving…' : 'Save Draft' }}
-          </UButton>
-          <UBadge
-            :color="localHasChanges ? 'warning' : (!localHasChanges && serverHasDrafts ? 'success' : 'neutral')"
-            variant="subtle"
-            class="w-2 h-2 rounded-full p-0"
-          />
-          <UButton
-            @click="handlePublish"
-            :disabled="!serverHasDrafts || publishing"
-            size="xs"
-            color="primary"
-          >
-            {{ publishing ? 'Publishing…' : 'Publish' }}
-          </UButton>
+        <div class="border-b border-gray-200 px-4 py-3 dark:border-gray-800">
+          <div class="flex items-center justify-between">
+            <h1 class="text-sm font-semibold text-gray-900 dark:text-white">{{ selectedPageLabel }}</h1>
+            <UBadge color="neutral" variant="subtle" size="xs">{{ currentPageGroups.length }} sections</UBadge>
+          </div>
+        </div>
+
+        <UAlert v-if="discardPending" color="error" variant="soft" class="m-3">
+          <template #title>Discard all draft changes?</template>
+          <template #actions>
+            <UButton @click="handleDiscard" size="xs" color="error">Discard</UButton>
+            <UButton @click="discardPending = false" size="xs" color="neutral" variant="ghost">Cancel</UButton>
+          </template>
+        </UAlert>
+
+        <div class="min-h-0 flex-1 overflow-y-auto py-2">
+          <div v-for="group in currentPageGroups" :key="group.id" class="border-b border-gray-100 py-1 last:border-b-0 dark:border-gray-800">
+            <UButton
+              @click="toggleGroup(group.id)"
+              variant="ghost"
+              color="neutral"
+              size="sm"
+              block
+              class="justify-between px-4"
+            >
+              <span class="flex min-w-0 items-center gap-2">
+                <UIcon :name="group.icon" class="size-4 shrink-0 text-gray-500" />
+                <span class="truncate text-sm font-medium">{{ group.label }}</span>
+              </span>
+              <UIcon
+                name="i-heroicons-chevron-down-20-solid"
+                class="size-4 shrink-0 text-gray-400 transition-transform"
+                :class="{ 'rotate-180': openGroups.includes(group.id) }"
+              />
+            </UButton>
+
+            <div v-if="openGroups.includes(group.id)" class="space-y-1 px-2 pb-2">
+              <template v-for="fieldKey in group.fields" :key="fieldKey">
+                <UButton
+                  v-if="getFieldDef(selectedPageId, fieldKey)"
+                  block
+                  :variant="activeField === fieldKey ? 'soft' : 'ghost'"
+                  :color="activeField === fieldKey ? 'primary' : 'neutral'"
+                  size="sm"
+                  class="justify-start"
+                  @click="getFieldDef(selectedPageId, fieldKey)?.source === 'google' ? null : selectField(fieldKey)"
+                >
+                  <span class="flex min-w-0 flex-1 items-start gap-2 text-left">
+                    <UIcon
+                      :name="getFieldDef(selectedPageId, fieldKey)?.source === 'google' ? 'i-heroicons-circle-stack' : 'i-heroicons-bars-3-bottom-left'"
+                      class="mt-0.5 size-4 shrink-0 text-gray-400"
+                    />
+                    <span class="min-w-0 flex-1">
+                      <span class="flex items-center gap-2">
+                        <span class="truncate text-sm font-medium">{{ getFieldDef(selectedPageId, fieldKey)?.label }}</span>
+                        <UBadge v-if="getFieldDef(selectedPageId, fieldKey)?.source === 'google'" color="info" variant="soft" size="xs">Google</UBadge>
+                      </span>
+                      <span class="block truncate text-xs text-gray-500 dark:text-gray-400">{{ fieldPreview(fieldKey) }}</span>
+                    </span>
+                  </span>
+                </UButton>
+              </template>
+            </div>
+          </div>
+        </div>
+
+        <div class="space-y-2 border-t border-gray-200 p-3 dark:border-gray-800">
           <UButton
             v-if="localHasChanges || serverHasDrafts"
-            @click="handleDiscard"
-            size="xs"
-            variant="ghost"
-            color="error"
-          >
-            Discard
-          </UButton>
-        </div>
-      </div>
-
-      <!-- Discard Confirmation Prompt -->
-      <UAlert v-if="discardPending" color="error" variant="soft" class="mx-5 my-3">
-        <template #title>Discard all draft changes?</template>
-        <template #actions>
-          <UButton @click="handleDiscard" size="xs" color="error">Yes, discard</UButton>
-          <UButton @click="discardPending = false" size="xs" variant="ghost">Cancel</UButton>
-        </template>
-      </UAlert>
-
-      <!-- Field groups list -->
-      <div class="flex-1 overflow-y-auto py-2">
-
-        <div v-for="group in currentPageGroups" :key="group.id" class="mb-0.5">
-          <!-- Group toggle header -->
-          <UButton
-            class="w-full flex items-center justify-between px-5 py-2.5 text-left hover:bg-stone-50 transition-colors"
-            @click="toggleGroup(group.id)"
-            variant="ghost"
+            block
             color="neutral"
+            variant="ghost"
             size="sm"
+            @click="handleDiscard"
           >
-            <div class="flex items-center gap-2">
-              <span class="text-sm">{{ group.icon }}</span>
-              <span class="text-xs font-bold uppercase tracking-widest text-stone-500">{{ group.label }}</span>
-            </div>
-            <span
-              class="text-stone-300 text-[10px] transition-transform duration-200"
-              :class="{ 'rotate-180': openGroups.includes(group.id) }"
-            >▾</span>
+            Discard changes
           </UButton>
+        </div>
+      </aside>
 
-          <!-- Fields -->
-          <div v-if="openGroups.includes(group.id)" class="pb-1">
-            <template v-for="fieldKey in group.fields" :key="fieldKey">
-              <template v-if="getFieldDef(selectedPageId, fieldKey)">
-
-                <!-- Google-managed field -->
-                <div
-                  v-if="getFieldDef(selectedPageId, fieldKey)?.source === 'google'"
-                  class="mx-3 mb-0.5 px-3 py-2 rounded-xl flex items-center justify-between group/gf cursor-default"
-                  :title="`This field is populated automatically from your Google Business Profile. Go to Connection to sync.`"
-                >
-                  <div class="min-w-0 flex-1">
-                    <div class="flex items-center gap-1.5 mb-0.5">
-                      <p class="text-xs font-semibold text-stone-500 truncate">{{ getFieldDef(selectedPageId, fieldKey)?.label }}</p>
-                      <UBadge color="primary" variant="soft" size="xs">
-                        <span class="w-1 h-1 rounded-full bg-blue-400 animate-pulse inline-block mr-1" />
-                        Google
-                      </UBadge>
-                    </div>
-                    <p class="text-[11px] text-stone-400 truncate">
-                      {{ fieldPreview(fieldKey) }}
-                    </p>
-                  </div>
-                  <UButton
-                    to="/dashboard/connection"
-                    variant="ghost"
-                    color="primary"
-                    size="xs"
-                    class="text-[10px] font-bold opacity-0 group-hover/gf:opacity-100 transition-opacity"
-                  >
-                    Sync →
-                  </UButton>
-                </div>
-
-                <!-- Manual editable field -->
-                <button
-                  v-else
-                  class="w-full mx-3 mb-0.5 px-3 py-2 rounded-xl text-left transition-all"
-                  style="width: calc(100% - 24px);"
-                  :class="
-                    activeField === fieldKey
-                      ? 'bg-black text-white'
-                      : 'hover:bg-stone-50 text-gray-900'
-                  "
-                  @click="selectField(fieldKey)"
-                >
-                  <p class="text-xs font-semibold truncate" :class="activeField === fieldKey ? 'text-white' : 'text-stone-700'">
-                    {{ getFieldDef(selectedPageId, fieldKey)?.label }}
-                  </p>
-                  <p class="text-[11px] mt-0.5 truncate" :class="activeField === fieldKey ? 'text-white/60' : 'text-stone-400'">
-                    {{ fieldPreview(fieldKey) }}
-                  </p>
-                </button>
-
-              </template>
-            </template>
+      <main class="flex min-w-0 flex-col overflow-hidden bg-gray-100 dark:bg-gray-950">
+        <div class="flex h-11 shrink-0 items-center justify-between border-b border-gray-200 bg-white px-4 dark:border-gray-800 dark:bg-gray-900">
+          <div class="flex min-w-0 items-center gap-2">
+            <UIcon name="i-heroicons-globe-alt" class="size-4 text-gray-500" />
+            <p class="truncate text-sm text-gray-600 dark:text-gray-300">{{ siteDomain }}{{ currentPagePath }}</p>
           </div>
+          <UBadge color="neutral" variant="subtle" size="xs">Preview</UBadge>
         </div>
-      </div>
 
-      <!-- Footer actions -->
-      <div class="px-4 py-4 border-t border-stone-100 flex-shrink-0 space-y-2">
-        <button
-          id="content-publish-btn"
-          :disabled="publishing || (!localHasChanges && !serverHasDrafts)"
-          class="w-full h-10 rounded-xl text-xs font-bold uppercase tracking-widest transition-all disabled:cursor-not-allowed border"
-          :class="
-            (localHasChanges || serverHasDrafts) && !publishing
-              ? 'bg-black text-white hover:bg-stone-900 border-black'
-              : 'bg-white text-stone-300 border-stone-200'
-          "
-          @click="handlePublish"
-        >
-          {{ publishing ? 'Publishing…' : 'Publish Live' }}
-        </button>
-      </div>
-    </aside>
-
-    <!-- ─── Center: iframe preview ────────────────────────────────────── -->
-    <div class="flex-1 flex flex-col min-w-0 h-full overflow-hidden relative">
-      <!-- Minimal browser chrome bar -->
-      <div class="h-10 bg-stone-100 border-b border-stone-200 flex items-center px-4 gap-3 flex-shrink-0">
-        <div class="flex items-center gap-1.5">
-          <span class="w-2.5 h-2.5 rounded-full bg-red-400" />
-          <span class="w-2.5 h-2.5 rounded-full bg-amber-400" />
-          <span class="w-2.5 h-2.5 rounded-full bg-emerald-400" />
-        </div>
-        <div class="flex-1 flex justify-center">
-          <div class="bg-white border border-stone-200 rounded-lg px-4 py-1 flex items-center gap-2 min-w-0 max-w-sm w-full">
-            <span class="text-stone-300 text-xs">🔒</span>
-            <span class="text-stone-500 text-xs truncate">{{ siteDomain }}{{ currentPagePath }}</span>
-          </div>
-        </div>
-        <div class="w-16" /> <!-- spacer to centre the URL bar -->
-      </div>
-
-      <!-- Iframe -->
-      <div class="flex-1 overflow-hidden relative bg-white">
+        <div class="min-h-0 flex-1 overflow-auto p-4">
+          <div class="relative mx-auto h-full min-h-[640px] max-w-7xl overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm dark:border-gray-800 dark:bg-gray-900">
         <iframe
           id="site-preview-frame"
           ref="previewFrame"
@@ -207,62 +177,51 @@
         />
         <Transition enter-active-class="transition-opacity duration-200" enter-from-class="opacity-0" enter-to-class="opacity-100" leave-active-class="transition-opacity duration-150" leave-from-class="opacity-100" leave-to-class="opacity-0">
           <div v-if="iframeLoading" class="absolute inset-0 flex items-center justify-center pointer-events-none">
-            <div class="flex flex-col items-center gap-3 bg-white/80 rounded-2xl px-8 py-6 shadow-sm border border-stone-200">
-              <div class="w-6 h-6 border-2 border-stone-300 border-t-stone-800 rounded-full animate-spin" />
-              <p class="text-stone-400 text-xs font-medium">Loading preview…</p>
+            <div class="flex items-center gap-3 rounded-lg border border-gray-200 bg-white px-4 py-3 shadow-sm dark:border-gray-800 dark:bg-gray-900">
+              <UIcon name="i-heroicons-arrow-path" class="size-4 animate-spin text-gray-500" />
+              <p class="text-sm text-gray-600 dark:text-gray-300">Loading preview...</p>
             </div>
           </div>
         </Transition>
       </div>
-    </div>
+        </div>
+      </main>
 
-    <!-- ─── Right: Field editor panel ────────────────────────────────── -->
-    <Transition
-      enter-active-class="transition-all duration-300 ease-out"
-      enter-from-class="translate-x-full opacity-0"
-      enter-to-class="translate-x-0 opacity-100"
-      leave-active-class="transition-all duration-200 ease-in"
-      leave-from-class="translate-x-0 opacity-100"
-      leave-to-class="translate-x-full opacity-0"
-    >
-      <div
-        v-if="activeField"
-        class="w-80 flex-shrink-0 bg-white border-l border-stone-200 flex flex-col h-full overflow-hidden"
-      >
-        <!-- Panel header -->
-        <div class="px-5 py-4 border-b border-stone-100 flex items-start justify-between flex-shrink-0">
-          <div>
-            <p class="text-[10px] font-bold uppercase tracking-widest text-stone-400 mb-0.5">Editing</p>
-            <h2 class="text-sm font-bold text-gray-900">{{ activeFieldDef?.label }}</h2>
-            <p class="text-xs text-stone-400 mt-0.5">{{ selectedPageLabel }} → {{ activeFieldDef?.label }}</p>
+      <aside class="flex min-h-0 flex-col border-l border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-900">
+        <div class="flex shrink-0 items-start justify-between border-b border-gray-200 px-4 py-3 dark:border-gray-800">
+          <div class="min-w-0">
+            <p class="text-sm font-semibold text-gray-900 dark:text-white">
+              {{ activeFieldDef?.label || 'Content settings' }}
+            </p>
+            <p class="truncate text-xs text-gray-500 dark:text-gray-400">
+              {{ activeFieldDef ? `${selectedPageLabel} / ${activeFieldDef.label}` : selectedPageLabel }}
+            </p>
           </div>
           <UButton
-            class="mt-0.5 w-7 h-7 flex items-center justify-center rounded-lg hover:bg-stone-100 text-stone-400 hover:text-stone-700 transition-all text-sm"
+            v-if="activeField"
             icon="i-heroicons-x-mark-20-solid"
+            color="neutral"
             variant="ghost"
-            size="xs"
+            size="sm"
+            aria-label="Close editor"
             @click="activeField = null"
           />
         </div>
 
-        <!-- Panel body -->
-        <div class="flex-1 overflow-y-auto p-5 space-y-5">
-          <!-- Text input -->
+        <div v-if="activeField" class="min-h-0 flex-1 space-y-5 overflow-y-auto p-4">
           <div v-if="activeFieldDef?.type === 'text'" class="space-y-2">
-            <label class="block text-xs font-bold text-stone-500 uppercase tracking-widest">{{ activeFieldDef.label }}</label>
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-200">{{ activeFieldDef.label }}</label>
             <UInput
               v-model="editingValue"
-              :placeholder="activeFieldDef?.placeholder || activeFieldDef?.defaultValue || 'Enter value…'"
+              :placeholder="activeFieldDef?.placeholder || activeFieldDef?.defaultValue || 'Enter value...'"
               size="sm"
             />
-            <p v-if="activeFieldDef?.defaultValue" class="text-xs text-stone-300 italic">Default: {{ activeFieldDef.defaultValue }}</p>
+            <p v-if="activeFieldDef?.defaultValue" class="text-xs text-gray-500 dark:text-gray-400">Default: {{ activeFieldDef.defaultValue }}</p>
           </div>
 
-          <!-- Richtext input -->
           <div v-else-if="activeFieldDef?.type === 'richtext'" class="space-y-2">
-            <label class="block text-xs font-bold text-stone-500 uppercase tracking-widest">{{ activeFieldDef.label }}</label>
-            <!-- Format toolbar -->
-            <div class="flex gap-1 flex-wrap">
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-200">{{ activeFieldDef.label }}</label>
+            <div class="flex flex-wrap gap-1 rounded-md border border-gray-200 bg-gray-50 p-1 dark:border-gray-800 dark:bg-gray-950">
               <UButton
                 v-for="cmd in richtextCommands"
                 :key="cmd.cmd"
@@ -276,41 +235,48 @@
             <div
               id="richtext-editor"
               contenteditable="true"
-              class="w-full min-h-[160px] bg-stone-50 border border-stone-200 text-gray-900 text-sm px-4 py-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-black/10 focus:border-stone-400 prose prose-sm max-w-none"
-              :data-placeholder="activeFieldDef?.placeholder || 'Start typing…'"
+              class="prose prose-sm min-h-40 w-full max-w-none rounded-md border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500/20 dark:border-gray-800 dark:bg-gray-950 dark:text-white"
+              :data-placeholder="activeFieldDef?.placeholder || 'Start typing...'"
               v-html="editingValue || ''"
               @blur="onRichTextBlur"
             />
           </div>
 
-          <!-- Apply -->
           <UButton
             id="field-apply-btn"
             :disabled="saving"
-            variant="solid"
-            size="sm"
-            class="w-full h-10"
+            :loading="saving"
+            color="primary"
+            block
             @click="applyField"
           >
-            {{ saving ? 'Saving…' : 'Apply' }}
+            Apply
           </UButton>
 
-          <!-- Current value preview -->
-          <div v-if="currentValues[activeField]" class="border border-stone-100 rounded-xl p-4 bg-stone-50">
-            <p class="text-[10px] font-bold uppercase tracking-widest text-stone-400 mb-2">Current Value</p>
+          <UCard v-if="currentValues[activeField]">
+            <p class="mb-2 text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">Current value</p>
             <div
               v-if="activeFieldDef?.type === 'richtext'"
               v-html="currentValues[activeField]"
-              class="text-xs text-stone-600 prose prose-sm max-w-none"
+              class="prose prose-sm max-w-none text-sm text-gray-700 dark:text-gray-200"
             />
-            <p v-else class="text-xs text-stone-600">{{ currentValues[activeField] }}</p>
-          </div>
-          <div v-else class="border border-dashed border-stone-200 rounded-xl p-4">
-            <p class="text-xs text-stone-400 italic text-center">No saved value yet — default will be shown on site</p>
+            <p v-else class="text-sm text-gray-700 dark:text-gray-200">{{ currentValues[activeField] }}</p>
+          </UCard>
+
+          <UCard v-else>
+            <p class="text-sm text-gray-500 dark:text-gray-400">No saved value yet.</p>
+          </UCard>
+        </div>
+
+        <div v-else class="flex min-h-0 flex-1 items-center justify-center p-6 text-center">
+          <div>
+            <UIcon name="i-heroicons-cursor-arrow-rays" class="mx-auto mb-3 size-8 text-gray-400" />
+            <p class="text-sm font-medium text-gray-900 dark:text-white">Select a field</p>
+            <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">Choose editable content from the page structure.</p>
           </div>
         </div>
-      </div>
-    </Transition>
+      </aside>
+    </div>
 
     <!-- Toast -->
     <AppToast />
@@ -329,17 +295,15 @@ const siteId = route.params.siteId as string
 const toast = useToast()
 const config = useRuntimeConfig()
 
-// Extract hostname from config for URLs
 const platformHostname = computed(() => {
   const domain = config.public.freeSiteDomain
-  // Remove protocol if present to get just the hostname
   return domain.replace(/^https?:\/\//, '')
 })
 
 // ─── Site Context ───────────────────────────────────────────────────────
 const siteData = ref(null)
 const siteName = computed(() => siteData.value?.name || 'Loading...')
-const siteDomain = computed(() => siteData.value?.subdomain ? `${siteData.value.subdomain}.${platformHostname}` : 'localhost:3000')
+const siteDomain = computed(() => siteData.value?.subdomain ? `${siteData.value.subdomain}.${platformHostname.value}` : 'localhost:3000')
 const sitePreviewBaseUrl = computed(() => {
   if (!siteData.value?.subdomain) return ''
 
@@ -379,6 +343,7 @@ const previewReloadToken = ref(0)
 const iframeSrc = computed(() => {
   if (!sitePreviewBaseUrl.value) return ''
   const url = new URL(currentPagePath.value, sitePreviewBaseUrl.value)
+  url.searchParams.set('preview', 'true')
   if (previewReloadToken.value) url.searchParams.set('t', String(previewReloadToken.value))
   return url.toString()
 })
@@ -398,36 +363,36 @@ const openGroups = ref<string[]>(['hero'])
 
 const groupConfig: Record<string, Array<{ id: string; label: string; icon: string; fields: string[] }>> = {
   home: [
-    { id: 'hero',   label: 'Hero Section',    icon: '🎯', fields: ['hero.title', 'hero.subtitle', 'hero.video'] },
-    { id: 'cta',    label: 'Call to Action',  icon: '📣', fields: ['cta.title', 'cta.description'] },
-    { id: 'google', label: 'Google Business', icon: '🔵', fields: ['business.name', 'business.establishment_year', 'business.description', 'business.address', 'business.phone', 'business.hours'] }
+    { id: 'hero',   label: 'Hero Section',    icon: 'i-heroicons-photo', fields: ['hero.title', 'hero.subtitle', 'hero.video'] },
+    { id: 'cta',    label: 'Call to Action',  icon: 'i-heroicons-megaphone', fields: ['cta.title', 'cta.description'] },
+    { id: 'google', label: 'Google Business', icon: 'i-heroicons-circle-stack', fields: ['business.name', 'business.establishment_year', 'business.description', 'business.address', 'business.phone', 'business.hours'] }
   ],
   about: [
-    { id: 'hero',    label: 'Hero Section', icon: '🎯', fields: ['hero.title', 'hero.subtitle'] },
-    { id: 'story',   label: 'Story',        icon: '📖', fields: ['story.intro', 'journey.title', 'journey.body', 'experience.body'] },
-    { id: 'cuisine', label: 'Cuisine',      icon: '🍱', fields: ['grill.title', 'grill.description', 'sushi.title', 'sushi.description'] },
-    { id: 'google',  label: 'Google Business', icon: '🔵', fields: ['business.establishment_year', 'business.description'] }
+    { id: 'hero',    label: 'Hero Section', icon: 'i-heroicons-photo', fields: ['hero.title', 'hero.subtitle'] },
+    { id: 'story',   label: 'Story',        icon: 'i-heroicons-book-open', fields: ['story.intro', 'journey.title', 'journey.body', 'experience.body'] },
+    { id: 'cuisine', label: 'Cuisine',      icon: 'i-heroicons-sparkles', fields: ['grill.title', 'grill.description', 'sushi.title', 'sushi.description'] },
+    { id: 'google',  label: 'Google Business', icon: 'i-heroicons-circle-stack', fields: ['business.establishment_year', 'business.description'] }
   ],
   contact: [
-    { id: 'hero',    label: 'Hero Section',    icon: '🎯', fields: ['hero.title', 'hero.subtitle'] },
-    { id: 'content', label: 'Page Content',    icon: '📝', fields: ['intro.body'] },
-    { id: 'social',  label: 'Social Links',    icon: '📱', fields: ['social.facebook', 'social.instagram'] },
-    { id: 'google',  label: 'Google Business', icon: '🔵', fields: ['business.name', 'business.establishment_year', 'business.address', 'business.phone', 'business.hours'] }
+    { id: 'hero',    label: 'Hero Section',    icon: 'i-heroicons-photo', fields: ['hero.title', 'hero.subtitle'] },
+    { id: 'content', label: 'Page Content',    icon: 'i-heroicons-document-text', fields: ['intro.body'] },
+    { id: 'social',  label: 'Social Links',    icon: 'i-heroicons-link', fields: ['social.facebook', 'social.instagram'] },
+    { id: 'google',  label: 'Google Business', icon: 'i-heroicons-circle-stack', fields: ['business.name', 'business.establishment_year', 'business.address', 'business.phone', 'business.hours'] }
   ],
   location: [
-    { id: 'hero',    label: 'Hero Section',    icon: '🎯', fields: ['hero.title', 'hero.subtitle'] },
-    { id: 'content', label: 'Additional Info', icon: '📝', fields: ['parking.info', 'extra.notes'] },
-    { id: 'google',  label: 'Google Business', icon: '🔵', fields: ['business.name', 'business.establishment_year', 'business.address', 'business.phone', 'business.hours'] }
+    { id: 'hero',    label: 'Hero Section',    icon: 'i-heroicons-photo', fields: ['hero.title', 'hero.subtitle'] },
+    { id: 'content', label: 'Additional Info', icon: 'i-heroicons-document-text', fields: ['parking.info', 'extra.notes'] },
+    { id: 'google',  label: 'Google Business', icon: 'i-heroicons-circle-stack', fields: ['business.name', 'business.establishment_year', 'business.address', 'business.phone', 'business.hours'] }
   ],
   menu: [
-    { id: 'hero',    label: 'Hero Section',      icon: '🎯', fields: ['hero.title', 'hero.subtitle'] },
-    { id: 'content', label: 'Menu Introduction', icon: '📝', fields: ['description'] },
-    { id: 'google',  label: 'Google Products',   icon: '🔵', fields: ['business.products'] }
+    { id: 'hero',    label: 'Hero Section',      icon: 'i-heroicons-photo', fields: ['hero.title', 'hero.subtitle'] },
+    { id: 'content', label: 'Menu Introduction', icon: 'i-heroicons-document-text', fields: ['description'] },
+    { id: 'google',  label: 'Google Products',   icon: 'i-heroicons-circle-stack', fields: ['business.products'] }
   ],
   reservations: [
-    { id: 'hero',     label: 'Hero Section',    icon: '🎯', fields: ['hero.title', 'hero.subtitle'] },
-    { id: 'contact',  label: 'Contact Details', icon: '📞', fields: ['contact.phone', 'contact.email'] },
-    { id: 'policies', label: 'Policies',        icon: '📋', fields: ['policies.body'] }
+    { id: 'hero',     label: 'Hero Section',    icon: 'i-heroicons-photo', fields: ['hero.title', 'hero.subtitle'] },
+    { id: 'contact',  label: 'Contact Details', icon: 'i-heroicons-phone', fields: ['contact.phone', 'contact.email'] },
+    { id: 'policies', label: 'Policies',        icon: 'i-heroicons-clipboard-document-list', fields: ['policies.body'] }
   ]
 }
 

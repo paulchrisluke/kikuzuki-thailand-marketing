@@ -38,11 +38,14 @@ export default defineEventHandler(async (event) => {
       FROM sites s
       JOIN organization o ON s.organization_id = o.id
       JOIN member om ON o.id = om.organizationId
-      WHERE s.id = ? AND om.userId = ? AND om.role IN ('owner', 'dashboard')
+      WHERE s.id = ? AND om.userId = ? AND (
+        INSTR(om.role, 'owner') > 0 OR INSTR(om.role, 'admin') > 0 OR INSTR(om.role, 'editor') > 0
+      )
       LIMIT 1
     `).bind(siteId, session.user.id).first()
     
     if (!site) {
+      console.error('Membership check failed: possible schema mismatch or user not authorized', { siteId, userId: session.user.id })
       return jsonResponse({ 
         error: 'Site not found or access denied' 
       }, { status: 404 })

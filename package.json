@@ -10,9 +10,7 @@
     "preview": "nuxt preview",
     "postinstall": "nuxt prepare",
     "schema:local": "npx wrangler d1 execute REVIEWS_DB --local --file schema.sql",
-    "schema:remote": "npx wrangler d1 execute REVIEWS_DB --remote --file schema.sql",
-    "migrate:local": "yarn schema:local",
-    "migrate:remote": "yarn schema:remote"
+    "schema:remote": "npx wrangler d1 execute REVIEWS_DB --remote --file schema.sql"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20260503.1",

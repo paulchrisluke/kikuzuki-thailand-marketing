@@ -9,6 +9,7 @@ const emit = defineEmits<{
   'update:modelValue': [value: string]
 }>()
 
+import { useEditMode } from '@/composables/useEditMode'
 const { editMode, queueChange } = useEditMode()
 
 const updateValue = (event: Event) => {
@@ -24,7 +25,7 @@ const updateValue = (event: Event) => {
     :is="tag || 'span'"
     v-if="editMode"
     contenteditable="true"
-    class="outline outline-1 outline-blue-500/30 hover:outline-blue-500 rounded px-1 cursor-text transition-all bg-blue-500/5 focus:bg-white focus:outline-blue-600 focus:shadow-lg focus:ring-4 focus:ring-blue-500/10"
+    class="outline-blue-500/30 hover:outline-blue-500 rounded px-1 cursor-text transition-all bg-blue-500/5 focus:bg-white focus:outline-blue-600 focus:shadow-lg focus:ring-4 focus:ring-blue-500/10"
     @blur="updateValue"
     v-html="modelValue"
   />

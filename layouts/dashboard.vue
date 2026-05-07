@@ -37,7 +37,8 @@
         <UButton
           :avatar="{
             src: sessionData?.user?.image,
-            loading: 'lazy'
+            loading: 'lazy',
+            alt: sessionData?.user?.name || 'User avatar'
           }"
           :label="collapsed ? undefined : sessionData?.user?.name"
           color="neutral"

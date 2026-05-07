@@ -382,17 +382,12 @@ if (!isPlatform && !siteId) {
   })
 }
 
+// Hoist platform hostname as a plain string for both platform and tenant
+const config = useRuntimeConfig()
+const platformHostname = config.public.freeSiteDomain?.replace(/^https?:\/\//, '') || 'krabiclaw.com'
+
 // SEO for KrabiClaw Platform
 if (isPlatform) {
-  const config = useRuntimeConfig()
-  
-  // Extract hostname from config for URLs
-  const platformHostname = computed(() => {
-    const domain = config.public.freeSiteDomain
-    // Remove protocol if present to get just the hostname
-    return domain.replace(/^https?:\/\//, '')
-  })
-  
   useSeoMeta({
     title: 'KrabiClaw | AI Restaurant Website Builder',
     description: 'Build your restaurant website in minutes with AI. No coding required.',
@@ -400,6 +395,20 @@ if (isPlatform) {
     ogDescription: 'Professional restaurant websites with AI content and Google Business integration.',
     ogImage: '/og-krabiclaw.jpg',
     ogUrl: `https://${platformHostname}`,
+    ogType: 'website'
+  })
+}
+
+// SEO for tenant sites: set ogUrl to the tenant’s actual site URL
+if (!isPlatform && siteId) {
+  // Try to get subdomain from site context if available
+  const subdomain = getFieldStr ? getFieldStr('site.subdomain', null) : null
+  const tenantSubdomain = subdomain || 'restaurant'
+  useSeoMeta({
+    title: 'KrabiClaw | Beautiful Restaurant Websites. Powered by AI.',
+    description: 'Professional restaurant websites with AI-powered content and Google Business integration.',
+    ogImage: '/og-image.jpg',
+    ogUrl: `https://${tenantSubdomain}.${platformHostname}`,
     ogType: 'website'
   })
 }
@@ -494,14 +503,8 @@ const navigateToLocation = (location) => {
 
 if (!isPlatform && siteId) {
   const config = useRuntimeConfig()
-  
-  // Extract hostname from config for URLs
-  const platformHostname = computed(() => {
-    const domain = config.public.freeSiteDomain
-    // Remove protocol if present to get just the hostname
-    return domain.replace(/^https?:\/\//, '')
-  })
-  
+  // Extract hostname from config for URLs as a plain string
+  const platformHostname = config.public.freeSiteDomain?.replace(/^https?:\/\//, '') || 'krabiclaw.com'
   useSeoMeta({
     title: 'KrabiClaw | Beautiful Restaurant Websites. Powered by AI.',
     description: 'Professional restaurant websites with AI-powered content and Google Business integration.',

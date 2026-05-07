@@ -44,7 +44,9 @@ export default defineEventHandler(async (event) => {
       FROM sites s
       JOIN organization o ON s.organization_id = o.id
       JOIN member om ON o.id = om.organizationId
-      WHERE s.id = ? AND om.userId = ? AND om.role = 'owner'
+      WHERE s.id = ? AND om.userId = ? AND (
+        INSTR(om.role, 'owner') > 0 OR INSTR(om.role, 'admin') > 0 OR INSTR(om.role, 'editor') > 0
+      )
       LIMIT 1
     `).bind(siteId, session.user.id).first()
     
@@ -61,9 +63,8 @@ export default defineEventHandler(async (event) => {
       siteId,
       locationId || 'site',
       page
-    ].join('-')
+    ].join('::')
 
-    // Handle hero fields specially (from legacy code)
     const heroFields = ['hero.title', 'hero.subtitle', 'hero.video']
     const heroChange: Record<string, string | undefined> = {}
     let hasHeroChange = false
@@ -76,7 +77,7 @@ export default defineEventHandler(async (event) => {
         if (field === 'hero.video')    heroChange.hero_video_url = value || undefined
       } else {
         await upsertDraftContent(db, {
-          id: `${draftIdPrefix}-${field}`,
+          id: `${draftIdPrefix}::${field}`,
           organization_id: site.organization_id,
           site_id: siteId,
           location_id: locationId,
@@ -96,7 +97,7 @@ export default defineEventHandler(async (event) => {
     // Handle hero field changes
     if (hasHeroChange) {
       await upsertDraftContent(db, {
-        id: `${draftIdPrefix}-hero`,
+        id: `${draftIdPrefix}::hero`,
         organization_id: site.organization_id,
         site_id: siteId,
         location_id: locationId,

@@ -1,5 +1,5 @@
 // DNS verification API for checking TXT records
-import { cloudflareEnv, jsonResponse } from '../../utils/api-response'
+import { jsonResponse } from '../../utils/api-response'
 import { defineEventHandler, getQuery } from 'h3'
 
 export default defineEventHandler(async (event) => {

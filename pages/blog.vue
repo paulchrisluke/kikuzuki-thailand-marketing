@@ -12,7 +12,7 @@
 
         <!-- Featured Post -->
         <div class="bg-white rounded-2xl shadow-lg overflow-hidden mb-12">
-          <div class="h-64 bg-gradient-to-br from-stone-100 to-stone-200"></div>
+          <div class="h-64 bg-linear-to-br from-stone-100 to-stone-200"></div>
           <div class="p-8">
             <div class="flex items-center gap-4 mb-4">
               <span class="bg-black text-white px-3 py-1 rounded-full text-sm font-medium">Featured</span>
@@ -44,7 +44,7 @@
           <div class="grid md:grid-cols-2 gap-8">
             <!-- Post 1 -->
             <div class="bg-white rounded-xl shadow-sm border border-stone-200 overflow-hidden">
-              <div class="h-48 bg-gradient-to-br from-amber-50 to-amber-100"></div>
+              <div class="h-48 bg-linear-to-br from-amber-50 to-amber-100"></div>
               <div class="p-6">
                 <div class="flex items-center gap-3 mb-3">
                   <span class="bg-amber-100 text-amber-800 px-2 py-1 rounded text-xs font-medium">Marketing</span>
@@ -62,7 +62,7 @@
 
             <!-- Post 2 -->
             <div class="bg-white rounded-xl shadow-sm border border-stone-200 overflow-hidden">
-              <div class="h-48 bg-gradient-to-br from-emerald-50 to-emerald-100"></div>
+              <div class="h-48 bg-linear-to-br from-emerald-50 to-emerald-100"></div>
               <div class="p-6">
                 <div class="flex items-center gap-3 mb-3">
                   <span class="bg-emerald-100 text-emerald-800 px-2 py-1 rounded text-xs font-medium">Technology</span>
@@ -80,7 +80,7 @@
 
             <!-- Post 3 -->
             <div class="bg-white rounded-xl shadow-sm border border-stone-200 overflow-hidden">
-              <div class="h-48 bg-gradient-to-br from-indigo-50 to-indigo-100"></div>
+              <div class="h-48 bg-linear-to-br from-indigo-50 to-indigo-100"></div>
               <div class="p-6">
                 <div class="flex items-center gap-3 mb-3">
                   <span class="bg-indigo-100 text-indigo-800 px-2 py-1 rounded text-xs font-medium">Design</span>
@@ -98,7 +98,7 @@
 
             <!-- Post 4 -->
             <div class="bg-white rounded-xl shadow-sm border border-stone-200 overflow-hidden">
-              <div class="h-48 bg-gradient-to-br from-rose-50 to-rose-100"></div>
+              <div class="h-48 bg-linear-to-br from-rose-50 to-rose-100"></div>
               <div class="p-6">
                 <div class="flex items-center gap-3 mb-3">
                   <span class="bg-rose-100 text-rose-800 px-2 py-1 rounded text-xs font-medium">Business</span>
@@ -124,9 +124,11 @@
           </p>
           <div class="flex flex-col sm:flex-row gap-4 max-w-md mx-auto">
             <input
+              id="newsletter-email"
               type="email"
               placeholder="Enter your email"
               class="flex-1 px-4 py-3 rounded-lg text-stone-900"
+              aria-label="Enter your email for the newsletter"
             >
             <UButton color="neutral" class="bg-white text-black hover:bg-stone-200">Subscribe</UButton>
           </div>

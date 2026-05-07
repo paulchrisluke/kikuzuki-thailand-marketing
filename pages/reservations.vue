@@ -160,18 +160,12 @@ const handleReservation = () => {
 const { site } = await useTenantSite()
 
 const config = useRuntimeConfig()
-
-// Extract hostname from config for URLs
-const platformHostname = computed(() => {
-  const domain = config.public.freeSiteDomain
-  // Remove protocol if present to get just the hostname
-  return domain.replace(/^https?:\/\//, '')
-})
-
+const platformHostname = config.public.freeSiteDomain?.replace(/^https?:\/\//, '') || 'krabiclaw.com'
 useSeoMeta({
   title: 'Reserve a Table | Restaurant',
   description: 'Reserve a table at our restaurant.',
   ogImage: '/og-image.jpg',
-  ogUrl: `https://${site?.subdomain || 'restaurant'}.${platformHostname}/reservations`
+  ogUrl: `https://${site?.subdomain || 'restaurant'}.${platformHostname}/reservations`,
+  ogType: 'website'
 })
 </script>

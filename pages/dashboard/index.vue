@@ -122,11 +122,12 @@
                 Manage Site
               </UButton>
               <UButton
-                :href="`https://${site.subdomain}.${platformHostname}`"
+                :href="platformHostname ? `https://${site.subdomain}.${platformHostname}` : undefined"
                 target="_blank"
                 variant="ghost"
                 size="sm"
                 block
+                :disabled="!platformHostname"
               >
                 View Live Site
               </UButton>
@@ -162,16 +163,18 @@
 import { authClient } from '~/lib/auth-client'
 
 definePageMeta({
-  layout: 'dashboard'
+  layout: 'dashboard',
+  middleware: 'auth'
 })
 
 const config = useRuntimeConfig()
 
 // Extract hostname from config for URLs
 const platformHostname = computed(() => {
-  const domain = config.public.freeSiteDomain
+  const domain = config.public.freeSiteDomain || ''
+  if (!domain) return ''
   // Remove protocol if present to get just the hostname
-  return domain.replace(/^https?:\/\//, '')
+  return domain.replace(/^https?:\/\//, '').replace(/\.+$/, '')
 })
 
 const organizationsState = authClient.useListOrganizations()

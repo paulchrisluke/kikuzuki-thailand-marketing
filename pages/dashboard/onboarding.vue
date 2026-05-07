@@ -30,6 +30,7 @@
           <UFormField 
             label="Website Address" 
             description="Your website will be automatically created at this address"
+            :error="subdomainError"
           >
             <div class="flex items-center px-4 py-3 bg-gray-100 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg text-gray-600 dark:text-gray-400">
               <span class="font-mono">{{ generatedSubdomain || 'your-restaurant' }}.{{ platformHostname }}</span>
@@ -67,7 +68,7 @@
               </div>
               <div class="flex items-center text-sm text-gray-600 dark:text-gray-400">
                 <UIcon name="i-lucide-check" class="w-4 h-4 text-green-500 mr-2" />
-                Free subdomain ({{ form.subdomain || 'your-restaurant' }}.{{ platformHostname }})
+                Free subdomain ({{ generatedSubdomain || 'your-restaurant' }}.{{ platformHostname }})
               </div>
               <div class="flex items-center text-sm text-gray-600 dark:text-gray-400">
                 <UIcon name="i-lucide-check" class="w-4 h-4 text-green-500 mr-2" />
@@ -97,11 +98,8 @@ const config = useRuntimeConfig()
 
 // Extract hostname from config for URLs
 const platformHostname = computed(() => {
-  const domain = config.public.freeSiteDomain
-  console.log('Raw domain from config:', domain)
-  const cleanDomain = domain.replace(/^https?:\/\//, '')
-  console.log('Clean hostname:', cleanDomain)
-  return cleanDomain
+  const domain = config.public.freeSiteDomain || ''
+  return domain.replace(/^https?:\/\//, '')
 })
 
 // Form state
@@ -137,10 +135,41 @@ watch(() => form.value.restaurantName, (newName) => {
 // Loading state
 const loading = ref(false)
 
+// Subdomain availability state
+const subdomainAvailable = ref(true)
+const subdomainError = ref('')
+
+// Debounced check for subdomain availability
+let subdomainCheckTimeout
+watch(() => form.value.subdomain, (newSubdomain) => {
+  clearTimeout(subdomainCheckTimeout)
+  subdomainError.value = ''
+  if (!newSubdomain) {
+    subdomainAvailable.value = true
+    return
+  }
+  subdomainCheckTimeout = setTimeout(async () => {
+    try {
+      // Replace with your real API endpoint
+      const { available } = await $fetch(`/api/onboarding/check-subdomain?subdomain=${encodeURIComponent(newSubdomain)}`)
+      subdomainAvailable.value = available
+      if (!available) {
+        subdomainError.value = 'Subdomain is already taken.'
+      }
+    } catch (e) {
+      subdomainAvailable.value = false
+      subdomainError.value = 'Error checking subdomain availability.'
+    }
+  }, 400)
+})
+
 // Form validation
 const isFormValid = computed(() => {
-  return form.value.restaurantName.trim() && 
-         form.value.subdomain.trim()
+  return (
+    form.value.restaurantName.trim() &&
+    form.value.subdomain.trim() &&
+    subdomainAvailable.value
+  )
 })
 
 // Handle form submission
@@ -157,15 +186,19 @@ async function handleSubmit() {
         subdomain: form.value.subdomain.toLowerCase().trim()
       }
     })
-
+    // If API returns subdomain taken error
+    if (response?.error === 'subdomain_taken') {
+      subdomainAvailable.value = false
+      subdomainError.value = 'Subdomain is already taken.'
+      loading.value = false
+      return
+    }
     // Redirect to dashboard or site editor
     await router.push(`/dashboard/sites/${response.siteId}`)
   } catch (error) {
-    console.error('Onboarding failed:', error)
-    // Show error message to user
-    alert('Failed to create your website. Please try again.')
-  } finally {
     loading.value = false
+    subdomainAvailable.value = false
+    subdomainError.value = 'Error creating site.'
   }
 }
 
