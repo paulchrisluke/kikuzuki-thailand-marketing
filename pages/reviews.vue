@@ -1,5 +1,5 @@
 <template>
-  <div class="min-h-screen bg-white">
+  <div class="min-h-screen bg-(--ui-bg) text-(--ui-text)">
     <SayaHero
       title="Customer Reviews"
       subtitle="What Our Guests Say About Our Restaurant"
@@ -15,7 +15,7 @@
     />
     <AppSection v-if="googleReviews.length === 0 && isAuthenticated" bg="alt" padding="sm">
       <div class="text-center">
-        <NuxtLink to="/dashboard/connection" class="font-semibold text-gray-900 underline decoration-gray-300 underline-offset-4 hover:decoration-gray-900">
+        <NuxtLink to="/dashboard/connection" class="font-semibold text-(--ui-text) underline decoration-(--ui-border) underline-offset-4 hover:decoration-(--ui-text)">
           Connect Google Business →
         </NuxtLink>
       </div>

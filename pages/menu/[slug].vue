@@ -192,7 +192,7 @@
                 class="mt-2 block w-full rounded-md bg-white px-3 py-2 text-base text-gray-900 outline outline-1 -outline-offset-1 outline-gray-300 placeholder:text-gray-400 focus:outline-2 focus:-outline-offset-2 focus:outline-black"
               />
             </div>
-            <div v-if="turnstileSiteKey" ref="turnstileContainer" class="min-h-16"></div>
+            <div v-if="turnstileEnabled" ref="turnstileContainer" class="min-h-16"></div>
             <p v-if="reviewMessage" :class="['text-sm', reviewError ? 'text-red-600' : 'text-green-700']">
               {{ reviewMessage }}
             </p>
@@ -262,6 +262,7 @@ import AppBreadcrumb from '~/components/ui/AppBreadcrumb.vue'
 
 const route = useRoute()
 const config = useRuntimeConfig()
+const turnstileEnabled = computed(() => config.public.turnstileEnabled === true || config.public.turnstileEnabled === 'true')
 const turnstileSiteKey = computed(() => config.public.turnstileSiteKey)
 
 const itemContext = computed(() => {
@@ -443,7 +444,7 @@ const submitReview = async () => {
 }
 
 const renderTurnstile = () => {
-  if (!turnstileSiteKey.value || !turnstileContainer.value || !window.turnstile) return
+  if (!turnstileEnabled.value || !turnstileSiteKey.value || !turnstileContainer.value || !window.turnstile) return
   if (turnstileWidgetId.value !== null) return
 
   turnstileWidgetId.value = window.turnstile.render(turnstileContainer.value, {
@@ -458,7 +459,7 @@ const renderTurnstile = () => {
 }
 
 useHead(() => ({
-  script: turnstileSiteKey.value
+  script: turnstileEnabled.value
     ? [
         {
           src: 'https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit',

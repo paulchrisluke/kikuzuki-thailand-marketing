@@ -1,5 +1,5 @@
 <template>
-  <div class="relative w-full bg-(--ui-bg-inverted) text-(--ui-text-inverted) overflow-hidden" :style="heroStyle">
+  <div class="relative flex w-full items-center overflow-hidden bg-(--ui-bg-inverted) text-(--ui-text-inverted)" :style="heroStyle">
     <!-- Background video slot (takes precedence over image) -->
     <div v-if="video" class="absolute inset-0">
       <video
@@ -18,7 +18,7 @@
     </div>
 
     <!-- Content -->
-    <div class="relative z-10 max-w-6xl mx-auto px-4 flex flex-col items-center justify-center text-center h-full">
+    <div class="relative z-10 mx-auto flex w-full max-w-6xl flex-col items-center justify-center px-4 py-12 text-center">
       <!-- Establishment Year -->
       <div v-if="establishmentYear" class="inline-flex items-center gap-2 mb-6">
         <span class="w-8 h-px bg-(--ui-border) opacity-30"></span>
