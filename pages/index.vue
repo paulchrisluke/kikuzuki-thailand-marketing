@@ -1,5 +1,5 @@
 <template>
-  <NuxtLayout :name="isPlatform ? 'platform' : 'tenant'">
+  <NuxtLayout :name="isPlatform ? 'platform' : 'saya'">
     <!-- KrabiClaw Platform Homepage -->
     <div v-if="isPlatform" class="krabiclaw-platform">
       <SayaHero
