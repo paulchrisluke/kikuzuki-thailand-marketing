@@ -21,7 +21,7 @@
           <UButton
             to="/dashboard/onboarding"
             color="neutral"
-            size="lg"
+            size="xl"
             block
           >
             Get Started

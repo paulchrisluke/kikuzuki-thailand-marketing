@@ -52,7 +52,7 @@
                 <span>Mobile responsive design</span>
               </li>
             </ul>
-            <UButton variant="outline" color="neutral" size="lg" class="w-full">Start Free</UButton>
+            <UButton variant="outline" color="neutral" size="xl" class="w-full">Start Free</UButton>
           </div>
 
           <!-- Pro Plan -->
@@ -104,7 +104,7 @@
                 <span>Priority customer support</span>
               </li>
             </ul>
-            <UButton color="neutral" size="lg" class="w-full bg-white text-black hover:bg-stone-200">Start Pro Trial</UButton>
+            <UButton color="neutral" size="xl" class="w-full bg-white text-black hover:bg-stone-200">Start Pro Trial</UButton>
           </div>
 
           <!-- Enterprise Plan -->
@@ -146,7 +146,7 @@
                 <span>Dedicated account manager</span>
               </li>
             </ul>
-            <UButton variant="outline" color="neutral" size="lg" class="w-full">Contact Sales</UButton>
+            <UButton variant="outline" color="neutral" size="xl" class="w-full">Contact Sales</UButton>
           </div>
         </div>
 

@@ -22,7 +22,7 @@
               required
               :disabled="loading"
               placeholder="Your Restaurant Name"
-              size="lg"
+              size="xl"
             />
           </UFormField>
 
@@ -44,7 +44,7 @@
               :disabled="loading || !isFormValid"
               :loading="loading"
               color="primary"
-              size="lg"
+              size="xl"
               block
             >
               <template v-if="loading">

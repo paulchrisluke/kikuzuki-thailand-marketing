@@ -364,7 +364,7 @@ const loadEditorContext = async () => {
     organizationEntitlements.value = response.context.organization.entitlements || {}
   } catch (error) {
     console.error('Failed to load editor context:', error)
-    toast.add({ description: 'Failed to load editor context', color: 'red' })
+    toast.add({ description: 'Failed to load editor context', color: 'error' })
   }
 }
 
@@ -421,7 +421,7 @@ const groupConfig: Record<string, Array<{ id: string; label: string; icon: strin
   contact: [
     { id: 'hero',    label: 'Hero Section',    icon: 'i-heroicons-photo', fields: ['hero.title', 'hero.subtitle'] },
     { id: 'content', label: 'Page Content',    icon: 'i-heroicons-document-text', fields: ['intro.body'] },
-    { id: 'social',  label: 'Social Links',    icon: 'i-heroicons-link', fields: ['social.facebook', 'social.instagram'] },
+    { id: 'social',  label: 'Social Links',    icon: 'i-heroicons-link', fields: ['social.facebook', 'social.instagram', 'social.tiktok'] },
     { id: 'business', label: 'Business Info', icon: 'i-heroicons-building-storefront', fields: ['business.name', 'business.establishment_year'] },
     { id: 'contact-hours', label: 'Contact & Hours', icon: 'i-heroicons-clock', fields: ['business.address', 'business.phone', 'business.hours'] }
   ],
@@ -503,7 +503,7 @@ const applyField = async () => {
   
   // Automatically save and refresh preview for immediate feedback
   await handleSaveDraft()
-  toast.add({ description: `"${activeFieldDef.value?.label}" updated`, color: 'green' })
+  toast.add({ description: `"${activeFieldDef.value?.label}" updated`, color: 'success' })
 }
 
 // ─── Content state ────────────────────────────────────────────────────
@@ -534,7 +534,7 @@ const loadPageContent = async () => {
     serverHasDrafts.value = res.hasDrafts ?? false
   } catch (error) {
     console.error('Failed to load page content:', error)
-    toast.add({ description: 'Failed to load content', color: 'red' })
+    toast.add({ description: 'Failed to load content', color: 'error' })
   }
 }
 
@@ -560,7 +560,7 @@ const handleSaveDraft = async () => {
     previewReloadToken.value = Date.now()
   } catch (error: any) {
     const msg = error?.response?._data?.statusMessage || error.message || 'Unknown error'
-    toast.add({ description: `Save failed: ${msg}`, color: 'red' })
+    toast.add({ description: `Save failed: ${msg}`, color: 'error' })
     throw error // Re-throw so callers like handlePublish know it failed
   } finally {
     saving.value = false
@@ -577,12 +577,12 @@ const handlePublish = async () => {
     })
     serverHasDrafts.value = false
     localHasChanges.value = false
-    toast.add({ description: 'Published live!', color: 'green' })
+    toast.add({ description: 'Published live!', color: 'success' })
     iframeLoading.value = true
     previewReloadToken.value = Date.now()
   } catch (error: any) {
     const msg = error?.response?._data?.statusMessage || error.message || 'Unknown error'
-    toast.add({ description: `Publish failed: ${msg}`, color: 'red' })
+    toast.add({ description: `Publish failed: ${msg}`, color: 'error' })
   } finally {
     publishing.value = false
   }
@@ -602,11 +602,11 @@ const handleDiscard = async () => {
     localHasChanges.value = false
     serverHasDrafts.value = false
     await loadPageContent()
-    toast.add({ description: 'Drafts discarded', color: 'blue' })
+    toast.add({ description: 'Drafts discarded', color: 'info' })
     iframeLoading.value = true
     previewReloadToken.value = Date.now()
   } catch {
-    toast.add({ description: 'Failed to discard', color: 'red' })
+    toast.add({ description: 'Failed to discard', color: 'error' })
   }
 }
 

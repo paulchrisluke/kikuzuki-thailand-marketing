@@ -61,7 +61,7 @@
                     <span class="text-stone-700">SEO optimized</span>
                   </div>
                 </div>
-                <UButton color="neutral" size="lg" class="bg-black text-white hover:bg-stone-800">
+                <UButton color="neutral" size="xl" class="bg-black text-white hover:bg-stone-800">
                   Use Saya Theme
                 </UButton>
               </div>

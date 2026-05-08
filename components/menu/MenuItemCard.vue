@@ -29,7 +29,7 @@
       <!-- Price badge -->
       <div class="absolute top-3 right-3">
         <span class="bg-black/80 text-white text-sm font-semibold px-3 py-1 rounded-full">
-          {{ item.price ? `฿${item.price}` : 'TBD' }}
+          {{ item.price != null ? `฿${item.price}` : 'TBD' }}
         </span>
       </div>
 

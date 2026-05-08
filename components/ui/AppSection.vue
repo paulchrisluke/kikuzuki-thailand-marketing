@@ -7,6 +7,7 @@
 </template>
 
 <script setup>
+import { computed } from 'vue'
 const props = defineProps({
   bg: {
     type: String,
@@ -21,12 +22,12 @@ const props = defineProps({
 })
 
 const backgrounds = {
-  white: 'bg-(--ui-bg) text-(--ui-text)',
-  alt: 'bg-(--ui-bg-elevated) text-(--ui-text)',
-  black: 'bg-(--ui-bg-inverted) text-(--ui-text-inverted)',
-  dark: 'bg-(--ui-bg-inverted) text-(--ui-text-inverted)',
-  gray: 'bg-(--ui-bg-elevated) text-(--ui-text)',
-  stone: 'bg-(--ui-bg-elevated) text-(--ui-text)'
+  white: 'bg-[var(--ui-bg)] text-[color:--ui-text]',
+  alt: 'bg-[var(--ui-bg-elevated)] text-[color:--ui-text]',
+  black: 'bg-[var(--ui-bg-inverted)] text-[color:--ui-text-inverted]',
+  dark: 'bg-[var(--ui-bg-inverted)] text-[color:--ui-text-inverted]',
+  gray: 'bg-[var(--ui-bg-elevated)] text-[color:--ui-text]',
+  stone: 'bg-[var(--ui-bg-elevated)] text-[color:--ui-text]'
 }
 
 const bgClass = computed(() => backgrounds[props.bg])

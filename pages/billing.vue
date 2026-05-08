@@ -34,7 +34,7 @@
               </ul>
               <UButton
                 variant="outline"
-                size="lg"
+                size="xl"
                 class="w-full"
                 :disabled="isCurrentPlan('free')"
                 @click="() => selectPlan('free')"
@@ -78,7 +78,7 @@
               </ul>
               <UButton
                 color="primary"
-                size="lg"
+                size="xl"
                 class="w-full"
                 :disabled="isCurrentPlan('pro')"
                 @click="() => selectPlan('pro')"

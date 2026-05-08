@@ -11,8 +11,8 @@
     <div :class="['grid gap-8', layoutClass]">
       <article
         v-for="post in displayedPosts"
-        :id="post.name"
-        :key="post.name"
+        :id="getPostSlug(post.name)"
+        :key="getPostSlug(post.name)"
         class="flex flex-col bg-(--ui-bg) border border-(--ui-border) rounded-3xl overflow-hidden shadow-sm hover:shadow-xl transition-all duration-300 group"
       >
         <div class="aspect-[4/5] overflow-hidden bg-(--ui-bg-muted) relative">
@@ -67,7 +67,7 @@
 
           <NuxtLink
             v-if="limit"
-            :to="'/posts#' + post.name"
+            :to="'/posts#' + getPostSlug(post.name)"
             class="inline-flex items-center gap-2 text-sm font-bold text-(--ui-text) group/link"
           >
             <span>Read Full Story</span>
@@ -79,10 +79,10 @@
             :to="post.callToAction.url"
             variant="solid"
             color="neutral"
-            size="md"
+            size="xl"
             class="self-start rounded-full"
           >
-            {{ post.callToAction.actionType.replace('_', ' ') }}
+            {{ (post.callToAction.actionType ?? '').replaceAll('_', ' ') }}
           </UButton>
         </div>
       </article>
@@ -105,7 +105,7 @@
     </div>
 
     <div v-if="showViewMore && limit && posts.length > 0" class="mt-12 text-center">
-      <UButton to="/posts" color="neutral" variant="outline" size="md">
+      <UButton to="/posts" color="neutral" variant="outline" size="xl">
         View All Updates
       </UButton>
     </div>
@@ -115,11 +115,11 @@
 <script setup>
 const props = defineProps({
   posts: { type: Array, default: () => [] },
-  limit: { type: Number, default: null },
+  limit: { type: Number, default: undefined },
   bg: { type: String, default: 'white' },
   padding: { type: String, default: 'lg' },
   showTitle: { type: Boolean, default: true },
-  description: { type: String, default: null },
+  description: { type: String, default: undefined },
   showViewMore: { type: Boolean, default: false },
   showEmptyState: { type: Boolean, default: true }
 })
@@ -137,10 +137,18 @@ const layoutClass = computed(() => {
 
 const formatDate = (dateString) => {
   if (!dateString) return ''
-  return new Date(dateString).toLocaleDateString('en-US', {
+  const d = new Date(dateString)
+  if (isNaN(d.getTime()) || !isFinite(d.getTime())) return ''
+  return d.toLocaleDateString('en-US', {
     year: 'numeric',
     month: 'short',
     day: 'numeric'
   })
+}
+
+// Helper to extract a safe slug from post.name (last path segment, no slashes)
+function getPostSlug(name) {
+  if (!name) return ''
+  return name.split('/').pop()
 }
 </script>

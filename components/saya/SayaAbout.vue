@@ -40,7 +40,7 @@
             to="/about"
             :variant="bg === 'black' ? 'outline' : 'solid'"
             color="neutral"
-            size="md"
+            size="xl"
             class="rounded-full"
           >
             Our Full Story

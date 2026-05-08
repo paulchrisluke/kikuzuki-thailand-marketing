@@ -24,14 +24,15 @@
           </UButton>
         </UDropdownMenu>
         <UColorModeButton variant="ghost" color="neutral" size="sm" />
-        <UButton to="/reservations" color="neutral" variant="solid" size="md">Reserve</UButton>
+        <UButton to="/reservations" color="neutral" variant="solid" size="xl">Reserve</UButton>
         <UButton
           icon="i-heroicons-bars-3"
           color="neutral"
           variant="ghost"
           size="sm"
           class="lg:hidden"
-          aria-label="Open navigation"
+          :aria-label="mobileMenuOpen ? 'Close navigation' : 'Open navigation'"
+          :aria-expanded="mobileMenuOpen"
           @click="mobileMenuOpen = !mobileMenuOpen"
         />
       </div>

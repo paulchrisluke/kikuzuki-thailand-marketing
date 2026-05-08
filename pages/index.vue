@@ -14,13 +14,13 @@
             <UButton
               to="/signup"
               variant="outline"
-              size="lg"
+              size="xl"
               color="neutral"
               class="text-white ring-white/50 hover:bg-white/10"
             >
               Start Free
             </UButton>
-            <UButton to="/pricing" size="lg" color="neutral">View Pricing</UButton>
+            <UButton to="/pricing" size="xl" color="neutral">View Pricing</UButton>
           </div>
         </template>
       </SayaHero>
@@ -78,7 +78,7 @@
             to="/signup"
             variant="solid"
             color="neutral"
-            size="lg"
+            size="xl"
             class="bg-white text-black hover:bg-white/90"
           >
             Get Started for Free
@@ -99,13 +99,13 @@
       >
         <template #cta>
           <div class="flex flex-col sm:flex-row gap-4 justify-center">
-            <UButton to="/menu" variant="solid" color="neutral" size="lg">
+            <UButton to="/menu" variant="solid" color="neutral" size="xl">
               View Menu
             </UButton>
-            <UButton v-if="hasLocations" :to="locationsCtaUrl" variant="outline" color="neutral" size="lg">
+            <UButton v-if="hasLocations" :to="locationsCtaUrl" variant="outline" color="neutral" size="xl">
               {{ locationsCtaText }}
             </UButton>
-            <UButton v-else to="/reservations" variant="outline" color="neutral" size="lg">
+            <UButton v-else to="/reservations" variant="outline" color="neutral" size="xl">
               Reserve a Table
             </UButton>
           </div>
@@ -352,8 +352,8 @@
               <p v-else>+66 81 154 3606</p>
             </div>
             <div class="flex gap-4">
-              <UButton to="/location" variant="solid" color="neutral" size="md">Full Location Details</UButton>
-              <UButton to="/reservations" variant="outline" color="neutral" size="md">Reserve a Table →</UButton>
+              <UButton to="/location" variant="solid" color="neutral" size="xl">Full Location Details</UButton>
+              <UButton to="/reservations" variant="outline" color="neutral" size="xl">Reserve a Table →</UButton>
             </div>
           </div>
           <div class="rounded-3xl h-80 overflow-hidden shadow-2xl bg-stone-100">
@@ -390,10 +390,10 @@
             {{ getField('cta.description', "From our open-flame robatayaki grill to hand-rolled sushi, every dish at Saya is crafted with intention. Join us for an evening you won't forget.") }}
           </p>
           <div class="flex flex-col md:flex-row items-center justify-center gap-6">
-            <UButton to="/reservations" variant="solid" color="neutral" size="lg">
+            <UButton to="/reservations" variant="solid" color="neutral" size="xl">
               Reserve a Table
             </UButton>
-            <UButton to="/contact" variant="outline" color="neutral" size="lg">
+            <UButton to="/contact" variant="outline" color="neutral" size="xl">
               Contact Us
             </UButton>
           </div>

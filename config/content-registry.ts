@@ -292,6 +292,12 @@ export const contentRegistry: Record<string, PageDefinition> = {
         sources: ['manual'],
         defaultValue: 'https://www.instagram.com/your-restaurant'
       },
+      'social.tiktok': {
+        label: 'TikTok URL',
+        type: 'text',
+        sources: ['manual'],
+        defaultValue: 'https://www.tiktok.com/@your-restaurant'
+      },
       'business.name': { 
         label: 'Business Name', 
         type: 'text', 

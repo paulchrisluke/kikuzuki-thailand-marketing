@@ -56,7 +56,7 @@
               <UFormField label="Message">
                 <UTextarea id="message" name="message" :rows="4" />
               </UFormField>
-              <UButton type="submit" color="neutral" size="lg" block>
+              <UButton type="submit" color="neutral" size="xl" block>
                 Send Message
               </UButton>
             </UForm>

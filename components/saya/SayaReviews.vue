@@ -6,8 +6,12 @@
         <p class="mt-2 text-4xl font-bold text-(--ui-text) italic">What Our Guests Say</p>
       </div>
       <div v-if="ratingSummary" class="flex flex-col items-start md:items-end gap-1">
-        <div class="flex text-yellow-400">
-          <span v-for="i in 5" :key="i" class="text-xl">
+        <div
+          class="flex text-yellow-400"
+          :aria-label="ratingSummary ? `${Math.round(Number(ratingSummary.average))} out of 5 stars` : undefined"
+          role="img"
+        >
+          <span v-for="i in 5" :key="i" class="text-xl" aria-hidden="true">
             {{ i <= Math.round(Number(ratingSummary.average)) ? '★' : '☆' }}
           </span>
         </div>
@@ -24,8 +28,12 @@
         :key="review.reviewId || review.name || review.createTime"
         class="flex flex-col bg-(--ui-bg) p-8 shadow-sm border border-(--ui-border) hover:shadow-md transition-all"
       >
-        <div class="flex items-center gap-1 text-yellow-400 mb-4">
-          <span v-for="i in 5" :key="i" class="text-sm">
+        <div
+          class="flex items-center gap-1 text-yellow-400 mb-4"
+          :aria-label="`${reviewRating(review)} out of 5 stars`"
+          role="img"
+        >
+          <span v-for="i in 5" :key="i" class="text-sm" aria-hidden="true">
             {{ i <= reviewRating(review) ? '★' : '☆' }}
           </span>
         </div>
@@ -78,7 +86,7 @@
     </div>
     
     <div v-if="showViewMore && reviews.length > 0" class="mt-12 text-center">
-      <UButton to="/reviews" color="neutral" variant="outline" size="md">
+      <UButton to="/reviews" color="neutral" variant="outline" size="xl">
         View All Reviews
       </UButton>
     </div>
@@ -128,7 +136,10 @@ const starRatingMap = {
   FIVE: 5
 }
 
-const reviewAuthor = review => review.reviewer?.displayName ?? 'Google guest'
+const reviewAuthor = review => {
+  const name = review.reviewer?.displayName?.trim()
+  return name && name.length ? name : 'Google guest'
+}
 const reviewText = review => {
   const text = typeof review.comment === 'string' ? review.comment : review.comment?.text ?? ''
   if (props.limit && text.length > 280) {
@@ -149,10 +160,13 @@ const layoutClass = computed(() => {
   return 'md:grid-cols-2'
 })
 
-const formatDate = value =>
-  new Intl.DateTimeFormat('en-US', {
+const formatDate = value => {
+  const date = new Date(value)
+  if (isNaN(date.getTime())) return ''
+  return new Intl.DateTimeFormat('en-US', {
     year: 'numeric',
     month: 'short',
     day: 'numeric'
-  }).format(new Date(value))
+  }).format(date)
+}
 </script>
