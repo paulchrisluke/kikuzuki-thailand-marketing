@@ -2,7 +2,7 @@
 // All messages use pre-approved templates (WhatsApp requires this for business-initiated messages).
 // Phone numbers stored and sent in E.164 format (+14233585761).
 
-const GRAPH_API_VERSION = 'v21.0'
+const GRAPH_API_VERSION = 'v25.0'
 const GRAPH_BASE = `https://graph.facebook.com/${GRAPH_API_VERSION}`
 
 export type WhatsAppTemplate =
