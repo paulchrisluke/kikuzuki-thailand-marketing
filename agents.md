@@ -7,110 +7,66 @@ Never add fallbacks ever.
 
 ---
 
-## KrabiClaw Platform Overview
+## Stack
 
-KrabiClaw is a **Shopify for restaurants** — a multi-tenant SaaS where restaurant owners sign up free, get a subdomain site, and build their web presence with a visual editor. We sell SSR-ready, SEO-optimized restaurant websites as a service, powered by Google Business data.
-
-### Business Model
-- **Free tier**: Subdomain site (e.g., `kikuzuki.krabiclaw.com`), Saya theme, manual editor
-- **$25/mo plan (or similar)**: Custom domain (BYOD), Stripe subscription, SSL provisioning via Cloudflare
-- **Upsell ideas** (pricing TBD):
-  - Google Business API integration — self-manage site from Google Business
-  - Multi-language translations (Thai, Japanese, Arabic, etc.)
-  - Marketing strategy services
-  - Additional themes beyond Saya
-
-### Current Clients
-- **Client 1**: Japanese restaurant brand, 2 locations, both already invited to Google Business
-- **Client 2**: Retail store onboarding
-
-### Default Theme: "Saya"
-- All tenants start with the Saya theme
-- SSR-rendered, SEO-first
-- Inline editor for manual content updates
-- Google Business data auto-populates content when connected
+- **Nuxt 4** + **Nitro** with `cloudflare-pages` preset
+- **D1** (SQLite) via `@atinux/kysely-d1` — single binding: `REVIEWS_DB`
+- **Better Auth 1.6+** — Google OAuth + `organization` plugin; `phoneNumber` plugin for WhatsApp OTP
+- **Stripe** — subscriptions, entitlements
+- **Cloudflare Workers** — serverless runtime
+- Commands: `yarn dev` (local, port 3000), `yarn build`, `yarn deploy`
 
 ---
 
-## Tech Stack Decisions
+## Critical Wrangler Rules
 
-### Runtime & Deployment
-- **Nuxt 4** + **Nitro** with `cloudflare-pages` preset
-- Use `yarn dev` for local Nuxt development, `yarn build` for production build
-- **Wrangler** is used for schema application through the `schema:*` scripts in package.json
-- **D1** (SQLite) via `@atinux/kysely-d1` adapter — single database binding: `REVIEWS_DB`
-- Deploy: `yarn deploy`
-
-### Critical Wrangler Rules
 - Always use `nodejs_compat_v2` (not `nodejs_compat`) in `wrangler.toml` — Better Auth 1.6+ requires it
 - Local secrets go in `.dev.vars` (NOT `.env`) — Wrangler ignores `.env` at the CF Workers runtime layer
+- Never rely on `process.env` alone in server code — always merge with `event.context.cloudflare?.env` via `cloudflareEnv()` in `server/utils/api-response.ts`
 - Schema application: `yarn schema:local` / `yarn schema:remote`
-- Never rely on `process.env` alone in server code — always merge with `event.context.cloudflare?.env` via the `cloudflareEnv()` helper in `server/utils/api-response.ts`
 - Current deploys require patching the generated Nitro/Cloudflare process shim before `wrangler pages deploy`; use `yarn deploy` so this step is not skipped
 
-### Auth: Better Auth 1.6+
+---
+
+## Auth
+
 - Single catch-all handler: `server/api/auth/[...].ts`
-- Auth factory: `server/utils/auth.ts` — `createAuth(env: CloudflareEnv)` — takes the full CF env, not just d1
+- Auth factory: `server/utils/auth.ts` — `createAuth(env: CloudflareEnv)` — takes full CF env
 - WeakMap cache keyed on the D1 binding instance — safe for Worker lifecycle
-- Google OAuth only (social sign-in), plus `organization` plugin for multi-tenancy
+- Google OAuth (social sign-in) + `organization` plugin + `phoneNumber` plugin (WhatsApp OTP delivery)
 - Account linking enabled for Google as trusted provider
 - Client: `lib/auth-client.ts` → `createAuthClient` from `better-auth/client`
-- All pages use `authClient.useSession()` for reactive session state
-- `authClient` is auto-imported via Nuxt plugin (no explicit import needed in `<script setup>`)
+- `authClient` is auto-imported via Nuxt plugin — no explicit import needed in `<script setup>`
 
-### Multi-Tenancy
+---
+
+## Database Schema Workflow
+
+1. `schema.sql` is the single source of truth — edit this, never add numbered migration files
+2. Apply locally: `yarn schema:local` — remotely: `yarn schema:remote`
+3. Greenfield — drop and recreate freely when a rebuild is cleaner
+4. No inline migration blocks, compatibility columns, duplicate indexes, or legacy aliases in `schema.sql`
+5. Better Auth tables (`user`, `session`, `account`, `verification`, `organization`, `member`, `invitation`) must use Better Auth's exact camelCase column names; app-owned tables use snake_case
+6. Any schema change must be checked against current server queries before finishing
+
+---
+
+## Multi-Tenancy
+
 - Organizations map 1:1 with restaurant owners (Better Auth `organization` plugin)
-- Sites belong to an organization; multiple sites per org are supported
-- Tenant resolution via `server/middleware/tenant-resolution.ts`:
+- Sites belong to an org; multiple sites per org supported
+- Tenant resolution: `server/middleware/tenant-resolution.ts`
   - `localhost` / `krabiclaw.com` = platform routes
-  - `*.krabiclaw.com` subdomains or custom domains = tenant sites
-- Platform routes: `/login`, `/signup`, `/dashboard`, `/api/auth`, etc.
-- Tenant sites rendered with the Saya theme; unknown domains → 404
-
-### Stripe Integration
-- Billing routes: `server/api/billing/` (checkout, portal, status, webhook)
-- `organization_billing` table stores `stripe_customer_id`, `stripe_subscription_id`, plan, period
-- `organization_entitlements` table drives feature flags (custom domains, Google Business, translations)
-- Webhook events idempotently stored in `stripe_webhook_events`
-- Plans not yet priced — implement as feature flags first, wire pricing later
-
-### Google Business API
-- Applied for GMB API access — awaiting approval
-- Current client has invited us as manager to 2 locations
-- Integration: `server/utils/google-business.ts` + `google_business_connections` table
-- Connection stores encrypted access/refresh tokens per org+site
-- Pub/Sub push endpoint: `server/api/google-business/notifications.post.ts`
-- Public data endpoint: `server/api/google-business/public.get.ts`
-- Plan: upsell GMB self-management as a paid feature once API is approved
-
-### SEO Architecture
-- `nuxt-schema-org`, `@nuxtjs/sitemap`, `@nuxtjs/robots` installed
-- Site-level SEO config via `site_config` table (per tenant)
-- `useSeoMeta` on all pages; tenant pages get restaurant-specific title/description/OG
-- Canonical URLs enforce non-www; robots disallow `/admin` and `/api`
-- Structured data (JSON-LD) for restaurant schema on tenant sites
-
-### Database Schema Workflow
-1. Edit `schema.sql` as the single source of truth
-2. Apply locally: `yarn schema:local`
-3. Apply remotely: `yarn schema:remote`
-4. Keep schema changes consolidated in `schema.sql`; do not add numbered migration files
-5. Greenfield project — no data migration concerns yet; drop and recreate freely when a rebuild is cleaner
-6. Do not add inline migration blocks, compatibility columns, duplicate indexes, or legacy aliases to `schema.sql`
-7. Better Auth tables (`user`, `session`, `account`, `verification`, `organization`, `member`, `invitation`) must use Better Auth's camelCase column names exactly; app-owned tables use the existing snake_case convention
-8. Any schema change must be checked against current server queries before finishing; update the code or the schema so names match exactly
-
-### Dev Workflow
-- `yarn dev` — standard Nuxt dev server (port 3000), uses `.env`, hot reload
-- `yarn build` then `npx wrangler pages dev ./dist --local --port 8788` — preview the built Cloudflare Pages output locally
-- `yarn deploy` — build, patch the generated Nitro/Cloudflare process shim, and deploy `dist/` to Cloudflare Pages
+  - `*.krabiclaw.com` or custom domains = tenant sites
+- Unknown domains → 404
 
 ---
 
 ## File Conventions
+
 - `server/utils/auth.ts` — `createAuth(env)` — always takes full CF env
-- `server/utils/api-response.ts` — `cloudflareEnv(event)` helper — use this for all DB access
-- `server/middleware/tenant-resolution.ts` — runs on every request, sets `event.context.tenantType`
+- `server/utils/api-response.ts` — `cloudflareEnv(event)` — use for all DB access
+- `server/middleware/tenant-resolution.ts` — runs on every request
 - `lib/auth-client.ts` — client-side Better Auth instance
-- `composables/` — Nuxt auto-imported composables
-- `schema.sql` — canonical D1 schema; edit this instead of adding numbered migration files
+- `composables/` — Nuxt auto-imported
+- `schema.sql` — canonical D1 schema
