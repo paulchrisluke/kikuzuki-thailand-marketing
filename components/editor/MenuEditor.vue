@@ -1,200 +1,209 @@
 <template>
-  <div class="menu-editor">
-    <!-- Header with scope and menu selection -->
-    <div class="mb-6 p-4 bg-white rounded-lg border border-stone-200">
-      <div class="flex items-center justify-between mb-4">
-        <h2 class="text-xl font-semibold text-stone-900">Menu Editor</h2>
-        <div class="flex items-center gap-4">
-          <!-- Scope indicator -->
-          <div class="text-sm text-stone-600">
-            Editing: <span class="font-medium">{{ isEditingBrandMenu ? 'Brand-wide' : 'Location' }}</span>
+  <div class="space-y-4">
+    <!-- Loading state -->
+    <template v-if="loading">
+      <UCard :ui="{ body: 'p-0' }">
+        <div v-for="i in 5" :key="i" class="flex items-center gap-4 border-b border-(--ui-border) px-4 py-3.5 last:border-0">
+          <USkeleton class="h-4 w-40" />
+          <USkeleton class="ml-auto h-4 w-16" />
+          <USkeleton class="h-5 w-20 rounded-full" />
+        </div>
+      </UCard>
+    </template>
+
+    <!-- Error state -->
+    <UAlert
+      v-else-if="error"
+      color="error"
+      variant="soft"
+      icon="i-heroicons-exclamation-triangle"
+      :description="error"
+    />
+
+    <!-- No menus — empty state -->
+    <UCard v-else-if="!hasMenus">
+      <div class="py-10 text-center">
+        <UIcon name="i-heroicons-list-bullet" class="mx-auto size-10 text-(--ui-text-muted)" />
+        <h2 class="mt-4 text-base font-semibold text-(--ui-text-highlighted)">No menus yet</h2>
+        <p class="mt-1 text-sm text-(--ui-text-muted)">Create a menu to start adding sections and items.</p>
+        <template v-if="!showCreateMenuForm">
+          <UButton class="mt-5" icon="i-heroicons-plus" @click="showCreateMenuForm = true">Create menu</UButton>
+        </template>
+        <div v-else class="mx-auto mt-5 max-w-sm space-y-3 text-left">
+          <UFormField label="Menu name">
+            <UInput v-model="createMenuForm.name" placeholder="Dinner Menu" autofocus />
+          </UFormField>
+          <UFormField label="Description">
+            <UTextarea v-model="createMenuForm.description" :rows="2" placeholder="Our evening selection..." />
+          </UFormField>
+          <div class="flex justify-end gap-2">
+            <UButton color="neutral" variant="ghost" size="sm" @click="showCreateMenuForm = false">Cancel</UButton>
+            <UButton size="sm" :loading="saving" :disabled="!createMenuForm.name.trim()" @click="handleCreateMenu">Create menu</UButton>
           </div>
-          
-          <!-- Menu selector -->
-          <USelect 
-            v-if="hasMenus"
+        </div>
+      </div>
+    </UCard>
+
+    <!-- Menu content -->
+    <template v-else>
+      <!-- Menu selector / toolbar -->
+      <div class="flex items-center justify-between gap-4">
+        <div class="flex items-center gap-3">
+          <USelect
+            v-if="menuOptions.length > 1"
             v-model="selectedMenuId"
-            @update:model-value="handleMenuChange"
             :items="menuOptions"
             size="sm"
+            @update:model-value="handleMenuChange"
           />
-        </div>
-      </div>
-
-      <!-- Create new menu button -->
-      <div v-if="!hasMenus" class="text-center py-8">
-        <p class="text-stone-600 mb-4">No menus found for this scope</p>
-        <UButton
-          @click="createNewMenu"
-          color="primary"
-          size="sm"
-        >
-          Create New Menu
-        </UButton>
-      </div>
-    </div>
-
-    <!-- Current menu content -->
-    <div v-if="hasCurrentMenu" class="space-y-6">
-      <!-- Menu details -->
-      <div class="p-4 bg-white rounded-lg border border-stone-200">
-        <div class="flex items-center justify-between mb-4">
-          <h3 class="text-lg font-medium">{{ currentMenu.name }}</h3>
-          <div class="flex items-center gap-2">
-            <UBadge 
-              :color="currentMenu.status === 'published' ? 'success' : 'warning'" 
-              variant="soft" 
-              size="xs"
-            >
-              {{ currentMenu.status }}
+          <div v-else class="flex items-center gap-2">
+            <span class="text-sm font-medium text-(--ui-text-highlighted)">{{ currentMenu?.name }}</span>
+            <UBadge :color="currentMenu?.status === 'published' ? 'success' : 'warning'" variant="soft" size="xs">
+              {{ currentMenu?.status }}
             </UBadge>
-            <UButton
-              @click="showEditMenuModal = true"
-              variant="ghost"
-              color="info"
-              size="sm"
-            >
-              Edit
-            </UButton>
           </div>
         </div>
-        <p v-if="currentMenu.description" class="text-stone-600 text-sm">
-          {{ currentMenu.description }}
-        </p>
+        <UButton color="neutral" variant="ghost" size="sm" icon="i-heroicons-plus" @click="showCreateMenuForm = true">
+          New menu
+        </UButton>
       </div>
 
-      <!-- Menu sections -->
-      <div v-for="(items, section) in menuItemsBySection" :key="section" class="space-y-4">
-        <div class="p-4 bg-white rounded-lg border border-stone-200">
-          <h4 class="font-medium text-stone-900 mb-4">{{ section }}</h4>
-          
-          <div class="space-y-3">
-            <div 
-              v-for="item in items" 
-              :key="item.id"
-              class="flex items-center justify-between p-3 border border-stone-200 rounded hover:bg-stone-50 transition-colors"
+      <!-- Inline create menu form -->
+      <div v-if="showCreateMenuForm && hasMenus" class="rounded-lg border border-(--ui-border) bg-(--ui-bg-elevated) p-4">
+        <h3 class="mb-3 text-sm font-semibold text-(--ui-text-highlighted)">New menu</h3>
+        <div class="space-y-3">
+          <UFormField label="Menu name">
+            <UInput v-model="createMenuForm.name" placeholder="Lunch Menu" autofocus />
+          </UFormField>
+          <UFormField label="Description">
+            <UTextarea v-model="createMenuForm.description" :rows="2" placeholder="Optional description..." />
+          </UFormField>
+          <div class="flex justify-end gap-2">
+            <UButton color="neutral" variant="ghost" size="sm" @click="showCreateMenuForm = false">Cancel</UButton>
+            <UButton size="sm" :loading="saving" :disabled="!createMenuForm.name.trim()" @click="handleCreateMenu">Create menu</UButton>
+          </div>
+        </div>
+      </div>
+
+      <!-- Single bordered list: sections + items -->
+      <div class="overflow-hidden rounded-lg border border-(--ui-border)">
+        <template v-for="section in allSections" :key="section">
+          <!-- Section header row -->
+          <div class="flex items-center justify-between gap-4 border-b border-(--ui-border) bg-(--ui-bg-elevated) px-4 py-2.5">
+            <span class="text-xs font-semibold uppercase tracking-wider text-(--ui-text-muted)">{{ section }}</span>
+            <UButton size="xs" color="neutral" variant="ghost" icon="i-heroicons-plus" @click="openAddItem(section)">
+              Add item
+            </UButton>
+          </div>
+
+          <!-- Items -->
+          <template v-for="item in menuItemsBySection[section]" :key="item.id">
+            <!-- Collapsed item row -->
+            <div
+              v-if="expandedItemId !== item.id"
+              class="flex cursor-pointer items-center gap-4 border-b border-(--ui-border) px-4 py-3.5 last:border-0 hover:bg-(--ui-bg-elevated)"
+              @click="openEditItem(item)"
             >
-              <div class="flex-1">
-                <div class="font-medium text-stone-900">{{ item.name }}</div>
-                <div v-if="item.description" class="text-sm text-stone-600 mt-1">
-                  {{ item.description }}
+              <div class="min-w-0 flex-1">
+                <span class="text-sm font-medium text-(--ui-text-highlighted)">{{ item.name }}</span>
+                <span v-if="item.description" class="ml-2 truncate text-sm text-(--ui-text-muted)">{{ item.description }}</span>
+              </div>
+              <span v-if="item.price" class="shrink-0 text-sm font-medium text-(--ui-text)">{{ item.price }}</span>
+              <UBadge :color="item.available ? 'success' : 'neutral'" variant="soft" size="xs">
+                {{ item.available ? 'Available' : 'Unavailable' }}
+              </UBadge>
+              <UIcon name="i-heroicons-pencil-square" class="size-4 shrink-0 text-(--ui-text-muted)" />
+            </div>
+
+            <!-- Expanded inline edit -->
+            <div v-else class="border-b border-(--ui-border) bg-(--ui-bg-elevated) px-4 py-4 last:border-0">
+              <div class="space-y-3">
+                <div class="grid gap-3 sm:grid-cols-2">
+                  <UFormField label="Name">
+                    <UInput v-model="editForm.name" placeholder="Item name" autofocus />
+                  </UFormField>
+                  <UFormField label="Price">
+                    <UInput v-model="editForm.price" placeholder="฿250" />
+                  </UFormField>
                 </div>
-                <div v-if="item.price" class="text-sm font-medium text-stone-900 mt-1">
-                  {{ item.price }}
+                <UFormField label="Description">
+                  <UTextarea v-model="editForm.description" :rows="2" placeholder="Short description..." />
+                </UFormField>
+                <UCheckbox v-model="editForm.available" label="Available for ordering" />
+                <div class="flex items-center justify-between gap-2">
+                  <UButton color="neutral" variant="ghost" size="sm" icon="i-heroicons-trash" @click="handleDeleteItem(item.id)">Delete</UButton>
+                  <div class="flex gap-2">
+                    <UButton color="neutral" variant="ghost" size="sm" @click="closeEdit">Cancel</UButton>
+                    <UButton size="sm" :loading="saving" @click="handleSaveItem(item.id)">Save</UButton>
+                  </div>
                 </div>
               </div>
-              
-              <div class="flex items-center gap-2">
-                <span 
-                  :class="[
-                    'px-2 py-1 text-xs rounded',
-                    item.available 
-                      ? 'bg-green-100 text-green-800' 
-                      : 'bg-red-100 text-red-800'
-                  ]"
-                >
-                  {{ item.available ? 'Available' : 'Unavailable' }}
-                </span>
-                
-                <button
-                  @click="editMenuItem(item)"
-                  class="text-blue-600 hover:text-blue-800 text-sm"
-                >
-                  Edit
-                </button>
-                
-                <button
-                  @click="handleDeleteMenuItem(item.id)"
-                  class="text-red-600 hover:text-red-800 text-sm"
-                >
-                  Delete
-                </button>
+            </div>
+          </template>
+
+          <!-- Empty section row -->
+          <div
+            v-if="!menuItemsBySection[section]?.length && addingItemSection !== section"
+            class="border-b border-(--ui-border) px-4 py-3 text-sm text-(--ui-text-muted) last:border-0"
+          >
+            No items yet. Click <button class="underline" @click="openAddItem(section)">Add item</button> to get started.
+          </div>
+
+          <!-- Add item inline form -->
+          <div v-if="addingItemSection === section" class="border-b border-(--ui-border) bg-(--ui-bg-elevated) px-4 py-4 last:border-0">
+            <div class="space-y-3">
+              <div class="grid gap-3 sm:grid-cols-2">
+                <UFormField label="Name">
+                  <UInput v-model="addItemForm.name" placeholder="Item name" autofocus />
+                </UFormField>
+                <UFormField label="Price">
+                  <UInput v-model="addItemForm.price" placeholder="฿250" />
+                </UFormField>
+              </div>
+              <UFormField label="Description">
+                <UTextarea v-model="addItemForm.description" :rows="2" placeholder="Short description..." />
+              </UFormField>
+              <UCheckbox v-model="addItemForm.available" label="Available for ordering" />
+              <div class="flex justify-end gap-2">
+                <UButton color="neutral" variant="ghost" size="sm" @click="cancelAddItem(section)">Cancel</UButton>
+                <UButton size="sm" :loading="saving" :disabled="!addItemForm.name.trim()" @click="handleAddItem(section)">Add item</UButton>
               </div>
             </div>
           </div>
+        </template>
 
-          <!-- Add item button -->
-          <button
-            @click="showAddItemModal = true; currentSection = section"
-            class="mt-4 w-full px-3 py-2 border border-stone-300 text-stone-700 rounded hover:bg-stone-50 transition-colors"
-          >
-            + Add Item to {{ section }}
-          </button>
+        <!-- Add section row (always last inside the list) -->
+        <div v-if="!showAddSectionForm" class="flex justify-center px-4 py-3">
+          <UButton color="neutral" variant="ghost" size="sm" icon="i-heroicons-plus" @click="showAddSectionForm = true">
+            Add section
+          </UButton>
+        </div>
+        <div v-else class="bg-(--ui-bg-elevated) px-4 py-4">
+          <div class="space-y-3">
+            <UFormField label="Section name">
+              <UInput v-model="newSectionName" placeholder="Starters, Mains, Desserts..." autofocus />
+            </UFormField>
+            <div class="flex justify-end gap-2">
+              <UButton color="neutral" variant="ghost" size="sm" @click="cancelAddSection">Cancel</UButton>
+              <UButton size="sm" :disabled="!newSectionName.trim()" @click="handleAddSection">Create section</UButton>
+            </div>
+          </div>
         </div>
       </div>
-
-      <!-- Add section button -->
-      <div class="p-4 bg-white rounded-lg border border-stone-200">
-        <button
-          @click="showAddSectionModal = true"
-          class="w-full px-4 py-3 border-2 border-dashed border-stone-300 text-stone-600 rounded hover:border-stone-400 hover:text-stone-700 transition-colors"
-        >
-          + Add Section
-        </button>
-      </div>
-    </div>
-
-    <!-- Loading state -->
-    <div v-if="loading" class="text-center py-8">
-      <p class="text-stone-600">Loading...</p>
-    </div>
-
-    <!-- Error state -->
-    <div v-if="error" class="p-4 bg-red-50 border border-red-200 rounded-lg">
-      <p class="text-red-800">{{ error }}</p>
-    </div>
-
-    <!-- Modals (simplified for now) -->
-    <div v-if="showCreateMenuModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div class="bg-white rounded-lg p-6 w-96">
-        <h3 class="text-lg font-medium mb-4">Create Menu</h3>
-        <input 
-          v-model="newMenuName"
-          placeholder="Menu name"
-          class="w-full px-3 py-2 border border-stone-300 rounded mb-4"
-        />
-        <textarea 
-          v-model="newMenuDescription"
-          placeholder="Description (optional)"
-          class="w-full px-3 py-2 border border-stone-300 rounded mb-4"
-          rows="3"
-        />
-        <div class="flex justify-end gap-2">
-          <button
-            @click="showCreateMenuModal = false"
-            class="px-4 py-2 text-stone-600 hover:text-stone-800"
-          >
-            Cancel
-          </button>
-          <button
-            @click="handleCreateMenu"
-            :disabled="!newMenuName || saving"
-            class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:bg-stone-300"
-          >
-            Create
-          </button>
-        </div>
-      </div>
-    </div>
+    </template>
   </div>
 </template>
 
-<script setup>
-import { ref, computed, watch } from 'vue'
+<script setup lang="ts">
 import { useMenuEditor } from '~/composables/useMenuEditor'
 
-const props = defineProps({
-  siteId: {
-    type: String,
-    required: true
-  },
-  locationId: {
-    type: String,
-    default: null
-  }
-})
+const props = defineProps<{
+  siteId: string
+  locationId?: string | null
+}>()
 
-// Menu editor composable
+const toast = useToast()
+
 const {
   menus,
   currentMenu,
@@ -202,85 +211,148 @@ const {
   error,
   saving,
   hasMenus,
-  hasCurrentMenu,
-  isEditingBrandMenu,
   menuItemsBySection,
   loadMenu,
   createMenu,
-  updateMenu,
-  deleteMenu,
   createMenuItem,
   updateMenuItem,
   deleteMenuItem
 } = useMenuEditor(props.siteId, props.locationId)
 
-// Local state
+// Menu selector
 const selectedMenuId = ref<string | null>(null)
-const showCreateMenuModal = ref(false)
-const showEditMenuModal = ref(false)
-const showAddItemModal = ref(false)
-const showAddSectionModal = ref(false)
-const newMenuName = ref('')
-const newMenuDescription = ref('')
-const currentSection = ref('')
+const menuOptions = computed(() =>
+  menus.value.map((m: any) => ({ value: m.id, label: m.name }))
+)
 
-// Sync selected menu with current menu
-watch(currentMenu, (menu) => {
-  if (menu) {
-    selectedMenuId.value = menu.id
-  } else {
-    selectedMenuId.value = null
-  }
+watch(currentMenu, (menu: any) => {
+  selectedMenuId.value = menu?.id ?? null
 })
 
-// Handle menu selection change
-const handleMenuChange = async () => {
-  if (selectedMenuId.value) {
-    // Load the selected menu
-    await loadMenu(selectedMenuId.value)
-  }
+const handleMenuChange = async (id: string) => {
+  await loadMenu(id)
 }
 
-// Handle create menu
+// Create menu inline form
+const showCreateMenuForm = ref(false)
+const createMenuForm = reactive({ name: '', description: '' })
+
 const handleCreateMenu = async () => {
-  if (!newMenuName.value) return
-
+  if (!createMenuForm.name.trim()) return
   try {
-    await createMenu({
-      name: newMenuName.value,
-      description: newMenuDescription.value || undefined
+    await createMenu({ name: createMenuForm.name.trim(), description: createMenuForm.description || undefined })
+    createMenuForm.name = ''
+    createMenuForm.description = ''
+    showCreateMenuForm.value = false
+  } catch {
+    toast.add({ description: 'Failed to create menu', color: 'error' })
+  }
+}
+
+// Inline item editing
+const expandedItemId = ref<string | null>(null)
+const editForm = reactive({ name: '', description: '', price: '', available: true })
+
+const openEditItem = (item: any) => {
+  expandedItemId.value = item.id
+  editForm.name = item.name ?? ''
+  editForm.description = item.description ?? ''
+  editForm.price = item.price ?? ''
+  editForm.available = item.available ?? true
+}
+
+const closeEdit = () => {
+  expandedItemId.value = null
+}
+
+const handleSaveItem = async (itemId: string) => {
+  try {
+    await updateMenuItem(itemId, {
+      name: editForm.name.trim(),
+      description: editForm.description.trim() || undefined,
+      price: editForm.price.trim() || undefined,
+      available: editForm.available
     })
-    
-    // Reset form
-    newMenuName.value = ''
-    newMenuDescription.value = ''
-    showCreateMenuModal.value = false
-  } catch (err) {
-    console.error('Failed to create menu:', err)
+    expandedItemId.value = null
+    toast.add({ description: 'Item saved', color: 'success' })
+  } catch {
+    toast.add({ description: 'Failed to save item', color: 'error' })
   }
 }
 
-// Placeholder functions for modals
-const editMenuItem = (item) => {
-  console.log('Edit menu item:', item)
-  // TODO: Implement edit item modal
-}
-
-const handleDeleteMenuItem = async (itemId) => {
-  if (confirm('Are you sure you want to delete this menu item?')) {
-    try {
-      await deleteMenuItem(itemId)
-    } catch (err) {
-      console.error('Failed to delete menu item:', err)
-    }
+const handleDeleteItem = async (itemId: string) => {
+  try {
+    await deleteMenuItem(itemId)
+    expandedItemId.value = null
+    toast.add({ description: 'Item deleted', color: 'neutral' })
+  } catch {
+    toast.add({ description: 'Failed to delete item', color: 'error' })
   }
 }
 
+// Add item inline form
+const addingItemSection = ref<string | null>(null)
+const addItemForm = reactive({ name: '', description: '', price: '', available: true })
+
+const openAddItem = (section: string) => {
+  expandedItemId.value = null
+  addItemForm.name = ''
+  addItemForm.description = ''
+  addItemForm.price = ''
+  addItemForm.available = true
+  addingItemSection.value = section
+}
+
+const cancelAddItem = (section: string) => {
+  addingItemSection.value = null
+  // Remove pending section if it still has no items
+  if (pendingSections.value.includes(section) && !menuItemsBySection.value[section]?.length) {
+    pendingSections.value = pendingSections.value.filter((s: string) => s !== section)
+  }
+}
+
+const handleAddItem = async (section: string) => {
+  if (!addItemForm.name.trim()) return
+  try {
+    await createMenuItem({
+      name: addItemForm.name.trim(),
+      description: addItemForm.description.trim() || undefined,
+      price: addItemForm.price.trim() || undefined,
+      available: addItemForm.available,
+      section
+    })
+    pendingSections.value = pendingSections.value.filter((s: string) => s !== section)
+    addingItemSection.value = null
+    toast.add({ description: 'Item added', color: 'success' })
+  } catch {
+    toast.add({ description: 'Failed to add item', color: 'error' })
+  }
+}
+
+// Add section inline form
+const pendingSections = ref<string[]>([])
+const showAddSectionForm = ref(false)
+const newSectionName = ref('')
+
+const allSections = computed(() => {
+  const existing = Object.keys(menuItemsBySection.value)
+  const pending = pendingSections.value.filter((s: string) => !existing.includes(s))
+  return [...existing, ...pending]
+})
+
+const handleAddSection = () => {
+  const name = newSectionName.value.trim()
+  if (!name) return
+  if (!pendingSections.value.includes(name) && !Object.keys(menuItemsBySection.value).includes(name)) {
+    pendingSections.value.push(name)
+  }
+  addingItemSection.value = name
+  newSectionName.value = ''
+  showAddSectionForm.value = false
+}
+
+const cancelAddSection = () => {
+  newSectionName.value = ''
+  showAddSectionForm.value = false
+}
 </script>
-
-<style scoped>
-.menu-editor {
-  max-width: 4xl;
-  margin: 0 auto;
-}
-</style>
