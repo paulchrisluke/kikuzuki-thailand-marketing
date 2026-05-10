@@ -449,6 +449,45 @@ CREATE TABLE IF NOT EXISTS onboarding_steps (
 );
 
 --------------------------------------------------------------------------------
+-- Posts & Channel Publishing
+--------------------------------------------------------------------------------
+
+CREATE TABLE IF NOT EXISTS posts (
+  id TEXT PRIMARY KEY,
+  organization_id TEXT NOT NULL,
+  site_id TEXT NOT NULL,
+  title TEXT,
+  body TEXT NOT NULL,
+  image_url TEXT,
+  status TEXT NOT NULL DEFAULT 'draft' CHECK (status IN ('draft', 'published', 'scheduled', 'archived')),
+  scheduled_for TEXT,
+  published_at TEXT,
+  created_by TEXT NOT NULL,
+  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+  updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+  FOREIGN KEY (organization_id) REFERENCES organization(id) ON DELETE CASCADE,
+  FOREIGN KEY (site_id) REFERENCES sites(id) ON DELETE CASCADE
+);
+
+-- One row per channel per post — channels publish independently
+CREATE TABLE IF NOT EXISTS post_channel_jobs (
+  id TEXT PRIMARY KEY,
+  post_id TEXT NOT NULL,
+  organization_id TEXT NOT NULL,
+  channel TEXT NOT NULL CHECK (channel IN ('site', 'gmb', 'instagram', 'facebook')),
+  status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'published', 'failed', 'skipped')),
+  provider_post_id TEXT,
+  error TEXT,
+  published_at TEXT,
+  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+  FOREIGN KEY (post_id) REFERENCES posts(id) ON DELETE CASCADE,
+  FOREIGN KEY (organization_id) REFERENCES organization(id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_posts_site ON posts(site_id, status, published_at DESC);
+CREATE INDEX IF NOT EXISTS idx_post_channel_jobs_post ON post_channel_jobs(post_id);
+
+--------------------------------------------------------------------------------
 -- Contact & Reservation Submissions
 --------------------------------------------------------------------------------
 

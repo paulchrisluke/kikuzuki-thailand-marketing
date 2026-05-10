@@ -145,7 +145,22 @@ notifications (
 ### 3. WhatsApp login
 **Why here (not earlier):** Better Auth's `phoneNumber` plugin handles OTP natively. Since the WhatsApp Business app is already set up, implementation is: configure the plugin, swap SMS delivery for a WhatsApp message send via the utility built in step 2. Much simpler than a custom OAuth provider.
 
-### 4. Google Business post scheduling from dashboard
+### 4. Posts Foundation + Social Channel Publishing
+**Why before GMB-specific:** Posts are a platform primitive. A post lives in our system first (`posts` table), then gets pushed to channels. Social integrations (GMB, Instagram, Facebook) become adapters on top — channel stubs exist in `post_channel_jobs` now and drain when each integration is connected.
+
+**Built:**
+- `posts` + `post_channel_jobs` tables — post is source of truth, one channel-job row per channel per publish
+- Full CRUD: `GET/POST /api/editor/sites/[siteId]/posts`, `GET/PATCH/DELETE/publish /api/editor/sites/[siteId]/posts/[postId]`
+- Public API: `GET /api/public/sites/[siteId]/posts` — returns posts in SayaPosts-compatible format
+- AI generation: `POST /api/ai/[siteId]/posts/generate` — prompt + optional image → Claude drafts title + body, uses credit system
+- Dashboard Posts page: AI composer (prompt + photo attachment), draft list with tabs, inline editor, channel checkbox selector, live preview
+
+**Next — channel adapters (when integrations connected):**
+- Site: immediate (already live on publish)
+- GMB: `post_channel_jobs` status = `pending` → drain when GMB API approved
+- Instagram/Facebook: same pattern, drain when Meta OAuth connected
+
+### 4b. Google Business post scheduling from dashboard
 **Why here:** GMB API approval is pending but the UI and queue can be built now. Add a Posts section per location that queues posts with `pending_publish` status. When API is approved the worker drains the queue. AI agent flow feeds directly into this.
 
 ### 5. Facebook / Instagram content sync

@@ -14,14 +14,12 @@
       "Bash(git checkout *)",
       "Bash(git pull *)",
       "Bash(git worktree *)",
-
       "Bash(yarn *)",
       "Bash(npm *)",
       "Bash(npx *)",
       "Bash(node *)",
       "Bash(python3 *)",
       "Bash(wrangler *)",
-
       "Bash(find *)",
       "Bash(grep *)",
       "Bash(head *)",
@@ -37,13 +35,14 @@
       "Bash(mkdir -p *)",
       "Bash(sqlite3 *)",
       "Bash(jobs)",
-
       "Bash(curl -s https://graph.facebook.com/*)",
       "Bash(curl -s \"https://graph.facebook.com/*)",
       "Bash(curl -s 'https://graph.facebook.com/*)",
       "Bash(curl -s -X GET https://graph.facebook.com/*)",
       "Bash(curl -s -X POST https://graph.facebook.com/*)",
-      "Bash(curl -s -X DELETE https://graph.facebook.com/*)"
+      "Bash(curl -s -X DELETE https://graph.facebook.com/*)",
+      "Bash(mkdir -p \"/Users/paulchrisluke/Repos 2026/kikuzuki-thailand-marketing/server/api/editor/sites/[siteId]/posts/[postId]\")",
+      "Bash(mkdir -p \"/Users/paulchrisluke/Repos 2026/kikuzuki-thailand-marketing/server/api/ai/[siteId]/posts\")"
     ],
     "deny": [
       "Bash(rm -rf / *)",

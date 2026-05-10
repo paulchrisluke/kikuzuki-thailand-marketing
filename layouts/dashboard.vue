@@ -191,6 +191,7 @@ const siteNavigation = computed(() => [[
   { label: 'Overview', icon: 'i-heroicons-home', to: sitePath() },
   { label: 'Content', icon: 'i-heroicons-document-text', to: sitePath('/content') },
   { label: 'Menu', icon: 'i-heroicons-list-bullet', to: sitePath('/menu') },
+  { label: 'Posts', icon: 'i-heroicons-newspaper', to: sitePath('/posts') },
   { label: 'Locations', icon: 'i-heroicons-map-pin', to: sitePath('/locations') },
   { label: 'Launch', icon: 'i-heroicons-rocket-launch', to: sitePath('/launch') },
   { label: 'Settings', icon: 'i-heroicons-cog-6-tooth', to: sitePath('/settings') }
