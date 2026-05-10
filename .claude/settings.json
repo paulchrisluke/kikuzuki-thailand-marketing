@@ -42,7 +42,10 @@
       "Bash(curl -s -X POST https://graph.facebook.com/*)",
       "Bash(curl -s -X DELETE https://graph.facebook.com/*)",
       "Bash(mkdir -p \"/Users/paulchrisluke/Repos 2026/kikuzuki-thailand-marketing/server/api/editor/sites/[siteId]/posts/[postId]\")",
-      "Bash(mkdir -p \"/Users/paulchrisluke/Repos 2026/kikuzuki-thailand-marketing/server/api/ai/[siteId]/posts\")"
+      "Bash(mkdir -p \"/Users/paulchrisluke/Repos 2026/kikuzuki-thailand-marketing/server/api/ai/[siteId]/posts\")",
+      "Bash(kill 95944)",
+      "Bash(rm -rf .nuxt node_modules/.cache)",
+      "Read(//private/tmp/**)"
     ],
     "deny": [
       "Bash(rm -rf / *)",

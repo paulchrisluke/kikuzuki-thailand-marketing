@@ -114,7 +114,26 @@ Posts are a platform primitive — live in our system first, pushed to channels 
 
 ---
 
-### 🔲 5. Social Channel Adapters (GMB, Instagram, Facebook)
+### 🔲 5. Sidekick — Dashboard AI Chat Agent
+
+**What it is:** A Shopify Sidekick-style toggleable chat panel on every dashboard page. The owner types a natural language request — "make a NYE post about this photo", "update the salmon price to ฿320", "what happened last week?" — and the AI takes action, shows what it's doing, and asks for confirmation before publishing.
+
+**How it works (tool use / function calling):**
+- Single `POST /api/ai/[siteId]/agent` streaming endpoint
+- Injects site context: current page, site name, plan tier, credit balance
+- Claude is given tool definitions mapping to our existing API routes: `create_post`, `publish_post`, `get_posts`, `extract_menu`, `get_menu`, `update_content`, `get_site_stats`
+- Claude decides which tools to call → we execute against existing APIs → feed results back → Claude streams the response
+- Draft-first always: Claude creates drafts and asks for approval before publishing
+
+**UI:** `UChatMessage` + `UChatMessages` + `UChatPrompt` + `UChatTool` + `UChatReasoning` — all available in Nuxt UI v4.7.1 free tier. Toggle button in `UDashboardNavbar`, opens a right-side slide-over panel. `UChatTool` renders each tool call inline ("Creating draft post…", "Extracting 12 menu items…").
+
+**KrabiClaw differentiator vs Shopify Sidekick:** Ours is also WhatsApp-native. Once Priority 3's number blocker is resolved, owners can chat with the agent via WhatsApp (same tools, same draft-first flow) — something Shopify can't replicate without our existing Meta Business Account foundation.
+
+**Billing:** Agent actions charge credits at the same rate as direct AI actions. A multi-tool conversation (generate post + publish to channels) charges once per LLM call, not per tool.
+
+---
+
+### 🔲 6. Social Channel Adapters (GMB, Instagram, Facebook)
 
 Build the drain workers for `post_channel_jobs`. Each adapter is a function: `publishToChannel(post, channelJob)` → calls the external API → marks job `published` or `failed`.
 
@@ -124,7 +143,7 @@ Build the drain workers for `post_channel_jobs`. Each adapter is a function: `pu
 
 ---
 
-### 🔲 6. Tenant MCP / API
+### 🔲 7. Tenant MCP / API
 
 Per-tenant API key system so restaurant owners can connect their own AI (Claude, ChatGPT) to manage their site via MCP. Most complex, most premium. Build last once agent actions are proven and used by real clients.
 
