@@ -3,7 +3,7 @@
     <div
       v-if="isOpen"
       class="fixed inset-0 z-40 bg-black/20"
-      @click="close"
+      @click="!isLoading && close()"
     />
   </Transition>
 
@@ -34,6 +34,16 @@
         <div class="flex items-center gap-2">
           <UIcon name="i-lucide-bot" class="size-4 text-primary" />
           <span class="text-sm font-semibold">ChowBot</span>
+          <UTooltip v-if="balance !== null" :text="`${balance} credits remaining`">
+            <UBadge
+              :color="isDepleted ? 'error' : isLow ? 'warning' : 'neutral'"
+              variant="subtle"
+              size="sm"
+              class="cursor-default tabular-nums"
+            >
+              {{ (total !== null ? total - balance : 0).toLocaleString() }} / {{ (total ?? balance).toLocaleString() }}
+            </UBadge>
+          </UTooltip>
         </div>
         <div class="flex items-center gap-1">
           <UTooltip text="New conversation">
@@ -56,8 +66,17 @@
         </div>
       </div>
 
+      <div v-if="isDepleted" class="shrink-0 bg-error-50 dark:bg-error-950 px-4 py-2 text-xs text-error-600 dark:text-error-400 flex items-center gap-2">
+        <UIcon name="i-heroicons-exclamation-triangle" class="size-3.5 shrink-0" />
+        No AI credits remaining. <NuxtLink to="/dashboard/billing" class="underline" @click="close">Add credits →</NuxtLink>
+      </div>
+      <div v-else-if="isLow" class="shrink-0 bg-warning-50 dark:bg-warning-950 px-4 py-2 text-xs text-warning-600 dark:text-warning-400 flex items-center gap-2">
+        <UIcon name="i-heroicons-exclamation-triangle" class="size-3.5 shrink-0" />
+        Low credits ({{ balance }} remaining). <NuxtLink to="/dashboard/billing" class="underline" @click="close">Top up →</NuxtLink>
+      </div>
+
       <div class="flex-1 min-h-0 overflow-y-auto">
-        <UChatMessages :status="isLoading || isUploading ? 'submitted' : undefined">
+        <UChatMessages :status="isUploading ? 'submitted' : undefined">
           <div
             v-if="messages.length === 0"
             class="flex h-full flex-col items-center justify-center gap-3 px-6 py-16 text-center"
@@ -88,20 +107,22 @@
             :parts="[{ type: 'text', text: msg.content }]"
             :side="msg.role === 'user' ? 'right' : 'left'"
           >
-            <template v-if="msg.toolCalls?.length || msg.role === 'assistant'" #content>
+            <template v-if="msg.role === 'assistant'" #content>
+              <!-- Running tools appear first while streaming -->
               <div v-if="msg.toolCalls?.length" class="mb-2 flex flex-col gap-1">
                 <UChatTool
-                  v-for="tool in msg.toolCalls"
-                  :key="tool.name + i"
+                  v-for="(tool, ti) in msg.toolCalls"
+                  :key="tool.name + i + ti"
                   :text="toolLabel(tool.name)"
+                  :loading="tool.status === 'running'"
                 />
               </div>
+              <!-- Message text (empty while tools are still running) -->
               <div
-                v-if="msg.role === 'assistant'"
+                v-if="msg.content"
                 class="prose prose-sm dark:prose-invert max-w-none"
                 v-html="renderMarkdown(msg.content)"
               />
-              <span v-else>{{ msg.content }}</span>
             </template>
           </UChatMessage>
         </UChatMessages>
@@ -127,8 +148,12 @@
           :placeholder="pendingFile ? 'Add a caption (optional) then press send…' : 'Ask ChowBot anything…'"
           :disabled="isLoading || isUploading || !siteId"
           :loading="isLoading || isUploading"
+          :maxrows="8"
           @submit="handleSubmit"
         />
+        <p v-if="input.length > 1000" class="mt-1 text-right text-xs" :class="input.length > 4000 ? 'text-warning' : 'text-muted'">
+          {{ input.length.toLocaleString() }} chars{{ input.length > 4000 ? ' — will be truncated' : '' }}
+        </p>
         <div class="mt-2 flex items-center gap-2">
           <UTooltip text="Attach menu image or PDF">
             <UButton
@@ -161,8 +186,12 @@
 
 <script setup lang="ts">
 import { useChowBot } from '~/composables/useChowBot'
+import { useAiCredits } from '~/composables/useAiCredits'
 
 const { isOpen, messages, isLoading, siteId, close, sendMessage, clearMessages } = useChowBot()
+const { balance, total, isLow, isDepleted, fetch: fetchCredits } = useAiCredits(siteId) as any
+
+watch(isOpen, (open: boolean) => { if (open && siteId.value) fetchCredits() })
 
 const input = ref('')
 const fileInputRef = ref<HTMLInputElement | null>(null)
@@ -274,6 +303,7 @@ const processFile = async (file: File, caption = '') => {
       : `No items found in that file.${res.warning ? ` ${res.warning}` : ''} Try a higher-resolution photo.`
 
     messages.value = [...messages.value, { role: 'assistant', content: msg }]
+    if (count > 0) await navigateTo(`/dashboard/sites/${siteId.value}/menu`)
   } catch (err: any) {
     console.error('[ChowBot] processFile failed:', err)
     messages.value = [...messages.value, {
@@ -300,8 +330,12 @@ const toolLabel = (name: string): string => {
     create_location: 'Creating location…',
     update_location: 'Updating location…',
     add_menu_item: 'Adding menu item…',
+    add_menu_items_batch: 'Adding menu items…',
     update_menu_item: 'Updating menu item…',
     publish_menu: 'Publishing menu…',
+    delete_menu: 'Deleting menu…',
+    create_menu: 'Creating menu…',
+    rename_menu: 'Renaming menu…',
   }
   return labels[name] ?? name
 }

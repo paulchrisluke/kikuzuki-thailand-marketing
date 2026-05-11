@@ -26,7 +26,7 @@
 <script setup>
 import { useAuth } from '~/composables/useAuth'
 
-definePageMeta({ layout: 'tenant' })
+definePageMeta({ layout: 'saya' })
 const { siteId } = await useTenantSite()
 const { isAuthenticated } = useAuth()
 

@@ -97,7 +97,7 @@
 </template>
 
 <script setup>
-definePageMeta({ layout: 'tenant' })
+definePageMeta({ layout: 'saya' })
 import { getTodayGoogleHours } from '~/utils/formatters'
 import { usePageContent } from '~/composables/usePageContent'
 import { useTenantSite } from '~/composables/useTenantSite'

@@ -30,8 +30,8 @@
     <template v-else-if="hasMenu">
       <MenuCategoryNav :categories="menuSections" :active="activeSection" @select="activeSection = $event" />
       <AppSection v-for="(items, section) in menuItemsBySection" :key="section" :id="section" bg="white" padding="default">
-        <h2 class="text-2xl font-bold text-(--ui-text-highlighted) mb-2">{{ section }}</h2>
-        <div class="divide-y divide-[var(--ui-border-muted)]">
+        <h2 class="text-2xl font-bold text-(--ui-text-highlighted) mb-4">{{ section }}</h2>
+        <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
           <MenuItemCard v-for="item in items" :key="item.id" :item="item" />
         </div>
       </AppSection>
@@ -82,7 +82,7 @@
 </template>
 
 <script setup>
-definePageMeta({ layout: 'tenant' })
+definePageMeta({ layout: 'saya' })
 import { usePageContent } from '~/composables/usePageContent'
 import { usePublicMenu } from '~/composables/usePublicMenu'
 import { useTenantSite } from '~/composables/useTenantSite'
@@ -100,7 +100,7 @@ if (!tenant.siteId || tenant.isPlatform) {
 }
 
 // Get location from slug (tenant-scoped)
-const { data: location } = await $fetch(`/api/public/sites/${tenant.siteId}/locations/${route.params.slug}`).catch(() => ({ data: null }))
+const { location } = await $fetch(`/api/public/sites/${tenant.siteId}/locations/${route.params.slug}`).catch(() => ({ location: null }))
 
 // Check if location exists, else 404
 if (!location?.id) {

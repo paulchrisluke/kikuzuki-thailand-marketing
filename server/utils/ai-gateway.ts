@@ -114,7 +114,7 @@ export async function callAiGateway(
 /** Build a vision content block from a base64-encoded image */
 export function imageBlock(
   base64Data: string,
-  mediaType: AiContentBlock['source']['media_type'] = 'image/jpeg'
+  mediaType: 'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp' = 'image/jpeg'
 ): AiContentBlock {
   return {
     type: 'image',

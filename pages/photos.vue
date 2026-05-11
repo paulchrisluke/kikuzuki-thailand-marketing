@@ -47,7 +47,7 @@
 </template>
 
 <script setup>
-definePageMeta({ layout: 'tenant' })
+definePageMeta({ layout: 'saya' })
 import { useTenantSite } from '~/composables/useTenantSite'
 
 const { siteId } = await useTenantSite()
