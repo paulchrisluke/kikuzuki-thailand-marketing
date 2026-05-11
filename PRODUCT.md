@@ -10,25 +10,60 @@
 
 | Tier | Price | Features |
 |------|-------|---------|
-| Free | $0 | Subdomain (`name.krabiclaw.com`), Saya theme, manual editor, 500 AI credits on signup |
-| Paid | ~$25/mo | Custom domain (BYOD), SSL via Cloudflare, Google Business sync, 5,000 AI credits/mo |
+| Free | $0 | Subdomain (`name.krabiclaw.com`), Saya theme, manual editor, 500 AI credits on signup, 1 location |
+| Paid | ~$25/mo | Custom domain (BYOD), SSL via Cloudflare, Google Business sync, 5,000 AI credits/mo, multiple locations |
 | Upsell (TBD) | TBD | AI agent site management, image/video generation, Instagram/Facebook sync, additional themes, Tenant MCP |
+
+**Upgrade modal triggers** (shown inline when owner hits a paid feature):
+- Connecting Google Business Profile
+- Adding a second location
+- Custom domain setup
+- Removing KrabiClaw branding
+- Buying additional AI credits
 
 ---
 
 ## Current Clients
 
-- **Client 1**: Japanese restaurant brand, 2 locations, both invited to Google Business
+- **Client 1**: Kikuzuki — Japanese restaurant brand, 2 locations (Ao Nang + Krabi Town)
 
 ---
 
 ## Theme: Saya
 
 - Default theme for all tenants
-- SSR-rendered, SEO-first
-- Inline editor for manual content updates
-- Google Business data auto-populates content when connected
-- Posts section (`SayaPosts`) fed by platform `posts` table (+ GMB fallback when connected)
+- SSR-rendered, SEO-first, editorial typography
+- Location-centric navigation — all content hangs off `/locations/[slug]/`
+- Google Business data auto-populates content when connected; all fields manually editable without GMB
+- ChowBot AI manages all content via natural language from the dashboard
+
+### Saya URL Structure
+
+```
+/                              → Home: hero + location entry points + brand feed
+/locations                     → All locations grid
+/locations/[slug]              → Location home: hours, address, map, menu preview, sub-nav
+/locations/[slug]/menu         → Full menu (sections + item grid)
+/locations/[slug]/reviews      → Reviews: aggregate score + star dist + owner replies
+/locations/[slug]/photos       → Photo gallery by category
+/locations/[slug]/qa           → Q&A: owner-answered pairs
+/about                         → Brand story
+/contact                       → Brand contact form
+/reservations                  → Reservation form
+/posts                         → All posts / news feed
+/menu                          → Redirects to primary location menu (SEO fallback)
+```
+
+### Nav structure
+- Logo | Locations (dropdown — each location links to `/locations/[slug]/menu`) | Story | Contact | **RESERVE** (primary CTA)
+- Mobile: hamburger with same links + per-location menu entries
+- "Locations" dropdown is dynamic — built at runtime from `business_locations` table
+
+### Upgrade modal
+- `UModal` triggered by `useUpgradeModal()` composable
+- Fires when: connecting GMB, adding location 2+, setting custom domain, removing branding
+- Content: feature benefit, plan comparison, Stripe checkout CTA
+- Dismissable; re-triggers on next attempt if not upgraded
 
 ---
 
@@ -37,24 +72,30 @@
 | Integration | Status |
 |-------------|--------|
 | Google OAuth (login) | ✅ Live |
-| WhatsApp OTP login | ✅ Built — blocked on real number registration (see TODO.md) |
+| WhatsApp OTP login | ✅ Built — blocked on real number registration |
 | Stripe (billing) | ✅ Live |
-| Cloudflare AI Gateway | ✅ Live — menu extraction, post generation, credit billing |
-| WhatsApp Business API | ✅ Notifications built — blocked on real number (test number rejects custom templates) |
-| Facebook / Instagram Graph API | ✅ App created — channel adapter stub ready in post_channel_jobs |
-| Google Business Profile API | ⏳ API approval pending; GMB channel adapter stub ready in post_channel_jobs |
+| Cloudflare AI Gateway | ✅ Live — menu extraction, ChowBot agent, credit billing |
+| WhatsApp Business API | ✅ Notifications built — blocked on real number |
+| Facebook / Instagram Graph API | ✅ App created — channel adapter stub ready |
+| Google Business Profile API | ⏳ API approval pending; GMB channel adapter stub ready |
 | Google Places API (New v1) | ✅ Live — location autocomplete in onboarding + Add Location modal |
 
 ---
 
-## D1 Database — 32 Tables
+## D1 Database — 34 Tables
 
 Key tables added during this build cycle:
 - `ai_credits` / `ai_usage_log` — credit billing, usage tracking, CF Gateway log reconciliation
 - `notifications` — channel-agnostic outbound notification log
 - `contact_submissions` / `reservation_submissions` — Saya theme form submissions
-- `posts` / `post_channel_jobs` — post source of truth + per-channel distribution queue
+- `posts` / `post_channel_jobs` — post source of truth + per-channel distribution queue (location-scoped, post_type, CTA, event/offer fields)
+- `location_photos` — per-location photo gallery, GMB-synced or manually uploaded, categorised (EXTERIOR/INTERIOR/FOOD/MENU/TEAM)
+- `location_qa` — per-location Q&A pairs, GMB-synced or manually authored, owner-answered flag
 - `user.phoneNumber` / `user.phoneNumberVerified` — WhatsApp OTP login columns
+- `business_locations` extended: description, short_description, special_hours, price_level, attributes, email, social URLs, google_place_id
+- `reviews` extended: google_review_id, owner_reply, owner_reply_at, photo_urls, reviewer_photo_url
+
+Removed: `staff_profiles`, `awards_recognition` (no GMB source, no routes)
 
 ---
 
@@ -67,99 +108,103 @@ Key tables added during this build cycle:
 - `server/utils/ai-gateway.ts` — CF Gateway wrapper with metadata tracing
 - `server/utils/ai-credits.ts` — credit check/deduct, 500 free on signup, 5× output token weighting
 - `POST /api/ai/[siteId]/menu/extract` — vision extraction from photo/image, saves as draft, charges credits
-- `AiMenuImport.vue` — multi-step modal: upload → extract → review/edit → save draft
 - Draft-first always — owner must publish explicitly, AI never auto-publishes
 
-**Credit model:** 1 credit = 1,000 normalized tokens. Free: 500. Paid: 5,000/mo. Markup: 2–3× Anthropic cost. CF Gateway is the single metering point — `cf_gateway_log_id` stored for nightly reconciliation.
+**Credit model:** 1 credit = 1,000 normalized tokens. Free: 500. Paid: 5,000/mo. Markup: 2–3× Anthropic cost.
 
 ---
 
 ### ✅ 2. WhatsApp Notification Foundation
 **Status: Live (PR #5) — sends blocked until real number registered**
 
-- `server/utils/whatsapp.ts` — Meta Cloud API v25.0, E.164 normalization, template dispatch, delivery logging
-- `notifications` table — channel-agnostic (add email later without schema change)
-- 7 templates defined in code: `draft_published`, `new_review`, `ai_action_complete`, `low_credits`, `new_contact_msg`, `new_reservation`, `otp_code`
-- Triggers wired: content publish, AI extraction complete, low credits, contact form, reservation form
-- Site Settings → Notifications: owner enters their WhatsApp number (stored in `site_config`)
-- `contact_submissions` / `reservation_submissions` tables; Saya contact + reservation forms fully wired
-
-**Blocked:** Test phone number (ID `1070814412788109`) rejects all custom templates. Need real number registered in WhatsApp Manager. See TODO.md — 7 templates to submit once unblocked.
+- 7 templates: `draft_published`, `new_review`, `ai_action_complete`, `low_credits`, `new_contact_msg`, `new_reservation`, `otp_code`
+- **Blocked:** Test number rejects custom templates. Need real number in WhatsApp Manager.
 
 ---
 
 ### ✅ 3. WhatsApp OTP Login
 **Status: Built (PR #6) — OTP delivery blocked until real number registered**
 
-- Better Auth `phoneNumber` plugin configured — `sendOTP` callback calls `sendWhatsAppOtp`
-- Login page: two-step phone → 6-digit code flow alongside Google OAuth
-- `user.phoneNumber` + `user.phoneNumberVerified` columns in D1
-- `otp_code` template: AUTHENTICATION category, submit to Meta once real number registered
-
 ---
 
 ### ✅ 4. Posts Foundation + AI Composer
-**Status: Built (PR pending merge)**
+**Status: Live**
 
-Posts are a platform primitive — live in our system first, pushed to channels as adapters.
-
-- `posts` table — source of truth (title, body, image_url, status, scheduled_for)
-- `post_channel_jobs` table — one row per channel per publish; drains when channel connects
-- **Editor API:** full CRUD + publish at `/api/editor/sites/[siteId]/posts/...`
-- **Public API:** `GET /api/public/sites/[siteId]/posts` — SayaPosts-compatible format
-- **AI generation:** `POST /api/ai/[siteId]/posts/generate` — prompt + optional photo → Claude drafts title + body via CF AI Gateway, uses credit system
-- **Posts dashboard page:** AI composer (prompt + photo attach), draft list (all/draft/published tabs), inline editor, channel selector (Site live, GMB/IG/FB labeled "Not connected"), live preview
-- **Site channel:** publishes immediately on confirm. Social channels sit as `pending` in `post_channel_jobs` until adapters built.
-
-**The owner flow:** "Make a NYE post about this photo" → attach photo → Generate → review draft → edit if needed → Publish.
+- `posts` table — source of truth, location-scoped, supports standard/offer/event/update post types with CTA, event dates, offer coupon/terms
+- `post_channel_jobs` — one row per channel per publish
+- AI generation via CF Gateway, credit-billed
+- Site channel live; GMB/IG/FB sit as `pending` until channel adapters built
 
 ---
 
 ### ✅ 5. Google Places Autocomplete
 **Status: Live**
 
-- `server/utils/google-places.ts` — `searchPlaces()` + `getPlaceDetails()` using Places API v1 with billing-aware field masks
-- `POST /api/places/search` + `GET /api/places/[placeId]` — auth-gated server proxies (key never exposed to client)
-- **Onboarding Step 2** — "Find on Google" search auto-fills location name, city, phone, address, maps URL, website, and opening hours; location name also pre-fills from restaurant name; phone now optional
-- **Add Location modal** (Locations dashboard) — same autocomplete, same auto-fill
-- Key stored as `GOOGLE_PLACES_API_KEY` CF Pages secret + local `.env` / `.dev.vars`
-
-**Billing:** Basic + Contact + Atmosphere fields fetched in one call per selection (~$0.025/lookup). Search is text search (~$0.017/call). Only called on explicit user action — no background polling.
+- Onboarding + Add Location modal: search auto-fills all location fields from Google Places v1
 
 ---
 
-### 🔲 6. Sidekick — Dashboard AI Chat Agent
+### ✅ 6. ChowBot — Dashboard AI Chat Agent
+**Status: Live**
 
-**What it is:** A Shopify Sidekick-style toggleable chat panel on every dashboard page. The owner types a natural language request — "make a NYE post about this photo", "update the salmon price to ฿320", "what happened last week?" — and the AI takes action, shows what it's doing, and asks for confirmation before publishing.
+A Shopify Sidekick-style chat panel on every dashboard page. Owner types natural language → ChowBot takes action via 30 tools → streams live tool indicators → confirms before publishing.
 
-**How it works (tool use / function calling):**
-- Single `POST /api/ai/[siteId]/agent` streaming endpoint
-- Injects site context: current page, site name, plan tier, credit balance
-- Claude is given tool definitions mapping to our existing API routes: `create_post`, `publish_post`, `get_posts`, `extract_menu`, `get_menu`, `update_content`, `get_site_stats`
-- Claude decides which tools to call → we execute against existing APIs → feed results back → Claude streams the response
-- Draft-first always: Claude creates drafts and asks for approval before publishing
+**30 tools covering:**
+- Posts: list, create (all types + CTA/event/offer), publish
+- Menus: full CRUD + batch add + image_url on items
+- Locations: list, create, update (all fields including socials/description/price_level)
+- Reviews: read with star distribution, add owner reply
+- Photos: list, add, delete per location
+- Q&A: list, add, delete per location
+- Submissions: read contact + reservation submissions
+- Site: rename (syncs subdomain), stats
 
-**UI:** `UChatMessage` + `UChatMessages` + `UChatPrompt` + `UChatTool` + `UChatReasoning` — all available in Nuxt UI v4.7.1 free tier. Toggle button in `UDashboardNavbar`, opens a right-side slide-over panel. `UChatTool` renders each tool call inline ("Creating draft post…", "Extracting 12 menu items…").
-
-**KrabiClaw differentiator vs Shopify Sidekick:** Ours is also WhatsApp-native. Once Priority 3's number blocker is resolved, owners can chat with the agent via WhatsApp (same tools, same draft-first flow) — something Shopify can't replicate without our existing Meta Business Account foundation.
-
-**Billing:** Agent actions charge credits at the same rate as direct AI actions. A multi-tool conversation (generate post + publish to channels) charges once per LLM call, not per tool.
-
----
-
-### 🔲 7. Social Channel Adapters (GMB, Instagram, Facebook)
-
-Build the drain workers for `post_channel_jobs`. Each adapter is a function: `publishToChannel(post, channelJob)` → calls the external API → marks job `published` or `failed`.
-
-- **GMB:** waiting on API approval. Worker queries `post_channel_jobs WHERE channel='gmb' AND status='pending'`, calls GMB Posts API, marks published.
-- **Instagram/Facebook:** Meta Graph API. Same pattern. Entitlement-gated (paid plan). Single OAuth connection covers both (same Facebook app).
-- When a channel connects, the backlog of pending jobs drains automatically.
+**SSE streaming** — tool indicators appear live as each tool runs.
+**Dev bypass** — no credits charged in `NODE_ENV=development`.
+**WhatsApp-native** — same tools will be exposed via WhatsApp once number is registered.
 
 ---
 
-### 🔲 8. Tenant MCP / API
+### ✅ 7. GMB Data Parity — Full CRUD in D1
+**Status: Live (feat/gmb-data-schema)**
 
-Per-tenant API key system so restaurant owners can connect their own AI (Claude, ChatGPT) to manage their site via MCP. Most complex, most premium. Build last once agent actions are proven and used by real clients.
+Every field GMB provides is now manually editable in D1. GMB sync populates fields when connected; owners fill them in manually without GMB. New tables: `location_photos`, `location_qa`. Extended: `reviews`, `posts`, `business_locations`.
+
+**Public APIs** per location slug: `/reviews`, `/photos`, `/qa`
+**Editor CRUD** per location: photos (CRUD), Q&A (CRUD), reviews patch (owner reply)
+**Submissions read** routes for dashboard: contact + reservation
+
+---
+
+### 🔲 8. Saya Sub-pages: Reviews, Photos, Q&A
+**Status: APIs ready — Saya pages not yet built**
+
+All data is available via public APIs. Need Saya Vue pages at:
+- `/locations/[slug]/reviews` — aggregate score + star distribution + review cards with owner replies
+- `/locations/[slug]/photos` — masonry gallery grouped by category
+- `/locations/[slug]/qa` — Q&A cards, owner-answered first
+
+---
+
+### 🔲 9. Upgrade Modal
+**Status: Not built**
+
+`UModal` triggered by `useUpgradeModal()` composable when owner hits a paid feature gate.
+Triggers: GMB connect, location 2+, custom domain, remove branding, buy credits.
+
+---
+
+### 🔲 10. Social Channel Adapters (GMB, Instagram, Facebook)
+**Status: Stubs ready — waiting on API approval (GMB) and OAuth (IG/FB)**
+
+Drain workers for `post_channel_jobs`. Each adapter: `publishToChannel(post, channelJob)` → external API → mark published/failed.
+
+---
+
+### 🔲 11. Tenant MCP / API
+**Status: Planned — build last**
+
+Per-tenant API key system so restaurant owners can connect their own AI to manage their site via MCP.
 
 ---
 
@@ -167,7 +212,9 @@ Per-tenant API key system so restaurant owners can connect their own AI (Claude,
 
 - All AI calls route through Cloudflare AI Gateway — never call model APIs directly
 - Posts are the content primitive — channels are adapters on top of `post_channel_jobs`
-- Notification delivery is channel-agnostic — `notifications.channel` column means email can be added with no schema change
+- All location data is CRUD-available in D1 regardless of GMB connection — GMB sync is additive, not required
+- Notification delivery is channel-agnostic — `notifications.channel` column means email/push can be added with no schema change
 - WhatsApp and Instagram both go through the same Facebook app — single OAuth covers both
-- Agent actions write through existing editor APIs, never bypass them — keeps audit trail and draft/publish workflow intact
+- Agent (ChowBot) actions write through existing editor APIs — keeps audit trail and draft/publish workflow intact
 - Credit system enforced at the `/api/ai/*` route layer — 402 on exhaustion with upgrade prompt
+- `layout: 'saya'` is the correct layout name for all Saya theme pages — `tenant` is dead
