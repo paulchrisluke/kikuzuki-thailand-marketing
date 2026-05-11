@@ -336,6 +336,16 @@ const toolLabel = (name: string): string => {
     delete_menu: 'Deleting menu…',
     create_menu: 'Creating menu…',
     rename_menu: 'Renaming menu…',
+    get_reviews: 'Fetching reviews…',
+    reply_to_review: 'Saving reply…',
+    get_location_photos: 'Fetching photos…',
+    add_location_photo: 'Adding photo…',
+    delete_location_photo: 'Deleting photo…',
+    get_location_qa: 'Fetching Q&A…',
+    add_qa: 'Adding Q&A…',
+    delete_qa: 'Deleting Q&A…',
+    get_contact_submissions: 'Fetching contacts…',
+    get_reservation_submissions: 'Fetching reservations…',
   }
   return labels[name] ?? name
 }

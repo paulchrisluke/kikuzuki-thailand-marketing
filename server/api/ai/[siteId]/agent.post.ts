@@ -1,7 +1,4 @@
 // POST /api/ai/[siteId]/agent
-// Conversational agent with tool use. Takes conversation history, runs a tool loop,
-// and returns the final text reply plus a log of tool calls made.
-
 import { cloudflareEnv, jsonResponse } from '~/server/utils/api-response'
 import { getAuthSession } from '~/server/utils/auth'
 import { callAiGateway, type AiTool, type AiMessage } from '~/server/utils/ai-gateway'
@@ -13,28 +10,36 @@ const MAX_ITERATIONS = 10
 const MODEL = 'claude-sonnet-4-6'
 
 const TOOLS: AiTool[] = [
+  // ── Posts ──────────────────────────────────────────────────────────────────
   {
     name: 'get_posts',
-    description: 'List posts for this site. Optionally filter by status.',
+    description: 'List posts for this site. Optionally filter by status or location.',
     input_schema: {
       type: 'object',
       properties: {
-        status: {
-          type: 'string',
-          enum: ['draft', 'published', 'archived'],
-          description: 'Filter by status. Omit to get all posts.',
-        },
+        status: { type: 'string', enum: ['draft', 'published', 'archived'], description: 'Filter by status. Omit to get all.' },
+        location_id: { type: 'string', description: 'Filter to posts for a specific location.' },
       },
     },
   },
   {
     name: 'create_post',
-    description: 'Create a new draft post. The post is saved as a draft — NOT published until publish_post is called.',
+    description: 'Create a new draft post. Saved as draft — NOT published until publish_post is called.',
     input_schema: {
       type: 'object',
       properties: {
         title: { type: 'string', description: 'Short headline (max 80 chars). Optional.' },
         body: { type: 'string', description: 'Post body (max 400 chars). Friendly, warm tone.' },
+        image_url: { type: 'string', description: 'Optional image URL.' },
+        location_id: { type: 'string', description: 'Pin this post to a specific location. Omit for site-wide.' },
+        post_type: { type: 'string', enum: ['standard', 'offer', 'event', 'update'], description: 'Post type. Default: standard.' },
+        cta_type: { type: 'string', enum: ['BOOK', 'ORDER', 'SHOP', 'LEARN_MORE', 'SIGN_UP', 'CALL'], description: 'Call-to-action button type.' },
+        cta_url: { type: 'string', description: 'URL for the CTA button.' },
+        event_title: { type: 'string', description: 'Event name (for post_type: event).' },
+        event_start: { type: 'string', description: 'Event start datetime ISO string.' },
+        event_end: { type: 'string', description: 'Event end datetime ISO string.' },
+        offer_coupon: { type: 'string', description: 'Coupon code (for post_type: offer).' },
+        offer_terms: { type: 'string', description: 'Offer terms and conditions.' },
       },
       required: ['body'],
     },
@@ -50,9 +55,11 @@ const TOOLS: AiTool[] = [
       required: ['post_id'],
     },
   },
+
+  // ── Menus ──────────────────────────────────────────────────────────────────
   {
     name: 'get_menu',
-    description: 'Get the current menu with all its sections and items.',
+    description: 'Get a menu with all its sections and items.',
     input_schema: {
       type: 'object',
       properties: {
@@ -62,25 +69,25 @@ const TOOLS: AiTool[] = [
   },
   {
     name: 'create_menu',
-    description: 'Create a new menu. Call this to add a menu like "Take Me Away" or "Ao Nang Menu".',
+    description: 'Create a new menu.',
     input_schema: {
       type: 'object',
       properties: {
-        name: { type: 'string', description: 'Menu name, e.g. "Take Me Away" or "Ao Nang Menu".' },
-        description: { type: 'string', description: 'Optional description for the menu.' },
-        location_id: { type: 'string', description: 'Optional location ID to link this menu to a specific location.' },
+        name: { type: 'string', description: 'Menu name.' },
+        description: { type: 'string', description: 'Optional description.' },
+        location_id: { type: 'string', description: 'Link to a specific location.' },
       },
       required: ['name'],
     },
   },
   {
     name: 'rename_menu',
-    description: 'Rename an existing menu. Use this to change a menu name like renaming "fsad" to "Ao Nang Menu".',
+    description: 'Rename an existing menu.',
     input_schema: {
       type: 'object',
       properties: {
-        menu_id: { type: 'string', description: 'ID of the menu to rename.' },
-        name: { type: 'string', description: 'New menu name.' },
+        menu_id: { type: 'string', description: 'ID of the menu.' },
+        name: { type: 'string', description: 'New name.' },
         description: { type: 'string', description: 'Optional new description.' },
       },
       required: ['menu_id', 'name'],
@@ -88,14 +95,13 @@ const TOOLS: AiTool[] = [
   },
   {
     name: 'add_menu_items_batch',
-    description: 'Add multiple menu items in a single call. ALWAYS use this instead of calling add_menu_item repeatedly. Accepts up to 100 items at once.',
+    description: 'Add multiple menu items in one call. ALWAYS use this instead of looping add_menu_item. Up to 100 items.',
     input_schema: {
       type: 'object',
       properties: {
-        menu_id: { type: 'string', description: 'ID of the menu to add items to.' },
+        menu_id: { type: 'string', description: 'Menu to add items to.' },
         items: {
           type: 'array',
-          description: 'Items to add.',
           items: {
             type: 'object',
             properties: {
@@ -103,6 +109,7 @@ const TOOLS: AiTool[] = [
               name: { type: 'string', description: 'Dish name.' },
               description: { type: 'string', description: 'Short description. Optional.' },
               price: { type: 'string', description: 'Price string, e.g. "฿120". Optional.' },
+              image_url: { type: 'string', description: 'Photo URL for this item. Optional.' },
             },
             required: ['section', 'name'],
           },
@@ -112,85 +119,33 @@ const TOOLS: AiTool[] = [
     },
   },
   {
-    name: 'get_site_stats',
-    description: 'Get a summary of site content: post counts by status, number of menus, number of menu items.',
-    input_schema: {
-      type: 'object',
-      properties: {},
-    },
-  },
-  {
-    name: 'rename_site',
-    description: 'Update the brand name of the site. Also keeps the internal site name in sync.',
-    input_schema: {
-      type: 'object',
-      properties: {
-        brand_name: { type: 'string', description: 'The new brand name.' },
-      },
-      required: ['brand_name'],
-    },
-  },
-  {
-    name: 'get_locations',
-    description: 'List all locations (branches) for this site.',
-    input_schema: { type: 'object', properties: {} },
-  },
-  {
-    name: 'create_location',
-    description: 'Create a new location/branch for this site.',
-    input_schema: {
-      type: 'object',
-      properties: {
-        title: { type: 'string', description: 'Location name, e.g. "Take Me Away" or "Ao Nang Branch".' },
-        city: { type: 'string', description: 'City name.' },
-        phone: { type: 'string', description: 'Phone number.' },
-        address: { type: 'string', description: 'Street address.' },
-        is_primary: { type: 'boolean', description: 'Set as the primary location.' },
-      },
-      required: ['title'],
-    },
-  },
-  {
-    name: 'update_location',
-    description: 'Update an existing location. Updating the title ALSO automatically updates the URL slug to match — pass the desired title to sync the slug. Call get_locations first to get the location ID.',
-    input_schema: {
-      type: 'object',
-      properties: {
-        location_id: { type: 'string', description: 'ID of the location to update.' },
-        title: { type: 'string', description: 'New name. Setting this also regenerates the URL slug.' },
-        city: { type: 'string', description: 'City name.' },
-        phone: { type: 'string', description: 'Phone number.' },
-        address: { type: 'string', description: 'Street address.' },
-      },
-      required: ['location_id'],
-    },
-  },
-  {
     name: 'add_menu_item',
-    description: 'Add a new item to a menu. Call get_menu first to get the menu ID.',
+    description: 'Add a single item to a menu.',
     input_schema: {
       type: 'object',
       properties: {
-        menu_id: { type: 'string', description: 'ID of the menu to add to.' },
-        section: { type: 'string', description: 'Section/category, e.g. "Mains", "Desserts".' },
+        menu_id: { type: 'string', description: 'Menu to add to.' },
+        section: { type: 'string', description: 'Section/category.' },
         name: { type: 'string', description: 'Dish name.' },
         description: { type: 'string', description: 'Short description. Optional.' },
-        price: { type: 'string', description: 'Price string, e.g. "฿120". Optional.' },
+        price: { type: 'string', description: 'Price string. Optional.' },
+        image_url: { type: 'string', description: 'Photo URL. Optional.' },
       },
       required: ['menu_id', 'section', 'name'],
     },
   },
   {
     name: 'update_menu_item',
-    description: 'Update an existing menu item — name, price, description, or availability.',
+    description: 'Update a menu item — name, price, description, image, or availability.',
     input_schema: {
       type: 'object',
       properties: {
-        item_id: { type: 'string', description: 'ID of the menu item to update.' },
-        name: { type: 'string', description: 'New name.' },
-        description: { type: 'string', description: 'New description.' },
-        price: { type: 'string', description: 'New price string.' },
-        available: { type: 'boolean', description: 'Set item as available or unavailable.' },
+        item_id: { type: 'string', description: 'ID of the item.' },
+        name: { type: 'string' },
+        description: { type: 'string' },
+        price: { type: 'string' },
+        image_url: { type: 'string', description: 'New photo URL.' },
+        available: { type: 'boolean' },
       },
       required: ['item_id'],
     },
@@ -200,35 +155,206 @@ const TOOLS: AiTool[] = [
     description: 'Publish a draft menu so it appears on the live site.',
     input_schema: {
       type: 'object',
-      properties: {
-        menu_id: { type: 'string', description: 'ID of the menu to publish.' },
-      },
+      properties: { menu_id: { type: 'string' } },
       required: ['menu_id'],
     },
   },
   {
     name: 'delete_menu',
-    description: 'Permanently delete a menu and all its items. Only use after the user confirms they want it deleted.',
+    description: 'Permanently delete a menu and all its items. Confirm with user first.',
+    input_schema: {
+      type: 'object',
+      properties: { menu_id: { type: 'string' } },
+      required: ['menu_id'],
+    },
+  },
+
+  // ── Locations ──────────────────────────────────────────────────────────────
+  {
+    name: 'get_locations',
+    description: 'List all locations for this site.',
+    input_schema: { type: 'object', properties: {} },
+  },
+  {
+    name: 'create_location',
+    description: 'Create a new location/branch.',
     input_schema: {
       type: 'object',
       properties: {
-        menu_id: { type: 'string', description: 'ID of the menu to delete.' },
+        title: { type: 'string', description: 'Location name.' },
+        city: { type: 'string' },
+        phone: { type: 'string' },
+        address: { type: 'string' },
+        email: { type: 'string' },
+        description: { type: 'string', description: 'About this location.' },
+        is_primary: { type: 'boolean' },
       },
-      required: ['menu_id'],
+      required: ['title'],
+    },
+  },
+  {
+    name: 'update_location',
+    description: 'Update a location. Updating title auto-syncs the URL slug.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        location_id: { type: 'string', description: 'ID from get_locations.' },
+        title: { type: 'string', description: 'New name — also updates URL slug.' },
+        city: { type: 'string' },
+        phone: { type: 'string' },
+        address: { type: 'string' },
+        email: { type: 'string' },
+        description: { type: 'string', description: 'About this location.' },
+        short_description: { type: 'string', description: 'One-line tagline.' },
+        price_level: { type: 'string', enum: ['FREE', 'INEXPENSIVE', 'MODERATE', 'EXPENSIVE', 'VERY_EXPENSIVE'] },
+        facebook_url: { type: 'string' },
+        instagram_url: { type: 'string' },
+        tiktok_url: { type: 'string' },
+        website_url: { type: 'string' },
+      },
+      required: ['location_id'],
+    },
+  },
+
+  // ── Reviews ────────────────────────────────────────────────────────────────
+  {
+    name: 'get_reviews',
+    description: 'Get reviews for a location, including aggregate score and star distribution.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        location_id: { type: 'string', description: 'Location ID from get_locations.' },
+      },
+      required: ['location_id'],
+    },
+  },
+  {
+    name: 'reply_to_review',
+    description: 'Add or update the owner reply on a review.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        review_id: { type: 'string', description: 'Review ID from get_reviews.' },
+        reply: { type: 'string', description: 'Owner reply text.' },
+      },
+      required: ['review_id', 'reply'],
+    },
+  },
+
+  // ── Photos ─────────────────────────────────────────────────────────────────
+  {
+    name: 'get_location_photos',
+    description: 'List photos for a location.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        location_id: { type: 'string', description: 'Location ID from get_locations.' },
+      },
+      required: ['location_id'],
+    },
+  },
+  {
+    name: 'add_location_photo',
+    description: 'Add a photo to a location.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        location_id: { type: 'string' },
+        url: { type: 'string', description: 'Photo URL.' },
+        category: { type: 'string', enum: ['EXTERIOR', 'INTERIOR', 'FOOD', 'MENU', 'TEAM', 'GENERAL'], description: 'Photo category.' },
+        description: { type: 'string', description: 'Caption. Optional.' },
+      },
+      required: ['location_id', 'url'],
+    },
+  },
+  {
+    name: 'delete_location_photo',
+    description: 'Delete a location photo. Confirm with user first.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        photo_id: { type: 'string' },
+        location_id: { type: 'string' },
+      },
+      required: ['photo_id', 'location_id'],
+    },
+  },
+
+  // ── Q&A ────────────────────────────────────────────────────────────────────
+  {
+    name: 'get_location_qa',
+    description: 'Get Q&A pairs for a location.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        location_id: { type: 'string' },
+      },
+      required: ['location_id'],
+    },
+  },
+  {
+    name: 'add_qa',
+    description: 'Add a Q&A pair to a location.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        location_id: { type: 'string' },
+        question: { type: 'string' },
+        answer: { type: 'string', description: 'Owner answer. Optional — can be added later.' },
+      },
+      required: ['location_id', 'question'],
+    },
+  },
+  {
+    name: 'delete_qa',
+    description: 'Delete a Q&A entry. Confirm with user first.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        qa_id: { type: 'string' },
+        location_id: { type: 'string' },
+      },
+      required: ['qa_id', 'location_id'],
+    },
+  },
+
+  // ── Submissions ────────────────────────────────────────────────────────────
+  {
+    name: 'get_contact_submissions',
+    description: 'List contact form submissions for this site.',
+    input_schema: { type: 'object', properties: {} },
+  },
+  {
+    name: 'get_reservation_submissions',
+    description: 'List reservation requests for this site.',
+    input_schema: { type: 'object', properties: {} },
+  },
+
+  // ── Site ───────────────────────────────────────────────────────────────────
+  {
+    name: 'get_site_stats',
+    description: 'Summary of site content: posts, menus, menu items, locations, reviews.',
+    input_schema: { type: 'object', properties: {} },
+  },
+  {
+    name: 'rename_site',
+    description: 'Update the brand name and subdomain/URL slug of the site.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        brand_name: { type: 'string', description: 'New brand name.' },
+      },
+      required: ['brand_name'],
     },
   },
 ]
 
-const CONFIRM_REQUIRED = new Set(['publish_post', 'publish_menu', 'delete_menu'])
+const CONFIRM_REQUIRED = new Set(['publish_post', 'publish_menu', 'delete_menu', 'delete_location_photo', 'delete_qa'])
 
-// Tools that mutate and should not run if the recent conversation shows no confirmation
 function requiresConfirmation(name: string, recentMessages: AiMessage[]): boolean {
   if (!CONFIRM_REQUIRED.has(name)) return false
-  const CONFIRM_WORDS = /\b(yes|ok|go ahead|do it|publish|confirm|proceed|sure)\b/i
-  // Check the last 3 user turns for confirmation
-  const userTurns = recentMessages
-    .filter(m => m.role === 'user')
-    .slice(-3)
+  const CONFIRM_WORDS = /\b(yes|ok|go ahead|do it|publish|confirm|proceed|sure|delete|remove)\b/i
+  const userTurns = recentMessages.filter(m => m.role === 'user').slice(-3)
     .map(m => (typeof m.content === 'string' ? m.content : ''))
   return !userTurns.some(t => CONFIRM_WORDS.test(t))
 }
@@ -241,27 +367,31 @@ async function executeTool(
   const { db, orgId, siteId, userId } = ctx
 
   if (requiresConfirmation(name, ctx.agentMessages ?? [])) {
-    return {
-      __requires_confirmation: true,
-      message: `Please confirm you want to ${name.replace(/_/g, ' ')} before I proceed.`,
-    }
+    return { __requires_confirmation: true, message: `Please confirm you want to ${name.replace(/_/g, ' ')}.` }
   }
 
   switch (name) {
     case 'get_posts': {
       const posts = await listPosts(db, orgId, siteId, input.status)
-      return posts.slice(0, 10).map(p => ({
-        id: p.id,
-        title: p.title,
+      const filtered = input.location_id
+        ? posts.filter((p: any) => p.location_id === input.location_id)
+        : posts
+      return filtered.slice(0, 10).map((p: any) => ({
+        id: p.id, title: p.title,
         body: p.body.slice(0, 120) + (p.body.length > 120 ? '…' : ''),
-        status: p.status,
-        updated_at: p.updated_at,
+        status: p.status, post_type: p.post_type, location_id: p.location_id, updated_at: p.updated_at,
       }))
     }
 
     case 'create_post': {
-      const post = await createPost(db, orgId, siteId, { title: input.title, body: input.body }, userId)
-      return { id: post.id, title: post.title, body: post.body, status: post.status }
+      const post = await createPost(db, orgId, siteId, {
+        title: input.title, body: input.body, image_url: input.image_url,
+        location_id: input.location_id, post_type: input.post_type,
+        cta_type: input.cta_type, cta_url: input.cta_url,
+        event_title: input.event_title, event_start: input.event_start, event_end: input.event_end,
+        offer_coupon: input.offer_coupon, offer_terms: input.offer_terms,
+      }, userId)
+      return { id: post.id, title: post.title, body: post.body, status: post.status, post_type: post.post_type }
     }
 
     case 'publish_post': {
@@ -291,52 +421,54 @@ async function executeTool(
       return { id: menu.id, name: menu.name, description: menu.description, status: menu.status }
     }
 
-    case 'confirm_bulk_operation': {
-      return {
-        confirmation_required: true,
-        operation: input.operation,
-        count: input.count,
-        message: `About to perform: ${input.operation} (${input.count} items). Please confirm by saying "yes" or "proceed".`
-      }
+    case 'add_menu_items_batch': {
+      const items: any[] = Array.isArray(input.items) ? input.items.slice(0, 100) : []
+      const created = await Promise.all(items.map((item: any) =>
+        createMenuItem(db, input.menu_id, {
+          section: String(item.section || 'Menu').slice(0, 100),
+          name: String(item.name || '').slice(0, 200),
+          description: item.description ? String(item.description).slice(0, 500) : undefined,
+          price: item.price ? String(item.price).slice(0, 50) : undefined,
+          image_url: item.image_url ?? undefined,
+        }, userId)
+      ))
+      return { added: created.length, menu_id: input.menu_id }
     }
 
-    case 'get_site_stats': {
-      const [postStats, menuCount, itemCount] = await Promise.all([
-        db.prepare(
-          'SELECT status, COUNT(*) as count FROM posts WHERE organization_id = ? AND site_id = ? GROUP BY status'
-        ).bind(orgId, siteId).all(),
-        db.prepare(
-          'SELECT COUNT(*) as count FROM menus WHERE organization_id = ? AND site_id = ?'
-        ).bind(orgId, siteId).first(),
-        db.prepare(
-          'SELECT COUNT(*) as count FROM menu_items mi JOIN menus m ON mi.menu_id = m.id WHERE m.organization_id = ? AND m.site_id = ?'
-        ).bind(orgId, siteId).first(),
-      ])
-      const bySatus = (postStats.results ?? []).reduce((acc: any, row: any) => {
-        acc[row.status] = row.count
-        return acc
-      }, {})
-      return {
-        posts: { draft: bySatus.draft ?? 0, published: bySatus.published ?? 0, archived: bySatus.archived ?? 0 },
-        menus: menuCount?.count ?? 0,
-        menu_items: itemCount?.count ?? 0,
-      }
+    case 'add_menu_item': {
+      const item = await createMenuItem(db, input.menu_id, {
+        section: input.section, name: input.name,
+        description: input.description, price: input.price, image_url: input.image_url,
+      }, userId)
+      return { id: item.id, name: item.name, section: item.section, price: item.price }
     }
 
-    case 'rename_site': {
+    case 'update_menu_item': {
+      const updates: any = {}
+      for (const f of ['name', 'description', 'price', 'image_url', 'available']) {
+        if (input[f] !== undefined) updates[f] = input[f]
+      }
+      const item = await updateMenuItem(db, input.item_id, updates, userId)
+      return { id: item.id, name: item.name, price: item.price, available: item.available }
+    }
+
+    case 'publish_menu': {
       const now = new Date().toISOString()
-      const newSubdomain = input.brand_name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')
       await db.prepare(
-        'UPDATE sites SET brand_name = ?, name = ?, subdomain = ?, updated_at = ? WHERE id = ? AND organization_id = ?'
-      ).bind(input.brand_name, input.brand_name, newSubdomain, now, siteId, orgId).run()
-      return { brand_name: input.brand_name, subdomain: newSubdomain, updated: true }
+        `UPDATE menus SET status = 'published', updated_at = ?, updated_by = ? WHERE id = ? AND organization_id = ? AND site_id = ?`
+      ).bind(now, userId, input.menu_id, orgId, siteId).run()
+      return { menu_id: input.menu_id, status: 'published' }
+    }
+
+    case 'delete_menu': {
+      await deleteMenu(db, orgId, siteId, input.menu_id)
+      return { menu_id: input.menu_id, deleted: true }
     }
 
     case 'get_locations': {
       const rows = await db.prepare(
-        `SELECT id, title, city, phone, status, is_primary
-         FROM business_locations WHERE organization_id = ? AND site_id = ?
-         ORDER BY is_primary DESC, title ASC`
+        `SELECT id, title, city, phone, email, description, price_level, instagram_url, facebook_url, tiktok_url, status, is_primary
+         FROM business_locations WHERE organization_id = ? AND site_id = ? ORDER BY is_primary DESC, title ASC`
       ).bind(orgId, siteId).all()
       return rows.results ?? []
     }
@@ -346,17 +478,12 @@ async function executeTool(
       const now = new Date().toISOString()
       const slug = input.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')
       await db.prepare(
-        `INSERT INTO business_locations
-           (id, organization_id, site_id, title, slug, city, phone, address, is_primary, status, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, ?)`
-      ).bind(
-        id, orgId, siteId,
-        input.title, slug,
-        input.city ?? null, input.phone ?? null,
+        `INSERT INTO business_locations (id, organization_id, site_id, title, slug, city, phone, email, description, address, is_primary, status, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, ?)`
+      ).bind(id, orgId, siteId, input.title, slug, input.city ?? null, input.phone ?? null,
+        input.email ?? null, input.description ?? null,
         input.address ? JSON.stringify({ street: input.address }) : null,
-        input.is_primary ? 1 : 0,
-        now, now
-      ).run()
+        input.is_primary ? 1 : 0, now, now).run()
       return { id, title: input.title, slug, status: 'active' }
     }
 
@@ -365,75 +492,134 @@ async function executeTool(
       const sets: string[] = ['updated_at = ?']
       const params: any[] = [now]
       if (input.title !== undefined) {
-        sets.push('title = ?')
-        params.push(input.title)
-        // Keep slug in sync with title
-        const newSlug = input.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')
-        sets.push('slug = ?')
-        params.push(newSlug)
+        sets.push('title = ?', 'slug = ?')
+        params.push(input.title, input.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, ''))
       }
-      if (input.city !== undefined)  { sets.push('city = ?');  params.push(input.city) }
-      if (input.phone !== undefined) { sets.push('phone = ?'); params.push(input.phone) }
+      const simple = ['city', 'phone', 'email', 'description', 'short_description', 'price_level',
+        'facebook_url', 'instagram_url', 'tiktok_url', 'website_url']
+      for (const f of simple) {
+        if (input[f] !== undefined) { sets.push(`${f} = ?`); params.push(input[f] ?? null) }
+      }
       if (input.address !== undefined) {
         sets.push('address = ?')
         params.push(JSON.stringify({ street: input.address }))
       }
       params.push(input.location_id, orgId)
-      await db.prepare(
-        `UPDATE business_locations SET ${sets.join(', ')} WHERE id = ? AND organization_id = ?`
-      ).bind(...params).run()
+      await db.prepare(`UPDATE business_locations SET ${sets.join(', ')} WHERE id = ? AND organization_id = ?`).bind(...params).run()
       const updated = await db.prepare(
-        'SELECT id, title, city, phone, status FROM business_locations WHERE id = ? LIMIT 1'
+        `SELECT id, title, city, phone, email, description, status FROM business_locations WHERE id = ? LIMIT 1`
       ).bind(input.location_id).first()
       return updated ?? { error: 'Location not found.' }
     }
 
-    case 'add_menu_item': {
-      const item = await createMenuItem(
-        db, input.menu_id,
-        { section: input.section, name: input.name, description: input.description, price: input.price },
-        userId
-      )
-      return { id: item.id, name: item.name, section: item.section, price: item.price }
+    case 'get_reviews': {
+      const { results } = await db.prepare(
+        `SELECT id, author_name, rating, title, content, owner_reply, source, created_at
+         FROM reviews WHERE location_id = ? AND status = 'approved' ORDER BY created_at DESC LIMIT 20`
+      ).bind(input.location_id).all()
+      const reviews = results ?? []
+      const dist = [1,2,3,4,5].map(star => ({ star, count: reviews.filter((r: any) => r.rating === star).length }))
+      const loc = await db.prepare(`SELECT rating, review_count FROM business_locations WHERE id = ? LIMIT 1`).bind(input.location_id).first()
+      return { aggregate: { rating: loc?.rating, count: loc?.review_count, distribution: dist }, reviews }
     }
 
-    case 'update_menu_item': {
-      const updates: any = {}
-      if (input.name !== undefined)        updates.name = input.name
-      if (input.description !== undefined) updates.description = input.description
-      if (input.price !== undefined)       updates.price = input.price
-      if (input.available !== undefined)   updates.available = input.available
-      const item = await updateMenuItem(db, input.item_id, updates, userId)
-      return { id: item.id, name: item.name, price: item.price, available: item.available }
-    }
-
-    case 'add_menu_items_batch': {
-      const items: any[] = Array.isArray(input.items) ? input.items.slice(0, 100) : []
-      const created = await Promise.all(
-        items.map((item: any) =>
-          createMenuItem(db, input.menu_id, {
-            section: String(item.section || 'Menu').slice(0, 100),
-            name: String(item.name || '').slice(0, 200),
-            description: item.description ? String(item.description).slice(0, 500) : undefined,
-            price: item.price ? String(item.price).slice(0, 50) : undefined,
-          }, userId)
-        )
-      )
-      return { added: created.length, menu_id: input.menu_id }
-    }
-
-    case 'publish_menu': {
+    case 'reply_to_review': {
       const now = new Date().toISOString()
       await db.prepare(
-        `UPDATE menus SET status = 'published', updated_at = ?, updated_by = ?
-         WHERE id = ? AND organization_id = ? AND site_id = ?`
-      ).bind(now, userId, input.menu_id, orgId, siteId).run()
-      return { menu_id: input.menu_id, status: 'published' }
+        `UPDATE reviews SET owner_reply = ?, owner_reply_at = ?, updated_at = ? WHERE id = ? AND site_id = ?`
+      ).bind(input.reply, now, now, input.review_id, siteId).run()
+      return { review_id: input.review_id, replied: true }
     }
 
-    case 'delete_menu': {
-      await deleteMenu(db, orgId, siteId, input.menu_id)
-      return { menu_id: input.menu_id, deleted: true }
+    case 'get_location_photos': {
+      const { results } = await db.prepare(
+        `SELECT id, google_url, local_url, category, description, sort_order
+         FROM location_photos WHERE location_id = ? ORDER BY category, sort_order`
+      ).bind(input.location_id).all()
+      return results ?? []
+    }
+
+    case 'add_location_photo': {
+      const id = crypto.randomUUID()
+      const now = new Date().toISOString()
+      const loc = await db.prepare(`SELECT organization_id, site_id FROM business_locations WHERE id = ? LIMIT 1`).bind(input.location_id).first()
+      if (!loc) return { error: 'Location not found.' }
+      await db.prepare(
+        `INSERT INTO location_photos (id, organization_id, site_id, location_id, local_url, category, description, source, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, 'manual', ?, ?)`
+      ).bind(id, loc.organization_id, loc.site_id, input.location_id, input.url,
+        input.category ?? 'GENERAL', input.description ?? null, now, now).run()
+      return { id, added: true }
+    }
+
+    case 'delete_location_photo': {
+      await db.prepare(`DELETE FROM location_photos WHERE id = ? AND location_id = ?`).bind(input.photo_id, input.location_id).run()
+      return { photo_id: input.photo_id, deleted: true }
+    }
+
+    case 'get_location_qa': {
+      const { results } = await db.prepare(
+        `SELECT id, question, question_author, answer, answer_date, is_owner_answer, upvote_count
+         FROM location_qa WHERE location_id = ? AND status = 'published' ORDER BY is_owner_answer DESC, upvote_count DESC`
+      ).bind(input.location_id).all()
+      return results ?? []
+    }
+
+    case 'add_qa': {
+      const id = crypto.randomUUID()
+      const now = new Date().toISOString()
+      const loc = await db.prepare(`SELECT organization_id, site_id FROM business_locations WHERE id = ? LIMIT 1`).bind(input.location_id).first()
+      if (!loc) return { error: 'Location not found.' }
+      await db.prepare(
+        `INSERT INTO location_qa (id, organization_id, site_id, location_id, question, answer, is_owner_answer, source, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, 1, 'manual', ?, ?)`
+      ).bind(id, loc.organization_id, loc.site_id, input.location_id, input.question, input.answer ?? null, now, now).run()
+      return { id, added: true }
+    }
+
+    case 'delete_qa': {
+      await db.prepare(`DELETE FROM location_qa WHERE id = ? AND location_id = ?`).bind(input.qa_id, input.location_id).run()
+      return { qa_id: input.qa_id, deleted: true }
+    }
+
+    case 'get_contact_submissions': {
+      const { results } = await db.prepare(
+        `SELECT id, name, email, message, created_at FROM contact_submissions WHERE site_id = ? ORDER BY created_at DESC LIMIT 20`
+      ).bind(siteId).all()
+      return results ?? []
+    }
+
+    case 'get_reservation_submissions': {
+      const { results } = await db.prepare(
+        `SELECT id, name, email, phone, party_size, requested_date, requested_time, status, created_at
+         FROM reservation_submissions WHERE site_id = ? ORDER BY created_at DESC LIMIT 20`
+      ).bind(siteId).all()
+      return results ?? []
+    }
+
+    case 'get_site_stats': {
+      const [postStats, menuCount, itemCount, locationCount, reviewCount] = await Promise.all([
+        db.prepare(`SELECT status, COUNT(*) as count FROM posts WHERE organization_id = ? AND site_id = ? GROUP BY status`).bind(orgId, siteId).all(),
+        db.prepare(`SELECT COUNT(*) as count FROM menus WHERE organization_id = ? AND site_id = ?`).bind(orgId, siteId).first(),
+        db.prepare(`SELECT COUNT(*) as count FROM menu_items mi JOIN menus m ON mi.menu_id = m.id WHERE m.organization_id = ? AND m.site_id = ?`).bind(orgId, siteId).first(),
+        db.prepare(`SELECT COUNT(*) as count FROM business_locations WHERE organization_id = ? AND site_id = ? AND status = 'active'`).bind(orgId, siteId).first(),
+        db.prepare(`SELECT COUNT(*) as count FROM reviews WHERE site_id = ? AND status = 'approved'`).bind(siteId).first(),
+      ])
+      const byStatus = (postStats.results ?? []).reduce((acc: any, row: any) => { acc[row.status] = row.count; return acc }, {})
+      return {
+        posts: { draft: byStatus.draft ?? 0, published: byStatus.published ?? 0, archived: byStatus.archived ?? 0 },
+        menus: menuCount?.count ?? 0, menu_items: itemCount?.count ?? 0,
+        locations: locationCount?.count ?? 0, reviews: reviewCount?.count ?? 0,
+      }
+    }
+
+    case 'rename_site': {
+      const now = new Date().toISOString()
+      const newSubdomain = input.brand_name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')
+      await db.prepare(
+        `UPDATE sites SET brand_name = ?, name = ?, subdomain = ?, updated_at = ? WHERE id = ? AND organization_id = ?`
+      ).bind(input.brand_name, input.brand_name, newSubdomain, now, siteId, orgId).run()
+      return { brand_name: input.brand_name, subdomain: newSubdomain, updated: true }
     }
 
     default:
@@ -473,7 +659,6 @@ export default defineEventHandler(async (event) => {
   try { body = await readBody(event) } catch {
     return jsonResponse({ error: 'Invalid request body' }, { status: 400 })
   }
-
   if (!Array.isArray(body.messages) || !body.messages.length) {
     return jsonResponse({ error: 'messages array required' }, { status: 400 })
   }
@@ -482,35 +667,31 @@ export default defineEventHandler(async (event) => {
   const currentPage = body.currentPage ?? 'dashboard'
 
   const SYSTEM = `You are ChowBot, an AI assistant for restaurant website owners using Kikuzuki.
-Help manage site content — posts, menus, locations, and more — with concise, action-oriented responses.
+Help manage all site content with concise, action-oriented responses.
 
 Site: ${siteName}
 Current page: ${currentPage}
 
 Capabilities (always use tools — never say you can't do something the tools support):
-- Posts: list, create, publish
-- Menus: create, rename, view items, add items (batch), update items, publish, delete
-- Locations/branches: list, create, update (title auto-syncs slug)
-- Site: rename brand name (also updates subdomain/URL slug)
-- Stats: post counts, menu counts
+- Posts: list, create (standard/offer/event/update with CTA), publish — optionally location-scoped
+- Menus: create, rename, view, add items (batch with image_url), update items, publish, delete
+- Locations: list, create, update (title syncs slug, plus description/email/socials/price_level)
+- Reviews: get (with star distribution), reply as owner
+- Photos: list, add, delete per location
+- Q&A: list, add, delete per location
+- Contact & reservation submissions: read
+- Site: rename (updates subdomain)
+- Stats: posts, menus, locations, reviews
 
 Guidelines:
-- Use tools to take real actions immediately — never say "I'll do that" without calling a tool
-- After creating a post, show the content and confirm before publishing
-- When adding multiple menu items, ALWAYS use add_menu_items_batch — pass ALL items in one call, never loop
-- After add_menu_items_batch, reply: "Added X items to [menu name]."
-- Before publish_post, publish_menu, or delete_menu, confirm with the user first
-- Menus are DRAFT by default — they only appear on the live site after publish_menu is called
-- Keep responses short — this is a chat panel
-- Never say a feature is unavailable if a tool supports it`
+- Use tools immediately — never say "I'll do that" without calling a tool
+- When adding multiple menu items, ALWAYS use add_menu_items_batch — all items in one call
+- Before publish_post, publish_menu, delete_menu, delete_location_photo, delete_qa — confirm first
+- Menus are DRAFT by default — publish_menu makes them live
+- Keep responses short — this is a chat panel`
 
-  // Limit history to the last 8 client messages and cap each message at 4000 chars.
-  // This prevents rate-limit errors from long pasted content. Tool-loop messages added
-  // below are always kept intact — never windowed mid-loop, which would split
-  // tool_use / tool_result pairs and cause a 400 from the API.
   const MAX_MSG_CHARS = 4000
   let initialMessages = body.messages.slice(-8)
-  // Anthropic requires the first message to be from the user.
   while (initialMessages.length > 0 && initialMessages[0]?.role !== 'user') {
     initialMessages = initialMessages.slice(1)
   }
@@ -522,7 +703,6 @@ Guidelines:
     }
   })
 
-  // --- SSE streaming response ---
   setResponseHeader(event, 'Content-Type', 'text/event-stream')
   setResponseHeader(event, 'Cache-Control', 'no-cache')
   setResponseHeader(event, 'X-Accel-Buffering', 'no')
@@ -532,51 +712,33 @@ Guidelines:
   const enc = new TextEncoder()
 
   const push = async (data: object) => {
-    try {
-      await writer.write(enc.encode(`data: ${JSON.stringify(data)}\n\n`))
-    } catch {
-      // client disconnected — ignore
-    }
+    try { await writer.write(enc.encode(`data: ${JSON.stringify(data)}\n\n`)) } catch { }
   }
 
-  const ctx = { db, orgId: orgId!, siteId: siteId!, userId: userId!, agentMessages }
+  const ctx = { db, orgId, siteId, userId, agentMessages }
   const toolCalls: Array<{ name: string; input: any; result: any }> = []
-  let totalInput = 0
-  let totalOutput = 0
-  let cfLogId: string | null = null
+  let totalInput = 0, totalOutput = 0, cfLogId: string | null = null
 
   ;(async () => {
     try {
       for (let i = 0; i < MAX_ITERATIONS; i++) {
         let aiResponse
-        let lastErr: any
         for (let attempt = 0; attempt < 2; attempt++) {
           try {
             aiResponse = await callAiGateway(env, agentMessages, {
-              system: SYSTEM,
-              tools: TOOLS,
-              maxTokens: 8192,
+              system: SYSTEM, tools: TOOLS, maxTokens: 8192,
               metadata: { org_id: orgId, site_id: siteId, action: 'chowbot' },
             })
             break
           } catch (err: any) {
-            lastErr = err
             const is429 = err?.message?.includes('429') || err?.message?.includes('rate_limit')
-            if (is429 && attempt === 0) {
-              await new Promise(r => setTimeout(r, 8000))
-              continue
-            }
-            console.error('[agent] callAiGateway error:', err?.message)
-            await push({ type: 'error', message: is429
-              ? 'Rate limit hit — please wait a moment and try again.'
-              : (err?.message ?? 'AI generation failed. Please try again.')
-            })
+            if (is429 && attempt === 0) { await new Promise(r => setTimeout(r, 8000)); continue }
+            await push({ type: 'error', message: is429 ? 'Rate limit hit — please wait a moment.' : (err?.message ?? 'AI generation failed.') })
             return
           }
         }
         if (!aiResponse) {
-          console.error('[agent] callAiGateway failed after retry:', lastErr?.message)
-          await push({ type: 'error', message: 'AI generation failed after retry. Please try again.' })
+          await push({ type: 'error', message: 'AI generation failed after retry.' })
           return
         }
 
@@ -585,14 +747,13 @@ Guidelines:
         cfLogId = aiResponse.cfLogId
 
         if (aiResponse.stop_reason === 'end_turn') {
-          await push({ type: 'text', content: aiResponse.content.find(b => b.type === 'text')?.text ?? '' })
+          await push({ type: 'text', content: aiResponse.content.find((b: any) => b.type === 'text')?.text ?? '' })
           break
         }
 
         if (aiResponse.stop_reason === 'tool_use') {
           agentMessages.push({ role: 'assistant', content: aiResponse.content })
           const results: any[] = []
-
           for (const block of aiResponse.content) {
             if (block.type !== 'tool_use') continue
             await push({ type: 'tool_start', name: block.name })
@@ -601,7 +762,6 @@ Guidelines:
             results.push({ type: 'tool_result', tool_use_id: block.id, content: JSON.stringify(result) })
             await push({ type: 'tool_done', name: block.name })
           }
-
           agentMessages.push({ role: 'user', content: results })
           continue
         }
@@ -609,7 +769,7 @@ Guidelines:
         if (aiResponse.stop_reason === 'max_tokens') {
           await push({ type: 'text', content: 'Response too large. Try adding items section by section.' })
         } else {
-          await push({ type: 'text', content: aiResponse.content.find(b => b.type === 'text')?.text ?? '' })
+          await push({ type: 'text', content: aiResponse.content.find((b: any) => b.type === 'text')?.text ?? '' })
         }
         break
       }
@@ -617,22 +777,17 @@ Guidelines:
       let creditsRemaining: number | null = null
       if (!isDev) {
         const charged = await chargeCredits(db, orgId, {
-          siteId,
-          action: 'chowbot',
-          model: MODEL,
-          inputTokens: totalInput,
-          outputTokens: totalOutput,
-          cfGatewayLogId: cfLogId,
+          siteId, action: 'chowbot', model: MODEL,
+          inputTokens: totalInput, outputTokens: totalOutput, cfGatewayLogId: cfLogId,
         })
         creditsRemaining = charged.newBalance
       }
 
       await push({ type: 'done', toolCalls, creditsRemaining })
     } catch (err: any) {
-      console.error('[agent] stream error:', err?.message)
-      await push({ type: 'error', message: err?.message ?? 'Something went wrong. Please try again.' })
+      await push({ type: 'error', message: err?.message ?? 'Something went wrong.' })
     } finally {
-      try { await writer.close() } catch { /* client disconnected — stream already closed */ }
+      try { await writer.close() } catch { }
     }
   })()
 
