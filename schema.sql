@@ -205,6 +205,16 @@ CREATE TABLE IF NOT EXISTS business_locations (
   is_primary BOOLEAN DEFAULT false,
   status TEXT DEFAULT 'active' CHECK (status IN ('active', 'inactive', 'sync_error')),
   last_synced_at TEXT,
+  description TEXT,
+  short_description TEXT,
+  special_hours TEXT,
+  price_level TEXT,
+  attributes TEXT,
+  email TEXT,
+  facebook_url TEXT,
+  instagram_url TEXT,
+  tiktok_url TEXT,
+  google_place_id TEXT,
   created_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
   updated_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
   FOREIGN KEY (organization_id) REFERENCES organization(id) ON DELETE CASCADE,
@@ -377,9 +387,15 @@ CREATE TABLE IF NOT EXISTS reviews (
   location_id TEXT,
   menu_item_slug TEXT,
   author_name TEXT,
+  reviewer_photo_url TEXT,
   rating INTEGER NOT NULL CHECK (rating BETWEEN 1 AND 5),
   title TEXT,
   content TEXT,
+  google_review_id TEXT,
+  owner_reply TEXT,
+  owner_reply_at TEXT,
+  photo_urls TEXT,                    -- JSON array
+  helpful_count INTEGER DEFAULT 0,
   status TEXT DEFAULT 'pending',
   source TEXT DEFAULT 'direct',
   ip_hash TEXT,
@@ -390,6 +406,9 @@ CREATE TABLE IF NOT EXISTS reviews (
   FOREIGN KEY (site_id) REFERENCES sites(id) ON DELETE CASCADE,
   FOREIGN KEY (location_id) REFERENCES business_locations(id) ON DELETE CASCADE
 );
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_reviews_google_id
+  ON reviews(google_review_id) WHERE google_review_id IS NOT NULL;
 
 --------------------------------------------------------------------------------
 -- Billing
@@ -456,9 +475,20 @@ CREATE TABLE IF NOT EXISTS posts (
   id TEXT PRIMARY KEY,
   organization_id TEXT NOT NULL,
   site_id TEXT NOT NULL,
+  location_id TEXT REFERENCES business_locations(id) ON DELETE SET NULL,
+  google_post_id TEXT,              -- GMB localPost resource name for dedup
+  post_type TEXT NOT NULL DEFAULT 'standard'
+    CHECK (post_type IN ('standard','offer','event','update')),
   title TEXT,
   body TEXT NOT NULL,
   image_url TEXT,
+  cta_type TEXT,                    -- BOOK | ORDER | SHOP | LEARN_MORE | SIGN_UP | CALL
+  cta_url TEXT,
+  event_title TEXT,
+  event_start TEXT,
+  event_end TEXT,
+  offer_coupon TEXT,
+  offer_terms TEXT,
   status TEXT NOT NULL DEFAULT 'draft' CHECK (status IN ('draft', 'published', 'scheduled', 'archived')),
   scheduled_for TEXT,
   published_at TEXT,
@@ -468,6 +498,12 @@ CREATE TABLE IF NOT EXISTS posts (
   FOREIGN KEY (organization_id) REFERENCES organization(id) ON DELETE CASCADE,
   FOREIGN KEY (site_id) REFERENCES sites(id) ON DELETE CASCADE
 );
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_posts_google_id
+  ON posts(google_post_id) WHERE google_post_id IS NOT NULL;
+
+CREATE INDEX IF NOT EXISTS idx_posts_location
+  ON posts(location_id) WHERE location_id IS NOT NULL;
 
 -- One row per channel per post — channels publish independently
 CREATE TABLE IF NOT EXISTS post_channel_jobs (
@@ -601,3 +637,64 @@ ON CONFLICT(id) DO UPDATE SET
   description = excluded.description,
   status = excluded.status,
   updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now');
+
+--------------------------------------------------------------------------------
+-- Location Photos & Q&A
+--------------------------------------------------------------------------------
+
+CREATE TABLE IF NOT EXISTS location_photos (
+  id TEXT PRIMARY KEY,
+  organization_id TEXT NOT NULL,
+  site_id TEXT NOT NULL,
+  location_id TEXT NOT NULL,
+  google_media_name TEXT,
+  google_url TEXT,
+  thumbnail_url TEXT,
+  local_url TEXT,
+  category TEXT NOT NULL DEFAULT 'GENERAL'
+    CHECK (category IN ('EXTERIOR','INTERIOR','FOOD','MENU','TEAM','ADDITIONAL','GENERAL')),
+  description TEXT,
+  source TEXT NOT NULL DEFAULT 'manual' CHECK (source IN ('gmb','manual')),
+  sort_order INTEGER NOT NULL DEFAULT 0,
+  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+  updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+  FOREIGN KEY (organization_id) REFERENCES organization(id) ON DELETE CASCADE,
+  FOREIGN KEY (site_id) REFERENCES sites(id) ON DELETE CASCADE,
+  FOREIGN KEY (location_id) REFERENCES business_locations(id) ON DELETE CASCADE
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_location_photos_google_name
+  ON location_photos(google_media_name) WHERE google_media_name IS NOT NULL;
+
+CREATE INDEX IF NOT EXISTS idx_location_photos_location
+  ON location_photos(location_id, category, sort_order);
+
+CREATE TABLE IF NOT EXISTS location_qa (
+  id TEXT PRIMARY KEY,
+  organization_id TEXT NOT NULL,
+  site_id TEXT NOT NULL,
+  location_id TEXT NOT NULL,
+  google_question_id TEXT,
+  question TEXT NOT NULL,
+  question_author TEXT,
+  question_date TEXT,
+  answer TEXT,
+  answer_author TEXT,
+  answer_date TEXT,
+  is_owner_answer INTEGER NOT NULL DEFAULT 0,
+  upvote_count INTEGER NOT NULL DEFAULT 0,
+  source TEXT NOT NULL DEFAULT 'manual' CHECK (source IN ('gmb','manual')),
+  status TEXT NOT NULL DEFAULT 'published' CHECK (status IN ('published','hidden')),
+  sort_order INTEGER NOT NULL DEFAULT 0,
+  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+  updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+  FOREIGN KEY (organization_id) REFERENCES organization(id) ON DELETE CASCADE,
+  FOREIGN KEY (site_id) REFERENCES sites(id) ON DELETE CASCADE,
+  FOREIGN KEY (location_id) REFERENCES business_locations(id) ON DELETE CASCADE
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_location_qa_google_id
+  ON location_qa(google_question_id) WHERE google_question_id IS NOT NULL;
+
+CREATE INDEX IF NOT EXISTS idx_location_qa_location
+  ON location_qa(location_id, status, sort_order);
