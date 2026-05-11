@@ -8,10 +8,20 @@ interface UpdateLocationBody {
   address?: unknown
   city?: string
   phone?: string
+  email?: string
   image_url?: string
   website_url?: string
   maps_url?: string
   opening_hours?: unknown
+  special_hours?: unknown
+  description?: string
+  short_description?: string
+  price_level?: string
+  attributes?: unknown
+  facebook_url?: string
+  instagram_url?: string
+  tiktok_url?: string
+  google_place_id?: string
   is_primary?: boolean
   status?: 'active' | 'inactive' | 'sync_error'
 }
@@ -137,6 +147,25 @@ export default defineEventHandler(async (event) => {
       }
       setParts.push('status = ?')
       params.push(body.status)
+    }
+
+    const simpleFields: Array<[keyof UpdateLocationBody, string?]> = [
+      ['email'], ['description'], ['short_description'], ['price_level'],
+      ['facebook_url'], ['instagram_url'], ['tiktok_url'], ['google_place_id'],
+    ]
+    for (const [field] of simpleFields) {
+      if (body[field] !== undefined) {
+        setParts.push(`${field} = ?`)
+        params.push((body[field] as string) || null)
+      }
+    }
+    if (body.special_hours !== undefined) {
+      setParts.push('special_hours = ?')
+      params.push(body.special_hours ? JSON.stringify(body.special_hours) : null)
+    }
+    if (body.attributes !== undefined) {
+      setParts.push('attributes = ?')
+      params.push(body.attributes ? JSON.stringify(body.attributes) : null)
     }
 
     const now = new Date().toISOString()

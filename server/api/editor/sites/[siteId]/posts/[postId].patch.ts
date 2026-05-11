@@ -29,6 +29,15 @@ export default defineEventHandler(async (event) => {
     body: body.body,
     image_url: body.image_url,
     scheduled_for: body.scheduled_for,
+    location_id: body.location_id,
+    post_type: body.post_type,
+    cta_type: body.cta_type,
+    cta_url: body.cta_url,
+    event_title: body.event_title,
+    event_start: body.event_start,
+    event_end: body.event_end,
+    offer_coupon: body.offer_coupon,
+    offer_terms: body.offer_terms,
   }, session.user.id)
 
   if (!post) return jsonResponse({ error: 'Post not found' }, { status: 404 })

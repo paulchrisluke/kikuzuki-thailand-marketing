@@ -29,6 +29,15 @@ export default defineEventHandler(async (event) => {
     body: body.body.trim(),
     image_url: body.image_url?.trim() || undefined,
     scheduled_for: body.scheduled_for || undefined,
+    location_id: body.location_id || undefined,
+    post_type: body.post_type || undefined,
+    cta_type: body.cta_type || undefined,
+    cta_url: body.cta_url || undefined,
+    event_title: body.event_title || undefined,
+    event_start: body.event_start || undefined,
+    event_end: body.event_end || undefined,
+    offer_coupon: body.offer_coupon || undefined,
+    offer_terms: body.offer_terms || undefined,
   }, session.user.id)
 
   return jsonResponse({ success: true, post }, { status: 201 })

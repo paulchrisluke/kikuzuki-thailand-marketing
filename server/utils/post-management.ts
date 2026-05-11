@@ -2,9 +2,19 @@ export interface Post {
   id: string
   organization_id: string
   site_id: string
+  location_id: string | null
+  google_post_id: string | null
+  post_type: 'standard' | 'offer' | 'event' | 'update'
   title: string | null
   body: string
   image_url: string | null
+  cta_type: string | null
+  cta_url: string | null
+  event_title: string | null
+  event_start: string | null
+  event_end: string | null
+  offer_coupon: string | null
+  offer_terms: string | null
   status: 'draft' | 'published' | 'scheduled' | 'archived'
   scheduled_for: string | null
   published_at: string | null
@@ -71,18 +81,30 @@ export async function createPost(
   db: any,
   organizationId: string,
   siteId: string,
-  data: { title?: string; body: string; image_url?: string; scheduled_for?: string },
+  data: {
+    title?: string; body: string; image_url?: string; scheduled_for?: string
+    location_id?: string; post_type?: string
+    cta_type?: string; cta_url?: string
+    event_title?: string; event_start?: string; event_end?: string
+    offer_coupon?: string; offer_terms?: string
+  },
   createdBy: string
 ): Promise<Post> {
   const id = crypto.randomUUID()
   const now = new Date().toISOString()
 
   await db.prepare(`
-    INSERT INTO posts (id, organization_id, site_id, title, body, image_url, status, scheduled_for, created_by, created_at, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?, 'draft', ?, ?, ?, ?)
+    INSERT INTO posts (id, organization_id, site_id, location_id, post_type, title, body, image_url,
+      cta_type, cta_url, event_title, event_start, event_end, offer_coupon, offer_terms,
+      status, scheduled_for, created_by, created_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'draft', ?, ?, ?, ?)
   `).bind(
     id, organizationId, siteId,
+    data.location_id ?? null, data.post_type ?? 'standard',
     data.title ?? null, data.body, data.image_url ?? null,
+    data.cta_type ?? null, data.cta_url ?? null,
+    data.event_title ?? null, data.event_start ?? null, data.event_end ?? null,
+    data.offer_coupon ?? null, data.offer_terms ?? null,
     data.scheduled_for ?? null, createdBy, now, now
   ).run()
 
@@ -94,17 +116,29 @@ export async function updatePost(
   organizationId: string,
   siteId: string,
   postId: string,
-  data: { title?: string; body?: string; image_url?: string; scheduled_for?: string | null },
+  data: {
+    title?: string; body?: string; image_url?: string; scheduled_for?: string | null
+    location_id?: string | null; post_type?: string
+    cta_type?: string | null; cta_url?: string | null
+    event_title?: string | null; event_start?: string | null; event_end?: string | null
+    offer_coupon?: string | null; offer_terms?: string | null
+  },
   updatedBy: string
 ): Promise<Post | null> {
   const now = new Date().toISOString()
   const sets: string[] = ['updated_at = ?']
   const params: any[] = [now]
 
-  if (data.title !== undefined) { sets.push('title = ?'); params.push(data.title ?? null) }
-  if (data.body !== undefined) { sets.push('body = ?'); params.push(data.body) }
-  if (data.image_url !== undefined) { sets.push('image_url = ?'); params.push(data.image_url ?? null) }
-  if (data.scheduled_for !== undefined) { sets.push('scheduled_for = ?'); params.push(data.scheduled_for ?? null) }
+  const fields: Array<[string, any]> = [
+    ['title', data.title], ['body', data.body], ['image_url', data.image_url],
+    ['scheduled_for', data.scheduled_for], ['location_id', data.location_id],
+    ['post_type', data.post_type], ['cta_type', data.cta_type], ['cta_url', data.cta_url],
+    ['event_title', data.event_title], ['event_start', data.event_start], ['event_end', data.event_end],
+    ['offer_coupon', data.offer_coupon], ['offer_terms', data.offer_terms],
+  ]
+  for (const [col, val] of fields) {
+    if (val !== undefined) { sets.push(`${col} = ?`); params.push(val ?? null) }
+  }
 
   params.push(postId, organizationId, siteId)
   await db.prepare(`UPDATE posts SET ${sets.join(', ')} WHERE id = ? AND organization_id = ? AND site_id = ?`)
