@@ -74,13 +74,16 @@ export default defineEventHandler(async (event) => {
 
   const orgId: string = site.organization_id
 
-  // Check credits before doing anything expensive
-  const creditOk = await hasCredits(db, orgId)
-  if (!creditOk) {
-    return jsonResponse(
-      { error: 'No AI credits remaining. Upgrade your plan or purchase more credits.' },
-      { status: 402 }
-    )
+  // Check credits before doing anything expensive (skipped in local dev)
+  const isDev = process.env.NODE_ENV === 'development'
+  if (!isDev) {
+    const creditOk = await hasCredits(db, orgId)
+    if (!creditOk) {
+      return jsonResponse(
+        { error: 'No AI credits remaining. Upgrade your plan or purchase more credits.' },
+        { status: 402 }
+      )
+    }
   }
 
   // Parse multipart upload
@@ -167,7 +170,7 @@ export default defineEventHandler(async (event) => {
   const rawText = aiResponse.content.find((b) => b.type === 'text')?.text ?? ''
   const jsonText = (() => {
     const fenced = rawText.match(/```(?:json)?\s*([\s\S]*?)```/)
-    if (fenced) return fenced[1].trim()
+    if (fenced) return (fenced[1] ?? '').trim()
     const obj = rawText.match(/\{[\s\S]*\}/)
     if (obj) return obj[0]
     return rawText.trim()
@@ -218,8 +221,8 @@ export default defineEventHandler(async (event) => {
         {
           section: String(item.section || 'Menu').slice(0, 100),
           name: String(item.name || '').slice(0, 200),
-          description: item.description ? String(item.description).slice(0, 500) : null,
-          price: item.price ? String(item.price).slice(0, 50) : null,
+          description: item.description ? String(item.description).slice(0, 500) : undefined,
+          price: item.price ? String(item.price).slice(0, 50) : undefined,
         },
         `ai:${session.user.id}`
       )

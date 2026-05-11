@@ -137,7 +137,7 @@ export default defineEventHandler(async (event) => {
     }
     
     // Step 5: Create site record with pending status
-    siteId = `site-${normalizedSubdomain}-${Date.now()}`
+    siteId = crypto.randomUUID()
     
     try {
       await db.prepare(`

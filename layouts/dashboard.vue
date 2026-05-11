@@ -136,7 +136,7 @@
                   variant="ghost"
                   size="sm"
                   aria-label="Open ChowBot"
-                  @click="toggleSidekick"
+                  @click="toggleChowbot"
                 />
               </UTooltip>
             </template>
@@ -167,7 +167,7 @@ const route = useRoute()
 const router = useRouter()
 const { data: sessionData, signOut } = useAuth()
 const chowBot = useChowBot() as any
-const toggleSidekick = () => chowBot.toggle()
+const toggleChowbot = () => chowBot.toggle()
 const chowBotHistory = useChowBotHistory()
 const siteRefreshSignal = useState<number>('site:refresh', () => 0)
 

@@ -151,7 +151,7 @@
 </template>
 
 <script setup>
-definePageMeta({ layout: 'tenant' })
+definePageMeta({ layout: 'saya' })
 
 const route = useRoute()
 const { siteId } = useTenantSite()

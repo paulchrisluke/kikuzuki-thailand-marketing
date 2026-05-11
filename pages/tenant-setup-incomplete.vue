@@ -46,7 +46,7 @@
 </template>
 
 <script setup>
-definePageMeta({ layout: 'tenant' })
+definePageMeta({ layout: 'saya' })
 // SEO: Add noindex for setup pages
 useHead({
   meta: [

@@ -73,7 +73,7 @@
   </div>
 </template>
 <script setup>
-definePageMeta({ layout: 'tenant' })
+definePageMeta({ layout: 'saya' })
 import { usePageContent } from '~/composables/usePageContent'
 import { usePublicMenu } from '~/composables/usePublicMenu'
 import { useTenantSite } from '~/composables/useTenantSite'

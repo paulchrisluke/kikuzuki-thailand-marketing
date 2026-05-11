@@ -41,7 +41,7 @@
 </template>
 
 <script setup>
-definePageMeta({ layout: 'tenant' })
+definePageMeta({ layout: 'saya' })
 // SEO: Add noindex for tenant error pages
 useHead({
   meta: [

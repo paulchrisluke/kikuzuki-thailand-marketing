@@ -1,15 +1,23 @@
 import { useChowBotHistory, type ChowBotConv } from './useChowBotHistory'
 
-export interface SidekickMessage {
+export interface ChowbotToolCall {
+  name: string
+  input: any
+  result: any
+  status: 'running' | 'done'
+}
+
+export interface ChowbotMessage {
   role: 'user' | 'assistant'
   content: string
-  toolCalls?: Array<{ name: string; input: any; result: any }>
+  toolCalls?: ChowbotToolCall[]
   error?: boolean
+  streaming?: boolean
 }
 
 export const useChowBot = () => {
   const isOpen = useState<boolean>('chowbot:open', () => false)
-  const messages = useState<SidekickMessage[]>('chowbot:messages', () => [])
+  const messages = useState<ChowbotMessage[]>('chowbot:messages', () => [])
   const isLoading = useState<boolean>('chowbot:loading', () => false)
   const conversationId = useState<string | null>('chowbot:convId', () => null)
 
@@ -21,29 +29,7 @@ export const useChowBot = () => {
     return typeof param === 'string' ? param : null
   })
 
-  const siteRefreshSignal = useState<number>('site:refresh', () => 0)
-
-  const handlePostActionNav = async (toolCalls: any[]) => {
-    if (!siteId.value || !toolCalls.length) return
-    const names = new Set(toolCalls.map((t: any) => t.name))
-
-    if (names.has('rename_site')) {
-      siteRefreshSignal.value++
-      return
-    }
-    if (names.has('create_post') || names.has('publish_post')) {
-      await navigateTo(`/dashboard/sites/${siteId.value}/posts`)
-      return
-    }
-    if (names.has('create_location') || names.has('update_location')) {
-      await navigateTo(`/dashboard/sites/${siteId.value}/locations`)
-      return
-    }
-    if (names.has('create_menu') || names.has('rename_menu') || names.has('add_menu_item') || names.has('update_menu_item') || names.has('publish_menu')) {
-      await navigateTo(`/dashboard/sites/${siteId.value}/menu`)
-      return
-    }
-  }
+  const { update: updateCredits } = useAiCredits(siteId)
 
   const toggle = () => { isOpen.value = !isOpen.value }
   const open = () => { isOpen.value = true }
@@ -77,9 +63,72 @@ export const useChowBot = () => {
       id,
       siteId: siteId.value,
       title: (userMessages[0]!.content).slice(0, 45),
-      messages: messages.value,
+      messages: messages.value.filter(m => !m.streaming),
       updatedAt: Date.now(),
     })
+  }
+
+  const handlePostActionNav = async (toolCalls: ChowbotToolCall[]) => {
+    if (!siteId.value || !toolCalls.length) return
+    const names = new Set(toolCalls.map(t => t.name))
+
+    if (names.has('rename_site')) {
+      useState<number>('site:refresh').value++
+      return
+    }
+
+    // Keep panel open across navigation — set isLoading briefly as a guard
+    // so the overlay @click doesn't fire during the route transition
+    let target = ''
+    if (names.has('create_post') || names.has('publish_post')) {
+      target = `/dashboard/sites/${siteId.value}/posts`
+    } else if (names.has('create_location') || names.has('update_location')) {
+      target = `/dashboard/sites/${siteId.value}/locations`
+    } else if (names.has('create_menu') || names.has('rename_menu') || names.has('add_menu_item') || names.has('update_menu_item') || names.has('publish_menu') || names.has('add_menu_items_batch')) {
+      target = `/dashboard/sites/${siteId.value}/menu`
+    }
+
+    if (target) {
+      isLoading.value = true  // prevent overlay close during transition
+      await navigateTo(target)
+      isLoading.value = false
+    }
+  }
+
+  // Replace the last message in the array (the streaming placeholder)
+  const updateLastMessage = (patch: Partial<ChowbotMessage>) => {
+    const arr = messages.value
+    if (!arr.length) return
+    messages.value = [
+      ...arr.slice(0, -1),
+      { ...arr[arr.length - 1]!, ...patch },
+    ]
+  }
+
+  const addToolToLast = (tool: ChowbotToolCall) => {
+    const arr = messages.value
+    if (!arr.length) return
+    const last = arr[arr.length - 1]!
+    messages.value = [
+      ...arr.slice(0, -1),
+      { ...last, toolCalls: [...(last.toolCalls ?? []), tool] },
+    ]
+  }
+
+  const markToolDone = (name: string) => {
+    const arr = messages.value
+    if (!arr.length) return
+    const last = arr[arr.length - 1]!
+    // Mark the most recent 'running' tool with this name as done
+    let marked = false
+    const updated = (last.toolCalls ?? []).map(t => {
+      if (!marked && t.name === name && t.status === 'running') {
+        marked = true
+        return { ...t, status: 'done' as const }
+      }
+      return t
+    })
+    messages.value = [...arr.slice(0, -1), { ...last, toolCalls: updated }]
   }
 
   const sendMessage = async (text: string) => {
@@ -93,33 +142,80 @@ export const useChowBot = () => {
       return
     }
 
-    messages.value = [...messages.value, { role: 'user', content: text.trim() }]
+    // Add user message + streaming placeholder first, then build history
+    // (history must include the current user message or the first request sends an empty array)
+    messages.value = [
+      ...messages.value,
+      { role: 'user', content: text.trim() },
+      { role: 'assistant', content: '', toolCalls: [], streaming: true },
+    ]
     isLoading.value = true
 
+    const history_msgs = messages.value
+      .filter(m => !m.error && !m.streaming)
+      .map(m => ({ role: m.role, content: m.content }))
+
     try {
-      const history_msgs = messages.value
-        .filter(m => !m.error)
-        .map(m => ({ role: m.role, content: m.content }))
+      const response = await fetch(`/api/ai/${siteId.value}/agent`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ messages: history_msgs, currentPage: route.name }),
+      })
 
-      const res = await $fetch<{ success: boolean; reply: string; toolCalls: any[] }>(
-        `/api/ai/${siteId.value}/agent`,
-        {
-          method: 'POST',
-          body: { messages: history_msgs, currentPage: route.name },
+      if (!response.ok) {
+        const err = await response.json().catch(() => ({}))
+        throw new Error((err as any)?.error ?? `Error ${response.status}`)
+      }
+
+      const reader = response.body!.getReader()
+      const decoder = new TextDecoder()
+      let buf = ''
+
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+        buf += decoder.decode(value, { stream: true })
+
+        // SSE lines are separated by \n\n
+        const parts = buf.split('\n\n')
+        buf = parts.pop() ?? ''
+
+        for (const part of parts) {
+          const line = part.trim()
+          if (!line.startsWith('data: ')) continue
+          try {
+            const ev = JSON.parse(line.slice(6))
+
+            if (ev.type === 'tool_start') {
+              addToolToLast({ name: ev.name, input: {}, result: null, status: 'running' })
+            }
+
+            if (ev.type === 'tool_done') {
+              markToolDone(ev.name)
+            }
+
+            if (ev.type === 'text') {
+              updateLastMessage({ content: ev.content })
+            }
+
+            if (ev.type === 'done') {
+              updateLastMessage({ toolCalls: ev.toolCalls, streaming: false })
+              updateCredits(ev.creditsRemaining ?? null)
+              persistConversation()
+              await handlePostActionNav(ev.toolCalls ?? [])
+            }
+
+            if (ev.type === 'error') {
+              updateLastMessage({ content: ev.message, error: true, streaming: false })
+            }
+          } catch (parseErr) {
+            console.error('[ChowBot] SSE parse error:', parseErr)
+          }
         }
-      )
-
-      messages.value = [...messages.value, {
-        role: 'assistant',
-        content: res.reply,
-        toolCalls: res.toolCalls?.length ? res.toolCalls : undefined,
-      }]
-
-      persistConversation()
-      await handlePostActionNav(res.toolCalls ?? [])
+      }
     } catch (err: any) {
-      const msg = err?.data?.error ?? 'Something went wrong. Please try again.'
-      messages.value = [...messages.value, { role: 'assistant', content: msg, error: true }]
+      console.error('[ChowBot] sendMessage error:', err)
+      updateLastMessage({ content: err?.message ?? 'Something went wrong. Please try again.', error: true, streaming: false })
     } finally {
       isLoading.value = false
     }

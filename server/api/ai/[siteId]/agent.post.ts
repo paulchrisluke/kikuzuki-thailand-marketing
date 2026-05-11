@@ -7,9 +7,9 @@ import { getAuthSession } from '~/server/utils/auth'
 import { callAiGateway, type AiTool, type AiMessage } from '~/server/utils/ai-gateway'
 import { hasCredits, chargeCredits } from '~/server/utils/ai-credits'
 import { listPosts, createPost, publishPost } from '~/server/utils/post-management'
-import { getMenus, getMenuWithItems, createMenu, updateMenu, createMenuItem, updateMenuItem } from '~/server/utils/menu-management'
+import { getMenus, getMenuWithItems, createMenu, updateMenu, createMenuItem, updateMenuItem, deleteMenu } from '~/server/utils/menu-management'
 
-const MAX_ITERATIONS = 5
+const MAX_ITERATIONS = 10
 const MODEL = 'claude-sonnet-4-6'
 
 const TOOLS: AiTool[] = [
@@ -87,15 +87,28 @@ const TOOLS: AiTool[] = [
     },
   },
   {
-    name: 'confirm_bulk_operation',
-    description: 'Ask the user for confirmation before executing a bulk operation (e.g., adding many menu items at once). Call this before firing multiple tool calls to ensure the user wants to proceed.',
+    name: 'add_menu_items_batch',
+    description: 'Add multiple menu items in a single call. ALWAYS use this instead of calling add_menu_item repeatedly. Accepts up to 100 items at once.',
     input_schema: {
       type: 'object',
       properties: {
-        operation: { type: 'string', description: 'Description of the operation, e.g. "Add 86 menu items to Ao Nang menu".' },
-        count: { type: 'number', description: 'Number of items/operations to perform.' },
+        menu_id: { type: 'string', description: 'ID of the menu to add items to.' },
+        items: {
+          type: 'array',
+          description: 'Items to add.',
+          items: {
+            type: 'object',
+            properties: {
+              section: { type: 'string', description: 'Section/category name.' },
+              name: { type: 'string', description: 'Dish name.' },
+              description: { type: 'string', description: 'Short description. Optional.' },
+              price: { type: 'string', description: 'Price string, e.g. "฿120". Optional.' },
+            },
+            required: ['section', 'name'],
+          },
+        },
       },
-      required: ['operation', 'count'],
+      required: ['menu_id', 'items'],
     },
   },
   {
@@ -193,14 +206,46 @@ const TOOLS: AiTool[] = [
       required: ['menu_id'],
     },
   },
+  {
+    name: 'delete_menu',
+    description: 'Permanently delete a menu and all its items. Only use after the user confirms they want it deleted.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        menu_id: { type: 'string', description: 'ID of the menu to delete.' },
+      },
+      required: ['menu_id'],
+    },
+  },
 ]
+
+const CONFIRM_REQUIRED = new Set(['publish_post', 'publish_menu', 'delete_menu'])
+
+// Tools that mutate and should not run if the recent conversation shows no confirmation
+function requiresConfirmation(name: string, recentMessages: AiMessage[]): boolean {
+  if (!CONFIRM_REQUIRED.has(name)) return false
+  const CONFIRM_WORDS = /\b(yes|ok|go ahead|do it|publish|confirm|proceed|sure)\b/i
+  // Check the last 3 user turns for confirmation
+  const userTurns = recentMessages
+    .filter(m => m.role === 'user')
+    .slice(-3)
+    .map(m => (typeof m.content === 'string' ? m.content : ''))
+  return !userTurns.some(t => CONFIRM_WORDS.test(t))
+}
 
 async function executeTool(
   name: string,
   input: Record<string, any>,
-  ctx: { db: any; orgId: string; siteId: string; userId: string }
+  ctx: { db: any; orgId: string; siteId: string; userId: string; agentMessages?: AiMessage[] }
 ): Promise<any> {
   const { db, orgId, siteId, userId } = ctx
+
+  if (requiresConfirmation(name, ctx.agentMessages ?? [])) {
+    return {
+      __requires_confirmation: true,
+      message: `Please confirm you want to ${name.replace(/_/g, ' ')} before I proceed.`,
+    }
+  }
 
   switch (name) {
     case 'get_posts': {
@@ -280,11 +325,11 @@ async function executeTool(
 
     case 'rename_site': {
       const now = new Date().toISOString()
-      // Keep name (internal identifier) in sync with brand_name
+      const newSubdomain = input.brand_name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')
       await db.prepare(
-        'UPDATE sites SET brand_name = ?, name = ?, updated_at = ? WHERE id = ? AND organization_id = ?'
-      ).bind(input.brand_name, input.brand_name, now, siteId, orgId).run()
-      return { brand_name: input.brand_name, updated: true }
+        'UPDATE sites SET brand_name = ?, name = ?, subdomain = ?, updated_at = ? WHERE id = ? AND organization_id = ?'
+      ).bind(input.brand_name, input.brand_name, newSubdomain, now, siteId, orgId).run()
+      return { brand_name: input.brand_name, subdomain: newSubdomain, updated: true }
     }
 
     case 'get_locations': {
@@ -362,6 +407,21 @@ async function executeTool(
       return { id: item.id, name: item.name, price: item.price, available: item.available }
     }
 
+    case 'add_menu_items_batch': {
+      const items: any[] = Array.isArray(input.items) ? input.items.slice(0, 100) : []
+      const created = await Promise.all(
+        items.map((item: any) =>
+          createMenuItem(db, input.menu_id, {
+            section: String(item.section || 'Menu').slice(0, 100),
+            name: String(item.name || '').slice(0, 200),
+            description: item.description ? String(item.description).slice(0, 500) : undefined,
+            price: item.price ? String(item.price).slice(0, 50) : undefined,
+          }, userId)
+        )
+      )
+      return { added: created.length, menu_id: input.menu_id }
+    }
+
     case 'publish_menu': {
       const now = new Date().toISOString()
       await db.prepare(
@@ -369,6 +429,11 @@ async function executeTool(
          WHERE id = ? AND organization_id = ? AND site_id = ?`
       ).bind(now, userId, input.menu_id, orgId, siteId).run()
       return { menu_id: input.menu_id, status: 'published' }
+    }
+
+    case 'delete_menu': {
+      await deleteMenu(db, orgId, siteId, input.menu_id)
+      return { menu_id: input.menu_id, deleted: true }
     }
 
     default:
@@ -398,8 +463,11 @@ export default defineEventHandler(async (event) => {
   const orgId: string = site.organization_id
   const userId: string = session.user.id
 
-  const creditOk = await hasCredits(db, orgId)
-  if (!creditOk) return jsonResponse({ error: 'No AI credits remaining.' }, { status: 402 })
+  const isDev = process.env.NODE_ENV === 'development'
+  if (!isDev) {
+    const creditOk = await hasCredits(db, orgId)
+    if (!creditOk) return jsonResponse({ error: 'No AI credits remaining.' }, { status: 402 })
+  }
 
   let body: { messages?: any[]; currentPage?: string }
   try { body = await readBody(event) } catch {
@@ -413,7 +481,7 @@ export default defineEventHandler(async (event) => {
   const siteName = (site.brand_name as string | null) ?? 'your site'
   const currentPage = body.currentPage ?? 'dashboard'
 
-  const SYSTEM = `You are ChowBot, an AI assistant for restaurant website owners using KrabiClaw and Chowbot.
+  const SYSTEM = `You are ChowBot, an AI assistant for restaurant website owners using Kikuzuki.
 Help manage site content — posts, menus, locations, and more — with concise, action-oriented responses.
 
 Site: ${siteName}
@@ -421,81 +489,152 @@ Current page: ${currentPage}
 
 Capabilities (always use tools — never say you can't do something the tools support):
 - Posts: list, create, publish
-- Menus: create, rename, view items, add items, update items, publish menu
-- Locations/branches: list, create, update (title, city, phone, address), rename
-- Site: rename (brand name + internal name stay in sync)
-- Slugs: updating a location title ALWAYS auto-updates its URL slug — just call update_location with the new title
+- Menus: create, rename, view items, add items (batch), update items, publish, delete
+- Locations/branches: list, create, update (title auto-syncs slug)
+- Site: rename brand name (also updates subdomain/URL slug)
 - Stats: post counts, menu counts
 
 Guidelines:
-- Use tools to take real actions, not just describe what could be done
-- After creating a post, always show the content and ask before publishing
-- Before performing bulk operations (adding 5+ menu items at once), ALWAYS call confirm_bulk_operation first to get user confirmation
-- Keep responses short — this is a chat panel, not a report
-- When listing posts or menu items, show the most relevant 5
-- Never tell the user a feature is unavailable if a tool exists for it`
+- Use tools to take real actions immediately — never say "I'll do that" without calling a tool
+- After creating a post, show the content and confirm before publishing
+- When adding multiple menu items, ALWAYS use add_menu_items_batch — pass ALL items in one call, never loop
+- After add_menu_items_batch, reply: "Added X items to [menu name]."
+- Before publish_post, publish_menu, or delete_menu, confirm with the user first
+- Menus are DRAFT by default — they only appear on the live site after publish_menu is called
+- Keep responses short — this is a chat panel
+- Never say a feature is unavailable if a tool supports it`
 
-  const agentMessages: AiMessage[] = body.messages.map((m: any) => ({
-    role: m.role as 'user' | 'assistant',
-    content: typeof m.content === 'string' ? m.content : String(m.content ?? ''),
-  }))
+  // Limit history to the last 8 client messages and cap each message at 4000 chars.
+  // This prevents rate-limit errors from long pasted content. Tool-loop messages added
+  // below are always kept intact — never windowed mid-loop, which would split
+  // tool_use / tool_result pairs and cause a 400 from the API.
+  const MAX_MSG_CHARS = 4000
+  let initialMessages = body.messages.slice(-8)
+  // Anthropic requires the first message to be from the user.
+  while (initialMessages.length > 0 && initialMessages[0]?.role !== 'user') {
+    initialMessages = initialMessages.slice(1)
+  }
+  const agentMessages: AiMessage[] = initialMessages.map((m: any) => {
+    const raw = typeof m.content === 'string' ? m.content : String(m.content ?? '')
+    return {
+      role: m.role as 'user' | 'assistant',
+      content: raw.length > MAX_MSG_CHARS ? raw.slice(0, MAX_MSG_CHARS) + '\n…[truncated]' : raw,
+    }
+  })
 
+  // --- SSE streaming response ---
+  setResponseHeader(event, 'Content-Type', 'text/event-stream')
+  setResponseHeader(event, 'Cache-Control', 'no-cache')
+  setResponseHeader(event, 'X-Accel-Buffering', 'no')
+
+  const { readable, writable } = new TransformStream()
+  const writer = writable.getWriter()
+  const enc = new TextEncoder()
+
+  const push = async (data: object) => {
+    try {
+      await writer.write(enc.encode(`data: ${JSON.stringify(data)}\n\n`))
+    } catch {
+      // client disconnected — ignore
+    }
+  }
+
+  const ctx = { db, orgId: orgId!, siteId: siteId!, userId: userId!, agentMessages }
   const toolCalls: Array<{ name: string; input: any; result: any }> = []
   let totalInput = 0
   let totalOutput = 0
   let cfLogId: string | null = null
-  let finalReply = ''
 
-  for (let i = 0; i < MAX_ITERATIONS; i++) {
-    let aiResponse
+  ;(async () => {
     try {
-      aiResponse = await callAiGateway(env, agentMessages, {
-        system: SYSTEM,
-        tools: TOOLS,
-        maxTokens: 1024,
-        metadata: { org_id: orgId, site_id: siteId, action: 'sidekick' },
-      })
-    } catch (err: any) {
-      console.error('[agent] callAiGateway error:', err?.message)
-      return jsonResponse({ error: err?.message ?? 'AI generation failed. Please try again.' }, { status: 502 })
-    }
+      for (let i = 0; i < MAX_ITERATIONS; i++) {
+        let aiResponse
+        let lastErr: any
+        for (let attempt = 0; attempt < 2; attempt++) {
+          try {
+            aiResponse = await callAiGateway(env, agentMessages, {
+              system: SYSTEM,
+              tools: TOOLS,
+              maxTokens: 8192,
+              metadata: { org_id: orgId, site_id: siteId, action: 'chowbot' },
+            })
+            break
+          } catch (err: any) {
+            lastErr = err
+            const is429 = err?.message?.includes('429') || err?.message?.includes('rate_limit')
+            if (is429 && attempt === 0) {
+              await new Promise(r => setTimeout(r, 8000))
+              continue
+            }
+            console.error('[agent] callAiGateway error:', err?.message)
+            await push({ type: 'error', message: is429
+              ? 'Rate limit hit — please wait a moment and try again.'
+              : (err?.message ?? 'AI generation failed. Please try again.')
+            })
+            return
+          }
+        }
+        if (!aiResponse) {
+          console.error('[agent] callAiGateway failed after retry:', lastErr?.message)
+          await push({ type: 'error', message: 'AI generation failed after retry. Please try again.' })
+          return
+        }
 
-    totalInput += aiResponse.usage.input_tokens
-    totalOutput += aiResponse.usage.output_tokens
-    cfLogId = aiResponse.cfLogId
+        totalInput += aiResponse.usage.input_tokens
+        totalOutput += aiResponse.usage.output_tokens
+        cfLogId = aiResponse.cfLogId
 
-    if (aiResponse.stop_reason === 'end_turn') {
-      finalReply = aiResponse.content.find(b => b.type === 'text')?.text ?? ''
-      break
-    }
+        if (aiResponse.stop_reason === 'end_turn') {
+          await push({ type: 'text', content: aiResponse.content.find(b => b.type === 'text')?.text ?? '' })
+          break
+        }
 
-    if (aiResponse.stop_reason === 'tool_use') {
-      agentMessages.push({ role: 'assistant', content: aiResponse.content })
+        if (aiResponse.stop_reason === 'tool_use') {
+          agentMessages.push({ role: 'assistant', content: aiResponse.content })
+          const results: any[] = []
 
-      const results: any[] = []
-      for (const block of aiResponse.content) {
-        if (block.type !== 'tool_use') continue
-        const result = await executeTool(block.name || '', block.input ?? {}, { db, orgId: orgId!, siteId: siteId!, userId: userId! })
-        toolCalls.push({ name: block.name || '', input: block.input, result })
-        results.push({ type: 'tool_result', tool_use_id: block.id, content: JSON.stringify(result) })
+          for (const block of aiResponse.content) {
+            if (block.type !== 'tool_use') continue
+            await push({ type: 'tool_start', name: block.name })
+            const result = await executeTool(block.name || '', block.input ?? {}, ctx)
+            toolCalls.push({ name: block.name || '', input: block.input, result })
+            results.push({ type: 'tool_result', tool_use_id: block.id, content: JSON.stringify(result) })
+            await push({ type: 'tool_done', name: block.name })
+          }
+
+          agentMessages.push({ role: 'user', content: results })
+          continue
+        }
+
+        if (aiResponse.stop_reason === 'max_tokens') {
+          await push({ type: 'text', content: 'Response too large. Try adding items section by section.' })
+        } else {
+          await push({ type: 'text', content: aiResponse.content.find(b => b.type === 'text')?.text ?? '' })
+        }
+        break
       }
 
-      agentMessages.push({ role: 'user', content: results })
-      continue
+      let creditsRemaining: number | null = null
+      if (!isDev) {
+        const charged = await chargeCredits(db, orgId, {
+          siteId,
+          action: 'chowbot',
+          model: MODEL,
+          inputTokens: totalInput,
+          outputTokens: totalOutput,
+          cfGatewayLogId: cfLogId,
+        })
+        creditsRemaining = charged.newBalance
+      }
+
+      await push({ type: 'done', toolCalls, creditsRemaining })
+    } catch (err: any) {
+      console.error('[agent] stream error:', err?.message)
+      await push({ type: 'error', message: err?.message ?? 'Something went wrong. Please try again.' })
+    } finally {
+      try { await writer.close() } catch { /* client disconnected — stream already closed */ }
     }
+  })()
 
-    finalReply = aiResponse.content.find(b => b.type === 'text')?.text ?? ''
-    break
-  }
-
-  await chargeCredits(db, orgId, {
-    siteId,
-    action: 'sidekick',
-    model: MODEL,
-    inputTokens: totalInput,
-    outputTokens: totalOutput,
-    cfGatewayLogId: cfLogId,
-  })
-
-  return jsonResponse({ success: true, reply: finalReply, toolCalls })
+  return sendStream(event, readable)
 })
