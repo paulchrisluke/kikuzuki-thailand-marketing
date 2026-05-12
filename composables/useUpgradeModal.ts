@@ -1,22 +1,22 @@
-const upgradeModalState = useState('upgrade-modal', () => ({
-  isOpen: false,
-  feature: '' as string
-}))
-
 export const useUpgradeModal = () => {
+  const state = useState('upgrade-modal', () => ({
+    isOpen: false,
+    feature: '' as string
+  }))
+
   const open = (feature: string) => {
-    upgradeModalState.value.feature = feature
-    upgradeModalState.value.isOpen = true
+    state.value.feature = feature
+    state.value.isOpen = true
   }
 
   const close = () => {
-    upgradeModalState.value.isOpen = false
-    upgradeModalState.value.feature = ''
+    state.value.isOpen = false
+    state.value.feature = ''
   }
 
   return {
-    isOpen: computed(() => upgradeModalState.value.isOpen),
-    feature: computed(() => upgradeModalState.value.feature),
+    isOpen: computed(() => state.value.isOpen),
+    feature: computed(() => state.value.feature),
     open,
     close
   }
