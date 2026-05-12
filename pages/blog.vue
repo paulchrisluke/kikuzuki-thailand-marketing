@@ -176,8 +176,20 @@ async function handleNewsletterSubmit() {
   }
 }
 
+import { useBreadcrumbSchema } from '~/composables/useSchemaOrg'
+
+const config = useRuntimeConfig()
+const siteUrl = config.public.siteUrl
+
+useBreadcrumbSchema([
+  { name: 'Home', url: `${siteUrl}/` },
+  { name: 'Blog', url: `${siteUrl}/blog` }
+])
+
 useSeoMeta({
   title: 'Blog | KrabiClaw',
-  description: 'Restaurant marketing tips, industry insights, and strategies to help your restaurant succeed online.'
+  description: 'Restaurant marketing tips, industry insights, and strategies to help your restaurant succeed online.',
+  ogUrl: `${siteUrl}/blog`,
+  ogType: 'website'
 })
 </script>

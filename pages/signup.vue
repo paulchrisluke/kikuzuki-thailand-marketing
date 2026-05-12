@@ -136,4 +136,8 @@ const handleEmailSignup = async () => {
     loading.value = false
   }
 }
+
+useSeoMeta({
+  robots: 'noindex, nofollow'
+})
 </script>

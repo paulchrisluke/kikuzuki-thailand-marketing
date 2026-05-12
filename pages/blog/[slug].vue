@@ -97,6 +97,27 @@ function formatDate(iso: string) {
 useSeoMeta({
   title: computed(() => post.value ? `${post.value.title} | KrabiClaw Blog` : 'Blog | KrabiClaw'),
   description: computed(() => post.value?.excerpt ?? 'Restaurant tips and insights from KrabiClaw.'),
-  ogUrl: computed(() => `${siteUrl}/blog/${route.params.slug}`)
+  ogUrl: computed(() => `${siteUrl}/blog/${route.params.slug}`),
+  ogType: 'article',
+  ogImage: '/og-image.jpg'
 })
+
+useSchemaOrg([
+  computed(() => post.value ? ({
+    '@context': 'https://schema.org',
+    '@type': 'BlogPosting',
+    headline: post.value.title,
+    description: post.value.excerpt,
+    datePublished: post.value.published_at,
+    author: {
+      '@type': 'Organization',
+      name: 'KrabiClaw'
+    },
+    image: '/og-image.jpg',
+    mainEntityOfPage: {
+      '@type': 'WebPage',
+      '@id': `${siteUrl}/blog/${route.params.slug}`
+    }
+  }) : null)
+])
 </script>

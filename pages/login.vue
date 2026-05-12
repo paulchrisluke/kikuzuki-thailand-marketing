@@ -75,6 +75,10 @@
 <script setup>
 definePageMeta({ layout: 'platform', auth: false })
 
+useSeoMeta({
+  robots: 'noindex, nofollow'
+})
+
 const router = useRouter()
 const loading = ref(false)
 const error = ref(null)

@@ -163,7 +163,10 @@ definePageMeta({ layout: 'platform' })
 const annual = ref(false)
 const openFaq = ref<string | null>(null)
 
+import { useBreadcrumbSchema } from '~/composables/useSchemaOrg'
+
 const config = useRuntimeConfig()
+const siteUrl = config.public.siteUrl
 const platformHostname = computed(() => {
   const freeSiteDomain = config.public.freeSiteDomain
   if (!freeSiteDomain) return 'krabiclaw.com'
@@ -174,6 +177,11 @@ const platformHostname = computed(() => {
     return freeSiteDomain.replace(/^https?:\/\//, '').split('/')[0] || 'krabiclaw.com'
   }
 })
+
+useBreadcrumbSchema([
+  { name: 'Home', url: `https://${platformHostname.value}/` },
+  { name: 'Pricing', url: `https://${platformHostname.value}/pricing` }
+])
 
 const freePlan = computed(() => [
   `Subdomain (your-restaurant.${platformHostname.value})`,
@@ -262,4 +270,36 @@ useSeoMeta({
   ogUrl: computed(() => `https://${platformHostname.value}/pricing`),
   ogType: 'website'
 })
+
+useSchemaOrg([
+  ({
+    '@context': 'https://schema.org',
+    '@type': 'PricingTable',
+    name: 'KrabiClaw Pricing Plans',
+    offers: [
+      {
+        '@type': 'Offer',
+        name: 'Free',
+        price: '0',
+        priceCurrency: 'USD',
+        description: 'Get started free with basic features'
+      },
+      {
+        '@type': 'Offer',
+        name: 'Pro',
+        price: '29',
+        priceCurrency: 'USD',
+        billingDuration: 'P1M',
+        description: 'Professional features per location per month'
+      },
+      {
+        '@type': 'Offer',
+        name: 'Agency',
+        price: 'Contact for pricing',
+        priceCurrency: 'USD',
+        description: 'Unlimited sites and advanced features'
+      }
+    ]
+  })
+])
 </script>

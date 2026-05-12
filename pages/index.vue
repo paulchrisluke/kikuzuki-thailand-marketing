@@ -472,6 +472,10 @@ const platformHostname = config.public.freeSiteDomain?.replace(/^https?:\/\//, '
 
 // SEO for KrabiClaw Platform
 if (isPlatform) {
+  import { useOrganizationSchema } from '~/composables/useSchemaOrg'
+  
+  useOrganizationSchema()
+  
   useSeoMeta({
     title: 'KrabiClaw | AI Restaurant Website Builder',
     description: 'Build your restaurant website in minutes with AI. No coding required.',
