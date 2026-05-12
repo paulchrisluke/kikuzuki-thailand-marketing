@@ -125,16 +125,16 @@
 
             <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
               <div class="bg-gray-50 rounded-lg p-6">
-                <h3 class="text-sm font-medium text-gray-600 mb-2">Organizations</h3>
-                <p class="text-2xl font-bold text-gray-900">{{ analytics.metrics.organizations }}</p>
+                <h3 class="text-sm font-medium text-(--ui-text-muted) mb-2">Organizations</h3>
+                <p class="text-2xl font-bold text-(--ui-text)">{{ analytics.metrics.organizations }}</p>
               </div>
               <div class="bg-gray-50 rounded-lg p-6">
-                <h3 class="text-sm font-medium text-gray-600 mb-2">Menus</h3>
-                <p class="text-2xl font-bold text-gray-900">{{ analytics.metrics.menus }}</p>
+                <h3 class="text-sm font-medium text-(--ui-text-muted) mb-2">Menus</h3>
+                <p class="text-2xl font-bold text-(--ui-text)">{{ analytics.metrics.menus }}</p>
               </div>
               <div class="bg-gray-50 rounded-lg p-6">
-                <h3 class="text-sm font-medium text-gray-600 mb-2">Locations</h3>
-                <p class="text-2xl font-bold text-gray-900">{{ analytics.metrics.locations }}</p>
+                <h3 class="text-sm font-medium text-(--ui-text-muted) mb-2">Locations</h3>
+                <p class="text-2xl font-bold text-(--ui-text)">{{ analytics.metrics.locations }}</p>
               </div>
             </div>
 

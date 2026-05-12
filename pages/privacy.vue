@@ -1,10 +1,10 @@
 <template>
   <div class="container mx-auto px-4 py-16">
     <div class="max-w-3xl mx-auto">
-      <h1 class="text-4xl font-bold text-(--kc-navy) mb-6">Privacy Policy</h1>
-      <p class="text-lg text-(--kc-navy-500) mb-12">How we protect your data</p>
+      <h1 class="text-4xl font-bold text-(--ui-text) mb-6">Privacy Policy</h1>
+      <p class="text-lg text-(--ui-text-muted) mb-12">How we protect your data</p>
 
-      <article class="prose prose-lg max-w-none text-(--kc-navy)">
+      <article class="prose prose-lg max-w-none text-(--ui-text)">
         <p><strong>Effective Date:</strong> October 21, 2024</p>
 
         <p>At <strong>KrabiClaw</strong>, your privacy is our priority. This Privacy Policy explains how we collect, use, disclose, and protect your personal information when you interact with our website builder platform and services.</p>

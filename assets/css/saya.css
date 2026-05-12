@@ -6,7 +6,7 @@
 
 .saya-theme {
   color-scheme: light;
-  background-color: #FFFFFF;
+  background-color: var(--saya-bg);
 
   --saya-primary:       #8F1D21;
   /* Mirror saya-primary into Tailwind's --color-primary so that
@@ -90,7 +90,7 @@
 /* Menu dotted leader line */
 .saya-dotted-leader {
   flex: 1;
-  border-bottom: 1px dotted #D4D4D8;
+  border-bottom: 1px dotted var(--ui-border);
   transform: translateY(-4px);
   margin: 0 8px;
   min-width: 16px;
