@@ -99,19 +99,20 @@
         </template>
 
         <template #footer="{ collapsed }">
-          <UButton
-            :avatar="{
-              src: sessionData?.user?.image,
-              loading: 'lazy',
-              alt: sessionData?.user?.name || 'User avatar'
-            }"
-            :label="collapsed ? undefined : sessionData?.user?.name"
-            color="neutral"
-            variant="ghost"
-            class="w-full"
-            :block="collapsed"
-            @click="handleSignOut"
-          />
+          <UDropdownMenu :items="profileMenuItems" :content="{ align: 'start', collisionPadding: 12, side: 'top' }">
+            <UButton
+              :avatar="{
+                src: sessionData?.user?.image,
+                loading: 'lazy',
+                alt: sessionData?.user?.name || 'User avatar'
+              }"
+              :label="collapsed ? undefined : sessionData?.user?.name"
+              color="neutral"
+              variant="ghost"
+              class="w-full"
+              :block="collapsed"
+            />
+          </UDropdownMenu>
         </template>
       </UDashboardSidebar>
 
@@ -152,6 +153,7 @@
 </template>
 
 <script setup lang="ts">
+import type { DropdownMenuItem } from '@nuxt/ui'
 import { useAuth } from '~/composables/useAuth'
 import { useChowBot } from '~/composables/useChowBot'
 import { useChowBotHistory } from '~/composables/useChowBotHistory'
@@ -242,6 +244,32 @@ const siteMenuItems = computed(() => [
       label: 'Create website',
       icon: 'i-heroicons-plus',
       onSelect: () => router.push('/dashboard/onboarding')
+    }
+  ]
+])
+
+const profileMenuItems = computed(() => [
+  [
+    {
+      label: sessionData.value?.user?.email || 'User',
+      icon: 'i-heroicons-envelope',
+      disabled: true,
+      type: 'label' as const
+    }
+  ],
+  [
+    {
+      label: 'Account Settings',
+      icon: 'i-heroicons-cog-6-tooth',
+      to: '/dashboard/settings'
+    }
+  ],
+  [
+    {
+      label: 'Log out',
+      icon: 'i-lucide-log-out',
+      color: 'error' as const,
+      onSelect: handleSignOut
     }
   ]
 ])
