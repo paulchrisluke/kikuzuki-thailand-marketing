@@ -59,6 +59,34 @@
         </div>
       </div>
 
+      <!-- Navigation links -->
+      <div class="grid gap-8 border-b border-white/8 py-12 sm:grid-cols-3">
+        <div>
+          <h4 class="saya-eyebrow mb-5 text-zinc-500">Experience</h4>
+          <ul class="space-y-3 text-sm">
+            <li><NuxtLink to="/menu" class="text-zinc-400 no-underline transition hover:text-white">Menu</NuxtLink></li>
+            <li><NuxtLink to="/reservations" class="text-zinc-400 no-underline transition hover:text-white">Reservations</NuxtLink></li>
+            <li><NuxtLink to="/photos" class="text-zinc-400 no-underline transition hover:text-white">Gallery</NuxtLink></li>
+            <li><NuxtLink to="/about" class="text-zinc-400 no-underline transition hover:text-white">Our Story</NuxtLink></li>
+          </ul>
+        </div>
+        <div>
+          <h4 class="saya-eyebrow mb-5 text-zinc-500">Discover</h4>
+          <ul class="space-y-3 text-sm">
+            <li><NuxtLink to="/reviews" class="text-zinc-400 no-underline transition hover:text-white">Reviews</NuxtLink></li>
+            <li><NuxtLink to="/posts" class="text-zinc-400 no-underline transition hover:text-white">Latest Updates</NuxtLink></li>
+            <li><NuxtLink to="/qa" class="text-zinc-400 no-underline transition hover:text-white">Q&amp;A</NuxtLink></li>
+          </ul>
+        </div>
+        <div>
+          <h4 class="saya-eyebrow mb-5 text-zinc-500">Connect</h4>
+          <ul class="space-y-3 text-sm">
+            <li><NuxtLink to="/locations" class="text-zinc-400 no-underline transition hover:text-white">All Locations</NuxtLink></li>
+            <li><NuxtLink to="/contact" class="text-zinc-400 no-underline transition hover:text-white">Contact Us</NuxtLink></li>
+          </ul>
+        </div>
+      </div>
+
       <!-- Delivery partners row -->
       <div class="flex flex-wrap items-center gap-8 border-b border-white/8 py-10">
         <span class="saya-eyebrow text-zinc-500">Order online</span>

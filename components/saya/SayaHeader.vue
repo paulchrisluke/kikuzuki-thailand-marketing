@@ -34,6 +34,12 @@
             Story
           </NuxtLink>
           <NuxtLink
+            to="/reservations"
+            class="rounded-full px-3 py-2 text-sm text-(--ui-text-muted) transition hover:bg-(--ui-bg-muted) hover:text-(--ui-text)"
+          >
+            Reservations
+          </NuxtLink>
+          <NuxtLink
             to="/contact"
             class="rounded-full px-3 py-2 text-sm text-(--ui-text-muted) transition hover:bg-(--ui-bg-muted) hover:text-(--ui-text)"
           >
@@ -106,6 +112,13 @@
             @click="mobileMenuOpen = false"
           >
             Story
+          </NuxtLink>
+          <NuxtLink
+            to="/reservations"
+            class="rounded-full px-4 py-3 text-sm text-(--ui-text) hover:bg-(--ui-bg-muted)"
+            @click="mobileMenuOpen = false"
+          >
+            Reservations
           </NuxtLink>
           <NuxtLink
             to="/contact"
