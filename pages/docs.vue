@@ -1,0 +1,72 @@
+<template>
+  <div class="container mx-auto px-4 py-16">
+    <div class="max-w-4xl mx-auto">
+      <h1 class="text-4xl font-bold text-(--ui-text) mb-6">Documentation</h1>
+      <p class="text-lg text-(--ui-text-muted) mb-12">Learn how to use KrabiClaw to build your restaurant website</p>
+
+      <div v-if="loading" class="text-center py-12">
+        <p class="text-(--ui-text-muted)">Loading documentation...</p>
+      </div>
+
+      <div v-else-if="error" class="bg-red-50 border border-red-200 rounded-lg p-6">
+        <p class="text-red-600">{{ error }}</p>
+      </div>
+
+      <div v-else>
+        <div class="grid md:grid-cols-2 gap-6 mb-12">
+          <NuxtLink
+            v-for="doc in docs"
+            :key="doc.slug"
+            :to="`/docs/${doc.slug}`"
+            class="block"
+          >
+            <UCard class="hover:shadow-md transition-shadow cursor-pointer h-full">
+              <h3 class="text-xl font-bold text-(--ui-text) mb-2">{{ doc.title }}</h3>
+              <p class="text-(--ui-text-muted) mb-4">Learn about {{ doc.title.toLowerCase() }}</p>
+              <UButton variant="outline" color="neutral">View Guide</UButton>
+            </UCard>
+          </NuxtLink>
+        </div>
+
+        <div class="mt-12 bg-(--ui-bg-inverted) text-(--ui-text-inverted) rounded-2xl p-8 text-center">
+          <h2 class="text-2xl font-bold mb-4">Need Help?</h2>
+          <p class="text-(--ui-text-inverted)/70 mb-6">Can't find what you're looking for? Check out our help center.</p>
+          <UButton color="neutral" variant="outline" to="/help">Visit Help Center</UButton>
+        </div>
+      </div>
+    </div>
+  </div>
+</template>
+
+<script setup>
+definePageMeta({ layout: 'platform' })
+
+import { useBreadcrumbSchema } from '~/composables/useSchemaOrg'
+
+useBreadcrumbSchema([
+  { name: 'Home', url: 'https://krabiclaw.com' },
+  { name: 'Documentation', url: 'https://krabiclaw.com/docs' }
+])
+
+const docs = ref([])
+const loading = ref(true)
+const error = ref('')
+
+onMounted(async () => {
+  try {
+    const response = await $fetch('/api/docs')
+    docs.value = response.docs
+  } catch (err) {
+    error.value = 'Failed to load documentation'
+  } finally {
+    loading.value = false
+  }
+})
+
+useSeoMeta({
+  title: 'Documentation | KrabiClaw',
+  description: 'Documentation for KrabiClaw restaurant website builder. Learn how to use all features.',
+  ogImage: '/og-image.jpg',
+  ogUrl: '/docs'
+})
+</script>

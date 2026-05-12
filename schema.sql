@@ -668,11 +668,42 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_location_qa_google_id
 CREATE INDEX IF NOT EXISTS idx_location_qa_location
   ON location_qa(location_id, status, sort_order);
 
--- ============================================================
--- Migration: add slug to menu_items (run once on existing DBs)
--- wrangler d1 execute <DB_NAME> --command \
---   "ALTER TABLE menu_items ADD COLUMN slug TEXT NOT NULL DEFAULT ''"
--- Then backfill existing rows:
--- wrangler d1 execute <DB_NAME> --command \
---   "UPDATE menu_items SET slug = lower(replace(replace(replace(replace(replace(name,' ','-'),'/',''),'''',''),'.',''),',','')) WHERE slug = ''"
--- ============================================================
+--------------------------------------------------------------------------------
+-- Platform Owner Management
+--------------------------------------------------------------------------------
+
+CREATE TABLE IF NOT EXISTS platform_content (
+  id TEXT PRIMARY KEY,
+  page TEXT UNIQUE NOT NULL,
+  content TEXT NOT NULL,
+  updated_by TEXT NOT NULL,
+  updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+);
+
+CREATE TABLE IF NOT EXISTS platform_blog_posts (
+  id TEXT PRIMARY KEY,
+  title TEXT NOT NULL,
+  slug TEXT UNIQUE NOT NULL,
+  body TEXT NOT NULL,
+  excerpt TEXT,
+  category TEXT,
+  author_id TEXT NOT NULL,
+  published_at TEXT,
+  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+  updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+);
+
+CREATE TABLE IF NOT EXISTS platform_contact_submissions (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  email TEXT NOT NULL,
+  message TEXT NOT NULL,
+  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+);
+
+CREATE TABLE IF NOT EXISTS platform_analytics (
+  id TEXT PRIMARY KEY,
+  metric TEXT NOT NULL,
+  value INTEGER NOT NULL,
+  date TEXT NOT NULL
+);

@@ -140,6 +140,13 @@ const allSocials = computed(() => [
 const activeSocials = computed(() => allSocials.value.filter(s => s.url))
 const inactiveSocials = computed(() => allSocials.value.filter(s => !s.url))
 
+const resourceLinks = [
+  { label: 'Docs', to: '/docs' },
+  { label: 'Help center', to: '/help' },
+  { label: 'Privacy policy', to: '/privacy' },
+  { label: 'Terms', to: '/terms' },
+]
+
 // No await — layout component, data arrives reactively
 const { data: locationsData } = useFetch(
   () => `/api/public/sites/${siteId}/locations`,

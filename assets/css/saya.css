@@ -1,7 +1,5 @@
 /* Saya theme tokens — KrabiClaw Design System */
 
-@import url('https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&display=swap');
-
 :root {
   --ui-radius: 0.5rem;
   --font-saya: 'Instrument Serif', 'Iowan Old Style', Palatino, Georgia, serif;

@@ -1,4 +1,6 @@
+@import url('https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&display=swap');
 @import url('https://fonts.googleapis.com/css2?family=Poppins:ital,wght@0,100;0,200;0,300;0,400;0,500;0,600;0,700;0,800;0,900;1,100;1,200;1,300;1,400;1,500;1,600;1,700;1,800;1,900&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&display=swap');
 @import "tailwindcss";
 @import "@nuxt/ui";
 @import "./saya.css";
@@ -6,6 +8,7 @@
 @theme static {
   --font-sans: "Poppins", sans-serif;
   --font-poppins: "Poppins", sans-serif;
+  --font-display: "Fredoka", "Poppins", ui-rounded, system-ui, sans-serif;
 
   --breakpoint-xs: 375px;
   --breakpoint-sm: 576px;
@@ -18,16 +21,95 @@
   --radius-xl: 12px;
   --radius-2xl: 16px;
   --radius-3xl: 24px;
-
 }
 
-/* Platform theme tokens */
+/* ── KrabiClaw brand palette ──────────────────────────────── */
 :root {
   --ui-radius: 0.5rem;
+
+  --kc-navy:        #1F2547;
+  --kc-navy-700:    #2C3360;
+  --kc-navy-500:    #4A5380;
+  --kc-navy-300:    #8C92B0;
+
+  --kc-coral:       #FB7461;
+  --kc-coral-600:   #E87F67;
+  --kc-coral-400:   #FF9A8C;
+  --kc-coral-200:   #FFCCC2;
+  --kc-coral-50:    #FFF1ED;
+
+  --kc-teal:        #2BB5B5;
+  --kc-teal-600:    #239595;
+  --kc-teal-400:    #5DCBCB;
+  --kc-teal-100:    #D6F0EF;
+
+  --kc-cream:       #F8F6F3;
+  --kc-cream-elev:  #FFFFFF;
+  --kc-sand:        #F0EBE3;
+
+  --kc-border:      #E6E1D9;
+  --kc-border-muted:#EFEAE3;
+
+  --kc-success:     #2BB573;
+  --kc-warning:     #F8A93A;
+  --kc-danger:      #E0524C;
+
+  /* shadows — navy-tinted, low-contrast */
+  --shadow-xs:  0 1px 2px rgba(31, 37, 71, 0.04);
+  --shadow-sm:  0 1px 3px rgba(31, 37, 71, 0.06), 0 1px 2px rgba(31, 37, 71, 0.04);
+  --shadow-md:  0 4px 12px rgba(31, 37, 71, 0.08);
+  --shadow-lg:  0 12px 32px rgba(31, 37, 71, 0.10);
+  --shadow-xl:  0 24px 48px rgba(31, 37, 71, 0.12);
 }
 
+/* ── Platform theme ───────────────────────────────────────── */
 .platform-theme {
-  --ui-primary: #e87f67;
+  --ui-primary:           var(--kc-coral-600);
+  --ui-bg:                var(--kc-cream);
+  --ui-bg-elevated:       #FFFFFF;
+  --ui-bg-muted:          #F2EFEA;
+  --ui-bg-inverted:       var(--kc-navy);
+  --ui-text:              var(--kc-navy);
+  --ui-text-muted:        var(--kc-navy-500);
+  --ui-text-dimmed:       var(--kc-navy-300);
+  --ui-text-highlighted:  var(--kc-navy);
+  --ui-text-inverted:     #FFFFFF;
+  --ui-border:            var(--kc-border);
+  --ui-border-muted:      var(--kc-border-muted);
+  --ui-radius:            0.5rem;
+}
+
+/* ── Platform theme dark mode ─────────────────────────────── */
+.dark .platform-theme {
+  --ui-primary:           var(--kc-coral-400);
+  --ui-bg:                var(--kc-navy);
+  --ui-bg-elevated:       var(--kc-navy-700);
+  --ui-bg-muted:          var(--kc-navy-700);
+  --ui-bg-inverted:       var(--kc-cream);
+  --ui-text:              var(--kc-cream);
+  --ui-text-muted:        var(--kc-navy-300);
+  --ui-text-dimmed:       var(--kc-navy-500);
+  --ui-text-highlighted:  var(--kc-cream);
+  --ui-text-inverted:     var(--kc-navy);
+  --ui-border:            var(--kc-navy-700);
+  --ui-border-muted:      var(--kc-navy-700);
+}
+
+/* ── Platform type utilities ──────────────────────────────── */
+.kc-wordmark {
+  font-family: var(--font-display);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+.kc-wordmark__krabi { color: var(--kc-navy); }
+.kc-wordmark__claw  { color: var(--kc-coral); }
+.kc-wordmark__tld   { color: var(--kc-navy); font-size: 0.55em; vertical-align: top; margin-left: 1px; }
+
+.kc-eyebrow {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
 }
 
 

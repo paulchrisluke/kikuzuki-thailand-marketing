@@ -69,8 +69,8 @@ function isPlatformRoute(pathname: string): boolean {
     '/pricing',
     '/dashboard',
     '/api/auth',
-    '/privacy-policy',
-    '/terms-and-conditions',
+    '/privacy',
+    '/terms',
     '/templates',
     '/features'
   ]

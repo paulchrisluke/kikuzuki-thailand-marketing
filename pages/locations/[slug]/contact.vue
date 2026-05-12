@@ -111,7 +111,7 @@
   </div>
 </template>
 
-<script setup>
+<script setup lang="ts">
 definePageMeta({ layout: 'saya' })
 
 const route = useRoute()
@@ -142,7 +142,7 @@ const weekHours = computed(() => {
   if (!hours) return []
   const days = ['MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY', 'SUNDAY']
   const today = ['SUNDAY', 'MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY'][new Date().getDay()]
-  return formatGoogleHours(hours).map((h: any, i: number) => ({ ...h, today: days[i] === today }))
+  return formatGoogleHours(hours).map((h, i) => ({ ...h, today: days[i] === today }))
 })
 
 const mapEmbedSrc = computed(() => {

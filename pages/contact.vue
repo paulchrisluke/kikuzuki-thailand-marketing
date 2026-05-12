@@ -1,79 +1,42 @@
 <template>
-  <div>
-    <SayaHero
-      :title="getField('hero.title', 'Contact Us')"
-      :subtitle="getField('hero.subtitle', 'Get in Touch with Saya Kitchen')"
-      size="page"
-      :establishment-year="googleBusiness?.business?.establishmentYear"
-    />
-    <UContainer class="py-12">
-      <UCard class="mb-12">
-        <div
-          v-html="introBody"
-          class="prose prose-lg max-w-none text-(--ui-text-muted) [--tw-prose-body:var(--ui-text-muted)] [--tw-prose-bold:var(--ui-text)]"
-        />
-      </UCard>
+  <div class="container mx-auto px-4 py-16">
+    <div class="max-w-3xl mx-auto">
+      <h1 class="text-4xl font-bold text-(--ui-text) mb-6">Contact Us</h1>
+      <p class="text-lg text-(--ui-text-muted) mb-12">Get in touch with the KrabiClaw team</p>
 
-      <div class="grid md:grid-cols-2 gap-12">
-        <!-- Contact Details -->
+      <div class="grid md:grid-cols-2 gap-12 mb-12">
         <div>
-          <h2 class="text-2xl md:text-3xl font-bold text-(--ui-text) mb-6">Contact Information</h2>
-          <div class="space-y-6">
-            <div v-if="businessName">
-              <h3 class="font-semibold text-(--ui-text) mb-1 uppercase tracking-wider text-xs">Restaurant</h3>
-              <p class="text-(--ui-text-muted)">{{ businessName }}</p>
+          <h2 class="text-2xl font-bold text-(--ui-text) mb-6">Get in Touch</h2>
+          <div class="space-y-4">
+            <div>
+              <h3 class="font-semibold text-(--ui-text) mb-1">Email</h3>
+              <p class="text-(--ui-text-muted)">hello@krabiclaw.com</p>
             </div>
-            <div v-if="businessAddress">
-              <h3 class="font-semibold text-(--ui-text) mb-1 uppercase tracking-wider text-xs">Address</h3>
-              <p class="text-(--ui-text-muted)">{{ businessAddress }}</p>
+            <div>
+              <h3 class="font-semibold text-(--ui-text) mb-1">Location</h3>
+              <p class="text-(--ui-text-muted)">Krabi, Thailand 🦀</p>
             </div>
-            <div v-if="businessPhone">
-              <h3 class="font-semibold text-(--ui-text) mb-1 uppercase tracking-wider text-xs">Phone</h3>
-              <p class="text-(--ui-text-muted)">{{ businessPhone }}</p>
-            </div>
-            <div v-if="businessHours">
-              <h3 class="font-semibold text-(--ui-text) mb-1 uppercase tracking-wider text-xs">Opening Hours</h3>
-              <p class="text-(--ui-text-muted)">{{ businessHours }}</p>
-            </div>
-          </div>
-          <div class="mt-8">
-            <h3 class="font-semibold text-(--ui-text) mb-4">Follow Us</h3>
-            <div class="flex space-x-4">
-              <a :href="getField('social.facebook', '#')" target="_blank" rel="noopener noreferrer" class="text-(--ui-text-muted) hover:text-(--ui-text)">Facebook</a>
-              <a :href="getField('social.instagram', '#')" target="_blank" rel="noopener noreferrer" class="text-(--ui-text-muted) hover:text-(--ui-text)">Instagram</a>
+            <div>
+              <h3 class="font-semibold text-(--ui-text) mb-1">Support</h3>
+              <p class="text-(--ui-text-muted)">support@krabiclaw.com</p>
             </div>
           </div>
         </div>
 
-          <!-- Contact Form -->
         <div>
-          <h2 class="text-2xl md:text-3xl font-bold text-(--ui-text) mb-6">Send Us a Message</h2>
+          <h2 class="text-2xl font-bold text-(--ui-text) mb-6">Send a Message</h2>
           <UCard>
-            <UForm :state="contactForm" :validate="validateContact" class="space-y-6" @submit="handleContact">
-              <div class="grid gap-5 md:grid-cols-2">
-                <UFormField label="Name" name="name" required>
-                  <UInput id="name" v-model="contactForm.name" class="w-full" size="lg" type="text" placeholder="Your name" />
-                </UFormField>
-                <UFormField label="Email" name="email" required>
-                  <UInput id="email" v-model="contactForm.email" class="w-full" size="lg" type="email" placeholder="you@example.com" />
-                </UFormField>
-              </div>
-              <UFormField
-                label="Message"
-                name="message"
-                description="Questions about reservations, private dining, allergies, or directions are all welcome."
-                required
-              >
-                <UTextarea
-                  id="message"
-                  v-model="contactForm.message"
-                  class="w-full"
-                  size="lg"
-                  :rows="6"
-                  placeholder="How can we help?"
-                />
+            <UForm :state="contactForm" :validate="validateContact" class="space-y-4" @submit="handleContact">
+              <UFormField label="Name" name="name" required>
+                <UInput v-model="contactForm.name" size="lg" placeholder="Your name" />
               </UFormField>
-              <UButton type="submit" color="neutral" size="xl" block :loading="submitting" :disabled="submitted">
+              <UFormField label="Email" name="email" required>
+                <UInput v-model="contactForm.email" type="email" size="lg" placeholder="you@example.com" />
+              </UFormField>
+              <UFormField label="Message" name="message" required>
+                <UTextarea v-model="contactForm.message" size="lg" :rows="4" placeholder="How can we help?" />
+              </UFormField>
+              <UButton type="submit" color="primary" size="lg" block :loading="submitting" :disabled="submitted">
                 {{ submitted ? 'Message sent!' : 'Send Message' }}
               </UButton>
             </UForm>
@@ -81,51 +44,37 @@
         </div>
       </div>
 
-      <!-- Quick Actions -->
-      <div class="mt-12 grid md:grid-cols-2 gap-6">
-        <UCard to="/reservations" class="hover:shadow-md transition-shadow cursor-pointer">
-          <h3 class="text-lg font-semibold text-(--ui-text) mb-2">Make a Reservation</h3>
-          <p class="text-(--ui-text-muted)">Book your table online or call us directly</p>
-        </UCard>
-        <UCard to="/location" class="hover:shadow-md transition-shadow cursor-pointer">
-          <h3 class="text-lg font-semibold text-(--ui-text) mb-2">Find Us</h3>
-          <p class="text-(--ui-text-muted)">Get directions and view our location on Google Maps</p>
-        </UCard>
+      <div class="bg-(--ui-bg-elevated) rounded-2xl shadow-sm border border-(--ui-border) p-8">
+        <h2 class="text-2xl font-bold text-(--ui-text) mb-4">Frequently Asked Questions</h2>
+        <div class="space-y-4">
+          <div>
+            <h3 class="font-semibold text-(--ui-text) mb-2">How do I get started?</h3>
+            <p class="text-(--ui-text-muted)">Sign up for a free account and follow our guided setup process. You can have your restaurant website live in minutes.</p>
+          </div>
+          <div>
+            <h3 class="font-semibold text-(--ui-text) mb-2">Is there a free trial?</h3>
+            <p class="text-(--ui-text-muted)">Yes! We offer a free forever plan with basic features. Upgrade anytime for more advanced features.</p>
+          </div>
+          <div>
+            <h3 class="font-semibold text-(--ui-text) mb-2">Can I use my own domain?</h3>
+            <p class="text-(--ui-text-muted)">Yes, on paid plans you can connect your custom domain for a professional branded experience.</p>
+          </div>
+        </div>
       </div>
-    </UContainer>
+    </div>
   </div>
 </template>
 
 <script setup>
-definePageMeta({ layout: 'saya' })
-import { getTodayGoogleHours } from '~/utils/formatters'
-import { usePageContent } from '~/composables/usePageContent'
-import { useTenantSite } from '~/composables/useTenantSite'
+definePageMeta({ layout: 'platform' })
 
-const { getField } = usePageContent('contact')
+import { useOrganizationSchema, useBreadcrumbSchema } from '~/composables/useSchemaOrg'
 
-const { siteId } = await useTenantSite()
-if (!siteId) throw createError({ statusCode: 404 })
-
-const { data: googleBusiness } = await useFetch(`/api/public/sites/${siteId}/google-business`, {
-  key: `contact-google-business-${siteId}`,
-  default: () => ({ business: null, media: [] })
-})
-
-const businessName = computed(() => googleBusiness.value?.business?.title || '')
-const businessAddress = computed(() => {
-  const a = googleBusiness.value?.business?.storefrontAddress
-  return a ? `${a.addressLines?.[0] || ''}, ${a.locality || ''}, ${a.administrativeArea || ''} ${a.postalCode || ''}` : ''
-})
-const businessPhone = computed(() => googleBusiness.value?.business?.phoneNumbers?.[0]?.phoneNumber || '')
-const businessHours = computed(() => getTodayGoogleHours(googleBusiness.value?.business?.regularHours))
-
-// Default moved to computed to avoid inline quote escaping issues
-const introBody = computed(() => getField('intro.body',
-  '<p class="mb-4 leading-relaxed">For an unparalleled culinary experience, our restaurant beckons you to transcend the virtual and savor the exquisite reality. Our website offers a glimpse of the gastronomic symphony that awaits—robust grills and artful creations.</p>' +
-  '<p class="mb-4 leading-relaxed">Contact us to transform your online curiosity into a reservation, immersing yourself in the warm ambiance, skilled craftsmanship, and tantalizing flavors.</p>' +
-  '<p class="font-semibold leading-relaxed">Elevate your senses; contact us for an unforgettable dining adventure.</p>'
-))
+useOrganizationSchema()
+useBreadcrumbSchema([
+  { name: 'Home', url: 'https://krabiclaw.com' },
+  { name: 'Contact', url: 'https://krabiclaw.com/contact' }
+])
 
 const contactForm = ref({
   name: '',
@@ -145,8 +94,6 @@ const validateContact = (state) => {
   }
   if (!state.message) {
     errors.push({ name: 'message', message: 'Please enter a message.' })
-  } else if (state.message.length < 10) {
-    errors.push({ name: 'message', message: 'Please write at least 10 characters.' })
   }
   return errors
 }
@@ -156,26 +103,25 @@ const submitting = ref(false)
 const submitted = ref(false)
 
 const handleContact = async () => {
-  if (submitting.value) return
   submitting.value = true
   try {
-    await $fetch(`/api/public/sites/${siteId}/contact`, {
+    await $fetch('/api/contact', {
       method: 'POST',
-      body: contactForm.value,
+      body: contactForm.value
     })
     submitted.value = true
     contactForm.value = { name: '', email: '', message: '' }
     toast.add({ description: 'Message sent! We\'ll be in touch soon.', color: 'success' })
   } catch (err) {
-    toast.add({ description: err?.data?.error ?? 'Failed to send message. Please try again.', color: 'error' })
+    toast.add({ description: 'Failed to send message. Please try again.', color: 'error' })
   } finally {
     submitting.value = false
   }
 }
 
 useSeoMeta({
-  title: 'Contact | Saya Kitchen',
-  description: 'Contact Saya Kitchen in Krabi for reservations, location details, hours, and guest questions.',
+  title: 'Contact | KrabiClaw',
+  description: 'Contact the KrabiClaw team for support, questions, or partnership inquiries.',
   ogImage: '/og-image.jpg',
   ogUrl: '/contact'
 })
