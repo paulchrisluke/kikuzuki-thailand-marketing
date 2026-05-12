@@ -4,6 +4,7 @@
 @import "tailwindcss";
 @import "@nuxt/ui";
 @import "./saya.css";
+@plugin "@tailwindcss/typography";
 
 @theme static {
   --font-sans: "Poppins", sans-serif;

@@ -433,6 +433,7 @@ import { usePageContent } from '~/composables/usePageContent'
 import { useTenantSite } from '~/composables/useTenantSite'
 import { usePublicMenu } from '~/composables/usePublicMenu'
 import { useAuth } from '~/composables/useAuth'
+import { useOrganizationSchema } from '~/composables/useSchemaOrg'
 
 definePageMeta({ layout: false })
 
@@ -472,8 +473,6 @@ const platformHostname = config.public.freeSiteDomain?.replace(/^https?:\/\//, '
 
 // SEO for KrabiClaw Platform
 if (isPlatform) {
-  import { useOrganizationSchema } from '~/composables/useSchemaOrg'
-  
   useOrganizationSchema()
   
   useSeoMeta({

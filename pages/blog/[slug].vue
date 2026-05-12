@@ -1,57 +1,122 @@
 <template>
   <div class="container mx-auto px-4 py-16">
     <div class="max-w-3xl mx-auto">
-      <NuxtLink to="/blog" class="inline-flex items-center text-(--ui-text-muted) hover:text-(--ui-text) mb-8 transition-colors">
-        ← Back to Blog
+
+      <NuxtLink to="/blog" class="inline-flex items-center gap-2 text-(--ui-text-muted) hover:text-(--ui-text) mb-10 transition-colors text-sm">
+        <UIcon name="i-heroicons-arrow-left" class="w-4 h-4" />
+        Back to Blog
       </NuxtLink>
 
+      <!-- Loading -->
       <div v-if="pending" class="space-y-4">
+        <div class="h-6 bg-(--ui-bg-elevated) rounded animate-pulse w-1/4" />
         <div class="h-12 bg-(--ui-bg-elevated) rounded animate-pulse w-3/4" />
-        <div class="h-6 bg-(--ui-bg-elevated) rounded animate-pulse w-1/2" />
+        <div class="h-12 bg-(--ui-bg-elevated) rounded animate-pulse w-1/2" />
+        <div class="h-5 bg-(--ui-bg-elevated) rounded animate-pulse w-2/3 mt-4" />
         <div class="mt-8 space-y-3">
-          <div v-for="i in 8" :key="i" class="h-4 bg-(--ui-bg-elevated) rounded animate-pulse" />
+          <div v-for="i in 10" :key="i" class="h-4 bg-(--ui-bg-elevated) rounded animate-pulse" :style="`width: ${70 + (i % 3) * 10}%`" />
         </div>
       </div>
 
+      <!-- Error -->
       <div v-else-if="error || !post" class="text-center py-24">
-        <p class="text-xl text-(--ui-text-muted) mb-4">Article not found.</p>
+        <p class="text-xl text-(--ui-text-muted) mb-6">Article not found.</p>
         <UButton to="/blog" variant="outline" color="neutral">Back to Blog</UButton>
       </div>
 
+      <!-- Article -->
       <article v-else>
-        <div class="mb-8">
-          <div class="flex items-center gap-3 mb-4">
-            <span v-if="post.category" class="px-3 py-1 rounded-full text-sm font-medium" :class="categoryClass(post.category)">
-              {{ post.category }}
-            </span>
-            <span class="text-(--ui-text-dimmed) text-sm">{{ formatDate(post.published_at) }}</span>
-            <span class="text-(--ui-text-dimmed) text-sm">· {{ readTime }} min read</span>
-          </div>
-          <h1 class="text-4xl font-bold text-(--ui-text) mb-4 leading-tight">{{ post.title }}</h1>
-          <p v-if="post.excerpt" class="text-xl text-(--ui-text-muted)">{{ post.excerpt }}</p>
+
+        <!-- Meta row -->
+        <div class="flex flex-wrap items-center gap-3 mb-6">
+          <span v-if="post.category" class="px-3 py-1 rounded-full text-sm font-medium" :class="categoryClass(post.category)">
+            {{ post.category }}
+          </span>
+          <span class="text-(--ui-text-dimmed) text-sm">{{ formatDate(post.published_at) }}</span>
+          <span class="text-(--ui-text-dimmed) text-sm">·</span>
+          <span class="text-(--ui-text-dimmed) text-sm">{{ readTime }} min read</span>
         </div>
 
-        <div class="h-64 bg-linear-to-br from-teal-50 to-teal-100 dark:from-teal-900/20 dark:to-teal-800/20 rounded-2xl mb-10" />
+        <!-- Title + excerpt -->
+        <h1 class="text-4xl font-bold text-(--ui-text) mb-5 leading-tight">{{ post.title }}</h1>
+        <p v-if="post.excerpt" class="text-xl text-(--ui-text-muted) mb-8 leading-relaxed">{{ post.excerpt }}</p>
 
-        <div class="prose prose-lg max-w-none text-(--ui-text)" v-html="renderedBody" />
-
-        <div class="mt-16 pt-8 border-t border-(--ui-border)">
-          <div class="flex items-center justify-between">
-            <div>
-              <p class="font-semibold text-(--ui-text)">KrabiClaw</p>
-              <p class="text-sm text-(--ui-text-muted)">Restaurant website builder built in Krabi, Thailand</p>
+        <!-- Author -->
+        <div class="flex items-center gap-4 py-6 border-y border-(--ui-border) mb-10">
+          <div class="shrink-0">
+            <img
+              v-if="post.author_image"
+              :src="post.author_image"
+              :alt="post.author_name"
+              class="w-12 h-12 rounded-full object-cover"
+            />
+            <div
+              v-else
+              class="w-12 h-12 rounded-full flex items-center justify-center text-white font-bold text-lg"
+              style="background-color: var(--kc-teal)"
+            >
+              {{ authorInitial }}
             </div>
-            <UButton to="/blog" variant="outline" color="neutral">More Articles</UButton>
+          </div>
+          <div>
+            <p class="font-semibold text-(--ui-text)">{{ post.author_name || 'KrabiClaw' }}</p>
+            <div class="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-(--ui-text-dimmed)">
+              <span>Published {{ formatDate(post.published_at) }}</span>
+              <span v-if="wasUpdated">· Updated {{ formatDate(post.updated_at) }}</span>
+            </div>
           </div>
         </div>
+
+        <!-- Hero image placeholder -->
+        <div class="h-64 bg-(--ui-bg-muted) rounded-2xl mb-10" />
+
+        <!-- Body -->
+        <div
+          class="prose prose-lg dark:prose-invert max-w-none
+                 prose-headings:font-bold prose-headings:text-(--ui-text)
+                 prose-p:text-(--ui-text-muted) prose-p:leading-relaxed
+                 prose-a:text-(--kc-teal) prose-a:no-underline hover:prose-a:underline
+                 prose-strong:text-(--ui-text)
+                 prose-li:text-(--ui-text-muted)
+                 prose-hr:border-(--ui-border)
+                 prose-blockquote:border-l-[--kc-teal] prose-blockquote:text-(--ui-text-muted)"
+          v-html="renderedBody"
+        />
+
+        <!-- Bottom author card -->
+        <div class="mt-16 pt-8 border-t border-(--ui-border) flex items-center justify-between gap-6">
+          <div class="flex items-center gap-4">
+            <div class="shrink-0">
+              <img
+                v-if="post.author_image"
+                :src="post.author_image"
+                :alt="post.author_name"
+                class="w-10 h-10 rounded-full object-cover"
+              />
+              <div
+                v-else
+                class="w-10 h-10 rounded-full flex items-center justify-center text-white font-bold"
+                style="background-color: var(--kc-teal)"
+              >
+                {{ authorInitial }}
+              </div>
+            </div>
+            <div>
+              <p class="font-semibold text-(--ui-text) text-sm">{{ post.author_name || 'KrabiClaw' }}</p>
+              <p class="text-xs text-(--ui-text-dimmed)">Restaurant website builder built in Krabi, Thailand</p>
+            </div>
+          </div>
+          <UButton to="/blog" variant="outline" color="neutral" size="sm">More Articles</UButton>
+        </div>
+
       </article>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { marked } from 'marked'
 import DOMPurify from 'isomorphic-dompurify'
+import { marked } from 'marked'
 
 definePageMeta({ layout: 'platform' })
 
@@ -86,6 +151,17 @@ const readTime = computed(() => {
   return Math.max(1, Math.ceil(words / 200))
 })
 
+const authorInitial = computed(() => {
+  const name = post.value?.author_name ?? ''
+  return name ? name.charAt(0).toUpperCase() : 'K'
+})
+
+const wasUpdated = computed(() => {
+  if (!post.value?.updated_at || !post.value?.published_at) return false
+  const diff = Math.abs(new Date(post.value.updated_at).getTime() - new Date(post.value.published_at).getTime())
+  return diff > 60_000
+})
+
 function categoryClass(cat: string) {
   return CATEGORY_CLASSES[cat] ?? 'bg-stone-100 text-stone-800'
 }
@@ -101,23 +177,4 @@ useSeoMeta({
   ogType: 'article',
   ogImage: '/og-image.jpg'
 })
-
-useSchemaOrg([
-  computed(() => post.value ? ({
-    '@context': 'https://schema.org',
-    '@type': 'BlogPosting',
-    headline: post.value.title,
-    description: post.value.excerpt,
-    datePublished: post.value.published_at,
-    author: {
-      '@type': 'Organization',
-      name: 'KrabiClaw'
-    },
-    image: '/og-image.jpg',
-    mainEntityOfPage: {
-      '@type': 'WebPage',
-      '@id': `${siteUrl}/blog/${route.params.slug}`
-    }
-  }) : null)
-])
 </script>
