@@ -1,5 +1,28 @@
 import type { Menu, MenuItem, MenuWithItems, CreateMenuRequest, UpdateMenuRequest, CreateMenuItemRequest, UpdateMenuItemRequest } from '../types/menu'
 
+function slugify(name: string): string {
+  return name
+    .toLowerCase()
+    .replace(/[^a-z0-9\s-]/g, '')
+    .trim()
+    .replace(/[\s-]+/g, '-')
+}
+
+async function uniqueSlug(db: any, menuId: string, base: string, excludeId?: string): Promise<string> {
+  let candidate = slugify(base)
+  let suffix = 1
+  while (true) {
+    const query = excludeId
+      ? `SELECT id FROM menu_items WHERE menu_id = ? AND slug = ? AND id != ? LIMIT 1`
+      : `SELECT id FROM menu_items WHERE menu_id = ? AND slug = ? LIMIT 1`
+    const params = excludeId ? [menuId, candidate, excludeId] : [menuId, candidate]
+    const existing = await db.prepare(query).bind(...params).first()
+    if (!existing) return candidate
+    suffix++
+    candidate = `${slugify(base)}-${suffix}`
+  }
+}
+
 // Get menus for a site with optional location filter
 export async function getMenus(
   db: any,
@@ -46,7 +69,7 @@ export async function getMenuWithItems(
 
   // Get menu items
   const items = await db.prepare(`
-    SELECT id, menu_id, section, name, description, price, image_url, available, sort_order,
+    SELECT id, menu_id, section, name, slug, description, price, image_url, available, sort_order,
            created_at, updated_at, created_by, updated_by
     FROM menu_items 
     WHERE menu_id = ?
@@ -104,7 +127,7 @@ export async function getActiveMenu(
   if (!brandMenu) return null
 
   const items = await db.prepare(`
-    SELECT id, menu_id, section, name, description, price, image_url, available, sort_order,
+    SELECT id, menu_id, section, name, slug, description, price, image_url, available, sort_order,
            created_at, updated_at, created_by, updated_by
     FROM menu_items 
     WHERE menu_id = ?
@@ -247,15 +270,17 @@ export async function createMenuItem(
 ): Promise<MenuItem> {
   const id = crypto.randomUUID()
   const now = new Date().toISOString()
+  const slug = await uniqueSlug(db, menuId, item.name)
 
   const result = await db.prepare(`
-    INSERT INTO menu_items (id, menu_id, section, name, description, price, image_url, available, sort_order, created_at, updated_at, created_by)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO menu_items (id, menu_id, section, name, slug, description, price, image_url, available, sort_order, created_at, updated_at, created_by)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).bind(
     id,
     menuId,
     item.section,
     item.name,
+    slug,
     item.description || null,
     item.price || null,
     item.image_url || null,
@@ -271,7 +296,7 @@ export async function createMenuItem(
   }
 
   const createdItem = await db.prepare(`
-    SELECT id, menu_id, section, name, description, price, image_url, available, sort_order,
+    SELECT id, menu_id, section, name, slug, description, price, image_url, available, sort_order,
            created_at, updated_at, created_by, updated_by
     FROM menu_items 
     WHERE id = ?
@@ -293,10 +318,10 @@ export async function updateMenuItem(
   updatedBy: string
 ): Promise<MenuItem> {
   const now = new Date().toISOString()
-  
+
   // Build dynamic update query
-  const setParts = []
-  const params = []
+  const setParts: string[] = []
+  const params: any[] = []
 
   if (updates.section !== undefined) {
     setParts.push('section = ?')
@@ -305,6 +330,15 @@ export async function updateMenuItem(
   if (updates.name !== undefined) {
     setParts.push('name = ?')
     params.push(updates.name)
+    // Fetch menu_id to scope the slug uniqueness check
+    const existing = await db.prepare(
+      `SELECT menu_id FROM menu_items WHERE id = ? LIMIT 1`
+    ).bind(menuItemId).first()
+    if (existing?.menu_id) {
+      const newSlug = await uniqueSlug(db, existing.menu_id, updates.name, menuItemId)
+      setParts.push('slug = ?')
+      params.push(newSlug)
+    }
   }
   if (updates.description !== undefined) {
     setParts.push('description = ?')
@@ -344,7 +378,7 @@ export async function updateMenuItem(
   }
 
   const updatedItem = await db.prepare(`
-    SELECT id, menu_id, section, name, description, price, image_url, available, sort_order,
+    SELECT id, menu_id, section, name, slug, description, price, image_url, available, sort_order,
            created_at, updated_at, created_by, updated_by
     FROM menu_items 
     WHERE id = ?

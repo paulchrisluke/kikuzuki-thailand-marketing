@@ -332,6 +332,7 @@ CREATE TABLE IF NOT EXISTS menu_items (
   menu_id TEXT NOT NULL,
   section TEXT NOT NULL,
   name TEXT NOT NULL,
+  slug TEXT NOT NULL DEFAULT '',
   description TEXT,
   price TEXT,
   image_url TEXT,
@@ -343,6 +344,9 @@ CREATE TABLE IF NOT EXISTS menu_items (
   updated_by TEXT,
   FOREIGN KEY (menu_id) REFERENCES menus(id) ON DELETE CASCADE
 );
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_menu_items_menu_slug
+  ON menu_items(menu_id, slug) WHERE slug != '';
 
 CREATE TABLE IF NOT EXISTS reviews (
   id TEXT PRIMARY KEY,
@@ -662,3 +666,12 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_location_qa_google_id
 
 CREATE INDEX IF NOT EXISTS idx_location_qa_location
   ON location_qa(location_id, status, sort_order);
+
+-- ============================================================
+-- Migration: add slug to menu_items (run once on existing DBs)
+-- wrangler d1 execute <DB_NAME> --command \
+--   "ALTER TABLE menu_items ADD COLUMN slug TEXT NOT NULL DEFAULT ''"
+-- Then backfill existing rows:
+-- wrangler d1 execute <DB_NAME> --command \
+--   "UPDATE menu_items SET slug = lower(replace(replace(replace(replace(replace(name,' ','-'),'/',''),'''',''),'.',''),',','')) WHERE slug = ''"
+-- ============================================================

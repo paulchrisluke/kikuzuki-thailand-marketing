@@ -107,8 +107,6 @@
 </template>
 
 <script setup lang="ts">
-import { usePublicMenu } from '~/composables/usePublicMenu'
-
 definePageMeta({ layout: 'saya' })
 
 const route = useRoute()
@@ -149,7 +147,6 @@ function scrollToCategory(id: string) {
 }
 
 function itemSlug(item: any): string {
-  // Use DB slug if present, otherwise derive from name to match static menu data format
   return item.slug || item.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
 }
 

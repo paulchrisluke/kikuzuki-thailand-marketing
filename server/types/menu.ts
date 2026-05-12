@@ -19,6 +19,7 @@ export interface MenuItem {
   menu_id: string
   section: string
   name: string
+  slug: string
   description: string | null
   price: string | null
   image_url: string | null
