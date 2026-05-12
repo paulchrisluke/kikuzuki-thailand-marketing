@@ -69,7 +69,10 @@
             <article v-for="item in menuItemsBySection[cat.name]" :key="item.id">
               <div class="flex items-baseline gap-2">
                 <div class="flex items-baseline gap-2 text-base font-medium text-default">
-                  <span>{{ item.name }}</span>
+                  <NuxtLink
+                    :to="`/menu/${itemSlug(item)}`"
+                    class="text-default no-underline hover:underline underline-offset-2"
+                  >{{ item.name }}</NuxtLink>
                   <UBadge
                     v-for="tag in getDietaryTags(item)"
                     :key="tag"
@@ -136,18 +139,26 @@ const categories = computed(() =>
 )
 
 const activeCategory = ref('')
-watch(categories, cats => { if (cats.length && !activeCategory.value) activeCategory.value = cats[0].id }, { immediate: true })
+watch(categories, (cats: { id: string; name: string }[]) => {
+  if (cats.length && !activeCategory.value) activeCategory.value = cats[0]?.id ?? ''
+}, { immediate: true })
 
 function scrollToCategory(id: string) {
   activeCategory.value = id
   document.getElementById(`cat-${id}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
 }
 
-function getDietaryTags(item: any) {
+function itemSlug(item: any): string {
+  // Use DB slug if present, otherwise derive from name to match static menu data format
+  return item.slug || item.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
+}
+
+function getDietaryTags(item: any): string[] {
   const tags: string[] = []
-  if (item.is_vegetarian) tags.push('V')
-  if (item.is_vegan) tags.push('VG')
-  if (item.is_gluten_free) tags.push('GF')
+  // D1 items: boolean flags (future); static items: dietaryNotes array
+  if (item.is_vegetarian || item.dietaryNotes?.includes('V')) tags.push('V')
+  if (item.is_vegan || item.dietaryNotes?.includes('VG')) tags.push('VG')
+  if (item.is_gluten_free || item.dietaryNotes?.includes('GF')) tags.push('GF')
   return tags
 }
 
