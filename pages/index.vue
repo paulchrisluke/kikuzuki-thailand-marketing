@@ -126,8 +126,8 @@
                   {{ f }}
                 </li>
               </ul>
-              <NuxtLink to="/signup" class="block text-center font-semibold text-[14px] py-3.5 rounded-[10px] bg-(--ui-bg-inverted) text-inverted hover:opacity-90 transition-opacity no-underline">
-                {{ freePlanData.cta.label }}
+              <NuxtLink v-if="freePlanData?.cta?.href" :to="freePlanData.cta.href" class="block text-center font-semibold text-[14px] py-3.5 rounded-[10px] bg-(--ui-bg-inverted) text-inverted hover:opacity-90 transition-opacity no-underline">
+                {{ freePlanData?.cta?.label }}
               </NuxtLink>
             </div>
             <!-- Pro -->
@@ -144,8 +144,8 @@
                   {{ f }}
                 </li>
               </ul>
-              <NuxtLink :to="proPlanData.cta.href" class="block text-center font-semibold text-[14px] py-3.5 rounded-[10px] bg-(--kc-coral) text-white hover:opacity-90 transition-opacity no-underline">
-                {{ proPlanData.cta.label }}
+              <NuxtLink v-if="proPlanData?.cta?.href" :to="proPlanData.cta.href" class="block text-center font-semibold text-[14px] py-3.5 rounded-[10px] bg-(--kc-coral) text-white hover:opacity-90 transition-opacity no-underline">
+                {{ proPlanData?.cta?.label }}
               </NuxtLink>
             </div>
           </div>

@@ -72,9 +72,9 @@
           <span class="font-medium">No AI credits remaining</span>
         </div>
         <div class="flex gap-2">
-          <UButton size="xs" color="error" variant="solid" :loading="buyingCredits === 500" @click="purchaseCredits(500)">500 — $9</UButton>
-          <UButton size="xs" color="error" variant="soft" :loading="buyingCredits === 2500" @click="purchaseCredits(2500)">2,500 — $29</UButton>
-          <UButton size="xs" color="error" variant="soft" :loading="buyingCredits === 5000" @click="purchaseCredits(5000)">5,000 — $49</UButton>
+          <UButton size="xs" color="error" variant="solid" :loading="buyingCredits === 500" :disabled="!!buyingCredits" @click="purchaseCredits(500)">500 — $9</UButton>
+          <UButton size="xs" color="error" variant="soft" :loading="buyingCredits === 2500" :disabled="!!buyingCredits" @click="purchaseCredits(2500)">2,500 — $29</UButton>
+          <UButton size="xs" color="error" variant="soft" :loading="buyingCredits === 5000" :disabled="!!buyingCredits" @click="purchaseCredits(5000)">5,000 — $49</UButton>
         </div>
       </div>
       <div v-else-if="isLow" class="shrink-0 bg-warning-50 dark:bg-warning-950 px-4 py-2 text-xs text-warning-600 dark:text-warning-400 flex items-center gap-2">

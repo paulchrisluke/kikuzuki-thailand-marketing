@@ -38,19 +38,14 @@ export default defineEventHandler(async (event) => {
 
     const orgId = member.organizationId as string
     const now = new Date().toISOString()
-    const existing = await db.prepare(
-      'SELECT balance FROM ai_credits WHERE organization_id = ? LIMIT 1'
-    ).bind(orgId).first()
-
-    if (existing) {
-      await db.prepare(
-        'UPDATE ai_credits SET balance = balance + ?, last_topped_up_at = ?, updated_at = ? WHERE organization_id = ?'
-      ).bind(amount, now, now, orgId).run()
-    } else {
-      await db.prepare(
-        'INSERT INTO ai_credits (organization_id, balance, lifetime_used, last_topped_up_at, updated_at) VALUES (?, ?, 0, ?, ?)'
-      ).bind(orgId, amount, now, now).run()
-    }
+    await db.prepare(
+      `INSERT INTO ai_credits (organization_id, balance, lifetime_used, last_topped_up_at, updated_at)
+       VALUES (?, ?, 0, ?, ?)
+       ON CONFLICT(organization_id) DO UPDATE SET
+         balance = balance + excluded.balance,
+         last_topped_up_at = excluded.last_topped_up_at,
+         updated_at = excluded.updated_at`
+    ).bind(orgId, amount, now, now).run()
     const updated = await db.prepare(
       'SELECT balance FROM ai_credits WHERE organization_id = ? LIMIT 1'
     ).bind(orgId).first()

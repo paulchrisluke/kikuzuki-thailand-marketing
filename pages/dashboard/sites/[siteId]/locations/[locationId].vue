@@ -239,7 +239,16 @@ const connectGoogleBusiness = async () => {
       { method: 'POST' }
     )
     if (res.success && res.authUrl) {
-      window.location.href = res.authUrl
+      try {
+        const parsed = new URL(res.authUrl)
+        if (parsed.protocol !== 'https:' || parsed.hostname !== 'accounts.google.com') {
+          throw new Error('Invalid OAuth redirect URL')
+        }
+        window.location.href = res.authUrl
+      } catch {
+        toast.add({ description: 'Invalid OAuth redirect URL returned by server', color: 'error' })
+        connectingGoogle.value = false
+      }
     }
   } catch (err: any) {
     toast.add({ description: err?.data?.error || 'Failed to start Google Business connection', color: 'error' })
@@ -286,6 +295,8 @@ onMounted(async () => {
 
   if (route.query.gb === 'connected') {
     toast.add({ description: 'Google Business connected successfully', color: 'success' })
+    const { gb: _gb, ...restQuery } = route.query
+    router.replace({ path: route.path, query: restQuery })
   }
 })
 

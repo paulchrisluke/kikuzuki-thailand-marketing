@@ -390,14 +390,15 @@ onMounted(async () => {
   await Promise.all([loadBillingData(), loadCredits()])
   
   if (isAuthenticated.value && route.query.plan) {
-    const planId = String(route.query.plan)
+    const raw = route.query.plan
+    const planId = Array.isArray(raw) ? raw[0] : String(raw)
     // Remove the plan query param from URL
     if (window && window.history && window.location) {
       const url = new URL(window.location.href)
       url.searchParams.delete('plan')
       window.history.replaceState({}, '', url.pathname + url.search)
     }
-    await upgradeToPlan(planId)
+    if (planId) await upgradeToPlan(planId)
   }
 })
 

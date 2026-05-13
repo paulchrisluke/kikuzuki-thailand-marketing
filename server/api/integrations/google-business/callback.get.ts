@@ -1,5 +1,6 @@
 import { cloudflareEnv } from '../../../utils/api-response'
 import { exchangeGoogleBusinessCode, storeGoogleBusinessConnection } from '../../../utils/google-business'
+import { verifyOAuthState } from '../../../utils/encryption'
 
 export default defineEventHandler(async (event) => {
   const env = cloudflareEnv(event)
@@ -16,10 +17,13 @@ export default defineEventHandler(async (event) => {
     return new Response(null, { status: 302, headers: { Location: '/dashboard?gb=error' } })
   }
 
-  let stateData: { siteId: string; organizationId: string; userId: string; locationId?: string; timestamp: number }
-  try {
-    stateData = JSON.parse(state)
-  } catch {
+  let stateData: { siteId: string; organizationId: string; userId: string; locationId?: string; timestamp: number } | null
+  const hmacSecret = env.CONNECTOR_TOKEN_ENCRYPTION_KEY as string | undefined
+  if (!hmacSecret) {
+    return new Response('Server misconfiguration.', { status: 500 })
+  }
+  stateData = await verifyOAuthState<{ siteId: string; organizationId: string; userId: string; locationId?: string; timestamp: number }>(hmacSecret, state)
+  if (!stateData) {
     return new Response(null, { status: 302, headers: { Location: '/dashboard?gb=error' } })
   }
 
@@ -32,8 +36,16 @@ export default defineEventHandler(async (event) => {
   try {
     const tokenData = await exchangeGoogleBusinessCode(env, code)
 
-    const userInfoResponse = await fetch(`https://www.googleapis.com/oauth2/v2/userinfo?access_token=${tokenData.accessToken}`)
-    const userInfo = await userInfoResponse.json() as { email: string }
+    const userInfoResponse = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
+      headers: { Authorization: `Bearer ${tokenData.accessToken}` }
+    })
+    if (!userInfoResponse.ok) {
+      throw new Error(`Failed to fetch user info: ${userInfoResponse.status}`)
+    }
+    const userInfo = await userInfoResponse.json() as { email?: string }
+    if (!userInfo.email) {
+      throw new Error('Google user info did not return an email address')
+    }
 
     await storeGoogleBusinessConnection(env, {
       organization_id: organizationId,

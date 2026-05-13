@@ -184,6 +184,12 @@ CREATE TABLE IF NOT EXISTS google_business_connections (
   UNIQUE(organization_id, site_id, location_id)
 );
 
+-- Enforce one site-level (NULL location_id) connection per org+site.
+-- UNIQUE(org, site, location_id) won't catch this because SQLite treats NULL != NULL.
+CREATE UNIQUE INDEX IF NOT EXISTS idx_google_business_connections_site_level_unique
+  ON google_business_connections(organization_id, site_id)
+  WHERE location_id IS NULL;
+
 CREATE TABLE IF NOT EXISTS business_locations (
   id TEXT PRIMARY KEY,
   organization_id TEXT NOT NULL,

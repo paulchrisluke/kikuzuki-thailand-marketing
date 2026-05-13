@@ -364,7 +364,7 @@ export const getGoogleBusinessConnection = async (
   } else {
     connection = await env.REVIEWS_DB.prepare(`
       SELECT * FROM google_business_connections
-      WHERE organization_id = ? AND site_id = ? AND status = 'active'
+      WHERE organization_id = ? AND site_id = ? AND location_id IS NULL AND status = 'active'
       LIMIT 1
     `).bind(organizationId, siteId).first() as GoogleBusinessConnection | null
   }

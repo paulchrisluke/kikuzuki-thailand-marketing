@@ -35,7 +35,11 @@ export default defineEventHandler(async (event) => {
       return jsonResponse({ error: 'Site not found or access denied' }, { status: 404 })
     }
 
-    const connection = await getGoogleBusinessConnection(env, site.organization_id as string, siteId, locationId)
+    if (typeof site.organization_id !== 'string' || !site.organization_id) {
+      return jsonResponse({ error: 'Invalid site data: missing organization_id' }, { status: 500 })
+    }
+
+    const connection = await getGoogleBusinessConnection(env, site.organization_id, siteId, locationId)
 
     if (!connection) {
       return jsonResponse({ success: true, connection: null })

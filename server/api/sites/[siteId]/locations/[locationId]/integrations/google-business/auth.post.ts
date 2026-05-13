@@ -2,6 +2,7 @@ import { cloudflareEnv, jsonResponse } from '~/server/utils/api-response'
 import { getAuthSession } from '~/server/utils/auth'
 import { getGoogleBusinessAuthUrl } from '~/server/utils/google-business'
 import { hasEntitlement } from '~/server/utils/billing'
+import { signOAuthState } from '~/server/utils/encryption'
 
 export default defineEventHandler(async (event) => {
   const siteId = getRouterParam(event, 'siteId')
@@ -51,13 +52,19 @@ export default defineEventHandler(async (event) => {
       }, { status: 403 })
     }
 
-    const state = JSON.stringify({
+    const statePayload = {
       siteId,
       organizationId: site.organization_id,
       userId: session.user.id,
       locationId,
       timestamp: Date.now()
-    })
+    }
+
+    const hmacSecret = env.CONNECTOR_TOKEN_ENCRYPTION_KEY as string | undefined
+    if (!hmacSecret) {
+      return jsonResponse({ error: 'Server misconfiguration: encryption key not set' }, { status: 500 })
+    }
+    const state = await signOAuthState(hmacSecret, statePayload)
 
     const authUrl = getGoogleBusinessAuthUrl(env, state)
 

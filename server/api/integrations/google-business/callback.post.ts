@@ -1,6 +1,7 @@
 // Handle Google Business OAuth callback
 import { cloudflareEnv, jsonResponse } from '../../../utils/api-response'
 import { exchangeGoogleBusinessCode, storeGoogleBusinessConnection, getGoogleBusinessAccounts, getGoogleBusinessLocations, syncGoogleLocations } from '../../../utils/google-business'
+import { verifyOAuthState } from '../../../utils/encryption'
 
 interface CallbackRequest {
   code: string
@@ -27,18 +28,23 @@ export default defineEventHandler(async (event) => {
   }
 
   try {
-    // Parse and validate state parameter
-    let stateData
-    try {
-      stateData = JSON.parse(state)
-    } catch (error) {
-      return jsonResponse({ 
-        error: 'Invalid state parameter' 
-      }, { status: 400 })
+    // Parse and validate state parameter — verify HMAC signature
+    const hmacSecret = env.CONNECTOR_TOKEN_ENCRYPTION_KEY as string | undefined
+    if (!hmacSecret) {
+      return jsonResponse({ error: 'Server misconfiguration: encryption key not set' }, { status: 500 })
+    }
+    let stateData: { siteId: string; organizationId: string; userId: string; locationId: string; timestamp: number } | null
+    stateData = await verifyOAuthState<{ siteId: string; organizationId: string; userId: string; locationId: string; timestamp: number }>(hmacSecret, state)
+    if (!stateData) {
+      return jsonResponse({ error: 'Invalid or tampered state parameter' }, { status: 400 })
     }
 
     const { siteId, organizationId, userId, locationId, timestamp } = stateData
-    
+
+    if (!siteId || !organizationId || !userId || !locationId) {
+      return jsonResponse({ error: 'Invalid state: missing required fields' }, { status: 400 })
+    }
+
     // Check state age (should be less than 10 minutes)
     if (Date.now() - timestamp > 10 * 60 * 1000) {
       return jsonResponse({ 
@@ -74,8 +80,16 @@ export default defineEventHandler(async (event) => {
     const tokenData = await exchangeGoogleBusinessCode(env, code)
     
     // Get user info from Google
-    const userInfoResponse = await fetch(`https://www.googleapis.com/oauth2/v2/userinfo?access_token=${tokenData.accessToken}`)
-    const userInfo = await userInfoResponse.json() as { email: string }
+    const userInfoResponse = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
+      headers: { Authorization: `Bearer ${tokenData.accessToken}` }
+    })
+    if (!userInfoResponse.ok) {
+      throw new Error(`Failed to fetch user info: ${userInfoResponse.status}`)
+    }
+    const userInfo = await userInfoResponse.json() as { email?: string }
+    if (!userInfo.email) {
+      throw new Error('Google user info did not return an email address')
+    }
     
     // Store connection
     const connectionId = await storeGoogleBusinessConnection(env, {
