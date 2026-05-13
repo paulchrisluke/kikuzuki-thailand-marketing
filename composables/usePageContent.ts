@@ -87,7 +87,7 @@ export const usePageContent = (pageName?: string) => {
 
   const needsSanitization = (field: string) => {
     const def = getFieldDef(page.value, field)
-    return def?.type === 'rich_text'
+    return def?.type === 'richtext'
   }
 
   const handlePreviewUpdate = async (event: MessageEvent) => {
@@ -136,7 +136,7 @@ export const usePageContent = (pageName?: string) => {
    */
   const getField = (field: string, defaultValue: string | null = null): string | null => {
     if (Object.prototype.hasOwnProperty.call(previewOverrides.value, field)) {
-      return previewOverrides.value[field]
+      return previewOverrides.value[field] ?? null
     }
 
     if (field === 'hero.title' || field === 'hero.subtitle' || field === 'hero.video') {

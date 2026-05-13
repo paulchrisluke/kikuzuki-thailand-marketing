@@ -1,0 +1,20 @@
+{
+  // Vetur configuration for Nuxt 4
+  "vetur.validation.templateProps": false,
+  "vetur.validation.template": true,
+  "vetur.validation.style": true,
+  "vetur.validation.script": true,
+  
+  // Use workspace TypeScript
+  "vetur.useWorkspaceDependencies": true,
+  
+  // Suppress false module not found warnings for Nuxt UI in Vetur
+  "[vue]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode",
+    "editor.formatOnSave": false
+  },
+  
+  // Disable built-in CSS validation for Tailwind v4 at-rules
+  "css.lint.unknownAtRules": "ignore",
+  "scss.lint.unknownAtRules": "ignore"
+}

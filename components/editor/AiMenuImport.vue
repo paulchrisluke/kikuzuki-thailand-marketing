@@ -1,13 +1,13 @@
 <template>
   <UModal v-model:open="isOpen" :title="modalTitle" :ui="{ content: 'max-w-2xl' }">
     <!-- Trigger slot -->
-    <template #default="{ open }">
+    <template #default>
       <UButton
         color="neutral"
         variant="ghost"
         size="sm"
         icon="i-heroicons-sparkles"
-        @click="open"
+        @click="isOpen = true"
       >
         Import from photo
       </UButton>
@@ -21,20 +21,20 @@
         <div
           class="flex flex-col items-center justify-center gap-3 rounded-lg border-2 border-dashed px-6 py-10 transition-colors"
           :class="isDragging
-            ? 'border-(--ui-primary) bg-(--ui-primary)/5'
-            : 'border-(--ui-border) hover:border-(--ui-border-accented)'"
+            ? 'border-primary bg-primary/5'
+            : 'border-default hover:border-accented'"
           @dragenter.prevent="isDragging = true"
           @dragover.prevent="isDragging = true"
           @dragleave.prevent="isDragging = false"
           @drop.prevent="onDrop"
           @click="fileInput?.click()"
         >
-          <UIcon name="i-heroicons-photo" class="size-10 text-(--ui-text-muted)" />
+          <UIcon name="i-heroicons-photo" class="size-10 text-muted" />
           <div class="text-center">
-            <p class="text-sm font-medium text-(--ui-text-highlighted)">
+            <p class="text-sm font-medium text-highlighted">
               {{ selectedFile ? selectedFile.name : 'Drop a menu photo here' }}
             </p>
-            <p class="mt-1 text-xs text-(--ui-text-muted)">
+            <p class="mt-1 text-xs text-muted">
               {{ selectedFile
                 ? formatFileSize(selectedFile.size)
                 : 'JPEG, PNG, WEBP or PDF — max 10 MB.' }}
@@ -67,11 +67,11 @@
         />
 
         <!-- Credit info -->
-        <div class="flex items-center gap-2 rounded-lg border border-(--ui-border) bg-(--ui-bg-elevated) px-3 py-2">
-          <UIcon name="i-heroicons-bolt" class="size-4 shrink-0 text-(--ui-text-muted)" />
-          <p class="text-xs text-(--ui-text-muted)">
+        <div class="flex items-center gap-2 rounded-lg border border-default bg-elevated px-3 py-2">
+          <UIcon name="i-heroicons-bolt" class="size-4 shrink-0 text-muted" />
+          <p class="text-xs text-muted">
             Each extraction uses ~10–50 credits depending on menu size.
-            <span v-if="credits !== null"> You have <strong class="text-(--ui-text)">{{ credits.toLocaleString() }}</strong> credits remaining.</span>
+            <span v-if="credits !== null"> You have <strong class="text-default">{{ credits.toLocaleString() }}</strong> credits remaining.</span>
           </p>
         </div>
       </div>
@@ -79,13 +79,13 @@
       <!-- Step: extracting -->
       <div v-else-if="step === 'extracting'" class="space-y-3 py-4">
         <div class="flex items-center gap-3">
-          <div class="size-5 animate-spin rounded-full border-2 border-(--ui-primary) border-t-transparent" />
-          <p class="text-sm text-(--ui-text-highlighted)">Reading menu with AI…</p>
+          <div class="size-5 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+          <p class="text-sm text-highlighted">Reading menu with AI…</p>
         </div>
         <div class="space-y-2">
           <USkeleton v-for="i in 4" :key="i" class="h-10 w-full rounded" />
         </div>
-        <p class="text-xs text-(--ui-text-muted)">This usually takes 5–15 seconds.</p>
+        <p class="text-xs text-muted">This usually takes 5–15 seconds.</p>
       </div>
 
       <!-- Step: preview extracted items -->
@@ -98,32 +98,32 @@
           icon="i-heroicons-exclamation-triangle"
         />
 
-        <p class="text-sm text-(--ui-text-muted)">
+        <p class="text-sm text-muted">
           {{ editedItems.length }} item{{ editedItems.length === 1 ? '' : 's' }} found. Edit before saving — nothing is published yet.
         </p>
 
-        <div class="max-h-96 overflow-y-auto rounded-lg border border-(--ui-border)">
+        <div class="max-h-96 overflow-y-auto rounded-lg border border-default">
           <div
             v-for="(item, idx) in editedItems"
             :key="idx"
-            class="border-b border-(--ui-border) last:border-0"
+            class="border-b border-default last:border-0"
           >
             <!-- Collapsed row -->
             <div
               v-if="expandedIdx !== idx"
-              class="flex cursor-pointer items-center gap-3 px-4 py-3 hover:bg-(--ui-bg-elevated)"
+              class="flex cursor-pointer items-center gap-3 px-4 py-3 hover:bg-elevated"
               @click="expandedIdx = idx"
             >
               <div class="min-w-0 flex-1">
-                <span class="text-sm font-medium text-(--ui-text-highlighted)">{{ item.name || '(unnamed)' }}</span>
-                <span v-if="item.section" class="ml-2 text-xs text-(--ui-text-muted)">{{ item.section }}</span>
+                <span class="text-sm font-medium text-highlighted">{{ item.name || '(unnamed)' }}</span>
+                <span v-if="item.section" class="ml-2 text-xs text-muted">{{ item.section }}</span>
               </div>
-              <span v-if="item.price" class="shrink-0 text-sm text-(--ui-text)">{{ item.price }}</span>
+              <span v-if="item.price" class="shrink-0 text-sm text-default">{{ item.price }}</span>
               <UButton size="xs" color="neutral" variant="ghost" icon="i-heroicons-trash" @click.stop="editedItems.splice(idx, 1)" />
             </div>
 
             <!-- Expanded inline edit -->
-            <div v-else class="bg-(--ui-bg-elevated) px-4 py-3">
+            <div v-else class="bg-elevated px-4 py-3">
               <div class="space-y-2">
                 <div class="grid gap-2 sm:grid-cols-2">
                   <UFormField label="Name" size="sm">
@@ -146,16 +146,16 @@
             </div>
           </div>
 
-          <div v-if="editedItems.length === 0" class="px-4 py-8 text-center text-sm text-(--ui-text-muted)">
+          <div v-if="editedItems.length === 0" class="px-4 py-8 text-center text-sm text-muted">
             No items extracted. Try a clearer photo.
           </div>
         </div>
 
         <!-- Credits charged -->
-        <div v-if="creditsCharged" class="flex items-center gap-2 rounded-lg border border-(--ui-border) bg-(--ui-bg-elevated) px-3 py-2">
-          <UIcon name="i-heroicons-bolt" class="size-4 shrink-0 text-(--ui-text-muted)" />
-          <p class="text-xs text-(--ui-text-muted)">
-            Used <strong class="text-(--ui-text)">{{ creditsCharged }}</strong> credits.
+        <div v-if="creditsCharged" class="flex items-center gap-2 rounded-lg border border-default bg-elevated px-3 py-2">
+          <UIcon name="i-heroicons-bolt" class="size-4 shrink-0 text-muted" />
+          <p class="text-xs text-muted">
+            Used <strong class="text-default">{{ creditsCharged }}</strong> credits.
             <span v-if="creditsRemaining !== null"> {{ creditsRemaining.toLocaleString() }} remaining.</span>
           </p>
         </div>
@@ -164,10 +164,10 @@
       <!-- Step: done -->
       <div v-else-if="step === 'done'" class="py-6 text-center">
         <UIcon name="i-heroicons-check-circle" class="mx-auto size-10 text-green-500" />
-        <p class="mt-3 text-sm font-medium text-(--ui-text-highlighted)">
+        <p class="mt-3 text-sm font-medium text-highlighted">
           {{ savedCount }} item{{ savedCount === 1 ? '' : 's' }} saved as draft
         </p>
-        <p class="mt-1 text-xs text-(--ui-text-muted)">Review and publish from the menu editor when ready.</p>
+        <p class="mt-1 text-xs text-muted">Review and publish from the menu editor when ready.</p>
       </div>
     </template>
 
@@ -210,6 +210,8 @@
 </template>
 
 <script setup lang="ts">
+import { useToast } from '~/composables/useToast'
+
 const props = defineProps<{
   siteId: string
   menuId?: string | null
@@ -246,7 +248,7 @@ const modalTitle = computed(() => {
   return 'Import menu from photo'
 })
 
-watch(isOpen, (open) => {
+watch(isOpen, (open: boolean) => {
   if (!open) reset()
 })
 
@@ -304,7 +306,7 @@ async function runExtraction() {
       warning?: string | null
       credits: { charged: number; remaining: number }
       error?: string
-    }>(`/api/ai/${props.siteId}/menu/extract`, { method: 'POST', body: fd })
+    }>(`/api/ai/${props.siteId}/menu/extract`, { method: 'POST', body: fd } as any)
 
     resultMenuId.value = res.menuId
     creditsCharged.value = res.credits?.charged ?? null
@@ -323,7 +325,7 @@ async function runExtraction() {
     const msg = err?.data?.error ?? err?.message ?? 'Extraction failed. Please try again.'
     uploadError.value = msg
     step.value = 'idle'
-    toast.add({ description: msg, color: 'error' })
+    toast.addToast(msg, 'error')
   }
 }
 
@@ -334,7 +336,7 @@ async function saveDraft() {
     savedCount.value = editedItems.value.length
     step.value = 'done'
     emit('imported', resultMenuId.value)
-    toast.add({ description: `${savedCount.value} items saved as draft`, color: 'success' })
+    toast.addToast(`${savedCount.value} items saved as draft`, 'success')
   } finally {
     saving.value = false
   }

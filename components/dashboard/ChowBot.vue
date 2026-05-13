@@ -208,7 +208,7 @@ async function purchaseCredits(bundle: 500 | 2500 | 5000) {
     const res = await $fetch<{ checkoutUrl?: string; balance?: number }>('/api/billing/credits/add', {
       method: 'POST',
       body: { bundle }
-    })
+    } as any)
     if (res.checkoutUrl) await navigateTo(res.checkoutUrl, { external: true })
     if (res.balance !== undefined) await fetchCredits()
   } catch (err: any) {
