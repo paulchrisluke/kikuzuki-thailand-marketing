@@ -127,6 +127,8 @@ async function handleCheckoutCompleted(env: Record<string, string | undefined>, 
     ? new Date(sub.billing_cycle_anchor * 1000).toISOString()
     : null
 
+  console.log('[checkout] org=%s plan=%s sub=%s item=%s', organizationId, plan, subscriptionId, subscriptionItemId)
+
   await db.prepare(`
     INSERT OR REPLACE INTO organization_billing
     (id, organization_id, stripe_customer_id, stripe_subscription_id, stripe_subscription_item_id,
@@ -144,9 +146,10 @@ async function handleCheckoutCompleted(env: Record<string, string | undefined>, 
     new Date().toISOString()
   ).run()
 
+  console.log('[checkout] DB write done, setting entitlements')
   await setOrganizationEntitlementsFromPlan(env, db, organizationId, plan)
 
-  console.log(`Checkout completed for organization ${organizationId}, plan ${plan}, item ${subscriptionItemId}`)
+  console.log('[checkout] done — org=%s plan=%s', organizationId, plan)
 }
 
 // Handle subscription updates
