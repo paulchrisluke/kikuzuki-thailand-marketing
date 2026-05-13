@@ -28,7 +28,7 @@ export const usePlans = () => {
     if (plan.prices.length === 0) return '$0'
     if (annual) {
       const cents = annualPrice(plan)
-      return cents !== null ? formatPrice(cents) : 'N/A'
+      return cents !== null ? formatPrice(cents) : '$0'
     }
     const cents = monthlyPrice(plan)
     return cents !== null ? formatPrice(cents) : '$0'

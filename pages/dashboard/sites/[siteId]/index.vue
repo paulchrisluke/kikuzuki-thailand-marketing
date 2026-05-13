@@ -38,7 +38,7 @@
             </div>
           </template>
           <div class="space-y-4">
-            <UProgress :value="launchProgress" size="md" color="primary" />
+            <UProgress :model-value="launchProgress" size="md" color="primary" />
             <div class="grid gap-3 sm:grid-cols-2">
               <div
                 v-for="item in requiredFields"

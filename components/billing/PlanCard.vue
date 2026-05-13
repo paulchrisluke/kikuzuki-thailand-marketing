@@ -117,7 +117,11 @@ const savingsNote = computed(() => {
   const annualAsMonthly = Math.round(annual / 12)
   if (props.plan.id === 'pro') {
     const savedPerYear = monthly * 12 - annual
-    return `≈ $${(annualAsMonthly / 100).toFixed(2)}/month — save $${(savedPerYear / 100).toFixed(0)}/year per location`
+    const basePrice = `≈ $${(annualAsMonthly / 100).toFixed(2)}/month`
+    if (savedPerYear > 0) {
+      return `${basePrice} — save $${(savedPerYear / 100).toFixed(0)}/year per location`
+    }
+    return basePrice
   }
   return '2 months free'
 })

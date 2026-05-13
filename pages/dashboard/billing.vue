@@ -97,7 +97,7 @@
                 <span>{{ (credits.balance + credits.lifetime_used).toLocaleString() }} total granted</span>
               </div>
               <UProgress
-                :value="credits.lifetime_used"
+                :model-value="credits.lifetime_used"
                 :max="credits.balance + credits.lifetime_used || 1"
                 :color="credits.balance < 50 ? 'error' : credits.balance < 200 ? 'warning' : 'primary'"
               />
@@ -151,6 +151,7 @@
         <div class="flex items-center gap-3">
           <span class="text-sm" :class="!annual ? 'font-semibold text-default' : 'text-muted'">Monthly</span>
           <button
+            type="button"
             class="relative w-10 h-5 rounded-full transition-colors"
             :class="annual ? 'bg-(--kc-teal)' : 'bg-muted'"
             role="switch"
@@ -198,13 +199,13 @@
               <template v-if="billing?.plan !== plan.id">
                 <UButton
                   v-if="plan.id === 'free'"
-                  disabled
                   color="neutral"
                   variant="soft"
                   block
                   class="mt-6"
+                  @click="upgradeToPlan(plan.id)"
                 >
-                  Your current base
+                  Switch to Free
                 </UButton>
                 <UButton
                   v-else

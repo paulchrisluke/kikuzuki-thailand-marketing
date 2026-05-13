@@ -144,7 +144,7 @@ const savingsPercentLabel = computed(() => {
   if (!monthly || !annualPriceCents) return '~0%'
   const fullYearMonthly = monthly * 12
   if (!fullYearMonthly) return '~0%'
-  const pct = Math.round(((fullYearMonthly - annualPriceCents) / fullYearMonthly) * 100)
+  const pct = Math.max(0, Math.round(((fullYearMonthly - annualPriceCents) / fullYearMonthly) * 100))
   return `~${pct}%`
 })
 
