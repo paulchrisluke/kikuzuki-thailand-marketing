@@ -64,19 +64,8 @@
                 <span v-if="credits" class="text-sm text-muted">
                   {{ credits.lifetime_used.toLocaleString() }} used · {{ credits.balance.toLocaleString() }} remaining
                 </span>
-                <UButton
-                  v-if="isDev"
-                  size="xs"
-                  color="neutral"
-                  variant="outline"
-                  icon="i-heroicons-plus"
-                  :loading="addingCredits"
-                  @click="addDevCredits(500)"
-                >
-                  500 dev credits
-                </UButton>
-                <UDropdownMenu v-else :items="creditBundles" :content="{ align: 'end' }">
-                  <UButton size="xs" color="primary" variant="soft" icon="i-heroicons-credit-card" trailing-icon="i-heroicons-chevron-down" :loading="buyingCredits">
+                <UDropdownMenu :items="creditBundles" :content="{ align: 'end' }">
+                  <UButton size="xs" color="primary" variant="soft" icon="i-heroicons-credit-card" trailing-icon="i-heroicons-chevron-down" :loading="buyingCredits !== null">
                     Buy credits
                   </UButton>
                 </UDropdownMenu>
@@ -241,26 +230,37 @@ const successMessage = ref('')
 const errorMessage = ref('')
 const annual = ref(false)
 const isDev = useRequestURL().hostname === 'localhost'
-const buyingCredits = ref(false)
+const buyingCredits = ref<number | null>(null)
 
 async function purchaseCredits(bundle: 500 | 2500 | 5000) {
-  buyingCredits.value = true
+  buyingCredits.value = bundle
+  errorMessage.value = ''
   try {
-    const res = await $fetch<{ checkoutUrl: string }>('/api/billing/credits/add', {
+    const res = await $fetch<{ checkoutUrl?: string; balance?: number; error?: string }>('/api/billing/credits/add', {
       method: 'POST',
       body: { bundle }
     } as any)
-    if (res.checkoutUrl) await navigateTo(res.checkoutUrl, { external: true })
+    if (res.checkoutUrl) {
+      await navigateTo(res.checkoutUrl, { external: true })
+    } else if (res.balance !== undefined) {
+      // dev mode direct top-up response
+      successMessage.value = `Added ${bundle} credits. New balance: ${res.balance}`
+      await loadCredits()
+    } else {
+      errorMessage.value = res.error ?? 'Failed to start checkout'
+    }
+  } catch (err: any) {
+    errorMessage.value = err?.data?.error ?? err?.message ?? 'Failed to start checkout'
   } finally {
-    buyingCredits.value = false
+    buyingCredits.value = null
   }
 }
 
 const creditBundles = [
   [
-    { label: '500 credits — $9', icon: 'i-heroicons-bolt', onSelect: () => purchaseCredits(500) },
-    { label: '2,500 credits — $29', icon: 'i-heroicons-bolt', onSelect: () => purchaseCredits(2500) },
-    { label: '5,000 credits — $49', icon: 'i-heroicons-bolt', onSelect: () => purchaseCredits(5000) },
+    { label: '500 credits — $9', icon: 'i-heroicons-bolt', onSelect: () => { purchaseCredits(500) } },
+    { label: '2,500 credits — $29', icon: 'i-heroicons-bolt', onSelect: () => { purchaseCredits(2500) } },
+    { label: '5,000 credits — $49', icon: 'i-heroicons-bolt', onSelect: () => { purchaseCredits(5000) } },
   ]
 ]
 

@@ -21,9 +21,9 @@ export default defineEventHandler(async (event) => {
 
   const body = await readBody(event).catch(() => ({}))
 
-  // Dev-only direct top-up
-  if (process.env.NODE_ENV === 'development' && body.amount) {
-    const amount = Number(body.amount)
+  // Dev-only direct top-up — accepts either { amount } or { bundle }
+  if (process.env.NODE_ENV === 'development') {
+    const amount = Number(body.amount ?? body.bundle)
     const member = await db.prepare(
       'SELECT organizationId FROM member WHERE userId = ? LIMIT 1'
     ).bind(session.user.id).first()
