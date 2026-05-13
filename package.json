@@ -12,7 +12,8 @@
     "preview": "nuxt preview",
     "postinstall": "nuxt prepare",
     "schema:local": "npx wrangler d1 execute REVIEWS_DB --local --file schema.sql",
-    "schema:remote": "npx wrangler d1 execute REVIEWS_DB --remote --file schema.sql"
+    "schema:remote": "npx wrangler d1 execute REVIEWS_DB --remote --file schema.sql",
+    "stripe:listen": "stripe listen --forward-to localhost:3000/api/billing/webhook"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20260503.1",
