@@ -38,8 +38,15 @@ export default defineEventHandler(async (event) => {
       }, { status: 401 })
     }
 
+    // Validate Stripe secret key
+    if (!env.STRIPE_SECRET_KEY) {
+      return jsonResponse({ 
+        error: 'Stripe secret key not configured' 
+      }, { status: 503 })
+    }
+
     // Parse webhook event
-    const stripe = new Stripe(env.STRIPE_SECRET_KEY!)
+    const stripe = new Stripe(env.STRIPE_SECRET_KEY)
     
     const webhookEvent = stripe.webhooks.constructEvent(
       body.toString(),
@@ -165,7 +172,9 @@ async function handleSubscriptionUpdated(env: Record<string, string | undefined>
 
   const status = subscription.status
   const sub = subscription as any
-  const currentPeriodEnd = new Date(sub.billing_cycle_anchor * 1000).toISOString()
+  const currentPeriodEnd = sub.billing_cycle_anchor
+    ? new Date(sub.billing_cycle_anchor * 1000).toISOString()
+    : new Date().toISOString()
   const cancelAtPeriodEnd = sub.cancel_at_period_end || false
   
   await db.prepare(`
