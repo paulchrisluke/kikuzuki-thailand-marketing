@@ -124,8 +124,8 @@ async function handleCheckoutCompleted(env: Record<string, string | undefined>, 
     const subscription = await stripe.subscriptions.retrieve(subscriptionId)
     const subscriptionItemId = subscription.items.data[0]?.id ?? null
     const sub = subscription as any
-    const periodEnd = sub.current_period_end
-      ? new Date(sub.current_period_end * 1000).toISOString()
+    const periodEnd = sub.billing_cycle_anchor
+      ? new Date(sub.billing_cycle_anchor * 1000).toISOString()
       : null
 
     await db.prepare(`
@@ -169,7 +169,7 @@ async function handleSubscriptionUpdated(env: Record<string, string | undefined>
 
   const status = subscription.status
   const sub = subscription as any
-  const currentPeriodEnd = new Date(sub.current_period_end * 1000).toISOString()
+  const currentPeriodEnd = new Date(sub.billing_cycle_anchor * 1000).toISOString()
   const cancelAtPeriodEnd = sub.cancel_at_period_end || false
   
   try {
