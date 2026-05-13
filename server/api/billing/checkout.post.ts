@@ -60,13 +60,17 @@ export default defineEventHandler(async (event) => {
 
   // Auto-detect org from session when not provided (e.g. pricing page CTA)
   if (!organizationId) {
-    const userOrg = await db.prepare(`
-      SELECT organizationId FROM member WHERE userId = ? LIMIT 1
-    `).bind(session.user.id).first() as { organizationId: string } | null
-    if (!userOrg) {
+    const userOrgs = await db.prepare(`
+      SELECT organizationId FROM member WHERE userId = ?
+    `).bind(session.user.id).all() as { results: Array<{ organizationId: string }> } | null
+    const orgIds = userOrgs?.results?.map((r) => r.organizationId) ?? []
+    if (orgIds.length === 0) {
       return jsonResponse({ error: 'No organization found' }, { status: 404 })
     }
-    organizationId = userOrg.organizationId
+    if (orgIds.length > 1) {
+      return jsonResponse({ error: 'User belongs to multiple organizations. Please specify organizationId.' }, { status: 400 })
+    }
+    organizationId = orgIds[0]
   }
 
   try {

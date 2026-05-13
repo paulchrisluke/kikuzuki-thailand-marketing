@@ -96,20 +96,27 @@ const annual = ref(false)
 const { plans, proPlan, monthlyPrice } = usePlans()
 const { isAuthenticated } = useAuth()
 const upgrading = ref<string | null>(null)
+const checkoutError = ref<string>('')
 
 async function handleUpgrade(planId: string) {
   if (!isAuthenticated.value) {
     await navigateTo('/login?next=/dashboard/billing')
     return
   }
+  checkoutError.value = ''
   upgrading.value = planId
   try {
     const res = await $fetch<{ checkoutUrl: string }>('/api/billing/checkout', {
       method: 'POST',
       body: { plan: planId, interval: annual.value ? 'year' : 'month' }
     } as any)
-    if (res.checkoutUrl) await navigateTo(res.checkoutUrl, { external: true })
-  } catch (err) {
+    if (res.checkoutUrl) {
+      await navigateTo(res.checkoutUrl, { external: true })
+    } else {
+      checkoutError.value = 'Unable to start checkout. Please try again.'
+    }
+  } catch (err: any) {
+    checkoutError.value = err?.message || 'Checkout failed. Please try again.'
     console.error('Checkout failed:', err)
   } finally {
     upgrading.value = null

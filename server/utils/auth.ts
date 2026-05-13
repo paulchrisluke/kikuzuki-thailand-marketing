@@ -40,15 +40,20 @@ export function createAuth(env: CloudflareEnv) {
             const now = new Date().toISOString()
             const orgId = `org-${user.id}`
             try {
-              await d1.prepare(
-                `INSERT OR IGNORE INTO organization (id, name, slug, createdAt) VALUES (?, ?, ?, ?)`
-              ).bind(orgId, user.name ?? user.email ?? 'My Restaurant', orgId, now).run()
-
-              await d1.prepare(
-                `INSERT OR IGNORE INTO member (id, organizationId, userId, role, createdAt) VALUES (?, ?, ?, ?, ?)`
-              ).bind(`member-${orgId}`, orgId, user.id, 'owner', now).run()
+              const statements = [
+                d1.prepare(
+                  `INSERT OR IGNORE INTO organization (id, name, slug, createdAt) VALUES (?, ?, ?, ?)`
+                ).bind(orgId, user.name ?? user.email ?? 'My Restaurant', orgId, now),
+                d1.prepare(
+                  `INSERT OR IGNORE INTO member (id, organizationId, userId, role, createdAt) VALUES (?, ?, ?, ?, ?)`
+                ).bind(`member-${orgId}`, orgId, user.id, 'owner', now)
+              ]
+              
+              // Execute both inserts atomically
+              await d1.batch(statements)
             } catch (err) {
               console.error('Failed to create org on signup:', err)
+              throw err
             }
           }
         }

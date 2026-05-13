@@ -161,11 +161,23 @@ async function confirmDeleteAccount() {
   deleteError.value = ''
 
   try {
-    const res = await $fetch('/api/user/delete-account', { method: 'POST' })
+    const res = await $fetch<{ success?: boolean }>('/api/user/delete-account', { method: 'POST' })
 
-    if ((res as any).success) {
-      await authClient.signOut()
-      await navigateTo('/')
+    if (res?.success) {
+      try {
+        await authClient.signOut()
+      } catch (signOutErr) {
+        console.error('Sign out failed after account deletion:', signOutErr)
+      }
+      try {
+        await navigateTo('/')
+      } catch (navErr) {
+        console.error('Navigation failed after account deletion:', navErr)
+        window.location.href = '/'
+      }
+    } else {
+      deleteError.value = 'Account deletion failed. Please try again.'
+      deleting.value = false
     }
   } catch (err: any) {
     const body = err?.data ?? err?.response?._data

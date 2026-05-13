@@ -18,17 +18,26 @@ export default defineEventHandler(async (event) => {
 
   const userId = session.user.id
 
-  // Find all organizations where this user is the sole owner
-  const ownedOrgs = await db.prepare(`
+  // Find organizations where this user is the SOLE owner
+  const ownedOrgsResult = await db.prepare(`
     SELECT o.id FROM organization o
     JOIN member m ON o.id = m.organizationId
     WHERE m.userId = ? AND m.role = 'owner'
-  `).bind(userId).all()
+    GROUP BY o.id
+    HAVING COUNT(*) = 1
+  `).bind(userId).all() as { results?: Array<{ id: string }> } | null
 
-  const orgIds: string[] = (ownedOrgs.results ?? []).map((r: any) => r.id)
+  const soleOwnedOrgIds: string[] = (ownedOrgsResult?.results ?? []).map((r: any) => r.id)
+  
+  // Find all organizations where user is a member (for cleanup)
+  const allMemberships = await db.prepare(`
+    SELECT DISTINCT organizationId FROM member WHERE userId = ?
+  `).bind(userId).all() as { results?: Array<{ organizationId: string }> } | null
 
-  // Block deletion if any owned org has an active Stripe subscription
-  for (const orgId of orgIds) {
+  const allOrgIds: string[] = (allMemberships?.results ?? []).map((r: any) => r.organizationId)
+
+  // Block deletion if any organization has an active Stripe subscription
+  for (const orgId of allOrgIds) {
     const billing = await db.prepare(`
       SELECT status FROM organization_billing
       WHERE organization_id = ?
@@ -43,13 +52,26 @@ export default defineEventHandler(async (event) => {
     }
   }
 
-  // Delete owned organizations (cascades to billing, entitlements, sites, etc.)
-  for (const orgId of orgIds) {
-    await db.prepare(`DELETE FROM organization WHERE id = ?`).bind(orgId).run()
+  // Delete in transaction: sole-owned orgs first, then member records, then user
+  const statements = []
+  
+  // Delete sole-owned organizations (cascades to their data)
+  for (const orgId of soleOwnedOrgIds) {
+    statements.push(db.prepare(`DELETE FROM organization WHERE id = ?`).bind(orgId))
   }
-
-  // Delete the user — cascades to session, account, member, phone_number rows
-  await db.prepare(`DELETE FROM user WHERE id = ?`).bind(userId).run()
+  
+  // Delete member records for all orgs (for co-owned orgs, removes user from org)
+  for (const orgId of allOrgIds) {
+    statements.push(db.prepare(`DELETE FROM member WHERE organizationId = ? AND userId = ?`).bind(orgId, userId))
+  }
+  
+  // Delete the user — cascades to session, account, phone_number rows
+  statements.push(db.prepare(`DELETE FROM user WHERE id = ?`).bind(userId))
+  
+  // Execute all statements in batch (atomic operation)
+  if (statements.length > 0) {
+    await db.batch(statements)
+  }
 
   return jsonResponse({ success: true })
 })

@@ -183,7 +183,7 @@
                 </div>
                 <p class="mt-2 text-3xl font-semibold text-(--ui-text-highlighted)">
                   {{ displayPrice(plan, annual) }}
-                  <span v-if="plan.prices.length" class="text-sm font-normal text-(--ui-text-muted)">
+                  <span v-if="plan.prices?.length" class="text-sm font-normal text-(--ui-text-muted)">
                     {{ annual && plan.id === 'agency' ? '/yr' : annual ? '/location/yr' : plan.id === 'agency' ? '/mo' : '/location/mo' }}
                   </span>
                 </p>
