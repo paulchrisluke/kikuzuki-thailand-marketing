@@ -135,7 +135,7 @@ const CATEGORY_CLASSES: Record<string, string> = {
 }
 
 const { data, pending, error } = await useAsyncData(
-  `blog-post-${route.params.slug}`,
+  () => `blog-post-${postEndpoint.value}`,
   () => $fetch(postEndpoint.value),
   {
     transform: (payload: any) => {

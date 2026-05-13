@@ -236,10 +236,10 @@ const editedItems = ref<{ section: string; name: string; description: string; pr
 const expandedIdx = ref<number | null>(null)
 const saving = ref(false)
 const savedCount = ref(0)
-const credits = ref<number | null>(null)
 const creditsCharged = ref<number | null>(null)
 const creditsRemaining = ref<number | null>(null)
 const resultMenuId = ref<string | null>(null)
+const credits = computed(() => creditsRemaining.value)
 
 const modalTitle = computed(() => {
   if (step.value === 'extracting') return 'Reading menu…'
@@ -261,6 +261,7 @@ function reset() {
   expandedIdx.value = null
   saving.value = false
   creditsCharged.value = null
+  creditsRemaining.value = null
   resultMenuId.value = null
 }
 

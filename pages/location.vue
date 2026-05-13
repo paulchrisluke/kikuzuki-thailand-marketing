@@ -60,11 +60,11 @@
                   <td class="py-3 text-muted font-medium">{{ hour.day }}</td>
                   <td class="py-3 text-right text-highlighted">
                     {{ hour.hours }}
-                    <span v-if="businessHoursFormatted.length === 0" class="text-sm text-dimmed block">Connect Google Business to keep hours fresh.</span>
                   </td>
                 </tr>
               </tbody>
             </table>
+            <span v-if="businessHoursFormatted.length === 0" class="mt-3 block text-sm text-dimmed">Connect Google Business to keep hours fresh.</span>
           </div>
         </div>
       </div>
