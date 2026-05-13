@@ -53,8 +53,11 @@ export default defineEventHandler(async (event) => {
     let organizationId: string
     
     if (userOrganizations) {
-      // User already has organization
+      // User already has organization — update its name to the restaurant name
       organizationId = userOrganizations.id
+      await db.prepare(`UPDATE organization SET name = ?, slug = ? WHERE id = ?`)
+        .bind(restaurantName, restaurantName.toLowerCase().replace(/[^a-z0-9]/g, '-'), organizationId)
+        .run()
       
       // Step 2: Check if this organization already has a site with the requested subdomain
       let existingSite = await db.prepare(`

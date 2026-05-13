@@ -33,6 +33,27 @@ export function createAuth(env: CloudflareEnv) {
       db,
       type: 'sqlite'
     },
+    databaseHooks: {
+      user: {
+        create: {
+          after: async (user) => {
+            const now = new Date().toISOString()
+            const orgId = `org-${user.id}`
+            try {
+              await d1.prepare(
+                `INSERT OR IGNORE INTO organization (id, name, slug, createdAt) VALUES (?, ?, ?, ?)`
+              ).bind(orgId, user.name ?? user.email ?? 'My Restaurant', orgId, now).run()
+
+              await d1.prepare(
+                `INSERT OR IGNORE INTO member (id, organizationId, userId, role, createdAt) VALUES (?, ?, ?, ?, ?)`
+              ).bind(`member-${orgId}`, orgId, user.id, 'owner', now).run()
+            } catch (err) {
+              console.error('Failed to create org on signup:', err)
+            }
+          }
+        }
+      }
+    },
     plugins: [
       organization(),
       phoneNumber({

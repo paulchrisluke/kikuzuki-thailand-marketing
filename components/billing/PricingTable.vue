@@ -31,17 +31,6 @@
         <BillingPlanCard :plan="plan" :annual="annual" class="h-full">
           <template v-if="plan.prices.length" #cta>
             <UButton
-              v-if="plan.id === 'agency'"
-              to="/contact"
-              variant="outline"
-              color="neutral"
-              size="xl"
-              block
-            >
-              Contact Us
-            </UButton>
-            <UButton
-              v-else
               size="xl"
               block
               :loading="upgrading === plan.id"

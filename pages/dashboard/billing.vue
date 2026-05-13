@@ -207,16 +207,6 @@
                   Your current base
                 </UButton>
                 <UButton
-                  v-else-if="plan.id === 'agency'"
-                  to="/contact"
-                  color="neutral"
-                  variant="soft"
-                  block
-                  class="mt-6"
-                >
-                  Contact Us
-                </UButton>
-                <UButton
                   v-else
                   :loading="upgrading === plan.id"
                   color="primary"
@@ -306,21 +296,12 @@ const loadBillingData = async () => {
 }
 
 const upgradeToPlan = async (plan: string) => {
-  upgrading.value = plan
   errorMessage.value = ''
+  upgrading.value = plan
   try {
-    if (!billing.value) {
-      errorMessage.value = 'Billing data not loaded'
-      return
-    }
-    const orgId = billing.value.organizationId || ''
-    if (!orgId) {
-      errorMessage.value = 'Organization ID not found'
-      return
-    }
     const response = await $fetch<any>('/api/billing/checkout', {
       method: 'POST',
-      body: { organizationId: orgId, plan, interval: annual.value ? 'year' : 'month' }
+      body: { plan, interval: annual.value ? 'year' : 'month' }
     } as any)
     if (response?.checkoutUrl) {
       await navigateTo(response.checkoutUrl, { external: true })

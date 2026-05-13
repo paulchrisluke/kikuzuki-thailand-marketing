@@ -65,7 +65,7 @@ export default defineEventHandler(async (event) => {
     
     return jsonResponse({
       success: true,
-      billing: billingStatus,
+      billing: { ...billingStatus, organizationId },
       userRole: membership.role
     })
     
