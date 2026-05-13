@@ -13,7 +13,10 @@
 | Free | $0 | Subdomain (`name.krabiclaw.com`), Saya theme, manual editor, 500 AI credits/mo, 1 location |
 | Pro | $29/location/mo · $249/location/yr | Custom domain + SSL, Google Business sync, 5,000 AI credits/mo, unlimited locations |
 | Agency | $99/mo · $990/yr | Everything in Pro + unlimited sites, white-label, API access, 50,000 AI credits/mo |
+| Credit top-ups | $9 / $29 / $49 | 500 / 2,500 / 5,000 one-time credits — never expire |
 | Upsell (TBD) | TBD | Instagram/Facebook sync, additional themes, Tenant MCP |
+
+**Stripe products:** Plans and credit bundles are defined in Stripe with `marketing_features` + `metadata`. All pricing UI (home page, `/pricing`, dashboard billing, upgrade modal) reads from `GET /api/billing/plans` — single source of truth, no pricing drift.
 
 **Upgrade modal triggers** (shown inline when owner hits a paid feature):
 - Connecting Google Business Profile
@@ -75,7 +78,7 @@
 |-------------|--------|
 | Google OAuth (login) | ✅ Live |
 | WhatsApp OTP login | ✅ Built — blocked on real number registration |
-| Stripe (billing) | ✅ Live |
+| Stripe (billing) | ✅ Live — subscriptions, credit top-ups, webhook, per-location quantity sync |
 | Cloudflare AI Gateway | ✅ Live — menu extraction, ChowBot agent, credit billing |
 | WhatsApp Business API | ✅ Notifications built — blocked on real number |
 | Facebook / Instagram Graph API | ✅ App created — channel adapter stub ready |
@@ -188,22 +191,55 @@ Every field GMB provides is now manually editable in D1. GMB sync populates fiel
 
 ---
 
-### 🔲 9. Upgrade Modal
-**Status: Composable built — modal UI not wired**
+### ✅ 9. Stripe Billing — Full Subscription + Credit Top-up Flow
+**Status: Live (stripe branch)**
 
-`useUpgradeModal()` composable exists (`composables/useUpgradeModal.ts`) with open/close state. The UModal component with plan comparison and Stripe checkout CTA is not yet built or rendered anywhere.
-Triggers: GMB connect, location 2+, custom domain, remove branding, buy credits.
+End-to-end Stripe integration for plan upgrades and credit purchases.
+
+**Plans:**
+- `GET /api/billing/plans` — fetches live from Stripe products (`marketing_features` + `metadata`); static fallback when key absent; 1hr edge cache
+- `usePlans()` composable + `PlanCard` + `PricingTable` components — single source of truth for all pricing UI
+- Pricing page, home page teaser, dashboard billing, upgrade modal all read from `usePlans()` — no hardcoded prices anywhere
+
+**Subscriptions:**
+- `POST /api/billing/checkout` — creates Stripe checkout session; auto-detects org from session; supports monthly/annual interval
+- Webhook handles: `checkout.session.completed`, `customer.subscription.created/updated/deleted`, `invoice.payment_succeeded/failed`
+- Per-location quantity sync: `updateSubscriptionQuantity()` called on location create/delete — Stripe prorates automatically
+- `stripe_subscription_item_id` stored for quantity updates
+
+**Credit top-ups (one-time payments):**
+- Bundles: 500 credits / $9 · 2,500 credits / $29 · 5,000 credits / $49
+- `POST /api/billing/credits/add` with `{ bundle }` → Stripe one-time checkout → webhook tops up `ai_credits.balance`
+- Dashboard billing: "Buy credits" dropdown with 3 bundles
+- ChowBot: credit-depleted banner locks input and shows inline buy buttons (no page nav needed)
+
+**Auth:**
+- Org + owner member created atomically via `databaseHooks.user.create.after` on every signup — no manual onboarding required for billing to work
+- Dashboard sidebar footer shows current plan badge (neutral=free, success=paid)
+- Platform header shows "Dashboard →" when logged in
+
+**Local dev:**
+- `yarn stripe:listen` forwards webhooks to localhost; CLI signing secret goes in `STRIPE_WEBHOOK_SECRET`
+- Dev mode: credit top-up endpoints do direct DB writes (no Stripe redirect)
 
 ---
 
-### 🔲 10. Social Channel Adapters (GMB, Instagram, Facebook)
+### 🔲 10. Upgrade Modal — Stripe CTA
+**Status: Composable + modal UI built — Stripe checkout CTA not wired to gate points**
+
+`useUpgradeModal()` composable and `SayaUpgradeModal` component exist. Modal shows Free vs Pro comparison with live price from `usePlans()`. The "Upgrade to Pro" button links to `/signup?plan=pro` — not yet wired to trigger `POST /api/billing/checkout` inline.
+Gate points (GMB connect, location 2+, custom domain, remove branding) fire the modal but need checkout wiring.
+
+---
+
+### 🔲 11. Social Channel Adapters (GMB, Instagram, Facebook)
 **Status: Stubs ready — waiting on API approval (GMB) and OAuth (IG/FB)**
 
 Drain workers for `post_channel_jobs`. Each adapter: `publishToChannel(post, channelJob)` → external API → mark published/failed.
 
 ---
 
-### 🔲 11. Tenant MCP / API
+### 🔲 12. Tenant MCP / API
 **Status: Planned — build last**
 
 Per-tenant API key system so restaurant owners can connect their own AI to manage their site via MCP.
