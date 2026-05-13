@@ -24,13 +24,7 @@
           :description="errorMessage"
         />
 
-        <UAlert
-          v-if="successMessage"
-          color="success"
-          variant="soft"
-          icon="i-heroicons-check-circle"
-          :description="successMessage"
-        />
+
 
         <UCard v-if="billing">
           <div class="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
@@ -70,20 +64,11 @@
                 <span v-if="credits" class="text-sm text-muted">
                   {{ credits.lifetime_used.toLocaleString() }} used · {{ credits.balance.toLocaleString() }} remaining
                 </span>
-                <UButton
-                  v-if="isDev"
-                  size="xs"
-                  color="neutral"
-                  variant="outline"
-                  icon="i-heroicons-plus"
-                  :loading="addingCredits"
-                  @click="addDevCredits(500)"
-                >
-                  + 500 dev credits
-                </UButton>
-                <UButton v-else size="xs" color="primary" variant="soft" icon="i-heroicons-credit-card">
-                  Buy credits
-                </UButton>
+                <UDropdownMenu :items="creditBundles" :content="{ align: 'end' }">
+                  <UButton size="xs" color="primary" variant="soft" icon="i-heroicons-credit-card" trailing-icon="i-heroicons-chevron-down" :loading="buyingCredits !== null">
+                    Buy credits
+                  </UButton>
+                </UDropdownMenu>
               </div>
             </div>
           </template>
@@ -97,7 +82,7 @@
                 <span>{{ (credits.balance + credits.lifetime_used).toLocaleString() }} total granted</span>
               </div>
               <UProgress
-                :value="credits.lifetime_used"
+                :model-value="credits.lifetime_used"
                 :max="credits.balance + credits.lifetime_used || 1"
                 :color="credits.balance < 50 ? 'error' : credits.balance < 200 ? 'warning' : 'primary'"
               />
@@ -147,21 +132,45 @@
           </div>
         </UCard>
 
+        <!-- Billing interval toggle -->
+        <div class="flex items-center gap-3">
+          <span class="text-sm" :class="!annual ? 'font-semibold text-default' : 'text-muted'">Monthly</span>
+          <button
+            type="button"
+            class="relative w-10 h-5 rounded-full transition-colors"
+            :class="annual ? 'bg-(--kc-teal)' : 'bg-muted'"
+            role="switch"
+            :aria-checked="annual"
+            aria-label="Toggle annual billing"
+            @click="annual = !annual"
+          >
+            <span class="absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform" :class="{ 'translate-x-5': annual }" />
+          </button>
+          <span class="text-sm" :class="annual ? 'font-semibold text-default' : 'text-muted'">
+            Annual <span class="text-xs text-emerald-600 ml-1">Save ~30%</span>
+          </span>
+        </div>
+
         <div class="grid gap-4 lg:grid-cols-3">
           <UCard
             v-for="plan in plans"
             :key="plan.id"
-            :variant="billing?.plan === plan.id ? 'solid' : 'outline'"
+            :class="billing?.plan === plan.id ? 'ring-2 ring-primary' : ''"
           >
             <div class="flex h-full flex-col">
               <div>
                 <div class="flex items-center justify-between gap-3">
                   <h2 class="text-lg font-semibold text-(--ui-text-highlighted)">{{ plan.name }}</h2>
-                  <UBadge v-if="billing?.plan === plan.id" color="primary" variant="soft">Current</UBadge>
+                  <div class="flex gap-2">
+                    <UBadge v-if="plan.badge && billing?.plan !== plan.id" color="primary" variant="soft">{{ plan.badge }}</UBadge>
+                    <UBadge v-if="billing?.plan === plan.id" color="success" variant="soft">Current</UBadge>
+                  </div>
                 </div>
                 <p class="mt-2 text-3xl font-semibold text-(--ui-text-highlighted)">
-                  {{ plan.price }}
-                  <span v-if="plan.id !== 'free'" class="text-sm font-normal text-(--ui-text-muted)">/mo</span>
+                  {{ displayPrice(plan, annual) }}
+                  <span v-if="plan.prices?.length" class="text-sm font-normal text-(--ui-text-muted)">
+                    {{ annual && plan.id === 'agency' ? '/yr' : annual ? '/location/yr' : plan.id === 'agency' ? '/mo' : '/location/mo' }}
+                  </span>
                 </p>
               </div>
 
@@ -172,18 +181,28 @@
                 </li>
               </ul>
 
-              <UButton
-                v-if="billing?.plan !== plan.id"
-                :disabled="plan.id === 'free'"
-                :loading="upgrading === plan.id"
-                color="neutral"
-                variant="soft"
-                block
-                class="mt-6"
-                @click="upgradeToPlan(plan.id)"
-              >
-                {{ plan.id === 'free' ? 'Included' : `Upgrade to ${plan.name}` }}
-              </UButton>
+              <template v-if="billing?.plan !== plan.id">
+                <UButton
+                  v-if="plan.id === 'free'"
+                  color="neutral"
+                  variant="soft"
+                  block
+                  class="mt-6"
+                  @click="upgradeToPlan(plan.id)"
+                >
+                  Switch to Free
+                </UButton>
+                <UButton
+                  v-else
+                  :loading="upgrading === plan.id"
+                  color="primary"
+                  block
+                  class="mt-6"
+                  @click="upgradeToPlan(plan.id)"
+                >
+                  Upgrade to {{ plan.name }}
+                </UButton>
+              </template>
             </div>
           </UCard>
         </div>
@@ -193,6 +212,10 @@
 </template>
 
 <script setup lang="ts">
+
+import { useToast } from '~/composables/useToast'
+const { addToast } = useToast()
+
 definePageMeta({ layout: 'dashboard' })
 
 const route = useRoute()
@@ -205,28 +228,44 @@ const portalLoading = ref(false)
 const addingCredits = ref(false)
 const successMessage = ref('')
 const errorMessage = ref('')
+const annual = ref(false)
 const isDev = useRequestURL().hostname === 'localhost'
+const buyingCredits = ref<number | null>(null)
 
-const plans = [
-  {
-    id: 'free',
-    name: 'Free',
-    price: '$0',
-    features: ['1 website', 'Manual editor', 'Saya theme', 'KrabiClaw subdomain']
-  },
-  {
-    id: 'pro',
-    name: 'Pro',
-    price: '$29',
-    features: ['Custom domain', 'Google Business integration', 'Advanced SEO', 'Higher menu limits']
-  },
-  {
-    id: 'business',
-    name: 'Business',
-    price: '$99',
-    features: ['Multiple websites', 'More locations', 'Priority support', 'Remove KrabiClaw branding']
+async function purchaseCredits(bundle: 500 | 2500 | 5000) {
+  buyingCredits.value = bundle
+  errorMessage.value = ''
+  try {
+    const res = await $fetch<{ checkoutUrl?: string; balance?: number; error?: string }>('/api/billing/credits/add', {
+      method: 'POST',
+      body: { bundle }
+    })
+    if (res.checkoutUrl) {
+      await navigateTo(res.checkoutUrl, { external: true })
+    } else if (res.balance !== undefined) {
+      // dev mode direct top-up response
+      successMessage.value = `Added ${bundle} credits. New balance: ${res.balance}`
+      addToast(successMessage.value, 'success')
+      await loadCredits()
+    } else {
+      errorMessage.value = res.error ?? 'Failed to start checkout'
+    }
+  } catch (err: any) {
+    errorMessage.value = err?.data?.error ?? err?.message ?? 'Failed to start checkout'
+  } finally {
+    buyingCredits.value = null
   }
+}
+
+const creditBundles = [
+  [
+    { label: '500 credits — $9', icon: 'i-heroicons-bolt', onSelect: () => { purchaseCredits(500) } },
+    { label: '2,500 credits — $29', icon: 'i-heroicons-bolt', onSelect: () => { purchaseCredits(2500) } },
+    { label: '5,000 credits — $49', icon: 'i-heroicons-bolt', onSelect: () => { purchaseCredits(5000) } },
+  ]
 ]
+
+const { plans, displayPrice } = usePlans()
 
 const loadCredits = async () => {
   creditsLoading.value = true
@@ -243,8 +282,9 @@ const loadCredits = async () => {
 const addDevCredits = async (amount: number) => {
   addingCredits.value = true
   try {
-    const res = await $fetch<any>('/api/billing/credits/add', { method: 'POST', body: { amount } } as any)
+    const res = await $fetch<{ balance: number }>('/api/billing/credits/add', { method: 'POST', body: { amount } })
     successMessage.value = `Added ${amount} dev credits. New balance: ${res.balance}`
+    addToast(successMessage.value, 'success')
     await loadCredits()
   } catch (err) {
     errorMessage.value = err instanceof Error ? err.message : 'Failed to add credits'
@@ -279,22 +319,13 @@ const loadBillingData = async () => {
 }
 
 const upgradeToPlan = async (plan: string) => {
-  upgrading.value = plan
   errorMessage.value = ''
+  upgrading.value = plan
   try {
-    if (!billing.value) {
-      errorMessage.value = 'Billing data not loaded'
-      return
-    }
-    const orgId = billing.value.organizationId || ''
-    if (!orgId) {
-      errorMessage.value = 'Organization ID not found'
-      return
-    }
-    const response = await $fetch<any>('/api/billing/checkout', {
+    const response = await $fetch<{ checkoutUrl: string }>('/api/billing/checkout', {
       method: 'POST',
-      body: { organizationId: orgId, plan }
-    } as any)
+      body: { plan, interval: annual.value ? 'year' : 'month' }
+    })
     if (response?.checkoutUrl) {
       await navigateTo(response.checkoutUrl, { external: true })
     } else {
@@ -316,10 +347,10 @@ const openBillingPortal = async () => {
       errorMessage.value = 'Organization ID not found'
       return
     }
-    const response = await $fetch<any>('/api/billing/portal', {
+    const response = await $fetch<{ portalUrl: string }>('/api/billing/portal', {
       method: 'POST',
       body: { organizationId: orgId }
-    } as any)
+    })
     if (response?.portalUrl) {
       await navigateTo(response.portalUrl, { external: true })
     } else {
@@ -343,9 +374,32 @@ const formatDate = (dateString: string) => {
 }
 
 onMounted(async () => {
-  if (route.query.success === 'true') successMessage.value = 'Payment successful. Your plan has been updated.'
+  if (route.query.success === 'true') {
+    addToast('Payment successful. Your plan has been updated.', 'success')
+    // Remove the query param from the URL
+    if (window && window.history && window.location) {
+      const url = new URL(window.location.href)
+      url.searchParams.delete('success')
+      window.history.replaceState({}, '', url.pathname + url.search)
+    }
+  }
   if (route.query.canceled === 'true') errorMessage.value = 'Payment was canceled. Your plan was not changed.'
+  
+  // Auto-start checkout if plan query param exists
+  const { isAuthenticated } = useAuth()
   await Promise.all([loadBillingData(), loadCredits()])
+  
+  if (isAuthenticated.value && route.query.plan) {
+    const raw = route.query.plan
+    const planId = Array.isArray(raw) ? raw[0] : String(raw)
+    // Remove the plan query param from URL
+    if (window && window.history && window.location) {
+      const url = new URL(window.location.href)
+      url.searchParams.delete('plan')
+      window.history.replaceState({}, '', url.pathname + url.search)
+    }
+    if (planId) await upgradeToPlan(planId)
+  }
 })
 
 useSeoMeta({ title: 'Billing | KrabiClaw Dashboard', robots: 'noindex, nofollow' })

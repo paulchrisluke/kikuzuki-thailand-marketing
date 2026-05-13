@@ -107,7 +107,7 @@ export const contentRegistry: Record<string, PageDefinition> = {
         defaultValue: '',
         placeholder: 'Two or three sentences about your restaurant — what you cook, how you cook it, why it matters.'
       },
-      'cta.title': {
+      'hero.video_url': {
         label: 'Hero Background Video URL',
         type: 'text',
         sources: ['manual'],

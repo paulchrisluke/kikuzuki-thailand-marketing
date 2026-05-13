@@ -106,12 +106,23 @@
                 loading: 'lazy',
                 alt: sessionData?.user?.name || 'User avatar'
               }"
-              :label="collapsed ? undefined : sessionData?.user?.name"
               color="neutral"
               variant="ghost"
               class="w-full"
               :block="collapsed"
-            />
+            >
+              <template v-if="!collapsed" #default>
+                <span class="truncate flex-1 text-left">{{ sessionData?.user?.name }}</span>
+                <UBadge
+                  v-if="currentPlan"
+                  :label="currentPlan"
+                  :color="currentPlan === 'free' ? 'neutral' : 'success'"
+                  variant="soft"
+                  size="xs"
+                  class="capitalize shrink-0"
+                />
+              </template>
+            </UButton>
           </UDropdownMenu>
         </template>
       </UDashboardSidebar>
@@ -186,6 +197,9 @@ const siteContext = ref<any>(null)
 const sites = ref<DashboardSite[]>([])
 const selectedSiteId = ref<string | null>(null)
 
+const { data: billingStatus } = useFetch<{ billing: { plan: string } }>('/api/billing/status', { key: 'dashboard-billing-status' })
+const currentPlan = computed(() => billingStatus.value?.billing?.plan ?? null)
+
 const routeSiteId = computed(() => {
   const param = route.params.siteId || route.params.id
   return typeof param === 'string' && route.path.startsWith('/dashboard/sites/') ? param : null
@@ -219,7 +233,6 @@ const platformNavigation = computed(() => [[
   { label: 'Dashboard', icon: 'i-heroicons-home', to: '/dashboard' },
   { label: 'Sites', icon: 'i-heroicons-globe-alt', to: '/dashboard/sites' },
   { label: 'Billing', icon: 'i-heroicons-credit-card', to: '/dashboard/billing' },
-  { label: 'Integrations', icon: 'i-heroicons-link', to: '/dashboard/integrations' },
   { label: 'Settings', icon: 'i-heroicons-cog-6-tooth', to: '/dashboard/settings' }
 ]])
 
@@ -284,8 +297,7 @@ const siteNavigation = computed(() => [[
   { label: 'Settings', icon: 'i-heroicons-cog-6-tooth', to: sitePath('/settings') }
 ], [
   { label: 'All Sites', icon: 'i-heroicons-squares-2x2', to: '/dashboard/sites' },
-  { label: 'Billing', icon: 'i-heroicons-credit-card', to: '/dashboard/billing' },
-  { label: 'Integrations', icon: 'i-heroicons-link', to: '/dashboard/integrations' }
+  { label: 'Billing', icon: 'i-heroicons-credit-card', to: '/dashboard/billing' }
 ]])
 
 const navigationItems = computed(() => {

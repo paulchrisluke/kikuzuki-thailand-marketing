@@ -21,10 +21,17 @@ Never add fallbacks ever.
 ## Critical Wrangler Rules
 
 - Always use `nodejs_compat_v2` (not `nodejs_compat`) in `wrangler.toml` — Better Auth 1.6+ requires it
-- Local secrets go in `.dev.vars` (NOT `.env`) — Wrangler ignores `.env` at the CF Workers runtime layer
+- `yarn dev` runs `nuxt dev` — secrets are read from `.env`. `.dev.vars` is only used by `wrangler pages dev` (not the default dev command here)
 - Never rely on `process.env` alone in server code — always merge with `event.context.cloudflare?.env` via `cloudflareEnv()` in `server/utils/api-response.ts`
 - Schema application: `yarn schema:local` / `yarn schema:remote`
 - Current deploys require patching the generated Nitro/Cloudflare process shim before `wrangler pages deploy`; use `yarn deploy` so this step is not skipped
+
+## Stripe Local Development
+
+- Run `yarn stripe:listen` in a second terminal to forward Stripe webhooks to `localhost:3000/api/billing/webhook`
+- The CLI outputs a signing secret (`whsec_...`) — set this as `STRIPE_WEBHOOK_SECRET` in `.env` while developing locally
+- The dashboard webhook secret (set in Stripe → Developers → Webhooks) is for production only; swap back before deploying
+- Install CLI once: `brew install stripe/stripe-cli/stripe && stripe login`
 
 ---
 

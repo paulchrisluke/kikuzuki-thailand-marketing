@@ -2,7 +2,7 @@
   <UPage>
     <UPageHeader
       title="Dashboard"
-      description="Your organization workspace for restaurant websites, billing, and integrations."
+      description="Your organization workspace for restaurant websites."
       :links="[{ label: 'Create Website', icon: 'i-heroicons-plus', to: '/dashboard/onboarding' }]"
     />
 
@@ -24,7 +24,7 @@
       </UCard>
 
       <div v-else class="space-y-6">
-        <div class="grid gap-4 md:grid-cols-3">
+        <div class="grid gap-4 md:grid-cols-2">
           <UCard>
             <p class="text-sm text-(--ui-text-muted)">Websites</p>
             <p class="mt-2 text-3xl font-semibold text-(--ui-text-highlighted)">{{ sites.length }}</p>
@@ -32,10 +32,6 @@
           <UCard>
             <p class="text-sm text-(--ui-text-muted)">Plan</p>
             <p class="mt-2 text-3xl font-semibold capitalize text-(--ui-text-highlighted)">{{ billing?.plan || 'Free' }}</p>
-          </UCard>
-          <UCard>
-            <p class="text-sm text-(--ui-text-muted)">Google Business</p>
-            <p class="mt-2 text-3xl font-semibold text-(--ui-text-highlighted)">{{ connectedSitesCount }}</p>
           </UCard>
         </div>
 
@@ -81,37 +77,15 @@
           </div>
         </UCard>
 
-        <div class="grid gap-4 lg:grid-cols-3">
-          <UCard>
-            <template #header>
-              <h2 class="font-semibold text-(--ui-text-highlighted)">Billing</h2>
-            </template>
-            <p class="text-sm text-(--ui-text-muted)">Manage subscription, payment method, and plan limits.</p>
-            <UButton to="/dashboard/billing" color="neutral" variant="soft" icon="i-heroicons-credit-card" block class="mt-4">
-              Open Billing
-            </UButton>
-          </UCard>
-
-          <UCard>
-            <template #header>
-              <h2 class="font-semibold text-(--ui-text-highlighted)">Integrations</h2>
-            </template>
-            <p class="text-sm text-(--ui-text-muted)">Connect organization-level services, then map them to websites and locations.</p>
-            <UButton to="/dashboard/integrations" color="neutral" variant="soft" icon="i-heroicons-link" block class="mt-4">
-              Open Integrations
-            </UButton>
-          </UCard>
-
-          <UCard>
-            <template #header>
-              <h2 class="font-semibold text-(--ui-text-highlighted)">Settings</h2>
-            </template>
-            <p class="text-sm text-(--ui-text-muted)">Manage profile and organization preferences.</p>
-            <UButton to="/dashboard/settings" color="neutral" variant="soft" icon="i-heroicons-cog-6-tooth" block class="mt-4">
-              Open Settings
-            </UButton>
-          </UCard>
-        </div>
+        <UCard>
+          <template #header>
+            <h2 class="font-semibold text-(--ui-text-highlighted)">Settings</h2>
+          </template>
+          <p class="text-sm text-(--ui-text-muted)">Manage profile and organization preferences.</p>
+          <UButton to="/dashboard/settings" color="neutral" variant="soft" icon="i-heroicons-cog-6-tooth" block class="mt-4">
+            Open Settings
+          </UButton>
+        </UCard>
       </div>
     </UPageBody>
   </UPage>
@@ -162,14 +136,13 @@ const platformHostname = computed(() => {
 })
 const hasOrganization = computed(() => organizations.value.length > 0)
 const loading = computed(() => Boolean(unref(organizationsState)?.isPending) || sitesLoading.value)
-const connectedSitesCount = computed(() => 0)
 
 const siteUrlLabel = (site: DashboardSite) => {
   if (site.custom_domain) return site.custom_domain
   return `${site.subdomain}.${platformHostname.value}`
 }
 
-watch(organizations, async newOrgs => {
+watch(organizations, async (newOrgs: typeof organizations.value) => {
   if (newOrgs.length === 0) {
     sites.value = []
     billing.value = null

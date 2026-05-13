@@ -131,6 +131,11 @@ export default defineNuxtConfig({
       path: '~/components/dashboard',
       pathPrefix: false,
     },
+    {
+      path: '~/components/billing',
+      prefix: 'Billing',
+      pathPrefix: false,
+    },
   ],
 
   // Global watcher exclusions

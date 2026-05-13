@@ -1,6 +1,7 @@
 // Delete a business location from a site
 import { cloudflareEnv, jsonResponse } from '~/server/utils/api-response'
 import { getAuthSession } from '~/server/utils/auth'
+import { updateSubscriptionQuantity } from '~/server/utils/billing'
 
 export default defineEventHandler(async (event) => {
   const siteId = getRouterParam(event, 'siteId')
@@ -62,6 +63,17 @@ export default defineEventHandler(async (event) => {
     }
 
     await db.batch(statements)
+
+    // Run in background when supported; otherwise await to keep sync reliable.
+    const syncPromise = updateSubscriptionQuantity(env, db, site.organization_id).catch((err) =>
+      console.error('Failed to update Stripe subscription quantity after location delete:', err)
+    )
+    const cfCtx = event.context.cloudflare?.context
+    if (cfCtx?.waitUntil) {
+      cfCtx.waitUntil(syncPromise)
+    } else {
+      await syncPromise
+    }
 
     return jsonResponse({
       success: true,

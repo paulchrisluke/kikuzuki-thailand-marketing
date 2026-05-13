@@ -167,6 +167,7 @@ CREATE TABLE IF NOT EXISTS google_business_connections (
   id TEXT PRIMARY KEY,
   organization_id TEXT NOT NULL,
   site_id TEXT NOT NULL,
+  location_id TEXT,
   connected_by_user_id TEXT,
   provider_account_email TEXT NOT NULL,
   encrypted_access_token TEXT NOT NULL,
@@ -178,9 +179,16 @@ CREATE TABLE IF NOT EXISTS google_business_connections (
   updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
   FOREIGN KEY (organization_id) REFERENCES organization(id) ON DELETE CASCADE,
   FOREIGN KEY (site_id) REFERENCES sites(id) ON DELETE CASCADE,
+  FOREIGN KEY (location_id) REFERENCES business_locations(id) ON DELETE SET NULL,
   FOREIGN KEY (connected_by_user_id) REFERENCES user(id) ON DELETE SET NULL,
-  UNIQUE(organization_id, site_id)
+  UNIQUE(organization_id, site_id, location_id)
 );
+
+-- Enforce one site-level (NULL location_id) connection per org+site.
+-- UNIQUE(org, site, location_id) won't catch this because SQLite treats NULL != NULL.
+CREATE UNIQUE INDEX IF NOT EXISTS idx_google_business_connections_site_level_unique
+  ON google_business_connections(organization_id, site_id)
+  WHERE location_id IS NULL;
 
 CREATE TABLE IF NOT EXISTS business_locations (
   id TEXT PRIMARY KEY,
@@ -388,6 +396,7 @@ CREATE TABLE IF NOT EXISTS organization_billing (
   organization_id TEXT PRIMARY KEY,
   stripe_customer_id TEXT UNIQUE,
   stripe_subscription_id TEXT UNIQUE,
+  stripe_subscription_item_id TEXT UNIQUE,
   status TEXT NOT NULL DEFAULT 'free',
   plan TEXT NOT NULL DEFAULT 'free',
   current_period_end TEXT,

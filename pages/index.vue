@@ -114,38 +114,38 @@
           </div>
           <div class="grid md:grid-cols-2 gap-5 max-w-3xl mx-auto">
             <!-- Free -->
-            <div class="bg-elevated border border-default rounded-[20px] p-8 relative">
-              <div class="text-[14px] font-semibold text-muted uppercase tracking-[0.18em] mb-4">Free</div>
+            <div v-if="freePlanData" class="bg-elevated border border-default rounded-[20px] p-8 relative">
+              <div class="text-[14px] font-semibold text-muted uppercase tracking-[0.18em] mb-4">{{ freePlanData.name }}</div>
               <div class="flex items-baseline gap-2 mb-1.5">
                 <span class="text-[56px] font-extrabold text-default tracking-tight leading-none">$0</span>
                 <span class="text-[14px] text-muted">forever</span>
               </div>
               <ul class="mt-5 mb-6 space-y-2.5">
-                <li v-for="f in freePlan" :key="f" class="flex items-center gap-2.5 text-[14px] text-default">
+                <li v-for="f in freePlanData.features" :key="f" class="flex items-center gap-2.5 text-[14px] text-default">
                   <UIcon name="i-heroicons-check" class="size-4 text-(--kc-teal) shrink-0" />
                   {{ f }}
                 </li>
               </ul>
-              <NuxtLink to="/signup" class="block text-center font-semibold text-[14px] py-3.5 rounded-[10px] bg-(--ui-bg-inverted) text-inverted hover:opacity-90 transition-opacity no-underline">
-                Start free
+              <NuxtLink v-if="freePlanData?.cta?.href" :to="freePlanData.cta.href" class="block text-center font-semibold text-[14px] py-3.5 rounded-[10px] bg-(--ui-bg-inverted) text-inverted hover:opacity-90 transition-opacity no-underline">
+                {{ freePlanData?.cta?.label }}
               </NuxtLink>
             </div>
             <!-- Pro -->
-            <div class="bg-(--ui-bg-inverted) rounded-[20px] p-8 relative shadow-[0_24px_48px_rgba(31,37,71,0.18)]">
-              <div class="absolute -top-3 right-5 bg-(--kc-coral) text-white text-[11px] font-bold tracking-[0.18em] px-3 py-1.5 rounded-full uppercase">Most popular</div>
-              <div class="text-[14px] font-semibold text-(--kc-coral-200) uppercase tracking-[0.18em] mb-4">Pro</div>
+            <div v-if="proPlanData" class="bg-inverted rounded-[20px] p-8 relative shadow-[0_24px_48px_rgba(31,37,71,0.18)]">
+              <div v-if="proPlanData.badge" class="absolute -top-3 right-5 bg-(--kc-coral) text-white text-[11px] font-bold tracking-[0.18em] px-3 py-1.5 rounded-full uppercase">{{ proPlanData.badge }}</div>
+              <div class="text-[14px] font-semibold text-(--kc-coral-200) uppercase tracking-[0.18em] mb-4">{{ proPlanData.name }}</div>
               <div class="flex items-baseline gap-2 mb-1.5">
-                <span class="text-[56px] font-extrabold text-white tracking-tight leading-none">$25</span>
+                <span class="text-[56px] font-extrabold text-white tracking-tight leading-none">{{ displayPrice(proPlanData, false) }}</span>
                 <span class="text-[14px] text-white/70">per location / mo</span>
               </div>
               <ul class="mt-5 mb-6 space-y-2.5">
-                <li v-for="f in proPlan" :key="f" class="flex items-center gap-2.5 text-[14px] text-white/85">
+                <li v-for="f in proPlanData.features" :key="f" class="flex items-center gap-2.5 text-[14px] text-white/85">
                   <UIcon name="i-heroicons-check" class="size-4 text-(--kc-coral) shrink-0" />
                   {{ f }}
                 </li>
               </ul>
-              <NuxtLink to="/signup" class="block text-center font-semibold text-[14px] py-3.5 rounded-[10px] bg-(--kc-coral) text-white hover:opacity-90 transition-opacity no-underline">
-                Start 14-day trial
+              <NuxtLink v-if="proPlanData?.cta?.href" :to="proPlanData.cta.href" class="block text-center font-semibold text-[14px] py-3.5 rounded-[10px] bg-(--kc-coral) text-white hover:opacity-90 transition-opacity no-underline">
+                {{ proPlanData?.cta?.label }}
               </NuxtLink>
             </div>
           </div>
@@ -454,8 +454,8 @@ const features = [
   { icon: 'i-heroicons-shopping-bag', title: 'Online ordering', body: 'Pickup & delivery with no commission. Stripe payouts straight to your bank.' },
   { icon: 'i-heroicons-chart-bar', title: 'Real-time insights', body: 'See covers, top dishes, busy hours — all in one dashboard.' },
 ]
-const freePlan = ['1 location', 'Beautiful Saya theme', 'Online menu', 'Google Business sync']
-const proPlan = ['Everything in Free', 'Reservations + waitlist', 'AI content writer', 'Custom domain', 'Remove KrabiClaw badge']
+const { freePlan: freePlanData, proPlan: proPlanData, displayPrice } = usePlans()
+
 const { getField, getFieldStr } = usePageContent('home')
 const { isAuthenticated } = useAuth()
 

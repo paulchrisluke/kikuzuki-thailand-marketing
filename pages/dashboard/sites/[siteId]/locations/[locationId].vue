@@ -88,38 +88,58 @@
 
           <UCard>
             <template #header>
-              <h2 class="font-semibold text-(--ui-text-highlighted)">Google Business</h2>
+              <div class="flex items-center gap-2">
+                <UIcon name="i-simple-icons-google" class="size-4 text-(--ui-primary)" />
+                <h2 class="font-semibold text-(--ui-text-highlighted)">Google Business</h2>
+              </div>
             </template>
 
             <div class="space-y-4 text-sm">
-              <div class="flex items-center justify-between gap-4">
-                <span class="text-(--ui-text-muted)">Connection</span>
-                <UBadge :color="location.google_location_id ? 'success' : 'neutral'" variant="soft">
-                  {{ location.google_location_id ? 'Connected' : 'Not connected' }}
-                </UBadge>
+              <div v-if="gbConnection" class="space-y-3">
+                <div class="flex items-center justify-between gap-4">
+                  <span class="text-(--ui-text-muted)">Account</span>
+                  <span class="truncate text-right text-(--ui-text-highlighted)">{{ gbConnection.provider_account_email }}</span>
+                </div>
+                <div class="flex items-center justify-between gap-4">
+                  <span class="text-(--ui-text-muted)">Status</span>
+                  <UBadge color="success" variant="soft">Connected</UBadge>
+                </div>
+                <div class="flex items-center justify-between gap-4">
+                  <span class="text-(--ui-text-muted)">Last synced</span>
+                  <span class="text-right text-(--ui-text-highlighted)">{{ location.last_synced_at || 'Never' }}</span>
+                </div>
               </div>
-              <div class="flex items-center justify-between gap-4">
-                <span class="text-(--ui-text-muted)">Last synced</span>
-                <span class="text-right text-(--ui-text-highlighted)">{{ location.last_synced_at || 'Never' }}</span>
+
+              <div v-else class="space-y-3">
+                <div class="flex items-center justify-between gap-4">
+                  <span class="text-(--ui-text-muted)">Status</span>
+                  <UBadge color="neutral" variant="soft">Not connected</UBadge>
+                </div>
+                <p class="text-(--ui-text-muted)">Connect Google Business to sync reviews, photos, and location data.</p>
               </div>
-              <UButton
-                :to="`/dashboard/sites/${siteId}/settings?tab=integrations&locationId=${locationId}`"
-                icon="i-heroicons-link"
-                block
-              >
-                Manage Mapping
-              </UButton>
-              <UButton
-                v-if="location.maps_url"
-                :to="location.maps_url"
-                target="_blank"
-                color="neutral"
-                variant="soft"
-                icon="i-heroicons-map"
-                block
-              >
-                Open Maps
-              </UButton>
+
+              <div class="flex flex-col gap-2">
+                <UButton
+                  v-if="!gbConnection"
+                  icon="i-simple-icons-google"
+                  :loading="connectingGoogle"
+                  block
+                  @click="connectGoogleBusiness"
+                >
+                  Connect Google Business
+                </UButton>
+                <UButton
+                  v-if="location.maps_url"
+                  :to="location.maps_url"
+                  target="_blank"
+                  color="neutral"
+                  variant="soft"
+                  icon="i-heroicons-map"
+                  block
+                >
+                  Open Maps
+                </UButton>
+              </div>
             </div>
           </UCard>
         </div>
@@ -164,7 +184,17 @@ interface BusinessLocation {
   last_synced_at: string | null
 }
 
+interface GbConnection {
+  id: string
+  provider_account_email: string
+  status: string
+  expires_at?: string
+  created_at: string
+  updated_at: string
+}
+
 const route = useRoute()
+const toast = useToast()
 const siteId = route.params.siteId as string
 const locationId = route.params.locationId as string
 
@@ -173,6 +203,8 @@ const error = ref<string | null>(null)
 const site = ref<any>(null)
 const location = ref<BusinessLocation | null>(null)
 const menus = ref<any[]>([])
+const gbConnection = ref<GbConnection | null>(null)
+const connectingGoogle = ref(false)
 
 const locationAddress = computed(() => location.value?.address?.addressLines?.join(', ') || '')
 const publicLocationUrl = computed(() => {
@@ -189,8 +221,7 @@ const locationTabs = computed(() => [
   { label: 'Overview', icon: 'i-heroicons-home', active: true, to: `/dashboard/sites/${siteId}/locations/${locationId}` },
   { label: 'Content', icon: 'i-heroicons-document-text', active: false, to: `/dashboard/sites/${siteId}/content?locationId=${locationId}&page=location` },
   { label: 'Menu', icon: 'i-heroicons-list-bullet', active: false, to: `/dashboard/sites/${siteId}/menu?locationId=${locationId}` },
-  { label: 'Details', icon: 'i-heroicons-map-pin', active: false, to: `/dashboard/sites/${siteId}/settings?tab=locations&locationId=${locationId}` },
-  { label: 'Google Business', icon: 'i-heroicons-link', active: false, to: `/dashboard/sites/${siteId}/settings?tab=integrations&locationId=${locationId}` }
+  { label: 'Details', icon: 'i-heroicons-map-pin', active: false, to: `/dashboard/sites/${siteId}/settings?tab=locations&locationId=${locationId}` }
 ])
 
 const workspaceActions = computed(() => [
@@ -199,6 +230,40 @@ const workspaceActions = computed(() => [
   { label: 'Edit Location Details', icon: 'i-heroicons-cog-6-tooth', to: `/dashboard/sites/${siteId}/settings?tab=locations&locationId=${locationId}` },
   { label: 'Edit Brand Content', icon: 'i-heroicons-building-storefront', to: `/dashboard/sites/${siteId}/content` }
 ])
+
+const connectGoogleBusiness = async () => {
+  connectingGoogle.value = true
+  try {
+    const res = await $fetch<{ success: boolean; authUrl: string }>(
+      `/api/sites/${siteId}/locations/${locationId}/integrations/google-business/auth`,
+      { method: 'POST' }
+    )
+    if (res.success && res.authUrl) {
+      try {
+        const parsed = new URL(res.authUrl)
+        if (parsed.protocol !== 'https:' || parsed.hostname !== 'accounts.google.com') {
+          throw new Error('Invalid OAuth redirect URL')
+        }
+        window.location.href = res.authUrl
+      } catch {
+        toast.add({ description: 'Invalid OAuth redirect URL returned by server', color: 'error' })
+        connectingGoogle.value = false
+      }
+    }
+  } catch (err: any) {
+    toast.add({ description: err?.data?.error || 'Failed to start Google Business connection', color: 'error' })
+    connectingGoogle.value = false
+  }
+}
+
+const loadGbConnection = async () => {
+  try {
+    const res = await $fetch<{ success: boolean; connection: GbConnection | null }>(
+      `/api/sites/${siteId}/locations/${locationId}/integrations/google-business`
+    )
+    gbConnection.value = res.connection
+  } catch {}
+}
 
 const loadLocationWorkspace = async () => {
   loading.value = true
@@ -224,7 +289,16 @@ const loadLocationWorkspace = async () => {
   }
 }
 
-onMounted(loadLocationWorkspace)
+onMounted(async () => {
+  await loadLocationWorkspace()
+  await loadGbConnection()
+
+  if (route.query.gb === 'connected') {
+    toast.add({ description: 'Google Business connected successfully', color: 'success' })
+    const { gb: _gb, ...restQuery } = route.query
+    router.replace({ path: route.path, query: restQuery })
+  }
+})
 
 useSeoMeta({ title: 'Location Workspace | KrabiClaw Dashboard', robots: 'noindex, nofollow' })
 </script>

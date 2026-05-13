@@ -4,19 +4,32 @@ import { getAuthSession } from '~/server/utils/auth'
 import { getStripe, getPriceId, requireBillingAccess } from '../../utils/billing'
 
 interface CheckoutRequest {
-  organizationId: string
+  organizationId?: string
   plan: string
+  interval?: 'month' | 'year'
   successUrl?: string
   cancelUrl?: string
 }
 
 export default defineEventHandler(async (event) => {
   const body = await readBody(event) as CheckoutRequest
-  const { organizationId, plan, successUrl, cancelUrl } = body
-  
-  if (!organizationId || !plan) {
-    return jsonResponse({ 
-      error: 'Organization ID and plan are required' 
+  const { plan, successUrl, cancelUrl } = body
+  const interval = body.interval ?? 'month'
+  let organizationId = body.organizationId
+
+  if (!plan) {
+    return jsonResponse({ error: 'Plan is required' }, { status: 400 })
+  }
+
+  if (plan !== 'pro' && plan !== 'agency') {
+    return jsonResponse({
+      error: 'Invalid plan. Allowed values are pro or agency'
+    }, { status: 400 })
+  }
+
+  if (interval !== 'month' && interval !== 'year') {
+    return jsonResponse({
+      error: 'Invalid interval. Allowed values are month or year'
     }, { status: 400 })
   }
   
@@ -45,16 +58,33 @@ export default defineEventHandler(async (event) => {
     }, { status: 401 })
   }
 
+  // Auto-detect org from session when not provided (e.g. pricing page CTA)
+  if (!organizationId) {
+    const userOrgs = await db.prepare(`
+      SELECT organizationId FROM member WHERE userId = ?
+    `).bind(session.user.id).all() as { results: Array<{ organizationId: string }> } | null
+    const orgIds = userOrgs?.results?.map((r) => r.organizationId) ?? []
+    if (orgIds.length === 0) {
+      return jsonResponse({ error: 'No organization found' }, { status: 404 })
+    }
+    if (orgIds.length > 1) {
+      return jsonResponse({ error: 'User belongs to multiple organizations. Please specify organizationId.' }, { status: 400 })
+    }
+    organizationId = orgIds[0]!
+  }
+
+  const orgId: string = organizationId!
+
   try {
     // Require billing access
-    await requireBillingAccess(env, db, organizationId, session.user.id)
+    await requireBillingAccess(env, db, orgId, session.user.id)
     
     // Get organization details
     const organization = await db.prepare(`
       SELECT o.name, b.stripe_customer_id FROM organization o
       LEFT JOIN organization_billing b ON o.id = b.organization_id
       WHERE o.id = ?
-    `).bind(organizationId).first()
+    `).bind(orgId).first()
     
     if (!organization) {
       return jsonResponse({ 
@@ -62,12 +92,15 @@ export default defineEventHandler(async (event) => {
       }, { status: 404 })
     }
 
-    // Get price ID for plan
-    const priceId = getPriceId(env, plan)
-    if (!priceId) {
-      return jsonResponse({ 
-        error: `No price configured for plan: ${plan}` 
-      }, { status: 400 })
+    // Get price ID for plan + interval
+    let priceId: string
+    try {
+      priceId = getPriceId(env, plan, interval)
+    } catch (error) {
+      console.error('Invalid Stripe pricing configuration in checkout', { plan, interval, error })
+      return jsonResponse({
+        error: 'Billing is temporarily unavailable for the selected plan'
+      }, { status: 503 })
     }
 
     const stripe = getStripe(env)
@@ -78,7 +111,7 @@ export default defineEventHandler(async (event) => {
       const customer = await stripe.customers.create({
         name: organization.name,
         metadata: {
-          organization_id: organizationId
+          organization_id: orgId
         }
       })
       customerId = customer.id
@@ -89,8 +122,8 @@ export default defineEventHandler(async (event) => {
         (id, organization_id, stripe_customer_id, updated_at)
         VALUES (?, ?, ?, ?)
       `).bind(
-        `billing-${organizationId}`,
-        organizationId,
+        `billing-${orgId}`,
+        orgId,
         customerId,
         new Date().toISOString()
       ).run()
@@ -115,7 +148,7 @@ export default defineEventHandler(async (event) => {
       },
       subscription_data: {
         metadata: {
-          organization_id: organizationId,
+          organization_id: orgId,
           plan
         }
       }

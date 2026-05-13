@@ -8,18 +8,23 @@
 
 ## Business Model
 
-| Tier | Price | Features |
-|------|-------|---------|
-| Free | $0 | Subdomain (`name.krabiclaw.com`), Saya theme, manual editor, 500 AI credits on signup, 1 location |
-| Paid | ~$25/mo | Custom domain (BYOD), SSL via Cloudflare, Google Business sync, 5,000 AI credits/mo, multiple locations |
-| Upsell (TBD) | TBD | AI agent site management, image/video generation, Instagram/Facebook sync, additional themes, Tenant MCP |
+Pricing is managed entirely in Stripe — never duplicated here. See Stripe dashboard → Product catalog for current prices, features, and credit bundle amounts.
 
-**Upgrade modal triggers** (shown inline when owner hits a paid feature):
+| Tier | Features |
+|------|---------|
+| Free | Subdomain, Saya theme, manual editor, starter AI credits, 1 location |
+| Pro | Custom domain + SSL, Google Business sync, more AI credits/mo, unlimited locations (per-location billing) |
+| Agency | Everything in Pro + unlimited sites, white-label, API access, higher AI credit allowance |
+| Credit top-ups | 3 one-time bundles (500 / 2,500 / 5,000 credits) — never expire |
+| Upsell (TBD) | Instagram/Facebook sync, additional themes, Tenant MCP |
+
+**Source of truth:** Plans and credit bundles are Stripe products with `marketing_features` + `metadata`. All pricing UI (home page, `/pricing`, dashboard billing, upgrade modal, ChowBot depleted banner) reads from `GET /api/billing/plans` — zero hardcoded prices in the codebase.
+
+**Upgrade modal triggers** (shown inline when owner hits a paid feature gate):
 - Connecting Google Business Profile
 - Adding a second location
 - Custom domain setup
 - Removing KrabiClaw branding
-- Buying additional AI credits
 
 ---
 
@@ -47,6 +52,7 @@
 /locations/[slug]/reviews      → Reviews: aggregate score + star dist + owner replies
 /locations/[slug]/photos       → Photo gallery by category
 /locations/[slug]/qa           → Q&A: owner-answered pairs
+/locations/[slug]/contact      → Map embed, hours table, address, directions CTA
 /about                         → Brand story
 /contact                       → Brand contact form
 /reservations                  → Reservation form
@@ -73,7 +79,7 @@
 |-------------|--------|
 | Google OAuth (login) | ✅ Live |
 | WhatsApp OTP login | ✅ Built — blocked on real number registration |
-| Stripe (billing) | ✅ Live |
+| Stripe (billing) | ✅ Live — subscriptions, credit top-ups, webhook, per-location quantity sync |
 | Cloudflare AI Gateway | ✅ Live — menu extraction, ChowBot agent, credit billing |
 | WhatsApp Business API | ✅ Notifications built — blocked on real number |
 | Facebook / Instagram Graph API | ✅ App created — channel adapter stub ready |
@@ -82,9 +88,9 @@
 
 ---
 
-## D1 Database — 34 Tables
+## D1 Database
 
-Key tables added during this build cycle:
+Key tables (see `schema.sql` for authoritative list):
 - `ai_credits` / `ai_usage_log` — credit billing, usage tracking, CF Gateway log reconciliation
 - `notifications` — channel-agnostic outbound notification log
 - `contact_submissions` / `reservation_submissions` — Saya theme form submissions
@@ -110,7 +116,7 @@ Removed: `staff_profiles`, `awards_recognition` (no GMB source, no routes)
 - `POST /api/ai/[siteId]/menu/extract` — vision extraction from photo/image, saves as draft, charges credits
 - Draft-first always — owner must publish explicitly, AI never auto-publishes
 
-**Credit model:** 1 credit = 1,000 normalized tokens. Free: 500. Paid: 5,000/mo. Markup: 2–3× Anthropic cost.
+**Credit model:** 1 credit = 1,000 normalized tokens. 5× output token weighting. Markup: 2–3× Anthropic cost. Credit amounts per plan managed in Stripe metadata.
 
 ---
 
@@ -147,9 +153,9 @@ Removed: `staff_profiles`, `awards_recognition` (no GMB source, no routes)
 ### ✅ 6. ChowBot — Dashboard AI Chat Agent
 **Status: Live**
 
-A Shopify Sidekick-style chat panel on every dashboard page. Owner types natural language → ChowBot takes action via 30 tools → streams live tool indicators → confirms before publishing.
+A Shopify Sidekick-style chat panel on every dashboard page. Owner types natural language → ChowBot takes action via tools → streams live tool indicators → confirms before publishing.
 
-**30 tools covering:**
+**Tools covering:**
 - Posts: list, create (all types + CTA/event/offer), publish
 - Menus: full CRUD + batch add + image_url on items
 - Locations: list, create, update (all fields including socials/description/price_level)
@@ -176,32 +182,65 @@ Every field GMB provides is now manually editable in D1. GMB sync populates fiel
 
 ---
 
-### 🔲 8. Saya Sub-pages: Reviews, Photos, Q&A
-**Status: APIs ready — Saya pages not yet built**
+### ✅ 8. Saya Sub-pages: Reviews, Photos, Q&A, Contact
+**Status: Live (PR #9)**
 
-All data is available via public APIs. Need Saya Vue pages at:
-- `/locations/[slug]/reviews` — aggregate score + star distribution + review cards with owner replies
-- `/locations/[slug]/photos` — masonry gallery grouped by category
-- `/locations/[slug]/qa` — Q&A cards, owner-answered first
-
----
-
-### 🔲 9. Upgrade Modal
-**Status: Not built**
-
-`UModal` triggered by `useUpgradeModal()` composable when owner hits a paid feature gate.
-Triggers: GMB connect, location 2+, custom domain, remove branding, buy credits.
+- `/locations/[slug]/reviews` — aggregate score + star distribution histogram, filter chips, review cards with photo strips and owner replies
+- `/locations/[slug]/photos` — category tabs with counts, CSS masonry gallery, keyboard-nav lightbox via UModal
+- `/locations/[slug]/qa` — owner-answered first, Instrument Serif Q/A markers, upvote counts
+- `/locations/[slug]/contact` — map embed, hours table, address, directions CTA (added in PR #9, not originally planned)
 
 ---
 
-### 🔲 10. Social Channel Adapters (GMB, Instagram, Facebook)
+### ✅ 9. Stripe Billing — Full Subscription + Credit Top-up Flow
+**Status: Live (stripe branch)**
+
+End-to-end Stripe integration for plan upgrades and credit purchases.
+
+**Plans:**
+- `GET /api/billing/plans` — fetches live from Stripe products (`marketing_features` + `metadata`); static fallback when key absent; 1hr edge cache
+- `usePlans()` composable + `PlanCard` + `PricingTable` components — single source of truth for all pricing UI
+- Pricing page, home page teaser, dashboard billing, upgrade modal all read from `usePlans()` — no hardcoded prices anywhere
+
+**Subscriptions:**
+- `POST /api/billing/checkout` — creates Stripe checkout session; auto-detects org from session; supports monthly/annual interval
+- Webhook handles: `checkout.session.completed`, `customer.subscription.created/updated/deleted`, `invoice.payment_succeeded/failed`
+- Per-location quantity sync: `updateSubscriptionQuantity()` called on location create/delete — Stripe prorates automatically
+- `stripe_subscription_item_id` stored for quantity updates
+
+**Credit top-ups (one-time payments):**
+- 3 bundles (prices managed in Stripe — see Product catalog)
+- `POST /api/billing/credits/add` with `{ bundle: 500|2500|5000 }` → Stripe one-time checkout → webhook tops up `ai_credits.balance`
+- Dashboard billing: "Buy credits" dropdown with 3 bundles
+- ChowBot: credit-depleted banner locks input and shows inline buy buttons (no page nav needed)
+
+**Auth:**
+- Org + owner member created atomically via `databaseHooks.user.create.after` on every signup — no manual onboarding required for billing to work
+- Dashboard sidebar footer shows current plan badge (neutral=free, success=paid)
+- Platform header shows "Dashboard →" when logged in
+
+**Local dev:**
+- `yarn stripe:listen` forwards webhooks to localhost; CLI signing secret goes in `STRIPE_WEBHOOK_SECRET`
+- Dev mode: credit top-up endpoints do direct DB writes (no Stripe redirect)
+
+---
+
+### 🔲 10. Upgrade Modal — Stripe CTA
+**Status: Composable + modal UI built — Stripe checkout CTA not wired to gate points**
+
+`useUpgradeModal()` composable and `SayaUpgradeModal` component exist. Modal shows Free vs Pro comparison with live price from `usePlans()`. The "Upgrade to Pro" button links to `/signup?plan=pro` — not yet wired to trigger `POST /api/billing/checkout` inline.
+Gate points (GMB connect, location 2+, custom domain, remove branding) fire the modal but need checkout wiring.
+
+---
+
+### 🔲 11. Social Channel Adapters (GMB, Instagram, Facebook)
 **Status: Stubs ready — waiting on API approval (GMB) and OAuth (IG/FB)**
 
 Drain workers for `post_channel_jobs`. Each adapter: `publishToChannel(post, channelJob)` → external API → mark published/failed.
 
 ---
 
-### 🔲 11. Tenant MCP / API
+### 🔲 12. Tenant MCP / API
 **Status: Planned — build last**
 
 Per-tenant API key system so restaurant owners can connect their own AI to manage their site via MCP.

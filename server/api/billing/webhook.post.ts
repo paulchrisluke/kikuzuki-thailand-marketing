@@ -38,10 +38,15 @@ export default defineEventHandler(async (event) => {
       }, { status: 401 })
     }
 
+    // Validate Stripe secret key
+    if (!env.STRIPE_SECRET_KEY) {
+      return jsonResponse({ 
+        error: 'Stripe secret key not configured' 
+      }, { status: 503 })
+    }
+
     // Parse webhook event
-    const stripe = new Stripe(env.STRIPE_SECRET_KEY!, {
-      apiVersion: '2024-06-20'
-    } as any)
+    const stripe = new Stripe(env.STRIPE_SECRET_KEY)
     
     const webhookEvent = stripe.webhooks.constructEvent(
       body.toString(),
@@ -74,16 +79,16 @@ export default defineEventHandler(async (event) => {
     // Handle different event types
     switch (webhookEvent.type) {
       case 'checkout.session.completed':
-        await handleCheckoutCompleted(db, webhookEvent.data.object as Stripe.Checkout.Session)
+        await handleCheckoutCompleted(env, db, webhookEvent.data.object as Stripe.Checkout.Session)
         break
         
       case 'customer.subscription.created':
       case 'customer.subscription.updated':
-        await handleSubscriptionUpdated(db, webhookEvent.data.object as Stripe.Subscription)
+        await handleSubscriptionUpdated(env, db, webhookEvent.data.object as Stripe.Subscription)
         break
         
       case 'customer.subscription.deleted':
-        await handleSubscriptionDeleted(db, webhookEvent.data.object as Stripe.Subscription)
+        await handleSubscriptionDeleted(env, db, webhookEvent.data.object as Stripe.Subscription)
         break
         
       case 'invoice.payment_succeeded':
@@ -108,47 +113,62 @@ export default defineEventHandler(async (event) => {
   }
 })
 
-// Handle checkout session completion
-async function handleCheckoutCompleted(db: any, session: Stripe.Checkout.Session) {
+// Handle checkout session completion — routes to credit top-up or plan upgrade
+async function handleCheckoutCompleted(env: Record<string, string | undefined>, db: any, session: Stripe.Checkout.Session) {
   const organizationId = session.metadata?.organization_id
-  const plan = session.metadata?.plan
-  const customerId = session.customer as string
-  const subscriptionId = session.subscription as string
-  
-  if (!organizationId || !plan) {
-    console.error('Missing metadata in checkout session:', session.id)
+
+  if (session.metadata?.type === 'credit_topup') {
+    const credits = Number(session.metadata.credits)
+    if (!organizationId || !Number.isFinite(credits) || credits <= 0) {
+      console.error('Invalid credit topup metadata in checkout session:', session.id, { organizationId, credits: session.metadata.credits })
+      return
+    }
+    await handleCreditTopup(db, organizationId, credits)
     return
   }
 
-  try {
-    // Update organization_billing table with Stripe info
-    await db.prepare(`
-      INSERT OR REPLACE INTO organization_billing 
-      (id, organization_id, stripe_customer_id, stripe_subscription_id, plan, status, 
-       current_period_end, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-    `).bind(
-      `billing-${organizationId}`,
-      organizationId,
-      customerId,
-      subscriptionId,
-      plan,
-      'active',
-      new Date(session.expires_at! * 1000).toISOString(),
-      new Date().toISOString()
-    ).run()
+  const plan = session.metadata?.plan
+  const customerId = session.customer as string
 
-    // Set entitlements based on plan
-    await setOrganizationEntitlementsFromPlan(process.env as any, db, organizationId, plan)
-    
-    console.log(`Checkout completed for organization ${organizationId}, plan ${plan}`)
-  } catch (error) {
-    console.error('Failed to handle checkout completion:', error)
+  // In Stripe v22 the subscription is expanded inline in the webhook payload
+  const subRef = session.subscription
+  const sub: any = typeof subRef === 'object' ? subRef : null
+  const subscriptionId: string = sub?.id ?? (subRef as string)
+
+  if (!organizationId || !plan || !subscriptionId) {
+    console.error('Missing metadata or subscription in checkout session:', session.id)
+    return
   }
+
+  const subscriptionItemId: string | null = sub?.items?.data?.[0]?.id ?? null
+  const periodEnd: string | null = sub?.billing_cycle_anchor
+    ? new Date(sub.billing_cycle_anchor * 1000).toISOString()
+    : null
+
+  await db.prepare(`
+    INSERT OR REPLACE INTO organization_billing
+    (id, organization_id, stripe_customer_id, stripe_subscription_id, stripe_subscription_item_id,
+     plan, status, current_period_end, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).bind(
+    `billing-${organizationId}`,
+    organizationId,
+    customerId,
+    subscriptionId,
+    subscriptionItemId,
+    plan,
+    'active',
+    periodEnd,
+    new Date().toISOString()
+  ).run()
+
+  await setOrganizationEntitlementsFromPlan(env, db, organizationId, plan)
+
+  console.log(`Checkout completed for organization ${organizationId}, plan ${plan}`)
 }
 
 // Handle subscription updates
-async function handleSubscriptionUpdated(db: any, subscription: Stripe.Subscription) {
+async function handleSubscriptionUpdated(env: Record<string, string | undefined>, db: any, subscription: Stripe.Subscription) {
   const customerId = subscription.customer as string
   
   // Find organization by customer ID
@@ -162,39 +182,36 @@ async function handleSubscriptionUpdated(db: any, subscription: Stripe.Subscript
   }
 
   const status = subscription.status
-  const currentPeriodEnd = new Date((subscription as any).current_period_end * 1000).toISOString()
-  const cancelAtPeriodEnd = (subscription as any).cancel_at_period_end || false
+  const sub = subscription as any
+  const currentPeriodEnd = sub.billing_cycle_anchor
+    ? new Date(sub.billing_cycle_anchor * 1000).toISOString()
+    : new Date().toISOString()
+  const cancelAtPeriodEnd = sub.cancel_at_period_end || false
   
-  try {
-    // Update organization_billing subscription status
-    await db.prepare(`
-      UPDATE organization_billing 
-      SET stripe_subscription_id = ?, status = ?, 
-          current_period_end = ?, cancel_at_period_end = ?, updated_at = ?
-      WHERE organization_id = ?
-    `).bind(
-      subscription.id,
-      status,
-      currentPeriodEnd,
-      cancelAtPeriodEnd,
-      new Date().toISOString(),
-      billing.organization_id
-    ).run()
+  await db.prepare(`
+    UPDATE organization_billing
+    SET stripe_subscription_id = ?, status = ?,
+        current_period_end = ?, cancel_at_period_end = ?, updated_at = ?
+    WHERE organization_id = ?
+  `).bind(
+    subscription.id,
+    status,
+    currentPeriodEnd,
+    cancelAtPeriodEnd,
+    new Date().toISOString(),
+    billing.organization_id
+  ).run()
 
-    // Update plan based on subscription items
-    const plan = getPlanFromSubscription(subscription)
-    if (plan) {
-      await setOrganizationEntitlementsFromPlan(process.env as any, db, billing.organization_id, plan)
-    }
-    
-    console.log(`Subscription updated for organization ${billing.organization_id}, status ${status}`)
-  } catch (error) {
-    console.error('Failed to handle subscription update:', error)
+  const plan = getPlanFromSubscription(env, subscription)
+  if (plan) {
+    await setOrganizationEntitlementsFromPlan(env, db, billing.organization_id, plan)
   }
+
+  console.log(`Subscription updated for organization ${billing.organization_id}, status ${status}`)
 }
 
 // Handle subscription deletion/cancellation
-async function handleSubscriptionDeleted(db: any, subscription: Stripe.Subscription) {
+async function handleSubscriptionDeleted(env: Record<string, string | undefined>, db: any, subscription: Stripe.Subscription) {
   const customerId = subscription.customer as string
   
   // Find organization by customer ID
@@ -217,7 +234,7 @@ async function handleSubscriptionDeleted(db: any, subscription: Stripe.Subscript
     `).bind(new Date().toISOString(), billing.organization_id).run()
 
     // Set free entitlements
-    await setOrganizationEntitlementsFromPlan(process.env as any, db, billing.organization_id, 'free')
+    await setOrganizationEntitlementsFromPlan(env, db, billing.organization_id, 'free')
     
     console.log(`Subscription deleted for organization ${billing.organization_id}`)
   } catch (error) {
@@ -259,17 +276,28 @@ async function handlePaymentFailed(db: any, invoice: Stripe.Invoice) {
   console.log(`Payment failed for organization ${billing.organization_id}`)
 }
 
+// Add purchased credits to org balance — atomic upsert on PRIMARY KEY
+async function handleCreditTopup(db: any, organizationId: string, credits: number) {
+  const now = new Date().toISOString()
+  await db.prepare(`
+    INSERT INTO ai_credits (organization_id, balance, lifetime_used, last_topped_up_at, updated_at)
+    VALUES (?, ?, 0, ?, ?)
+    ON CONFLICT(organization_id) DO UPDATE SET
+      balance = balance + excluded.balance,
+      last_topped_up_at = excluded.last_topped_up_at,
+      updated_at = excluded.updated_at
+  `).bind(organizationId, credits, now, now).run()
+  console.log(`Credit top-up: +${credits} credits for org ${organizationId}`)
+}
+
 // Extract plan from subscription items
-function getPlanFromSubscription(subscription: Stripe.Subscription): string | null {
+function getPlanFromSubscription(env: Record<string, string | undefined>, subscription: Stripe.Subscription): string | null {
   const priceId = subscription.items.data[0]?.price.id
   
   if (!priceId) return null
-  
-  // Map price IDs to plans (this should be configurable)
-  const env = process.env
-  if (priceId === env.STRIPE_PRICE_STARTER) return 'starter'
-  if (priceId === env.STRIPE_PRICE_PRO) return 'pro'
-  if (priceId === env.STRIPE_PRICE_BUSINESS) return 'business'
+
+  if (priceId === env.STRIPE_PRICE_PRO_MONTHLY || priceId === env.STRIPE_PRICE_PRO_ANNUAL) return 'pro'
+  if (priceId === env.STRIPE_PRICE_AGENCY_MONTHLY || priceId === env.STRIPE_PRICE_AGENCY_ANNUAL) return 'agency'
   
   return null
 }
