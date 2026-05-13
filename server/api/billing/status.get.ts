@@ -36,11 +36,7 @@ export default defineEventHandler(async (event) => {
     `).bind(session.user.id).first()
     
     if (!userOrg) {
-      return jsonResponse({
-        success: true,
-        billing: { plan: 'free', subscriptionStatus: null, entitlements: {} },
-        userRole: null
-      })
+      return jsonResponse({ error: 'No organization found' }, { status: 404 })
     }
     
     organizationId = userOrg.id

@@ -248,11 +248,6 @@ export default defineEventHandler(async (event) => {
     return jsonResponse(STATIC_PLANS)
   }
 
-  try {
-    const plans = await fetchStripeProducts(env as Record<string, string | undefined>)
-    return jsonResponse(plans)
-  } catch (err) {
-    console.error('Failed to fetch Stripe products, using static fallback:', err)
-    return jsonResponse(STATIC_PLANS)
-  }
+  const plans = await fetchStripeProducts(env as Record<string, string | undefined>)
+  return jsonResponse(plans)
 })
