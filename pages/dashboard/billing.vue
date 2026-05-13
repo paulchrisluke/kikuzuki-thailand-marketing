@@ -239,12 +239,13 @@ async function purchaseCredits(bundle: 500 | 2500 | 5000) {
     const res = await $fetch<{ checkoutUrl?: string; balance?: number; error?: string }>('/api/billing/credits/add', {
       method: 'POST',
       body: { bundle }
-    } as any)
+    })
     if (res.checkoutUrl) {
       await navigateTo(res.checkoutUrl, { external: true })
     } else if (res.balance !== undefined) {
       // dev mode direct top-up response
       successMessage.value = `Added ${bundle} credits. New balance: ${res.balance}`
+      addToast(successMessage.value, 'success')
       await loadCredits()
     } else {
       errorMessage.value = res.error ?? 'Failed to start checkout'
@@ -281,8 +282,9 @@ const loadCredits = async () => {
 const addDevCredits = async (amount: number) => {
   addingCredits.value = true
   try {
-    const res = await $fetch<any>('/api/billing/credits/add', { method: 'POST', body: { amount } } as any)
+    const res = await $fetch<{ balance: number }>('/api/billing/credits/add', { method: 'POST', body: { amount } })
     successMessage.value = `Added ${amount} dev credits. New balance: ${res.balance}`
+    addToast(successMessage.value, 'success')
     await loadCredits()
   } catch (err) {
     errorMessage.value = err instanceof Error ? err.message : 'Failed to add credits'
@@ -320,10 +322,10 @@ const upgradeToPlan = async (plan: string) => {
   errorMessage.value = ''
   upgrading.value = plan
   try {
-    const response = await $fetch<any>('/api/billing/checkout', {
+    const response = await $fetch<{ checkoutUrl: string }>('/api/billing/checkout', {
       method: 'POST',
       body: { plan, interval: annual.value ? 'year' : 'month' }
-    } as any)
+    })
     if (response?.checkoutUrl) {
       await navigateTo(response.checkoutUrl, { external: true })
     } else {
@@ -345,10 +347,10 @@ const openBillingPortal = async () => {
       errorMessage.value = 'Organization ID not found'
       return
     }
-    const response = await $fetch<any>('/api/billing/portal', {
+    const response = await $fetch<{ portalUrl: string }>('/api/billing/portal', {
       method: 'POST',
       body: { organizationId: orgId }
-    } as any)
+    })
     if (response?.portalUrl) {
       await navigateTo(response.portalUrl, { external: true })
     } else {
@@ -382,7 +384,21 @@ onMounted(async () => {
     }
   }
   if (route.query.canceled === 'true') errorMessage.value = 'Payment was canceled. Your plan was not changed.'
+  
+  // Auto-start checkout if plan query param exists
+  const { isAuthenticated } = useAuth()
   await Promise.all([loadBillingData(), loadCredits()])
+  
+  if (isAuthenticated.value && route.query.plan) {
+    const planId = String(route.query.plan)
+    // Remove the plan query param from URL
+    if (window && window.history && window.location) {
+      const url = new URL(window.location.href)
+      url.searchParams.delete('plan')
+      window.history.replaceState({}, '', url.pathname + url.search)
+    }
+    await upgradeToPlan(planId)
+  }
 })
 
 useSeoMeta({ title: 'Billing | KrabiClaw Dashboard', robots: 'noindex, nofollow' })

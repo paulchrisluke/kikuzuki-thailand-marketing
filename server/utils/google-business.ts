@@ -62,8 +62,8 @@ export const locationName = (locationId?: string) => {
 }
 
 // Get access token for a specific connection
-export const getGoogleAccessTokenForSite = async (env: GoogleBusinessEnv, organizationId: string, siteId: string) => {
-  const connection = await getGoogleBusinessConnection(env, organizationId, siteId)
+export const getGoogleAccessTokenForSite = async (env: GoogleBusinessEnv, organizationId: string, siteId: string, locationId?: string) => {
+  const connection = await getGoogleBusinessConnection(env, organizationId, siteId, locationId)
   if (!connection) {
     throw new Error('No Google Business connection found for this site.')
   }
@@ -183,6 +183,7 @@ export interface GoogleBusinessConnection {
   id: string
   organization_id: string
   site_id: string
+  location_id?: string
   connected_by_user_id: string
   provider_account_email: string
   encrypted_access_token: string
@@ -309,7 +310,8 @@ export const storeGoogleBusinessConnection = async (
     throw new Error('Database not available')
   }
 
-  const connectionId = `gb-connection-${connection.organization_id}-${connection.site_id}`
+  const locationSuffix = connection.location_id ? `-${connection.location_id}` : ''
+  const connectionId = `gb-connection-${connection.organization_id}-${connection.site_id}${locationSuffix}`
   const now = new Date().toISOString()
 
   // Encrypt tokens
@@ -317,14 +319,15 @@ export const storeGoogleBusinessConnection = async (
   const encryptedRefreshToken = await encryptSecret(connection.encrypted_refresh_token)
 
   await env.REVIEWS_DB.prepare(`
-    INSERT OR REPLACE INTO google_business_connections 
-    (id, organization_id, site_id, connected_by_user_id, provider_account_email,
+    INSERT OR REPLACE INTO google_business_connections
+    (id, organization_id, site_id, location_id, connected_by_user_id, provider_account_email,
      encrypted_access_token, encrypted_refresh_token, scopes, expires_at, status, created_at, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).bind(
     connectionId,
     connection.organization_id,
     connection.site_id,
+    connection.location_id ?? null,
     connection.connected_by_user_id,
     connection.provider_account_email,
     encryptedAccessToken,
@@ -343,17 +346,28 @@ export const storeGoogleBusinessConnection = async (
 export const getGoogleBusinessConnection = async (
   env: GoogleBusinessEnv,
   organizationId: string,
-  siteId: string
+  siteId: string,
+  locationId?: string
 ): Promise<GoogleBusinessConnection | null> => {
   if (!env.REVIEWS_DB) {
     return null
   }
 
-  const connection = await env.REVIEWS_DB.prepare(`
-    SELECT * FROM google_business_connections 
-    WHERE organization_id = ? AND site_id = ? AND status = 'active'
-    LIMIT 1
-  `).bind(organizationId, siteId).first() as GoogleBusinessConnection | null
+  let connection: GoogleBusinessConnection | null
+
+  if (locationId) {
+    connection = await env.REVIEWS_DB.prepare(`
+      SELECT * FROM google_business_connections
+      WHERE organization_id = ? AND site_id = ? AND location_id = ? AND status = 'active'
+      LIMIT 1
+    `).bind(organizationId, siteId, locationId).first() as GoogleBusinessConnection | null
+  } else {
+    connection = await env.REVIEWS_DB.prepare(`
+      SELECT * FROM google_business_connections
+      WHERE organization_id = ? AND site_id = ? AND status = 'active'
+      LIMIT 1
+    `).bind(organizationId, siteId).first() as GoogleBusinessConnection | null
+  }
 
   if (!connection) {
     return null

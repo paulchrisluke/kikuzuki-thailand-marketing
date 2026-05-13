@@ -233,7 +233,6 @@ const platformNavigation = computed(() => [[
   { label: 'Dashboard', icon: 'i-heroicons-home', to: '/dashboard' },
   { label: 'Sites', icon: 'i-heroicons-globe-alt', to: '/dashboard/sites' },
   { label: 'Billing', icon: 'i-heroicons-credit-card', to: '/dashboard/billing' },
-  { label: 'Integrations', icon: 'i-heroicons-link', to: '/dashboard/integrations' },
   { label: 'Settings', icon: 'i-heroicons-cog-6-tooth', to: '/dashboard/settings' }
 ]])
 
@@ -298,8 +297,7 @@ const siteNavigation = computed(() => [[
   { label: 'Settings', icon: 'i-heroicons-cog-6-tooth', to: sitePath('/settings') }
 ], [
   { label: 'All Sites', icon: 'i-heroicons-squares-2x2', to: '/dashboard/sites' },
-  { label: 'Billing', icon: 'i-heroicons-credit-card', to: '/dashboard/billing' },
-  { label: 'Integrations', icon: 'i-heroicons-link', to: '/dashboard/integrations' }
+  { label: 'Billing', icon: 'i-heroicons-credit-card', to: '/dashboard/billing' }
 ]])
 
 const navigationItems = computed(() => {

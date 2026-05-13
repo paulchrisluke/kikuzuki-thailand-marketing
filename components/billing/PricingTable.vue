@@ -47,6 +47,14 @@
       </div>
     </div>
 
+    <!-- Checkout error -->
+    <div v-if="checkoutError" class="max-w-3xl mx-auto mt-8 bg-error-50 dark:bg-error-950 border border-error-200 dark:border-error-800 rounded-2xl p-6 text-center">
+      <div class="flex items-center justify-center gap-2 text-error-600 dark:text-error-400">
+        <UIcon name="i-heroicons-exclamation-triangle" class="size-5" />
+        <span class="font-medium">{{ checkoutError }}</span>
+      </div>
+    </div>
+
     <!-- Per-location callout -->
     <div class="max-w-3xl mx-auto mt-16 bg-(--ui-bg-muted) rounded-2xl p-8 text-center">
       <h3 class="text-xl font-bold text-(--ui-text) mb-3">Why per-location pricing?</h3>
@@ -100,7 +108,8 @@ const checkoutError = ref<string>('')
 
 async function handleUpgrade(planId: string) {
   if (!isAuthenticated.value) {
-    await navigateTo('/login?next=/dashboard/billing')
+    const next = encodeURIComponent(`/dashboard/billing?plan=${planId}`)
+    await navigateTo(`/login?next=${next}`)
     return
   }
   checkoutError.value = ''
@@ -109,7 +118,7 @@ async function handleUpgrade(planId: string) {
     const res = await $fetch<{ checkoutUrl: string }>('/api/billing/checkout', {
       method: 'POST',
       body: { plan: planId, interval: annual.value ? 'year' : 'month' }
-    } as any)
+    })
     if (res.checkoutUrl) {
       await navigateTo(res.checkoutUrl, { external: true })
     } else {

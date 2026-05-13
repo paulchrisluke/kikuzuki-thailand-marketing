@@ -103,12 +103,13 @@
         />
 
         <div class="space-y-2">
-          <p class="text-sm text-muted">
+          <p id="delete-confirm-instruction" class="text-sm text-muted">
             Type <span class="font-mono font-semibold text-highlighted">DELETE</span> to confirm.
           </p>
           <UInput
             v-model="deleteConfirmText"
             placeholder="DELETE"
+            aria-describedby="delete-confirm-instruction"
             :disabled="deleting"
             @keydown.enter="confirmDeleteAccount"
           />
@@ -169,6 +170,9 @@ async function confirmDeleteAccount() {
       } catch (signOutErr) {
         console.error('Sign out failed after account deletion:', signOutErr)
       }
+      deleteError.value = ''
+      deleting.value = false
+      deleteModalOpen.value = false
       try {
         await navigateTo('/')
       } catch (navErr) {

@@ -208,9 +208,16 @@ async function purchaseCredits(bundle: 500 | 2500 | 5000) {
     const res = await $fetch<{ checkoutUrl?: string; balance?: number }>('/api/billing/credits/add', {
       method: 'POST',
       body: { bundle }
-    } as any)
+    })
     if (res.checkoutUrl) await navigateTo(res.checkoutUrl, { external: true })
     if (res.balance !== undefined) await fetchCredits()
+  } catch (err: any) {
+    console.error('[ChowBot] purchaseCredits failed:', err)
+    messages.value = [...messages.value, {
+      role: 'assistant',
+      content: err?.message || 'Credit purchase failed. Please try again.',
+      error: true,
+    }]
   } finally {
     buyingCredits.value = null
   }

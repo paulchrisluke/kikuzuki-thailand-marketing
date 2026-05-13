@@ -68,9 +68,9 @@ export default defineEventHandler(async (event) => {
     const syncPromise = updateSubscriptionQuantity(env, db, site.organization_id).catch((err) =>
       console.error('Failed to update Stripe subscription quantity after location delete:', err)
     )
-    const waitUntil = event.context.cloudflare?.context?.waitUntil as ((promise: Promise<unknown>) => void) | undefined
-    if (typeof waitUntil === 'function') {
-      waitUntil(syncPromise)
+    const cfCtx = event.context.cloudflare?.context
+    if (cfCtx?.waitUntil) {
+      cfCtx.waitUntil(syncPromise)
     } else {
       await syncPromise
     }

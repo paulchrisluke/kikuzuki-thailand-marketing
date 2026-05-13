@@ -37,7 +37,7 @@ export default defineEventHandler(async (event) => {
       }, { status: 400 })
     }
 
-    const { siteId, organizationId, userId, timestamp } = stateData
+    const { siteId, organizationId, userId, locationId, timestamp } = stateData
     
     // Check state age (should be less than 10 minutes)
     if (Date.now() - timestamp > 10 * 60 * 1000) {
@@ -81,6 +81,7 @@ export default defineEventHandler(async (event) => {
     const connectionId = await storeGoogleBusinessConnection(env, {
       organization_id: organizationId,
       site_id: siteId,
+      location_id: locationId,
       connected_by_user_id: userId,
       provider_account_email: userInfo.email,
       encrypted_access_token: tokenData.accessToken,

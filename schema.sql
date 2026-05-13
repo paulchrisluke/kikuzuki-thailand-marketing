@@ -167,6 +167,7 @@ CREATE TABLE IF NOT EXISTS google_business_connections (
   id TEXT PRIMARY KEY,
   organization_id TEXT NOT NULL,
   site_id TEXT NOT NULL,
+  location_id TEXT,
   connected_by_user_id TEXT,
   provider_account_email TEXT NOT NULL,
   encrypted_access_token TEXT NOT NULL,
@@ -178,8 +179,9 @@ CREATE TABLE IF NOT EXISTS google_business_connections (
   updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
   FOREIGN KEY (organization_id) REFERENCES organization(id) ON DELETE CASCADE,
   FOREIGN KEY (site_id) REFERENCES sites(id) ON DELETE CASCADE,
+  FOREIGN KEY (location_id) REFERENCES business_locations(id) ON DELETE SET NULL,
   FOREIGN KEY (connected_by_user_id) REFERENCES user(id) ON DELETE SET NULL,
-  UNIQUE(organization_id, site_id)
+  UNIQUE(organization_id, site_id, location_id)
 );
 
 CREATE TABLE IF NOT EXISTS business_locations (

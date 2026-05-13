@@ -2,10 +2,10 @@
   <div
     class="rounded-2xl flex flex-col"
     :class="[
-      plan.highlighted
+      isHighlighted
         ? 'bg-(--ui-bg-inverted) text-white shadow-lg p-8'
         : 'bg-(--ui-bg-elevated) border border-(--ui-border) p-8',
-      highlighted && 'ring-2 ring-primary',
+      isHighlighted && 'ring-2 ring-primary',
     ]"
   >
     <!-- Plan image -->
@@ -16,17 +16,17 @@
     <!-- Header -->
     <div class="mb-6 flex items-start justify-between gap-3">
       <div>
-        <h3 class="text-2xl font-bold mb-1" :class="plan.highlighted ? 'text-white' : 'text-(--ui-text)'">
+        <h3 class="text-2xl font-bold mb-1" :class="isHighlighted ? 'text-white' : 'text-(--ui-text)'">
           {{ plan.name }}
         </h3>
-        <p class="text-sm" :class="plan.highlighted ? 'text-white/70' : 'text-(--ui-text-muted)'">
+        <p class="text-sm" :class="isHighlighted ? 'text-white/70' : 'text-(--ui-text-muted)'">
           {{ plan.tagline }}
         </p>
       </div>
       <span
         v-if="plan.badge"
-        class="shrink-0 px-3 py-1 text-sm font-medium rounded-full text-white"
-        style="background-color: var(--kc-coral)"
+        class="shrink-0 px-3 py-1 text-sm font-bold rounded-full text-white"
+        style="background-color: var(--kc-coral-600)"
       >
         {{ plan.badge }}
       </span>
@@ -35,17 +35,17 @@
     <!-- Price -->
     <div class="mb-6">
       <template v-if="plan.prices.length === 0">
-        <span class="text-4xl font-bold" :class="plan.highlighted ? 'text-white' : 'text-(--ui-text)'">$0</span>
-        <span :class="plan.highlighted ? 'text-white/70' : 'text-(--ui-text-muted)'">/month</span>
+        <span class="text-4xl font-bold" :class="isHighlighted ? 'text-white' : 'text-(--ui-text)'">$0</span>
+        <span :class="isHighlighted ? 'text-white/70' : 'text-(--ui-text-muted)'">/month</span>
       </template>
       <template v-else>
-        <span class="text-4xl font-bold" :class="plan.highlighted ? 'text-white' : 'text-(--ui-text)'">
+        <span class="text-4xl font-bold" :class="isHighlighted ? 'text-white' : 'text-(--ui-text)'">
           {{ currentPrice }}
         </span>
-        <span :class="plan.highlighted ? 'text-white/70' : 'text-(--ui-text-muted)'">
+        <span :class="isHighlighted ? 'text-white/70' : 'text-(--ui-text-muted)'">
           {{ billingPeriodLabel }}
         </span>
-        <p v-if="annual && savingsNote" class="text-sm mt-1" :class="plan.highlighted ? 'text-emerald-400' : 'text-emerald-600'">
+        <p v-if="annual && savingsNote" class="text-sm mt-1" :class="isHighlighted ? 'text-emerald-400' : 'text-emerald-600'">
           {{ savingsNote }}
         </p>
       </template>
@@ -57,11 +57,11 @@
         v-for="feature in plan.features"
         :key="feature"
         class="flex items-start gap-2 text-sm"
-        :class="plan.highlighted ? 'text-white/85' : 'text-(--ui-text-muted)'"
+        :class="isHighlighted ? 'text-white/85' : 'text-(--ui-text-muted)'"
       >
         <svg
           class="w-5 h-5 shrink-0 mt-0.5"
-          :class="plan.highlighted ? 'text-green-400' : 'text-green-500'"
+          :class="isHighlighted ? 'text-green-400' : 'text-green-500'"
           fill="currentColor"
           viewBox="0 0 20 20"
         >
@@ -74,13 +74,14 @@
     <!-- CTA -->
     <slot name="cta">
       <UButton
+        v-if="plan.cta"
         :to="plan.cta.href"
-        :variant="plan.highlighted ? 'solid' : 'outline'"
-        :color="plan.highlighted ? 'neutral' : 'neutral'"
+        :variant="isHighlighted ? 'solid' : 'outline'"
+        :color="isHighlighted ? 'neutral' : 'neutral'"
         size="xl"
         block
-        :class="plan.highlighted ? 'text-white hover:opacity-90' : ''"
-        :style="plan.highlighted ? 'background-color: var(--kc-coral)' : ''"
+        :class="isHighlighted ? 'text-white hover:opacity-90' : ''"
+        :style="isHighlighted ? 'background-color: var(--kc-coral-600)' : ''"
       >
         {{ plan.cta.label }}
       </UButton>
@@ -98,6 +99,8 @@ const props = defineProps<{
 }>()
 
 const { displayPrice, annualPrice, monthlyPrice } = usePlans()
+
+const isHighlighted = computed(() => props.highlighted ?? props.plan.highlighted)
 
 const currentPrice = computed(() => displayPrice(props.plan, props.annual ?? false))
 

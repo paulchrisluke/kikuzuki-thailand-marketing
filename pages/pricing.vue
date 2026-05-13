@@ -105,7 +105,15 @@ useSchemaOrg([
       name: 'KrabiClaw Pricing Plans',
       itemListElement: [
         { '@type': 'Offer', name: 'Free', price: '0', priceCurrency: 'USD', description: 'Get started free with basic features' },
-        { '@type': 'Offer', name: 'Pro', price: '29', priceCurrency: 'USD', billingDuration: 'P1M', description: 'Professional features per location per month' },
+        {
+          '@type': 'Offer',
+          name: 'Pro',
+          priceCurrency: 'USD',
+          priceSpecification: [
+            { '@type': 'UnitPriceSpecification', price: '29', priceCurrency: 'USD', billingDuration: 'P1M' },
+          ],
+          description: 'Professional features per location per month',
+        },
         {
           '@type': 'Offer',
           name: 'Agency',

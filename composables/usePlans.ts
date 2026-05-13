@@ -21,7 +21,7 @@ export const usePlans = () => {
   }
 
   function formatPrice(cents: number): string {
-    return (cents / 100).toLocaleString('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 0 })
+    return (cents / 100).toLocaleString('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 0, maximumFractionDigits: 0 })
   }
 
   function displayPrice(plan: Plan, annual: boolean): string {
