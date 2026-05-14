@@ -364,6 +364,14 @@ const stageFile = (file: File) => {
       if (!content) return
       pendingText.value = { name: file.name, content }
     }
+    reader.onerror = (e) => {
+      console.error('[ChowBot] FileReader error:', e)
+      messages.value = [...messages.value, {
+        role: 'assistant',
+        content: `Failed to read **${file.name}**. The file may be corrupted or inaccessible.`,
+        error: true,
+      }]
+    }
     reader.readAsText(file)
     return
   }

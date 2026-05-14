@@ -66,6 +66,15 @@ export default defineEventHandler(async (event) => {
           error: 'Brand name must contain at least one alphanumeric character'
         }, { status: 400 })
       }
+      const existing = await db.prepare(`
+        SELECT id FROM sites WHERE subdomain = ? AND id != ? AND organization_id = ?
+        LIMIT 1
+      `).bind(slug, siteId, site.organization_id).first()
+      if (existing) {
+        return jsonResponse({
+          error: 'This brand name is already in use'
+        }, { status: 400 })
+      }
       setParts.push('brand_name = ?', 'subdomain = ?')
       params.push(body.brand_name, slug)
     }

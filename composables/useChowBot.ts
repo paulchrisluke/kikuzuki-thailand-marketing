@@ -96,7 +96,7 @@ export const useChowBot = () => {
       target = `/dashboard/sites/${siteId.value}/locations`
     } else if (names.has('create_menu') || names.has('rename_menu') || names.has('add_menu_item') || names.has('update_menu_item') || names.has('publish_menu') || names.has('add_menu_items_batch')) {
       const locId = locationId.value
-      target = `/dashboard/sites/${siteId.value}/menu${locId ? `?locationId=${locId}` : ''}`
+      target = `/dashboard/sites/${siteId.value}/menu${locId ? `?locationId=${encodeURIComponent(locId)}` : ''}`
     }
 
     if (target) {

@@ -5,6 +5,7 @@ import { callAiGateway, type AiTool, type AiMessage } from '~/server/utils/ai-ga
 import { hasCredits, chargeCredits } from '~/server/utils/ai-credits'
 import { listPosts, createPost, publishPost } from '~/server/utils/post-management'
 import { getMenus, getMenuWithItems, createMenu, updateMenu, createMenuItem, updateMenuItem, deleteMenu } from '~/server/utils/menu-management'
+import { getPlaceDetails, searchPlaces } from '~/server/utils/google-places'
 
 const MAX_ITERATIONS = 10
 const MODEL = 'claude-sonnet-4-6'
@@ -263,6 +264,19 @@ const TOOLS: AiTool[] = [
     },
   },
 
+  // ── Maps lookup ────────────────────────────────────────────────────────────
+  {
+    name: 'lookup_maps_url',
+    description: 'Look up a Google Maps URL or share link to get location details — address, phone, coordinates, hours. Use when someone pastes a Google Maps link and wants to update their location details. After getting results, call update_location with the relevant fields.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        url: { type: 'string', description: 'Google Maps URL or share link (e.g. https://maps.app.goo.gl/... or https://www.google.com/maps/place/...)' },
+      },
+      required: ['url'],
+    },
+  },
+
   // ── Reviews ────────────────────────────────────────────────────────────────
   {
     name: 'get_reviews',
@@ -461,6 +475,14 @@ async function executeTool(
     case 'create_menu': {
       // Use the explicit location from the AI, fall back to the page's current location
       const effectiveLocationId = (input.location_id as string | undefined) ?? ctx.locationId ?? undefined
+      if (effectiveLocationId) {
+        const location = await db.prepare(`
+          SELECT 1 FROM business_locations
+          WHERE id = ? AND organization_id = ? AND site_id = ?
+          LIMIT 1
+        `).bind(effectiveLocationId, orgId, siteId).first()
+        if (!location) return { error: 'Location not found or access denied' }
+      }
       const menu = await createMenu(db, orgId, siteId, { name: input.name, description: input.description, locationId: effectiveLocationId }, userId)
       return { id: menu.id, name: menu.name, description: menu.description, status: menu.status }
     }
@@ -621,6 +643,71 @@ async function executeTool(
         `SELECT id, title, city, phone, email, description, status FROM business_locations WHERE id = ? LIMIT 1`
       ).bind(locationId).first()
       return updated ?? { error: 'Location not found.' }
+    }
+
+    case 'lookup_maps_url': {
+      const apiKey = env.GOOGLE_PLACES_API_KEY as string | undefined
+      if (!apiKey) return { error: 'Google Places API not configured.' }
+
+      const rawUrl = typeof input.url === 'string' ? input.url.trim() : ''
+      if (!rawUrl) return { error: 'url is required.' }
+
+      // Validate it looks like a Google Maps URL before fetching
+      if (!rawUrl.includes('google.com/maps') && !rawUrl.includes('maps.app.goo.gl') && !rawUrl.includes('maps.google.com')) {
+        return { error: 'URL does not appear to be a Google Maps link.' }
+      }
+
+      // Follow redirects to resolve short URLs (maps.app.goo.gl)
+      let resolvedUrl = rawUrl
+      try {
+        const probe = await fetch(rawUrl, { method: 'HEAD', redirect: 'follow' })
+        resolvedUrl = probe.url || rawUrl
+      } catch { /* keep rawUrl */ }
+
+      // Extract place ID from the canonical URL data parameter: !1s{placeId}
+      const placeIdMatch = resolvedUrl.match(/!1s([^!&]+)/)
+      const placeId = placeIdMatch?.[1] ?? null
+
+      if (placeId) {
+        try {
+          const details = await getPlaceDetails(apiKey, placeId)
+          return {
+            found: true,
+            name: details.name,
+            address: details.formattedAddress,
+            city: details.city,
+            phone: details.phone,
+            website_url: details.websiteUrl,
+            maps_url: details.mapsUrl,
+            latitude: details.lat,
+            longitude: details.lng,
+            rating: details.rating,
+            opening_hours: details.openingHours,
+            hint: 'Use update_location with location_id plus the fields above to apply these details.',
+          }
+        } catch { /* fall through to text search */ }
+      }
+
+      // Fallback: extract business name from URL and text-search
+      const nameMatch = resolvedUrl.match(/\/maps\/place\/([^/@]+)/)
+      const nameQuery = nameMatch ? decodeURIComponent(nameMatch[1].replace(/\+/g, ' ')) : ''
+      if (!nameQuery) return { error: 'Could not extract a place from that URL. Try sharing the full Google Maps link.' }
+
+      const results = await searchPlaces(apiKey, nameQuery)
+      if (!results.length) return { error: `No places found for "${nameQuery}".` }
+
+      const top = results[0]!
+      return {
+        found: true,
+        name: top.name,
+        address: top.formattedAddress,
+        phone: top.phone,
+        maps_url: top.mapsUrl,
+        latitude: top.lat,
+        longitude: top.lng,
+        rating: top.rating,
+        hint: 'Use update_location with location_id plus the fields above to apply these details.',
+      }
     }
 
     case 'get_reviews': {
@@ -833,7 +920,7 @@ Current page: ${currentPage}${locationId ? `\nCurrent location: ${locationName ?
 Capabilities (always use tools — never say you can't do something the tools support):
 - Posts: list, create (standard/offer/event/update with CTA), publish — optionally location-scoped
 - Menus: create, rename, view, add items (batch with image_asset_id), update items, publish, delete
-- Locations: list, create, update (title syncs slug, plus description/email/socials/price_level)
+- Locations: list, create, update (title syncs slug, plus description/email/socials/price_level), lookup from Google Maps URL
 - Reviews: get (with star distribution), reply as owner
 - Media: list per location, delete, generate AI images with Flux (auto-saved, returns asset_id)
 - Q&A: list, add, delete per location
@@ -845,7 +932,7 @@ Guidelines:
 - Use tools immediately — never say "I'll do that" without calling a tool
 - When adding multiple menu items, ALWAYS use add_menu_items_batch — all items in one call
 - When creating menus, omit location_id — the server links it to the current location automatically
-- Before publish_post, publish_menu, delete_menu, delete_location_photo, delete_qa — confirm first
+- Before publish_post, publish_menu, delete_menu, delete_media_asset, delete_qa — confirm first
 - Menus are DRAFT by default — publish_menu makes them live
 - Keep responses short — this is a chat panel`
 

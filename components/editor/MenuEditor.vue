@@ -236,6 +236,11 @@ const {
 
 const handleAiImport = async (menuId: string) => {
   await loadMenu(menuId)
+  expandedItemId.value = null
+  addingItemSection.value = null
+  pendingSections.value = []
+  newSectionName.value = ''
+  showAddSectionForm.value = false
 }
 
 const confirmDeleteOpen = ref(false)
@@ -245,6 +250,11 @@ const handleDeleteMenu = async () => {
   try {
     await deleteMenu(currentMenu.value.id)
     confirmDeleteOpen.value = false
+    expandedItemId.value = null
+    addingItemSection.value = null
+    pendingSections.value = []
+    newSectionName.value = ''
+    showAddSectionForm.value = false
     toast.addToast('Menu deleted', 'success')
   } catch (err) {
     console.error('handleDeleteMenu failed:', err)

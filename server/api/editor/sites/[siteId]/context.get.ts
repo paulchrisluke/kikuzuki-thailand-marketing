@@ -142,7 +142,7 @@ export default defineEventHandler(async (event) => {
       context: {
         site: {
           id: site.id,
-          name: site.brand_name,
+          brand_name: site.brand_name,
           subdomain: site.subdomain,
           status: site.status,
           onboarding_status: site.onboarding_status

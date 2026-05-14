@@ -177,15 +177,16 @@ export default defineEventHandler(async (event) => {
     try {
       await db.prepare(`
         INSERT INTO sites (
-          id, organization_id, theme_id, slug, subdomain,
+          id, organization_id, theme_id, slug, subdomain, brand_name,
           status, plan, onboarding_status, created_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `).bind(
         siteId,
         organizationId,
         'saya-theme-v1',
         normalizedSubdomain,
         normalizedSubdomain,
+        restaurantName,
         'active',
         'free',
         'pending',
