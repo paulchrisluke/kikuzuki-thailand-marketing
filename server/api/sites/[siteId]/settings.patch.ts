@@ -199,7 +199,7 @@ export default defineEventHandler(async (event) => {
       logo_url: updatedSite.logo_url,
       contact_email: updatedSite.contact_email,
       brand_color: siteConfig.brand_color || '',
-      default_currency: siteConfig.default_currency || 'THB',
+      default_currency: siteConfig?.default_currency || 'THB',
       url_structure: siteSettings.url_structure || 'location_subdirectories',
       last_published_at: updatedSite.last_published_at,
       created_at: updatedSite.created_at,

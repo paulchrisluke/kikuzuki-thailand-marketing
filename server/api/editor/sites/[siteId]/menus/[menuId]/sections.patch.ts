@@ -41,8 +41,7 @@ export default defineEventHandler(async (event) => {
     const site = await db.prepare(`
       SELECT s.id, s.organization_id
       FROM sites s
-      JOIN organization o ON s.organization_id = o.id
-      JOIN member om ON o.id = om.organizationId
+      JOIN member om ON s.organization_id = om.organizationId
       WHERE s.id = ? AND om.userId = ? AND om.role IN ('owner', 'admin', 'editor')
       LIMIT 1
     `).bind(siteId, session.user.id).first<{ id: string; organization_id: string }>()

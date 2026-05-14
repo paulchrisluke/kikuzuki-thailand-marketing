@@ -5,6 +5,8 @@ import { getConfig } from '~/server/utils/site-config'
 export default defineEventHandler(async (event) => {
   const siteId = getRouterParam(event, 'siteId')
   const slug = getRouterParam(event, 'slug')
+  const runtimeConfig = useRuntimeConfig(event)
+  const DEFAULT_CURRENCY = runtimeConfig.defaultCurrency
   
   if (!siteId || !slug) {
     return jsonResponse({ 
@@ -93,7 +95,7 @@ export default defineEventHandler(async (event) => {
       status: location.status,
       image_url: location.image_url,
       city: location.city,
-      currency: siteConfig.default_currency || 'THB',
+      currency: siteConfig?.default_currency || DEFAULT_CURRENCY,
       google_place_id: location.google_place_id,
       gmb_review_url,
       gmb_qa_url

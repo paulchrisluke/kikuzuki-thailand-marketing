@@ -27,6 +27,9 @@
 /* ── KrabiClaw brand palette ──────────────────────────────── */
 :root {
 
+  /* Global type scaling belongs at the root so rem-based sizing stays predictable. */
+  font-size: 106%;
+
   --kc-navy:        #1F2547;
   --kc-navy-700:    #2C3360;
   --kc-navy-500:    #4A5380;
@@ -80,9 +83,6 @@
   --ui-text-inverted:     var(--kc-cream-elev);
   --ui-border:            var(--kc-border);
   --ui-border-muted:      var(--kc-border-muted);
-
-  /* Global font scaling for dashboard readability */
-  font-size: 106%;
 }
 
 /* ── Platform theme dark mode ─────────────────────────────── */

@@ -15,10 +15,6 @@ interface MenuRow {
   id: string
 }
 
-interface SectionRow {
-  id: string
-}
-
 export default defineEventHandler(async (event) => {
   const siteId = getRouterParam(event, 'siteId')
   const menuId = getRouterParam(event, 'menuId')
@@ -48,8 +44,7 @@ export default defineEventHandler(async (event) => {
     const site = await db.prepare(`
       SELECT s.id, s.organization_id
       FROM sites s
-      JOIN organization o ON s.organization_id = o.id
-      JOIN member om ON o.id = om.organizationId
+      JOIN member om ON s.organization_id = om.organizationId
       WHERE s.id = ? AND om.userId = ? AND om.role IN ('owner', 'admin', 'editor')
       LIMIT 1
     `).bind(siteId, session.user.id).first() as SiteRow | null
@@ -69,18 +64,11 @@ export default defineEventHandler(async (event) => {
       return jsonResponse({ error: 'Menu not found' }, { status: 404 })
     }
 
-    const existingSection = await db.prepare(`
-      SELECT id
-      FROM menu_items
-      WHERE menu_id = ? AND section = ?
-      LIMIT 1
-    `).bind(menuId, section).first() as SectionRow | null
+    const deleted = await deleteMenuSection(db, menuId, section)
 
-    if (!existingSection) {
+    if (!deleted || deleted === 0) {
       return jsonResponse({ error: 'Section not found' }, { status: 404 })
     }
-
-    const deleted = await deleteMenuSection(db, menuId, section)
 
     return jsonResponse({
       success: true,

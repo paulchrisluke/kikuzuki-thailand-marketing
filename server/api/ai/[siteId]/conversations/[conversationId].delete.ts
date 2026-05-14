@@ -18,6 +18,15 @@ export default defineEventHandler(async (event) => {
   const site = await getSiteForMember(db, siteId, session.user.id)
   if (!site) return jsonResponse({ error: 'Site not found or access denied' }, { status: 404 })
 
-  await deleteConversation(db, conversationId, siteId, session.user.id)
-  return jsonResponse({ success: true })
+  try {
+    await deleteConversation(db, conversationId, siteId, session.user.id)
+    return jsonResponse({ success: true })
+  } catch (err) {
+    const message = err instanceof Error ? err.message : ''
+    if (message === 'ChowBot conversation not found') {
+      return jsonResponse({ error: 'Conversation not found' }, { status: 404 })
+    }
+    console.error('Failed to delete conversation:', err)
+    return jsonResponse({ error: 'Failed to delete conversation' }, { status: 500 })
+  }
 })

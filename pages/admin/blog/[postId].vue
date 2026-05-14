@@ -65,7 +65,7 @@ const categories = ['Marketing', 'Technology', 'Design', 'Business', 'SEO', 'Soc
 interface BlogPost {
   id: string
   title: string
-  slug: string
+  slug?: string | null
   excerpt?: string | null
   category?: string | null
   body: string
@@ -83,6 +83,8 @@ function getErrorMessage(error: unknown, message: string): string {
       const dataError = (data as Record<string, unknown>).error
       if (typeof dataError === 'string' && dataError) return dataError
     }
+    const errorMessage = (error as Record<string, unknown>).message
+    if (typeof errorMessage === 'string' && errorMessage) return errorMessage
   }
   return message
 }

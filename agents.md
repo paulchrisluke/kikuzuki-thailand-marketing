@@ -77,6 +77,15 @@ Never add fallbacks ever.
 5. Better Auth tables (`user`, `session`, `account`, `verification`, `organization`, `member`, `invitation`) must use Better Auth's exact camelCase column names; app-owned tables use snake_case
 6. Any schema change must be checked against current server queries before finishing
 
+### Auth/App Naming Boundary
+
+- Better Auth physical columns are vendor/auth-owned and must not be renamed in this repo
+- App-owned tables must remain snake_case; do not introduce new app camelCase columns to match Better Auth naming
+- Cross-domain joins are expected to bridge naming domains explicitly, e.g. `sites.organization_id = member.organizationId`
+- Standard membership access pattern: `sites.organization_id = member.organizationId` and `member.userId = session.user.id`
+- Remove unnecessary joins through `organization` when membership alone proves access
+- Centralize access checks only when repeated SQL justifies it; avoid abstraction churn
+
 ---
 
 ## Multi-Tenancy

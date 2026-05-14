@@ -299,7 +299,9 @@ const currencySymbols: Record<string, string> = {
 }
 
 const pricePlaceholder = computed(() => {
-  const currency = (props.defaultCurrency || 'THB').toUpperCase()
+  const currency = props.defaultCurrency?.trim()
+    ? props.defaultCurrency.trim().toUpperCase()
+    : 'USD'
   const symbol = currencySymbols[currency] || currency
   return `${symbol}250`
 })

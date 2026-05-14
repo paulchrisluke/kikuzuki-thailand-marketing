@@ -85,12 +85,21 @@ export default defineEventHandler(async (event) => {
     return jsonResponse({ error: 'Failed to update post' }, { status: 500 })
   }
 
-  const post = await db.prepare(
-    `SELECT id, title, slug, body, excerpt, category, published_at, created_at, updated_at
-     FROM platform_blog_posts
-     WHERE id = ?
-     LIMIT 1`
-  ).bind(postId).first()
+  try {
+    const post = await db.prepare(
+      `SELECT id, title, slug, body, excerpt, category, published_at, created_at, updated_at
+       FROM platform_blog_posts
+       WHERE id = ?
+       LIMIT 1`
+    ).bind(postId).first()
 
-  return jsonResponse({ success: true, post })
+    if (!post) {
+      return jsonResponse({ success: true })
+    }
+
+    return jsonResponse({ success: true, post })
+  } catch (err) {
+    console.error('Failed to fetch updated post:', err)
+    return jsonResponse({ success: true })
+  }
 })

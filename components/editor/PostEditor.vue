@@ -212,7 +212,9 @@ const canPublish = computed(() => {
 })
 const formattedPublishedAt = computed(() => {
   if (!props.publishedAt) return ''
-  return new Date(props.publishedAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
+  const publishedAt = new Date(props.publishedAt)
+  if (Number.isNaN(publishedAt.getTime())) return ''
+  return publishedAt.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
 })
 
 function handleImageChange(asset: { id: string; publicUrl: string; thumbnailUrl: string } | null) {

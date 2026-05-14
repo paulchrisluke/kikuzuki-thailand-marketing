@@ -75,7 +75,7 @@ export async function getSiteForMember(
     SELECT s.id, s.organization_id, s.brand_name, m.role
     FROM sites s
     JOIN member m ON s.organization_id = m.organizationId
-    WHERE s.id = ? AND m.userId = ? AND m.role IN (${placeholders})
+    WHERE s.id = ? AND m.userId = ? AND m.role IN (${placeholders}) AND s.status = 'active'
     LIMIT 1
   `).bind(siteId, userId, ...roles).first<ChowBotSiteAccess>()
 }
@@ -138,8 +138,8 @@ export async function createConversation(
   const now = nowIso()
   await db.prepare(`
     INSERT INTO chowbot_conversations
-      (id, organization_id, site_id, user_id, title, active_channel, selected_location_id, created_at, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      (id, organization_id, site_id, user_id, title, active_channel, status, selected_location_id, created_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).bind(
     id,
     opts.organizationId,
@@ -147,13 +147,14 @@ export async function createConversation(
     opts.userId,
     opts.title?.trim() || 'New ChowBot chat',
     opts.activeChannel,
+    'active',
     opts.selectedLocationId ?? null,
     now,
     now
   ).run()
 
   const created = await getConversation(db, id, opts.siteId, opts.userId)
-  if (!created) throw new Error('Failed to create ChowBot conversation')
+  if (!created) throw new Error('Failed to create conversation')
   return created
 }
 
@@ -188,13 +189,15 @@ export async function getOrCreateConversation(
 export async function touchConversation(
   db: D1Database,
   conversationId: string,
+  siteId: string,
+  userId: string,
   channel: ChowBotChannel
 ): Promise<void> {
   await db.prepare(`
     UPDATE chowbot_conversations
     SET active_channel = ?, updated_at = ?
-    WHERE id = ?
-  `).bind(channel, nowIso(), conversationId).run()
+    WHERE id = ? AND site_id = ? AND user_id = ?
+  `).bind(channel, nowIso(), conversationId, siteId, userId).run()
 }
 
 export async function deleteConversation(
@@ -203,16 +206,27 @@ export async function deleteConversation(
   siteId: string,
   userId: string
 ): Promise<void> {
-  await db.prepare(`
+  const result = await db.prepare(`
     UPDATE chowbot_conversations
     SET status = 'deleted', updated_at = ?
     WHERE id = ? AND site_id = ? AND user_id = ?
   `).bind(nowIso(), conversationId, siteId, userId).run()
+
+  if (!result.meta.changes || result.meta.changes === 0) {
+    throw new Error('ChowBot conversation not found')
+  }
 }
 
 export async function createMessage(db: D1Database, input: CreateMessageInput): Promise<ChowBotMessage> {
+  // Verify conversation exists and user has access
+  const conversation = await getConversation(db, input.conversationId, input.siteId, input.userId ?? '')
+  if (!conversation) {
+    throw new Error('ChowBot conversation not found or access denied')
+  }
+
   const id = crypto.randomUUID()
   const now = nowIso()
+
   await db.prepare(`
     INSERT INTO chowbot_messages
       (id, conversation_id, organization_id, site_id, user_id, role, channel, content, media, meta_message_id, tool_calls, status, error, created_at)
@@ -226,20 +240,20 @@ export async function createMessage(db: D1Database, input: CreateMessageInput): 
     input.role,
     input.channel,
     input.content ?? null,
-    input.media ? JSON.stringify(input.media) : null,
+    input.media ?? null,
     input.metaMessageId ?? null,
     input.toolCalls ? JSON.stringify(input.toolCalls) : null,
-    input.status ?? 'sent',
+    input.status ?? 'pending',
     input.error ?? null,
     now
   ).run()
-  await touchConversation(db, input.conversationId, input.channel)
 
-  const message = await db.prepare(`
-    SELECT * FROM chowbot_messages WHERE id = ? LIMIT 1
+  const created = await db.prepare(`
+    SELECT * FROM chowbot_messages WHERE id = ?
   `).bind(id).first<ChowBotMessage>()
-  if (!message) throw new Error('Failed to create ChowBot message')
-  return message
+
+  if (!created) throw new Error('Failed to create message')
+  return created
 }
 
 export async function listMessages(
@@ -247,7 +261,8 @@ export async function listMessages(
   conversationId: string,
   siteId: string,
   userId: string,
-  limit = 100
+  limit = 100,
+  offset = 0
 ): Promise<ChowBotMessage[]> {
   const { results } = await db.prepare(`
     SELECT m.*
@@ -255,8 +270,8 @@ export async function listMessages(
     JOIN chowbot_conversations c ON c.id = m.conversation_id
     WHERE m.conversation_id = ? AND m.site_id = ? AND c.user_id = ? AND c.status = 'active'
     ORDER BY m.created_at ASC
-    LIMIT ?
-  `).bind(conversationId, siteId, userId, limit).all<ChowBotMessage>()
+    LIMIT ? OFFSET ?
+  `).bind(conversationId, siteId, userId, limit, offset).all<ChowBotMessage>()
   return results ?? []
 }
 

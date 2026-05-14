@@ -113,9 +113,6 @@ export async function extractMenuFromMediaAsset(
     menuName?: string
   }
 ): Promise<{ menuId: string | null; count: number; warning: string | null; creditsRemaining: number }> {
-  const creditOk = await hasCredits(db, opts.organizationId)
-  if (!creditOk) throw new Error('No AI credits remaining.')
-
   const asset = await getMediaAsset(db, opts.assetId, opts.siteId)
   if (!asset?.public_url || !asset.mime_type) throw new Error('Media asset not found')
 
@@ -151,7 +148,7 @@ export async function extractMenuFromMediaAsset(
   const jsonText = (() => {
     const fenced = rawText.match(/```(?:json)?\s*([\s\S]*?)```/)
     if (fenced) return (fenced[1] ?? '').trim()
-    const obj = rawText.match(/\{[\s\S]*\}/)
+    const obj = rawText.match(/\{[\s\S]*?\}/)
     if (obj) return obj[0]
     return rawText.trim()
   })()

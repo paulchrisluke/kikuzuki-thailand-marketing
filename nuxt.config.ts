@@ -32,6 +32,7 @@ export default defineNuxtConfig({
   devtools: { enabled: false },
   css: ['~/assets/css/main.css'],
   runtimeConfig: {
+    defaultCurrency: process.env.DEFAULT_CURRENCY || 'THB',
     public: {
       platformDomain: process.env.NUXT_PUBLIC_PLATFORM_DOMAIN || '',
       freeSiteDomain: process.env.NUXT_PUBLIC_FREE_SITE_DOMAIN || '',

@@ -1074,14 +1074,14 @@ async function executeTool(
     }
 
     case 'get_reviews': {
+      const loc = await db.prepare(
+        `SELECT id FROM business_locations WHERE id = ? AND organization_id = ? AND site_id = ? LIMIT 1`
+      ).bind(input.location_id, orgId, siteId).first()
+      if (!loc) return { error: 'Location not found.' }
       const { results } = await db.prepare(
-        `SELECT id, author_name, rating, title, content, owner_reply, source, created_at
-         FROM reviews WHERE location_id = ? AND status = 'approved' ORDER BY created_at DESC LIMIT 20`
+        `SELECT * FROM reviews WHERE location_id = ?`
       ).bind(input.location_id).all()
-      const reviews = (results ?? []) as Array<{ rating: number | null }>
-      const dist = [1,2,3,4,5].map(star => ({ star, count: reviews.filter((r) => r.rating === star).length }))
-      const loc = await db.prepare(`SELECT rating, review_count FROM business_locations WHERE id = ? LIMIT 1`).bind(input.location_id).first()
-      return { aggregate: { rating: loc?.rating, count: loc?.review_count, distribution: dist }, reviews }
+      return results ?? []
     }
 
     case 'reply_to_review': {
@@ -1156,9 +1156,12 @@ async function executeTool(
     }
 
     case 'get_location_qa': {
+      const loc = await db.prepare(
+        `SELECT id FROM business_locations WHERE id = ? AND organization_id = ? AND site_id = ? LIMIT 1`
+      ).bind(input.location_id, orgId, siteId).first()
+      if (!loc) return { error: 'Location not found.' }
       const { results } = await db.prepare(
-        `SELECT id, question, question_author, answer, answer_date, is_owner_answer, upvote_count
-         FROM location_qa WHERE location_id = ? AND status = 'published' ORDER BY is_owner_answer DESC, upvote_count DESC`
+        `SELECT * FROM location_qa WHERE location_id = ?`
       ).bind(input.location_id).all()
       return results ?? []
     }
@@ -1166,16 +1169,22 @@ async function executeTool(
     case 'add_qa': {
       const id = crypto.randomUUID()
       const now = new Date().toISOString()
-      const loc = await db.prepare(`SELECT organization_id, site_id FROM business_locations WHERE id = ? LIMIT 1`).bind(input.location_id).first()
+      const loc = await db.prepare(
+        `SELECT id FROM business_locations WHERE id = ? AND organization_id = ? AND site_id = ? LIMIT 1`
+      ).bind(input.location_id, orgId, siteId).first()
       if (!loc) return { error: 'Location not found.' }
       await db.prepare(
         `INSERT INTO location_qa (id, organization_id, site_id, location_id, question, answer, is_owner_answer, source, created_at, updated_at)
          VALUES (?, ?, ?, ?, ?, ?, 1, 'manual', ?, ?)`
-      ).bind(id, loc.organization_id, loc.site_id, input.location_id, input.question, input.answer ?? null, now, now).run()
+      ).bind(id, orgId, siteId, input.location_id, input.question, input.answer ?? null, now, now).run()
       return { id, added: true }
     }
 
     case 'delete_qa': {
+      const loc = await db.prepare(
+        `SELECT id FROM business_locations WHERE id = ? AND organization_id = ? AND site_id = ? LIMIT 1`
+      ).bind(input.location_id, orgId, siteId).first()
+      if (!loc) return { error: 'Location not found.' }
       await db.prepare(`DELETE FROM location_qa WHERE id = ? AND location_id = ?`).bind(input.qa_id, input.location_id).run()
       return { qa_id: input.qa_id, deleted: true }
     }
@@ -1216,11 +1225,20 @@ async function executeTool(
 
     case 'rename_site': {
       const now = new Date().toISOString()
-      const newSubdomain = toSlug(input.brand_name)
-      await db.prepare(
-        `UPDATE sites SET brand_name = ?, subdomain = ?, updated_at = ? WHERE id = ? AND organization_id = ?`
-      ).bind(input.brand_name, newSubdomain, now, siteId, orgId).run()
-      return { brand_name: input.brand_name, subdomain: newSubdomain, updated: true }
+      const baseSubdomain = toSlug(input.brand_name)
+      for (let attempt = 0; attempt < MAX_SLUG_ATTEMPTS; attempt += 1) {
+        const subdomain = attempt === 0 ? baseSubdomain : `${baseSubdomain}-${attempt + 1}`
+        try {
+          await db.prepare(
+            `UPDATE sites SET brand_name = ?, subdomain = ?, updated_at = ? WHERE id = ? AND organization_id = ?`
+          ).bind(input.brand_name, subdomain, now, siteId, orgId).run()
+          return { brand_name: input.brand_name, subdomain, updated: true }
+        } catch (error) {
+          if (isUniqueConstraintError(error)) continue
+          throw error
+        }
+      }
+      return { error: `Unable to allocate a unique subdomain after ${MAX_SLUG_ATTEMPTS} attempts` }
     }
 
     case 'set_default_currency': {
@@ -1297,6 +1315,9 @@ Guidelines:
   while (initialMessages.length > 0 && initialMessages[0]?.role !== 'user') {
     initialMessages = initialMessages.slice(1)
   }
+  if (!initialMessages.length) {
+    throw new Error('Conversation must contain at least one user message')
+  }
   const agentMessages: AiMessage[] = initialMessages.map((m) => {
     const raw = typeof m.content === 'string' ? m.content : String(m.content ?? '')
     return {
@@ -1368,6 +1389,12 @@ Guidelines:
       : aiResponse.content.find((b) => b.type === 'text')?.text ?? ''
     await emit({ type: 'text', content: responseText })
     break
+  }
+
+  // If we exhausted iterations without getting a final response
+  if (!responseText) {
+    responseText = 'I ran into complexity limits. Please try a simpler request or break it into steps.'
+    await emit({ type: 'text', content: responseText })
   }
 
   const charged = await chargeCredits(db, orgId, {

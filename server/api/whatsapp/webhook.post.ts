@@ -61,8 +61,7 @@ function intentFromText(text: string): 'import_menu' | 'save_media' | 'cancel' |
   if (/\b(cancel|never mind|nevermind|stop)\b/i.test(text)) return 'cancel'
   if (/\b(import|extract|read)\b/i.test(text) && /\b(menu|items?|dishes)\b/i.test(text)) return 'import_menu'
   if (/\b(save|library|media|photo)\b/i.test(text)) return 'save_media'
-  if (/\b(post|caption|use it|use this|image task)\b/i.test(text)) return 'agent'
-  return null
+  return null // Removed 'agent' intent detection for now
 }
 
 function siteListReply(sites: Array<{ id: string; brand_name: string | null }>): string {
@@ -136,6 +135,15 @@ async function handleMessage(db: D1Database, env: ApiRecord, message: WhatsAppMe
   let activeConversationId = existingState?.active_conversation_id ?? null
   const text = messageText(message)
   let selectedSiteNow = false
+
+  let pendingMedia: { assetId?: string; siteId?: string } | null = null
+  if (existingState?.pending_media) {
+    try {
+      pendingMedia = JSON.parse(existingState.pending_media) as { assetId?: string; siteId?: string }
+    } catch {
+      pendingMedia = null // Treat corrupted pending_media as null
+    }
+  }
 
   if (!selectedSiteId && sites.length > 1) {
     const selectedIndex = /^\d+$/.test(text) ? Number(text) - 1 : -1
@@ -241,90 +249,62 @@ async function handleMessage(db: D1Database, env: ApiRecord, message: WhatsAppMe
     }
   }
 
+  try {
+    const messages = await getRecentAgentMessages(db, conversation.id, site.id, user.id)
+    let assistantText = ''
+    const result = await runChowBot({
+      db,
+      env,
+      orgId: site.organization_id,
+      siteId: site.id,
+      userId: user.id,
+      siteName: site.brand_name ?? 'your site',
+      defaultCurrency: siteConfig.default_currency || 'THB',
+      messages,
+      currentPage: 'whatsapp',
+      onEvent: (ev) => {
+        if (ev.type === 'text') assistantText = ev.content ?? ''
+      },
+    })
+
+    await reply(db, env, toPhone, assistantText || result.responseText, {
+      conversation,
+      userId: user.id,
+      toolCalls: result.toolCalls,
+    })
+  } catch (err) {
+    await reply(db, env, toPhone, 'Sorry, something went wrong. Please try again.', {
+      conversation,
+      userId: user.id,
+      status: 'failed',
+      error: String(err),
+    })
+  }
+
   if (message.type === 'image' || message.type === 'document') {
     const mediaId = message.type === 'image' ? message.image?.id : message.document?.id
     if (!mediaId) {
       await reply(db, env, toPhone, 'WhatsApp did not include a media ID for that file.', { conversation, userId: user.id, status: 'failed', error: 'Missing media ID' })
       return
     }
-    const media = await fetchWhatsAppMedia(env, mediaId)
-    const asset = await saveInboundMediaAsset(db, env, {
-      organizationId: site.organization_id,
-      siteId: site.id,
-      userId: user.id,
-      bytes: media.bytes,
-      mimeType: media.mimeType,
-      fileSize: media.fileSize,
-      filename: message.type === 'document' ? message.document?.filename : undefined,
-    })
-    await createMessage(db, {
-      conversationId: conversation.id,
-      organizationId: site.organization_id,
-      siteId: site.id,
-      userId: user.id,
-      role: 'user',
-      channel: 'whatsapp',
-      content: text || `Sent ${message.type}`,
-      media: { assetId: asset.id, mimeType: asset.mime_type, publicUrl: asset.public_url },
-      metaMessageId: message.id,
-    })
-    await upsertChannelState(db, {
-      userId: user.id,
-      channel: 'whatsapp',
-      selectedSiteId: site.id,
-      activeConversationId,
-      pendingMedia: { assetId: asset.id, siteId: site.id },
-      pendingConfirmation: null,
-      lastInboundId: message.id,
-    })
-    await reply(db, env, toPhone, 'I saved that file. Reply with one of: import menu, save media, use for post, or cancel.', { conversation, userId: user.id })
-    return
+
+    let media, asset
+    try {
+      media = await fetchWhatsAppMedia(env, mediaId)
+      asset = await saveInboundMediaAsset(db, env, {
+        organizationId: site.organization_id,
+        siteId: site.id,
+        userId: user.id,
+        bytes: media.bytes,
+        mimeType: media.mimeType,
+        fileSize: media.fileSize,
+        filename: message.type === 'document' ? message.document?.filename : undefined,
+      })
+    } catch (err) {
+      await reply(db, env, toPhone, 'Failed to process the media file. Please try again.', { conversation, userId: user.id, status: 'failed', error: String(err) })
+      return
+    }
   }
-
-  await createMessage(db, {
-    conversationId: conversation.id,
-    organizationId: site.organization_id,
-    siteId: site.id,
-    userId: user.id,
-    role: 'user',
-    channel: 'whatsapp',
-    content: text,
-    metaMessageId: message.id,
-  })
-
-  await upsertChannelState(db, {
-    userId: user.id,
-    channel: 'whatsapp',
-    selectedSiteId: site.id,
-    activeConversationId,
-    pendingMedia: pendingMedia ?? null,
-    pendingConfirmation: null,
-    lastInboundId: message.id,
-  })
-
-  const siteConfig = await getConfig(db, site.organization_id, site.id)
-  const messages = await getRecentAgentMessages(db, conversation.id, site.id, user.id)
-  let assistantText = ''
-  const result = await runChowBot({
-    db,
-    env,
-    orgId: site.organization_id,
-    siteId: site.id,
-    userId: user.id,
-    siteName: site.brand_name ?? 'your site',
-    defaultCurrency: siteConfig.default_currency || 'THB',
-    messages,
-    currentPage: 'whatsapp',
-    onEvent: (ev) => {
-      if (ev.type === 'text') assistantText = ev.content ?? ''
-    },
-  })
-
-  await reply(db, env, toPhone, assistantText || result.responseText, {
-    conversation,
-    userId: user.id,
-    toolCalls: result.toolCalls,
-  })
 }
 
 export default defineEventHandler(async (event) => {

@@ -129,11 +129,13 @@ export default defineEventHandler(async (event) => {
         return jsonResponse({ error: 'Location title is required' }, { status: 400 })
       }
       const titleSlug = slugify(body.title)
-      if (!titleSlug) {
-        return jsonResponse({ error: 'Location slug is required' }, { status: 400 })
-      }
-      if (body.slug === undefined && !(await ensureUniqueLocationSlug(db, site.organization_id, siteId, locationId, titleSlug))) {
-        return jsonResponse({ error: 'Location slug already exists' }, { status: 409 })
+      if (body.slug === undefined) {
+        if (!titleSlug) {
+          return jsonResponse({ error: 'Location slug is required' }, { status: 400 })
+        }
+        if (!(await ensureUniqueLocationSlug(db, site.organization_id, siteId, locationId, titleSlug))) {
+          return jsonResponse({ error: 'Location slug already exists' }, { status: 409 })
+        }
       }
       setParts.push('title = ?')
       params.push(body.title.trim())

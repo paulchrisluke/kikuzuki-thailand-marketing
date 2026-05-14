@@ -125,7 +125,7 @@ const loadMenuWorkspace = async () => {
     if (!locationsResponse.success) throw new Error('Failed to load locations')
     if (!settingsResponse.success) throw new Error('Failed to load settings')
     locations.value = locationsResponse.locations
-    defaultCurrency.value = settingsResponse.settings.default_currency || 'THB'
+    defaultCurrency.value = settingsResponse.settings?.default_currency || 'THB'
   } catch (err) {
     error.value = err instanceof Error ? err.message : 'Failed to load menu workspace'
   } finally {

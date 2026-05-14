@@ -107,7 +107,7 @@
                   <UButton
                     color="neutral" variant="ghost" size="sm" icon="i-heroicons-trash"
                     :loading="locationSaving"
-                    @click="handleDeleteLocation(location.id)"
+                    @click="confirmDeleteLocation(location)"
                   >Delete</UButton>
                   <div class="flex gap-2">
                     <UButton color="neutral" variant="ghost" size="sm" @click="expandedLocationId = null">Cancel</UButton>
@@ -299,6 +299,11 @@ const handleDeleteLocation = async (id: string) => {
   }
 }
 
+const confirmDeleteLocation = async (location: BusinessLocation) => {
+  if (!confirm(`Delete "${location.title}"? This cannot be undone.`)) return
+  await handleDeleteLocation(location.id)
+}
+
 const locationActionItems = (location: BusinessLocation) => [[
   {
     label: 'Edit details',
@@ -320,7 +325,7 @@ const locationActionItems = (location: BusinessLocation) => [[
     label: 'Delete',
     icon: 'i-heroicons-trash',
     color: 'error' as const,
-    onSelect: () => handleDeleteLocation(location.id),
+    onSelect: () => confirmDeleteLocation(location),
   },
 ]]
 

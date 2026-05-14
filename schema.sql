@@ -697,7 +697,7 @@ CREATE TABLE IF NOT EXISTS chowbot_conversations (
   organization_id TEXT NOT NULL,
   site_id TEXT NOT NULL,
   user_id TEXT NOT NULL,
-  title TEXT NOT NULL,
+  title TEXT NOT NULL DEFAULT 'New Conversation',
   active_channel TEXT NOT NULL DEFAULT 'dashboard' CHECK (active_channel IN ('dashboard', 'whatsapp')),
   status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'archived', 'deleted')),
   selected_location_id TEXT,

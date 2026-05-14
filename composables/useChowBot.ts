@@ -52,10 +52,17 @@ export const useChowBot = () => {
 
   const loadConversation = async (conv: ChowBotConv) => {
     if (!siteId.value) return
-    const loaded = await history.get(siteId.value, conv.id)
-    messages.value = [...loaded.messages]
-    conversationId.value = loaded.conversation.id
-    isOpen.value = true
+
+    try {
+      const loaded = await history.get(siteId.value, conv.id)
+      if (!Array.isArray(loaded.messages) || !loaded.conversation?.id) return
+
+      messages.value = [...loaded.messages]
+      conversationId.value = loaded.conversation.id
+      isOpen.value = true
+    } catch (error) {
+      console.error('[ChowBot] loadConversation error:', error)
+    }
   }
 
   const handlePostActionNav = async (toolCalls: ChowbotToolCall[]) => {
