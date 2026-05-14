@@ -242,10 +242,10 @@ const {
 // Menu selector
 const selectedMenuId = ref<string | null>(null)
 const menuOptions = computed(() =>
-  menus.value.map((m: any) => ({ value: m.id, label: m.name }))
+  menus.value.map((m: ApiValue) => ({ value: m.id, label: m.name }))
 )
 
-watch(currentMenu, (menu: any) => {
+watch(currentMenu, (menu: ApiValue) => {
   selectedMenuId.value = menu?.id ?? null
 })
 
@@ -278,7 +278,7 @@ const handleCreateMenu = async () => {
 const expandedItemId = ref<string | null>(null)
 const editForm = reactive({ name: '', description: '', price: '', available: true, image_asset_id: null as string | null })
 
-const openEditItem = (item: any) => {
+const openEditItem = (item: ApiValue) => {
   expandedItemId.value = item.id
   editForm.name = item.name ?? ''
   editForm.description = item.description ?? ''

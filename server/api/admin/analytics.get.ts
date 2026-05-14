@@ -40,8 +40,9 @@ export default defineEventHandler(async (event) => {
       },
       recentSites: recentSites.results ?? []
     })
-  } catch (err: any) {
-    console.error('Failed to fetch analytics:', err?.stack || err)
+  } catch (err) {
+    const error = err instanceof Error ? err : new Error(String(err))
+    console.error('Failed to fetch analytics:', error.stack || error.message)
     return jsonResponse({ error: 'Failed to fetch analytics' }, { status: 500 })
   }
 })

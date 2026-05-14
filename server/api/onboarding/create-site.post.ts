@@ -5,13 +5,32 @@ import { getAuthSession } from '../../utils/auth'
 import { createSystemSubdomain } from '../../utils/domains'
 import { defineEventHandler, readBody } from 'h3'
 
+type OnboardingEnv = Parameters<typeof createSystemSubdomain>[0]
+
+interface MemberRoleRow {
+  role: string
+}
+
+interface SiteCountRow {
+  count: number
+}
+
+interface SubdomainRow {
+  subdomain: string
+}
+
 interface CreateSiteRequest {
   restaurantName: string
   subdomain: string
 }
 
 export default defineEventHandler(async (event) => {
-  const body = await readBody(event) as CreateSiteRequest
+  const body = await readBody<CreateSiteRequest>(event)
+  if (!body || typeof body !== 'object') {
+    return jsonResponse({
+      error: 'Restaurant name and subdomain are required'
+    }, { status: 400 })
+  }
   const { restaurantName, subdomain } = body
   
   if (!restaurantName || !subdomain) {
@@ -44,12 +63,12 @@ export default defineEventHandler(async (event) => {
   
   try {
     // Step 1: Check if user already has organization membership via Better Auth
-    let userOrganizations = await db.prepare(`
+    const userOrganizations = await db.prepare(`
       SELECT o.* FROM organization o
       JOIN member m ON o.id = m.organizationId
       WHERE m.userId = ?
       LIMIT 1
-    `).bind(userId).first()
+    `).bind(userId).first<{ id: string }>()
     
     let organizationId: string
     
@@ -59,11 +78,11 @@ export default defineEventHandler(async (event) => {
       // Guard: Check user's role and existing site count before updating org
       const memberRole = await db.prepare(`
         SELECT role FROM member WHERE organizationId = ? AND userId = ?
-      `).bind(organizationId, userId).first() as { role: string } | null
+      `).bind(organizationId, userId).first() as MemberRoleRow | null
       
       const siteCount = await db.prepare(`
         SELECT COUNT(*) as count FROM sites WHERE organization_id = ?
-      `).bind(organizationId).first() as { count: number } | null
+      `).bind(organizationId).first() as SiteCountRow | null
       
       // Only update organization if user is owner AND no sites exist yet
       if (memberRole?.role === 'owner' && (siteCount?.count ?? 0) === 0) {
@@ -73,11 +92,11 @@ export default defineEventHandler(async (event) => {
       }
       
       // Step 2: Check if this organization already has a site with the requested subdomain
-      let existingSite = await db.prepare(`
+      const existingSite = await db.prepare(`
         SELECT id, onboarding_status FROM sites 
         WHERE organization_id = ? AND subdomain = ?
         LIMIT 1
-      `).bind(organizationId, normalizedSubdomain).first()
+      `).bind(organizationId, normalizedSubdomain).first<{ id: string; onboarding_status: string }>()
       
       if (existingSite) {
         // Site already exists for this user and subdomain
@@ -95,11 +114,11 @@ export default defineEventHandler(async (event) => {
       }
       
       // Step 3: Check if subdomain is taken by another organization
-      let otherOrgSite = await db.prepare(`
+      const otherOrgSite = await db.prepare(`
         SELECT id FROM sites 
         WHERE subdomain = ? AND organization_id != ?
         LIMIT 1
-      `).bind(normalizedSubdomain, organizationId).first()
+      `).bind(normalizedSubdomain, organizationId).first<{ id: string }>()
       
       if (otherOrgSite) {
         return jsonResponse({ 
@@ -142,7 +161,7 @@ export default defineEventHandler(async (event) => {
           JOIN member m ON o.id = m.organizationId
           WHERE m.userId = ?
           LIMIT 1
-        `).bind(userId).first()
+        `).bind(userId).first<{ id: string }>()
         
         if (existingOrg) {
           organizationId = existingOrg.id
@@ -174,9 +193,10 @@ export default defineEventHandler(async (event) => {
         new Date().toISOString(),
         new Date().toISOString()
       ).run()
-    } catch (siteError: any) {
+    } catch (siteError) {
       // Handle unique constraint violation for subdomain
-      if (siteError.message?.includes('UNIQUE constraint failed')) {
+      const normalizedSiteError = siteError instanceof Error ? siteError : new Error('Unknown error')
+      if (normalizedSiteError.message.includes('UNIQUE constraint failed')) {
         return jsonResponse({ 
           error: 'This subdomain is already taken' 
         }, { status: 409 })
@@ -188,7 +208,8 @@ export default defineEventHandler(async (event) => {
     return await performRequiredSeeding(env, db, siteId, organizationId, restaurantName, normalizedSubdomain)
     
   } catch (error) {
-    console.error('Site creation failed:', error)
+      const normalizedError = error instanceof Error ? error : new Error('Unknown error')
+      console.error('Site creation failed:', normalizedError)
     
     // Mark site as failed if it exists
     try {
@@ -207,7 +228,7 @@ export default defineEventHandler(async (event) => {
 })
 
 // Resume incomplete onboarding
-async function resumeOnboarding(env: any, db: any, siteId: string, organizationId: string, restaurantName: string) {
+async function resumeOnboarding(env: OnboardingEnv, db: D1Database, siteId: string, organizationId: string, restaurantName: string) {
   try {
     return await performRequiredSeeding(env, db, siteId, organizationId, restaurantName, '')
   } catch (error) {
@@ -217,7 +238,7 @@ async function resumeOnboarding(env: any, db: any, siteId: string, organizationI
 }
 
 // Perform required seeding (must succeed for onboarding to complete)
-async function performRequiredSeeding(env: any, db: any, siteId: string, organizationId: string, restaurantName: string, subdomain: string) {
+async function performRequiredSeeding(env: OnboardingEnv, db: D1Database, siteId: string, organizationId: string, restaurantName: string, subdomain: string) {
   const now = new Date().toISOString()
   
   try {
@@ -291,7 +312,7 @@ async function performRequiredSeeding(env: any, db: any, siteId: string, organiz
       ).run()
     }
     
-    const resolvedSubdomain = subdomain || await db.prepare('SELECT subdomain FROM sites WHERE id = ?').bind(siteId).first().then((r: any) => r?.subdomain)
+    const resolvedSubdomain = subdomain || await db.prepare('SELECT subdomain FROM sites WHERE id = ?').bind(siteId).first<SubdomainRow>().then((r) => r?.subdomain)
     if (!resolvedSubdomain || typeof resolvedSubdomain !== 'string' || !resolvedSubdomain.trim()) {
       throw new Error(`Missing subdomain for site ${siteId}`)
     }

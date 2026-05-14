@@ -12,6 +12,14 @@ const MODEL = '@cf/black-forest-labs/flux-1-schnell'
 const IMAGE_GENERATION_OUTPUT_TOKENS = 4000 // yields ~20 credits
 const IMAGE_GENERATION_TIMEOUT_MS = 20_000
 
+interface AiImageResult {
+  image?: string
+}
+
+interface TimedError extends Error {
+  code?: string
+}
+
 export default defineEventHandler(async (event) => {
   const siteId = getRouterParam(event, 'siteId')
   if (!siteId) return jsonResponse({ error: 'Site ID required' }, { status: 400 })
@@ -27,7 +35,7 @@ export default defineEventHandler(async (event) => {
     SELECT s.organization_id FROM sites s
     JOIN member m ON s.organization_id = m.organizationId
     WHERE s.id = ? AND m.userId = ? AND m.role IN ('owner','admin','editor') LIMIT 1
-  `).bind(siteId, session.user.id).first()
+  `).bind(siteId, session.user.id).first<{ organization_id: string }>()
   if (!site) return jsonResponse({ error: 'Site not found or access denied' }, { status: 404 })
 
   const orgId: string = site.organization_id
@@ -57,8 +65,8 @@ export default defineEventHandler(async (event) => {
     let timeoutHandle: ReturnType<typeof setTimeout> | null = null
     const timeoutPromise = new Promise<never>((_, reject) => {
       timeoutHandle = setTimeout(() => {
-        const timeoutError = new Error(`Image generation timed out after ${IMAGE_GENERATION_TIMEOUT_MS}ms`)
-        ;(timeoutError as any).code = 'AI_TIMEOUT'
+        const timeoutError: TimedError = new Error(`Image generation timed out after ${IMAGE_GENERATION_TIMEOUT_MS}ms`)
+        timeoutError.code = 'AI_TIMEOUT'
         reject(timeoutError)
       }, IMAGE_GENERATION_TIMEOUT_MS)
     })
@@ -70,13 +78,14 @@ export default defineEventHandler(async (event) => {
       if (timeoutHandle) clearTimeout(timeoutHandle)
     })
 
-    const imageBase64 = typeof (result as any)?.image === 'string' ? (result as any).image.trim() : ''
+    const aiResult = result as AiImageResult | null
+    const imageBase64 = typeof aiResult?.image === 'string' ? aiResult.image.trim() : ''
     if (!imageBase64) {
       throw new Error('AI image generation returned an invalid response payload')
     }
 
     const buffer = Buffer.from(imageBase64, 'base64')
-    const imageData = new Uint8Array(buffer).buffer
+    const imageData = buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength)
     const uploadResult = await uploadImageBuffer(env, imageData, `generated-${Date.now()}.png`)
     if (!uploadResult?.imageId || !uploadResult?.publicUrl || !uploadResult?.thumbnailUrl) {
       throw new Error('Image upload returned incomplete asset URLs')
@@ -85,16 +94,18 @@ export default defineEventHandler(async (event) => {
     imageId = uploadResult.imageId
     publicUrl = uploadResult.publicUrl
     thumbnailUrl = uploadResult.thumbnailUrl
-  } catch (error: any) {
+  } catch (error) {
+    const normalizedError = error instanceof Error ? error : new Error('Unknown error')
+    const timedError = normalizedError as TimedError
     console.error('generate_image_failed', {
       siteId,
       userId: session.user.id,
       model: MODEL,
       timeoutMs: IMAGE_GENERATION_TIMEOUT_MS,
-      error: error?.message || 'Unknown error',
-      stack: error?.stack || null
+      error: normalizedError.message,
+      stack: normalizedError.stack || null
     })
-    if (error?.code === 'AI_TIMEOUT') {
+    if (timedError.code === 'AI_TIMEOUT') {
       return jsonResponse({ error: 'Image generation timed out' }, { status: 504 })
     }
     return jsonResponse({ error: 'Failed to generate image' }, { status: 500 })
@@ -117,21 +128,23 @@ export default defineEventHandler(async (event) => {
       status: 'active',
       created_by_user_id: session.user.id,
     })
-  } catch (error: any) {
+  } catch (error) {
     try {
       if (imageId) await deleteImage(env, imageId)
-    } catch (cleanupError: any) {
+    } catch (cleanupError) {
+      const normalizedCleanupError = cleanupError instanceof Error ? cleanupError : new Error('Unknown cleanup error')
       console.error('generate_image_cleanup_failed', {
         assetId,
         imageId,
-        error: cleanupError?.message || 'Unknown cleanup error'
+        error: normalizedCleanupError.message
       })
     }
 
+    const normalizedError = error instanceof Error ? error : new Error('Unknown error')
     console.error('generate_image_create_media_asset_failed', {
       assetId,
       imageId,
-      error: error?.message || 'Unknown error'
+      error: normalizedError.message
     })
     return jsonResponse({ error: 'Failed to save generated image' }, { status: 500 })
   }
@@ -141,12 +154,13 @@ export default defineEventHandler(async (event) => {
     const charge = chargeCredits(db, orgId, {
       siteId, action: 'generate_image', model: MODEL,
       inputTokens: 0, outputTokens: IMAGE_GENERATION_OUTPUT_TOKENS,
-    }).catch((error: any) => {
+    }).catch((error) => {
+      const normalizedError = error instanceof Error ? error : new Error('Unknown error')
       console.error('chargeCredits_failed', {
         siteId,
         model: MODEL,
         outputTokens: IMAGE_GENERATION_OUTPUT_TOKENS,
-        error: error?.message || 'Unknown error'
+        error: normalizedError.message
       })
     })
     if (cfCtx?.waitUntil) {

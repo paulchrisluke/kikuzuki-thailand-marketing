@@ -4,7 +4,13 @@ import { anonymizeId, isPlatformOwner } from '~/server/utils/platform-auth'
 import { domainInstructions, syncDomainWithCloudflare } from '~/server/utils/domains'
 
 const SYNC_TIMEOUT_MS = 20_000
+// Best-effort in-memory guard only; this does not coordinate across Worker isolates.
+// For global locking in production, prefer Durable Objects, KV-based lease keys, or D1 lock records.
 const domainSyncInFlight = new Set<string>()
+
+interface SyncError extends Error {
+  code?: string
+}
 
 export default defineEventHandler(async (event) => {
   const domainId = getRouterParam(event, 'domainId')
@@ -29,8 +35,8 @@ export default defineEventHandler(async (event) => {
     const timeoutPromise = new Promise<never>((_, reject) => {
       timeoutHandle = setTimeout(() => {
         controller.abort()
-        const timeoutError = new Error(`Domain sync timed out after ${SYNC_TIMEOUT_MS}ms`)
-        ;(timeoutError as any).code = 'SYNC_TIMEOUT'
+        const timeoutError: SyncError = new Error(`Domain sync timed out after ${SYNC_TIMEOUT_MS}ms`)
+        timeoutError.code = 'SYNC_TIMEOUT'
         reject(timeoutError)
       }, SYNC_TIMEOUT_MS)
     })
@@ -44,16 +50,23 @@ export default defineEventHandler(async (event) => {
 
     console.info('admin_domain_sync_succeeded', { hashedUserId, domainId })
     return jsonResponse({ success: true, domain: { ...domain, instructions: domainInstructions(domain) } })
-  } catch (error: any) {
-    const message = error?.message || 'Failed to sync domain'
+  } catch (error) {
+    const normalizedError = error instanceof Error ? error : new Error('Failed to sync domain')
+    const message = normalizedError.message || 'Failed to sync domain'
     console.error('admin_domain_sync_failed', {
       hashedUserId,
       domainId,
       error: message
     })
 
-    if (error?.code === 'SYNC_TIMEOUT' || error?.name === 'AbortError') {
+    const errorCode = (normalizedError as SyncError).code
+    const errorName = normalizedError.name
+    if (errorCode === 'SYNC_TIMEOUT' || errorName === 'AbortError') {
       return jsonResponse({ error: message }, { status: 504 })
+    }
+
+    if (normalizedError.message === 'Domain not found') {
+      return jsonResponse({ error: message }, { status: 404 })
     }
 
     return jsonResponse({ error: message }, { status: 500 })

@@ -161,7 +161,7 @@ interface PublicLocation {
   } | string | null
   city?: string | null
   phone?: string | null
-  googleBusinessHours?: unknown
+  googleBusinessHours?: ApiValue
 }
 
 interface PublicLocationsResponse {

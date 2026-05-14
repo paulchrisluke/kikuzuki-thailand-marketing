@@ -44,7 +44,7 @@ export default defineEventHandler(async (event) => {
       LEFT JOIN media_assets ma ON bl.hero_image_asset_id = ma.id AND ma.status = 'active'
       WHERE bl.organization_id = ? AND bl.site_id = ? AND bl.slug = ? AND bl.status = 'active'
       LIMIT 1
-    `).bind(site.organization_id, siteId, slug).first()
+    `).bind(site.organization_id, siteId, slug).first<ApiRecord>()
 
     if (!location) {
       return jsonResponse({
@@ -84,8 +84,8 @@ export default defineEventHandler(async (event) => {
       opening_hours: location.opening_hours ? JSON.parse(location.opening_hours) : null,
       rating: location.rating,
       review_count: location.review_count,
-      photo_count: (photoCount as any)?.n ?? 0,
-      qa_count: (qaCount as any)?.n ?? 0,
+      photo_count: (photoCount as ApiValue)?.n ?? 0,
+      qa_count: (qaCount as ApiValue)?.n ?? 0,
       is_primary: location.is_primary,
       status: location.status,
       image_url: location.image_url,

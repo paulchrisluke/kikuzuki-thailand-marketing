@@ -3,8 +3,14 @@
 import { cloudflareEnv, jsonResponse } from '~/server/utils/api-response'
 import { getAuthSession } from '~/server/utils/auth'
 import { deleteMediaAsset } from '~/server/utils/media-asset-manager'
+import { anonymizeId } from '~/server/utils/platform-auth'
 
-async function verifySiteAccess(db: any, userId: string, siteId: string): Promise<boolean> {
+interface MediaAssetSiteRow {
+  id: string
+  site_id: string
+}
+
+async function verifySiteAccess(db: D1Database, userId: string, siteId: string): Promise<boolean> {
   const site = await db.prepare(`
     SELECT s.id
     FROM sites s
@@ -34,19 +40,21 @@ export default defineEventHandler(async (event) => {
 
   const asset = await db.prepare(
     `SELECT id, site_id FROM media_assets WHERE id = ? LIMIT 1`
-  ).bind(assetId).first() as { id: string; site_id: string } | null
+  ).bind(assetId).first<MediaAssetSiteRow>()
   if (!asset) return jsonResponse({ error: 'Asset not found' }, { status: 404 })
   if (asset.site_id !== siteId) return jsonResponse({ error: 'Forbidden' }, { status: 403 })
 
   try {
     await deleteMediaAsset(db, env, assetId, siteId)
     return jsonResponse({ deleted: true })
-  } catch (error: any) {
+  } catch (error) {
+    const normalizedError = error instanceof Error ? error : new Error('Unknown error')
+    const hashedUserId = anonymizeId(session.user.id, env)
     console.error('media_delete_failed', {
       siteId,
       assetId,
-      userId: session.user.id,
-      error: error?.message || 'Unknown error'
+      hashedUserId,
+      error: normalizedError.message
     })
     return jsonResponse({ error: 'Failed to delete asset' }, { status: 500 })
   }

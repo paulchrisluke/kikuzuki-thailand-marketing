@@ -1,4 +1,4 @@
-function bucket(env: Record<string, any>): R2Bucket {
+function bucket(env: ApiRecord): R2Bucket {
   if (!env.MEDIA_BUCKET) throw new Error('MEDIA_BUCKET binding not available')
   return env.MEDIA_BUCKET
 }
@@ -23,7 +23,7 @@ function normalizeR2Key(key: string): string {
 
 /** Upload a file to R2 and return its public CDN URL. */
 export async function uploadToR2(
-  env: Record<string, any>,
+  env: ApiRecord,
   key: string,
   body: ArrayBuffer | ReadableStream | Blob,
   contentType: string
@@ -34,13 +34,13 @@ export async function uploadToR2(
 }
 
 /** Delete a file from R2. */
-export async function deleteFromR2(env: Record<string, any>, key: string): Promise<void> {
+export async function deleteFromR2(env: ApiRecord, key: string): Promise<void> {
   const normalizedKey = normalizeR2Key(key)
   await bucket(env).delete(normalizedKey)
 }
 
 /** Build the public CDN URL for an R2 key. */
-export function getR2Url(env: Record<string, any>, key: string): string {
+export function getR2Url(env: ApiRecord, key: string): string {
   const base = typeof env.MEDIA_BASE_URL === 'string' ? env.MEDIA_BASE_URL.trim() : ''
   if (!base) throw new Error('MEDIA_BASE_URL is required')
   const normalizedBase = base.replace(/\/+$/, '')

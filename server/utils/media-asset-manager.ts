@@ -1,6 +1,9 @@
 import { deleteImage } from './cloudflare-images'
 import { deleteFromR2 } from './cloudflare-r2'
 
+type SqlBindValue = string | number | boolean | null
+type MediaProviderEnv = Parameters<typeof deleteImage>[0]
+
 export interface MediaAsset {
   id: string
   organization_id: string
@@ -30,7 +33,7 @@ export interface MediaAsset {
 type CreateInput = Pick<MediaAsset, 'id' | 'organization_id' | 'site_id' | 'kind' | 'provider' | 'source'> &
   Partial<Omit<MediaAsset, 'id' | 'organization_id' | 'site_id' | 'kind' | 'provider' | 'source' | 'created_at' | 'updated_at'>>
 
-export async function createMediaAsset(db: any, data: CreateInput): Promise<void> {
+export async function createMediaAsset(db: D1Database, data: CreateInput): Promise<void> {
   const now = new Date().toISOString()
   await db.prepare(`
     INSERT INTO media_assets (
@@ -51,19 +54,20 @@ export async function createMediaAsset(db: any, data: CreateInput): Promise<void
   ).run()
 }
 
-export async function getMediaAsset(db: any, id: string, siteId: string): Promise<MediaAsset | null> {
-  return db.prepare(
+export async function getMediaAsset(db: D1Database, id: string, siteId: string): Promise<MediaAsset | null> {
+  const row = await db.prepare(
     `SELECT * FROM media_assets WHERE id = ? AND site_id = ? LIMIT 1`
-  ).bind(id, siteId).first() ?? null
+  ).bind(id, siteId).first() as MediaAsset | null
+  return row
 }
 
 export async function listMediaAssets(
-  db: any,
+  db: D1Database,
   siteId: string,
   opts: { kind?: string; locationId?: string; limit?: number; offset?: number } = {}
 ): Promise<MediaAsset[]> {
   const conditions = [`site_id = ?`, `status = 'active'`]
-  const params: any[] = [siteId]
+  const params: SqlBindValue[] = [siteId]
   if (opts.kind) { conditions.push(`kind = ?`); params.push(opts.kind) }
   if (opts.locationId) { conditions.push(`location_id = ?`); params.push(opts.locationId) }
   params.push(opts.limit ?? 50, opts.offset ?? 0)
@@ -74,18 +78,18 @@ export async function listMediaAssets(
             width, height, duration, alt_text, status, created_by_user_id, created_at, updated_at
      FROM media_assets WHERE ${conditions.join(' AND ')} ORDER BY created_at DESC LIMIT ? OFFSET ?`
   ).bind(...params).all()
-  return results ?? []
+  return (results ?? []) as unknown as MediaAsset[]
 }
 
 export async function activateMediaAsset(
-  db: any,
+  db: D1Database,
   id: string,
   siteId: string,
   updates: { public_url?: string | null; thumbnail_url?: string | null; cloudflare_image_id?: string | null }
 ): Promise<boolean> {
   const now = new Date().toISOString()
-  const sets = [`status = 'active'`, `updated_at = ?`]
-  const params: any[] = [now]
+  const sets: string[] = [`status = 'active'`, `updated_at = ?`]
+  const params: SqlBindValue[] = [now]
   if (updates.public_url !== undefined) { sets.push('public_url = ?'); params.push(updates.public_url) }
   if (updates.thumbnail_url !== undefined) { sets.push('thumbnail_url = ?'); params.push(updates.thumbnail_url) }
   if (updates.cloudflare_image_id !== undefined) { sets.push('cloudflare_image_id = ?'); params.push(updates.cloudflare_image_id) }
@@ -94,7 +98,7 @@ export async function activateMediaAsset(
   return Number(result?.meta?.changes ?? 0) > 0
 }
 
-export async function updateMediaAssetAlt(db: any, id: string, siteId: string, altText: string): Promise<boolean> {
+export async function updateMediaAssetAlt(db: D1Database, id: string, siteId: string, altText: string): Promise<boolean> {
   const result = await db.prepare(
     `UPDATE media_assets SET alt_text = ?, updated_at = ? WHERE id = ? AND site_id = ?`
   ).bind(altText, new Date().toISOString(), id, siteId).run()
@@ -102,7 +106,7 @@ export async function updateMediaAssetAlt(db: any, id: string, siteId: string, a
 }
 
 /** Soft-delete in DB and hard-delete from Cloudflare storage. */
-export async function deleteMediaAsset(db: any, env: Record<string, any>, id: string, siteId: string): Promise<void> {
+export async function deleteMediaAsset(db: D1Database, env: MediaProviderEnv, id: string, siteId: string): Promise<void> {
   const now = new Date().toISOString()
   const deletedAsset = await db.prepare(`
     UPDATE media_assets
@@ -118,14 +122,17 @@ export async function deleteMediaAsset(db: any, env: Record<string, any>, id: st
 
   if (!deletedAsset) return
 
-  const withRetry = async (operation: () => Promise<void>, context: Record<string, any>): Promise<void> => {
-    let lastError: any = null
+  const withRetry = async (
+    operation: () => Promise<void>,
+    context: Record<string, string | null>
+  ): Promise<void> => {
+    let lastError: Error | null = null
     for (let attempt = 1; attempt <= 2; attempt += 1) {
       try {
         await operation()
         return
-      } catch (error: any) {
-        lastError = error
+      } catch (error) {
+        lastError = error instanceof Error ? error : new Error('Unknown error')
         if (attempt < 2) {
           await new Promise((resolve) => setTimeout(resolve, 250 * attempt))
         }
@@ -134,23 +141,25 @@ export async function deleteMediaAsset(db: any, env: Record<string, any>, id: st
 
     console.error('media_asset_external_delete_failed', {
       ...context,
-      error: lastError?.message || 'Unknown error'
+      error: (lastError ?? new Error('Unknown error')).message
     })
 
-    throw lastError || new Error('media_asset_external_delete_failed')
+    throw lastError ?? new Error('media_asset_external_delete_failed')
   }
 
   if (deletedAsset.provider === 'cloudflare_images' && deletedAsset.cloudflare_image_id) {
-    await withRetry(() => deleteImage(env, deletedAsset.cloudflare_image_id as string), {
+    const cloudflareImageId = deletedAsset.cloudflare_image_id
+    await withRetry(() => deleteImage(env, cloudflareImageId), {
       assetId: deletedAsset.id,
       provider: deletedAsset.provider,
-      cloudflareImageId: deletedAsset.cloudflare_image_id,
+      cloudflareImageId,
     })
   } else if (deletedAsset.provider === 'cloudflare_r2' && deletedAsset.r2_key) {
-    await withRetry(() => deleteFromR2(env, deletedAsset.r2_key as string), {
+    const r2Key = deletedAsset.r2_key
+    await withRetry(() => deleteFromR2(env, r2Key), {
       assetId: deletedAsset.id,
       provider: deletedAsset.provider,
-      r2Key: deletedAsset.r2_key,
+      r2Key,
     })
   }
 }

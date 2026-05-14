@@ -8,6 +8,24 @@ import { getMenus, getMenuWithItems, createMenu, updateMenu, createMenuItem, upd
 
 const MAX_ITERATIONS = 10
 const MODEL = 'claude-sonnet-4-6'
+const MAX_SLUG_ATTEMPTS = 10
+
+type SqlBindValue = string | number | boolean | null
+type JsonSerializable = string | number | boolean | null | JsonSerializable[] | { [key: string]: JsonSerializable }
+
+interface AiImagePayload {
+  image?: string
+}
+
+interface IncomingMessage {
+  role: 'user' | 'assistant'
+  content: string | JsonSerializable
+}
+
+interface StatusCountRow {
+  status: string
+  count: number
+}
 
 const toSlug = (s: string) => {
   const normalized = s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')
@@ -18,6 +36,24 @@ const toSlug = (s: string) => {
     hash = (hash * 31 + s.charCodeAt(i)) >>> 0
   }
   return `site-${hash.toString(36) || '0'}`
+}
+
+function isUniqueConstraintError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error || '')
+  return /UNIQUE constraint failed/i.test(message)
+}
+
+function getErrorMessage(error: unknown, fallback: string): string {
+  if (error instanceof Error && error.message) return error.message
+  return fallback
+}
+
+function toSqlText(value: ApiValue): string | null | undefined {
+  if (value === undefined) return undefined
+  if (value === null) return null
+  if (typeof value === 'string') return value
+  if (typeof value === 'number' || typeof value === 'boolean') return String(value)
+  return null
 }
 
 const TOOLS: AiTool[] = [
@@ -370,9 +406,9 @@ function requiresConfirmation(name: string, recentMessages: AiMessage[]): boolea
 
 async function executeTool(
   name: string,
-  input: Record<string, any>,
-  ctx: { db: any; env: Record<string, any>; orgId: string; siteId: string; userId: string; agentMessages?: AiMessage[] }
-): Promise<any> {
+  input: ApiRecord,
+  ctx: { db: D1Database; env: ApiRecord; orgId: string; siteId: string; userId: string; agentMessages?: AiMessage[] }
+): Promise<ApiValue> {
   const { db, env, orgId, siteId, userId } = ctx
 
   if (requiresConfirmation(name, ctx.agentMessages ?? [])) {
@@ -383,9 +419,9 @@ async function executeTool(
     case 'get_posts': {
       const posts = await listPosts(db, orgId, siteId, input.status)
       const filtered = input.location_id
-        ? posts.filter((p: any) => p.location_id === input.location_id)
+        ? posts.filter((p) => p.location_id === input.location_id)
         : posts
-      return filtered.slice(0, 10).map((p: any) => ({
+      return filtered.slice(0, 10).map((p) => ({
         id: p.id, title: p.title,
         body: p.body.slice(0, 120) + (p.body.length > 120 ? '…' : ''),
         status: p.status, post_type: p.post_type, location_id: p.location_id, updated_at: p.updated_at,
@@ -431,16 +467,24 @@ async function executeTool(
     }
 
     case 'add_menu_items_batch': {
-      const items: any[] = Array.isArray(input.items) ? input.items.slice(0, 100) : []
-      const created = await Promise.all(items.map((item: any) =>
+      const items: unknown[] = Array.isArray(input.items) ? input.items.slice(0, 100) : []
+      const created = await Promise.all(items.map((item) => {
+        const itemRecord = (item && typeof item === 'object') ? item : null
+        const getString = (key: string): string | undefined => {
+          if (!itemRecord) return undefined
+          const value = (itemRecord as Record<string, unknown>)[key]
+          return typeof value === 'string' ? value : undefined
+        }
+        return (
         createMenuItem(db, input.menu_id, {
-          section: String(item.section || 'Menu').slice(0, 100),
-          name: String(item.name || '').slice(0, 200),
-          description: item.description ? String(item.description).slice(0, 500) : undefined,
-          price: item.price ? String(item.price).slice(0, 50) : undefined,
-          image_asset_id: item.image_asset_id ?? undefined,
+          section: (getString('section') || 'Menu').slice(0, 100),
+          name: (getString('name') || '').slice(0, 200),
+          description: getString('description')?.slice(0, 500),
+          price: getString('price')?.slice(0, 50),
+          image_asset_id: getString('image_asset_id'),
         }, userId)
-      ))
+        )
+      }))
       return { added: created.length, menu_id: input.menu_id }
     }
 
@@ -453,7 +497,7 @@ async function executeTool(
     }
 
     case 'update_menu_item': {
-      const updates: any = {}
+      const updates: Record<string, string | boolean | null> = {}
       for (const f of ['name', 'description', 'price', 'image_asset_id', 'available']) {
         if (input[f] !== undefined) updates[f] = input[f]
       }
@@ -485,39 +529,93 @@ async function executeTool(
     case 'create_location': {
       const id = crypto.randomUUID()
       const now = new Date().toISOString()
-      const slug = toSlug(input.title)
-      await db.prepare(
-        `INSERT INTO business_locations (id, organization_id, site_id, title, slug, city, phone, email, description, address, is_primary, status, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, ?)`
-      ).bind(id, orgId, siteId, input.title, slug, input.city ?? null, input.phone ?? null,
-        input.email ?? null, input.description ?? null,
-        input.address ? JSON.stringify({ street: input.address }) : null,
-        input.is_primary ? 1 : 0, now, now).run()
-      return { id, title: input.title, slug, status: 'active' }
+      const baseSlug = toSlug(input.title)
+
+      for (let attempt = 0; attempt < MAX_SLUG_ATTEMPTS; attempt += 1) {
+        const slug = attempt === 0 ? baseSlug : `${baseSlug}-${attempt + 1}`
+
+        try {
+          await db.prepare(
+            `INSERT INTO business_locations (id, organization_id, site_id, title, slug, city, phone, email, description, address, is_primary, status, created_at, updated_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, ?)`
+          ).bind(id, orgId, siteId, input.title, slug, input.city ?? null, input.phone ?? null,
+            input.email ?? null, input.description ?? null,
+            input.address ? JSON.stringify({ street: input.address }) : null,
+            input.is_primary ? 1 : 0, now, now).run()
+          return { id, title: input.title, slug, status: 'active' }
+        } catch (error) {
+          if (isUniqueConstraintError(error)) continue
+          throw error
+        }
+      }
+
+      throw new Error(`Unable to allocate a unique location slug after ${MAX_SLUG_ATTEMPTS} attempts`)
     }
 
     case 'update_location': {
       const now = new Date().toISOString()
-      const sets: string[] = ['updated_at = ?']
-      const params: any[] = [now]
-      if (input.title !== undefined) {
-        sets.push('title = ?', 'slug = ?')
-        params.push(input.title, toSlug(input.title))
+      const locationId = toSqlText(input.location_id)
+      if (!locationId) {
+        return { error: 'location_id is required.' }
       }
-      const simple = ['city', 'phone', 'email', 'description', 'short_description', 'price_level',
-        'facebook_url', 'instagram_url', 'tiktok_url', 'website_url']
-      for (const f of simple) {
-        if (input[f] !== undefined) { sets.push(`${f} = ?`); params.push(input[f] ?? null) }
+      const sets: string[] = ['updated_at = ?']
+      const params: SqlBindValue[] = [now]
+      let slugParamIndex: number | null = null
+      let slugBase: string | null = null
+      const normalizedTitle = toSqlText(input.title)
+      if (normalizedTitle !== undefined) {
+        sets.push('title = ?', 'slug = ?')
+        slugBase = toSlug(normalizedTitle ?? '')
+        params.push(normalizedTitle, slugBase)
+        slugParamIndex = params.length - 1
+      }
+      const simpleFields = ['city', 'phone', 'email', 'description', 'short_description', 'price_level',
+        'facebook_url', 'instagram_url', 'tiktok_url', 'website_url'] as const
+      for (const field of simpleFields) {
+        const normalizedValue = toSqlText(input[field])
+        if (normalizedValue !== undefined) {
+          sets.push(`${field} = ?`)
+          params.push(normalizedValue)
+        }
       }
       if (input.address !== undefined) {
+        const normalizedAddress = toSqlText(input.address)
         sets.push('address = ?')
-        params.push(JSON.stringify({ street: input.address }))
+        params.push(normalizedAddress === null ? null : JSON.stringify({ street: normalizedAddress ?? '' }))
       }
-      params.push(input.location_id, orgId)
-      await db.prepare(`UPDATE business_locations SET ${sets.join(', ')} WHERE id = ? AND organization_id = ?`).bind(...params).run()
+
+      if (slugBase) {
+        let updated = false
+        for (let attempt = 0; attempt < MAX_SLUG_ATTEMPTS; attempt += 1) {
+          const slug = attempt === 0 ? slugBase : `${slugBase}-${attempt + 1}`
+          const updateParams = [...params]
+          if (slugParamIndex === null) {
+            return { error: 'Unable to update location slug.' }
+          }
+          updateParams[slugParamIndex] = slug
+          updateParams.push(locationId, orgId)
+
+          try {
+            await db.prepare(`UPDATE business_locations SET ${sets.join(', ')} WHERE id = ? AND organization_id = ?`).bind(...updateParams).run()
+            updated = true
+            break
+          } catch (error) {
+            if (isUniqueConstraintError(error)) continue
+            throw error
+          }
+        }
+
+        if (!updated) {
+          throw new Error(`Unable to allocate a unique location slug after ${MAX_SLUG_ATTEMPTS} attempts`)
+        }
+      } else {
+        params.push(locationId, orgId)
+        await db.prepare(`UPDATE business_locations SET ${sets.join(', ')} WHERE id = ? AND organization_id = ?`).bind(...params).run()
+      }
+
       const updated = await db.prepare(
         `SELECT id, title, city, phone, email, description, status FROM business_locations WHERE id = ? LIMIT 1`
-      ).bind(input.location_id).first()
+      ).bind(locationId).first()
       return updated ?? { error: 'Location not found.' }
     }
 
@@ -526,8 +624,8 @@ async function executeTool(
         `SELECT id, author_name, rating, title, content, owner_reply, source, created_at
          FROM reviews WHERE location_id = ? AND status = 'approved' ORDER BY created_at DESC LIMIT 20`
       ).bind(input.location_id).all()
-      const reviews = results ?? []
-      const dist = [1,2,3,4,5].map(star => ({ star, count: reviews.filter((r: any) => r.rating === star).length }))
+      const reviews = (results ?? []) as Array<{ rating: number | null }>
+      const dist = [1,2,3,4,5].map(star => ({ star, count: reviews.filter((r) => r.rating === star).length }))
       const loc = await db.prepare(`SELECT rating, review_count FROM business_locations WHERE id = ? LIMIT 1`).bind(input.location_id).first()
       return { aggregate: { rating: loc?.rating, count: loc?.review_count, distribution: dist }, reviews }
     }
@@ -542,7 +640,7 @@ async function executeTool(
 
     case 'get_location_media': {
       const conditions = [`site_id = ?`, `location_id = ?`, `status = 'active'`]
-      const params: any[] = [siteId, input.location_id]
+      const params: SqlBindValue[] = [siteId, input.location_id]
       if (input.kind) { conditions.push(`kind = ?`); params.push(input.kind) }
       params.push(50)
       const { results } = await db.prepare(
@@ -567,8 +665,9 @@ async function executeTool(
         prompt: input.prompt,
         num_steps: 4,
       })
-      const imageBase64 = typeof result === 'object' && result !== null && 'image' in result && typeof (result as any).image === 'string'
-        ? (result as any).image.trim()
+      const aiResult = result as AiImagePayload | null
+      const imageBase64 = typeof aiResult?.image === 'string'
+        ? aiResult.image.trim()
         : ''
       if (!imageBase64) {
         throw new Error('AI image generation returned an invalid response payload')
@@ -650,7 +749,10 @@ async function executeTool(
         db.prepare(`SELECT COUNT(*) as count FROM business_locations WHERE organization_id = ? AND site_id = ? AND status = 'active'`).bind(orgId, siteId).first(),
         db.prepare(`SELECT COUNT(*) as count FROM reviews WHERE site_id = ? AND status = 'approved'`).bind(siteId).first(),
       ])
-      const byStatus = (postStats.results ?? []).reduce((acc: any, row: any) => { acc[row.status] = row.count; return acc }, {})
+      const byStatus = ((postStats.results ?? []) as unknown as StatusCountRow[]).reduce<Record<string, number>>((acc, row) => {
+        acc[row.status] = row.count
+        return acc
+      }, {})
       return {
         posts: { draft: byStatus.draft ?? 0, published: byStatus.published ?? 0, archived: byStatus.archived ?? 0 },
         menus: menuCount?.count ?? 0, menu_items: itemCount?.count ?? 0,
@@ -688,7 +790,7 @@ export default defineEventHandler(async (event) => {
     JOIN organization o ON s.organization_id = o.id
     JOIN member m ON o.id = m.organizationId
     WHERE s.id = ? AND m.userId = ? AND m.role IN ('owner','admin','editor') LIMIT 1
-  `).bind(siteId, session.user.id).first()
+  `).bind(siteId, session.user.id).first<{ id: string; organization_id: string; brand_name: string | null }>()
   if (!site) return jsonResponse({ error: 'Site not found or access denied' }, { status: 404 })
 
   const orgId: string = site.organization_id
@@ -700,7 +802,7 @@ export default defineEventHandler(async (event) => {
     if (!creditOk) return jsonResponse({ error: 'No AI credits remaining.' }, { status: 402 })
   }
 
-  let body: { messages?: any[]; currentPage?: string }
+  let body: { messages?: IncomingMessage[]; currentPage?: string }
   try { body = await readBody(event) } catch {
     return jsonResponse({ error: 'Invalid request body' }, { status: 400 })
   }
@@ -740,7 +842,7 @@ Guidelines:
   while (initialMessages.length > 0 && initialMessages[0]?.role !== 'user') {
     initialMessages = initialMessages.slice(1)
   }
-  const agentMessages: AiMessage[] = initialMessages.map((m: any) => {
+  const agentMessages: AiMessage[] = initialMessages.map((m) => {
     const raw = typeof m.content === 'string' ? m.content : String(m.content ?? '')
     return {
       role: m.role as 'user' | 'assistant',
@@ -757,11 +859,13 @@ Guidelines:
   const enc = new TextEncoder()
 
   const push = async (data: object) => {
-    try { await writer.write(enc.encode(`data: ${JSON.stringify(data)}\n\n`)) } catch { }
+    try { await writer.write(enc.encode(`data: ${JSON.stringify(data)}\n\n`)) } catch {
+      // Client disconnected while streaming.
+    }
   }
 
   const ctx = { db, env, orgId, siteId, userId, agentMessages }
-  const toolCalls: Array<{ name: string; input: any; result: any }> = []
+  const toolCalls: Array<{ name: string; input: JsonSerializable; result: JsonSerializable }> = []
   let totalInput = 0, totalOutput = 0, cfLogId: string | null = null
 
   ;(async () => {
@@ -775,10 +879,11 @@ Guidelines:
               metadata: { org_id: orgId, site_id: siteId, action: 'chowbot' },
             })
             break
-          } catch (err: any) {
-            const is429 = err?.message?.includes('429') || err?.message?.includes('rate_limit')
+          } catch (err) {
+            const errorMessage = getErrorMessage(err, '')
+            const is429 = errorMessage.includes('429') || errorMessage.includes('rate_limit')
             if (is429 && attempt === 0) { await new Promise(r => setTimeout(r, 8000)); continue }
-            await push({ type: 'error', message: is429 ? 'Rate limit hit — please wait a moment.' : (err?.message ?? 'AI generation failed.') })
+            await push({ type: 'error', message: is429 ? 'Rate limit hit — please wait a moment.' : getErrorMessage(err, 'AI generation failed.') })
             return
           }
         }
@@ -792,13 +897,13 @@ Guidelines:
         cfLogId = aiResponse.cfLogId
 
         if (aiResponse.stop_reason === 'end_turn') {
-          await push({ type: 'text', content: aiResponse.content.find((b: any) => b.type === 'text')?.text ?? '' })
+          await push({ type: 'text', content: aiResponse.content.find((b) => b.type === 'text')?.text ?? '' })
           break
         }
 
         if (aiResponse.stop_reason === 'tool_use') {
           agentMessages.push({ role: 'assistant', content: aiResponse.content })
-          const results: any[] = []
+          const results: Array<{ type: 'tool_result'; tool_use_id?: string; content: string }> = []
           for (const block of aiResponse.content) {
             if (block.type !== 'tool_use') continue
             await push({ type: 'tool_start', name: block.name })
@@ -814,7 +919,7 @@ Guidelines:
         if (aiResponse.stop_reason === 'max_tokens') {
           await push({ type: 'text', content: 'Response too large. Try adding items section by section.' })
         } else {
-          await push({ type: 'text', content: aiResponse.content.find((b: any) => b.type === 'text')?.text ?? '' })
+          await push({ type: 'text', content: aiResponse.content.find((b) => b.type === 'text')?.text ?? '' })
         }
         break
       }
@@ -829,10 +934,12 @@ Guidelines:
       }
 
       await push({ type: 'done', toolCalls, creditsRemaining })
-    } catch (err: any) {
-      await push({ type: 'error', message: err?.message ?? 'Something went wrong.' })
+    } catch (err) {
+      await push({ type: 'error', message: getErrorMessage(err, 'Something went wrong.') })
     } finally {
-      try { await writer.close() } catch { }
+      try { await writer.close() } catch {
+        // Stream may already be closed after client disconnect.
+      }
     }
   })()
 

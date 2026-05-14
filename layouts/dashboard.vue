@@ -172,9 +172,9 @@
 </template>
 
 <script setup lang="ts">
-import type { DropdownMenuItem } from '@nuxt/ui'
 import { useAuth } from '~/composables/useAuth'
 import { useChowBot } from '~/composables/useChowBot'
+import type { ChowBotConv } from '~/composables/useChowBotHistory'
 import { useChowBotHistory } from '~/composables/useChowBotHistory'
 
 interface DashboardSite {
@@ -186,10 +186,10 @@ interface DashboardSite {
 
 const route = useRoute()
 const router = useRouter()
-const { data: sessionData, signOut, session } = useAuth()
+const { data: sessionData, signOut } = useAuth()
 const toast = useToast()
 const stoppingImpersonation = ref(false)
-const chowBot = useChowBot() as any
+const chowBot = useChowBot()
 const toggleChowbot = () => chowBot.toggle()
 const chowBotHistory = useChowBotHistory()
 const siteRefreshSignal = useState<number>('site:refresh', () => 0)
@@ -201,15 +201,18 @@ const siteConversations = computed(() =>
 )
 
 const newChowBotChat = () => chowBot.startNewConversation()
-const loadChowBotChat = (conv: any) => chowBot.loadConversation(conv)
+const loadChowBotChat = (conv: ChowBotConv) => chowBot.loadConversation(conv)
 
-const siteContext = ref<any>(null)
+const siteContext = ref<DashboardSite | null>(null)
 const sites = ref<DashboardSite[]>([])
 const selectedSiteId = ref<string | null>(null)
 
 const { data: billingStatus } = useFetch<{ billing: { plan: string } }>('/api/billing/status', { key: 'dashboard-billing-status' })
 const currentPlan = computed(() => billingStatus.value?.billing?.plan ?? null)
-const impersonatedBy = computed(() => (sessionData.value?.session as any)?.impersonatedBy)
+const impersonatedBy = computed(() => {
+  const session = sessionData.value?.session as { impersonatedBy?: string } | undefined
+  return session?.impersonatedBy
+})
 
 const routeSiteId = computed(() => {
   const param = route.params.siteId || route.params.id
@@ -340,10 +343,11 @@ const loadSiteContext = async () => {
   }
 
   try {
-    const settingsResponse = await $fetch<any>(`/api/sites/${routeSiteId.value}/settings`)
+    const settingsResponse = await $fetch<{ success: boolean; settings: DashboardSite }>(`/api/sites/${routeSiteId.value}/settings`)
     if (settingsResponse.success) siteContext.value = settingsResponse.settings
-  } catch (err: any) {
-    if (err?.statusCode !== 401) console.error('Failed to load site context:', err)
+  } catch (err) {
+    const statusCode = typeof err === 'object' && err !== null && 'statusCode' in err ? err.statusCode : undefined
+    if (statusCode !== 401) console.error('Failed to load site context:', err)
     siteContext.value = null
   }
 }

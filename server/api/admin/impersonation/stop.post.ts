@@ -3,36 +3,52 @@ import { cloudflareEnv, jsonResponse } from '~/server/utils/api-response'
 import { createAuth, getAuthSession } from '~/server/utils/auth'
 import { isPlatformOwner } from '~/server/utils/platform-auth'
 
+interface SessionMeta {
+  impersonatedBy?: string | null
+}
+
+const IMPERSONATION_STOP_TIMEOUT_MS = 5_000
+
 export default defineEventHandler(async (event) => {
   const env = cloudflareEnv(event)
   const session = await getAuthSession(event, env)
   if (!session?.user?.email) return jsonResponse({ error: 'Authentication required' }, { status: 401 })
 
-  const canStop = Boolean((session?.session as any)?.impersonatedBy) || isPlatformOwner(session.user.email, env)
+  const sessionMeta = session?.session as SessionMeta | undefined
+  const canStop = Boolean(sessionMeta?.impersonatedBy) || isPlatformOwner(session.user.email, env)
   if (!canStop) return jsonResponse({ error: 'Platform owner access required' }, { status: 403 })
 
   const authUrl = `${getRequestURL(event).origin}/api/auth/admin/stop-impersonating`
   const auth = createAuth(env)
   let response: Response
+  const controller = new AbortController()
+  const timeoutHandle = setTimeout(() => controller.abort(), IMPERSONATION_STOP_TIMEOUT_MS)
 
   try {
     response = await auth.handler(new Request(authUrl, {
       method: 'POST',
+      signal: controller.signal,
       headers: {
         cookie: getHeader(event, 'cookie') || ''
       }
     }))
-  } catch (error: any) {
+  } catch (error) {
+    clearTimeout(timeoutHandle)
+    const normalizedError = error instanceof Error ? error : new Error('Auth handler invocation failed')
+    const isAbort = normalizedError.name === 'AbortError'
     console.error('admin_impersonation_stop_failed', {
       authUrl,
-      error: error?.message || 'Auth handler invocation failed'
+      timeoutMs: IMPERSONATION_STOP_TIMEOUT_MS,
+      error: normalizedError.message
     })
-    return jsonResponse({ error: 'Failed to stop impersonation' }, { status: 502 })
+    return jsonResponse({ error: isAbort ? 'Stop impersonation timed out' : 'Failed to stop impersonation' }, { status: isAbort ? 504 : 502 })
   }
+
+  clearTimeout(timeoutHandle)
 
   const headerBag = response.headers as Headers & {
     getSetCookie?: () => string[]
-    getAll?: (name: string) => string[]
+    getAll?: (_name: string) => string[]
     raw?: () => Record<string, string[]>
   }
   const setCookies = typeof headerBag.getSetCookie === 'function'

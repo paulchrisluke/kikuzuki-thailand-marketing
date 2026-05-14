@@ -235,9 +235,9 @@ const locationId = route.params.locationId as string
 
 const loading = ref(true)
 const error = ref<string | null>(null)
-const site = ref<any>(null)
+const site = ref<ApiRecord | null>(null)
 const location = ref<BusinessLocation | null>(null)
-const menus = ref<any[]>([])
+const menus = ref<ApiRecord[]>([])
 const gbConnection = ref<GbConnection | null>(null)
 const connectingGoogle = ref(false)
 
@@ -271,6 +271,19 @@ const heroVideoAssetId = ref<string | null>(null)
 const heroSaved = ref(false)
 let heroSaveTimeout: ReturnType<typeof setTimeout> | null = null
 
+function getErrorMessage(error: unknown, fallback: string): string {
+  if (error && typeof error === 'object') {
+    const data = (error as Record<string, unknown>).data
+    if (data && typeof data === 'object') {
+      const errorMessage = (data as Record<string, unknown>).error
+      if (typeof errorMessage === 'string' && errorMessage) return errorMessage
+    }
+    const message = (error as Record<string, unknown>).message
+    if (typeof message === 'string' && message) return message
+  }
+  return fallback
+}
+
 watch(location, (loc) => {
   if (loc) {
     heroImageAssetId.value = loc.hero_image_asset_id ?? null
@@ -286,8 +299,8 @@ async function saveHeroMedia() {
     })
     heroSaved.value = true
     setTimeout(() => { heroSaved.value = false }, 2000)
-  } catch (err: any) {
-    toast.add({ description: err?.data?.error ?? 'Failed to save', color: 'error' })
+  } catch (err) {
+    toast.add({ description: getErrorMessage(err, 'Failed to save'), color: 'error' })
   }
 }
 
@@ -319,8 +332,8 @@ const connectGoogleBusiness = async () => {
         connectingGoogle.value = false
       }
     }
-  } catch (err: any) {
-    toast.add({ description: err?.data?.error || 'Failed to start Google Business connection', color: 'error' })
+  } catch (err) {
+    toast.add({ description: getErrorMessage(err, 'Failed to start Google Business connection'), color: 'error' })
     connectingGoogle.value = false
   }
 }
@@ -331,7 +344,9 @@ const loadGbConnection = async () => {
       `/api/sites/${siteId}/locations/${locationId}/integrations/google-business`
     )
     gbConnection.value = res.connection
-  } catch {}
+  } catch {
+    // Google Business connection is optional for a location.
+  }
 }
 
 const loadLocationWorkspace = async () => {
@@ -339,9 +354,9 @@ const loadLocationWorkspace = async () => {
   error.value = null
   try {
     const [settingsResponse, locationResponse, menusResponse] = await Promise.all([
-      $fetch<any>(`/api/sites/${siteId}/settings`),
+      $fetch<ApiRecord>(`/api/sites/${siteId}/settings`),
       $fetch<{ success: boolean; location: BusinessLocation }>(`/api/sites/${siteId}/locations/${locationId}`),
-      $fetch<{ success: boolean; menus: any[] }>(`/api/editor/sites/${siteId}/menus?locationId=${locationId}`)
+      $fetch<{ success: boolean; menus: ApiRecord[] }>(`/api/editor/sites/${siteId}/menus?locationId=${locationId}`)
     ])
 
     if (!settingsResponse.success) throw new Error('Failed to load site settings')

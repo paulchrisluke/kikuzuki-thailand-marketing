@@ -20,7 +20,7 @@ export default defineEventHandler(async (event) => {
 
   try {
     const result = await db.prepare(`DELETE FROM platform_blog_posts WHERE id = ?`).bind(postId).run()
-    if (!result.changes || result.changes === 0) {
+  if (!result.meta.changes || result.meta.changes === 0) {
       return jsonResponse({ error: 'Post not found' }, { status: 404 })
     }
   } catch (err) {

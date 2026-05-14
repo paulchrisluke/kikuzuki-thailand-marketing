@@ -5,7 +5,7 @@ import { getAuthSession } from '~/server/utils/auth'
 interface UpdateLocationBody {
   title?: string
   slug?: string
-  address?: unknown
+  address?: ApiValue
   city?: string
   phone?: string
   email?: string
@@ -13,12 +13,12 @@ interface UpdateLocationBody {
   hero_video_asset_id?: string
   website_url?: string
   maps_url?: string
-  opening_hours?: unknown
-  special_hours?: unknown
+  opening_hours?: ApiValue
+  special_hours?: ApiValue
   description?: string
   short_description?: string
   price_level?: string
-  attributes?: unknown
+  attributes?: ApiValue
   facebook_url?: string
   instagram_url?: string
   tiktok_url?: string
@@ -106,7 +106,7 @@ export default defineEventHandler(async (event) => {
     }
 
     const setParts: string[] = []
-    const params: unknown[] = []
+    const params: ApiRecord[] = []
 
     if (body.title !== undefined) {
       if (!body.title.trim()) {

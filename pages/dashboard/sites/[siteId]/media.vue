@@ -190,6 +190,38 @@ const IMAGE_MAX_SIZE_BYTES = 10 * 1024 * 1024
 const VIDEO_MAX_SIZE_BYTES = 50 * 1024 * 1024
 const CONFIRM_RETRY_DELAYS_MS = [250, 500]
 
+function getErrorMessage(error: unknown, fallback: string): string {
+  if (error && typeof error === 'object') {
+    const data = (error as Record<string, unknown>).data
+    if (data && typeof data === 'object') {
+      const errorMessage = (data as Record<string, unknown>).error
+      if (typeof errorMessage === 'string' && errorMessage) return errorMessage
+    }
+    const message = (error as Record<string, unknown>).message
+    if (typeof message === 'string' && message) return message
+  }
+  return fallback
+}
+
+function getErrorStatus(error: unknown): number {
+  if (!error || typeof error !== 'object') return 0
+
+  const errorRecord = error as Record<string, unknown>
+  const statusCode = errorRecord.statusCode
+  if (typeof statusCode === 'number') return statusCode
+
+  const status = errorRecord.status
+  if (typeof status === 'number') return status
+
+  const data = errorRecord.data
+  if (data && typeof data === 'object') {
+    const dataStatusCode = (data as Record<string, unknown>).statusCode
+    if (typeof dataStatusCode === 'number') return dataStatusCode
+  }
+
+  return 0
+}
+
 const kindTabs = [
   { label: 'All', value: '' },
   { label: 'Images', value: 'image' },
@@ -211,11 +243,11 @@ async function load() {
     const res = await $fetch<{ media: MediaAsset[] }>(`${siteApiBase}/media?${params}`)
     assets.value = res.media ?? []
     hasMore.value = assets.value.length === LIMIT
-  } catch (err: any) {
+  } catch (err) {
     if (import.meta.dev) console.error('Failed to load media:', err)
     assets.value = []
     hasMore.value = false
-    toast.add({ title: err?.data?.error ?? err?.message ?? 'Failed to load media', color: 'error' })
+    toast.add({ title: getErrorMessage(err, 'Failed to load media'), color: 'error' })
   } finally {
     loading.value = false
   }
@@ -233,9 +265,9 @@ async function loadMore() {
     assets.value.push(...more)
     offset.value = requestOffset
     hasMore.value = more.length === LIMIT
-  } catch (err: any) {
+  } catch (err) {
     if (import.meta.dev) console.error('Failed to load more media:', err)
-    toast.add({ title: err?.data?.error ?? err?.message ?? 'Failed to load more media', color: 'error' })
+    toast.add({ title: getErrorMessage(err, 'Failed to load more media'), color: 'error' })
   } finally {
     loadingMore.value = false
   }
@@ -321,15 +353,15 @@ async function cleanupPendingUpload(assetId: string) {
 }
 
 async function confirmPendingUpload(assetId: string) {
-  let lastError: any = null
+  let lastError: ApiValue = null
 
   for (let attempt = 0; attempt < 3; attempt += 1) {
     try {
       await $fetch(`${siteApiBase}/media/${assetId}/confirm`, { method: 'POST' })
       return
-    } catch (err: any) {
+    } catch (err) {
       lastError = err
-      const status = Number(err?.statusCode ?? err?.status ?? err?.data?.statusCode ?? 0)
+      const status = getErrorStatus(err)
       if (status === 409) return
       const retryDelay = CONFIRM_RETRY_DELAYS_MS[attempt]
       if (retryDelay !== undefined && (!status || status >= 500 || status === 408 || status === 429)) {
@@ -403,8 +435,8 @@ async function uploadFile(file: File) {
     }
     toast.add({ title: 'File uploaded', icon: 'i-heroicons-check-circle', color: 'success' })
     await load()
-  } catch (err: any) {
-    uploadError.value = err?.data?.error ?? err?.message ?? 'Upload failed.'
+  } catch (err) {
+    uploadError.value = getErrorMessage(err, 'Upload failed.')
   } finally {
     uploadLoading.value = false
   }

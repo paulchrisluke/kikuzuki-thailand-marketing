@@ -165,7 +165,7 @@ const siteId = route.params.siteId as string
 const toast = useToast()
 
 // Posts list
-const posts = ref<any[]>([])
+const posts = ref<ApiRecord[]>([])
 const loading = ref(false)
 const activeTab = ref('all')
 
@@ -173,7 +173,7 @@ const loadPosts = async () => {
   loading.value = true
   try {
     const status = activeTab.value === 'all' ? undefined : activeTab.value
-    const res = await $fetch<any>(`/api/editor/sites/${siteId}/posts${status ? `?status=${status}` : ''}`)
+    const res = await $fetch<ApiRecord>(`/api/editor/sites/${siteId}/posts${status ? `?status=${status}` : ''}`)
     posts.value = res.posts ?? []
   } catch { posts.value = [] } finally { loading.value = false }
 }
@@ -181,7 +181,7 @@ const loadPosts = async () => {
 onMounted(loadPosts)
 
 // Selection / compose
-const selectedPost = ref<any>(null)
+const selectedPost = ref<ApiRecord | null>(null)
 const composing = ref(false)
 const editForm = reactive({ title: '', body: '', image_asset_id: '' as string | null, imagePreviewUrl: '' as string | null })
 const selectedChannels = ref<string[]>(['site'])
@@ -207,7 +207,7 @@ const openCompose = () => {
   selectedChannels.value = ['site']
 }
 
-const selectPost = (post: any) => {
+const selectPost = (post: ApiRecord) => {
   composing.value = false
   selectedPost.value = post
   editForm.title = post.title ?? ''
@@ -226,12 +226,12 @@ const handleSaveDraft = async () => {
   saving.value = true
   try {
     if (selectedPost.value) {
-      const res = await ($fetch as any)(`/api/editor/sites/${siteId}/posts/${selectedPost.value.id}`, {
+      const res = await $fetch<ApiRecord>(`/api/editor/sites/${siteId}/posts/${selectedPost.value.id}`, {
         method: 'PATCH', body: { title: editForm.title, body: editForm.body, image_asset_id: editForm.image_asset_id },
       })
       selectedPost.value = res.post
     } else {
-      const res = await ($fetch as any)(`/api/editor/sites/${siteId}/posts`, {
+      const res = await $fetch<ApiRecord>(`/api/editor/sites/${siteId}/posts`, {
         method: 'POST', body: { title: editForm.title, body: editForm.body, image_asset_id: editForm.image_asset_id },
       })
       selectedPost.value = res.post
@@ -252,11 +252,11 @@ const handlePublish = async () => {
     if (!postId || editForm.body !== selectedPost.value?.body || editForm.title !== (selectedPost.value?.title ?? '')) {
       const method = postId ? 'PATCH' : 'POST'
       const url = postId ? `/api/editor/sites/${siteId}/posts/${postId}` : `/api/editor/sites/${siteId}/posts`
-      const res = await ($fetch as any)(url, { method, body: { title: editForm.title, body: editForm.body, image_asset_id: editForm.image_asset_id } })
+      const res = await $fetch<ApiRecord>(url, { method, body: { title: editForm.title, body: editForm.body, image_asset_id: editForm.image_asset_id } })
       postId = res.post.id
       selectedPost.value = res.post
     }
-    const res = await ($fetch as any)(`/api/editor/sites/${siteId}/posts/${postId}/publish`, {
+    const res = await $fetch<ApiRecord>(`/api/editor/sites/${siteId}/posts/${postId}/publish`, {
       method: 'POST', body: { channels: selectedChannels.value },
     })
     selectedPost.value = res.post
@@ -270,7 +270,7 @@ const handlePublish = async () => {
 const handleDelete = async () => {
   if (!selectedPost.value) return
   try {
-    await ($fetch as any)(`/api/editor/sites/${siteId}/posts/${selectedPost.value.id}`, { method: 'DELETE' })
+    await $fetch(`/api/editor/sites/${siteId}/posts/${selectedPost.value.id}`, { method: 'DELETE' })
     selectedPost.value = null
     toast.add({ description: 'Post deleted', color: 'neutral' })
     await loadPosts()
@@ -283,6 +283,19 @@ const aiLoading = ref(false)
 const aiImageFile = ref<File | null>(null)
 const aiImageInput = ref<HTMLInputElement | null>(null)
 const credits = ref<number | null>(null)
+
+function getErrorMessage(error: unknown, fallback: string): string {
+  if (error && typeof error === 'object') {
+    const data = (error as Record<string, unknown>).data
+    if (data && typeof data === 'object') {
+      const errorMessage = (data as Record<string, unknown>).error
+      if (typeof errorMessage === 'string' && errorMessage) return errorMessage
+    }
+    const message = (error as Record<string, unknown>).message
+    if (typeof message === 'string' && message) return message
+  }
+  return fallback
+}
 
 const onAiImageSelect = (e: Event) => {
   aiImageFile.value = (e.target as HTMLInputElement).files?.[0] ?? null
@@ -301,7 +314,7 @@ const generatePost = async () => {
       image_mime = aiImageFile.value.type
     }
 
-    const res = await ($fetch as any)(`/api/ai/${siteId}/posts/generate`, {
+    const res = await $fetch<ApiRecord>(`/api/ai/${siteId}/posts/generate`, {
       method: 'POST',
       body: { prompt: aiPrompt.value.trim(), image_base64, image_mime },
     })
@@ -313,8 +326,8 @@ const generatePost = async () => {
     aiPrompt.value = ''
     aiImageFile.value = null
     toast.add({ description: 'Draft generated — review and publish when ready', color: 'success' })
-  } catch (err: any) {
-    toast.add({ description: err?.data?.error ?? 'Generation failed. Try again.', color: 'error' })
+  } catch (err) {
+    toast.add({ description: getErrorMessage(err, 'Generation failed. Try again.'), color: 'error' })
   } finally { aiLoading.value = false }
 }
 

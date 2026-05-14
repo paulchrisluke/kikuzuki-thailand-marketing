@@ -3,16 +3,22 @@ import { cloudflareEnv, jsonResponse } from '~/server/utils/api-response'
 import { getAuthSession } from '~/server/utils/auth'
 import { updateSubscriptionQuantity } from '~/server/utils/billing'
 
+type JsonPrimitive = string | number | boolean | null
+type JsonValue = JsonPrimitive | JsonObject | JsonValue[]
+interface JsonObject {
+  [key: string]: JsonValue
+}
+
 interface CreateLocationBody {
   title?: string
   slug?: string
-  address?: unknown
+  address?: JsonValue
   city?: string
   phone?: string
   hero_image_asset_id?: string
   website_url?: string
   maps_url?: string
-  opening_hours?: unknown
+  opening_hours?: JsonValue
   is_primary?: boolean
 }
 
@@ -23,6 +29,15 @@ interface SiteRow {
 
 interface CountRow {
   count: number | string
+}
+
+interface ExistingLocationRow {
+  id: string
+}
+
+interface MediaAssetRow {
+  id: string
+  organization_id: string
 }
 
 interface LocationRow {
@@ -42,13 +57,13 @@ interface LocationRow {
   updated_at: string
 }
 
-const isPlainObjectOrArray = (v: unknown): v is Record<string, unknown> | unknown[] =>
+const isPlainObjectOrArray = (v: JsonValue): v is JsonObject | JsonValue[] =>
   v !== null && (Array.isArray(v) || (typeof v === 'object' && Object.prototype.toString.call(v) === '[object Object]'))
 
-const safeJsonParse = (raw: string | null | undefined, context: string): unknown => {
+const safeJsonParse = (raw: string | null | undefined, context: string): JsonValue => {
   if (!raw) return null
   try {
-    return JSON.parse(raw)
+    return JSON.parse(raw) as JsonValue
   } catch (err) {
     console.error(`Failed to parse JSON for ${context}:`, err)
     return null
@@ -114,7 +129,7 @@ export default defineEventHandler(async (event) => {
       SELECT id FROM business_locations
       WHERE organization_id = ? AND site_id = ? AND slug = ?
       LIMIT 1
-    `).bind(site.organization_id, siteId, slug).first()
+    `).bind(site.organization_id, siteId, slug).first() as ExistingLocationRow | null
 
     if (existing) {
       return jsonResponse({ error: 'Location slug already exists' }, { status: 409 })
@@ -149,7 +164,7 @@ export default defineEventHandler(async (event) => {
     if (body.hero_image_asset_id) {
       const asset = await db.prepare(`
         SELECT id, organization_id FROM media_assets WHERE id = ? LIMIT 1
-      `).bind(body.hero_image_asset_id).first()
+      `).bind(body.hero_image_asset_id).first() as MediaAssetRow | null
       if (!asset || asset.organization_id !== site.organization_id) {
         return jsonResponse({ error: 'Invalid or unauthorized hero_image_asset_id' }, { status: 400 })
       }
@@ -158,7 +173,7 @@ export default defineEventHandler(async (event) => {
     const isPrimary = body.is_primary === true || activeLocationCount === 0
     const locationId = crypto.randomUUID()
     const now = new Date().toISOString()
-    const statements = []
+    const statements: D1PreparedStatement[] = []
 
     if (isPrimary) {
       statements.push(db.prepare(`
@@ -216,9 +231,10 @@ export default defineEventHandler(async (event) => {
     }
 
     // Run in background when supported; otherwise await to keep sync reliable.
-    const syncPromise = updateSubscriptionQuantity(env, db, site.organization_id).catch((err) =>
-      console.error('Failed to update Stripe subscription quantity after location create:', err)
-    )
+    const syncPromise = updateSubscriptionQuantity(env, db, site.organization_id).catch((error) => {
+      const normalizedError = error instanceof Error ? error : new Error('Unknown error')
+      console.error('Failed to update Stripe subscription quantity after location create:', normalizedError)
+    })
     const cfCtx = event.context.cloudflare?.context
     if (cfCtx?.waitUntil) {
       cfCtx.waitUntil(syncPromise)

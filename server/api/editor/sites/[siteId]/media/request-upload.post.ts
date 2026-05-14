@@ -6,6 +6,11 @@ import { getAuthSession } from '~/server/utils/auth'
 import { deleteImage, requestImageUpload } from '~/server/utils/cloudflare-images'
 import { createMediaAsset } from '~/server/utils/media-asset-manager'
 
+interface SiteRow {
+  id: string
+  organization_id: string
+}
+
 export default defineEventHandler(async (event) => {
   const siteId = getRouterParam(event, 'siteId')
   if (!siteId) return jsonResponse({ error: 'Site ID required' }, { status: 400 })
@@ -19,7 +24,7 @@ export default defineEventHandler(async (event) => {
 
   const site = await db.prepare(
     `SELECT id, organization_id FROM sites WHERE id = ? LIMIT 1`
-  ).bind(siteId).first() as { id: string; organization_id: string } | null
+  ).bind(siteId).first<SiteRow>()
   if (!site) return jsonResponse({ error: 'Site not found' }, { status: 404 })
 
   const membership = await db.prepare(`
@@ -80,25 +85,27 @@ export default defineEventHandler(async (event) => {
       file_name: filename,
       created_by_user_id: session.user.id,
     })
-  } catch (error: any) {
+  } catch (error) {
     if (imageId) {
       try {
         await deleteImage(env, imageId)
-      } catch (cleanupError: any) {
+      } catch (cleanupError) {
+        const normalizedCleanupError = cleanupError instanceof Error ? cleanupError : new Error('Unknown cleanup error')
         console.error('media_request_upload_cleanup_failed', {
           siteId,
           assetId,
           imageId,
-          error: cleanupError?.message || 'Unknown cleanup error'
+          error: normalizedCleanupError.message
         })
       }
     }
 
+    const normalizedError = error instanceof Error ? error : new Error('Unknown error')
     console.error('media_request_upload_failed', {
       siteId,
       assetId,
       imageId,
-      error: error?.message || 'Unknown error'
+      error: normalizedError.message
     })
     return jsonResponse({ error: 'Failed to initialize image upload' }, { status: 500 })
   }

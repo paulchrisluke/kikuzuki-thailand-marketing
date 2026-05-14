@@ -59,7 +59,7 @@ export default defineEventHandler(async (event) => {
     `).bind(site.organization_id, siteId).all()
     
     // Parse JSON fields
-    const parsedLocations = (locations.results || []).map((location: any) => ({
+    const parsedLocations = (locations.results || []).map((location: ApiValue) => ({
       ...location,
       address: location.address ? JSON.parse(location.address) : null,
       opening_hours: location.opening_hours ? JSON.parse(location.opening_hours) : null

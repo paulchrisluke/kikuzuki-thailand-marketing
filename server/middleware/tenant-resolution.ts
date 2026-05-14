@@ -4,8 +4,22 @@
 import { defineEventHandler, getRequestURL, getHeader } from 'h3'
 import { cloudflareEnv } from '../utils/api-response'
 
+interface TenantResolutionEnv {
+  REVIEWS_DB?: D1Database
+  NUXT_PUBLIC_FREE_SITE_DOMAIN?: string
+}
+
+interface TenantSiteRow {
+  id: string
+  organization_id: string
+  theme_id: string | null
+  subdomain: string
+  onboarding_status: string
+  canonical_domain: string | null
+}
+
 // Get platform domain from runtime config
-function getPlatformDomain(env: Record<string, any>): string {
+function getPlatformDomain(env: TenantResolutionEnv): string {
   const domain = env.NUXT_PUBLIC_FREE_SITE_DOMAIN
   // Return empty string if domain is not defined
   if (!domain) return ''
@@ -50,7 +64,7 @@ export default defineEventHandler(async (event) => {
   event.context.siteId = null
 })
 
-function isPlatformHost(host: string, env: Record<string, any>): boolean {
+function isPlatformHost(host: string, env: TenantResolutionEnv): boolean {
   const hostname = host?.split(':')[0] || ''
   const platformDomain = getPlatformDomain(env)
   if (hostname === 'kikuzuki-thailand-marketing.pages.dev' || hostname.endsWith('.kikuzuki-thailand-marketing.pages.dev')) {
@@ -87,8 +101,8 @@ function isPlatformRoute(pathname: string): boolean {
   return prefixRoutes.some(route => pathname.startsWith(route))
 }
 
-async function resolveTenantSite(host: string, event: any): Promise<any> {
-  const env = cloudflareEnv(event)
+async function resolveTenantSite(host: string, event: Parameters<typeof cloudflareEnv>[0]): Promise<TenantSiteRow | null> {
+  const env = cloudflareEnv(event) as TenantResolutionEnv
   const db = env.REVIEWS_DB
   const hostname = host?.split(':')[0] || ''
   
@@ -102,7 +116,7 @@ async function resolveTenantSite(host: string, event: any): Promise<any> {
       FROM sites s
       WHERE s.subdomain = ? AND s.status = 'active'
       LIMIT 1
-    `).bind(subdomain).first()
+    `).bind(subdomain).first() as TenantSiteRow | null
   }
   
   // Try custom domains first (from site_domains table)
@@ -116,7 +130,7 @@ async function resolveTenantSite(host: string, event: any): Promise<any> {
     WHERE sd.domain = ? AND sd.type = 'custom' AND sd.status = 'active' 
       AND s.status = 'active' AND s.onboarding_status = 'active'
     LIMIT 1
-  `).bind(hostname).first()
+  `).bind(hostname).first() as TenantSiteRow | null
   
   if (customDomainSite) return customDomainSite
   
@@ -136,7 +150,7 @@ async function resolveTenantSite(host: string, event: any): Promise<any> {
       WHERE sd.domain = ? AND sd.type = 'subdomain' AND sd.status = 'active' 
         AND s.status = 'active' AND s.onboarding_status = 'active'
       LIMIT 1
-    `).bind(`${subdomain}.${platformDomain}`).first()
+    `).bind(`${subdomain}.${platformDomain}`).first() as TenantSiteRow | null
     
     if (subdomainSite) return subdomainSite
   }

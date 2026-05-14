@@ -6,7 +6,7 @@ import { getAuthSession } from '~/server/utils/auth'
 import { buildImageUrl } from '~/server/utils/cloudflare-images'
 import { activateMediaAsset, getMediaAsset } from '~/server/utils/media-asset-manager'
 
-async function verifySiteAccess(db: any, userId: string, siteId: string): Promise<boolean> {
+async function verifySiteAccess(db: D1Database, userId: string, siteId: string): Promise<boolean> {
   const site = await db.prepare(`
     SELECT s.id
     FROM sites s

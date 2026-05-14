@@ -2,6 +2,8 @@ import type { Menu, MenuItem, MenuWithItems, CreateMenuRequest, UpdateMenuReques
 
 const MAX_SUFFIX_ATTEMPTS = 50
 
+type SqlBindValue = string | number | boolean | null
+
 function slugify(name: string): string {
   const slug = name
     .toLowerCase()
@@ -17,7 +19,7 @@ function slugify(name: string): string {
   return slug
 }
 
-async function uniqueSlug(db: any, menuId: string, base: string, excludeId?: string): Promise<string> {
+async function uniqueSlug(db: D1Database, menuId: string, base: string, excludeId?: string): Promise<string> {
   const baseSlug = slugify(base)
   let candidate = baseSlug
   let suffix = 1
@@ -37,7 +39,7 @@ async function uniqueSlug(db: any, menuId: string, base: string, excludeId?: str
 
 // Get menus for a site with optional location filter
 export async function getMenus(
-  db: any,
+  db: D1Database,
   organizationId: string,
   siteId: string,
   locationId?: string | null
@@ -58,12 +60,12 @@ export async function getMenus(
   query += ` ORDER BY location_id IS NULL, name`
 
   const results = await db.prepare(query).bind(...params).all()
-  return results.results || []
+  return (results.results || []) as unknown as Menu[]
 }
 
 // Get menu with items
 export async function getMenuWithItems(
-  db: any,
+  db: D1Database,
   organizationId: string,
   siteId: string,
   menuId: string
@@ -75,7 +77,7 @@ export async function getMenuWithItems(
     FROM menus 
     WHERE id = ? AND organization_id = ? AND site_id = ?
     LIMIT 1
-  `).bind(menuId, organizationId, siteId).first()
+  `).bind(menuId, organizationId, siteId).first<Menu>()
 
   if (!menu) return null
 
@@ -92,13 +94,13 @@ export async function getMenuWithItems(
 
   return {
     ...menu,
-    items: items.results || []
+    items: (items.results || []) as unknown as MenuItem[]
   }
 }
 
 // Get active menu for a scope (brand or location)
 export async function getActiveMenu(
-  db: any,
+  db: D1Database,
   organizationId: string,
   siteId: string,
   locationId?: string | null
@@ -111,7 +113,7 @@ export async function getActiveMenu(
       FROM menus 
       WHERE organization_id = ? AND site_id = ? AND location_id = ? AND status = 'published'
       LIMIT 1
-    `).bind(organizationId, siteId, locationId).first()
+    `).bind(organizationId, siteId, locationId).first<Menu>()
 
     if (locationMenu) {
       const items = await db.prepare(`
@@ -126,7 +128,7 @@ export async function getActiveMenu(
 
       return {
         ...locationMenu,
-        items: items.results || []
+        items: (items.results || []) as unknown as MenuItem[]
       }
     }
   }
@@ -138,7 +140,7 @@ export async function getActiveMenu(
     FROM menus 
     WHERE organization_id = ? AND site_id = ? AND location_id IS NULL AND status = 'published'
     LIMIT 1
-  `).bind(organizationId, siteId).first()
+  `).bind(organizationId, siteId).first<Menu>()
 
   if (!brandMenu) return null
 
@@ -154,13 +156,13 @@ export async function getActiveMenu(
 
   return {
     ...brandMenu,
-    items: items.results || []
+    items: (items.results || []) as unknown as MenuItem[]
   }
 }
 
 // Create menu
 export async function createMenu(
-  db: any,
+  db: D1Database,
   organizationId: string,
   siteId: string,
   menu: CreateMenuRequest,
@@ -205,7 +207,7 @@ export async function createMenu(
 
 // Update menu
 export async function updateMenu(
-  db: any,
+  db: D1Database,
   organizationId: string,
   siteId: string,
   menuId: string,
@@ -215,8 +217,8 @@ export async function updateMenu(
   const now = new Date().toISOString()
   
   // Build dynamic update query
-  const setParts = []
-  const params = []
+  const setParts: string[] = []
+  const params: SqlBindValue[] = []
 
   if (updates.name !== undefined) {
     setParts.push('name = ?')
@@ -253,7 +255,7 @@ export async function updateMenu(
     FROM menus 
     WHERE id = ? AND organization_id = ? AND site_id = ?
     LIMIT 1
-  `).bind(menuId, organizationId, siteId).first()
+  `).bind(menuId, organizationId, siteId).first<Menu>()
 
   if (!updatedMenu) {
     throw new Error('Menu not found after update')
@@ -264,7 +266,7 @@ export async function updateMenu(
 
 // Delete menu
 export async function deleteMenu(
-  db: any,
+  db: D1Database,
   organizationId: string,
   siteId: string,
   menuId: string
@@ -281,7 +283,7 @@ export async function deleteMenu(
 
 // Create menu item
 export async function createMenuItem(
-  db: any,
+  db: D1Database,
   menuId: string,
   item: CreateMenuItemRequest,
   createdBy: string
@@ -322,7 +324,7 @@ export async function createMenuItem(
     FROM menu_items 
     WHERE id = ?
     LIMIT 1
-  `).bind(id).first()
+  `).bind(id).first<MenuItem>()
 
   if (!createdItem) {
     throw new Error('Menu item not found after creation')
@@ -333,7 +335,7 @@ export async function createMenuItem(
 
 // Update menu item
 export async function updateMenuItem(
-  db: any,
+  db: D1Database,
   menuItemId: string,
   updates: UpdateMenuItemRequest,
   updatedBy: string
@@ -342,7 +344,7 @@ export async function updateMenuItem(
 
   // Build dynamic update query
   const setParts: string[] = []
-  const params: any[] = []
+  const params: SqlBindValue[] = []
 
   if (updates.section !== undefined) {
     setParts.push('section = ?')
@@ -354,7 +356,7 @@ export async function updateMenuItem(
     // Fetch menu_id to scope the slug uniqueness check
     const existing = await db.prepare(
       `SELECT menu_id FROM menu_items WHERE id = ? LIMIT 1`
-    ).bind(menuItemId).first()
+    ).bind(menuItemId).first() as { menu_id: string | null } | null
     if (existing?.menu_id) {
       const newSlug = await uniqueSlug(db, existing.menu_id, updates.name, menuItemId)
       setParts.push('slug = ?')
@@ -409,7 +411,7 @@ export async function updateMenuItem(
     FROM menu_items 
     WHERE id = ?
     LIMIT 1
-  `).bind(menuItemId).first()
+  `).bind(menuItemId).first<MenuItem>()
 
   if (!updatedItem) {
     throw new Error('Menu item not found after update')
@@ -420,7 +422,7 @@ export async function updateMenuItem(
 
 // Delete menu item
 export async function deleteMenuItem(
-  db: any,
+  db: D1Database,
   menuItemId: string
 ): Promise<void> {
   const result = await db.prepare(`
@@ -435,7 +437,7 @@ export async function deleteMenuItem(
 
 // Reorder menu items
 export async function reorderMenuItems(
-  db: any,
+  db: D1Database,
   menuId: string,
   items: Array<{ id: string; sort_order: number }>
 ): Promise<void> {

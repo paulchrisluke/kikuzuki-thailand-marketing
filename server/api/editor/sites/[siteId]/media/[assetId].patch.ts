@@ -4,7 +4,12 @@ import { cloudflareEnv, jsonResponse } from '~/server/utils/api-response'
 import { getAuthSession } from '~/server/utils/auth'
 import { updateMediaAssetAlt } from '~/server/utils/media-asset-manager'
 
-async function verifySiteAccess(db: any, userId: string, siteId: string): Promise<boolean> {
+interface MediaAssetSiteRow {
+  id: string
+  site_id: string
+}
+
+async function verifySiteAccess(db: D1Database, userId: string, siteId: string): Promise<boolean> {
   const site = await db.prepare(`
     SELECT s.id
     FROM sites s
@@ -35,7 +40,7 @@ export default defineEventHandler(async (event) => {
   try {
     const asset = await db.prepare(
       `SELECT id, site_id FROM media_assets WHERE id = ? LIMIT 1`
-    ).bind(assetId).first()
+    ).bind(assetId).first<MediaAssetSiteRow>()
     if (!asset) return jsonResponse({ error: 'Asset not found' }, { status: 404 })
     if (asset.site_id !== siteId) return jsonResponse({ error: 'Forbidden' }, { status: 403 })
 
@@ -51,12 +56,13 @@ export default defineEventHandler(async (event) => {
     }
 
     return jsonResponse({ updated: true })
-  } catch (error: any) {
+  } catch (error) {
+    const normalizedError = error instanceof Error ? error : new Error('Unknown error')
     console.error('media_patch_failed', {
       siteId,
       assetId,
       userId: session.user.id,
-      error: error?.message || 'Unknown error'
+      error: normalizedError.message
     })
     return jsonResponse({ error: 'Failed to update media asset' }, { status: 500 })
   }

@@ -125,14 +125,27 @@ const emit = defineEmits<{
 
 type Panel = 'library' | 'generate'
 
+interface PickerMediaAsset {
+  id: string
+  public_url?: string | null
+  thumbnail_url?: string | null
+  publicUrl?: string | null
+  thumbnailUrl?: string | null
+  alt_text?: string | null
+}
+
 const isOpen = ref(false)
 const panel = ref<Panel>('library')
 const pendingAsset = ref<{ id: string; publicUrl: string; thumbnailUrl: string } | null>(null)
-const generatePanel = ref<any>(null)
+const generatePanel = ref<ApiRecord | null>(null)
 
 const selectedUrl = ref<string | null>(null)
 const selectedAlt = ref<string>('')
 const modelLoadController = ref<AbortController | null>(null)
+
+function isAbortError(error: unknown): boolean {
+  return error instanceof Error && error.name === 'AbortError'
+}
 
 watch(() => props.modelValue, async (id) => {
   modelLoadController.value?.abort()
@@ -147,7 +160,7 @@ watch(() => props.modelValue, async (id) => {
   modelLoadController.value = controller
 
   try {
-    const res = await $fetch<{ media: any[] }>(
+    const res = await $fetch<{ media: PickerMediaAsset[] }>(
       `/api/editor/sites/${props.siteId}/media?id=${encodeURIComponent(id)}&limit=1`,
       { signal: controller.signal }
     )
@@ -156,14 +169,14 @@ watch(() => props.modelValue, async (id) => {
 
     const asset = (res.media ?? [])[0]
     if (asset) {
-      selectedUrl.value = asset.thumbnail_url || asset.public_url
+      selectedUrl.value = asset.thumbnail_url ?? asset.public_url ?? null
       selectedAlt.value = asset.alt_text || ''
     } else {
       selectedUrl.value = null
       selectedAlt.value = ''
     }
-  } catch (err: any) {
-    if (controller.signal.aborted || err?.name === 'AbortError') return
+  } catch (err) {
+    if (controller.signal.aborted || isAbortError(err)) return
     selectedUrl.value = null
     selectedAlt.value = ''
   } finally {
@@ -183,12 +196,20 @@ function open() {
   isOpen.value = true
 }
 
-function onSelect(asset: any) {
-  pendingAsset.value = { id: asset.id, publicUrl: asset.public_url, thumbnailUrl: asset.thumbnail_url }
+function onSelect(asset: PickerMediaAsset) {
+  pendingAsset.value = {
+    id: asset.id,
+    publicUrl: asset.public_url ?? '',
+    thumbnailUrl: asset.thumbnail_url ?? '',
+  }
 }
 
-function onUploaded(asset: any) {
-  pendingAsset.value = { id: asset.id, publicUrl: asset.publicUrl ?? asset.public_url, thumbnailUrl: asset.thumbnailUrl ?? asset.thumbnail_url }
+function onUploaded(asset: PickerMediaAsset) {
+  pendingAsset.value = {
+    id: asset.id,
+    publicUrl: asset.publicUrl ?? asset.public_url ?? '',
+    thumbnailUrl: asset.thumbnailUrl ?? asset.thumbnail_url ?? '',
+  }
 }
 
 function onGenerated(asset: { id: string; publicUrl: string; thumbnailUrl: string }) {

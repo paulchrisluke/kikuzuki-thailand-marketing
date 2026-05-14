@@ -2,7 +2,7 @@
 import { cloudflareEnv, jsonResponse } from '~/server/utils/api-response'
 import { getAuthSession } from '~/server/utils/auth'
 
-const parseJson = (value: unknown) => {
+const parseJson = (value: ApiValue) => {
   if (!value || typeof value !== 'string') return null
   try {
     return JSON.parse(value)

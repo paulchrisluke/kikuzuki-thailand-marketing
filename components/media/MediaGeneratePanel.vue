@@ -109,8 +109,22 @@ function historyAriaLabel(item: GeneratedHistoryItem, i: number): string {
   return item.prompt || item.description || `Generated image ${i + 1}`
 }
 
-function isAbortError(err: any): boolean {
-  return err?.name === 'AbortError' || String(err?.message || '').toLowerCase().includes('aborted')
+function isAbortError(error: unknown): boolean {
+  if (!(error instanceof Error)) return false
+  return error.name === 'AbortError' || error.message.toLowerCase().includes('aborted')
+}
+
+function getErrorMessage(error: unknown, fallback: string): string {
+  if (error && typeof error === 'object') {
+    const data = (error as Record<string, unknown>).data
+    if (data && typeof data === 'object') {
+      const dataError = (data as Record<string, unknown>).error
+      if (typeof dataError === 'string' && dataError) return dataError
+    }
+    const message = (error as Record<string, unknown>).message
+    if (typeof message === 'string' && message) return message
+  }
+  return fallback
 }
 
 function stopGeneration() {
@@ -146,9 +160,9 @@ async function generate() {
     }
     activeIdx.value = history.value.length - 1
     prompt.value = ''
-  } catch (err: any) {
+  } catch (err) {
     if (controller.signal.aborted || isAbortError(err)) return
-    error.value = err?.data?.error ?? err?.message ?? 'Generation failed. Try a different prompt.'
+    error.value = getErrorMessage(err, 'Generation failed. Try a different prompt.')
   } finally {
     if (abortController.value === controller) {
       abortController.value = null

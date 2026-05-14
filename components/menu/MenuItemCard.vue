@@ -67,7 +67,7 @@ interface MenuItem {
 
 const props = defineProps<{
   item: MenuItem
-  resolveAssetUrl?: (assetId: string) => string
+  resolveAssetUrl?: (_assetId: string) => string
 }>()
 
 const mediaUrl = computed(() => {

@@ -1,20 +1,33 @@
-function apiBase(env: Record<string, any>): string {
+interface CloudflareImagesEnv {
+  CF_ACCOUNT_ID?: string
+  CLOUDFLARE_IMAGES_API_TOKEN?: string
+  CLOUDFLARE_IMAGES_VARIANT_BASE?: string
+}
+
+interface CloudflareImagesResponse {
+  result?: {
+    id?: string
+    uploadURL?: string
+  }
+}
+
+function apiBase(env: CloudflareImagesEnv): string {
   return `https://api.cloudflare.com/client/v4/accounts/${env.CF_ACCOUNT_ID}/images`
 }
 
-function authHeader(env: Record<string, any>): Record<string, string> {
+function authHeader(env: CloudflareImagesEnv): Record<string, string> {
   return { Authorization: `Bearer ${env.CLOUDFLARE_IMAGES_API_TOKEN}` }
 }
 
 /** Request a one-time Direct Creator Upload URL. Client uploads directly to CF Images — no server buffering. */
-export async function requestImageUpload(env: Record<string, any>): Promise<{ imageId: string; uploadUrl: string }> {
+export async function requestImageUpload(env: CloudflareImagesEnv): Promise<{ imageId: string; uploadUrl: string }> {
   const res = await fetch(`${apiBase(env)}/v2/direct_upload`, {
     method: 'POST',
     headers: { ...authHeader(env), 'Content-Type': 'application/json' },
     body: JSON.stringify({}),
   })
   if (!res.ok) throw new Error(`CF Images direct_upload error ${res.status}: ${await res.text()}`)
-  const data = await res.json() as any
+  const data = await res.json() as CloudflareImagesResponse
   const imageId = typeof data?.result?.id === 'string' ? data.result.id : ''
   const uploadUrl = typeof data?.result?.uploadURL === 'string' ? data.result.uploadURL : ''
   if (!imageId || !uploadUrl) {
@@ -25,7 +38,7 @@ export async function requestImageUpload(env: Record<string, any>): Promise<{ im
 
 /** Upload an image buffer directly (for server-generated images). */
 export async function uploadImageBuffer(
-  env: Record<string, any>,
+  env: CloudflareImagesEnv,
   buffer: ArrayBuffer,
   filename: string,
   contentType = 'image/png'
@@ -39,7 +52,7 @@ export async function uploadImageBuffer(
     body: form,
   })
   if (!res.ok) throw new Error(`CF Images upload error ${res.status}: ${await res.text()}`)
-  const data = await res.json() as any
+  const data = await res.json() as CloudflareImagesResponse
   const id = typeof data?.result?.id === 'string' ? data.result.id : ''
   if (!id) {
     throw new Error(`CF Images upload malformed response ${res.status}: ${JSON.stringify(data)}`)
@@ -52,15 +65,16 @@ export async function uploadImageBuffer(
 }
 
 /** Delete an image from Cloudflare Images. */
-export async function deleteImage(env: Record<string, any>, imageId: string): Promise<void> {
+export async function deleteImage(env: CloudflareImagesEnv, imageId: string): Promise<void> {
   let res: Response
   try {
     res = await fetch(`${apiBase(env)}/v1/${imageId}`, {
       method: 'DELETE',
       headers: authHeader(env),
     })
-  } catch (error: any) {
-    throw new Error(`CF Images delete request failed for ${imageId}: ${error?.message || 'Unknown error'}`)
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unknown error'
+    throw new Error(`CF Images delete request failed for ${imageId}: ${message}`)
   }
 
   if (!res.ok) {
@@ -70,6 +84,6 @@ export async function deleteImage(env: Record<string, any>, imageId: string): Pr
 }
 
 /** Build a Cloudflare Images delivery URL for a given variant. */
-export function buildImageUrl(env: Record<string, any>, imageId: string, variant = 'public'): string {
+export function buildImageUrl(env: CloudflareImagesEnv, imageId: string, variant = 'public'): string {
   return `${env.CLOUDFLARE_IMAGES_VARIANT_BASE}/${imageId}/${variant}`
 }

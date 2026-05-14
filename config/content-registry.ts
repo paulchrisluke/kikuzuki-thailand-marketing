@@ -13,7 +13,7 @@ interface BaseField {
   integrationConfig?: IntegrationConfig;
   requiredEntitlement?: string;
   googleLocked?: boolean;
-  validate?: (value: string) => string | boolean;
+  validate?: (_value: string) => string | boolean;
 }
 
 export interface TextField extends BaseField {

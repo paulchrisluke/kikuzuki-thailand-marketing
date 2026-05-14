@@ -116,15 +116,26 @@ const props = defineProps<{
   locationId?: string | null
 }>()
 
+interface MediaAsset {
+  id: string
+  kind?: string
+  file_name?: string
+  thumbnail_url?: string
+  public_url?: string
+  alt_text?: string
+  title?: string
+  description?: string
+}
+
 const emit = defineEmits<{
-  select: [asset: any]
+  select: [asset: MediaAsset]
   generate: []
-  uploaded: [asset: any]
+  uploaded: [asset: MediaAsset]
 }>()
 
 const toast = useToast()
 
-const assets = ref<any[]>([])
+const assets = ref<MediaAsset[]>([])
 const loading = ref(false)
 const uploadError = ref<string | null>(null)
 const isDragging = ref(false)
@@ -147,6 +158,23 @@ const kindOptions = [
   { label: 'All', value: '' },
 ]
 
+function isAbortError(error: unknown): boolean {
+  return error instanceof Error && error.name === 'AbortError'
+}
+
+function getErrorMessage(error: unknown, fallback: string): string {
+  if (error && typeof error === 'object') {
+    const data = (error as Record<string, unknown>).data
+    if (data && typeof data === 'object') {
+      const dataError = (data as Record<string, unknown>).error
+      if (typeof dataError === 'string' && dataError) return dataError
+    }
+    const message = (error as Record<string, unknown>).message
+    if (typeof message === 'string' && message) return message
+  }
+  return fallback
+}
+
 async function loadAssets() {
   const requestId = ++loadRequestId.value
   loadAbortController.value?.abort()
@@ -158,7 +186,7 @@ async function loadAssets() {
     const params = new URLSearchParams()
     if (kindFilter.value) params.set('kind', kindFilter.value)
     if (props.locationId) params.set('locationId', props.locationId)
-    const res = await $fetch<{ media: any[] }>(`/api/editor/sites/${props.siteId}/media?${params}`, {
+    const res = await $fetch<{ media: MediaAsset[] }>(`/api/editor/sites/${props.siteId}/media?${params}`, {
       signal: controller.signal,
     })
 
@@ -168,8 +196,8 @@ async function loadAssets() {
     assets.value = search.value
       ? all.filter(a => (a.file_name ?? '').toLowerCase().includes(search.value.toLowerCase()))
       : all
-  } catch (err: any) {
-    if (controller.signal.aborted || err?.name === 'AbortError') return
+  } catch (err) {
+    if (controller.signal.aborted || isAbortError(err instanceof Error ? err : new Error(String(err)))) return
     if (requestId === loadRequestId.value) {
       assets.value = []
     }
@@ -226,14 +254,14 @@ async function uploadImage(file: File) {
     if (!res.ok) throw new Error(`Upload failed: ${res.status}`)
 
     const confirmEndpoint = `/api/editor/sites/${props.siteId}/media/${assetId}/confirm`
-    let asset: any = null
-    let lastError: any = null
+    let asset: MediaAsset | null = null
+    let lastError: unknown = null
     for (let attempt = 1; attempt <= 3; attempt++) {
       try {
-        asset = await $fetch<any>(confirmEndpoint, { method: 'POST' })
+        asset = await $fetch<MediaAsset>(confirmEndpoint, { method: 'POST' })
         break
-      } catch (err: any) {
-        lastError = err
+      } catch (err) {
+        lastError = err instanceof Error ? err : new Error(String(err))
         if (attempt < 3) await sleep(250 * attempt)
       }
     }
@@ -243,7 +271,7 @@ async function uploadImage(file: File) {
       console.error('Media confirm failed after retries', {
         assetId,
         confirmEndpoint,
-        error: lastError?.message || lastError,
+        error: getErrorMessage(lastError, 'Unknown error'),
       })
       throw new Error(`Confirmation failed for asset ${assetId}`)
     }
@@ -251,8 +279,8 @@ async function uploadImage(file: File) {
     toast.add({ title: 'File uploaded', icon: 'i-heroicons-check-circle', color: 'success' })
     await loadAssets()
     emit('uploaded', asset)
-  } catch (err: any) {
-    uploadError.value = err?.data?.error ?? err?.message ?? 'Upload failed.'
+  } catch (err) {
+    uploadError.value = getErrorMessage(err, 'Upload failed.')
   }
 }
 
@@ -265,12 +293,12 @@ async function uploadVideo(file: File) {
     const form = new FormData()
     form.append('file', file)
     if (props.locationId) form.append('locationId', props.locationId)
-    const asset = await $fetch<any>(`/api/editor/sites/${props.siteId}/media/upload`, { method: 'POST', body: form })
+    const asset = await $fetch<MediaAsset>(`/api/editor/sites/${props.siteId}/media/upload`, { method: 'POST', body: form })
     toast.add({ title: 'File uploaded', icon: 'i-heroicons-check-circle', color: 'success' })
     await loadAssets()
     emit('uploaded', asset)
-  } catch (err: any) {
-    uploadError.value = err?.data?.error ?? err?.message ?? 'Upload failed.'
+  } catch (err) {
+    uploadError.value = getErrorMessage(err, 'Upload failed.')
   }
 }
 

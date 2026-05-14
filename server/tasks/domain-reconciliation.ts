@@ -6,7 +6,7 @@ export default defineTask({
     description: 'Reconcile due Cloudflare SaaS custom domains'
   },
   async run({ payload, context }) {
-    const taskContext = context as { cloudflare?: { env?: Record<string, any> } } | undefined
+    const taskContext = context as { cloudflare?: { env?: ApiRecord } } | undefined
     const env = taskContext?.cloudflare?.env ?? {}
     const db = env.REVIEWS_DB
     if (!db && import.meta.dev) {

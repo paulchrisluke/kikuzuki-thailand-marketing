@@ -41,8 +41,27 @@ export interface PostWithChannels extends Post {
   channels: PostChannelJob[]
 }
 
+type SqlBindValue = string | number | boolean | null
+
+interface PublishedPostSummary {
+  name: string
+  title: string
+  summary: string
+  createTime: string | null
+  media: Array<{ googleUrl: string; mediaFormat: 'IMAGE' }>
+}
+
+interface PublishedPostRow {
+  id: string
+  title: string | null
+  body: string
+  published_at: string | null
+  created_at: string
+  image_url: string | null
+}
+
 export async function listPosts(
-  db: any,
+  db: D1Database,
   organizationId: string,
   siteId: string,
   status?: string
@@ -60,29 +79,29 @@ export async function listPosts(
   }
   query += ` ORDER BY p.updated_at DESC LIMIT 100`
   const result = await db.prepare(query).bind(...params).all()
-  return result.results ?? []
+  return (result.results ?? []) as unknown as Post[]
 }
 
 export async function getPost(
-  db: any,
+  db: D1Database,
   organizationId: string,
   siteId: string,
   postId: string
 ): Promise<PostWithChannels | null> {
   const post = await db.prepare(`
     SELECT * FROM posts WHERE id = ? AND organization_id = ? AND site_id = ? LIMIT 1
-  `).bind(postId, organizationId, siteId).first()
+  `).bind(postId, organizationId, siteId).first<Post>()
   if (!post) return null
 
   const jobs = await db.prepare(
     `SELECT * FROM post_channel_jobs WHERE post_id = ? ORDER BY channel`
   ).bind(postId).all()
 
-  return { ...post, channels: jobs.results ?? [] }
+  return { ...post, channels: (jobs.results ?? []) as unknown as PostChannelJob[] }
 }
 
 export async function createPost(
-  db: any,
+  db: D1Database,
   organizationId: string,
   siteId: string,
   data: {
@@ -112,11 +131,13 @@ export async function createPost(
     data.scheduled_for ?? null, createdBy, now, now
   ).run()
 
-  return await db.prepare('SELECT * FROM posts WHERE id = ? LIMIT 1').bind(id).first()
+  const createdPost = await db.prepare('SELECT * FROM posts WHERE id = ? LIMIT 1').bind(id).first() as Post | null
+  if (!createdPost) throw new Error('Post not found after creation')
+  return createdPost
 }
 
 export async function updatePost(
-  db: any,
+  db: D1Database,
   organizationId: string,
   siteId: string,
   postId: string,
@@ -127,13 +148,13 @@ export async function updatePost(
     event_title?: string | null; event_start?: string | null; event_end?: string | null
     offer_coupon?: string | null; offer_terms?: string | null
   },
-  updatedBy: string
+  _updatedBy: string
 ): Promise<Post | null> {
   const now = new Date().toISOString()
   const sets: string[] = ['updated_at = ?']
-  const params: any[] = [now]
+  const params: SqlBindValue[] = [now]
 
-  const fields: Array<[string, any]> = [
+  const fields: Array<[string, string | null | undefined]> = [
     ['title', data.title], ['body', data.body], ['image_asset_id', data.image_asset_id],
     ['scheduled_for', data.scheduled_for], ['location_id', data.location_id],
     ['post_type', data.post_type], ['cta_type', data.cta_type], ['cta_url', data.cta_url],
@@ -152,7 +173,7 @@ export async function updatePost(
 }
 
 export async function publishPost(
-  db: any,
+  db: D1Database,
   organizationId: string,
   siteId: string,
   postId: string,
@@ -185,7 +206,7 @@ export async function publishPost(
 }
 
 export async function deletePost(
-  db: any,
+  db: D1Database,
   organizationId: string,
   siteId: string,
   postId: string
@@ -197,10 +218,10 @@ export async function deletePost(
 
 /** Public: published posts for the site, formatted for SayaPosts component */
 export async function getPublishedPosts(
-  db: any,
+  db: D1Database,
   siteId: string,
   limit = 20
-): Promise<any[]> {
+): Promise<PublishedPostSummary[]> {
   const result = await db.prepare(`
     SELECT p.id, p.title, p.body, p.image_asset_id, p.published_at, p.created_at,
            ma.public_url as image_url
@@ -211,7 +232,9 @@ export async function getPublishedPosts(
     LIMIT ?
   `).bind(siteId, limit).all()
 
-  return (result.results ?? []).map((p: any) => ({
+  const rows = (result.results ?? []) as unknown as PublishedPostRow[]
+
+  return rows.map((p) => ({
     name: `posts/${p.id}`,
     title: p.title ?? '',
     summary: p.body,

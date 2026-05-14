@@ -1,5 +1,16 @@
 import { sendWhatsAppNotification, getOrgWhatsAppPhone } from '~/server/utils/whatsapp'
 
+interface DomainNotificationEnv {
+  PLATFORM_OWNER_EMAILS?: string
+  RESEND_API_KEY?: string
+  WHATSAPP_PHONE_NUMBER_ID?: string
+  WHATSAPP_ACCESS_TOKEN?: string
+}
+
+interface ResendResponse {
+  id?: string
+}
+
 interface DomainNotificationInput {
   organizationId: string
   siteId: string
@@ -21,7 +32,7 @@ function ownerEmailQuery() {
   `
 }
 
-function supportEmails(env: Record<string, any>): string[] {
+function supportEmails(env: DomainNotificationEnv): string[] {
   return String(env.PLATFORM_OWNER_EMAILS || '')
     .split(',')
     .map((email) => email.trim())
@@ -50,8 +61,8 @@ function safeDashboardUrl(raw: string): string {
 }
 
 async function sendEmail(
-  env: Record<string, any>,
-  db: any,
+  env: DomainNotificationEnv,
+  db: D1Database,
   opts: DomainNotificationInput & { to: string; audience: 'owner' | 'support' }
 ) {
   const id = crypto.randomUUID()
@@ -97,10 +108,11 @@ async function sendEmail(
       `
       })
     })
-  } catch (error: any) {
-    const message = error?.name === 'AbortError'
+  } catch (error) {
+    const normalizedError = error instanceof Error ? error : new Error('Unknown error')
+    const message = normalizedError.name === 'AbortError'
       ? `Email request timed out after ${timeoutMs}ms`
-      : `Email request failed: ${error?.message || 'Unknown error'}`
+      : `Email request failed: ${normalizedError.message || 'Unknown error'}`
     console.error('domain_notification_email_send_failed', {
       to: opts.to,
       audience: opts.audience,
@@ -120,16 +132,17 @@ async function sendEmail(
     return
   }
 
-  let data: any = null
+  let data: ResendResponse | null = null
   try {
-    data = await response.clone().json()
-  } catch (error: any) {
+    data = await response.clone().json() as ResendResponse
+  } catch (error) {
+    const normalizedError = error instanceof Error ? error : new Error('Unknown error')
     const raw = await response.text().catch(() => '<unavailable>')
     console.error('domain_notification_email_response_parse_failed', {
       to: opts.to,
       audience: opts.audience,
       status: response.status,
-      error: error?.message || 'Unknown error',
+      error: normalizedError.message,
       raw,
     })
     data = null
@@ -138,8 +151,8 @@ async function sendEmail(
 }
 
 export async function notifyDomainLifecycle(
-  env: Record<string, any>,
-  db: any,
+  env: DomainNotificationEnv,
+  db: D1Database,
   opts: DomainNotificationInput
 ) {
   const now = new Date().toISOString()
@@ -178,13 +191,14 @@ export async function notifyDomainLifecycle(
           dashboard_url: opts.dashboardUrl
         }
       })
-    } catch (error: any) {
+    } catch (error) {
+      const normalizedError = error instanceof Error ? error : new Error('Unknown error')
       console.error('domain_notification_whatsapp_send_failed', {
         organizationId: opts.organizationId,
         siteId: opts.siteId,
         domain: opts.domain,
         status: opts.status,
-        error: error?.message || 'Unknown error'
+        error: normalizedError.message
       })
     }
   }

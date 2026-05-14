@@ -2,6 +2,17 @@ import { cloudflareEnv, jsonResponse } from '~/server/utils/api-response'
 import { getAuthSession } from '~/server/utils/auth'
 import { isPlatformOwner } from '~/server/utils/platform-auth'
 
+type UserQueryParam = string | number
+
+interface UserRow {
+  id: string
+  name: string | null
+  email: string
+  role: string
+  banned: boolean | number | null
+  createdAt: string
+}
+
 export default defineEventHandler(async (event) => {
   const env = cloudflareEnv(event)
   const db = env.REVIEWS_DB
@@ -17,22 +28,31 @@ export default defineEventHandler(async (event) => {
   const offset = Math.max(0, Number(query.offset) || 0)
 
   const where: string[] = []
-  const params: any[] = []
+  const params: UserQueryParam[] = []
   if (search) {
     const escapedSearch = search.replace(/([%_\\])/g, '\\$1')
     where.push("lower(email) LIKE ? ESCAPE '\\'")
     params.push(`%${escapedSearch}%`)
   }
 
-  const users = await db.prepare(`
-    SELECT id, name, email, role, banned, createdAt
-    FROM user
-    ${where.length ? `WHERE ${where.join(' AND ')}` : ''}
-    ORDER BY createdAt DESC
-    LIMIT ? OFFSET ?
-  `).bind(...params, limit, offset).all()
+  let users: D1Result<UserRow>
+  try {
+    users = await db.prepare(`
+      SELECT id, name, email, role, banned, createdAt
+      FROM user
+      ${where.length ? `WHERE ${where.join(' AND ')}` : ''}
+      ORDER BY createdAt DESC
+      LIMIT ? OFFSET ?
+    `).bind(...params, limit, offset).all<UserRow>()
+  } catch (error) {
+    const normalizedError = error instanceof Error ? error : new Error('Unknown database error')
+    console.error('admin_users_fetch_failed', {
+      error: normalizedError.message
+    })
+    return jsonResponse({ error: 'Failed to fetch users' }, { status: 500 })
+  }
 
-  const normalized = (users.results || []).map((user: any) => ({
+  const normalized = (users.results ?? []).map((user) => ({
     ...user,
     banned: Boolean(user.banned)
   }))

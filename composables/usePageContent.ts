@@ -121,14 +121,14 @@ export const usePageContent = (pageName?: string) => {
 
   /** Map of field → ContentRow for quick lookup */
   const contentMap = computed<Record<string, ContentRow>>(() => {
-    const rows: ContentRow[] = (data.value as any)?.content || []
+    const rows: ContentRow[] = (data.value as ApiValue)?.content || []
     return rows.reduce((acc, row) => {
       acc[row.field] = row
       return acc
     }, {} as Record<string, ContentRow>)
   })
 
-  const hasDrafts = computed(() => (data.value as any)?.hasDrafts === true)
+  const hasDrafts = computed(() => (data.value as ApiValue)?.hasDrafts === true)
 
   /**
    * Get a field value from the DB.

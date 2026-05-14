@@ -15,11 +15,12 @@ export default defineEventHandler(async (event) => {
   try {
     const result = await reconcileDueDomains(env, db, 100)
     return jsonResponse({ success: true, data: result })
-  } catch (error: any) {
+  } catch (error) {
+    const normalizedError = error instanceof Error ? error : new Error('Failed to reconcile domains')
     console.error('admin_domain_reconcile_failed', {
       userId: session.user.id,
-      error: error?.message || 'Unknown error'
+      error: normalizedError.message
     })
-    return jsonResponse({ error: error?.message || 'Failed to reconcile domains' }, { status: 500 })
+    return jsonResponse({ error: normalizedError.message || 'Failed to reconcile domains' }, { status: 500 })
   }
 })

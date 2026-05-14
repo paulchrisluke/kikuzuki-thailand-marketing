@@ -22,6 +22,7 @@
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20260503.1",
     "@nuxt/eslint": "^1.15.2",
+    "@nuxt/eslint-config": "^1.15.2",
     "@playwright/test": "^1.59.1",
     "@tailwindcss/typography": "^0.5.19",
     "@types/dompurify": "^3.2.0",

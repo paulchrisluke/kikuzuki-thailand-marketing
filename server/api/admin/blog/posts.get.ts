@@ -19,7 +19,7 @@ export default defineEventHandler(async (event) => {
   const status = query.status as string | undefined
 
   let sql = `SELECT id, title, slug, excerpt, category, author_id, published_at, created_at, updated_at FROM platform_blog_posts`
-  const params: any[] = []
+  const params: ApiRecord[] = []
 
   if (status === 'published') {
     sql += ` WHERE published_at IS NOT NULL`

@@ -15,7 +15,7 @@ export default defineEventHandler(async (event) => {
   const query = getQuery(event)
   const search = String(query.q || '').trim().toLowerCase()
   const stuckOnly = String(query.stuck || '') === 'true'
-  const params: any[] = []
+  const params: ApiRecord[] = []
   const where = [`sd.type = 'custom'`, `sd.status != 'deleted'`]
 
   if (search) {

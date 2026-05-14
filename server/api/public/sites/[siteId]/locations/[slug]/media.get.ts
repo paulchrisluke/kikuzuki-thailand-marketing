@@ -14,7 +14,7 @@ export default defineEventHandler(async (event) => {
 
   const location = await db.prepare(
     `SELECT id FROM business_locations WHERE site_id = ? AND slug = ? AND status = 'active' LIMIT 1`
-  ).bind(siteId, slug).first()
+  ).bind(siteId, slug).first<{ id: string }>()
   if (!location) return jsonResponse({ error: 'Location not found' }, { status: 404 })
 
   const query = getQuery(event)

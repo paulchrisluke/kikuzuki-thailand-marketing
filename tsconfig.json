@@ -4,6 +4,7 @@
     "esModuleInterop": true,
     "allowSyntheticDefaultImports": true,
     "strict": true,
+    "useUnknownInCatchVariables": true,
     "module": "esnext",
     "target": "es2020",
     "moduleResolution": "bundler",

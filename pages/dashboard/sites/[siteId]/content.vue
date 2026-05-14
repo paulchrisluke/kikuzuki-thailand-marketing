@@ -307,6 +307,7 @@
                 {{ cmd.label }}
               </UButton>
             </div>
+            <!-- eslint-disable vue/no-v-html -->
             <div
               :id="`field-${activeField}`"
               contenteditable="true"
@@ -315,6 +316,7 @@
               v-html="DOMPurify.sanitize(editingValue || '')"
               @blur="onRichTextBlur"
             />
+            <!-- eslint-enable vue/no-v-html -->
           </div>
 
           <div v-else-if="activeFieldDef?.type === 'media'" class="space-y-2">
@@ -380,7 +382,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue'
 import DOMPurify from 'isomorphic-dompurify'
-import { contentRegistry, editablePages, getFieldDef } from '~/config/content-registry'
+import { editablePages, getFieldDef } from '~/config/content-registry'
 import type { FieldDefinition } from '~/config/content-registry'
 
 definePageMeta({ layout: 'editor', ssr: false })
@@ -401,9 +403,9 @@ const platformHostname = computed(() => {
 })
 
 // ─── Site Context ───────────────────────────────────────────────────────
-const siteData = ref<any>(null)
+const siteData = ref<ApiRecord | null>(null)
 const siteLocations = ref<Array<{ id: string; slug: string; title: string; is_primary: boolean }>>([])
-const organizationEntitlements = ref<Record<string, any>>({})
+const organizationEntitlements = ref<ApiRecord>({})
 const previewToken = ref('')
 const siteName = computed(() => siteData.value?.name || 'Loading...')
 const siteDomain = computed(() => siteData.value?.subdomain ? `${siteData.value.subdomain}.${platformHostname.value}` : 'localhost:3000')
@@ -421,7 +423,7 @@ const sitePreviewBaseUrl = computed(() => {
 // Load editor context
 const loadEditorContext = async () => {
   try {
-    const response = await $fetch<{ context: any }>(`/api/editor/sites/${siteId}/context`)
+    const response = await $fetch<{ context: ApiValue }>(`/api/editor/sites/${siteId}/context`)
     siteData.value = response.context.site
     siteLocations.value = response.context.locations || []
     organizationEntitlements.value = response.context.organization.entitlements || {}
@@ -671,11 +673,29 @@ const saving = ref(false)
 const publishing = ref(false)
 const discardPending = ref(false)
 
+function getErrorMessage(error: unknown, fallback: string): string {
+  if (error && typeof error === 'object') {
+    const response = (error as Record<string, unknown>).response
+    if (response && typeof response === 'object') {
+      const responseData = (response as Record<string, unknown>)._data
+      if (responseData && typeof responseData === 'object') {
+        const statusMessage = (responseData as Record<string, unknown>).statusMessage
+        if (typeof statusMessage === 'string' && statusMessage) return statusMessage
+      }
+    }
+
+    const message = (error as Record<string, unknown>).message
+    if (typeof message === 'string' && message) return message
+  }
+
+  return fallback
+}
+
 const loadPageContent = async () => {
   if (requiresLocationSelection.value) return
 
   try {
-    const res = await $fetch<{ content: any[]; hasDrafts: boolean }>(
+    const res = await $fetch<{ content: ApiRecord[]; hasDrafts: boolean }>(
       endpointWithContentScope(`/api/editor/sites/${siteId}/content/${selectedPageId.value}`)
     )
     const map: Record<string, string> = {}
@@ -721,10 +741,10 @@ const handleSaveDraft = async () => {
     serverHasDrafts.value = true
     iframeLoading.value = true
     previewReloadToken.value = Date.now()
-  } catch (error: any) {
-    const msg = error?.response?._data?.statusMessage || error.message || 'Unknown error'
+  } catch (error) {
+    const msg = getErrorMessage(error, 'Unknown error')
     toast.add({ description: `Save failed: ${msg}`, color: 'error' })
-    throw error // Re-throw so callers like handlePublish know it failed
+    throw error instanceof Error ? error : new Error(String(error)) // Re-throw so callers like handlePublish know it failed
   } finally {
     saving.value = false
   }
@@ -743,8 +763,8 @@ const handlePublish = async () => {
     toast.add({ description: 'Published live!', color: 'success' })
     iframeLoading.value = true
     previewReloadToken.value = Date.now()
-  } catch (error: any) {
-    const msg = error?.response?._data?.statusMessage || error.message || 'Unknown error'
+  } catch (error) {
+    const msg = getErrorMessage(error, 'Unknown error')
     toast.add({ description: `Publish failed: ${msg}`, color: 'error' })
   } finally {
     publishing.value = false

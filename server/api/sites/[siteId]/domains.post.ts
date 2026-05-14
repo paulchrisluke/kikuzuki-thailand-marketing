@@ -9,11 +9,19 @@ import {
 } from '~/server/utils/domains'
 import { notifyDomainLifecycle } from '~/server/utils/domain-notifications'
 
+interface CreateDomainBody {
+  domain?: string
+  include_www?: boolean
+}
+
 export default defineEventHandler(async (event) => {
   const siteId = getRouterParam(event, 'siteId')
-  const body = await readBody(event) as { domain?: string; include_www?: boolean }
+  const body = await readBody<CreateDomainBody>(event)
   if (!siteId) return jsonResponse({ error: 'Site ID is required' }, { status: 400 })
-  if (!body.domain) return jsonResponse({ error: 'Domain is required' }, { status: 400 })
+  if (!body || typeof body !== 'object') return jsonResponse({ error: 'Invalid request body' }, { status: 400 })
+  const requestedDomain = typeof body.domain === 'string' ? body.domain.trim() : ''
+  const includeWww = body.include_www !== false
+  if (!requestedDomain) return jsonResponse({ error: 'Domain is required' }, { status: 400 })
 
   const env = cloudflareEnv(event)
   const db = env.REVIEWS_DB
@@ -31,7 +39,7 @@ export default defineEventHandler(async (event) => {
     JOIN member m ON o.id = m.organizationId
     WHERE s.id = ? AND m.userId = ? AND m.role IN ('owner', 'admin')
     LIMIT 1
-  `).bind(siteId, session.user.id).first()
+  `).bind(siteId, session.user.id).first<{ id: string; organization_id: string; name: string; member_role: 'owner' | 'admin' }>()
   if (!siteResult) return jsonResponse({ error: 'Site not found or access denied' }, { status: 404 })
 
   // For backward compatibility with existing code
@@ -40,14 +48,14 @@ export default defineEventHandler(async (event) => {
     organization_id: siteResult.organization_id,
     name: siteResult.name
   }
-  const actorType = siteResult.member_role || 'owner'
+  const actorType = siteResult.member_role
 
 
   if (!(await hasCustomDomainsEntitlement(db, site.organization_id))) {
     return jsonResponse({ error: 'Custom domains require a paid plan.' }, { status: 403 })
   }
 
-  const validation = validateCustomDomain(env, body.domain)
+  const validation = validateCustomDomain(env, requestedDomain)
   if (!validation.valid) return jsonResponse({ error: validation.reason }, { status: 400 })
 
 
@@ -55,8 +63,8 @@ export default defineEventHandler(async (event) => {
     const domains = await createCustomDomainPair(env, db, {
       siteId,
       organizationId: site.organization_id,
-      domain: body.domain,
-      includeWww: body.include_www !== false,
+      domain: requestedDomain,
+      includeWww,
       actorId: session.user.id,
       actorType
     })
@@ -77,16 +85,17 @@ export default defineEventHandler(async (event) => {
     return jsonResponse({
       success: true,
       domains: domains.map((domain) => ({ ...domain, instructions: domainInstructions(domain) })),
-      requested_hostnames: domainPair(body.domain, body.include_www !== false)
+      requested_hostnames: domainPair(requestedDomain, includeWww)
     })
-  } catch (error: any) {
+  } catch (error) {
+    const normalizedError = error instanceof Error ? error : new Error('Unknown error')
     console.error('domains_create_failed', {
       siteId,
       organizationId: site.organization_id,
       userId: session.user.id,
-      requestedDomain: body.domain,
-      error: error?.message || 'Unknown error',
-      stack: error?.stack || null
+      requestedDomain,
+      error: normalizedError.message,
+      stack: normalizedError.stack || null
     })
     return jsonResponse({ error: 'Failed to add domain' }, { status: 500 })
   }

@@ -15,12 +15,7 @@ export const useUpgradeModal = () => {
   }
 
   return {
-    isOpen: computed({
-      get: () => state.value.isOpen,
-      set: (value: boolean) => {
-        state.value.isOpen = value
-      }
-    }),
+    isOpen: computed(() => state.value.isOpen),
     feature: computed(() => state.value.feature),
     open,
     close

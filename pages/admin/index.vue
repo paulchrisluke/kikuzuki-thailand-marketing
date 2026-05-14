@@ -375,7 +375,7 @@ async function loadAnalytics() {
     const response = await $fetch('/api/admin/analytics')
     analytics.value = response
     return true
-  } catch (err) {
+  } catch {
     console.error('Failed to load analytics:', err)
     return false
   } finally {
@@ -389,7 +389,7 @@ async function loadBlogPosts() {
     blogPosts.value = response.posts || []
     blogError.value = ''
     return true
-  } catch (err) {
+  } catch {
     console.error('Failed to load blog posts:', err)
     blogError.value = 'Failed to load blog posts. Please try again.'
     return false
@@ -404,7 +404,7 @@ async function loadDomains() {
     domains.value = response.domains || []
     domainEvents.value = response.events || []
     return true
-  } catch (err) {
+  } catch {
     console.error('Failed to load domains:', err)
     return false
   } finally {
@@ -418,7 +418,7 @@ async function syncAdminDomain(domainId) {
     await $fetch(`/api/admin/domains/${domainId}/sync`, { method: 'POST' })
     addToast('Domain synced', 'success')
     await loadDomains()
-  } catch (err) {
+  } catch {
     addToast('Failed to sync domain', 'error')
   } finally {
     adminSyncingDomainId.value = null
@@ -432,7 +432,7 @@ async function loadUsers() {
     const response = await $fetch(`/api/admin/users${query}`)
     users.value = response.users || []
     return true
-  } catch (err) {
+  } catch {
     console.error('Failed to load users:', err)
     return false
   } finally {
@@ -452,7 +452,7 @@ async function impersonateUser(userId) {
     }
     addToast('Impersonation started', 'success')
     await navigateTo('/dashboard')
-  } catch (err) {
+  } catch {
     addToast('Failed to impersonate user', 'error')
   } finally {
     impersonatingUserId.value = null
@@ -502,7 +502,7 @@ async function confirmDeletePost() {
     await $fetch(`/api/admin/blog/posts/${pendingDeletePostId.value}`, { method: 'DELETE' })
     await loadBlogPosts()
     addToast('Post deleted successfully', 'success')
-  } catch (err) {
+  } catch {
     addToast('Failed to delete post', 'error')
   } finally {
     deletingPostId.value = null
@@ -520,7 +520,7 @@ async function sendToChowbot() {
       body: { prompt: chowbotPrompt.value }
     })
     chowbotResponse.value = response.content
-  } catch (err) {
+  } catch {
     chowbotResponse.value = 'Failed to generate content. Please try again.'
   } finally {
     chowbotLoading.value = false

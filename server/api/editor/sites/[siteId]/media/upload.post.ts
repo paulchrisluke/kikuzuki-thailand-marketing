@@ -66,7 +66,7 @@ export default defineEventHandler(async (event) => {
 
   const site = await db.prepare(
     `SELECT organization_id FROM sites WHERE id = ? LIMIT 1`
-  ).bind(siteId).first()
+  ).bind(siteId).first<{ organization_id: string }>()
   if (!site) return jsonResponse({ error: 'Site not found' }, { status: 404 })
 
   const membership = await db.prepare(`
@@ -114,7 +114,22 @@ export default defineEventHandler(async (event) => {
   }
 
   const locationIdPart = formData.find(p => p.name === 'locationId')
-  const locationId = locationIdPart?.data ? Buffer.from(locationIdPart.data).toString() : null
+  let locationId: string | null = null
+  if (locationIdPart?.data) {
+    const candidate = Buffer.from(locationIdPart.data).toString().trim()
+    if (candidate) {
+      const location = await db.prepare(`
+        SELECT id
+        FROM business_locations
+        WHERE id = ? AND site_id = ? AND organization_id = ?
+        LIMIT 1
+      `).bind(candidate, siteId, site.organization_id).first()
+      if (!location) {
+        return jsonResponse({ error: 'Invalid locationId' }, { status: 400 })
+      }
+      locationId = candidate
+    }
+  }
 
   const assetId = crypto.randomUUID()
   const kind = VIDEO_MIME_TYPES.has(contentType) ? 'video' : 'file'
@@ -143,12 +158,13 @@ export default defineEventHandler(async (event) => {
   } catch (error) {
     try {
       await deleteFromR2(env, r2Key)
-    } catch (cleanupError: any) {
+    } catch (cleanupError) {
+      const normalizedCleanupError = cleanupError instanceof Error ? cleanupError : new Error('Unknown error')
       console.error('media_upload_cleanup_failed', {
         siteId,
         assetId,
         r2Key,
-        error: cleanupError?.message || 'Unknown error',
+        error: normalizedCleanupError.message,
       })
     }
     throw error
