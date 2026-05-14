@@ -1,55 +1,52 @@
 <template>
-  <div class="min-h-screen bg-default">
-    <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-      <div class="mb-8 flex items-center gap-4">
-        <NuxtLink to="/admin" class="text-muted hover:text-default transition-colors">← Admin</NuxtLink>
-        <h1 class="text-2xl font-bold text-default">Edit Post</h1>
-        <span v-if="post?.published_at" class="ml-auto text-sm text-green-600 font-medium">Published {{ formatDate(post.published_at) }}</span>
-        <span v-else class="ml-auto text-sm text-dimmed font-medium">Draft</span>
-      </div>
-
-      <div v-if="loadPending" class="text-center py-12 text-muted">Loading…</div>
-      <div v-else-if="loadError" class="bg-red-50 border border-red-200 rounded-lg p-6 text-red-600">{{ loadError }}</div>
-
-      <UCard v-else>
-        <div class="space-y-6">
-          <div>
-            <label class="block text-sm font-medium text-default mb-2">Title <span class="text-red-500">*</span></label>
-            <UInput v-model="form.title" size="lg" />
-          </div>
-
-          <div>
-            <label class="block text-sm font-medium text-default mb-2">Excerpt</label>
-            <UTextarea v-model="form.excerpt" :rows="2" />
-          </div>
-
-          <div>
-            <label class="block text-sm font-medium text-default mb-2">Category</label>
-            <USelect v-model="form.category" :options="categories" placeholder="Select a category" />
-          </div>
-
-          <div>
-            <label class="block text-sm font-medium text-default mb-2">Body (Markdown) <span class="text-red-500">*</span></label>
-            <UTextarea v-model="form.body" :rows="20" class="font-mono text-sm" />
-          </div>
-
-          <p v-if="errorMessage" class="text-red-600 text-sm">{{ errorMessage }}</p>
-          <p v-if="successMessage" class="text-green-600 text-sm">{{ successMessage }}</p>
-
-          <div class="flex gap-3 pt-2">
-            <UButton @click="update()" :loading="saving" variant="outline" color="neutral">Save Changes</UButton>
-            <UButton v-if="!post?.published_at" @click="update(true)" :loading="saving" color="primary">Publish</UButton>
-            <UButton v-else @click="unpublish()" :loading="saving" variant="outline" color="neutral">Unpublish</UButton>
-            <UButton @click="remove()" :loading="deleting" variant="outline" color="error" class="ml-auto">Delete</UButton>
-          </div>
-        </div>
-      </UCard>
+  <div class="p-4 lg:p-6 max-w-4xl">
+    <div class="mb-6 flex items-center gap-3">
+      <h1 class="text-2xl font-bold text-default">Edit Post</h1>
+      <span v-if="post?.published_at" class="ml-auto text-sm text-green-600 font-medium">Published {{ formatDate(post.published_at) }}</span>
+      <span v-else class="ml-auto text-sm text-dimmed font-medium">Draft</span>
     </div>
+
+    <div v-if="loadPending" class="text-center py-12 text-muted">Loading…</div>
+    <div v-else-if="loadError" class="bg-red-50 border border-red-200 rounded-lg p-6 text-red-600">{{ loadError }}</div>
+
+    <UCard v-else>
+      <div class="space-y-6">
+        <div>
+          <label class="block text-sm font-medium text-default mb-2">Title <span class="text-red-500">*</span></label>
+          <UInput v-model="form.title" size="lg" />
+        </div>
+
+        <div>
+          <label class="block text-sm font-medium text-default mb-2">Excerpt</label>
+          <UTextarea v-model="form.excerpt" :rows="2" />
+        </div>
+
+        <div>
+          <label class="block text-sm font-medium text-default mb-2">Category</label>
+          <USelect v-model="form.category" :options="categories" placeholder="Select a category" />
+        </div>
+
+        <div>
+          <label class="block text-sm font-medium text-default mb-2">Body (Markdown) <span class="text-red-500">*</span></label>
+          <UTextarea v-model="form.body" :rows="20" class="font-mono text-sm" />
+        </div>
+
+        <p v-if="errorMessage" class="text-red-600 text-sm">{{ errorMessage }}</p>
+        <p v-if="successMessage" class="text-green-600 text-sm">{{ successMessage }}</p>
+
+        <div class="flex gap-3 pt-2">
+          <UButton @click="update()" :loading="saving" variant="outline" color="neutral">Save Changes</UButton>
+          <UButton v-if="!post?.published_at" @click="update(true)" :loading="saving" color="primary">Publish</UButton>
+          <UButton v-else @click="unpublish()" :loading="saving" variant="outline" color="neutral">Unpublish</UButton>
+          <UButton @click="remove()" :loading="deleting" variant="outline" color="error" class="ml-auto">Delete</UButton>
+        </div>
+      </div>
+    </UCard>
   </div>
 </template>
 
 <script setup lang="ts">
-definePageMeta({ layout: 'default' })
+definePageMeta({ layout: 'dashboard' })
 
 const route = useRoute()
 const postId = route.params.postId as string

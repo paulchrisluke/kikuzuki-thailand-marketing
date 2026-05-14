@@ -1,108 +1,25 @@
 <template>
-  <div class="platform-theme min-h-screen bg-default">
-    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-      <div class="mb-8 flex items-center justify-between">
-        <div>
-          <h1 class="text-3xl font-bold text-default">Platform Admin Dashboard</h1>
-          <p class="text-muted mt-2">Manage KrabiClaw platform content and settings</p>
-        </div>
-        <UColorModeButton variant="ghost" color="neutral" size="sm" />
-      </div>
+  <div class="p-4 lg:p-6">
+    <div v-if="loading" class="text-center py-12">
+      <p class="text-muted">Loading...</p>
+    </div>
 
-      <div v-if="loading" class="text-center py-12">
-        <p class="text-muted">Loading...</p>
-      </div>
+    <div v-else-if="error" class="bg-red-50 border border-red-200 rounded-lg p-6">
+      <p class="text-red-600">{{ error }}</p>
+    </div>
 
-      <div v-else-if="error" class="bg-red-50 border border-red-200 rounded-lg p-6">
-        <p class="text-red-600">{{ error }}</p>
-      </div>
-
-      <div v-else>
-        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-6 mb-8">
-          <UCard class="hover:shadow-md transition-shadow cursor-pointer" @click="activeTab = 'content'">
-            <div class="flex items-center gap-4">
-              <div class="w-12 h-12 bg-blue-500 text-white rounded-lg flex items-center justify-center">
-                <UIcon name="i-heroicons-document-text" class="w-6 h-6" />
-              </div>
-              <div>
-                <h3 class="font-semibold text-default">Content</h3>
-                <p class="text-sm text-muted">Manage pages</p>
-              </div>
-            </div>
-          </UCard>
-
-          <UCard class="hover:shadow-md transition-shadow cursor-pointer" @click="activeTab = 'blog'">
-            <div class="flex items-center gap-4">
-              <div class="w-12 h-12 bg-green-500 text-white rounded-lg flex items-center justify-center">
-                <UIcon name="i-heroicons-newspaper" class="w-6 h-6" />
-              </div>
-              <div>
-                <h3 class="font-semibold text-default">Blog</h3>
-                <p class="text-sm text-muted">Platform posts</p>
-              </div>
-            </div>
-          </UCard>
-
-          <UCard class="hover:shadow-md transition-shadow cursor-pointer" @click="activeTab = 'analytics'">
-            <div class="flex items-center gap-4">
-              <div class="w-12 h-12 bg-purple-500 text-white rounded-lg flex items-center justify-center">
-                <UIcon name="i-heroicons-chart-bar" class="w-6 h-6" />
-              </div>
-              <div>
-                <h3 class="font-semibold text-default">Analytics</h3>
-                <p class="text-sm text-muted">View metrics</p>
-              </div>
-            </div>
-          </UCard>
-
-          <UCard class="hover:shadow-md transition-shadow cursor-pointer" @click="activeTab = 'chowbot'">
-            <div class="flex items-center gap-4">
-              <div class="w-12 h-12 bg-orange-500 text-white rounded-lg flex items-center justify-center">
-                <UIcon name="i-heroicons-sparkles" class="w-6 h-6" />
-              </div>
-              <div>
-                <h3 class="font-semibold text-default">ChowBot</h3>
-                <p class="text-sm text-muted">AI assistant</p>
-              </div>
-            </div>
-          </UCard>
-
-          <UCard class="hover:shadow-md transition-shadow cursor-pointer" @click="activeTab = 'domains'">
-            <div class="flex items-center gap-4">
-              <div class="w-12 h-12 bg-cyan-500 text-white rounded-lg flex items-center justify-center">
-                <UIcon name="i-heroicons-globe-alt" class="w-6 h-6" />
-              </div>
-              <div>
-                <h3 class="font-semibold text-default">Domains</h3>
-                <p class="text-sm text-muted">SaaS hostnames</p>
-              </div>
-            </div>
-          </UCard>
-
-          <UCard class="hover:shadow-md transition-shadow cursor-pointer" @click="activeTab = 'users'">
-            <div class="flex items-center gap-4">
-              <div class="w-12 h-12 bg-slate-700 text-white rounded-lg flex items-center justify-center">
-                <UIcon name="i-heroicons-users" class="w-6 h-6" />
-              </div>
-              <div>
-                <h3 class="font-semibold text-default">Users</h3>
-                <p class="text-sm text-muted">Support access</p>
-              </div>
-            </div>
-          </UCard>
-        </div>
-
-        <div v-if="activeTab === 'content'" class="bg-elevated rounded-lg shadow-sm border border-default p-6">
-          <h2 class="text-xl font-bold text-default mb-4">Platform Content</h2>
-          <div class="space-y-4">
-            <div v-for="page in platformPages" :key="page" class="flex items-center justify-between p-4 bg-muted rounded-lg">
-              <span class="font-medium text-default capitalize">{{ page }}</span>
-              <UButton size="sm" variant="outline" @click="editContent(page)">Edit</UButton>
-            </div>
+    <div v-else>
+      <div v-if="activeTab === 'content'" class="bg-elevated rounded-lg shadow-sm border border-default p-6">
+        <h2 class="text-xl font-bold text-default mb-4">Platform Content</h2>
+        <div class="space-y-4">
+          <div v-for="page in platformPages" :key="page" class="flex items-center justify-between p-4 bg-muted rounded-lg">
+            <span class="font-medium text-default capitalize">{{ page }}</span>
+            <UButton size="sm" variant="outline" @click="editContent(page)">Edit</UButton>
           </div>
         </div>
+      </div>
 
-        <div v-if="activeTab === 'blog'" class="bg-elevated rounded-lg shadow-sm border border-default p-6">
+      <div v-if="activeTab === 'blog'" class="bg-elevated rounded-lg shadow-sm border border-default p-6">
           <div class="flex items-center justify-between mb-4">
             <h2 class="text-xl font-bold text-default">Platform Blog</h2>
             <UButton size="sm" @click="createPost">New Post</UButton>
@@ -181,16 +98,6 @@
           </div>
         </div>
 
-        <div v-if="activeTab === 'chowbot'" class="bg-elevated rounded-lg shadow-sm border border-default p-6">
-          <h2 class="text-xl font-bold text-default mb-4">ChowBot AI Assistant</h2>
-          <p class="text-muted mb-4">Use ChowBot to generate platform content, blog posts, and more.</p>
-          <UTextarea v-model="chowbotPrompt" placeholder="Ask ChowBot to help with platform content..." :rows="4" class="mb-4" />
-          <UButton @click="sendToChowbot" :loading="chowbotLoading">Generate</UButton>
-          <div v-if="chowbotResponse" class="mt-4 p-4 bg-muted rounded-lg">
-            <p class="text-default whitespace-pre-wrap">{{ chowbotResponse }}</p>
-          </div>
-        </div>
-
         <div v-if="activeTab === 'domains'" class="bg-elevated rounded-lg shadow-sm border border-default p-6">
           <div class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
             <div>
@@ -243,68 +150,73 @@
         </div>
 
         <div v-if="activeTab === 'users'" class="bg-elevated rounded-lg shadow-sm border border-default p-6">
-          <div class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+          <div class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between mb-6">
             <div>
               <h2 class="text-xl font-bold text-default">Users</h2>
-              <p class="text-sm text-muted">Find owners and impersonate their account for support.</p>
+              <p class="text-sm text-muted">Find and impersonate accounts for support.</p>
             </div>
-            <div class="flex flex-col gap-2 sm:flex-row">
-              <UInput v-model="userSearch" placeholder="Search users" icon="i-heroicons-magnifying-glass" />
-              <UButton variant="soft" color="neutral" :loading="usersLoading" @click="loadUsers">Refresh</UButton>
+            <div class="flex gap-2">
+              <UInput v-model="userSearch" placeholder="Search users" icon="i-heroicons-magnifying-glass" @keyup.enter="loadUsers" />
+              <UButton variant="soft" color="neutral" :loading="usersLoading" @click="loadUsers">Search</UButton>
             </div>
           </div>
 
-          <div class="mt-6 space-y-3">
-            <div v-if="usersLoading" class="text-sm text-muted">Loading users...</div>
-            <div v-else-if="users.length === 0" class="text-sm text-muted">No users found.</div>
-            <div v-for="user in users" v-else :key="user.id" class="rounded-lg border border-default p-4">
-              <div class="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-                <div class="min-w-0">
-                  <div class="flex flex-wrap items-center gap-2">
-                    <p class="break-all font-medium text-default">{{ user.email }}</p>
-                    <UBadge :color="user.role === 'admin' ? 'primary' : 'neutral'" variant="soft">{{ user.role || 'user' }}</UBadge>
-                    <UBadge v-if="user.banned" color="error" variant="soft">Banned</UBadge>
-                  </div>
-                  <p class="mt-1 text-sm text-muted">{{ user.name || 'Unnamed user' }} · joined {{ formatDate(user.createdAt) }}</p>
-                </div>
+          <UTable :data="users" :columns="userColumns" :loading="usersLoading">
+            <template #email-cell="{ row }">
+              <div class="flex items-center gap-2">
+                <span class="break-all font-medium text-default">{{ row.original.email }}</span>
+                <UBadge v-if="row.original.banned" color="error" variant="soft" size="xs">Banned</UBadge>
+              </div>
+            </template>
+            <template #name-cell="{ row }">
+              <span class="text-muted">{{ row.original.name || '—' }}</span>
+            </template>
+            <template #role-cell="{ row }">
+              <UBadge :color="row.original.role === 'admin' ? 'primary' : 'neutral'" variant="soft" size="xs">
+                {{ row.original.role || 'user' }}
+              </UBadge>
+            </template>
+            <template #createdAt-cell="{ row }">
+              <span class="text-sm text-muted">{{ formatDate(row.original.createdAt) }}</span>
+            </template>
+            <template #actions-cell="{ row }">
+              <UTooltip :text="row.original.role === 'admin' ? 'Cannot impersonate admin' : 'Impersonate user'">
                 <UButton
-                  size="sm"
-                  variant="soft"
+                  size="xs"
+                  variant="ghost"
                   color="neutral"
                   icon="i-heroicons-arrow-right-on-rectangle"
-                  :disabled="user.role === 'admin'"
-                  :loading="impersonatingUserId === user.id"
-                  @click="impersonateUser(user.id)"
-                >
-                  Impersonate
-                </UButton>
-              </div>
-            </div>
-          </div>
+                  :disabled="row.original.role === 'admin'"
+                  :loading="impersonatingUserId === row.original.id"
+                  @click="impersonateUser(row.original.id)"
+                />
+              </UTooltip>
+            </template>
+          </UTable>
         </div>
       </div>
 
-      <UModal v-model:open="deleteConfirmOpen" :ui="{ content: 'max-w-md' }">
-        <template #content>
-          <div class="p-6">
-            <h3 class="text-lg font-semibold text-default mb-2">Delete post?</h3>
-            <p class="text-sm text-muted mb-6">This action cannot be undone.</p>
-            <div class="flex justify-end gap-2">
-              <UButton variant="ghost" color="neutral" @click="closeDeleteConfirm">Cancel</UButton>
-              <UButton color="red" :loading="deletingPostId !== null" @click="confirmDeletePost">Delete</UButton>
-            </div>
+    <UModal v-model:open="deleteConfirmOpen" :ui="{ content: 'max-w-md' }">
+      <template #content>
+        <div class="p-6">
+          <h3 class="text-lg font-semibold text-default mb-2">Delete post?</h3>
+          <p class="text-sm text-muted mb-6">This action cannot be undone.</p>
+          <div class="flex justify-end gap-2">
+            <UButton variant="ghost" color="neutral" @click="closeDeleteConfirm">Cancel</UButton>
+            <UButton color="red" :loading="deletingPostId !== null" @click="confirmDeletePost">Delete</UButton>
           </div>
-        </template>
-      </UModal>
-    </div>
+        </div>
+      </template>
+    </UModal>
   </div>
 </template>
 
 <script setup>
-definePageMeta({ layout: 'default' })
+definePageMeta({ layout: 'dashboard' })
 
 const auth = useAuth()
-const activeTab = ref('content')
+const route = useRoute()
+const activeTab = computed(() => route.query.tab || 'analytics')
 const loading = ref(true)
 const error = ref('')
 const { addToast } = useToast()
@@ -315,10 +227,6 @@ const blogError = ref('')
 const deleteConfirmOpen = ref(false)
 const pendingDeletePostId = ref(null)
 const deletingPostId = ref(null)
-
-const chowbotPrompt = ref('')
-const chowbotResponse = ref('')
-const chowbotLoading = ref(false)
 
 const analytics = ref({ metrics: { users: 0, organizations: 0, sites: 0, posts: 0, menus: 0, locations: 0 }, recentSites: [] })
 const analyticsLoading = ref(false)
@@ -332,6 +240,14 @@ const users = ref([])
 const userSearch = ref('')
 const usersLoading = ref(false)
 const impersonatingUserId = ref(null)
+
+const userColumns = [
+  { accessorKey: 'email', header: 'Email' },
+  { accessorKey: 'name', header: 'Name' },
+  { accessorKey: 'role', header: 'Role' },
+  { accessorKey: 'createdAt', header: 'Joined' },
+  { id: 'actions', header: '' },
+]
 
 const isAdmin = computed(() => {
   const user = auth.data.value?.user
@@ -450,8 +366,17 @@ async function impersonateUser(userId) {
     if (typeof auth.session?.value?.refresh === 'function') {
       await auth.session.value.refresh()
     }
-    addToast('Impersonation started', 'success')
-    await navigateTo('/dashboard')
+    // Navigate to the impersonated user's first site, or their dashboard
+    try {
+      const { sites } = await $fetch('/api/sites')
+      if (sites?.length > 0) {
+        await navigateTo(`/dashboard/sites/${sites[0].id}`)
+      } else {
+        await navigateTo('/dashboard')
+      }
+    } catch {
+      await navigateTo('/dashboard')
+    }
   } catch {
     addToast('Failed to impersonate user', 'error')
   } finally {
@@ -510,20 +435,4 @@ async function confirmDeletePost() {
   }
 }
 
-async function sendToChowbot() {
-  if (!chowbotPrompt.value.trim()) return
-  
-  chowbotLoading.value = true
-  try {
-    const response = await $fetch('/api/admin/ai/generate', {
-      method: 'POST',
-      body: { prompt: chowbotPrompt.value }
-    })
-    chowbotResponse.value = response.content
-  } catch {
-    chowbotResponse.value = 'Failed to generate content. Please try again.'
-  } finally {
-    chowbotLoading.value = false
-  }
-}
 </script>

@@ -157,8 +157,8 @@ export default defineNuxtConfig({
       tasks: true
     },
     scheduledTasks: {
-      '*/10 * * * *': ['domain-reconciliation'],
-      '0 3 * * *': ['domain-reconciliation-daily']
+      '*/10 * * * *': ['~/server/tasks/domain-reconciliation'],
+      '0 3 * * *': ['~/server/tasks/domain-reconciliation-daily']
     },
     cloudflare: {
       deployConfig: true

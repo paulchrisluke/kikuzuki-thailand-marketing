@@ -1,42 +1,37 @@
 <template>
-  <div class="min-h-screen bg-default">
-    <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-      <div class="mb-8 flex items-center gap-4">
-        <NuxtLink to="/admin" class="text-muted hover:text-default transition-colors">← Admin</NuxtLink>
-        <h1 class="text-2xl font-bold text-default">New Blog Post</h1>
-      </div>
+  <div class="p-4 lg:p-6 max-w-4xl">
+    <h1 class="text-2xl font-bold text-default mb-6">New Blog Post</h1>
 
-      <UCard>
-        <div class="space-y-6">
-          <div>
-            <label class="block text-sm font-medium text-default mb-2">Title <span class="text-red-500">*</span></label>
-            <UInput v-model="form.title" placeholder="How to..." size="lg" />
-          </div>
-
-          <div>
-            <label class="block text-sm font-medium text-default mb-2">Excerpt</label>
-            <UTextarea v-model="form.excerpt" placeholder="One or two sentences summarising the post..." :rows="2" />
-          </div>
-
-          <div>
-            <label class="block text-sm font-medium text-default mb-2">Category</label>
-            <USelect v-model="form.category" :options="categories" placeholder="Select a category" />
-          </div>
-
-          <div>
-            <label class="block text-sm font-medium text-default mb-2">Body (Markdown) <span class="text-red-500">*</span></label>
-            <UTextarea v-model="form.body" placeholder="Write your post in Markdown..." :rows="20" class="font-mono text-sm" />
-          </div>
-
-          <p v-if="errorMessage" class="text-red-600 text-sm">{{ errorMessage }}</p>
-
-          <div class="flex gap-3 pt-2">
-            <UButton @click="save(false)" :loading="saving" variant="outline" color="neutral">Save Draft</UButton>
-            <UButton @click="save(true)" :loading="saving" color="primary">Publish</UButton>
-          </div>
+    <UCard>
+      <div class="space-y-6">
+        <div>
+          <label class="block text-sm font-medium text-default mb-2">Title <span class="text-red-500">*</span></label>
+          <UInput v-model="form.title" placeholder="How to..." size="lg" />
         </div>
-      </UCard>
-    </div>
+
+        <div>
+          <label class="block text-sm font-medium text-default mb-2">Excerpt</label>
+          <UTextarea v-model="form.excerpt" placeholder="One or two sentences summarising the post..." :rows="2" />
+        </div>
+
+        <div>
+          <label class="block text-sm font-medium text-default mb-2">Category</label>
+          <USelect v-model="form.category" :options="categories" placeholder="Select a category" />
+        </div>
+
+        <div>
+          <label class="block text-sm font-medium text-default mb-2">Body (Markdown) <span class="text-red-500">*</span></label>
+          <UTextarea v-model="form.body" placeholder="Write your post in Markdown..." :rows="20" class="font-mono text-sm" />
+        </div>
+
+        <p v-if="errorMessage" class="text-red-600 text-sm">{{ errorMessage }}</p>
+
+        <div class="flex gap-3 pt-2">
+          <UButton @click="save(false)" :loading="saving" variant="outline" color="neutral">Save Draft</UButton>
+          <UButton @click="save(true)" :loading="saving" color="primary">Publish</UButton>
+        </div>
+      </div>
+    </UCard>
   </div>
 </template>
 
@@ -46,7 +41,7 @@ interface CreatePostResponse {
   [key: string]: ApiValue
 }
 
-definePageMeta({ layout: 'default' })
+definePageMeta({ layout: 'dashboard' })
 
 const categories = ['Marketing', 'Technology', 'Design', 'Business', 'SEO', 'Social Media']
 

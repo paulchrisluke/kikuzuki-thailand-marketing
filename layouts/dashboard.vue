@@ -1,11 +1,17 @@
 <template>
   <div class="platform-theme">
     <ChowBot />
-    <div v-if="impersonatedBy" class="border-b border-warning bg-warning/10 px-4 py-2">
-      <div class="mx-auto flex max-w-7xl flex-col gap-2 text-sm text-highlighted sm:flex-row sm:items-center sm:justify-between">
-        <span>You are impersonating {{ sessionData?.user?.email }}.</span>
+    <div v-if="impersonatedBy" class="pointer-events-none fixed bottom-6 left-1/2 z-50 -translate-x-1/2">
+      <div class="pointer-events-auto flex items-center gap-3 rounded-full border border-warning/40 bg-default px-5 py-2.5 shadow-xl">
+        <span class="relative flex size-2 shrink-0">
+          <span class="absolute inline-flex h-full w-full animate-ping rounded-full bg-warning opacity-75" />
+          <span class="relative inline-flex size-2 rounded-full bg-warning" />
+        </span>
+        <span class="text-sm font-medium text-highlighted">
+          Impersonating <span class="font-semibold">{{ sessionData?.user?.email }}</span>
+        </span>
         <UButton size="xs" color="warning" variant="soft" :loading="stoppingImpersonation" @click="stopImpersonating">
-          Stop impersonating
+          Exit
         </UButton>
       </div>
     </div>
@@ -19,8 +25,20 @@
     >
       <UDashboardSidebar resizable collapsible>
         <template #header="{ collapsed }">
+          <!-- Admin level -->
+          <template v-if="inAdminWorkspace">
+            <div v-if="collapsed" class="flex items-center justify-center">
+              <div class="flex size-8 items-center justify-center rounded-lg bg-error">
+                <span class="text-sm font-bold text-white">A</span>
+              </div>
+            </div>
+            <div v-else class="px-2">
+              <span class="font-semibold text-sm">Platform Admin</span>
+            </div>
+          </template>
+
           <!-- Org level -->
-          <template v-if="!inSiteWorkspace">
+          <template v-else-if="!inSiteWorkspace">
             <div v-if="collapsed" class="flex items-center justify-center">
               <div class="flex size-8 items-center justify-center rounded-lg bg-primary">
                 <span class="text-sm font-bold text-white">K</span>
@@ -46,7 +64,7 @@
           </template>
           
           <!-- Site level — show site name with back button -->
-          <template v-else>
+          <template v-else-if="inSiteWorkspace">
             <div v-if="collapsed" class="flex items-center justify-center">
               <div class="flex size-8 items-center justify-center rounded-lg bg-primary">
                 <span class="text-sm font-bold text-white">K</span>
@@ -149,7 +167,7 @@
                 aria-label="Scope settings"
               />
               <UColorModeButton variant="ghost" color="neutral" size="sm" />
-              <UTooltip text="ChowBot">
+              <UTooltip v-if="!inAdminWorkspace" text="ChowBot">
                 <UButton
                   icon="i-lucide-bot"
                   color="neutral"
@@ -220,6 +238,7 @@ const routeSiteId = computed(() => {
 })
 
 const inSiteWorkspace = computed(() => Boolean(routeSiteId.value))
+const inAdminWorkspace = computed(() => route.path.startsWith('/admin'))
 const activeSiteId = computed(() => routeSiteId.value || selectedSiteId.value)
 
 const selectedSiteLabel = computed(() =>
@@ -239,6 +258,7 @@ const sitePath = (path = '', query?: Record<string, string>) => {
 }
 
 const navbarTitle = computed(() => {
+  if (inAdminWorkspace.value) return 'Platform Admin'
   if (!inSiteWorkspace.value || !siteContext.value) return 'Dashboard'
   return siteContext.value.brand_name
 })
@@ -248,6 +268,16 @@ const platformNavigation = computed(() => [[
   { label: 'Sites', icon: 'i-heroicons-globe-alt', to: '/dashboard/sites' },
   { label: 'Billing', icon: 'i-heroicons-credit-card', to: '/dashboard/billing' },
   { label: 'Settings', icon: 'i-heroicons-cog-6-tooth', to: '/dashboard/settings' }
+]])
+
+const adminNavigation = computed(() => [[
+  { label: 'Analytics', icon: 'i-heroicons-chart-bar', to: '/admin' },
+  { label: 'Blog', icon: 'i-heroicons-newspaper', to: '/admin?tab=blog' },
+  { label: 'Content', icon: 'i-heroicons-document-text', to: '/admin?tab=content' },
+  { label: 'Domains', icon: 'i-heroicons-globe-alt', to: '/admin?tab=domains' },
+  { label: 'Users', icon: 'i-heroicons-users', to: '/admin?tab=users' },
+], [
+  { label: 'Back to Dashboard', icon: 'i-heroicons-arrow-left', to: '/dashboard' },
 ]])
 
 const selectedSiteButton = computed(() => ({
@@ -316,6 +346,7 @@ const siteNavigation = computed(() => [[
 ]])
 
 const navigationItems = computed(() => {
+  if (inAdminWorkspace.value) return adminNavigation.value
   if (!activeSiteId.value || !routeSiteId.value) return platformNavigation.value
   return siteNavigation.value
 })
@@ -379,7 +410,7 @@ async function stopImpersonating() {
   stoppingImpersonation.value = true
   try {
     await $fetch('/api/admin/impersonation/stop', { method: 'POST' })
-    await navigateTo('/admin')
+    await navigateTo('/admin?tab=users')
   } catch (error) {
     console.error('Failed to stop impersonation:', error)
     toast.add({

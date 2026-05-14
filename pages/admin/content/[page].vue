@@ -1,32 +1,29 @@
 <template>
-  <div class="platform-theme min-h-screen bg-default">
-    <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-      <div class="mb-8">
-        <NuxtLink to="/admin" class="text-primary hover:text-primary/80 mb-4 inline-block">← Back to Dashboard</NuxtLink>
-        <h1 class="text-3xl font-bold text-default capitalize">Edit {{ page }}</h1>
-      </div>
+  <div class="p-4 lg:p-6 max-w-4xl">
+    <h1 class="text-2xl font-bold text-default capitalize mb-6">Edit {{ page }}</h1>
 
-      <div v-if="loading" class="text-center py-12">
-        <p class="text-muted">Loading...</p>
-      </div>
-
-      <div v-else-if="error" class="bg-red-50 border border-red-200 rounded-lg p-6">
-        <p class="text-red-600">{{ error }}</p>
-      </div>
-
-      <UCard v-else>
-        <UTextarea v-model="content" :rows="20" placeholder="Enter page content..." class="mb-4" />
-        <div class="flex gap-4">
-          <UButton @click="saveContent" :loading="saving">Save</UButton>
-          <UButton variant="outline" to="/admin">Cancel</UButton>
-        </div>
-      </UCard>
+    <div v-if="loading" class="text-center py-12">
+      <p class="text-muted">Loading...</p>
     </div>
+
+    <div v-else-if="error" class="bg-red-50 border border-red-200 rounded-lg p-6">
+      <p class="text-red-600">{{ error }}</p>
+    </div>
+
+    <UCard v-else>
+      <UFormGroup label="Page content">
+        <UTextarea id="content" v-model="content" :rows="20" placeholder="Enter page content..." class="mb-4" />
+      </UFormGroup>
+      <div class="flex gap-4">
+        <UButton @click="saveContent" :loading="saving">Save</UButton>
+        <UButton variant="outline" to="/admin?tab=content">Cancel</UButton>
+      </div>
+    </UCard>
   </div>
 </template>
 
 <script setup>
-definePageMeta({ layout: 'default' })
+definePageMeta({ layout: 'dashboard' })
 
 const route = useRoute()
 const page = route.params.page
