@@ -90,9 +90,9 @@ function isPlatformRoute(pathname: string): boolean {
 async function resolveTenantSite(host: string, event: any): Promise<any> {
   const env = cloudflareEnv(event)
   const db = env.REVIEWS_DB
-  const hostname = host.split(':')[0]
+  const hostname = host?.split(':')[0] || ''
   
-  if (!db) return null
+  if (!db || !hostname) return null
 
   // Local development support (e.g., demo.localhost)
   if (hostname.includes('.localhost')) {
@@ -122,7 +122,9 @@ async function resolveTenantSite(host: string, event: any): Promise<any> {
   
   // Try subdomains
   const platformDomain = getPlatformDomain(env)
-  const subdomain = hostname.replace(`.${platformDomain}`, '')
+  const subdomain = platformDomain && hostname.endsWith(`.${platformDomain}`)
+    ? hostname.replace(`.${platformDomain}`, '')
+    : hostname.split('.')[0]
   if (subdomain && subdomain !== 'www' && subdomain !== hostname) {
     const subdomainSite = await db.prepare(`
       SELECT s.id, s.organization_id, s.theme_id, s.subdomain, s.onboarding_status, sd.domain,

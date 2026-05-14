@@ -251,7 +251,11 @@ async function handleSubscriptionDeleted(env: Record<string, string | undefined>
 
     // Set free entitlements
     await setOrganizationEntitlementsFromPlan(env, db, billing.organization_id, 'free')
-    await deleteOrganizationCustomDomains(env, db, billing.organization_id)
+    try {
+      await deleteOrganizationCustomDomains(env, db, billing.organization_id)
+    } catch (error) {
+      console.error(`Failed to delete custom domains for org ${billing.organization_id} during subscription deletion`, error)
+    }
     
     console.log(`Subscription deleted for organization ${billing.organization_id}`)
   } catch (error) {

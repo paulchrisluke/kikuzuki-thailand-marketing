@@ -53,17 +53,19 @@ export async function uploadImageBuffer(
 
 /** Delete an image from Cloudflare Images. */
 export async function deleteImage(env: Record<string, any>, imageId: string): Promise<void> {
+  let res: Response
   try {
-    const res = await fetch(`${apiBase(env)}/v1/${imageId}`, {
+    res = await fetch(`${apiBase(env)}/v1/${imageId}`, {
       method: 'DELETE',
       headers: authHeader(env),
     })
-    if (!res.ok) {
-      const details = await res.text()
-      throw new Error(`CF Images delete error ${res.status}: ${details}`)
-    }
   } catch (error: any) {
     throw new Error(`CF Images delete request failed for ${imageId}: ${error?.message || 'Unknown error'}`)
+  }
+
+  if (!res.ok) {
+    const details = await res.text()
+    throw new Error(`CF Images delete error ${res.status}: ${details}`)
   }
 }
 

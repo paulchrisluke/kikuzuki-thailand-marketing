@@ -15,6 +15,10 @@ export interface SiteContent {
   hero_subtitle?: string
   hero_image_asset_id?: string
   hero_video_asset_id?: string
+  /** Resolved public URL of hero_image_asset_id — injected by getPageContent/getDraftContent JOINs */
+  hero_image_url?: string | null
+  /** Resolved public URL of hero_video_asset_id — injected by getPageContent/getDraftContent JOINs */
+  hero_video_url?: string | null
   updated_at: string
 }
 
@@ -65,21 +69,26 @@ export const getSiteContent = async (db: D1Database, organizationId: string, sit
 
 export const getPageContent = async (db: D1Database, organizationId: string, siteId: string, page: string, locationId?: string): Promise<SiteContent[]> => {
   let query = `
-    SELECT id, organization_id, site_id, location_id, page, field, value, type, source, content, hero_title, hero_subtitle, hero_image_asset_id, hero_video_asset_id, updated_at 
-     FROM site_content 
-     WHERE organization_id = ? AND site_id = ? AND page = ?
+    SELECT sc.id, sc.organization_id, sc.site_id, sc.location_id, sc.page, sc.field,
+           sc.value, sc.type, sc.source, sc.content, sc.hero_title, sc.hero_subtitle,
+           sc.hero_image_asset_id, sc.hero_video_asset_id, sc.updated_at,
+           img.public_url AS hero_image_url, vid.public_url AS hero_video_url
+    FROM site_content sc
+    LEFT JOIN media_assets img ON sc.hero_image_asset_id = img.id AND img.status = 'active'
+    LEFT JOIN media_assets vid ON sc.hero_video_asset_id = vid.id AND vid.status = 'active'
+    WHERE sc.organization_id = ? AND sc.site_id = ? AND sc.page = ?
   `
   const params = [organizationId, siteId, page]
-  
+
   if (locationId) {
-    query += ` AND location_id = ?`
+    query += ` AND sc.location_id = ?`
     params.push(locationId)
   } else {
-    query += ` AND location_id IS NULL`
+    query += ` AND sc.location_id IS NULL`
   }
-  
-  query += ` ORDER BY field`
-  
+
+  query += ` ORDER BY sc.field`
+
   const { results } = await db.prepare(query).bind(...params).all<SiteContent>()
   return results ?? []
 }
@@ -108,17 +117,22 @@ export const getSiteContentField = async (db: D1Database, organizationId: string
 // Draft Management
 export const getDraftContent = async (db: D1Database, organizationId: string, siteId: string, page: string, locationId?: string): Promise<SiteContent[]> => {
   let query = `
-    SELECT id, organization_id, site_id, location_id, page, field, value, type, source, content, hero_title, hero_subtitle, hero_image_asset_id, hero_video_asset_id, updated_at 
-     FROM site_content_drafts 
-     WHERE organization_id = ? AND site_id = ? AND page = ?
+    SELECT sc.id, sc.organization_id, sc.site_id, sc.location_id, sc.page, sc.field,
+           sc.value, sc.type, sc.source, sc.content, sc.hero_title, sc.hero_subtitle,
+           sc.hero_image_asset_id, sc.hero_video_asset_id, sc.updated_at,
+           img.public_url AS hero_image_url, vid.public_url AS hero_video_url
+    FROM site_content_drafts sc
+    LEFT JOIN media_assets img ON sc.hero_image_asset_id = img.id AND img.status = 'active'
+    LEFT JOIN media_assets vid ON sc.hero_video_asset_id = vid.id AND vid.status = 'active'
+    WHERE sc.organization_id = ? AND sc.site_id = ? AND sc.page = ?
   `
   const params = [organizationId, siteId, page]
-  
+
   if (locationId) {
-    query += ` AND location_id = ?`
+    query += ` AND sc.location_id = ?`
     params.push(locationId)
   } else {
-    query += ` AND location_id IS NULL`
+    query += ` AND sc.location_id IS NULL`
   }
   
   query += ` ORDER BY field`

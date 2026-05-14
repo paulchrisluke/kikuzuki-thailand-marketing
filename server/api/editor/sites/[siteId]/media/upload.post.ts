@@ -34,13 +34,13 @@ function sniffMimeType(data: Uint8Array): string {
 
   if (data.byteLength >= 12
     && data[0] === 0x52 && data[1] === 0x49 && data[2] === 0x46 && data[3] === 0x46
-    && data[8] === 0x41 && data[9] === 0x56 && data[10] === 0x49) {
+    && data[8] === 0x41 && data[9] === 0x56 && data[10] === 0x49 && data[11] === 0x20) {
     return 'video/x-msvideo'
   }
 
   if (data.byteLength >= 12
     && data[4] === 0x66 && data[5] === 0x74 && data[6] === 0x79 && data[7] === 0x70) {
-    const brand = String.fromCharCode(data[8], data[9], data[10], data[11]).toLowerCase()
+    const brand = String.fromCharCode(data[8] ?? 0, data[9] ?? 0, data[10] ?? 0, data[11] ?? 0).toLowerCase()
     if (brand.startsWith('qt')) return 'video/quicktime'
     return 'video/mp4'
   }
@@ -96,6 +96,9 @@ export default defineEventHandler(async (event) => {
   if (!ALLOWED_MIME_TYPES.has(contentType)) {
     return jsonResponse({ error: `Unsupported file type: ${contentType}` }, { status: 415 })
   }
+  if (contentType === 'image/svg+xml') {
+    return jsonResponse({ error: 'SVG uploads are not supported for security reasons' }, { status: 415 })
+  }
   if (declaredContentType && declaredContentType !== contentType) {
     console.warn('media_upload_mime_mismatch', {
       siteId,
@@ -117,7 +120,8 @@ export default defineEventHandler(async (event) => {
   const kind = VIDEO_MIME_TYPES.has(contentType) ? 'video' : 'file'
   const r2Key = buildR2Key(siteId, assetId, filename)
 
-  const publicUrl = await uploadToR2(env, r2Key, filePart.data, contentType)
+  const uploadData = new Uint8Array(filePart.data).buffer
+  const publicUrl = await uploadToR2(env, r2Key, uploadData, contentType)
 
   try {
     await createMediaAsset(db, {

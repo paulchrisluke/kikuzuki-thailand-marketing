@@ -181,10 +181,11 @@
                   class="justify-start"
                   @click="selectField(fieldKey)"
                 >
-                  <span class="flex min-w-0 flex-1 items-start gap-2 text-left">
+                    <span class="flex min-w-0 flex-1 items-start gap-2 text-left">
                     <UIcon
-                      :name="fieldSupportsGoogle(fieldKey) ? 'i-heroicons-lock-closed' : 'i-heroicons-bars-3-bottom-left'"
-                      class="mt-0.5 size-4 shrink-0 text-dimmed"
+                      :name="fieldHasActiveGoogleSync(fieldKey) ? 'i-simple-icons-google' : 'i-heroicons-bars-3-bottom-left'"
+                      class="mt-0.5 size-4 shrink-0"
+                      :class="fieldHasActiveGoogleSync(fieldKey) ? 'text-primary' : 'text-dimmed'"
                     />
                     <span class="min-w-0 flex-1">
                       <span class="flex items-center gap-2">
@@ -223,7 +224,7 @@
         </div>
 
         <div class="min-h-0 flex-1 overflow-auto p-4">
-          <div class="relative mx-auto h-full min-h-[640px] max-w-7xl overflow-hidden rounded-lg border border-default bg-default shadow-sm  ">
+          <div class="relative mx-auto h-full min-h-160 max-w-7xl overflow-hidden rounded-lg border border-default bg-default shadow-sm  ">
         <iframe
           id="site-preview-frame"
           ref="previewFrame"
@@ -327,31 +328,13 @@
             />
           </div>
 
-          <UCard v-if="activeFieldRequiresGoogleUpgrade">
-            <div class="space-y-4">
-              <div class="flex items-start gap-3">
-                <div class="flex size-10 shrink-0 items-center justify-center rounded-lg bg-elevated text-primary">
-                  <UIcon name="i-simple-icons-google" class="size-5" />
-                </div>
-                <div>
-                  <p class="text-sm font-semibold text-highlighted ">Auto-sync from Google Business</p>
-                  <p class="mt-1 text-sm text-muted">Save hours keeping your site updated — connect once, sync forever.</p>
-                </div>
-              </div>
-              <UButton to="/dashboard/billing" color="primary" block>
-                Upgrade to Pro — $25/mo
-              </UButton>
-            </div>
-          </UCard>
-
           <div
-            v-else-if="activeFieldDef?.googleLocked"
+            v-if="activeFieldDef?.googleLocked && hasGoogleBusinessEntitlement"
             class="flex items-center gap-2 rounded-lg border border-default bg-muted px-3 py-2 text-sm text-default"
           >
             <UBadge color="neutral" variant="soft" size="sm">
               Synced from Google Business
             </UBadge>
-            <span class="text-xs text-muted">Manual edits remain available.</span>
           </div>
 
           <UButton
@@ -363,6 +346,18 @@
             @click="applyField"
           >
             Apply
+          </UButton>
+
+          <UButton
+            v-if="activeFieldRequiresGoogleUpgrade"
+            color="neutral"
+            variant="soft"
+            icon="i-heroicons-sparkles"
+            block
+            class="justify-start text-left"
+            @click="openUpgradeModal('google-business-sync')"
+          >
+            Upgrade to Pro to fill this from Google Business
           </UButton>
 
                   </div>
@@ -533,7 +528,7 @@ const openGroups = ref<string[]>(['hero'])
 
 const groupConfig: Record<string, Array<{ id: string; label: string; icon: string; fields: string[] }>> = {
   home: [
-    { id: 'hero',   label: 'Hero Section',    icon: 'i-heroicons-photo', fields: ['hero.title', 'hero.subtitle', 'hero.video'] },
+    { id: 'hero',   label: 'Hero Section',    icon: 'i-heroicons-photo', fields: ['hero.title', 'hero.subtitle', 'hero.image', 'hero.video'] },
     { id: 'cta',    label: 'Call to Action',  icon: 'i-heroicons-megaphone', fields: ['cta.title', 'cta.description'] },
     { id: 'business', label: 'Business Info', icon: 'i-heroicons-building-storefront', fields: ['business.name', 'business.description', 'business.establishment_year'] },
     { id: 'contact', label: 'Contact & Hours', icon: 'i-heroicons-clock', fields: ['business.address', 'business.phone', 'business.hours'] },
@@ -590,9 +585,12 @@ const hasGoogleBusinessEntitlement = computed(() => organizationEntitlements.val
 const activeFieldRequiresGoogleUpgrade = computed(() =>
   activeFieldDef.value?.googleLocked === true && !hasGoogleBusinessEntitlement.value
 )
+const { open: openUpgradeModal } = useUpgradeModal()
 
 const fieldSupportsGoogle = (fieldKey: string): boolean =>
   getFieldDef(selectedPageId.value, fieldKey)?.sources.includes('google') === true
+const fieldHasActiveGoogleSync = (fieldKey: string): boolean =>
+  hasGoogleBusinessEntitlement.value && fieldSupportsGoogle(fieldKey)
 
 const selectField = (key: string) => {
   activeField.value = key
@@ -781,7 +779,7 @@ const stripHtml = (html: string) => html.replace(/<[^>]*>/g, '').trim()
 
 const fieldPreview = (fieldKey: string): string => {
   const raw = currentValues.value[fieldKey] || getFieldDef(selectedPageId.value, fieldKey)?.defaultValue
-  if (!raw) return fieldSupportsGoogle(fieldKey) ? 'Syncs from Google Business' : 'Add content'
+  if (!raw) return fieldHasActiveGoogleSync(fieldKey) ? 'Synced from Google Business' : 'Add content'
   const text = stripHtml(raw)
   return text.length > 48 ? text.substring(0, 45) + '…' : text || 'Add content'
 }

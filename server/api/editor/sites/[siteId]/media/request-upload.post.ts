@@ -3,7 +3,7 @@
 // Client uploads directly to uploadUrl (multipart form), then calls /confirm.
 import { cloudflareEnv, jsonResponse } from '~/server/utils/api-response'
 import { getAuthSession } from '~/server/utils/auth'
-import { requestImageUpload } from '~/server/utils/cloudflare-images'
+import { deleteImage, requestImageUpload } from '~/server/utils/cloudflare-images'
 import { createMediaAsset } from '~/server/utils/media-asset-manager'
 
 export default defineEventHandler(async (event) => {
@@ -19,7 +19,7 @@ export default defineEventHandler(async (event) => {
 
   const site = await db.prepare(
     `SELECT id, organization_id FROM sites WHERE id = ? LIMIT 1`
-  ).bind(siteId).first<{ id: string; organization_id: string }>()
+  ).bind(siteId).first() as { id: string; organization_id: string } | null
   if (!site) return jsonResponse({ error: 'Site not found' }, { status: 404 })
 
   const membership = await db.prepare(`
@@ -59,22 +59,49 @@ export default defineEventHandler(async (event) => {
     locationId = trimmedLocationId
   }
 
-  const { imageId, uploadUrl } = await requestImageUpload(env)
   const assetId = crypto.randomUUID()
+  let imageId = ''
+  let uploadUrl = ''
+  try {
+    const upload = await requestImageUpload(env)
+    imageId = upload.imageId
+    uploadUrl = upload.uploadUrl
 
-  await createMediaAsset(db, {
-    id: assetId,
-    organization_id: site.organization_id,
-    site_id: siteId,
-    location_id: locationId,
-    kind: 'image',
-    provider: 'cloudflare_images',
-    source: 'uploaded',
-    cloudflare_image_id: imageId,
-    status: 'pending',
-    file_name: filename,
-    created_by_user_id: session.user.id,
-  })
+    await createMediaAsset(db, {
+      id: assetId,
+      organization_id: site.organization_id,
+      site_id: siteId,
+      location_id: locationId,
+      kind: 'image',
+      provider: 'cloudflare_images',
+      source: 'uploaded',
+      cloudflare_image_id: imageId,
+      status: 'pending',
+      file_name: filename,
+      created_by_user_id: session.user.id,
+    })
+  } catch (error: any) {
+    if (imageId) {
+      try {
+        await deleteImage(env, imageId)
+      } catch (cleanupError: any) {
+        console.error('media_request_upload_cleanup_failed', {
+          siteId,
+          assetId,
+          imageId,
+          error: cleanupError?.message || 'Unknown cleanup error'
+        })
+      }
+    }
+
+    console.error('media_request_upload_failed', {
+      siteId,
+      assetId,
+      imageId,
+      error: error?.message || 'Unknown error'
+    })
+    return jsonResponse({ error: 'Failed to initialize image upload' }, { status: 500 })
+  }
 
   return jsonResponse({ assetId, uploadUrl, imageId })
 })

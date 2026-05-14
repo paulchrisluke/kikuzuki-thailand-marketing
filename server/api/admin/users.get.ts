@@ -20,7 +20,7 @@ export default defineEventHandler(async (event) => {
   const params: any[] = []
   if (search) {
     const escapedSearch = search.replace(/([%_\\])/g, '\\$1')
-    where.push("lower(email) LIKE ? ESCAPE '\\\\'")
+    where.push("lower(email) LIKE ? ESCAPE '\\'")
     params.push(`%${escapedSearch}%`)
   }
 

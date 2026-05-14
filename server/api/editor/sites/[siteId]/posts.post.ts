@@ -24,10 +24,20 @@ export default defineEventHandler(async (event) => {
   `).bind(siteId, session.user.id).first()
   if (!site) return jsonResponse({ error: 'Site not found or access denied' }, { status: 404 })
 
+  const imageAssetId = typeof body.image_asset_id === 'string' ? body.image_asset_id.trim() : ''
+  if (imageAssetId) {
+    const asset = await db.prepare(
+      `SELECT id, organization_id FROM media_assets WHERE id = ? LIMIT 1`
+    ).bind(imageAssetId).first() as { id: string; organization_id: string } | null
+
+    if (!asset) return jsonResponse({ error: 'Invalid image asset' }, { status: 400 })
+    if (asset.organization_id !== site.organization_id) return jsonResponse({ error: 'Forbidden image asset' }, { status: 403 })
+  }
+
   const post = await createPost(db, site.organization_id, siteId, {
     title: body.title?.trim() || undefined,
     body: body.body.trim(),
-    image_asset_id: body.image_asset_id || undefined,
+    image_asset_id: imageAssetId || undefined,
     scheduled_for: body.scheduled_for || undefined,
     location_id: body.location_id || undefined,
     post_type: body.post_type || undefined,

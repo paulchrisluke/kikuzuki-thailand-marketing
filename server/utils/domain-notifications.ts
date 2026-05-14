@@ -77,6 +77,7 @@ async function sendEmail(
   let response: Response
   try {
     const dashboardUrl = safeDashboardUrl(opts.dashboardUrl)
+    const escapedDashboardUrl = escapeHtml(dashboardUrl)
     response = await fetch('https://api.resend.com/emails', {
       method: 'POST',
       headers: {
@@ -92,7 +93,7 @@ async function sendEmail(
         <p>${escapeHtml(opts.message)}</p>
         <p><strong>Domain:</strong> ${escapeHtml(opts.domain)}</p>
         <p><strong>Status:</strong> ${escapeHtml(opts.status)}</p>
-        <p><a href="${dashboardUrl}">Open domain settings</a></p>
+        <p><a href="${escapedDashboardUrl}">Open domain settings</a></p>
       `
       })
     })
@@ -165,16 +166,26 @@ export async function notifyDomainLifecycle(
 
   const phone = await getOrgWhatsAppPhone(db, opts.organizationId, opts.siteId)
   if (phone) {
-    await sendWhatsAppNotification(env, db, {
-      organizationId: opts.organizationId,
-      siteId: opts.siteId,
-      toPhone: phone,
-      template: 'domain_update',
-      vars: {
+    try {
+      await sendWhatsAppNotification(env, db, {
+        organizationId: opts.organizationId,
+        siteId: opts.siteId,
+        toPhone: phone,
+        template: 'domain_update',
+        vars: {
+          domain: opts.domain,
+          status: opts.status,
+          dashboard_url: opts.dashboardUrl
+        }
+      })
+    } catch (error: any) {
+      console.error('domain_notification_whatsapp_send_failed', {
+        organizationId: opts.organizationId,
+        siteId: opts.siteId,
         domain: opts.domain,
         status: opts.status,
-        dashboard_url: opts.dashboardUrl
-      }
-    })
+        error: error?.message || 'Unknown error'
+      })
+    }
   }
 }

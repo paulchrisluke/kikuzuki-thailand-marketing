@@ -40,6 +40,7 @@ interface LocationRow {
   city: string | null
   phone: string | null
   hero_image_asset_id: string | null
+  hero_video_asset_id: string | null
   website_url: string | null
   maps_url: string | null
   opening_hours: string | null
@@ -232,7 +233,7 @@ export default defineEventHandler(async (event) => {
     await db.batch(statements)
 
     const location = await db.prepare(`
-      SELECT id, slug, title, address, city, phone, hero_image_asset_id, website_url,
+      SELECT id, slug, title, address, city, phone, hero_image_asset_id, hero_video_asset_id, website_url,
              maps_url, opening_hours, is_primary, status, created_at, updated_at
       FROM business_locations
       WHERE id = ? AND organization_id = ? AND site_id = ?

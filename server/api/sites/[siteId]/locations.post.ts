@@ -124,7 +124,7 @@ export default defineEventHandler(async (event) => {
       SELECT COUNT(*) AS count
       FROM business_locations
       WHERE organization_id = ? AND site_id = ? AND status = 'active'
-    `).bind(site.organization_id, siteId).first<CountRow>()
+    `).bind(site.organization_id, siteId).first() as CountRow | null
 
     if (!activeCount) {
       console.error('Null active location count when creating location', {

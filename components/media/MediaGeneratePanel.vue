@@ -163,6 +163,12 @@ onUnmounted(() => {
 
 defineExpose({
   canKeep: computed(() => !!result.value),
-  keep: () => result.value && emit('keep', result.value),
+  keep: () => {
+    const item = result.value
+    if (item) {
+      emit('keep', item)
+      return item
+    }
+  },
 })
 </script>

@@ -5,11 +5,12 @@
 import { cloudflareEnv, jsonResponse } from '~/server/utils/api-response'
 import { getAuthSession } from '~/server/utils/auth'
 import { hasCredits, chargeCredits } from '~/server/utils/ai-credits'
-import { uploadImageBuffer } from '~/server/utils/cloudflare-images'
+import { deleteImage, uploadImageBuffer } from '~/server/utils/cloudflare-images'
 import { createMediaAsset } from '~/server/utils/media-asset-manager'
 
 const MODEL = '@cf/black-forest-labs/flux-1-schnell'
 const IMAGE_GENERATION_OUTPUT_TOKENS = 4000 // yields ~20 credits
+const IMAGE_GENERATION_TIMEOUT_MS = 20_000
 
 export default defineEventHandler(async (event) => {
   const siteId = getRouterParam(event, 'siteId')
@@ -53,14 +54,30 @@ export default defineEventHandler(async (event) => {
   let publicUrl = ''
   let thumbnailUrl = ''
   try {
-    const result = await ai.run(MODEL, { prompt, num_steps: 4 })
+    let timeoutHandle: ReturnType<typeof setTimeout> | null = null
+    const timeoutPromise = new Promise<never>((_, reject) => {
+      timeoutHandle = setTimeout(() => {
+        const timeoutError = new Error(`Image generation timed out after ${IMAGE_GENERATION_TIMEOUT_MS}ms`)
+        ;(timeoutError as any).code = 'AI_TIMEOUT'
+        reject(timeoutError)
+      }, IMAGE_GENERATION_TIMEOUT_MS)
+    })
+
+    const result = await Promise.race([
+      ai.run(MODEL, { prompt, num_steps: 4 }),
+      timeoutPromise
+    ]).finally(() => {
+      if (timeoutHandle) clearTimeout(timeoutHandle)
+    })
+
     const imageBase64 = typeof (result as any)?.image === 'string' ? (result as any).image.trim() : ''
     if (!imageBase64) {
       throw new Error('AI image generation returned an invalid response payload')
     }
 
     const buffer = Buffer.from(imageBase64, 'base64')
-    const uploadResult = await uploadImageBuffer(env, buffer, `generated-${Date.now()}.png`)
+    const imageData = new Uint8Array(buffer).buffer
+    const uploadResult = await uploadImageBuffer(env, imageData, `generated-${Date.now()}.png`)
     if (!uploadResult?.imageId || !uploadResult?.publicUrl || !uploadResult?.thumbnailUrl) {
       throw new Error('Image upload returned incomplete asset URLs')
     }
@@ -73,28 +90,51 @@ export default defineEventHandler(async (event) => {
       siteId,
       userId: session.user.id,
       model: MODEL,
+      timeoutMs: IMAGE_GENERATION_TIMEOUT_MS,
       error: error?.message || 'Unknown error',
       stack: error?.stack || null
     })
+    if (error?.code === 'AI_TIMEOUT') {
+      return jsonResponse({ error: 'Image generation timed out' }, { status: 504 })
+    }
     return jsonResponse({ error: 'Failed to generate image' }, { status: 500 })
   }
 
   const assetId = crypto.randomUUID()
-  await createMediaAsset(db, {
-    id: assetId,
-    organization_id: orgId,
-    site_id: siteId,
-    location_id: locationId,
-    kind: 'image',
-    provider: 'chowbot',
-    source: 'generated',
-    cloudflare_image_id: imageId,
-    public_url: publicUrl,
-    thumbnail_url: thumbnailUrl,
-    mime_type: 'image/png',
-    status: 'active',
-    created_by_user_id: session.user.id,
-  })
+  try {
+    await createMediaAsset(db, {
+      id: assetId,
+      organization_id: orgId,
+      site_id: siteId,
+      location_id: locationId,
+      kind: 'image',
+      provider: 'chowbot',
+      source: 'generated',
+      cloudflare_image_id: imageId,
+      public_url: publicUrl,
+      thumbnail_url: thumbnailUrl,
+      mime_type: 'image/png',
+      status: 'active',
+      created_by_user_id: session.user.id,
+    })
+  } catch (error: any) {
+    try {
+      if (imageId) await deleteImage(env, imageId)
+    } catch (cleanupError: any) {
+      console.error('generate_image_cleanup_failed', {
+        assetId,
+        imageId,
+        error: cleanupError?.message || 'Unknown cleanup error'
+      })
+    }
+
+    console.error('generate_image_create_media_asset_failed', {
+      assetId,
+      imageId,
+      error: error?.message || 'Unknown error'
+    })
+    return jsonResponse({ error: 'Failed to save generated image' }, { status: 500 })
+  }
 
   if (!isDev) {
     const cfCtx = event.context.cloudflare?.context
@@ -109,7 +149,11 @@ export default defineEventHandler(async (event) => {
         error: error?.message || 'Unknown error'
       })
     })
-    cfCtx?.waitUntil ? cfCtx.waitUntil(charge) : void charge
+    if (cfCtx?.waitUntil) {
+      cfCtx.waitUntil(charge)
+    } else {
+      await charge
+    }
   }
 
   return jsonResponse({ id: assetId, publicUrl, thumbnailUrl, status: 'active' })

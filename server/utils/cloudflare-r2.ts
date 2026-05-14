@@ -3,6 +3,24 @@ function bucket(env: Record<string, any>): R2Bucket {
   return env.MEDIA_BUCKET
 }
 
+function normalizeR2Key(key: string): string {
+  const raw = String(key)
+  if (!raw) throw new Error('Invalid key')
+  if (raw.includes('\u0000')) throw new Error('Invalid key')
+  if (raw.startsWith('/')) throw new Error('Invalid key')
+
+  const parts = raw.split('/').filter(Boolean)
+  if (!parts.length) throw new Error('Invalid key')
+
+  const safeParts = parts.map((part) => {
+    if (part === '.' || part === '..') throw new Error('Invalid key')
+    if (!/^[A-Za-z0-9._-]+$/.test(part)) throw new Error('Invalid key')
+    return part
+  })
+
+  return safeParts.join('/')
+}
+
 /** Upload a file to R2 and return its public CDN URL. */
 export async function uploadToR2(
   env: Record<string, any>,
@@ -10,13 +28,15 @@ export async function uploadToR2(
   body: ArrayBuffer | ReadableStream | Blob,
   contentType: string
 ): Promise<string> {
-  await bucket(env).put(key, body, { httpMetadata: { contentType } })
-  return getR2Url(env, key)
+  const normalizedKey = normalizeR2Key(key)
+  await bucket(env).put(normalizedKey, body, { httpMetadata: { contentType } })
+  return getR2Url(env, normalizedKey)
 }
 
 /** Delete a file from R2. */
 export async function deleteFromR2(env: Record<string, any>, key: string): Promise<void> {
-  await bucket(env).delete(key)
+  const normalizedKey = normalizeR2Key(key)
+  await bucket(env).delete(normalizedKey)
 }
 
 /** Build the public CDN URL for an R2 key. */
@@ -24,9 +44,8 @@ export function getR2Url(env: Record<string, any>, key: string): string {
   const base = typeof env.MEDIA_BASE_URL === 'string' ? env.MEDIA_BASE_URL.trim() : ''
   if (!base) throw new Error('MEDIA_BASE_URL is required')
   const normalizedBase = base.replace(/\/+$/, '')
-  const encodedKey = String(key)
+  const encodedKey = normalizeR2Key(key)
     .split('/')
-    .filter(segment => segment.length > 0)
     .map(segment => encodeURIComponent(segment))
     .join('/')
   return `${normalizedBase}/${encodedKey}`

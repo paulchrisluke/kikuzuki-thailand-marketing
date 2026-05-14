@@ -90,7 +90,7 @@ const placeholder = computed(
     v-else-if="isEditable"
     contenteditable="true"
     :class="[
-      'outline outline-2 outline-offset-2 outline-amber-400/50 hover:outline-amber-500',
+      'outline-2 outline-offset-2 outline-amber-400/50 hover:outline-amber-500',
       'focus:outline-amber-600 focus:bg-amber-50/30 rounded transition-all',
       'min-h-[1em] cursor-text',
       props.class

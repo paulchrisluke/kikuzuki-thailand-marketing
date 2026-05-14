@@ -6,7 +6,8 @@ export default defineTask({
     description: 'Reconcile due Cloudflare SaaS custom domains'
   },
   async run({ payload, context }) {
-    const env = context?.cloudflare?.env ?? {}
+    const taskContext = context as { cloudflare?: { env?: Record<string, any> } } | undefined
+    const env = taskContext?.cloudflare?.env ?? {}
     const db = env.REVIEWS_DB
     if (!db && import.meta.dev) {
       return { result: { checked: 0, failed: 0, skipped: 'REVIEWS_DB unavailable in local scheduled task context' } }

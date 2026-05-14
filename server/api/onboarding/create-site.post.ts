@@ -292,6 +292,9 @@ async function performRequiredSeeding(env: any, db: any, siteId: string, organiz
     }
     
     const resolvedSubdomain = subdomain || await db.prepare('SELECT subdomain FROM sites WHERE id = ?').bind(siteId).first().then((r: any) => r?.subdomain)
+    if (!resolvedSubdomain || typeof resolvedSubdomain !== 'string' || !resolvedSubdomain.trim()) {
+      throw new Error(`Missing subdomain for site ${siteId}`)
+    }
     await createSystemSubdomain(env, db, siteId, organizationId, resolvedSubdomain)
 
     // Step 3: Mark site as active (onboarding complete)

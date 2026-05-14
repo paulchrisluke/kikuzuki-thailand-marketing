@@ -109,12 +109,12 @@ export async function deleteMediaAsset(db: any, env: Record<string, any>, id: st
     SET status = 'deleted', updated_at = ?
     WHERE id = ? AND site_id = ? AND status != 'deleted'
     RETURNING id, provider, cloudflare_image_id, r2_key
-  `).bind(now, id, siteId).first<{
+  `).bind(now, id, siteId).first() as {
     id: string
     provider: MediaAsset['provider']
     cloudflare_image_id: string | null
     r2_key: string | null
-  }>()
+  } | null
 
   if (!deletedAsset) return
 
@@ -136,6 +136,8 @@ export async function deleteMediaAsset(db: any, env: Record<string, any>, id: st
       ...context,
       error: lastError?.message || 'Unknown error'
     })
+
+    throw lastError || new Error('media_asset_external_delete_failed')
   }
 
   if (deletedAsset.provider === 'cloudflare_images' && deletedAsset.cloudflare_image_id) {

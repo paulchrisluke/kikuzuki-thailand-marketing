@@ -73,7 +73,7 @@
               :class="selectedPost?.id === post.id ? 'bg-elevated' : ''"
               @click="selectPost(post)"
             >
-              <img v-if="post.image_url || post.image_asset_id" :src="post.image_url || post._imageUrl" class="size-10 shrink-0 rounded object-cover" />
+              <img v-if="post.image_url" :src="post.image_url" class="size-10 shrink-0 rounded object-cover" />
               <div v-else class="flex size-10 shrink-0 items-center justify-center rounded bg-muted">
                 <UIcon name="i-heroicons-document-text" class="size-4 text-muted" />
               </div>

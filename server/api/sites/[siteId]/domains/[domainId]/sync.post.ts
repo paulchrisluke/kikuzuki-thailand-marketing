@@ -6,7 +6,9 @@ import { notifyDomainLifecycle } from '~/server/utils/domain-notifications'
 export default defineEventHandler(async (event) => {
   const siteId = getRouterParam(event, 'siteId')
   const domainId = getRouterParam(event, 'domainId')
-  if (!siteId || !domainId) return jsonResponse({ error: 'Site ID and domain ID are required' }, { status: 400 })
+  if (typeof siteId !== 'string' || !siteId.trim() || typeof domainId !== 'string' || !domainId.trim()) {
+    return jsonResponse({ error: 'Site ID and domain ID are required' }, { status: 400 })
+  }
 
   const env = cloudflareEnv(event)
   const db = env.REVIEWS_DB
@@ -25,10 +27,24 @@ export default defineEventHandler(async (event) => {
   `).bind(siteId, session.user.id).first()
   if (!site) return jsonResponse({ error: 'Site not found or access denied' }, { status: 404 })
 
+  const domainRecord = await db.prepare(`
+    SELECT id, site_id
+    FROM site_domains
+    WHERE id = ?
+    LIMIT 1
+  `).bind(domainId).first() as { id: string; site_id: string } | null
+  if (!domainRecord || domainRecord.site_id !== site.id) {
+    return jsonResponse({ error: 'Site not found or access denied' }, { status: 404 })
+  }
+
   try {
     const domain = await syncDomainWithCloudflare(env, db, domainId, 'owner', session.user.id)
+    if (domain.site_id !== site.id) {
+      return jsonResponse({ error: 'Site not found or access denied' }, { status: 404 })
+    }
+
     await notifyDomainLifecycle(env, db, {
-      organizationId: domain.organization_id,
+      organizationId: site.organization_id,
       siteId,
       domain: domain.domain,
       status: domain.status,
@@ -38,6 +54,13 @@ export default defineEventHandler(async (event) => {
     })
     return jsonResponse({ success: true, domain: { ...domain, instructions: domainInstructions(domain) } })
   } catch (error: any) {
-    return jsonResponse({ error: error?.message || 'Failed to sync domain' }, { status: 500 })
+    console.error('domain_sync_failed', {
+      siteId,
+      domainId,
+      userId: session.user.id,
+      error: error?.message || 'Unknown error',
+      stack: error?.stack || null
+    })
+    return jsonResponse({ error: 'Failed to sync domain' }, { status: 500 })
   }
 })

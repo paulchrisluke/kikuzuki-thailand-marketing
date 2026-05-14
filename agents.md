@@ -45,7 +45,7 @@ Never add fallbacks ever.
 - Client: `lib/auth-client.ts` → `createAuthClient` from `better-auth/client`
 - `authClient` is auto-imported via Nuxt plugin — no explicit import needed in `<script setup>`
 - Platform admin access uses Better Auth `user.role = 'admin'`; org/site access uses Better Auth organization `member.role`
-- Current platform admin emails: `paulchrisluke@gmail.com`, `bamboo.chow@gmail.com`
+- Platform admin emails configured via secure config or PLATFORM_ADMIN_EMAILS env var
 - Admin support impersonation uses `authClient.admin.impersonateUser({ userId })`; dashboard must show the impersonation banner and `authClient.admin.stopImpersonating()`
 
 ## Local Login & Browser Testing
@@ -62,7 +62,8 @@ Never add fallbacks ever.
   - These scripts assume port `3000`; if Nuxt moved to `3001`, either free port `3000` or adjust the script before running
 - To test `/admin` locally, the local D1 user must have `user.role = 'admin'`
   - Check: `npx wrangler d1 execute REVIEWS_DB --local --command "SELECT email, role FROM user;"`
-  - Promote local user: `npx wrangler d1 execute REVIEWS_DB --local --command "UPDATE user SET role = 'admin' WHERE lower(email) = 'paulchrisluke@gmail.com';"`
+  - WARNING: Replace admin@example.com with your intended address before running to avoid accidentally granting admin privileges
+  - Promote local user: `npx wrangler d1 execute REVIEWS_DB --local --command "UPDATE user SET role = 'admin' WHERE lower(email) = 'admin@example.com';"`
 - To test client/owner view, use a non-admin email/user so the `/admin` route redirects away and the dashboard behaves like a normal restaurant owner
 
 ---

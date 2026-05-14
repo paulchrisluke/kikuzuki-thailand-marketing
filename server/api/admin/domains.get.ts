@@ -1,3 +1,4 @@
+import { getQuery } from 'h3'
 import { cloudflareEnv, jsonResponse } from '~/server/utils/api-response'
 import { getAuthSession } from '~/server/utils/auth'
 import { isPlatformOwner } from '~/server/utils/platform-auth'
@@ -39,10 +40,13 @@ export default defineEventHandler(async (event) => {
   const events = await db.prepare(`
     SELECT e.*, sd.domain
     FROM site_domain_events e
-    LEFT JOIN site_domains sd ON sd.id = e.domain_id
+    JOIN site_domains sd ON sd.id = e.domain_id
+    JOIN sites s ON s.id = sd.site_id
+    JOIN organization o ON o.id = sd.organization_id
+    WHERE ${where.join(' AND ')}
     ORDER BY e.created_at DESC
     LIMIT 100
-  `).all()
+  `).bind(...params).all()
 
   return jsonResponse({ success: true, domains: domains.results || [], events: events.results || [] })
 })

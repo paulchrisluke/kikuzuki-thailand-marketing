@@ -1,6 +1,7 @@
 export type FieldSource = 'manual' | 'google' | 'static' | 'computed'
 
-export type FieldType = TextField | TextareaField | RichTextField | ImageField | MediaField | MenuItemsField | BusinessHoursField | LocationField | ProductsField;
+export type FieldDefinition = TextField | TextareaField | RichTextField | ImageField | MediaField | MenuItemsField | BusinessHoursField | LocationField | ProductsField;
+export type FieldType = FieldDefinition;
 
 interface BaseField {
   label: string;

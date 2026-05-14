@@ -69,7 +69,7 @@ export default defineEventHandler(async (event) => {
         domain: domain.domain,
         status: domain.status,
         title: `Domain added: ${domain.domain}`,
-        message: `DNS setup is ready for ${domain.domain}.`,
+        message: `DNS configuration is required for ${domain.domain}. Follow the dashboard instructions to complete setup.`,
         dashboardUrl
       })
     }
@@ -80,6 +80,14 @@ export default defineEventHandler(async (event) => {
       requested_hostnames: domainPair(body.domain, body.include_www !== false)
     })
   } catch (error: any) {
-    return jsonResponse({ error: error?.message || 'Failed to add domain' }, { status: 500 })
+    console.error('domains_create_failed', {
+      siteId,
+      organizationId: site.organization_id,
+      userId: session.user.id,
+      requestedDomain: body.domain,
+      error: error?.message || 'Unknown error',
+      stack: error?.stack || null
+    })
+    return jsonResponse({ error: 'Failed to add domain' }, { status: 500 })
   }
 })

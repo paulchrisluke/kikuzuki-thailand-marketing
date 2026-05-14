@@ -177,7 +177,7 @@
                 :location-id="locationId"
                 accept="image"
                 title="Location hero image"
-                @change="saveHeroMedia"
+                @change="debouncedSaveHeroMedia"
               />
             </UFormField>
             <UFormField label="Hero Video">
@@ -187,7 +187,7 @@
                 :location-id="locationId"
                 accept="video"
                 title="Location hero video"
-                @change="saveHeroMedia"
+                @change="debouncedSaveHeroMedia"
               />
             </UFormField>
           </div>
@@ -214,6 +214,8 @@ interface BusinessLocation {
   status: string
   google_location_id: string | null
   last_synced_at: string | null
+  hero_image_asset_id?: string | null
+  hero_video_asset_id?: string | null
 }
 
 interface GbConnection {
@@ -267,11 +269,12 @@ const workspaceActions = computed(() => [
 const heroImageAssetId = ref<string | null>(null)
 const heroVideoAssetId = ref<string | null>(null)
 const heroSaved = ref(false)
+let heroSaveTimeout: ReturnType<typeof setTimeout> | null = null
 
 watch(location, (loc) => {
   if (loc) {
-    heroImageAssetId.value = (loc as any).hero_image_asset_id ?? null
-    heroVideoAssetId.value = (loc as any).hero_video_asset_id ?? null
+    heroImageAssetId.value = loc.hero_image_asset_id ?? null
+    heroVideoAssetId.value = loc.hero_video_asset_id ?? null
   }
 })
 
@@ -286,6 +289,15 @@ async function saveHeroMedia() {
   } catch (err: any) {
     toast.add({ description: err?.data?.error ?? 'Failed to save', color: 'error' })
   }
+}
+
+function debouncedSaveHeroMedia() {
+  if (heroSaveTimeout) {
+    clearTimeout(heroSaveTimeout)
+  }
+  heroSaveTimeout = setTimeout(() => {
+    saveHeroMedia()
+  }, 500)
 }
 
 const connectGoogleBusiness = async () => {

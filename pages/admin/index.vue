@@ -447,6 +447,9 @@ async function impersonateUser(userId) {
       method: 'POST',
       body: { userId }
     })
+    if (typeof auth.session?.value?.refresh === 'function') {
+      await auth.session.value.refresh()
+    }
     addToast('Impersonation started', 'success')
     await navigateTo('/dashboard')
   } catch (err) {

@@ -186,7 +186,7 @@ interface DashboardSite {
 
 const route = useRoute()
 const router = useRouter()
-const { data: sessionData, signOut } = useAuth()
+const { data: sessionData, signOut, session } = useAuth()
 const toast = useToast()
 const stoppingImpersonation = ref(false)
 const chowBot = useChowBot() as any

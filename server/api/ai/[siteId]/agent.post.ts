@@ -9,7 +9,16 @@ import { getMenus, getMenuWithItems, createMenu, updateMenu, createMenuItem, upd
 const MAX_ITERATIONS = 10
 const MODEL = 'claude-sonnet-4-6'
 
-const toSlug = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')
+const toSlug = (s: string) => {
+  const normalized = s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')
+  if (normalized) return normalized
+
+  let hash = 0
+  for (let i = 0; i < s.length; i += 1) {
+    hash = (hash * 31 + s.charCodeAt(i)) >>> 0
+  }
+  return `site-${hash.toString(36) || '0'}`
+}
 
 const TOOLS: AiTool[] = [
   // ── Posts ──────────────────────────────────────────────────────────────────
@@ -557,10 +566,18 @@ async function executeTool(
       const result = await ai.run('@cf/black-forest-labs/flux-1-schnell', {
         prompt: input.prompt,
         num_steps: 4,
-      }) as { image: string }
-      const buffer = Buffer.from(result.image, 'base64')
+      })
+      const imageBase64 = typeof result === 'object' && result !== null && 'image' in result && typeof (result as any).image === 'string'
+        ? (result as any).image.trim()
+        : ''
+      if (!imageBase64) {
+        throw new Error('AI image generation returned an invalid response payload')
+      }
+
+      const buffer = Buffer.from(imageBase64, 'base64')
+      const imageData = new Uint8Array(buffer).buffer
       const { imageId, publicUrl, thumbnailUrl } = await uploadImageBuffer(
-        env, buffer, `chowbot-${Date.now()}.png`
+        env, imageData, `chowbot-${Date.now()}.png`
       )
       const assetId = crypto.randomUUID()
       await createMediaAsset(db, {

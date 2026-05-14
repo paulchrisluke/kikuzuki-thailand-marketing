@@ -1,6 +1,6 @@
 import { appendResponseHeader, getHeader, getRequestURL } from 'h3'
 import { cloudflareEnv, jsonResponse } from '~/server/utils/api-response'
-import { getAuthSession } from '~/server/utils/auth'
+import { createAuth, getAuthSession } from '~/server/utils/auth'
 import { isPlatformOwner } from '~/server/utils/platform-auth'
 
 export default defineEventHandler(async (event) => {
@@ -12,12 +12,23 @@ export default defineEventHandler(async (event) => {
   if (!canStop) return jsonResponse({ error: 'Platform owner access required' }, { status: 403 })
 
   const authUrl = `${getRequestURL(event).origin}/api/auth/admin/stop-impersonating`
-  const response = await fetch(authUrl, {
-    method: 'POST',
-    headers: {
-      cookie: getHeader(event, 'cookie') || ''
-    }
-  })
+  const auth = createAuth(env)
+  let response: Response
+
+  try {
+    response = await auth.handler(new Request(authUrl, {
+      method: 'POST',
+      headers: {
+        cookie: getHeader(event, 'cookie') || ''
+      }
+    }))
+  } catch (error: any) {
+    console.error('admin_impersonation_stop_failed', {
+      authUrl,
+      error: error?.message || 'Auth handler invocation failed'
+    })
+    return jsonResponse({ error: 'Failed to stop impersonation' }, { status: 502 })
+  }
 
   const headerBag = response.headers as Headers & {
     getSetCookie?: () => string[]

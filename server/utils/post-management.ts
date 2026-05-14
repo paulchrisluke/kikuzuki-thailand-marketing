@@ -8,6 +8,8 @@ export interface Post {
   title: string | null
   body: string
   image_asset_id: string | null
+  /** Resolved public URL — injected by listPosts/getPublishedPosts JOIN, not a DB column */
+  image_url?: string | null
   cta_type: string | null
   cta_url: string | null
   event_title: string | null
@@ -46,15 +48,17 @@ export async function listPosts(
   status?: string
 ): Promise<Post[]> {
   let query = `
-    SELECT * FROM posts
-    WHERE organization_id = ? AND site_id = ?
+    SELECT p.*, ma.public_url AS image_url
+    FROM posts p
+    LEFT JOIN media_assets ma ON p.image_asset_id = ma.id AND ma.status = 'active'
+    WHERE p.organization_id = ? AND p.site_id = ?
   `
   const params: string[] = [organizationId, siteId]
   if (status) {
-    query += ` AND status = ?`
+    query += ` AND p.status = ?`
     params.push(status)
   }
-  query += ` ORDER BY updated_at DESC LIMIT 100`
+  query += ` ORDER BY p.updated_at DESC LIMIT 100`
   const result = await db.prepare(query).bind(...params).all()
   return result.results ?? []
 }

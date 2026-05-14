@@ -8,7 +8,8 @@ const redirects: Record<string, string> = {
 
 export default defineEventHandler((event) => {
   const url = getRequestURL(event)
-  const target = redirects[url.pathname]
+  const normalizedPathname = url.pathname === '/' ? '/' : url.pathname.replace(/\/$/, '')
+  const target = redirects[normalizedPathname]
   if (target) {
     const targetWithParams = `${target}${url.search}${url.hash}`
     // Permanent redirect for SEO

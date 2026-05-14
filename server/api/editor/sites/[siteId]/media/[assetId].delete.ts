@@ -32,6 +32,22 @@ export default defineEventHandler(async (event) => {
   const hasAccess = await verifySiteAccess(db, session.user.id, siteId)
   if (!hasAccess) return jsonResponse({ error: 'Access denied' }, { status: 403 })
 
-  await deleteMediaAsset(db, env, assetId, siteId)
-  return jsonResponse({ deleted: true })
+  const asset = await db.prepare(
+    `SELECT id, site_id FROM media_assets WHERE id = ? LIMIT 1`
+  ).bind(assetId).first() as { id: string; site_id: string } | null
+  if (!asset) return jsonResponse({ error: 'Asset not found' }, { status: 404 })
+  if (asset.site_id !== siteId) return jsonResponse({ error: 'Forbidden' }, { status: 403 })
+
+  try {
+    await deleteMediaAsset(db, env, assetId, siteId)
+    return jsonResponse({ deleted: true })
+  } catch (error: any) {
+    console.error('media_delete_failed', {
+      siteId,
+      assetId,
+      userId: session.user.id,
+      error: error?.message || 'Unknown error'
+    })
+    return jsonResponse({ error: 'Failed to delete asset' }, { status: 500 })
+  }
 })

@@ -225,12 +225,14 @@ function requireCloudflareConfig(env: DomainEnv) {
 async function cloudflareRequest<T>(
   env: DomainEnv,
   path: string,
-  init: RequestInit = {}
+  init: RequestInit = {},
+  signal?: AbortSignal
 ): Promise<T> {
   requireCloudflareConfig(env)
 
   const response = await fetch(`${CF_API_BASE}${path}`, {
     ...init,
+    signal,
     headers: {
       Authorization: `Bearer ${env.CF_CUSTOM_HOSTNAMES_API_TOKEN}`,
       'Content-Type': 'application/json',
@@ -251,7 +253,8 @@ async function createCloudflareHostname(
   env: DomainEnv,
   siteId: string,
   organizationId: string,
-  hostname: string
+  hostname: string,
+  signal?: AbortSignal
 ): Promise<CloudflareCustomHostname> {
   return cloudflareRequest<CloudflareCustomHostname>(env, `/zones/${env.CF_ZONE_ID}/custom_hostnames`, {
     method: 'POST',
@@ -265,11 +268,11 @@ async function createCloudflareHostname(
         certificate_authority: 'google'
       }
     })
-  })
+  }, signal)
 }
 
-async function getCloudflareHostname(env: DomainEnv, id: string): Promise<CloudflareCustomHostname> {
-  return cloudflareRequest<CloudflareCustomHostname>(env, `/zones/${env.CF_ZONE_ID}/custom_hostnames/${id}`)
+async function getCloudflareHostname(env: DomainEnv, id: string, signal?: AbortSignal): Promise<CloudflareCustomHostname> {
+  return cloudflareRequest<CloudflareCustomHostname>(env, `/zones/${env.CF_ZONE_ID}/custom_hostnames/${id}`, {}, signal)
 }
 
 async function deleteCloudflareHostname(env: DomainEnv, id: string): Promise<void> {
@@ -361,8 +364,15 @@ async function persistCloudflareState(
     await db.prepare(`
       UPDATE site_domains
       SET role = 'secondary', updated_at = ?
-      WHERE site_id = ? AND id != ? AND role = 'canonical'
-    `).bind(now, before.site_id, domainId).run()
+      WHERE site_id = ?
+        AND id != ?
+        AND role = 'canonical'
+        AND EXISTS (
+          SELECT 1
+          FROM site_domains expected
+          WHERE expected.id = ? AND expected.role = 'canonical'
+        )
+    `).bind(now, before.site_id, domainId, domainId).run()
   }
 
   await db.prepare(`
@@ -534,18 +544,32 @@ export async function syncDomainWithCloudflare(
   db: any,
   domainId: string,
   actorType: 'owner' | 'admin' | 'system' = 'system',
-  actorId?: string | null
+  actorId?: string | null,
+  signal?: AbortSignal
 ): Promise<DomainRecord> {
-  const domain = await db.prepare(`SELECT * FROM site_domains WHERE id = ? AND type = 'custom'`).bind(domainId).first() as DomainRecord | null
-  if (!domain) throw new Error('Domain not found')
+  try {
+    signal?.throwIfAborted()
 
-  if (!domain.cloudflare_hostname_id) {
-    const hostname = await createCloudflareHostname(env, domain.site_id, domain.organization_id, domain.domain)
+    const domain = await db.prepare(`SELECT * FROM site_domains WHERE id = ? AND type = 'custom'`).bind(domainId).first() as DomainRecord | null
+    if (!domain) throw new Error('Domain not found')
+
+    if (!domain.cloudflare_hostname_id) {
+      const hostname = await createCloudflareHostname(env, domain.site_id, domain.organization_id, domain.domain, signal)
+      signal?.throwIfAborted()
+      return persistCloudflareState(env, db, domainId, hostname, { incrementRetry: true, actorType, actorId })
+    }
+
+    const hostname = await getCloudflareHostname(env, domain.cloudflare_hostname_id, signal)
+    signal?.throwIfAborted()
     return persistCloudflareState(env, db, domainId, hostname, { incrementRetry: true, actorType, actorId })
+  } catch (error: any) {
+    if (error?.name === 'AbortError') {
+      const abortError = new Error('Domain sync aborted')
+      ;(abortError as any).name = 'AbortError'
+      throw abortError
+    }
+    throw error
   }
-
-  const hostname = await getCloudflareHostname(env, domain.cloudflare_hostname_id)
-  return persistCloudflareState(env, db, domainId, hostname, { incrementRetry: true, actorType, actorId })
 }
 
 export async function deleteCustomDomain(
@@ -640,8 +664,16 @@ export async function setCanonicalDomain(
   if (!domain) throw new Error('Only active domains can be canonical')
 
   const now = new Date().toISOString()
-  await db.prepare(`UPDATE site_domains SET role = 'secondary', updated_at = ? WHERE site_id = ? AND role = 'canonical'`).bind(now, siteId).run()
-  await db.prepare(`UPDATE site_domains SET role = 'canonical', updated_at = ? WHERE id = ?`).bind(now, domainId).run()
+  await db.exec('BEGIN IMMEDIATE TRANSACTION')
+  try {
+    await db.prepare(`UPDATE site_domains SET role = 'secondary', updated_at = ? WHERE site_id = ? AND role = 'canonical'`).bind(now, siteId).run()
+    await db.prepare(`UPDATE site_domains SET role = 'canonical', updated_at = ? WHERE id = ?`).bind(now, domainId).run()
+    await db.exec('COMMIT')
+  } catch (error) {
+    await db.exec('ROLLBACK')
+    throw error
+  }
+
   await updateSitePrimaryUrl(db, domain.site_id, domain.organization_id, domain.domain)
   await logDomainEvent(db, {
     organizationId: domain.organization_id,
@@ -653,7 +685,9 @@ export async function setCanonicalDomain(
     message: `${domain.domain} set as primary`
   })
 
-  return await db.prepare(`SELECT * FROM site_domains WHERE id = ?`).bind(domainId).first()
+  const row = await db.prepare(`SELECT * FROM site_domains WHERE id = ?`).bind(domainId).first() as DomainRecord | null
+  if (!row) throw new Error(`Domain not found: ${domainId}`)
+  return row
 }
 
 async function promoteCanonicalIfReady(db: any, siteId: string): Promise<void> {

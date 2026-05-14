@@ -1,6 +1,10 @@
 <template>
   <!-- Trigger -->
-  <div @click="open">
+  <button
+    type="button"
+    @click="open"
+    class="w-full text-left"
+  >
     <slot>
       <div
         class="group flex cursor-pointer items-center gap-2 overflow-hidden rounded-lg border border-default transition-colors hover:border-accented"
@@ -38,7 +42,7 @@
         />
       </div>
     </slot>
-  </div>
+  </button>
 
   <!-- Modal -->
   <UModal

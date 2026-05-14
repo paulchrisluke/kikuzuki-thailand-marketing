@@ -40,10 +40,15 @@ export default defineEventHandler(async (event) => {
     if (asset.site_id !== siteId) return jsonResponse({ error: 'Forbidden' }, { status: 403 })
 
     const body = await readBody(event)
-    const altText = typeof body?.alt_text === 'string' ? body.alt_text.trim().slice(0, 500) : ''
+    if ('alt_text' in (body || {})) {
+      if (typeof body?.alt_text !== 'string') {
+        return jsonResponse({ error: 'alt_text must be a string' }, { status: 400 })
+      }
 
-    const updated = await updateMediaAssetAlt(db, assetId, siteId, altText)
-    if (!updated) return jsonResponse({ error: 'Asset not found' }, { status: 404 })
+      const altText = body.alt_text.trim().slice(0, 500)
+      const updated = await updateMediaAssetAlt(db, assetId, siteId, altText)
+      if (!updated) return jsonResponse({ error: 'Asset not found' }, { status: 404 })
+    }
 
     return jsonResponse({ updated: true })
   } catch (error: any) {

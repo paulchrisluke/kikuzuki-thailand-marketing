@@ -5,10 +5,13 @@ import { setCanonicalDomain } from '~/server/utils/domains'
 export default defineEventHandler(async (event) => {
   const siteId = getRouterParam(event, 'siteId')
   const domainId = getRouterParam(event, 'domainId')
-  const body = await readBody(event) as { role?: 'canonical' | 'secondary'; status?: 'disabled' }
+  const body = await readBody(event) as { role?: string; status?: 'disabled' }
   if (!siteId || !domainId) return jsonResponse({ error: 'Site ID and domain ID are required' }, { status: 400 })
   if (body.role && body.status) {
     return jsonResponse({ error: 'Provide only one of role or status' }, { status: 400 })
+  }
+  if (body.role && body.role !== 'canonical') {
+    return jsonResponse({ error: 'Unsupported role value' }, { status: 400 })
   }
 
   const env = cloudflareEnv(event)
@@ -53,6 +56,14 @@ export default defineEventHandler(async (event) => {
 
     return jsonResponse({ error: 'No supported update provided' }, { status: 400 })
   } catch (error: any) {
-    return jsonResponse({ error: error?.message || 'Failed to update domain' }, { status: 500 })
+    console.error('domain_update_failed', {
+      siteId,
+      domainId,
+      userId: session.user.id,
+      body,
+      error: error?.message || 'Unknown error',
+      stack: error?.stack || null
+    })
+    return jsonResponse({ error: 'Failed to update domain' }, { status: 500 })
   }
 })

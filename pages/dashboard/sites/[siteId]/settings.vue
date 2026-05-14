@@ -113,7 +113,7 @@
                     <UButton size="xs" variant="soft" color="neutral" icon="i-heroicons-arrow-path" :loading="syncingDomainId === domain.id" @click="syncDomain(domain.id)">Sync</UButton>
                     <UButton v-if="domain.status === 'active' && domain.role !== 'canonical'" size="xs" variant="soft" color="neutral" icon="i-heroicons-star" @click="setPrimaryDomain(domain.id)">Primary</UButton>
                     <UButton v-if="domain.type === 'custom'" size="xs" variant="ghost" color="neutral" icon="i-heroicons-no-symbol" @click="disableDomain(domain.id)">Disable</UButton>
-                    <UButton v-if="domain.type === 'custom'" size="xs" variant="ghost" color="red" icon="i-heroicons-trash" @click="deleteDomain(domain.id)">Delete</UButton>
+                    <UButton v-if="domain.type === 'custom'" size="xs" variant="ghost" color="error" icon="i-heroicons-trash" @click="deleteDomain(domain.id)">Delete</UButton>
                   </div>
                 </div>
 

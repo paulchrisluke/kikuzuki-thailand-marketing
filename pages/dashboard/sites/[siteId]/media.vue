@@ -2,10 +2,10 @@
   <UPage>
     <UPageHeader title="Media" description="Images and videos for this site.">
       <template #links>
-        <UButton icon="i-heroicons-arrow-up-tray" color="primary" @click="fileInput?.click()">
+        <UButton icon="i-heroicons-arrow-up-tray" color="primary" :loading="uploadLoading" :disabled="uploadLoading" @click="openUploadPicker">
           Upload
         </UButton>
-        <input ref="fileInput" type="file" accept="image/*,video/mp4,video/webm" class="hidden" @change="onFileSelect" />
+        <input ref="fileInput" type="file" accept="image/*,video/*" class="hidden" :disabled="uploadLoading" @change="onFileSelect" />
       </template>
     </UPageHeader>
 
@@ -44,19 +44,24 @@
       <!-- Upload zone -->
       <div
         class="mb-4 flex flex-col items-center justify-center gap-3 rounded-lg border-2 border-dashed px-6 py-8 transition-colors cursor-pointer"
-        :class="isDragging ? 'border-primary bg-primary/5' : 'border-default hover:border-accented'"
         @dragenter.prevent="handleDragEnter"
         @dragover.prevent="handleDragOver"
         @dragleave.prevent="handleDragLeave"
         @drop.prevent="handleDrop"
-        @click="fileInput?.click()"
+        :class="[isDragging ? 'border-primary bg-primary/5' : 'border-default hover:border-accented', uploadLoading ? 'pointer-events-none opacity-60' : '']"
+        @click="openUploadPicker"
       >
         <UIcon name="i-heroicons-arrow-up-tray" class="size-7 text-muted" />
         <p class="text-sm text-muted">Drag and drop images or videos here, or <span class="text-primary cursor-pointer">click to browse</span></p>
-        <p class="text-xs text-muted">Images up to 10 MB via Cloudflare Images · Videos up to 50 MB via R2</p>
+        <p class="text-xs text-muted">Images up to {{ formatSize(IMAGE_MAX_SIZE_BYTES) }} via Cloudflare Images · Videos up to {{ formatSize(VIDEO_MAX_SIZE_BYTES) }} via R2</p>
       </div>
 
       <UAlert v-if="uploadError" color="error" variant="soft" :description="uploadError" icon="i-heroicons-exclamation-triangle" class="mb-4" />
+      <div v-if="pendingRetryFile" class="mb-4">
+        <UButton size="sm" color="neutral" variant="soft" :loading="uploadLoading" :disabled="uploadLoading" @click="retryPendingUpload">
+          Retry confirm
+        </UButton>
+      </div>
 
       <!-- Grid -->
       <div v-if="loading" class="grid grid-cols-4 gap-3 sm:grid-cols-5 lg:grid-cols-7">
@@ -79,7 +84,7 @@
           <!-- Thumbnail -->
           <img
             v-if="asset.thumbnail_url || asset.public_url"
-            :src="asset.thumbnail_url || asset.public_url"
+            :src="asset.thumbnail_url || asset.public_url || undefined"
             :alt="asset.alt_text || asset.file_name || ''"
             class="h-full w-full cursor-pointer object-cover"
             loading="lazy"
@@ -136,13 +141,42 @@ definePageMeta({ layout: 'dashboard' })
 
 const route = useRoute()
 const siteId = route.params.siteId as string
+const siteApiBase = `/api/editor/sites/${encodeURIComponent(siteId)}`
 const toast = useToast()
 
-const assets = ref<any[]>([])
+interface MediaAsset {
+  id: string
+  organization_id: string
+  site_id: string
+  location_id: string | null
+  kind: 'image' | 'video' | 'file'
+  provider: 'cloudflare_images' | 'cloudflare_r2' | 'google_business' | 'external_url' | 'chowbot'
+  source: 'uploaded' | 'google_sync' | 'generated' | 'external'
+  cloudflare_image_id: string | null
+  r2_key: string | null
+  google_media_name: string | null
+  public_url: string | null
+  thumbnail_url: string | null
+  mime_type: string | null
+  file_name: string | null
+  file_size: number | null
+  width: number | null
+  height: number | null
+  duration: number | null
+  alt_text: string | null
+  status: 'pending' | 'active' | 'deleted' | 'failed'
+  created_by_user_id: string | null
+  created_at: string
+  updated_at: string
+}
+
+const assets = ref<MediaAsset[]>([])
 const loading = ref(false)
 const loadingMore = ref(false)
 const deleting = ref(false)
+const uploadLoading = ref(false)
 const uploadError = ref<string | null>(null)
+const pendingRetryFile = ref<File | null>(null)
 const isDragging = ref(false)
 const dragCounter = ref(0)
 const fileInput = ref<HTMLInputElement | null>(null)
@@ -152,6 +186,9 @@ const selected = ref(new Set<string>())
 const offset = ref(0)
 const hasMore = ref(false)
 const LIMIT = 50
+const IMAGE_MAX_SIZE_BYTES = 10 * 1024 * 1024
+const VIDEO_MAX_SIZE_BYTES = 50 * 1024 * 1024
+const CONFIRM_RETRY_DELAYS_MS = [250, 500]
 
 const kindTabs = [
   { label: 'All', value: '' },
@@ -171,11 +208,11 @@ async function load() {
   try {
     const params = new URLSearchParams({ limit: String(LIMIT), offset: '0' })
     if (kindFilter.value) params.set('kind', kindFilter.value)
-    const res = await $fetch<{ media: any[] }>(`/api/editor/sites/${siteId}/media?${params}`)
+    const res = await $fetch<{ media: MediaAsset[] }>(`${siteApiBase}/media?${params}`)
     assets.value = res.media ?? []
     hasMore.value = assets.value.length === LIMIT
   } catch (err: any) {
-    console.error('Failed to load media:', err)
+    if (import.meta.dev) console.error('Failed to load media:', err)
     assets.value = []
     hasMore.value = false
     toast.add({ title: err?.data?.error ?? err?.message ?? 'Failed to load media', color: 'error' })
@@ -185,18 +222,19 @@ async function load() {
 }
 
 async function loadMore() {
+  if (loadingMore.value) return
   loadingMore.value = true
-  offset.value += LIMIT
+  const requestOffset = offset.value + LIMIT
   try {
-    const params = new URLSearchParams({ limit: String(LIMIT), offset: String(offset.value) })
+    const params = new URLSearchParams({ limit: String(LIMIT), offset: String(requestOffset) })
     if (kindFilter.value) params.set('kind', kindFilter.value)
-    const res = await $fetch<{ media: any[] }>(`/api/editor/sites/${siteId}/media?${params}`)
+    const res = await $fetch<{ media: MediaAsset[] }>(`${siteApiBase}/media?${params}`)
     const more = res.media ?? []
     assets.value.push(...more)
+    offset.value = requestOffset
     hasMore.value = more.length === LIMIT
   } catch (err: any) {
-    offset.value = Math.max(0, offset.value - LIMIT)
-    console.error('Failed to load more media:', err)
+    if (import.meta.dev) console.error('Failed to load more media:', err)
     toast.add({ title: err?.data?.error ?? err?.message ?? 'Failed to load more media', color: 'error' })
   } finally {
     loadingMore.value = false
@@ -204,7 +242,11 @@ async function loadMore() {
 }
 
 function toggleSelect(id: string) {
-  selected.value.has(id) ? selected.value.delete(id) : selected.value.add(id)
+  if (selected.value.has(id)) {
+    selected.value.delete(id)
+  } else {
+    selected.value.add(id)
+  }
 }
 
 async function deleteSelected() {
@@ -213,7 +255,7 @@ async function deleteSelected() {
   const selectedIds = [...selected.value]
   try {
     const results = await Promise.allSettled(selectedIds.map(id =>
-      $fetch(`/api/editor/sites/${siteId}/media/${id}`, { method: 'DELETE' })
+      $fetch(`${siteApiBase}/media/${id}`, { method: 'DELETE' })
     ))
 
     const successfullyDeleted = new Set<string>()
@@ -265,46 +307,106 @@ function onFileSelect(e: Event) {
   if (fileInput.value) fileInput.value.value = ''
 }
 
+function openUploadPicker() {
+  if (uploadLoading.value) return
+  fileInput.value?.click()
+}
+
+function sleep(ms: number) {
+  return new Promise(resolve => setTimeout(resolve, ms))
+}
+
+async function cleanupPendingUpload(assetId: string) {
+  await $fetch(`${siteApiBase}/media/${assetId}`, { method: 'DELETE' })
+}
+
+async function confirmPendingUpload(assetId: string) {
+  let lastError: any = null
+
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    try {
+      await $fetch(`${siteApiBase}/media/${assetId}/confirm`, { method: 'POST' })
+      return
+    } catch (err: any) {
+      lastError = err
+      const status = Number(err?.statusCode ?? err?.status ?? err?.data?.statusCode ?? 0)
+      if (status === 409) return
+      const retryDelay = CONFIRM_RETRY_DELAYS_MS[attempt]
+      if (retryDelay !== undefined && (!status || status >= 500 || status === 408 || status === 429)) {
+        await sleep(retryDelay)
+        continue
+      }
+      break
+    }
+  }
+
+  throw lastError ?? new Error('Failed to confirm uploaded file.')
+}
+
+async function retryPendingUpload() {
+  const file = pendingRetryFile.value
+  if (!file) return
+  pendingRetryFile.value = null
+  await uploadFile(file)
+}
+
 async function uploadFile(file: File) {
+  if (uploadLoading.value) return
+  uploadLoading.value = true
   uploadError.value = null
+  pendingRetryFile.value = null
   const isImage = file.type.startsWith('image/')
   const isVideo = file.type.startsWith('video/')
 
-  if (!isImage && !isVideo) {
-    uploadError.value = 'Only images and videos are supported.'
-    return
-  }
-
-  if (isImage && file.size > 10 * 1024 * 1024) {
-    uploadError.value = 'Images must be under 10 MB.'
-    return
-  }
-
-  if (isVideo && file.size > 50 * 1024 * 1024) {
-    uploadError.value = 'Videos must be under 50 MB.'
-    return
-  }
-
   try {
+    if (!isImage && !isVideo) {
+      uploadError.value = 'Only images and videos are supported.'
+      return
+    }
+
+    if (isImage && file.size > IMAGE_MAX_SIZE_BYTES) {
+      uploadError.value = `Images must be under ${formatSize(IMAGE_MAX_SIZE_BYTES)}.`
+      return
+    }
+
+    if (isVideo && file.size > VIDEO_MAX_SIZE_BYTES) {
+      uploadError.value = `Videos must be under ${formatSize(VIDEO_MAX_SIZE_BYTES)}.`
+      return
+    }
+
     if (isImage) {
       const { assetId, uploadUrl } = await $fetch<{ assetId: string; uploadUrl: string }>(
-        `/api/editor/sites/${siteId}/media/request-upload`,
+        `${siteApiBase}/media/request-upload`,
         { method: 'POST', body: { filename: file.name } }
       )
       const form = new FormData()
       form.append('file', file)
-      const res = await fetch(uploadUrl, { method: 'POST', body: form })
-      if (!res.ok) throw new Error(`Upload failed: ${res.status}`)
-      await $fetch(`/api/editor/sites/${siteId}/media/${assetId}/confirm`, { method: 'POST' })
+      try {
+        const res = await fetch(uploadUrl, { method: 'POST', body: form })
+        if (!res.ok) throw new Error(`Upload failed: ${res.status}`)
+      } catch (error) {
+        await cleanupPendingUpload(assetId).catch(() => {})
+        throw error
+      }
+
+      try {
+        await confirmPendingUpload(assetId)
+      } catch (error) {
+        await cleanupPendingUpload(assetId).catch(() => {})
+        pendingRetryFile.value = file
+        throw error
+      }
     } else {
       const form = new FormData()
       form.append('file', file)
-      await $fetch(`/api/editor/sites/${siteId}/media/upload`, { method: 'POST', body: form })
+      await $fetch(`${siteApiBase}/media/upload`, { method: 'POST', body: form })
     }
     toast.add({ title: 'File uploaded', icon: 'i-heroicons-check-circle', color: 'success' })
     await load()
   } catch (err: any) {
     uploadError.value = err?.data?.error ?? err?.message ?? 'Upload failed.'
+  } finally {
+    uploadLoading.value = false
   }
 }
 
