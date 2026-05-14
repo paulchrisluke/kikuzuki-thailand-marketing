@@ -1,6 +1,6 @@
 import { callAiGateway, documentBlock, imageBlock, textBlock } from '~/server/utils/ai-gateway'
 import { chargeCredits, hasCredits } from '~/server/utils/ai-credits'
-import { createMenu, createMenuItem } from '~/server/utils/menu-management'
+import { createMenu, createMenuItem, deleteMenu } from '~/server/utils/menu-management'
 import { uploadImageBuffer } from '~/server/utils/cloudflare-images'
 import { buildR2Key, uploadToR2 } from '~/server/utils/cloudflare-r2'
 import { createMediaAsset, getMediaAsset, type MediaAsset } from '~/server/utils/media-asset-manager'
@@ -172,19 +172,31 @@ export async function extractMenuFromMediaAsset(
   }
 
   const menu = await createMenu(db, opts.organizationId, opts.siteId, { name: opts.menuName ?? 'Imported Menu' }, opts.userId)
-  await Promise.all(extractedItems.map((item: ApiValue) =>
-    createMenuItem(
-      db,
-      menu.id,
-      {
-        section: String(item.section || 'Menu').slice(0, 100),
-        name: String(item.name || '').slice(0, 200),
-        description: item.description ? String(item.description).slice(0, 500) : undefined,
-        price: item.price ? String(item.price).slice(0, 50) : undefined,
-      },
-      `ai:${opts.userId}`
-    )
-  ))
+  const createdItems: string[] = []
+  try {
+    for (const item of extractedItems as ApiValue[]) {
+      const created = await createMenuItem(
+        db,
+        menu.id,
+        {
+          section: String(item.section || 'Menu').slice(0, 100),
+          name: String(item.name || '').slice(0, 200),
+          description: item.description ? String(item.description).slice(0, 500) : undefined,
+          price: item.price ? String(item.price).slice(0, 50) : undefined,
+        },
+        `ai:${opts.userId}`
+      )
+      createdItems.push(created.id)
+    }
+  } catch (error) {
+    try {
+      await deleteMenu(db, opts.organizationId, opts.siteId, menu.id)
+    } catch (cleanupError) {
+      console.error('Failed to clean up partial menu import:', cleanupError)
+    }
+    const reason = error instanceof Error ? error.message : String(error)
+    throw new Error(`Menu import failed after creating ${createdItems.length} item${createdItems.length === 1 ? '' : 's'}; draft menu was removed. ${reason}`)
+  }
 
-  return { menuId: menu.id, count: extractedItems.length, warning: parsed.warning ?? null, creditsRemaining: charged.newBalance }
+  return { menuId: menu.id, count: createdItems.length, warning: parsed.warning ?? null, creditsRemaining: charged.newBalance }
 }
