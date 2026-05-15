@@ -15,7 +15,10 @@ export default defineEventHandler(async (event) => {
   const content = cleanString(body.content, 2000)
   const rating = Number(body.rating)
   const status = cleanString(body.status, 20) || 'approved'
-  const createdAt = cleanString(body.created_at, 40) || new Date().toISOString()
+  const rawCreatedAt = cleanString(body.created_at, 40)
+  const createdAt = rawCreatedAt && Number.isFinite(Date.parse(rawCreatedAt))
+    ? new Date(rawCreatedAt).toISOString()
+    : new Date().toISOString()
 
   if (!authorName) return jsonResponse({ error: 'Author name is required' }, { status: 400 })
   if (!content) return jsonResponse({ error: 'Review content is required' }, { status: 400 })
@@ -68,4 +71,3 @@ export default defineEventHandler(async (event) => {
     }
   }, { status: 201 })
 })
-

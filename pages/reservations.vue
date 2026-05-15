@@ -163,12 +163,8 @@ const rawPoliciesHtml = getField('policies.body', reservationPoliciesDefault) ??
 
 // Sanitize on client side only
 onMounted(async () => {
-  if (process.client) {
-    const DOMPurify = await import('dompurify')
-    policiesBody.value = DOMPurify.default.sanitize(rawPoliciesHtml)
-  } else {
-    policiesBody.value = rawPoliciesHtml
-  }
+  const DOMPurify = await import('dompurify')
+  policiesBody.value = DOMPurify.default.sanitize(rawPoliciesHtml)
 })
 
 // Set initial value for SSR

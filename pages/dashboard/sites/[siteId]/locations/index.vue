@@ -306,6 +306,20 @@ const setLocationActive = (v: boolean | 'indeterminate') => {
   locationEditForm.status = v ? 'active' : 'inactive'
 }
 
+const optionalNumber = (value: string) => {
+  const trimmed = value.trim()
+  if (!trimmed) return null
+  const parsed = Number(trimmed)
+  return Number.isFinite(parsed) ? parsed : null
+}
+
+const optionalInteger = (value: string) => {
+  const trimmed = value.trim()
+  if (!trimmed) return null
+  const parsed = Number(trimmed)
+  return Number.isInteger(parsed) ? parsed : null
+}
+
 // Inline edit state
 const expandedLocationId = ref<string | null>(null)
 const locationEditForm = reactive({
@@ -344,7 +358,14 @@ const handleSaveLocation = async (id: string) => {
   try {
     const response = await $fetch<{ success: boolean; location: BusinessLocation }>(
       `/api/sites/${siteId}/locations/${id}`,
-      { method: 'PATCH', body: { ...locationEditForm } }
+      {
+        method: 'PATCH',
+        body: {
+          ...locationEditForm,
+          rating: optionalNumber(locationEditForm.rating),
+          review_count: optionalInteger(locationEditForm.review_count)
+        }
+      }
     )
     if (!response.success) throw new Error('Failed to save location')
     const idx = locations.value.findIndex((l: BusinessLocation) => l.id === id)
@@ -514,8 +535,8 @@ const handleCreateLocation = async () => {
           maps_url: addLocationForm.maps_url || null,
           google_place_id: addLocationForm.google_place_id || null,
           description: addLocationForm.description || null,
-          rating: addLocationForm.rating,
-          review_count: addLocationForm.review_count,
+          rating: optionalNumber(addLocationForm.rating),
+          review_count: optionalInteger(addLocationForm.review_count),
           website_url: addLocationForm.website_url || null,
           opening_hours: addLocationForm.opening_hours ? { weekdayDescriptions: addLocationForm.opening_hours } : undefined,
           is_primary: locations.value.length === 0 ? true : addLocationForm.is_primary,

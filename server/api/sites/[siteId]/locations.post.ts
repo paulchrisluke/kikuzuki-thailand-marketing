@@ -180,15 +180,17 @@ export default defineEventHandler(async (event) => {
 
     const isPrimary = body.is_primary === true || activeLocationCount === 0
     let rating: number | null = null
-    if (body.rating !== undefined && body.rating !== null && body.rating !== '') {
-      rating = Number(body.rating)
+    const rawRating = body.rating === undefined || body.rating === null ? '' : String(body.rating).trim()
+    if (rawRating !== '') {
+      rating = Number(rawRating)
       if (!Number.isFinite(rating) || rating < 0 || rating > 5) {
         return jsonResponse({ error: 'Rating must be between 0 and 5' }, { status: 400 })
       }
     }
     let reviewCount: number | null = null
-    if (body.review_count !== undefined && body.review_count !== null && body.review_count !== '') {
-      reviewCount = Number(body.review_count)
+    const rawReviewCount = body.review_count === undefined || body.review_count === null ? '' : String(body.review_count).trim()
+    if (rawReviewCount !== '') {
+      reviewCount = Number(rawReviewCount)
       if (!Number.isInteger(reviewCount) || reviewCount < 0) {
         return jsonResponse({ error: 'Review count must be a whole number greater than or equal to 0' }, { status: 400 })
       }

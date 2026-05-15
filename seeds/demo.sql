@@ -114,7 +114,6 @@ VALUES
 -- ── Menu ─────────────────────────────────────────────────────────────────────
 INSERT OR IGNORE INTO menus (id, organization_id, site_id, location_id, name, status)
 VALUES ('menu-demo', 'org-demo', 'site-demo', 'loc-demo', 'Menu', 'published');
-UPDATE menus SET status = 'published' WHERE id = 'menu-demo';
 
 INSERT OR IGNORE INTO menu_items (id, menu_id, section, name, slug, description, price, image_asset_id, available, sort_order)
 VALUES

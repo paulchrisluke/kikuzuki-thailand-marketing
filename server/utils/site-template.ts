@@ -24,12 +24,12 @@ export async function seedNewSite(
   statements.push(db.prepare(`
     INSERT OR IGNORE INTO business_locations
       (id, organization_id, site_id, slug, title, city, description, opening_hours,
-       rating, review_count, hero_image_asset_id, is_primary, status)
+       rating, review_count, is_primary, status)
     VALUES (?, ?, ?, 'main', ?, 'Your City',
       'Add your restaurant description here — what makes your place special, what you cook, and why guests keep coming back.',
       '[{"openDay":"MONDAY","openTime":"11:00","closeTime":"21:00"},{"openDay":"TUESDAY","openTime":"11:00","closeTime":"21:00"},{"openDay":"WEDNESDAY","openTime":"11:00","closeTime":"21:00"},{"openDay":"THURSDAY","openTime":"11:00","closeTime":"21:00"},{"openDay":"FRIDAY","openTime":"11:00","closeTime":"22:00"},{"openDay":"SATURDAY","openTime":"11:00","closeTime":"22:00"},{"openDay":"SUNDAY","openTime":"12:00","closeTime":"20:00"}]',
-      0, 0, ?, 1, 'active')
-  `).bind(locationId, organizationId, siteId, restaurantName, heroMediaId))
+      0, 0, 1, 'active')
+  `).bind(locationId, organizationId, siteId, restaurantName))
 
   // ── Hero image ────────────────────────────────────────────────────────────
   statements.push(db.prepare(`
@@ -41,6 +41,12 @@ export async function seedNewSite(
       'https://images.unsplash.com/photo-1414235077428-338989a2e8c0?w=600&q=70',
       'image/jpeg', 'hero.jpg', ?, 'active')
   `).bind(heroMediaId, organizationId, siteId, locationId, `${restaurantName} hero image`))
+
+  statements.push(db.prepare(`
+    UPDATE business_locations
+    SET hero_image_asset_id = ?
+    WHERE id = ?
+  `).bind(heroMediaId, locationId))
 
   // ── Sample menu ───────────────────────────────────────────────────────────
   statements.push(db.prepare(`
@@ -60,7 +66,7 @@ export async function seedNewSite(
   ]
 
   for (let i = 0; i < menuItems.length; i++) {
-    const [section, name, slug, description, price] = menuItems[i]
+    const [section, name, slug, description, price] = menuItems[i]!
     statements.push(db.prepare(`
       INSERT OR IGNORE INTO menu_items
         (id, menu_id, section, name, slug, description, price, available, sort_order)

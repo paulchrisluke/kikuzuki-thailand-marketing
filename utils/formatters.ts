@@ -1,5 +1,5 @@
-export const formatGoogleTime = (time: { hours?: number; minutes?: number }) => {
-  if (time.hours === undefined || time.minutes === undefined) return ''
+export const formatGoogleTime = (time: { hours?: number; minutes?: number } | null | undefined) => {
+  if (!time || time.hours === undefined || time.minutes === undefined) return ''
   const h = time.hours % 12 || 12
   const m = time.minutes.toString().padStart(2, '0')
   const ampm = time.hours >= 12 ? 'PM' : 'AM'
@@ -25,11 +25,16 @@ interface GoogleRegularHours {
 }
 
 // Parse "HH:MM" string into {hours, minutes} object
-function parseTimeStr(t: unknown): GoogleTime {
+function parseTimeStr(t: unknown): GoogleTime | null {
   if (typeof t === 'object' && t !== null) return t as GoogleTime
-  const str = String(t ?? '')
-  const [h, m] = str.split(':').map(Number)
-  return { hours: isNaN(h) ? 0 : h, minutes: isNaN(m) ? 0 : m }
+  if (t === null || t === undefined) return null
+  const str = String(t).trim()
+  if (!str) return null
+  const [hoursRaw, minutesRaw] = str.split(':')
+  const h = Number(hoursRaw)
+  const m = Number(minutesRaw)
+  if (isNaN(h)) return null
+  return { hours: h, minutes: isNaN(m) ? 0 : m }
 }
 
 interface GoogleDate {
@@ -84,15 +89,19 @@ export const formatGoogleHours = (regularHours: GoogleRegularHours | GoogleRegul
 export const getTodayGoogleHours = (regularHours: GoogleRegularHours | GoogleRegularPeriod[] | null | undefined) => {
   const days = ['SUNDAY', 'MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY']
   const today = days[new Date().getDay()]
+  const descriptions = !Array.isArray(regularHours)
+    ? (regularHours as GoogleRegularHours)?.weekdayDescriptions ?? []
+    : []
+  const todayDescription = descriptions.find(line => line.trim().toUpperCase().startsWith(`${today}:`))
 
   const periods: GoogleRegularPeriod[] = Array.isArray(regularHours)
     ? (regularHours as GoogleRegularPeriod[])
     : (regularHours as GoogleRegularHours)?.periods ?? []
 
-  if (!periods.length) return 'Contact us for hours'
+  if (!periods.length) return todayDescription || 'Contact us for hours'
 
   const period = periods.find((p) => p.openDay === today)
-  if (!period) return 'Closed today'
+  if (!period) return todayDescription || 'Closed today'
 
   return `${formatGoogleTime(parseTimeStr(period.openTime))} – ${formatGoogleTime(parseTimeStr(period.closeTime))}`
 }

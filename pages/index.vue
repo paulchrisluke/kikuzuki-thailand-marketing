@@ -187,16 +187,18 @@
               <iframe
                 v-else-if="loc.latitude != null && loc.longitude != null"
                 :src="`https://maps.google.com/maps?q=${loc.latitude},${loc.longitude}&output=embed`"
-                class="h-full w-full border-0"
+                class="h-full w-full border-0 pointer-events-none"
                 loading="lazy"
+                tabindex="-1"
                 referrerpolicy="no-referrer-when-downgrade"
                 aria-hidden="true"
               />
               <iframe
                 v-else-if="locAddressLine(loc)"
                 :src="`https://maps.google.com/maps?q=${encodeURIComponent(locAddressLine(loc))}&output=embed`"
-                class="h-full w-full border-0"
+                class="h-full w-full border-0 pointer-events-none"
                 loading="lazy"
+                tabindex="-1"
                 referrerpolicy="no-referrer-when-downgrade"
                 aria-hidden="true"
               />
@@ -554,7 +556,7 @@ const highlights = computed(() => {
   const reviews = googleReviews.value.filter(r => (r.comment?.text || r.content)?.length > 40)
   for (let i = 0; i < Math.min(2, reviews.length); i++) {
     const r = reviews[i]
-    tiles.push({ type: 'review', text: (r.comment?.text || r.content || '').slice(0, 160), author: r.reviewer?.displayName || r.author_name || null })
+    tiles.push({ type: 'review', text: (r.comment?.text || r.content || '').slice(0, 160), author: r.reviewer?.displayName || r.author_name || 'Anonymous' })
   }
 
   return tiles.slice(0, 7)

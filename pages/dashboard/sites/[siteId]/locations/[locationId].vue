@@ -522,6 +522,20 @@ const setDetailsActive = (v: boolean | 'indeterminate') => {
   detailsForm.status = v ? 'active' : 'inactive'
 }
 
+const optionalNumber = (value: string) => {
+  const trimmed = value.trim()
+  if (!trimmed) return null
+  const parsed = Number(trimmed)
+  return Number.isFinite(parsed) ? parsed : null
+}
+
+const optionalInteger = (value: string) => {
+  const trimmed = value.trim()
+  if (!trimmed) return null
+  const parsed = Number(trimmed)
+  return Number.isInteger(parsed) ? parsed : null
+}
+
 async function saveLocationDetails() {
   detailsSaving.value = true
   try {
@@ -536,8 +550,8 @@ async function saveLocationDetails() {
         website_url: detailsForm.website_url || null,
         maps_url: detailsForm.maps_url || null,
         google_place_id: detailsForm.google_place_id || null,
-        rating: detailsForm.rating,
-        review_count: detailsForm.review_count,
+        rating: optionalNumber(detailsForm.rating),
+        review_count: optionalInteger(detailsForm.review_count),
         price_level: detailsForm.price_level || null,
         facebook_url: detailsForm.facebook_url || null,
         instagram_url: detailsForm.instagram_url || null,
@@ -667,9 +681,10 @@ async function loadManualReviews() {
 async function saveReview() {
   reviewSaving.value = true
   try {
+    const rating = Number(reviewForm.rating)
     const body = {
       author_name: reviewForm.author_name,
-      rating: reviewForm.rating,
+      rating: Number.isInteger(rating) ? rating : 5,
       title: reviewForm.title || null,
       content: reviewForm.content,
       status: 'approved',
@@ -732,17 +747,19 @@ const loadLocationWorkspace = async () => {
     site.value = settingsResponse.settings
     location.value = locationResponse.location
     menus.value = menusResponse.menus
+    return true
   } catch (err) {
     error.value = err instanceof Error ? err.message : 'Failed to load location'
+    return false
   } finally {
     loading.value = false
   }
 }
 
 onMounted(async () => {
-  await loadLocationWorkspace()
+  const workspaceLoaded = await loadLocationWorkspace()
   await loadGbConnection()
-  await loadManualReviews()
+  if (workspaceLoaded) await loadManualReviews()
 
   if (route.query.gb === 'connected') {
     toast.add({ description: 'Google Business connected successfully', color: 'success' })

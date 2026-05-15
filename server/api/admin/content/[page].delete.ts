@@ -22,7 +22,10 @@ export default defineEventHandler(async (event) => {
   }
 
   try {
-    await db.prepare(`DELETE FROM platform_content WHERE page = ?`).bind(page).run()
+    const result = await db.prepare(`DELETE FROM platform_content WHERE page = ?`).bind(page).run()
+    if (!result?.meta?.changes) {
+      return jsonResponse({ error: 'Content not found', page, deleted: false }, { status: 404 })
+    }
   } catch (err) {
     console.error('Failed to delete content:', err)
     return jsonResponse({ error: 'Failed to delete content' }, { status: 500 })

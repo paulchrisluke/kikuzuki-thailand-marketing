@@ -203,12 +203,13 @@ export default defineEventHandler(async (event) => {
       setParts.push('opening_hours = ?')
       params.push(body.opening_hours ? JSON.stringify(body.opening_hours) : null)
     }
-    if (body.rating !== undefined) {
-      if (body.rating === null || body.rating === '') {
+    const ratingRaw = typeof body.rating === 'string' ? body.rating.trim() : body.rating
+    if (ratingRaw !== undefined) {
+      if (ratingRaw === null || ratingRaw === '') {
         setParts.push('rating = ?')
         params.push(null)
       } else {
-        const rating = Number(body.rating)
+        const rating = Number(ratingRaw)
         if (!Number.isFinite(rating) || rating < 0 || rating > 5) {
           return jsonResponse({ error: 'Rating must be between 0 and 5' }, { status: 400 })
         }
@@ -216,12 +217,13 @@ export default defineEventHandler(async (event) => {
         params.push(rating)
       }
     }
-    if (body.review_count !== undefined) {
-      if (body.review_count === null || body.review_count === '') {
+    const reviewCountRaw = typeof body.review_count === 'string' ? body.review_count.trim() : body.review_count
+    if (reviewCountRaw !== undefined) {
+      if (reviewCountRaw === null || reviewCountRaw === '') {
         setParts.push('review_count = ?')
         params.push(null)
       } else {
-        const reviewCount = Number(body.review_count)
+        const reviewCount = Number(reviewCountRaw)
         if (!Number.isInteger(reviewCount) || reviewCount < 0) {
           return jsonResponse({ error: 'Review count must be a whole number greater than or equal to 0' }, { status: 400 })
         }

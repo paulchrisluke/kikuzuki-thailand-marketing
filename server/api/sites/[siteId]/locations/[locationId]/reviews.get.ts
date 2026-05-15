@@ -23,7 +23,9 @@ export default defineEventHandler(async (event) => {
     if (typeof photoUrls !== 'string' || !photoUrls.trim()) return []
     try {
       const parsed = JSON.parse(photoUrls)
-      return Array.isArray(parsed) ? parsed : []
+      return Array.isArray(parsed)
+        ? parsed.map(item => typeof item === 'string' ? item.trim() : '').filter(Boolean)
+        : []
     } catch {
       return []
     }
@@ -36,4 +38,3 @@ export default defineEventHandler(async (event) => {
 
   return jsonResponse({ success: true, reviews })
 })
-

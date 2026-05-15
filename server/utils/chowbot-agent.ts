@@ -1619,8 +1619,8 @@ async function executeTool(
     case 'reply_to_review': {
       const now = new Date().toISOString()
       const result = await db.prepare(
-        `UPDATE reviews SET owner_reply = ?, owner_reply_at = ?, updated_at = ? WHERE id = ? AND site_id = ?`
-      ).bind(input.reply, now, now, input.review_id, siteId).run()
+        `UPDATE reviews SET owner_reply = ?, owner_reply_at = ?, updated_at = ? WHERE id = ? AND site_id = ? AND organization_id = ?`
+      ).bind(input.reply, now, now, input.review_id, siteId, orgId).run()
       if (!result.meta.changes || result.meta.changes === 0) {
         return { error: 'Review not found.' }
       }

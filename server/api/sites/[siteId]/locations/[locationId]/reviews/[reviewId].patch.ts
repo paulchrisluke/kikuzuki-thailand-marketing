@@ -49,8 +49,12 @@ export default defineEventHandler(async (event) => {
     params.push(status)
   }
   if (body.created_at !== undefined) {
+    const rawCreatedAt = cleanString(body.created_at, 40)
+    if (!rawCreatedAt || !Number.isFinite(Date.parse(rawCreatedAt))) {
+      return jsonResponse({ error: 'created_at must be a valid date' }, { status: 400 })
+    }
     setParts.push('created_at = ?')
-    params.push(cleanString(body.created_at, 40) || new Date().toISOString())
+    params.push(new Date(rawCreatedAt).toISOString())
   }
 
   if (!setParts.length) {
@@ -81,4 +85,3 @@ export default defineEventHandler(async (event) => {
 
   return jsonResponse({ success: true, review })
 })
-
