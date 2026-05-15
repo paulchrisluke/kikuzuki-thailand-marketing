@@ -384,10 +384,20 @@
       </section>
 
       <!-- ── CTA strip ───────────────────────────────────────── -->
-      <section class="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-8 px-4 py-20 pb-28 sm:px-6 lg:px-8">
-        <h3 v-if="getField('cta.title')" class="saya-display saya-italic text-5xl text-default leading-none">
-          {{ getField('cta.title') }}
-        </h3>
+      <section id="section-cta" class="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-8 px-4 py-20 pb-28 sm:px-6 lg:px-8">
+        <div class="max-w-3xl">
+          <h3 v-if="getField('cta.title')" data-field="cta.title" class="saya-display saya-italic text-5xl text-default leading-none">
+            {{ getField('cta.title') }}
+          </h3>
+          <!-- eslint-disable vue/no-v-html -->
+          <div
+            v-if="getField('cta.description')"
+            data-field="cta.description"
+            class="mt-5 max-w-2xl text-sm leading-7 text-muted"
+            v-html="DOMPurify.sanitize(getField('cta.description') || '')"
+          />
+          <!-- eslint-enable vue/no-v-html -->
+        </div>
         <UButton to="/reservations" color="primary" variant="solid" size="xl" class="rounded-full">
           Reserve a table
         </UButton>
@@ -402,6 +412,7 @@ import { useTenantSite } from '~/composables/useTenantSite'
 import { usePublicMenu } from '~/composables/usePublicMenu'
 import { useAuth } from '~/composables/useAuth'
 import { useOrganizationSchema } from '~/composables/useSchemaOrg'
+import DOMPurify from 'isomorphic-dompurify'
 
 definePageMeta({ layout: false })
 
