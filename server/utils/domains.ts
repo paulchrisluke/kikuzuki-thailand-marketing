@@ -4,6 +4,8 @@ export interface DomainEnv {
   CF_ZONE_ID?: string
   CF_CUSTOM_HOSTNAMES_API_TOKEN?: string
   CF_SAAS_CNAME_TARGET?: string
+  CF_ACCOUNT_ID?: string
+  CF_PAGES_PROJECT_NAME?: string
   NUXT_PUBLIC_FREE_SITE_DOMAIN?: string
   NUXT_PUBLIC_PLATFORM_DOMAIN?: string
 }
@@ -190,6 +192,45 @@ export async function ensureDomainAvailable(db: D1Database, domains: string[], e
   if (existing?.domain) throw new Error(`${existing.domain} is already in use`)
 }
 
+/**
+ * Registers a subdomain with the Cloudflare Pages project via the Pages Domains API.
+ * This is what makes `*.krabiclaw.com` subdomains route to the Pages Worker automatically
+ * without any manual Cloudflare dashboard interaction.
+ */
+async function addPagesCustomDomain(env: DomainEnv, domain: string): Promise<void> {
+  const accountId = env.CF_ACCOUNT_ID
+  const projectName = env.CF_PAGES_PROJECT_NAME
+  const token = env.CF_CUSTOM_HOSTNAMES_API_TOKEN
+
+  if (!accountId || !projectName || !token) {
+    console.warn('addPagesCustomDomain: missing CF_ACCOUNT_ID, CF_PAGES_PROJECT_NAME, or CF_CUSTOM_HOSTNAMES_API_TOKEN — skipping Pages domain registration')
+    return
+  }
+
+  const response = await fetch(
+    `${CF_API_BASE}/accounts/${accountId}/pages/projects/${projectName}/domains`,
+    {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ name: domain })
+    }
+  )
+
+  const body = await response.json().catch(() => null) as ApiValue
+
+  // 409 means the domain is already registered — that is fine
+  if (response.status === 409) return
+
+  if (!response.ok || body?.success === false) {
+    const message = body?.errors?.map((e: ApiValue) => e.message).filter(Boolean).join('; ') || `Pages API HTTP ${response.status}`
+    console.error('addPagesCustomDomain: failed to register domain with Cloudflare Pages', { domain, message })
+    throw new Error(message)
+  }
+}
+
 export async function createSystemSubdomain(
   env: DomainEnv,
   db: D1Database,
@@ -200,6 +241,10 @@ export async function createSystemSubdomain(
   const now = new Date().toISOString()
   const domain = `${subdomain}.${platformHostname(env)}`
   const id = `domain-${siteId}-subdomain`
+
+  // Automatically provision this subdomain in the Cloudflare Pages project.
+  // This is the equivalent of clicking "Set up a custom domain" in the dashboard.
+  await addPagesCustomDomain(env, domain)
 
   await db.prepare(`
     INSERT OR REPLACE INTO site_domains
