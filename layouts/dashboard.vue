@@ -345,7 +345,6 @@ const siteNavigation = computed(() => [[
   { label: 'Posts', icon: 'i-heroicons-newspaper', to: sitePath('/posts') },
   { label: 'Media', icon: 'i-heroicons-photo', to: sitePath('/media') },
   { label: 'Locations', icon: 'i-heroicons-map-pin', to: sitePath('/locations') },
-  { label: 'Launch', icon: 'i-heroicons-rocket-launch', to: sitePath('/launch') },
   { label: 'Settings', icon: 'i-heroicons-cog-6-tooth', to: sitePath('/settings') }
 ], [
   { label: 'All Sites', icon: 'i-heroicons-squares-2x2', to: '/dashboard/sites' },
