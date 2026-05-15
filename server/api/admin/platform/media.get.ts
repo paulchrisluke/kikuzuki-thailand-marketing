@@ -18,7 +18,7 @@ export default defineEventHandler(async (event) => {
   const query = getQuery(event)
   const parsed = Number.parseInt(String(query.limit || '50'), 10)
   const limit = Math.min(Math.max(Number.isNaN(parsed) ? 50 : parsed, 1), 100)
-  const id = query.id as string | undefined
+  const id = Array.isArray(query.id) ? query.id[0] : (query.id as string | undefined)
 
   let sql = `SELECT id, public_url, thumbnail_url, alt_text FROM media_assets WHERE site_id = 'platform' AND status = 'active'`
   const params: ApiRecord[] = []

@@ -49,7 +49,16 @@ export default defineEventHandler(async (event) => {
   const updates: string[] = ['updated_at = ?']
   const params: ApiRecord[] = [now]
 
+  const TITLE_MAX = 200
+  const BODY_MAX = 100000
+  const EXCERPT_MAX = 500
+  const SEO_DESCRIPTION_MAX = 500
+  const SEO_KEYWORDS_MAX = 500
+
   if (body.title !== undefined) {
+    if (body.title.length > TITLE_MAX) {
+      return jsonResponse({ error: `title exceeds maximum length (${TITLE_MAX})` }, { status: 400 })
+    }
     const slug = slugify(body.title, { lower: true, strict: true, trim: true })
     if (!slug) {
       return jsonResponse({ error: 'Title must contain alphanumeric characters to generate a valid slug' }, { status: 400 })
@@ -70,6 +79,18 @@ export default defineEventHandler(async (event) => {
   const fields: Array<'body' | 'excerpt' | 'category' | 'seo_description' | 'seo_keywords' | 'difficulty_level' | 'sort_order' | 'parent_doc_id' | 'featured_image_asset_id'> = ['body', 'excerpt', 'category', 'seo_description', 'seo_keywords', 'difficulty_level', 'sort_order', 'parent_doc_id', 'featured_image_asset_id']
   for (const field of fields) {
     if (body[field] !== undefined) {
+      if (field === 'body' && body.body && body.body.length > BODY_MAX) {
+        return jsonResponse({ error: `body exceeds maximum length (${BODY_MAX})` }, { status: 400 })
+      }
+      if (field === 'excerpt' && body.excerpt && body.excerpt.length > EXCERPT_MAX) {
+        return jsonResponse({ error: `excerpt exceeds maximum length (${EXCERPT_MAX})` }, { status: 400 })
+      }
+      if (field === 'seo_description' && body.seo_description && body.seo_description.length > SEO_DESCRIPTION_MAX) {
+        return jsonResponse({ error: `seo_description exceeds maximum length (${SEO_DESCRIPTION_MAX})` }, { status: 400 })
+      }
+      if (field === 'seo_keywords' && body.seo_keywords && body.seo_keywords.length > SEO_KEYWORDS_MAX) {
+        return jsonResponse({ error: `seo_keywords exceeds maximum length (${SEO_KEYWORDS_MAX})` }, { status: 400 })
+      }
       if (field === 'category' && body.category && !VALID_CATEGORIES.includes(body.category)) {
         return jsonResponse({ error: `invalid category. Must be one of: ${VALID_CATEGORIES.join(', ')}` }, { status: 400 })
       }

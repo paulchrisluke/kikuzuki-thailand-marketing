@@ -96,10 +96,19 @@ export default defineEventHandler(async (event) => {
 
   const assetId = crypto.randomUUID()
   try {
+    // Platform owners may have organization/site IDs on their user object in this setup
+    const organizationId = (session.user as any).organization_id || (session.user as any).organizationId
+    const siteId = (session.user as any).site_id || (session.user as any).siteId
+
+    if (!organizationId || !siteId) {
+      console.error('generate_image_missing_context', { userId: session.user.id, organizationId, siteId })
+      return jsonResponse({ error: 'User must have an active organization and site to generate assets' }, { status: 400 })
+    }
+
     await createMediaAsset(db, {
       id: assetId,
-      organization_id: 'platform', // Special identifier for platform assets
-      site_id: 'platform', // Platform assets use a special site_id
+      organization_id: organizationId,
+      site_id: siteId,
       location_id: null,
       kind: 'image',
       provider: 'chowbot',

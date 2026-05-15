@@ -33,28 +33,57 @@ export default defineEventHandler(async (event) => {
       return jsonResponse({ error: 'GITHUB_TOKEN not configured' }, { status: 500 })
     }
 
-    // Fetch merged PRs from GitHub
-    const response = await fetch(
-      `https://api.github.com/repos/${repoOwner}/${repoName}/pulls?state=closed&sort=updated&direction=desc&per_page=${Math.min(prLimit * 2, 100)}`,
-      {
-        headers: {
-          'Authorization': `Bearer ${githubToken}`,
-          'Accept': 'application/vnd.github+json',
-          'X-GitHub-Api-Version': '2022-11-28'
-        }
-      }
-    )
+    // Fetch merged PRs from GitHub with pagination and timeout
+    const allMergedPRs: GitHubPR[] = []
+    let page = 1
+    const perPage = 100
 
-    if (!response.ok) {
-      const errorText = await response.text()
-      console.error('GitHub API error:', response.status, errorText)
-      return jsonResponse({ error: `GitHub API error: ${response.status}` }, { status: 500 })
+    while (allMergedPRs.length < prLimit) {
+      const controller = new AbortController()
+      const timeout = setTimeout(() => controller.abort(), 10000)
+
+      try {
+        const response = await fetch(
+          `https://api.github.com/repos/${repoOwner}/${repoName}/pulls?state=closed&sort=updated&direction=desc&per_page=${perPage}&page=${page}`,
+          {
+            signal: controller.signal,
+            headers: {
+              'Authorization': `Bearer ${githubToken}`,
+              'Accept': 'application/vnd.github+json',
+              'X-GitHub-Api-Version': '2022-11-28'
+            }
+          }
+        )
+
+        if (!response.ok) {
+          const errorText = await response.text()
+          console.error('GitHub API error:', response.status, errorText)
+          return jsonResponse({ error: `GitHub API error: ${response.status}` }, { status: 500 })
+        }
+
+        const pullRequests = (await response.json()) as GitHubPR[]
+        if (pullRequests.length === 0) break
+
+        const mergedInPage = pullRequests.filter(pr => pr.merged_at !== null)
+        allMergedPRs.push(...mergedInPage)
+
+        if (pullRequests.length < perPage) break
+        page++
+      } catch (err: any) {
+        if (err.name === 'AbortError') {
+          console.error('GitHub API request timed out')
+          return jsonResponse({ error: 'GitHub API request timed out' }, { status: 504 })
+        }
+        throw err
+      } finally {
+        clearTimeout(timeout)
+      }
     }
 
-    const pullRequests = (await response.json()) as GitHubPR[]
-
-    // Filter for merged PRs only and slice to requested limit
-    const mergedPRs = pullRequests.filter(pr => pr.merged_at !== null).slice(0, prLimit)
+    // Sort by merged_at descending and slice to requested limit
+    const mergedPRs = allMergedPRs
+      .sort((a, b) => new Date(b.merged_at!).getTime() - new Date(a.merged_at!).getTime())
+      .slice(0, prLimit)
 
     // Categorize PRs by type based on title
     const categorized: Record<string, Array<{ number: number; title: string; body: string | null; author: string; mergedAt: string; url: string; type: string; scope: string | null; description: string }>> = {

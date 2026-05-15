@@ -1,7 +1,7 @@
 // GET /api/admin/docs/[docId] - Fetch single platform doc (including draft)
 import { cloudflareEnv, jsonResponse } from '~/server/utils/api-response'
 import { getAuthSession } from '~/server/utils/auth'
-import { isPlatformOwner } from '~/server/utils/platform-auth'
+import { isPlatformOwner, anonymizeId } from '~/server/utils/platform-auth'
 
 function auditLog(action: string, payload: ApiRecord) {
   console.info('[audit]', { action, timestamp: new Date().toISOString(), ...payload })
@@ -20,7 +20,7 @@ export default defineEventHandler(async (event) => {
 
   if (!isPlatformOwner(session.user.email, env)) {
     auditLog('admin_read_denied', {
-      email: session.user.email,
+      user: anonymizeId(session.user.email, env),
       docId
     })
     return jsonResponse({ error: 'Platform owner access required' }, { status: 403 })
@@ -38,14 +38,14 @@ export default defineEventHandler(async (event) => {
 
   if (!doc) {
     auditLog('admin_read_not_found', {
-      email: session.user.email,
+      user: anonymizeId(session.user.email, env),
       docId
     })
     return jsonResponse({ error: 'Doc not found' }, { status: 404 })
   }
 
   auditLog('admin_read_doc', {
-    email: session.user.email,
+    user: anonymizeId(session.user.email, env),
     docId,
     docSlug: doc.slug
   })

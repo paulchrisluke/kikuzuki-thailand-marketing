@@ -6,7 +6,6 @@ import { isPlatformOwner } from '~/server/utils/platform-auth'
 const TITLE_MAX = 200
 const BODY_MAX = 100000
 const EXCERPT_MAX = 500
-const CATEGORY_MAX = 100
 const SEO_DESCRIPTION_MAX = 500
 const SEO_KEYWORDS_MAX = 500
 const MAX_SLUG_ATTEMPTS = 8

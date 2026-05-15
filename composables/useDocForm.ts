@@ -13,7 +13,7 @@ export function useDocForm() {
   const canSave = computed(() => Boolean(form.title.trim() || form.body.trim()))
   const canPublish = computed(() => Boolean(form.title.trim() && form.body.trim()))
 
-  function handleImageChange(asset: { id: string; publicUrl: string; thumbnailUrl: string } | null) {
+  function handleImageChange(_asset: { id: string; publicUrl: string; thumbnailUrl: string } | null) {
     // Image change is handled by v-model, this is for any additional logic if needed
   }
 

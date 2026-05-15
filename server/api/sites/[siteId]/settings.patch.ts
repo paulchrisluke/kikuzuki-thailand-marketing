@@ -84,8 +84,22 @@ export default defineEventHandler(async (event) => {
       params.push(body.brand_description)
     }
     if (body.logo_asset_id !== undefined) {
+      if (body.logo_asset_id !== null && body.logo_asset_id !== '') {
+        const asset = await db.prepare(`
+          SELECT id
+          FROM media_assets
+          WHERE id = ? AND organization_id = ? AND site_id = ? AND status = 'active' AND kind = 'image'
+          LIMIT 1
+        `).bind(body.logo_asset_id, site.organization_id, siteId).first()
+
+        if (!asset) {
+          return jsonResponse({
+            error: 'Logo asset not found, unauthorized, or not an image'
+          }, { status: 400 })
+        }
+      }
       setParts.push('logo_asset_id = ?')
-      params.push(body.logo_asset_id)
+      params.push(body.logo_asset_id || null)
     }
     if (body.logo_url !== undefined) {
       setParts.push('logo_url = ?')

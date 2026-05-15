@@ -154,6 +154,7 @@ const images = ref<PlatformMediaAsset[]>([])
 const selectedUrl = ref<string | null>(null)
 const selectedAlt = ref<string>('')
 const modelLoadController = ref<AbortController | null>(null)
+const libraryLoadController = ref<AbortController | null>(null)
 
 function isAbortError(error: unknown): boolean {
   return error instanceof Error && error.name === 'AbortError'
@@ -200,22 +201,41 @@ watch(() => props.modelValue, async (id) => {
 
 onUnmounted(() => {
   modelLoadController.value?.abort()
+  libraryLoadController.value?.abort()
 })
 
 async function loadImages() {
+  libraryLoadController.value?.abort()
+  const controller = new AbortController()
+  libraryLoadController.value = controller
+
   loading.value = true
   try {
-    const res = await $fetch<{ media: PlatformMediaAsset[] }>('/api/admin/platform/media?limit=50')
+    const res = await $fetch<{ media: PlatformMediaAsset[] }>('/api/admin/platform/media?limit=50', {
+      signal: controller.signal
+    })
+    if (controller.signal.aborted) return
     images.value = res.media ?? []
   } catch (err) {
+    if (controller.signal.aborted || isAbortError(err)) return
     console.error('Failed to load platform images:', err)
     images.value = []
   } finally {
-    loading.value = false
+    if (libraryLoadController.value === controller) {
+      libraryLoadController.value = null
+      loading.value = false
+    }
   }
 }
 
+watch(isOpen, (open) => {
+  if (!open) {
+    libraryLoadController.value?.abort()
+  }
+})
+
 function open() {
+  libraryLoadController.value?.abort()
   pendingAsset.value = null
   panel.value = 'library'
   loadImages()

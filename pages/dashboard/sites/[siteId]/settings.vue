@@ -412,7 +412,7 @@ const resetForm = () => {
   form.url_structure = settings.value.url_structure || 'location_subdirectories'
 }
 
-function handleLogoChange(asset: { id: string; publicUrl: string; thumbnailUrl: string } | null) {
+function handleLogoChange(_asset: { id: string; publicUrl: string; thumbnailUrl: string } | null) {
   // Logo change is handled by v-model, this is for any additional logic if needed
 }
 

@@ -465,9 +465,7 @@ const endpointWithContentScope = (path: string) =>
 
 const selectLocation = (id: string) => {
   selectedLocationId.value = id
-  iframeLoading.value = true
   activeField.value = null
-  loadPageContent()
 }
 
 const onLocationChange = () => {
@@ -521,7 +519,6 @@ const iframeSrc = computed(() => {
 })
 
 const onPageChange = () => {
-  iframeLoading.value = true
   activeField.value = null
   // When switching to a location-scoped page, auto-select the primary/first location
   if (currentPageIsLocationScoped.value && !selectedLocationId.value && siteLocations.value.length > 0) {
@@ -532,8 +529,6 @@ const onPageChange = () => {
   if (!currentPageIsLocationScoped.value) {
     selectedLocationId.value = null
   }
-  if (requiresLocationSelection.value) return
-  loadPageContent()
 }
 
 watch(selectedPageId, () => {

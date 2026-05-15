@@ -219,6 +219,7 @@
 <script setup lang="ts">
 import { useChowBot } from '~/composables/useChowBot'
 import { useAiCredits } from '~/composables/useAiCredits'
+import DOMPurify from 'isomorphic-dompurify'
 
 const { isOpen, messages, isLoading, siteId, close, sendMessage, clearMessages } = useChowBot()
 const { balance, total, isLow, isDepleted, fetch: fetchCredits } = useAiCredits(siteId)
@@ -472,7 +473,7 @@ const toolLabel = (name: string): string => {
 // --- markdown ---
 
 function renderMarkdown(text: string): string {
-  return text
+  const html = text
     .replace(/```[\s\S]*?```/g, m => `<pre><code>${m.slice(3, -3).replace(/^[^\n]*\n/, '')}</code></pre>`)
     .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
     .replace(/\*(.+?)\*/g, '<em>$1</em>')
@@ -482,6 +483,7 @@ function renderMarkdown(text: string): string {
     .replace(/\n\n/g, '</p><p>')
     .replace(/\n/g, '<br>')
     .replace(/^(.+)$/, '<p>$1</p>')
+  return DOMPurify.sanitize(html)
 }
 </script>
 
