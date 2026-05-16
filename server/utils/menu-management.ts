@@ -37,6 +37,17 @@ function slugify(name: string): string {
   return slug
 }
 
+function mapMenuItem(row: any): MenuItem {
+  if (!row) return row
+  return {
+    ...row,
+    available: Boolean(row.available),
+    allergens: row.allergens ? JSON.parse(row.allergens) : [],
+    ingredients: row.ingredients ? JSON.parse(row.ingredients) : [],
+    dietary_notes: row.dietary_notes ? JSON.parse(row.dietary_notes) : [],
+  }
+}
+
 async function uniqueSlug(db: D1Database, menuId: string, base: string, excludeId?: string): Promise<string> {
   // Get site_id from menuId to ensure site-wide uniqueness for public URLs
   const menu = await db.prepare(`SELECT site_id FROM menus WHERE id = ?`).bind(menuId).first() as { site_id: string } | null
@@ -110,6 +121,7 @@ export async function getMenuWithItems(
   const items = await db.prepare(`
     SELECT mi.id, mi.menu_id, mi.section, mi.name, mi.slug, mi.description, mi.price,
            mi.image_asset_id, ma.public_url, ma.kind, mi.available, mi.sort_order,
+           mi.allergens, mi.ingredients, mi.dietary_notes, mi.preparation, mi.serving_note,
            mi.created_at, mi.updated_at, mi.created_by, mi.updated_by
     FROM menu_items mi
     LEFT JOIN media_assets ma ON mi.image_asset_id = ma.id AND ma.status = 'active'
@@ -119,7 +131,7 @@ export async function getMenuWithItems(
 
   return {
     ...menu,
-    items: (items.results || []) as unknown as MenuItem[]
+    items: (items.results || []).map(mapMenuItem)
   }
 }
 
@@ -144,6 +156,7 @@ export async function getActiveMenu(
       const items = await db.prepare(`
         SELECT mi.id, mi.menu_id, mi.section, mi.name, mi.slug, mi.description, mi.price,
                mi.image_asset_id, ma.public_url, ma.kind, mi.available, mi.sort_order,
+               mi.allergens, mi.ingredients, mi.dietary_notes, mi.preparation, mi.serving_note,
                mi.created_at, mi.updated_at, mi.created_by, mi.updated_by
         FROM menu_items mi
         LEFT JOIN media_assets ma ON mi.image_asset_id = ma.id AND ma.status = 'active'
@@ -153,7 +166,7 @@ export async function getActiveMenu(
 
       return {
         ...locationMenu,
-        items: (items.results || []) as unknown as MenuItem[]
+        items: (items.results || []).map(mapMenuItem)
       }
     }
   }
@@ -172,6 +185,7 @@ export async function getActiveMenu(
   const items = await db.prepare(`
     SELECT mi.id, mi.menu_id, mi.section, mi.name, mi.slug, mi.description, mi.price,
            mi.image_asset_id, ma.public_url, ma.kind, mi.available, mi.sort_order,
+           mi.allergens, mi.ingredients, mi.dietary_notes, mi.preparation, mi.serving_note,
            mi.created_at, mi.updated_at, mi.created_by, mi.updated_by
     FROM menu_items mi
     LEFT JOIN media_assets ma ON mi.image_asset_id = ma.id AND ma.status = 'active'
@@ -181,7 +195,7 @@ export async function getActiveMenu(
 
   return {
     ...brandMenu,
-    items: (items.results || []) as unknown as MenuItem[]
+    items: (items.results || []).map(mapMenuItem)
   }
 }
 
@@ -194,15 +208,16 @@ export async function getPublicMenuItem(
   const item = await db.prepare(`
     SELECT mi.id, mi.menu_id, mi.section, mi.name, mi.slug, mi.description, mi.price,
            mi.image_asset_id, ma.public_url, ma.kind, mi.available, mi.sort_order,
+           mi.allergens, mi.ingredients, mi.dietary_notes, mi.preparation, mi.serving_note,
            mi.created_at, mi.updated_at, mi.created_by, mi.updated_by
     FROM menu_items mi
     JOIN menus m ON m.id = mi.menu_id
     LEFT JOIN media_assets ma ON mi.image_asset_id = ma.id AND ma.status = 'active'
     WHERE m.site_id = ? AND mi.slug = ? AND m.status = 'published'
     LIMIT 1
-  `).bind(siteId, slug).first<MenuItem>()
+  `).bind(siteId, slug).first()
 
-  return item || null
+  return item ? mapMenuItem(item) : null
 }
 
 // Create menu
@@ -338,8 +353,9 @@ export async function createMenuItem(
   const slug = await uniqueSlug(db, menuId, item.name)
 
   const result = await db.prepare(`
-    INSERT INTO menu_items (id, menu_id, section, name, slug, description, price, image_asset_id, available, sort_order, created_at, updated_at, created_by)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO menu_items (id, menu_id, section, name, slug, description, price, image_asset_id, available, sort_order, 
+      allergens, ingredients, dietary_notes, preparation, serving_note, created_at, updated_at, created_by)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).bind(
     id,
     menuId,
@@ -351,6 +367,11 @@ export async function createMenuItem(
     item.image_asset_id || null,
     item.available !== undefined ? item.available : true,
     item.sort_order || 0,
+    item.allergens ? JSON.stringify(item.allergens) : null,
+    item.ingredients ? JSON.stringify(item.ingredients) : null,
+    item.dietary_notes ? JSON.stringify(item.dietary_notes) : null,
+    item.preparation || null,
+    item.serving_note || null,
     now,
     now,
     createdBy
@@ -365,17 +386,18 @@ export async function createMenuItem(
 
   const createdItem = await db.prepare(`
     SELECT id, menu_id, section, name, slug, description, price, image_asset_id, available, sort_order,
+           allergens, ingredients, dietary_notes, preparation, serving_note,
            created_at, updated_at, created_by, updated_by
     FROM menu_items 
     WHERE id = ?
     LIMIT 1
-  `).bind(id).first<MenuItem>()
+  `).bind(id).first()
 
   if (!createdItem) {
     throw new Error('Menu item not found after creation')
   }
 
-  return createdItem
+  return mapMenuItem(createdItem)
 }
 
 // Update menu item
@@ -430,6 +452,26 @@ export async function updateMenuItem(
     setParts.push('sort_order = ?')
     params.push(updates.sort_order)
   }
+  if (updates.allergens !== undefined) {
+    setParts.push('allergens = ?')
+    params.push(updates.allergens ? JSON.stringify(updates.allergens) : null)
+  }
+  if (updates.ingredients !== undefined) {
+    setParts.push('ingredients = ?')
+    params.push(updates.ingredients ? JSON.stringify(updates.ingredients) : null)
+  }
+  if (updates.dietary_notes !== undefined) {
+    setParts.push('dietary_notes = ?')
+    params.push(updates.dietary_notes ? JSON.stringify(updates.dietary_notes) : null)
+  }
+  if (updates.preparation !== undefined) {
+    setParts.push('preparation = ?')
+    params.push(updates.preparation || null)
+  }
+  if (updates.serving_note !== undefined) {
+    setParts.push('serving_note = ?')
+    params.push(updates.serving_note || null)
+  }
 
   setParts.push('updated_at = ?')
   setParts.push('updated_by = ?')
@@ -452,17 +494,18 @@ export async function updateMenuItem(
 
   const updatedItem = await db.prepare(`
     SELECT id, menu_id, section, name, slug, description, price, image_asset_id, available, sort_order,
+           allergens, ingredients, dietary_notes, preparation, serving_note,
            created_at, updated_at, created_by, updated_by
     FROM menu_items 
     WHERE id = ?
     LIMIT 1
-  `).bind(menuItemId).first<MenuItem>()
+  `).bind(menuItemId).first()
 
   if (!updatedItem) {
     throw new Error('Menu item not found after update')
   }
 
-  return updatedItem
+  return mapMenuItem(updatedItem)
 }
 
 // Delete menu item

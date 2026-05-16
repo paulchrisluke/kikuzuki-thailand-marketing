@@ -295,8 +295,8 @@ interface MenuItemType {
   preparation?: string
   allergens?: string[]
   ingredients?: string[]
-  dietaryNotes?: string[]
-  servingNote?: string
+  dietary_notes?: string[]
+  serving_note?: string
   reviews?: Review[]
   priceCurrency?: string
 }
@@ -325,6 +325,9 @@ const mainMedia = computed(() => resolveMedia({
   public_url: item.value?.public_url,
   kind: item.value?.kind
 }))
+const visibleDietary = computed(() =>
+  item.value?.dietary_notes?.filter(note => !note.includes('PLACEHOLDER')) ?? []
+)
 
 
 const visibleAllergens = computed(() =>

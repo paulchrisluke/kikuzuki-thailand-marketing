@@ -116,6 +116,14 @@ function getToolString(record: Record<string, unknown>, key: string, maxLength: 
   return typeof value === 'string' ? value.slice(0, maxLength) : undefined
 }
 
+function getToolStringArray(record: Record<string, unknown>, key: string): string[] | undefined {
+  const value = record[key]
+  if (Array.isArray(value)) {
+    return value.filter(v => typeof v === 'string')
+  }
+  return undefined
+}
+
 function getToolBoolean(record: Record<string, unknown>, key: string): boolean | undefined {
   const value = record[key]
   return typeof value === 'boolean' ? value : undefined
@@ -243,6 +251,12 @@ function buildMenuItemUpdates(itemRecord: Record<string, unknown>, match?: MenuI
   const price = getToolString(itemRecord, 'price', 50)
   const imageAssetId = getToolString(itemRecord, 'image_asset_id', 120)
   const available = getToolBoolean(itemRecord, 'available')
+  
+  const allergens = getToolStringArray(itemRecord, 'allergens')
+  const ingredients = getToolStringArray(itemRecord, 'ingredients')
+  const dietary_notes = getToolStringArray(itemRecord, 'dietary_notes')
+  const preparation = getToolString(itemRecord, 'preparation', 500)
+  const serving_note = getToolString(itemRecord, 'serving_note', 500)
 
   if (section !== undefined && section.trim() && section !== match?.section) updates.section = section
   if (name !== undefined && name !== match?.name) updates.name = name
@@ -250,6 +264,12 @@ function buildMenuItemUpdates(itemRecord: Record<string, unknown>, match?: MenuI
   if (price !== undefined && price !== match?.price) updates.price = price
   if (imageAssetId !== undefined && imageAssetId !== match?.image_asset_id) updates.image_asset_id = imageAssetId
   if (available !== undefined && available !== Boolean(match?.available)) updates.available = available
+  
+  if (allergens !== undefined) updates.allergens = allergens
+  if (ingredients !== undefined) updates.ingredients = ingredients
+  if (dietary_notes !== undefined) updates.dietary_notes = dietary_notes
+  if (preparation !== undefined && preparation !== match?.preparation) updates.preparation = preparation
+  if (serving_note !== undefined && serving_note !== match?.serving_note) updates.serving_note = serving_note
 
   return updates
 }
@@ -384,6 +404,11 @@ const TOOLS: AiTool[] = [
               description: { type: 'string', description: 'Short description. Optional.' },
               price: { type: 'string', description: 'Price string, e.g. "฿120". Optional.' },
               image_asset_id: { type: 'string', description: 'Media asset ID from generate_image. Optional.' },
+              allergens: { type: 'array', items: { type: 'string' }, description: 'List of allergens, e.g. ["dairy", "nuts"].' },
+              ingredients: { type: 'array', items: { type: 'string' }, description: 'Key ingredients.' },
+              dietary_notes: { type: 'array', items: { type: 'string' }, description: 'Dietary tags, e.g. ["V", "VG", "GF", "vegetarian", "vegan", "gluten-free"].' },
+              preparation: { type: 'string', description: 'How the dish is prepared.' },
+              serving_note: { type: 'string', description: 'Notes about serving size or accompaniment.' },
             },
             required: ['section', 'name'],
           },
@@ -412,6 +437,11 @@ const TOOLS: AiTool[] = [
               price: { type: 'string', description: 'Price string, e.g. "฿120". Optional.' },
               image_asset_id: { type: 'string', description: 'Media asset ID from generate_image. Optional.' },
               available: { type: 'boolean', description: 'Whether the item should be shown as available.' },
+              allergens: { type: 'array', items: { type: 'string' }, description: 'List of allergens.' },
+              ingredients: { type: 'array', items: { type: 'string' }, description: 'Key ingredients.' },
+              dietary_notes: { type: 'array', items: { type: 'string' }, description: 'Dietary tags, e.g. ["V", "VG", "GF", "vegetarian", "vegan", "gluten-free"].' },
+              preparation: { type: 'string' },
+              serving_note: { type: 'string' },
             },
           },
         },
@@ -435,6 +465,11 @@ const TOOLS: AiTool[] = [
         description: { type: 'string', description: 'Short description. Optional.' },
         price: { type: 'string', description: 'Price string. Optional.' },
         image_asset_id: { type: 'string', description: 'Media asset ID from generate_image. Optional.' },
+        allergens: { type: 'array', items: { type: 'string' } },
+        ingredients: { type: 'array', items: { type: 'string' } },
+        dietary_notes: { type: 'array', items: { type: 'string' } },
+        preparation: { type: 'string' },
+        serving_note: { type: 'string' },
       },
       required: ['menu_id', 'section', 'name'],
     },
@@ -452,6 +487,11 @@ const TOOLS: AiTool[] = [
         price: { type: 'string' },
         image_asset_id: { type: 'string', description: 'New media asset ID from generate_image.' },
         available: { type: 'boolean' },
+        allergens: { type: 'array', items: { type: 'string' } },
+        ingredients: { type: 'array', items: { type: 'string' } },
+        dietary_notes: { type: 'array', items: { type: 'string' } },
+        preparation: { type: 'string' },
+        serving_note: { type: 'string' },
       },
       required: ['item_id'],
     },

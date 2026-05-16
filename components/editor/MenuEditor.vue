@@ -202,6 +202,25 @@
                       @change="editForm.kind = $event?.kind ?? 'image'"
                     />
                 </UFormField>
+                <div class="grid gap-3 sm:grid-cols-2">
+                  <UFormField label="Allergens (comma-separated)">
+                    <UInput v-model="editForm.allergens" placeholder="Dairy, Nuts, Soy..." />
+                  </UFormField>
+                  <UFormField label="Dietary Tags (comma-separated)">
+                    <UInput v-model="editForm.dietary_notes" placeholder="V, VG, GF, Vegan..." />
+                  </UFormField>
+                </div>
+                <div class="grid gap-3 sm:grid-cols-2">
+                  <UFormField label="Preparation">
+                    <UInput v-model="editForm.preparation" placeholder="Grilled, Steamed, Spicy..." />
+                  </UFormField>
+                  <UFormField label="Serving Note">
+                    <UInput v-model="editForm.serving_note" placeholder="Served with rice..." />
+                  </UFormField>
+                </div>
+                <UFormField label="Ingredients (comma-separated)">
+                  <UInput v-model="editForm.ingredients" placeholder="Chicken, Garlic, Ginger..." />
+                </UFormField>
                 <UCheckbox v-model="editForm.available" label="Available for ordering" />
                 <div class="flex items-center justify-between gap-2">
                   <UButton color="neutral" variant="ghost" size="sm" icon="i-heroicons-trash" @click="handleDeleteItem(item.id)">Delete</UButton>
@@ -244,6 +263,25 @@
                   title="Item image or video"
                   @change="addItemForm.kind = $event?.kind ?? 'image'"
                 />
+              </UFormField>
+              <div class="grid gap-3 sm:grid-cols-2">
+                <UFormField label="Allergens (comma-separated)">
+                  <UInput v-model="addItemForm.allergens" placeholder="Dairy, Nuts, Soy..." />
+                </UFormField>
+                <UFormField label="Dietary Tags (comma-separated)">
+                  <UInput v-model="addItemForm.dietary_notes" placeholder="V, VG, GF, Vegan..." />
+                </UFormField>
+              </div>
+              <div class="grid gap-3 sm:grid-cols-2">
+                <UFormField label="Preparation">
+                  <UInput v-model="addItemForm.preparation" placeholder="Grilled, Steamed, Spicy..." />
+                </UFormField>
+                <UFormField label="Serving Note">
+                  <UInput v-model="addItemForm.serving_note" placeholder="Served with rice..." />
+                </UFormField>
+              </div>
+              <UFormField label="Ingredients (comma-separated)">
+                <UInput v-model="addItemForm.ingredients" placeholder="Chicken, Garlic, Ginger..." />
               </UFormField>
               <UCheckbox v-model="addItemForm.available" label="Available for ordering" />
               <div class="flex justify-end gap-2">
@@ -393,9 +431,21 @@ const handleCreateMenu = async () => {
 
 // Inline item editing
 const expandedItemId = ref<string | null>(null)
-const editForm = reactive({ name: '', description: '', price: '', available: true, image_asset_id: null as string | null, kind: 'image' })
+const editForm = reactive({ 
+  name: '', 
+  description: '', 
+  price: '', 
+  available: true, 
+  image_asset_id: null as string | null, 
+  kind: 'image',
+  allergens: '',
+  ingredients: '',
+  dietary_notes: '',
+  preparation: '',
+  serving_note: ''
+})
 
-const openEditItem = (item: ApiValue) => {
+const openEditItem = (item: any) => {
   expandedItemId.value = item.id
   editForm.name = item.name ?? ''
   editForm.description = item.description ?? ''
@@ -403,6 +453,11 @@ const openEditItem = (item: ApiValue) => {
   editForm.available = item.available ?? true
   editForm.image_asset_id = item.image_asset_id ?? null
   editForm.kind = item.kind ?? 'image'
+  editForm.allergens = (item.allergens || []).join(', ')
+  editForm.ingredients = (item.ingredients || []).join(', ')
+  editForm.dietary_notes = (item.dietary_notes || []).join(', ')
+  editForm.preparation = item.preparation ?? ''
+  editForm.serving_note = item.serving_note ?? ''
 }
 
 const closeEdit = () => {
@@ -417,6 +472,11 @@ const handleSaveItem = async (itemId: string) => {
       price: editForm.price.trim() || undefined,
       available: editForm.available,
       image_asset_id: editForm.image_asset_id ?? undefined,
+      allergens: editForm.allergens.split(',').map(s => s.trim()).filter(Boolean),
+      ingredients: editForm.ingredients.split(',').map(s => s.trim()).filter(Boolean),
+      dietary_notes: editForm.dietary_notes.split(',').map(s => s.trim()).filter(Boolean),
+      preparation: editForm.preparation.trim() || undefined,
+      serving_note: editForm.serving_note.trim() || undefined
     })
     expandedItemId.value = null
     toast.addToast('Item saved', 'success')
@@ -471,7 +531,19 @@ const handleDeleteSection = async () => {
 
 // Add item inline form
 const addingItemSection = ref<string | null>(null)
-const addItemForm = reactive({ name: '', description: '', price: '', available: true, image_asset_id: null as string | null, kind: 'image' })
+const addItemForm = reactive({ 
+  name: '', 
+  description: '', 
+  price: '', 
+  available: true, 
+  image_asset_id: null as string | null, 
+  kind: 'image',
+  allergens: '',
+  ingredients: '',
+  dietary_notes: '',
+  preparation: '',
+  serving_note: ''
+})
 
 const openAddItem = (section: string) => {
   expandedItemId.value = null
@@ -481,6 +553,11 @@ const openAddItem = (section: string) => {
   addItemForm.price = ''
   addItemForm.available = true
   addItemForm.image_asset_id = null
+  addItemForm.allergens = ''
+  addItemForm.ingredients = ''
+  addItemForm.dietary_notes = ''
+  addItemForm.preparation = ''
+  addItemForm.serving_note = ''
   addingItemSection.value = section
 }
 
@@ -501,7 +578,12 @@ const handleAddItem = async (section: string) => {
       price: addItemForm.price.trim() || undefined,
       available: addItemForm.available,
       image_asset_id: addItemForm.image_asset_id ?? undefined,
-      section
+      section,
+      allergens: addItemForm.allergens.split(',').map(s => s.trim()).filter(Boolean),
+      ingredients: addItemForm.ingredients.split(',').map(s => s.trim()).filter(Boolean),
+      dietary_notes: addItemForm.dietary_notes.split(',').map(s => s.trim()).filter(Boolean),
+      preparation: addItemForm.preparation.trim() || undefined,
+      serving_note: addItemForm.serving_note.trim() || undefined
     })
     pendingSections.value = pendingSections.value.filter((s: string) => s !== section)
     addingItemSection.value = null

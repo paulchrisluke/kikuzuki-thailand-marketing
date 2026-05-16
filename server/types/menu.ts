@@ -27,6 +27,11 @@ export interface MenuItem {
   kind?: string | null
   available: boolean
   sort_order: number
+  allergens?: string[] | null
+  ingredients?: string[] | null
+  dietary_notes?: string[] | null
+  preparation?: string | null
+  serving_note?: string | null
   created_at: string
   updated_at: string
   created_by: string
@@ -58,6 +63,11 @@ export interface CreateMenuItemRequest {
   image_asset_id?: string
   available?: boolean
   sort_order?: number
+  allergens?: string[]
+  ingredients?: string[]
+  dietary_notes?: string[]
+  preparation?: string
+  serving_note?: string
 }
 
 export interface UpdateMenuItemRequest {
@@ -69,6 +79,11 @@ export interface UpdateMenuItemRequest {
   image_asset_id?: string
   available?: boolean
   sort_order?: number
+  allergens?: string[]
+  ingredients?: string[]
+  dietary_notes?: string[]
+  preparation?: string
+  serving_note?: string
 }
 
 export interface ReorderMenuItemsRequest {
