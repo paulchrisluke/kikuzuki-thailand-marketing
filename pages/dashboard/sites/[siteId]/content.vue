@@ -721,9 +721,9 @@ const loadPageContent = async () => {
         if (row.hero_title) map['hero.title'] = row.hero_title
         if (row.hero_subtitle) map['hero.subtitle'] = row.hero_subtitle
         if (row.hero_image_asset_id) map['hero.image'] = row.hero_image_asset_id
-        else if (row.hero_image_url) map['hero.image'] = row.hero_image_url
+        else if (row.hero_public_url) map['hero.image'] = row.hero_public_url
         if (row.hero_video_asset_id) map['hero.video'] = row.hero_video_asset_id
-        else if (row.hero_video_url) map['hero.video'] = row.hero_video_url
+        else if (row.hero_video_public_url) map['hero.video'] = row.hero_video_public_url
       } else {
         map[row.field] = row.content || ''
       }

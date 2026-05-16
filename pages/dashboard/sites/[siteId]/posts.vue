@@ -73,10 +73,25 @@
               :class="selectedPost?.id === post.id ? 'bg-elevated' : ''"
               @click="selectPost(post)"
             >
-              <img v-if="post.image_url" :src="post.image_url" class="size-10 shrink-0 rounded object-cover" />
-              <div v-else class="flex size-10 shrink-0 items-center justify-center rounded bg-muted">
+            <div class="size-10 shrink-0 overflow-hidden rounded bg-muted">
+              <video
+                v-if="post.public_url && post.kind === 'video'"
+                :src="post.public_url"
+                class="h-full w-full object-cover"
+                muted
+                playsinline
+                preload="metadata"
+              />
+              <img
+                v-else-if="post.public_url"
+                :src="post.public_url"
+                :alt="post.title || 'Post image'"
+                class="h-full w-full object-cover"
+              >
+              <div v-else class="flex h-full w-full items-center justify-center">
                 <UIcon name="i-heroicons-document-text" class="size-4 text-muted" />
               </div>
+            </div>
               <div class="min-w-0 flex-1">
                 <p class="truncate text-sm font-medium text-highlighted">{{ post.title || post.body.slice(0, 60) }}</p>
                 <p class="truncate text-xs text-muted">{{ formatDate(post.updated_at) }}</p>
@@ -93,6 +108,7 @@
             v-model:body="editForm.body"
             v-model:image-asset-id="editForm.image_asset_id"
             v-model:image-preview-url="editForm.imagePreviewUrl"
+            v-model:image-kind="editForm.imageKind"
             v-model:selected-channels="selectedChannels"
             :eyebrow="composing ? 'New post' : 'Site post'"
             :status-text="composing ? 'Draft' : String(selectedPost?.status ?? 'Draft')"
@@ -150,7 +166,7 @@ onMounted(loadPosts)
 // Selection / compose
 const selectedPost = ref<ApiRecord | null>(null)
 const composing = ref(false)
-const editForm = reactive({ title: '', body: '', image_asset_id: '' as string | null, imagePreviewUrl: '' as string | null })
+const editForm = reactive({ title: '', body: '', image_asset_id: '' as string | null, imagePreviewUrl: '' as string | null, imageKind: 'image' as string | null })
 const selectedChannels = ref<string[]>(['site'])
 
 const channelOptions = [
@@ -167,6 +183,7 @@ const openCompose = () => {
   editForm.body = ''
   editForm.image_asset_id = null
   editForm.imagePreviewUrl = null
+  editForm.imageKind = 'image'
   selectedChannels.value = ['site']
 }
 
@@ -177,6 +194,7 @@ const closeEditor = () => {
   editForm.body = ''
   editForm.image_asset_id = null
   editForm.imagePreviewUrl = null
+  editForm.imageKind = 'image'
   selectedChannels.value = []
 }
 
@@ -186,7 +204,8 @@ const selectPost = (post: ApiRecord) => {
   editForm.title = post.title ?? ''
   editForm.body = post.body ?? ''
   editForm.image_asset_id = post.image_asset_id ?? null
-  editForm.imagePreviewUrl = post.image_url ?? null
+  editForm.imagePreviewUrl = post.public_url ?? null
+  editForm.imageKind = post.kind ?? 'image'
   selectedChannels.value = ['site']
 }
 

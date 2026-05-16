@@ -9,7 +9,8 @@ export interface Post {
   body: string
   image_asset_id: string | null
   /** Resolved public URL — injected by listPosts/getPublishedPosts JOIN, not a DB column */
-  image_url?: string | null
+  public_url?: string | null
+  kind?: string | null
   cta_type: string | null
   cta_url: string | null
   event_title: string | null
@@ -48,7 +49,7 @@ interface PublishedPostSummary {
   title: string
   summary: string
   createTime: string | null
-  media: Array<{ googleUrl: string; mediaFormat: 'IMAGE' }>
+  media: Array<{ googleUrl: string; mediaFormat: 'IMAGE' | 'VIDEO' }>
 }
 
 interface PublishedPostRow {
@@ -57,7 +58,8 @@ interface PublishedPostRow {
   body: string
   published_at: string | null
   created_at: string
-  image_url: string | null
+  public_url: string | null
+  kind: string | null
 }
 
 export async function listPosts(
@@ -67,7 +69,7 @@ export async function listPosts(
   status?: string
 ): Promise<Post[]> {
   let query = `
-    SELECT p.*, ma.public_url AS image_url
+    SELECT p.*, ma.public_url, ma.kind
     FROM posts p
     LEFT JOIN media_assets ma ON p.image_asset_id = ma.id AND ma.status = 'active'
     WHERE p.organization_id = ? AND p.site_id = ?
@@ -224,7 +226,7 @@ export async function getPublishedPosts(
 ): Promise<PublishedPostSummary[]> {
   const result = await db.prepare(`
     SELECT p.id, p.title, p.body, p.image_asset_id, p.published_at, p.created_at,
-           ma.public_url as image_url
+           ma.public_url, ma.kind
     FROM posts p
     LEFT JOIN media_assets ma ON p.image_asset_id = ma.id AND ma.status = 'active'
     WHERE p.site_id = ? AND p.status = 'published'
@@ -239,6 +241,9 @@ export async function getPublishedPosts(
     title: p.title ?? '',
     summary: p.body,
     createTime: p.published_at ?? p.created_at,
-    media: p.image_url ? [{ googleUrl: p.image_url, mediaFormat: 'IMAGE' }] : [],
+    media: (p.public_url && (p.kind === 'image' || p.kind === 'video')) ? [{
+      googleUrl: p.public_url,
+      mediaFormat: p.kind === 'video' ? 'VIDEO' : 'IMAGE'
+    }] : [],
   }))
 }

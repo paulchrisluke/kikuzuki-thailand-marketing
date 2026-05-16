@@ -36,20 +36,26 @@
 
         <section class="mt-8 lg:col-span-7 lg:col-start-1 lg:row-span-3 lg:row-start-1 lg:mt-0" aria-labelledby="item-images-heading">
           <h2 id="item-images-heading" class="sr-only">Dish images</h2>
-          <div class="grid grid-cols-1 gap-4 lg:grid-cols-2 lg:grid-rows-3 lg:gap-6">
-            <UCard class="bg-default rounded-lg overflow-hidden">
+          <div class="grid grid-cols-1 gap-4 lg:grid-cols-1 lg:gap-6">
+            <UCard class="bg-default rounded-lg overflow-hidden border-0">
+              <video
+                v-if="mainMedia.isVideo"
+                :src="mainMedia.url"
+                autoplay
+                muted
+                loop
+                playsinline
+                class="aspect-4/3 w-full object-cover"
+              />
               <img
-                v-if="imageGallery[0]"
-                :src="imageGallery[0]"
+                v-else-if="mainMedia.url"
+                :src="mainMedia.url"
                 :alt="item.name"
                 class="aspect-4/3 w-full object-cover"
               />
-              <div v-else class="flex aspect-4/3 w-full items-center justify-center px-6 text-center">
+              <div v-else class="flex aspect-4/3 w-full items-center justify-center px-6 text-center bg-muted">
                 <span class="text-sm text-dimmed">No image available yet</span>
               </div>
-            </UCard>
-            <UCard v-for="image in secondaryImages" :key="image" class="hidden lg:block bg-elevated rounded-lg overflow-hidden">
-              <img :src="image" :alt="item.name" class="aspect-square w-full object-cover" />
             </UCard>
           </div>
         </section>
@@ -254,29 +260,60 @@
   </div>
 </template>
 
-<script setup>
+<script setup lang="ts">
 definePageMeta({ layout: 'saya' })
-import { menuData } from '~/data/menu'
 import AppBreadcrumb from '~/components/ui/AppBreadcrumb.vue'
 
+const { resolveMedia } = useMedia()
 const route = useRoute()
+const { siteId } = useTenantSite()
 const config = useRuntimeConfig()
 const turnstileEnabled = computed(() => config.public.turnstileEnabled === true || config.public.turnstileEnabled === 'true')
 const turnstileSiteKey = computed(() => config.public.turnstileSiteKey)
 
-const itemContext = computed(() => {
-  const slug = route.params.slug
-  for (const cat of menuData.categories) {
-    const found = cat.items.find(i => i.slug === slug)
-    if (found) return { item: found, category: cat }
-  }
-  return { item: null, category: null }
-})
+interface Review {
+  id: string
+  author: string
+  rating: number
+  title: string
+  content: string
+  date?: string
+  createdAt?: string
+  datetime?: string
+}
 
-const item = computed(() => itemContext.value.item)
-const category = computed(() => itemContext.value.category)
+interface MenuItemType {
+  id: string
+  slug: string
+  name: string
+  section?: string
+  price?: number | string
+  available: boolean
+  public_url?: string
+  kind?: string
+  description?: string
+  preparation?: string
+  allergens?: string[]
+  ingredients?: string[]
+  dietaryNotes?: string[]
+  servingNote?: string
+  reviews?: Review[]
+  priceCurrency?: string
+}
 
-const formatPrice = menuItem => menuItem?.price > 0 ? `฿${menuItem.price}` : 'TBD'
+interface ApiValue {
+  item: MenuItemType | null
+}
+
+const { data: itemData } = await useFetch(
+  () => `/api/public/sites/${siteId}/menu-items/${route.params.slug}`,
+  { key: `menu-item-${siteId}-${route.params.slug}` }
+)
+
+const item = computed(() => (itemData.value as ApiValue)?.item ?? null)
+const category = computed(() => ({ name: item.value?.section }))
+
+const formatPrice = menuItem => menuItem?.price ? `฿${menuItem.price}` : 'TBD'
 
 const formattedPrice = computed(() => formatPrice(item.value))
 
@@ -284,12 +321,11 @@ const isRobatayaki = computed(() =>
   category.value?.name?.toLowerCase().includes('robatayaki') ?? false
 )
 
-const imageGallery = computed(() => {
-  const images = item.value?.images?.length ? item.value.images : [item.value?.image]
-  return images.filter(image => image && !image.includes('PLACEHOLDER'))
-})
+const mainMedia = computed(() => resolveMedia({
+  public_url: item.value?.public_url,
+  kind: item.value?.kind
+}))
 
-const secondaryImages = computed(() => imageGallery.value.slice(1, 3))
 
 const visibleAllergens = computed(() =>
   item.value?.allergens?.filter(allergen => !allergen.includes('PLACEHOLDER')) ?? []
@@ -336,14 +372,7 @@ const diningNotes = computed(() => [
   }
 ])
 
-const relatedItems = computed(() => {
-  const current = item.value
-  const sameCategory = category.value?.items ?? []
-  const allCategoryItems = menuData.categories.flatMap(cat => cat.items)
-  return (sameCategory.length > 1 ? sameCategory : allCategoryItems)
-    .filter(related => related.slug !== current?.slug)
-    .slice(0, 3)
-})
+const relatedItems = ref([]) // To be implemented with a related items API if needed
 
 const approvedReviews = ref([])
 const reviewSubmitting = ref(false)
@@ -386,7 +415,7 @@ const reviewDateLabel = review => {
 }
 
 const schemaImage = computed(() =>
-  imageGallery.value[0] ?? undefined
+  mainMedia.value.url ?? undefined
 )
 
 const loadReviews = async () => {
@@ -488,13 +517,13 @@ useSeoMeta({
   description: () => item.value ? item.value.description : 'The menu item you\'re looking for doesn\'t exist.',
   ogTitle: () => item.value ? `${item.value.name} | Menu | Saya Kitchen` : 'Menu Item Not Found',
   ogDescription: () => item.value ? item.value.description : 'Menu item not found',
-  ogImage: () => schemaImage.value || '/og-image.jpg',
+  ogImage: () => mainMedia.value.thumb || '/og-image.jpg',
   ogUrl: () => item.value ? `/menu/${item.value.slug}` : '/menu',
   ogType: 'website',
   twitterCard: 'summary_large_image',
   twitterTitle: () => item.value ? item.value.name : 'Menu Item Not Found',
   twitterDescription: () => item.value ? item.value.description : 'Menu item not found',
-  twitterImage: () => schemaImage.value || '/og-image.jpg'
+  twitterImage: () => mainMedia.value.thumb || '/og-image.jpg'
 })
 
 const schemaGraph = computed(() => {

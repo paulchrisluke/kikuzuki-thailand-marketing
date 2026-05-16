@@ -169,14 +169,7 @@ const weekHours = computed(() => {
   return formatGoogleHours(hours).map((h, i) => ({ ...h, today: days[i] === today }))
 })
 
-const mapEmbedSrc = computed(() => {
-  const loc = location.value
-  if (!loc) return null
-  if (loc.latitude && loc.longitude) {
-    return `https://www.google.com/maps/embed?pb=!1m14!1m12!1m3!1d500!2d${loc.longitude}!3d${loc.latitude}!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!5e0!3m2!1sen!2sth`
-  }
-  return null
-})
+const mapEmbedSrc = computed(() => (location.value as ApiValue)?.map_embed_url || null)
 
 
 useSeoMeta({

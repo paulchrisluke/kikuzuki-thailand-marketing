@@ -109,7 +109,16 @@
         <div class="sticky top-4 space-y-3">
           <p class="text-xs font-semibold uppercase tracking-wider text-muted">Preview</p>
           <div class="overflow-hidden rounded-lg border border-default bg-default">
-            <img v-if="imagePreviewUrl" :src="imagePreviewUrl" :alt="title || 'Post image'" class="max-h-56 w-full object-cover" />
+            <video
+              v-if="imagePreviewUrl && imageKind === 'video'"
+              :src="imagePreviewUrl"
+              autoplay
+              muted
+              loop
+              playsinline
+              class="max-h-56 w-full object-cover"
+            />
+            <img v-else-if="imagePreviewUrl" :src="imagePreviewUrl" :alt="title || 'Post image'" class="max-h-56 w-full object-cover" />
             <div class="space-y-3 p-4">
               <div class="flex flex-wrap items-center gap-2 text-xs text-muted">
                 <UBadge v-if="category" color="neutral" variant="soft">{{ category }}</UBadge>
@@ -139,6 +148,7 @@ const excerpt = defineModel<string>('excerpt', { default: '' })
 const category = defineModel<string>('category', { default: '' })
 const imageAssetId = defineModel<string | null>('imageAssetId', { default: null })
 const imagePreviewUrl = defineModel<string | null>('imagePreviewUrl', { default: null })
+const imageKind = defineModel<string | null>('imageKind', { default: 'image' })
 const selectedChannels = defineModel<string[]>('selectedChannels', { default: [] })
 
 const props = withDefaults(defineProps<{
@@ -200,7 +210,7 @@ const emit = defineEmits<{
   unpublish: []
   delete: []
   close: []
-  imageChange: [asset: { id: string; publicUrl: string; thumbnailUrl: string } | null]
+  imageChange: [asset: { id: string; publicUrl: string; thumbnailUrl: string; kind?: string } | null]
 }>()
 
 const categoryItems = computed(() => props.categories.map((item) => ({ label: item, value: item })))
@@ -217,8 +227,9 @@ const formattedPublishedAt = computed(() => {
   return publishedAt.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
 })
 
-function handleImageChange(asset: { id: string; publicUrl: string; thumbnailUrl: string } | null) {
+function handleImageChange(asset: { id: string; publicUrl: string; thumbnailUrl: string; kind?: string } | null) {
   imagePreviewUrl.value = asset?.thumbnailUrl ?? asset?.publicUrl ?? null
+  imageKind.value = asset?.kind ?? 'image'
   emit('imageChange', asset)
 }
 

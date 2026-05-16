@@ -20,10 +20,23 @@
 
       <!-- Full-bleed location hero -->
       <section class="relative min-h-160 overflow-hidden">
+        <video
+          v-if="heroMedia.isVideo"
+          :src="heroMedia.url"
+          autoplay
+          muted
+          loop
+          playsinline
+          class="absolute inset-0 h-full w-full object-cover opacity-50"
+        />
         <div
-          class="absolute inset-0 bg-cover bg-center"
+          v-else-if="heroMedia.url"
+          class="absolute inset-0 bg-cover bg-center opacity-50"
           :style="heroBackgroundStyle"
-          :class="!location.image_url ? 'bg-zinc-900' : ''"
+        />
+        <div
+          v-else
+          class="absolute inset-0 bg-zinc-900"
         />
         <div class="absolute inset-0" style="background: linear-gradient(to top, rgba(0,0,0,0.72) 0%, rgba(0,0,0,0.2) 50%, rgba(0,0,0,0.3) 100%)" />
         <div class="relative flex min-h-160 items-end">
@@ -122,10 +135,24 @@
         <div class="grid gap-12 sm:grid-cols-2 lg:grid-cols-3">
           <article v-for="item in featuredItems" :key="item.id">
             <div
-              v-if="item.image_url"
+              v-if="item.public_url"
               class="mb-5 aspect-4/3 overflow-hidden bg-muted"
             >
-              <img :src="item.image_url" :alt="item.name" class="h-full w-full object-cover transition-transform duration-500 hover:scale-105" >
+              <video
+                v-if="item.kind === 'video'"
+                :src="item.public_url"
+                autoplay
+                muted
+                loop
+                playsinline
+                class="h-full w-full object-cover transition-transform duration-500 hover:scale-105"
+              />
+              <img
+                v-else
+                :src="item.public_url"
+                :alt="item.name"
+                class="h-full w-full object-cover transition-transform duration-500 hover:scale-105"
+              >
             </div>
             <div v-else class="mb-5 aspect-4/3 bg-muted" />
             <div class="saya-display saya-italic text-2xl text-default">{{ item.name }}</div>
@@ -214,6 +241,7 @@
 <script setup lang="ts">
 import { formatGoogleHours, getTodayGoogleHours } from '~/utils/formatters'
 
+const { resolveMedia } = useMedia()
 definePageMeta({ layout: 'saya' })
 
 const route = useRoute()
@@ -239,7 +267,7 @@ const reviewsPreview = computed(() => ((reviewsData as ApiValue).value?.reviews 
 
 // Sanitize hero background URL to prevent CSS injection
 const heroBackgroundStyle = computed(() => {
-  const raw = String(location.value?.image_url || '').trim()
+  const raw = String(location.value?.public_url || '').trim()
   if (!raw) return {}
 
   let parsed: URL
@@ -277,6 +305,11 @@ const featuredItems = computed(() => {
   return items.filter((i: ApiValue) => i.featured || i.available !== false).slice(0, 3)
 })
 
+const heroMedia = computed(() => resolveMedia({
+  public_url: location.value?.public_url,
+  kind: location.value?.kind
+}))
+
 // Derived location data
 const formattedAddress = computed(() => {
   const loc = location.value
@@ -310,36 +343,7 @@ const isOpenNow = computed(() => {
   return undefined
 })
 
-const mapEmbedSrc = computed(() => {
-  const loc = location.value
-  if (!loc) return null
-  
-  // 1. Exact coordinates (best)
-  if (loc.latitude != null && loc.longitude != null) {
-    return `https://maps.google.com/maps?q=${loc.latitude},${loc.longitude}&output=embed`
-  }
-
-  // 2. CID from maps_url (specific GMB pin)
-  const mapsUrl = loc.maps_url
-  if (mapsUrl) {
-    try {
-      const url = new URL(mapsUrl)
-      const cid = url.searchParams.get('cid')
-      if (cid) {
-        return `https://maps.google.com/maps?cid=${cid}&output=embed`
-      }
-    } catch (_e) {
-      // invalid URL, fallback to address
-    }
-  }
-
-  // 3. Address line (fallback)
-  const addressLines = (loc.address as Record<string, unknown> | null)?.addressLines
-  if (Array.isArray(addressLines) && addressLines[0]) {
-    return `https://maps.google.com/maps?q=${encodeURIComponent(String(addressLines[0]))}&output=embed`
-  }
-  return null
-})
+const mapEmbedSrc = computed(() => (location.value as ApiValue)?.map_embed_url || null)
 
 
 const config = useRuntimeConfig()
@@ -348,6 +352,7 @@ const siteUrl = config.public.siteUrl
 useSeoMeta({
   title: () => location.value ? `${location.value.title} | Locations` : 'Location',
   description: () => location.value ? `Visit ${location.value.title}. ${formattedAddress.value}` : '',
+  ogImage: () => heroMedia.value.thumb || '/og-image.jpg',
   ogUrl: () => `${siteUrl}/locations/${slug.value}`
 })
 

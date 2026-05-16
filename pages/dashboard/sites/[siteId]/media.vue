@@ -83,7 +83,7 @@
         >
           <!-- Thumbnail -->
           <img
-            v-if="asset.thumbnail_url || asset.public_url"
+            v-if="asset.thumbnail_url || (asset.kind === 'image' && asset.public_url)"
             :src="asset.thumbnail_url || asset.public_url || undefined"
             :alt="asset.alt_text || asset.file_name || ''"
             class="h-full w-full cursor-pointer object-cover"

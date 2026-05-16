@@ -166,8 +166,8 @@
         <!-- ─── "Go Live" card (shown when all required steps are done) ── -->
         <UCard v-else-if="progress && progress.can_publish && !isPublished">
           <div class="flex flex-col items-center gap-4 py-4 text-center">
-            <div class="flex size-14 items-center justify-center rounded-full bg-success/10">
-              <UIcon name="i-heroicons-rocket-launch" class="size-7 text-success" />
+            <div class="flex size-14 items-center justify-center rounded-full bg-primary/10">
+              <UIcon name="i-heroicons-rocket-launch" class="size-7 text-primary" />
             </div>
             <div>
               <h2 class="text-xl font-semibold text-highlighted">Your site is ready to publish!</h2>
@@ -178,7 +178,7 @@
             <div class="flex flex-wrap justify-center gap-3">
               <UButton
                 size="xl"
-                color="success"
+                color="primary"
                 icon="i-heroicons-rocket-launch"
                 :loading="publishing"
                 @click="publishSite"
@@ -202,7 +202,7 @@
         <!-- ─── "Site is live" pill (after published) ───────────────────── -->
         <UAlert
           v-else-if="isPublished"
-          color="success"
+          color="primary"
           variant="soft"
           icon="i-heroicons-check-circle"
           title="Your site is live"

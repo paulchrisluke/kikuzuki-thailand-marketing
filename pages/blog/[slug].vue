@@ -67,8 +67,25 @@
           </div>
         </div>
 
-        <!-- Hero image placeholder -->
-        <div class="h-64 bg-muted rounded-2xl mb-10" aria-hidden="true" />
+        <!-- Hero image -->
+        <div v-if="postMedia.url" class="relative h-64 md:h-96 w-full overflow-hidden rounded-2xl mb-10">
+          <video
+            v-if="postMedia.isVideo"
+            :src="postMedia.url"
+            autoplay
+            muted
+            loop
+            playsinline
+            class="h-full w-full object-cover"
+          />
+          <img
+            v-else
+            :src="postMedia.url"
+            :alt="post.title"
+            class="h-full w-full object-cover"
+          />
+        </div>
+        <div v-else class="h-64 bg-muted rounded-2xl mb-10" aria-hidden="true" />
 
         <!-- Body -->
         <!-- eslint-disable vue/no-v-html -->
@@ -120,6 +137,7 @@
 import DOMPurify from 'isomorphic-dompurify'
 
 import { marked } from 'marked'
+const { resolveMedia } = useMedia()
 
 definePageMeta({ layout: 'platform' })
 
@@ -201,11 +219,16 @@ function formatDate(iso: string) {
   return date.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
 }
 
+const postMedia = computed(() => resolveMedia({
+  public_url: post.value?.public_url,
+  kind: post.value?.kind
+}))
+
 useSeoMeta({
   title: computed(() => post.value ? `${post.value.title} | KrabiClaw Blog` : 'Blog | KrabiClaw'),
   description: computed(() => post.value?.excerpt ?? 'Restaurant tips and insights from KrabiClaw.'),
   ogUrl: computed(() => `${siteUrl}/blog/${route.params.slug}`),
   ogType: 'article',
-  ogImage: '/og-image.jpg'
+  ogImage: computed(() => postMedia.value.thumb || '/og-image.jpg')
 })
 </script>

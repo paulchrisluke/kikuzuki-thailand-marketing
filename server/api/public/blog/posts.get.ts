@@ -14,15 +14,23 @@ export default defineEventHandler(async (event) => {
   }
   const limit = Math.max(1, Math.min(parsedLimit, 100))
 
-  let sql = `SELECT id, title, slug, excerpt, category, published_at FROM platform_blog_posts WHERE published_at IS NOT NULL`
-  const params: ApiRecord[] = []
+  let sql = `
+    SELECT 
+      p.id, p.title, p.slug, p.excerpt, p.category, p.published_at,
+      ma.public_url,
+      ma.kind
+    FROM platform_blog_posts p
+    LEFT JOIN media_assets ma ON ma.id = p.featured_image_asset_id AND ma.status = 'active'
+    WHERE p.published_at IS NOT NULL
+  `
+  const params: (string | number)[] = []
 
   if (category) {
-    sql += ` AND category = ?`
+    sql += ` AND p.category = ?`
     params.push(category)
   }
 
-  sql += ` ORDER BY published_at DESC LIMIT ?`
+  sql += ` ORDER BY p.published_at DESC LIMIT ?`
   params.push(limit)
 
   try {

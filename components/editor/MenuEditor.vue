@@ -59,7 +59,7 @@
           <UButton
             v-if="currentMenu?.status !== 'published'"
             size="sm"
-            color="success"
+            color="primary"
             variant="solid"
             icon="i-heroicons-check-circle"
             :loading="saving"
@@ -194,12 +194,13 @@
                   <UTextarea v-model="editForm.description" :rows="2" placeholder="Short description..." />
                 </UFormField>
                 <UFormField label="Image">
-                  <MediaPicker
-                    v-model="editForm.image_asset_id"
-                    :site-id="props.siteId"
-                    accept="image"
-                    title="Item image"
-                  />
+                    <MediaPicker
+                      v-model="editForm.image_asset_id"
+                      :site-id="props.siteId"
+                      accept="any"
+                      title="Item image or video"
+                      @change="editForm.kind = $event?.kind ?? 'image'"
+                    />
                 </UFormField>
                 <UCheckbox v-model="editForm.available" label="Available for ordering" />
                 <div class="flex items-center justify-between gap-2">
@@ -239,8 +240,9 @@
                 <MediaPicker
                   v-model="addItemForm.image_asset_id"
                   :site-id="props.siteId"
-                  accept="image"
-                  title="Item image"
+                  accept="any"
+                  title="Item image or video"
+                  @change="addItemForm.kind = $event?.kind ?? 'image'"
                 />
               </UFormField>
               <UCheckbox v-model="addItemForm.available" label="Available for ordering" />
@@ -391,7 +393,7 @@ const handleCreateMenu = async () => {
 
 // Inline item editing
 const expandedItemId = ref<string | null>(null)
-const editForm = reactive({ name: '', description: '', price: '', available: true, image_asset_id: null as string | null })
+const editForm = reactive({ name: '', description: '', price: '', available: true, image_asset_id: null as string | null, kind: 'image' })
 
 const openEditItem = (item: ApiValue) => {
   expandedItemId.value = item.id
@@ -400,6 +402,7 @@ const openEditItem = (item: ApiValue) => {
   editForm.price = item.price ?? ''
   editForm.available = item.available ?? true
   editForm.image_asset_id = item.image_asset_id ?? null
+  editForm.kind = item.kind ?? 'image'
 }
 
 const closeEdit = () => {
@@ -468,7 +471,7 @@ const handleDeleteSection = async () => {
 
 // Add item inline form
 const addingItemSection = ref<string | null>(null)
-const addItemForm = reactive({ name: '', description: '', price: '', available: true, image_asset_id: null as string | null })
+const addItemForm = reactive({ name: '', description: '', price: '', available: true, image_asset_id: null as string | null, kind: 'image' })
 
 const openAddItem = (section: string) => {
   expandedItemId.value = null

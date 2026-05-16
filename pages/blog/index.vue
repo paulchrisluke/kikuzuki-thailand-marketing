@@ -24,7 +24,24 @@
           <!-- Featured Post -->
           <NuxtLink :to="`/blog/${posts[0].slug}`" class="block mb-12">
             <div class="bg-elevated rounded-2xl shadow-lg overflow-hidden hover:shadow-xl transition-shadow">
-              <div class="h-64 bg-linear-to-br from-teal-50 to-teal-100 dark:from-teal-900/20 dark:to-teal-800/20" />
+              <div v-if="resolveMedia(posts[0]).url" class="h-64 overflow-hidden">
+                <video
+                  v-if="resolveMedia(posts[0]).isVideo"
+                  :src="resolveMedia(posts[0]).url"
+                  autoplay
+                  muted
+                  loop
+                  playsinline
+                  class="h-full w-full object-cover"
+                />
+                <img
+                  v-else
+                  :src="resolveMedia(posts[0]).url"
+                  :alt="posts[0].title"
+                  class="h-full w-full object-cover"
+                />
+              </div>
+              <div v-else class="h-64 bg-linear-to-br from-teal-50 to-teal-100 dark:from-teal-900/20 dark:to-teal-800/20" />
               <div class="p-8">
                 <div class="flex items-center gap-4 mb-4">
                   <span class="bg-inverted text-inverted px-3 py-1 rounded-full text-sm font-medium">Featured</span>
@@ -52,7 +69,24 @@
                 class="block"
               >
                 <div class="bg-elevated rounded-xl shadow-sm border border-default overflow-hidden hover:shadow-md transition-shadow h-full">
-                  <div class="h-48 bg-linear-to-br from-stone-50 to-stone-100 dark:from-stone-900/20 dark:to-stone-800/20" />
+                  <div v-if="resolveMedia(post).url" class="h-48 overflow-hidden">
+                    <video
+                      v-if="resolveMedia(post).isVideo"
+                      :src="resolveMedia(post).url"
+                      autoplay
+                      muted
+                      loop
+                      playsinline
+                      class="h-full w-full object-cover"
+                    />
+                    <img
+                      v-else
+                      :src="resolveMedia(post).url"
+                      :alt="post.title"
+                      class="h-full w-full object-cover"
+                    />
+                  </div>
+                  <div v-else class="h-48 bg-linear-to-br from-stone-50 to-stone-100 dark:from-stone-900/20 dark:to-stone-800/20" />
                   <div class="p-6">
                     <div class="flex items-center gap-3 mb-3">
                       <span v-if="post.category" class="px-2 py-1 rounded text-xs font-medium" :class="categoryClass(post.category)">{{ post.category }}</span>
@@ -113,6 +147,7 @@
 </template>
 
 <script setup lang="ts">
+const { resolveMedia } = useMedia()
 definePageMeta({ layout: 'platform' })
 
 const CATEGORY_CLASSES: Record<string, string> = {

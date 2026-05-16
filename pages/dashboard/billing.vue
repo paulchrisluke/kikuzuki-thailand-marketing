@@ -32,7 +32,7 @@
               <p class="text-sm text-muted">Current plan</p>
               <div class="mt-2 flex flex-wrap items-center gap-2">
                 <h2 class="text-3xl font-semibold capitalize text-highlighted">{{ billing.plan }}</h2>
-                <UBadge :color="billing.plan === 'free' ? 'neutral' : 'success'" variant="soft">
+                <UBadge :color="billing.plan === 'free' ? 'neutral' : 'primary'" variant="soft">
                   {{ billing.subscriptionStatus || 'active' }}
                 </UBadge>
               </div>
@@ -163,7 +163,7 @@
                   <h2 class="text-lg font-semibold text-highlighted">{{ plan.name }}</h2>
                   <div class="flex gap-2">
                     <UBadge v-if="plan.badge && billing?.plan !== plan.id" color="primary" variant="soft">{{ plan.badge }}</UBadge>
-                    <UBadge v-if="billing?.plan === plan.id" color="success" variant="soft">Current</UBadge>
+                    <UBadge v-if="billing?.plan === plan.id" color="primary" variant="soft">Current</UBadge>
                   </div>
                 </div>
                 <p class="mt-2 text-3xl font-semibold text-highlighted">
