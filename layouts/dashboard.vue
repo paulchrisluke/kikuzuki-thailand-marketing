@@ -19,8 +19,6 @@
       :min-size="14"
       :default-size="18"
       :max-size="24"
-      storage="local"
-      storage-key="dashboard-sidebar"
     >
       <UDashboardSidebar resizable collapsible>
         <template #header="{ collapsed }">
@@ -228,7 +226,7 @@ const siteContext = ref<DashboardSite | null>(null)
 const sites = ref<DashboardSite[]>([])
 const selectedSiteId = ref<string | null>(null)
 
-const { data: billingStatus } = useFetch<{ billing: { plan: string } }>('/api/billing/status', { key: 'dashboard-billing-status' })
+const billingStatus = ref<{ billing: { plan: string } } | null>(null)
 const currentPlan = computed(() => billingStatus.value?.billing?.plan ?? null)
 const impersonatedBy = computed(() => {
   const session = sessionData.value?.session as { impersonatedBy?: string } | undefined
@@ -406,6 +404,11 @@ watch(
 
 onMounted(async () => {
   await loadSites()
+  try {
+    billingStatus.value = await $fetch<{ billing: { plan: string } }>('/api/billing/status')
+  } catch (err) {
+    console.error('Failed to load billing status:', err)
+  }
 })
 
 async function handleSignOut() {
