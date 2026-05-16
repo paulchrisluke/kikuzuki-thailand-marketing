@@ -101,6 +101,7 @@
 <script setup>
 definePageMeta({ layout: 'saya' })
 import DOMPurify from 'isomorphic-dompurify'
+
 import { getTodayGoogleHours } from '~/utils/formatters'
 import { usePageContent } from '~/composables/usePageContent'
 import { useTenantSite } from '~/composables/useTenantSite'

@@ -118,6 +118,7 @@
 
 <script setup lang="ts">
 import DOMPurify from 'isomorphic-dompurify'
+
 import { marked } from 'marked'
 
 definePageMeta({ layout: 'platform' })
