@@ -35,7 +35,7 @@ interface PostRow {
   id: string
   title: string | null
   body: string
-  image_url: string | null
+  public_url: string | null
   published_at: string | null
 }
 
@@ -121,7 +121,7 @@ export default defineEventHandler(async (event) => {
     // Get published posts for this site (used for homepage highlights + /posts feed)
     const postsResult = await db.prepare(`
       SELECT p.id, p.title, p.body, p.published_at,
-             ma.public_url as image_url
+             ma.public_url
       FROM posts p
       LEFT JOIN media_assets ma ON p.image_asset_id = ma.id AND ma.status = 'active'
       WHERE p.site_id = ? AND p.status = 'published'
@@ -136,7 +136,7 @@ export default defineEventHandler(async (event) => {
       summary: p.body,
       title: p.title ?? '',
       createTime: p.published_at ?? '',
-      media: p.image_url ? [{ googleUrl: p.image_url }] : []
+      media: p.public_url ? [{ googleUrl: p.public_url }] : []
     }))
 
     return jsonResponse({

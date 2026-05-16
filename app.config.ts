@@ -11,7 +11,6 @@ export default defineAppConfig({
       }
     },
     colors: {
-      primary: 'neutral',
       neutral: 'zinc'
     }
   }

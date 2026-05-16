@@ -15,9 +15,12 @@ export default defineEventHandler(async (event) => {
       p.published_at, p.created_at, p.updated_at,
       u.name  AS author_name,
       u.email AS author_email,
-      u.image AS author_image
+      u.image AS author_image,
+      ma.public_url,
+      ma.kind
     FROM platform_blog_posts p
     LEFT JOIN user u ON u.id = p.author_id
+    LEFT JOIN media_assets ma ON ma.id = p.featured_image_asset_id
     WHERE p.slug = ? AND p.published_at IS NOT NULL
   `).bind(slug).first()
 

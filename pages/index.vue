@@ -123,24 +123,30 @@
       <!-- ── Brand hero ─────────────────────────────────────── -->
       <section id="section-hero" class="relative min-h-160 overflow-hidden flex items-center">
         <!-- Background video (takes precedence over photo) -->
-        <div v-if="heroVideoUrl" data-field="hero.video" class="absolute inset-0">
-          <video :src="heroVideoUrl" autoplay muted loop playsinline aria-hidden="true" role="presentation" class="w-full h-full object-cover opacity-50" />
+        <div v-if="hero.video && hero.videoKind === 'video'" data-field="hero.video" class="absolute inset-0">
+          <video :src="hero.video" autoplay muted loop playsinline aria-hidden="true" role="presentation" class="w-full h-full object-cover opacity-50" />
         </div>
         <!-- Background photo: media asset takes precedence, then Google Business photo -->
         <div
-          v-else-if="heroImageUrl || businessPrimaryPhoto"
+          v-else-if="(hero.image && hero.imageKind === 'image') || businessPrimaryPhoto"
           data-field="hero.image"
           class="absolute inset-0 bg-cover bg-center opacity-50"
-          :style="`background-image: url(${heroImageUrl || businessPrimaryPhoto?.googleUrl})`"
+          :style="`background-image: url(${hero.image || businessPrimaryPhoto?.googleUrl})`"
         />
-        <div class="absolute inset-0 bg-zinc-950" :class="(heroImageUrl || businessPrimaryPhoto || heroVideoUrl) ? 'opacity-50' : ''" />
+        <!-- Fallback if hero.image is actually a video -->
+        <div v-else-if="hero.image && hero.imageKind === 'video'" class="absolute inset-0">
+          <video :src="hero.image" autoplay muted loop playsinline aria-hidden="true" role="presentation" class="w-full h-full object-cover opacity-50" />
+        </div>
+
+        <div class="absolute inset-0 bg-zinc-950" :class="(hero.image || businessPrimaryPhoto || hero.video) ? 'opacity-50' : ''" />
         <div class="relative mx-auto w-full max-w-7xl px-4 py-36 sm:px-6 lg:px-8">
           <p v-if="getField('hero.eyebrow', businessCity)" data-field="hero.eyebrow" class="saya-eyebrow mb-8 text-white/70">
             {{ getField('hero.eyebrow', businessCity) }}
           </p>
           <h1 data-field="hero.title" class="saya-display-lg text-white max-w-4xl">
-            {{ getField('hero.title', businessTitle) }}<br>
-            <em data-field="hero.subtitle" class="saya-italic">{{ getField('hero.subtitle', businessSubtitle) }}</em>
+            {{ hero.title || businessTitle }}<br>
+            <em v-if="hero.subtitle" data-field="hero.subtitle" class="saya-italic">{{ hero.subtitle }}</em>
+            <em v-else-if="businessSubtitle" data-field="hero.subtitle" class="saya-italic">{{ businessSubtitle }}</em>
           </h1>
 
           <!-- Location pills -->
@@ -178,25 +184,25 @@
             class="group block overflow-hidden border border-default text-default no-underline transition hover:border-muted"
           >
             <div class="aspect-video overflow-hidden bg-muted">
+              <video
+                v-if="loc.public_url && loc.kind === 'video'"
+                :src="loc.public_url"
+                class="aspect-video w-full object-cover"
+                autoplay
+                muted
+                loop
+                playsinline
+              />
               <img
-                v-if="loc.image_url"
-                :src="loc.image_url"
+                v-else-if="loc.public_url"
+                :src="loc.public_url"
                 :alt="loc.title"
-                class="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
+                class="aspect-video w-full object-cover transition-transform duration-500 group-hover:scale-105"
               >
               <iframe
-                v-else-if="loc.latitude != null && loc.longitude != null"
-                :src="`https://maps.google.com/maps?q=${loc.latitude},${loc.longitude}&output=embed`"
-                class="h-full w-full border-0 pointer-events-none"
-                loading="lazy"
-                tabindex="-1"
-                referrerpolicy="no-referrer-when-downgrade"
-                aria-hidden="true"
-              />
-              <iframe
-                v-else-if="locAddressLine(loc)"
-                :src="`https://maps.google.com/maps?q=${encodeURIComponent(locAddressLine(loc))}&output=embed`"
-                class="h-full w-full border-0 pointer-events-none"
+                v-if="loc.map_embed_url"
+                :src="loc.map_embed_url"
+                class="h-full w-full border-0"
                 loading="lazy"
                 tabindex="-1"
                 referrerpolicy="no-referrer-when-downgrade"
@@ -263,7 +269,21 @@
                 :class="tile.wide ? 'sm:col-span-2' : ''"
               >
                 <div v-if="tile.image" class="overflow-hidden bg-muted" :class="tile.wide ? 'aspect-video' : 'aspect-square'">
-                  <img :src="tile.image" :alt="tile.alt || tile.name || `${tile.type} image`" class="h-full w-full object-cover" >
+                  <video
+                    v-if="tile.imageKind === 'video'"
+                    :src="tile.image"
+                    autoplay
+                    muted
+                    loop
+                    playsinline
+                    class="h-full w-full object-cover"
+                  />
+                  <img
+                    v-else
+                    :src="tile.image"
+                    :alt="tile.alt || tile.name || `${tile.type} image`"
+                    class="h-full w-full object-cover"
+                  >
                 </div>
                 <div class="p-5 pt-4">
                   <p class="saya-eyebrow mb-2 text-muted">Google Post</p>
@@ -274,7 +294,21 @@
               <!-- Dish tile -->
               <article v-else-if="tile.type === 'dish'" class="overflow-hidden bg-default">
                 <div v-if="tile.image" class="aspect-square overflow-hidden bg-muted">
-                  <img :src="tile.image" :alt="tile.alt || tile.name || `${tile.type} image`" class="h-full w-full object-cover" >
+                  <video
+                    v-if="tile.imageKind === 'video'"
+                    :src="tile.image"
+                    autoplay
+                    muted
+                    loop
+                    playsinline
+                    class="h-full w-full object-cover"
+                  />
+                  <img
+                    v-else
+                    :src="tile.image"
+                    :alt="tile.alt || tile.name || `${tile.type} image`"
+                    class="h-full w-full object-cover"
+                  >
                 </div>
                 <div class="p-5 pt-4">
                   <p class="saya-eyebrow mb-2 text-muted">Featured</p>
@@ -435,9 +469,13 @@ const features = [
   { icon: 'i-heroicons-shopping-bag', title: 'Online ordering', body: 'Pickup & delivery with no commission. Stripe payouts straight to your bank.' },
   { icon: 'i-heroicons-chart-bar', title: 'Real-time insights', body: 'See covers, top dishes, busy hours — all in one dashboard.' },
 ]
-const { getField, getFieldStr } = usePageContent('home')
-const heroVideoUrl = computed(() => getField('hero.video'))
-const heroImageUrl = computed(() => getField('hero.image'))
+const { getField, getFieldStr, getHero } = usePageContent('home')
+const hero = computed(() => getHero({
+  title: businessTitle.value || '',
+  subtitle: businessSubtitle.value || '',
+  image: '',
+  video: ''
+}))
 const { isAuthenticated } = useAuth()
 
 // Validate tenant context ONLY for tenant sites
@@ -562,7 +600,14 @@ const highlights = computed(() => {
   // Up to 3 featured dishes
   for (let i = 0; i < Math.min(3, featuredMenuItems.value.length); i++) {
     const item = featuredMenuItems.value[i]
-    tiles.push({ type: 'dish', name: item.name, price: item.price, image: item.image_url || null, alt: item.name ? `${item.name} dish` : 'Featured dish image' })
+    tiles.push({
+      type: 'dish',
+      name: item.name,
+      price: item.price,
+      image: item.public_url || null,
+      imageKind: item.kind || 'image',
+      alt: item.name ? `${item.name} dish` : 'Featured dish image'
+    })
   }
 
   // Up to 2 review quotes

@@ -23,6 +23,8 @@ export interface MenuItem {
   description: string | null
   price: string | null
   image_asset_id: string | null
+  public_url?: string | null  // from media_assets join
+  kind?: string | null
   available: boolean
   sort_order: number
   created_at: string

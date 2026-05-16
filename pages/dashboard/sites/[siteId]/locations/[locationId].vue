@@ -165,7 +165,7 @@
           <template #header>
             <div class="flex items-center justify-between gap-3">
               <h2 class="font-semibold text-highlighted">Location Fields</h2>
-              <UButton v-if="detailsSaved" size="xs" color="success" variant="soft" icon="i-heroicons-check">Saved</UButton>
+              <UButton v-if="detailsSaved" size="xs" color="primary" variant="soft" icon="i-heroicons-check">Saved</UButton>
             </div>
           </template>
 
@@ -246,7 +246,7 @@
           <template #header>
             <div class="flex items-center justify-between">
               <h2 class="font-semibold text-highlighted">Hero Media</h2>
-              <UButton v-if="heroSaved" size="xs" color="success" variant="soft" icon="i-heroicons-check">Saved</UButton>
+              <UButton v-if="heroSaved" size="xs" color="primary" variant="soft" icon="i-heroicons-check">Saved</UButton>
             </div>
           </template>
 

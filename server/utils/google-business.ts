@@ -494,3 +494,44 @@ function generateLocationSlug(title: string): string {
     .replace(/^-|-$/g, '')
     || 'location'
 }
+
+// Generate canonical Google Maps embed URL based on best available data
+export const calculateMapEmbedUrl = (loc: { 
+  title: string; 
+  maps_url?: string | null; 
+  latitude?: number | null; 
+  longitude?: number | null; 
+  address?: string | null;
+  city?: string | null;
+}) => {
+  // 1. CID from maps_url (specific GMB pin) - Best for business labels
+  if (loc.maps_url) {
+    try {
+      const url = new URL(loc.maps_url)
+      const cid = url.searchParams.get('cid')
+      if (cid) {
+        return `https://maps.google.com/maps?cid=${cid}&output=embed`
+      }
+    } catch (_e) { /* ignore */ }
+  }
+
+  // 2. Exact coordinates
+  if (loc.latitude != null && loc.longitude != null) {
+    return `https://maps.google.com/maps?q=${loc.latitude},${loc.longitude}&output=embed`
+  }
+
+  // 3. Address line fallback (best to include title if available)
+  let addr = loc.address || loc.city || ''
+  if (addr.startsWith('{')) {
+    try {
+      const parsed = JSON.parse(addr)
+      addr = parsed.addressLines?.[0] || parsed.streetAddress || loc.city || ''
+    } catch { /* ignore */ }
+  }
+
+  if (addr) {
+    const query = loc.title ? `${loc.title}, ${addr}` : addr
+    return `https://maps.google.com/maps?q=${encodeURIComponent(String(query))}&output=embed`
+  }
+  return null
+}

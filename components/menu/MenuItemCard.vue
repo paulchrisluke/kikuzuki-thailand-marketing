@@ -58,7 +58,7 @@ interface MenuItem {
   slug: string
   name: string
   image_asset_id?: string | null
-  image_url?: string // joined asset URL from backend, for compatibility
+  public_url?: string
   poster?: string
   price?: string
   available?: boolean
@@ -71,7 +71,7 @@ const props = defineProps<{
 }>()
 
 const mediaUrl = computed(() => {
-  if (props.item.image_url) return props.item.image_url
+  if (props.item.public_url) return props.item.public_url
   if (props.item.image_asset_id && props.resolveAssetUrl) {
     return props.resolveAssetUrl(props.item.image_asset_id)
   }

@@ -16,9 +16,11 @@ export interface SiteContent {
   hero_image_asset_id?: string
   hero_video_asset_id?: string
   /** Resolved public URL of hero_image_asset_id — injected by getPageContent/getDraftContent JOINs */
-  hero_image_url?: string | null
+  hero_public_url?: string | null
+  hero_kind?: string | null
   /** Resolved public URL of hero_video_asset_id — injected by getPageContent/getDraftContent JOINs */
-  hero_video_url?: string | null
+  hero_video_public_url?: string | null
+  hero_video_kind?: string | null
   updated_at: string
 }
 
@@ -72,7 +74,8 @@ export const getPageContent = async (db: D1Database, organizationId: string, sit
     SELECT sc.id, sc.organization_id, sc.site_id, sc.location_id, sc.page, sc.field,
            sc.value, sc.type, sc.source, sc.content, sc.hero_title, sc.hero_subtitle,
            sc.hero_image_asset_id, sc.hero_video_asset_id, sc.updated_at,
-           img.public_url AS hero_image_url, vid.public_url AS hero_video_url
+           img.public_url AS hero_public_url, img.kind AS hero_kind,
+           vid.public_url AS hero_video_public_url, vid.kind AS hero_video_kind
     FROM site_content sc
     LEFT JOIN media_assets img ON sc.hero_image_asset_id = img.id AND img.status = 'active'
     LEFT JOIN media_assets vid ON sc.hero_video_asset_id = vid.id AND vid.status = 'active'
@@ -162,7 +165,8 @@ export const getDraftContent = async (db: D1Database, organizationId: string, si
     SELECT sc.id, sc.organization_id, sc.site_id, sc.location_id, sc.page, sc.field,
            sc.value, sc.type, sc.source, sc.content, sc.hero_title, sc.hero_subtitle,
            sc.hero_image_asset_id, sc.hero_video_asset_id, sc.updated_at,
-           img.public_url AS hero_image_url, vid.public_url AS hero_video_url
+           img.public_url AS hero_public_url, img.kind AS hero_kind,
+           vid.public_url AS hero_video_public_url, vid.kind AS hero_video_kind
     FROM site_content_drafts sc
     LEFT JOIN media_assets img ON sc.hero_image_asset_id = img.id AND img.status = 'active'
     LEFT JOIN media_assets vid ON sc.hero_video_asset_id = vid.id AND vid.status = 'active'

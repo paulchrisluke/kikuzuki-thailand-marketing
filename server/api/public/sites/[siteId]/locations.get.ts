@@ -1,5 +1,6 @@
 // Get public business locations for a site
 import { cloudflareEnv, jsonResponse } from '~/server/utils/api-response'
+import { calculateMapEmbedUrl } from '~/server/utils/google-business'
 
 type JsonPrimitive = string | number | boolean | null
 type JsonValue = JsonPrimitive | JsonObject | JsonValue[]
@@ -32,7 +33,8 @@ interface LocationRow {
   google_location_id: string | null
   google_connection_id: string | null
   city: string | null
-  image_url: string | null
+  public_url: string | null
+  kind: string | null
 }
 
 const parseJson = (raw: string | null): JsonValue => {
@@ -81,14 +83,15 @@ export default defineEventHandler(async (event) => {
       SELECT bl.id, bl.slug, bl.title, bl.address, bl.phone, bl.website_url, bl.maps_url,
              bl.latitude, bl.longitude, bl.opening_hours, bl.rating, bl.review_count,
              bl.is_primary, bl.status, bl.last_synced_at, bl.google_location_id,
-             bl.google_connection_id, bl.city, ma.public_url as image_url
+             bl.google_connection_id, bl.city, ma.public_url, ma.kind
       FROM business_locations bl
       LEFT JOIN media_assets ma ON bl.hero_image_asset_id = ma.id AND ma.status = 'active'
       WHERE bl.organization_id = ? AND bl.site_id = ? AND bl.status = 'active'
       ORDER BY bl.is_primary DESC, bl.title ASC
     `).bind(site.organization_id, siteId).all()
-    const locationRows = (locations.results || []) as unknown as LocationRow[]
+    const locationRows = (locations.results || []) as unknown as (LocationRow & { kind: string | null; public_url: string | null })[]
     
+
     // Parse JSON fields and return public-safe data
     const parsedLocations = locationRows.map((location) => ({
       id: location.id,
@@ -98,6 +101,14 @@ export default defineEventHandler(async (event) => {
       phone: location.phone,
       website_url: location.website_url,
       maps_url: location.maps_url,
+      map_embed_url: calculateMapEmbedUrl({
+        title: location.title,
+        maps_url: location.maps_url,
+        latitude: location.latitude,
+        longitude: location.longitude,
+        address: location.address,
+        city: location.city
+      }),
       latitude: location.latitude,
       longitude: location.longitude,
       opening_hours: parseJson(location.opening_hours),
@@ -105,7 +116,8 @@ export default defineEventHandler(async (event) => {
       review_count: location.review_count,
       is_primary: Boolean(location.is_primary),
       status: location.status,
-      image_url: location.image_url,
+      public_url: location.public_url,
+      kind: location.kind || 'image',
       city: location.city
     }))
     

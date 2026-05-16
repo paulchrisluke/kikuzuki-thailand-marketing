@@ -103,7 +103,7 @@ export async function getMenuWithItems(
   // Get menu items
   const items = await db.prepare(`
     SELECT mi.id, mi.menu_id, mi.section, mi.name, mi.slug, mi.description, mi.price,
-           mi.image_asset_id, ma.public_url as image_url, mi.available, mi.sort_order,
+           mi.image_asset_id, ma.public_url, ma.kind, mi.available, mi.sort_order,
            mi.created_at, mi.updated_at, mi.created_by, mi.updated_by
     FROM menu_items mi
     LEFT JOIN media_assets ma ON mi.image_asset_id = ma.id AND ma.status = 'active'
@@ -137,7 +137,7 @@ export async function getActiveMenu(
     if (locationMenu) {
       const items = await db.prepare(`
         SELECT mi.id, mi.menu_id, mi.section, mi.name, mi.slug, mi.description, mi.price,
-               mi.image_asset_id, ma.public_url as image_url, mi.available, mi.sort_order,
+               mi.image_asset_id, ma.public_url, ma.kind, mi.available, mi.sort_order,
                mi.created_at, mi.updated_at, mi.created_by, mi.updated_by
         FROM menu_items mi
         LEFT JOIN media_assets ma ON mi.image_asset_id = ma.id AND ma.status = 'active'
@@ -165,7 +165,7 @@ export async function getActiveMenu(
 
   const items = await db.prepare(`
     SELECT mi.id, mi.menu_id, mi.section, mi.name, mi.slug, mi.description, mi.price,
-           mi.image_asset_id, ma.public_url as image_url, mi.available, mi.sort_order,
+           mi.image_asset_id, ma.public_url, ma.kind, mi.available, mi.sort_order,
            mi.created_at, mi.updated_at, mi.created_by, mi.updated_by
     FROM menu_items mi
     LEFT JOIN media_assets ma ON mi.image_asset_id = ma.id AND ma.status = 'active'
@@ -177,6 +177,26 @@ export async function getActiveMenu(
     ...brandMenu,
     items: (items.results || []) as unknown as MenuItem[]
   }
+}
+
+// Get public menu item by slug
+export async function getPublicMenuItem(
+  db: D1Database,
+  siteId: string,
+  slug: string
+): Promise<MenuItem | null> {
+  const item = await db.prepare(`
+    SELECT mi.id, mi.menu_id, mi.section, mi.name, mi.slug, mi.description, mi.price,
+           mi.image_asset_id, ma.public_url, ma.kind, mi.available, mi.sort_order,
+           mi.created_at, mi.updated_at, mi.created_by, mi.updated_by
+    FROM menu_items mi
+    JOIN menus m ON m.id = mi.menu_id
+    LEFT JOIN media_assets ma ON mi.image_asset_id = ma.id AND ma.status = 'active'
+    WHERE m.site_id = ? AND mi.slug = ? AND m.status = 'published'
+    LIMIT 1
+  `).bind(siteId, slug).first<MenuItem>()
+
+  return item || null
 }
 
 // Create menu

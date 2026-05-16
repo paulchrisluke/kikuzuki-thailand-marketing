@@ -9,8 +9,10 @@ interface ContentRow {
   content: string | null
   hero_title: string | null
   hero_subtitle: string | null
-  hero_image_url: string | null
-  hero_video_url: string | null
+  hero_public_url: string | null
+  hero_kind: string | null
+  hero_video_public_url: string | null
+  hero_video_kind: string | null
   updated_at: string
 }
 
@@ -145,8 +147,8 @@ export const usePageContent = (pageName?: string) => {
       const fieldRow = contentMap.value[field]
       if (field === 'hero.title') return heroRow?.hero_title ?? fieldRow?.content ?? defaultValue
       if (field === 'hero.subtitle') return heroRow?.hero_subtitle ?? fieldRow?.content ?? defaultValue
-      if (field === 'hero.image') return heroRow?.hero_image_url ?? fieldRow?.content ?? defaultValue
-      if (field === 'hero.video') return heroRow?.hero_video_url ?? fieldRow?.content ?? defaultValue
+      if (field === 'hero.image') return heroRow?.hero_public_url ?? fieldRow?.content ?? defaultValue
+      if (field === 'hero.video') return heroRow?.hero_video_public_url ?? fieldRow?.content ?? defaultValue
     }
     const row = contentMap.value[field]
     if (!row) return defaultValue
@@ -170,8 +172,10 @@ export const usePageContent = (pageName?: string) => {
     return {
       title: getField('hero.title', row?.hero_title ?? defaults.title) ?? defaults.title,
       subtitle: getField('hero.subtitle', row?.hero_subtitle ?? defaults.subtitle) ?? defaults.subtitle,
-      image: getField('hero.image', row?.hero_image_url ?? defaults.image) ?? defaults.image,
-      video: getField('hero.video', row?.hero_video_url ?? defaults.video) ?? defaults.video,
+      image: getField('hero.image', row?.hero_public_url ?? defaults.image) ?? defaults.image,
+      video: getField('hero.video', row?.hero_video_public_url ?? defaults.video) ?? defaults.video,
+      imageKind: row?.hero_kind || 'image',
+      videoKind: row?.hero_video_kind || 'video',
     }
   }
 

@@ -929,10 +929,12 @@ CREATE TABLE IF NOT EXISTS platform_blog_posts (
   excerpt TEXT,
   category TEXT,
   author_id TEXT,
+  featured_image_asset_id TEXT,
   published_at TEXT,
   created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
   updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
-  FOREIGN KEY (author_id) REFERENCES user(id) ON DELETE SET NULL
+  FOREIGN KEY (author_id) REFERENCES user(id) ON DELETE SET NULL,
+  FOREIGN KEY (featured_image_asset_id) REFERENCES media_assets(id) ON DELETE SET NULL
 );
 
 CREATE TABLE IF NOT EXISTS platform_docs (

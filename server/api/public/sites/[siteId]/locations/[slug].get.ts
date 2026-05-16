@@ -1,6 +1,7 @@
 // Get public business location by slug
 import { cloudflareEnv, jsonResponse } from '~/server/utils/api-response'
 import { getConfig } from '~/server/utils/site-config'
+import { calculateMapEmbedUrl } from '~/server/utils/google-business'
 
 export default defineEventHandler(async (event) => {
   const siteId = getRouterParam(event, 'siteId')
@@ -42,7 +43,7 @@ export default defineEventHandler(async (event) => {
       SELECT bl.id, bl.slug, bl.title, bl.address, bl.phone, bl.website_url, bl.maps_url,
              bl.latitude, bl.longitude, bl.opening_hours, bl.rating, bl.review_count,
              bl.is_primary, bl.status, bl.last_synced_at, bl.google_place_id, bl.city,
-             bl.hero_image_asset_id, ma.public_url as image_url
+             bl.hero_image_asset_id, ma.public_url, ma.kind
       FROM business_locations bl
       LEFT JOIN media_assets ma ON bl.hero_image_asset_id = ma.id AND ma.status = 'active'
       WHERE bl.organization_id = ? AND bl.site_id = ? AND bl.slug = ? AND bl.status = 'active'
@@ -75,6 +76,7 @@ export default defineEventHandler(async (event) => {
       ? `https://search.google.com/local/questions?placeid=${placeId}`
       : null
 
+
     // Parse JSON fields and return public-safe data (email excluded)
     const parsedLocation = {
       id: location.id,
@@ -84,6 +86,14 @@ export default defineEventHandler(async (event) => {
       phone: location.phone,
       website_url: location.website_url,
       maps_url: location.maps_url,
+      map_embed_url: calculateMapEmbedUrl({
+        title: location.title,
+        maps_url: location.maps_url,
+        latitude: location.latitude as number | null,
+        longitude: location.longitude as number | null,
+        address: location.address as string | null,
+        city: location.city as string | null
+      }),
       latitude: location.latitude,
       longitude: location.longitude,
       opening_hours: location.opening_hours ? JSON.parse(location.opening_hours) : null,
@@ -93,7 +103,8 @@ export default defineEventHandler(async (event) => {
       qa_count: (qaCount as ApiValue)?.n ?? 0,
       is_primary: location.is_primary,
       status: location.status,
-      image_url: location.image_url,
+      public_url: location.public_url,
+      kind: location.kind || 'image',
       city: location.city,
       currency: siteConfig?.default_currency || DEFAULT_CURRENCY,
       google_place_id: location.google_place_id,

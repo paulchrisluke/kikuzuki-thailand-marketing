@@ -24,7 +24,8 @@ interface LocationRow {
   city: string | null
   phone: string | null
   hero_image_asset_id: string | null
-  image_url: string | null  // from media_assets join
+  public_url: string | null  // from media_assets join
+  kind: string | null
   website_url: string | null
   maps_url: string | null
   latitude: number | null
@@ -90,7 +91,7 @@ export default defineEventHandler(async (event) => {
              bl.rating, bl.review_count, bl.is_primary, bl.status,
              bl.last_synced_at, bl.google_location_id, bl.google_connection_id,
              bl.hero_image_asset_id, bl.hero_video_asset_id, bl.created_at, bl.updated_at,
-             ma.public_url as image_url
+             ma.public_url, ma.kind
       FROM business_locations bl
       LEFT JOIN media_assets ma ON bl.hero_image_asset_id = ma.id AND ma.status = 'active'
       WHERE bl.id = ? AND bl.organization_id = ? AND bl.site_id = ?

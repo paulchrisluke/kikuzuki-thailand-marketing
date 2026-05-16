@@ -39,9 +39,18 @@
         >
           <!-- Photo -->
           <div class="aspect-16/10 overflow-hidden bg-muted">
+            <video
+              v-if="loc.public_url && loc.kind === 'video'"
+              :src="loc.public_url"
+              autoplay
+              muted
+              loop
+              playsinline
+              class="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
+            />
             <img
-              v-if="loc.image_url"
-              :src="loc.image_url"
+              v-else-if="loc.public_url"
+              :src="loc.public_url"
               :alt="loc.title"
               class="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
             >
@@ -114,7 +123,8 @@ interface Location {
   title: string
   city?: string
   address?: AddressInput
-  image_url?: string
+  public_url?: string
+  kind?: string
   open_now?: boolean
   hours_today?: string
 }

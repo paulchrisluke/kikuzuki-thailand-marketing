@@ -92,10 +92,24 @@
         />
         <!-- Video / file placeholder -->
         <div v-else class="flex h-full w-full items-center justify-center bg-elevated">
+          <video
+            v-if="asset.kind === 'video' && asset.public_url"
+            :src="asset.public_url"
+            class="h-full w-full object-cover"
+            muted
+            playsinline
+            preload="metadata"
+          />
           <UIcon
+            v-else
             :name="asset.kind === 'video' ? 'i-heroicons-film' : 'i-heroicons-document'"
             class="size-6 text-muted"
           />
+        </div>
+
+        <!-- Video overlay icon -->
+        <div v-if="asset.kind === 'video'" class="absolute inset-0 flex items-center justify-center bg-black/10 pointer-events-none">
+          <UIcon name="i-heroicons-play-circle" class="size-8 text-white/70 shadow-sm" />
         </div>
 
         <!-- Selected overlay -->

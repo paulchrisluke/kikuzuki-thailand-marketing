@@ -161,3 +161,4 @@ export const getSpecialHoursNotice = (specialHours: GoogleSpecialHours | null | 
 
   return `Special holiday hours today: ${formatGoogleTime(special.openTime ?? {})} – ${formatGoogleTime(special.closeTime ?? {})}`
 }
+
