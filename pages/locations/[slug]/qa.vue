@@ -6,9 +6,6 @@
       <SayaSubNav 
         :location-slug="slug" 
         active="qa" 
-        :review-count="location?.review_count" 
-        :photo-count="location?.photo_count"
-        :qa-count="location?.qa_count"
       />
 
       <!-- Compact Page header -->
@@ -66,9 +63,33 @@
 
     <!-- Q&A list -->
     <section class="mx-auto max-w-3xl px-4 py-16 sm:px-6 lg:px-8">
-      <div v-if="sorted.length === 0 && !pending" class="rounded-3xl border border-dashed border-default p-14 text-center">
-        <div class="saya-display saya-italic text-2xl text-default">No questions yet.</div>
-        <p class="mt-2 text-sm text-muted">Be the first — ask anything about the menu, hours, or the room.</p>
+      <div v-if="sorted.length === 0 && !pending" class="flex flex-col items-center justify-center rounded-3xl border border-dashed border-default bg-muted/30 py-20 text-center">
+        <div class="flex size-14 items-center justify-center rounded-full bg-elevated/50 text-muted shadow-sm">
+          <UIcon name="i-heroicons-question-mark-circle" class="size-7" />
+        </div>
+        <h3 class="mt-6 saya-display saya-italic text-3xl text-default">No questions yet.</h3>
+        <p class="mt-2 max-w-sm text-sm text-muted">Be the first to ask — our team usually responds within a few hours.</p>
+        <div class="mt-8">
+          <UButton
+            v-if="isFree"
+            color="neutral"
+            variant="soft"
+            size="sm"
+            class="rounded-full"
+            @click="openUpgrade('qa-empty')"
+          >
+            Ask a question
+          </UButton>
+          <a
+            v-else
+            :href="location?.gmb_qa_url || '#'"
+            target="_blank"
+            rel="noopener noreferrer"
+            class="inline-flex items-center rounded-full bg-primary px-6 py-2.5 text-xs font-semibold uppercase tracking-widest text-primary-content shadow-sm transition hover:opacity-90"
+          >
+            Ask a question →
+          </a>
+        </div>
       </div>
 
       <div v-else class="flex flex-col gap-6">

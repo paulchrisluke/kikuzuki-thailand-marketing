@@ -13,9 +13,6 @@
       <SayaSubNav
         :location-slug="slug"
         active="overview"
-        :review-count="location.review_count"
-        :photo-count="location.photo_count"
-        :qa-count="location.qa_count"
       />
 
       <!-- Full-bleed location hero -->

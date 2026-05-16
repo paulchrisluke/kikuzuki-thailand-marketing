@@ -14,10 +14,6 @@
         ]"
       >
         {{ item.label }}
-        <span
-          v-if="item.count != null"
-          class="ml-1.5 tabular-nums text-[10px] text-muted opacity-60"
-        >{{ item.count }}</span>
         
         <!-- Active indicator -->
         <div 
@@ -33,17 +29,14 @@
 const props = defineProps<{
   locationSlug: string
   active: 'overview' | 'menu' | 'reviews' | 'photos' | 'qa' | 'contact'
-  reviewCount?: number | null
-  photoCount?: number | null
-  qaCount?: number | null
 }>()
 
 const items = computed(() => [
   { key: 'overview', label: 'Overview', href: `/locations/${props.locationSlug}` },
   { key: 'menu',     label: 'Menu',     href: `/locations/${props.locationSlug}/menu` },
-  { key: 'reviews',  label: 'Reviews',  href: `/locations/${props.locationSlug}/reviews`, count: props.reviewCount ?? null },
-  { key: 'photos',   label: 'Photos',   href: `/locations/${props.locationSlug}/photos`,  count: props.photoCount ?? null },
-  { key: 'qa',       label: 'Q&A',      href: `/locations/${props.locationSlug}/qa`,      count: props.qaCount ?? null },
+  { key: 'reviews',  label: 'Reviews',  href: `/locations/${props.locationSlug}/reviews` },
+  { key: 'photos',   label: 'Photos',   href: `/locations/${props.locationSlug}/photos` },
+  { key: 'qa',       label: 'Q&A',      href: `/locations/${props.locationSlug}/qa` },
   { key: 'contact',  label: 'Visit',    href: `/locations/${props.locationSlug}/contact` }
 ])
 </script>

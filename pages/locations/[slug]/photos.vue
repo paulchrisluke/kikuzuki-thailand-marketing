@@ -18,8 +18,6 @@
       <SayaSubNav 
         :location-slug="slug" 
         active="photos" 
-        :review-count="location?.review_count" 
-        :photo-count="location?.photo_count"
       />
 
       <!-- Compact Page header -->

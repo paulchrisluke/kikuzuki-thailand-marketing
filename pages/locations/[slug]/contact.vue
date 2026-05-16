@@ -13,8 +13,6 @@
       <SayaSubNav 
         :location-slug="slug" 
         active="contact" 
-        :review-count="location?.review_count" 
-        :photo-count="location?.photo_count"
       />
 
       <!-- Compact Page header -->

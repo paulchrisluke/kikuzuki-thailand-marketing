@@ -118,14 +118,28 @@
       </div>
 
       <!-- ... -->
-      <section v-if="reviews.length > 0" aria-labelledby="reviews-heading" class="mt-16 border-t border-default pt-12 sm:mt-24">
+      <section aria-labelledby="reviews-heading" class="mt-16 border-t border-default pt-12 sm:mt-24">
         <div class="flex items-center justify-between gap-6">
           <h2 id="reviews-heading" class="text-lg font-medium text-highlighted">Guest reviews</h2>
           <p v-if="reviewSummary" class="text-sm text-muted">
             {{ reviewSummary.average }} out of 5 from {{ reviewSummary.count }} reviews
           </p>
         </div>
-        <div class="mt-6 divide-y divide-gray-200 border-y border-default">
+
+        <div v-if="reviewsLoading" class="mt-6 space-y-8 divide-y divide-gray-200 border-y border-default py-8">
+          <div v-for="i in 2" :key="i" class="animate-pulse lg:grid lg:grid-cols-12 lg:gap-x-8">
+            <div class="lg:col-span-3">
+              <div class="h-4 w-24 rounded bg-muted"></div>
+              <div class="mt-2 h-3 w-32 rounded bg-muted"></div>
+            </div>
+            <div class="mt-4 lg:col-span-9 lg:mt-0">
+              <div class="h-4 w-48 rounded bg-muted"></div>
+              <div class="mt-3 h-20 w-full rounded bg-muted"></div>
+            </div>
+          </div>
+        </div>
+
+        <div v-else-if="reviews.length > 0" class="mt-6 divide-y divide-gray-200 border-y border-default">
           <article v-for="review in reviews" :key="review.id || review.author" class="py-8 lg:grid lg:grid-cols-12 lg:gap-x-8">
             <div class="lg:col-span-3">
               <p class="font-medium text-highlighted">{{ review.author }}</p>
@@ -138,6 +152,19 @@
               <p class="mt-3 text-sm leading-6 text-muted">{{ review.content }}</p>
             </div>
           </article>
+        </div>
+
+        <div v-else class="mt-6 flex flex-col items-center justify-center rounded-xl border border-dashed border-default bg-muted/30 py-16 text-center">
+          <div class="flex size-12 items-center justify-center rounded-full bg-elevated/50 text-muted shadow-sm">
+            <UIcon name="i-heroicons-chat-bubble-bottom-center-text" class="size-6" />
+          </div>
+          <h3 class="mt-4 text-sm font-medium text-highlighted">No reviews yet</h3>
+          <p class="mt-1 text-sm text-muted">Have you tried this dish? Be the first to share your experience.</p>
+          <div class="mt-6">
+            <UButton color="neutral" variant="soft" size="sm" @click="scrollToReviewForm">
+              Write a review
+            </UButton>
+          </div>
         </div>
       </section>
 
@@ -377,7 +404,9 @@ const diningNotes = computed(() => [
 
 const relatedItems = ref([]) // To be implemented with a related items API if needed
 
-const approvedReviews = ref([])
+const approvedReviews = ref<Review[]>([])
+const reviewsLoading = ref(true)
+const reviews = computed(() => approvedReviews.value)
 const reviewSubmitting = ref(false)
 const reviewMessage = ref('')
 const reviewError = ref(false)
@@ -423,6 +452,7 @@ const schemaImage = computed(() =>
 
 const loadReviews = async () => {
   if (!item.value?.slug) return
+  reviewsLoading.value = true
   try {
     const response = await $fetch('/api/reviews', {
       query: { slug: item.value.slug }
@@ -430,7 +460,14 @@ const loadReviews = async () => {
     approvedReviews.value = response.reviews ?? []
   } catch {
     approvedReviews.value = []
+  } finally {
+    reviewsLoading.value = false
   }
+}
+
+const scrollToReviewForm = () => {
+  const el = document.getElementById('review-form-heading')
+  if (el) el.scrollIntoView({ behavior: 'smooth' })
 }
 
 const resetReviewForm = () => {

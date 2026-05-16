@@ -162,3 +162,22 @@ export const getSpecialHoursNotice = (specialHours: GoogleSpecialHours | null | 
   return `Special holiday hours today: ${formatGoogleTime(special.openTime ?? {})} – ${formatGoogleTime(special.closeTime ?? {})}`
 }
 
+/**
+ * Returns '#ffffff' or '#000000' based on the luminance of the provided hex color.
+ */
+export const getContrastColor = (hex?: string | null) => {
+  if (!hex || !hex.startsWith('#')) return '#ffffff'
+  
+  // Remove hash if present
+  const color = hex.replace('#', '')
+  
+  // Convert 3-digit hex to 6-digits
+  const r = parseInt(color.length === 3 ? color.slice(0, 1).repeat(2) : color.slice(0, 2), 16)
+  const g = parseInt(color.length === 3 ? color.slice(1, 2).repeat(2) : color.slice(2, 4), 16)
+  const b = parseInt(color.length === 3 ? color.slice(2, 3).repeat(2) : color.slice(4, 6), 16)
+  
+  // Luminance formula (YIQ)
+  const yiq = ((r * 299) + (g * 587) + (b * 114)) / 1000
+  
+  return (yiq >= 128) ? '#000000' : '#ffffff'
+}
