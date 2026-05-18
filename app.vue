@@ -1,8 +1,17 @@
 <template>
   <UApp>
-    <NuxtLoadingIndicator color="linear-gradient(to right, #f87171, #fb923c, #fbbf24, #4ade80, #60a5fa, #a78bfa)" :height="2" :throttle="150" />
+    <NuxtLoadingIndicator :color="loadingColor" :height="2" :throttle="150" />
     <NuxtLayout>
       <NuxtPage />
     </NuxtLayout>
   </UApp>
 </template>
+
+<script setup lang="ts">
+const { isPlatform } = useTenantSite()
+
+const loadingColor = computed(() => {
+  if (isPlatform) return 'var(--kc-loading-rainbow)'
+  return 'var(--saya-primary, var(--kc-coral))'
+})
+</script>

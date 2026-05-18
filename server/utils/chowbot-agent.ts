@@ -102,6 +102,26 @@ function toSqlText(value: ApiValue): string | null | undefined {
   return null
 }
 
+function isValidHttpUrl(value: string): boolean {
+  try {
+    const parsed = new URL(value)
+    return parsed.protocol === 'http:' || parsed.protocol === 'https:'
+  } catch {
+    return false
+  }
+}
+
+function normalizeOptionalHttpUrl(value: ApiValue): string | null | undefined {
+  const normalized = toSqlText(value)
+  if (normalized === undefined) return undefined
+  if (normalized === null) return null
+
+  const trimmed = normalized.trim()
+  if (!trimmed) return null
+  if (!isValidHttpUrl(trimmed)) return null
+  return trimmed
+}
+
 function menuItemKey(name: string): string {
   return name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')
 }
@@ -1403,9 +1423,9 @@ async function executeTool(
             toSqlText(input.facebook_url) ?? null,
             toSqlText(input.instagram_url) ?? null,
             toSqlText(input.tiktok_url) ?? null,
-            toSqlText(input.grab_url) ?? null,
-            toSqlText(input.uber_eats_url) ?? null,
-            toSqlText(input.foodpanda_url) ?? null,
+            toSqlText(normalizeOptionalHttpUrl(input.grab_url)) ?? null,
+            toSqlText(normalizeOptionalHttpUrl(input.uber_eats_url)) ?? null,
+            toSqlText(normalizeOptionalHttpUrl(input.foodpanda_url)) ?? null,
             toSqlText(input.hero_image_asset_id) ?? null,
             toSqlText(input.hero_video_asset_id) ?? null,
             isPrimary ? 1 : 0,
@@ -1456,8 +1476,11 @@ async function executeTool(
         'grab_url', 'uber_eats_url', 'foodpanda_url',
         'website_url', 'maps_url', 'google_place_id',
         'hero_image_asset_id', 'hero_video_asset_id', 'status'] as const
+      const orderingUrlFields = new Set(['grab_url', 'uber_eats_url', 'foodpanda_url'])
       for (const field of simpleFields) {
-        const normalizedValue = toSqlText(input[field])
+        const normalizedValue = orderingUrlFields.has(field)
+          ? toSqlText(normalizeOptionalHttpUrl(input[field]))
+          : toSqlText(input[field])
         if (normalizedValue !== undefined) {
           if (field === 'status' && normalizedValue && !['active', 'inactive', 'sync_error'].includes(normalizedValue)) {
             return { error: 'Invalid location status.' }
@@ -2242,8 +2265,19 @@ async function executeTool(
         ['footer_tagline',   toSqlText(input.footer_tagline) ?? undefined],
       ]
       const updated: Record<string, string> = {}
+      const invalidFields: string[] = []
+      const normalizedEntries: Array<['social_facebook' | 'social_instagram' | 'social_tiktok' | 'footer_tagline', string]> = []
       for (const [key, value] of map) {
         if (value === undefined) continue
+        const trimmed = value.trim()
+        if (key !== 'footer_tagline' && trimmed && !isValidHttpUrl(trimmed)) {
+          invalidFields.push(key)
+          continue
+        }
+        normalizedEntries.push([key, trimmed])
+      }
+      if (invalidFields.length) return { error: `Invalid URL scheme for: ${invalidFields.join(', ')}. Only http/https are allowed.` }
+      for (const [key, value] of normalizedEntries) {
         await setConfig(db, orgId, siteId, key, value)
         updated[key] = value
       }

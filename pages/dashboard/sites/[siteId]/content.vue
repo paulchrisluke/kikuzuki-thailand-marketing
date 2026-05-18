@@ -645,19 +645,29 @@ const onRichTextBlur = (e: FocusEvent) => {
 const onRichTextPaste = (e: ClipboardEvent) => {
   const html = e.clipboardData?.getData('text/html')
   const text = e.clipboardData?.getData('text/plain') || ''
+  const allowedPasteTags = ['p', 'br', 'b', 'strong', 'i', 'em', 'ul', 'ol', 'li', 'a']
+  const escapeHtml = (value: string) => value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
 
   let cleaned: string
   if (html) {
     // Strip inline style/class/color attrs so pasted content inherits editor theme
     cleaned = DOMPurify.sanitize(html, {
-      ALLOWED_TAGS: ['p', 'br', 'b', 'strong', 'i', 'em', 'ul', 'ol', 'li', 'a'],
+      ALLOWED_TAGS: allowedPasteTags,
       ALLOWED_ATTR: ['href'],
     })
   } else {
-    cleaned = text.split('\n').map(line => `<p>${line || '<br>'}</p>`).join('')
+    cleaned = text.split('\n').map(line => `<p>${line ? escapeHtml(line) : '<br>'}</p>`).join('')
   }
 
-  document.execCommand('insertHTML', false, cleaned)
+  const sanitized = DOMPurify.sanitize(cleaned, {
+    ALLOWED_TAGS: allowedPasteTags,
+    ALLOWED_ATTR: ['href'],
+  })
+
+  document.execCommand('insertHTML', false, sanitized)
   const target = e.target as HTMLElement
   editingValue.value = DOMPurify.sanitize(target.innerHTML)
 }

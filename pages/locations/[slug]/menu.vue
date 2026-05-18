@@ -78,13 +78,13 @@
             <article
               v-for="item in menuItemsBySection[cat.name]"
               :key="item.id"
-              :class="['flex items-start gap-5', !item.available && 'opacity-50']"
+              class="flex items-start gap-5"
             >
               <!-- Thumbnail left (images only) -->
               <NuxtLink
                 v-if="item.public_url && item.kind === 'image' && item.available"
                 :to="`/menu/${itemSlug(item)}`"
-                class="shrink-0"
+                :class="['shrink-0', !item.available && 'opacity-50 grayscale']"
               >
                 <img
                   :src="item.public_url"
@@ -95,7 +95,7 @@
               </NuxtLink>
               <div
                 v-else-if="item.public_url && item.kind === 'image'"
-                class="shrink-0"
+                class="shrink-0 opacity-50 grayscale"
               >
                 <img
                   :src="item.public_url"
@@ -112,9 +112,9 @@
                     <NuxtLink
                       v-if="item.available"
                       :to="`/menu/${itemSlug(item)}`"
-                      class="text-default no-underline hover:underline underline-offset-2"
+                      :class="['text-default no-underline hover:underline underline-offset-2', !item.available && 'opacity-50']"
                     >{{ item.name }}</NuxtLink>
-                    <span v-else class="text-default">{{ item.name }}</span>
+                    <span v-else class="text-default opacity-50">{{ item.name }}</span>
                     <UBadge
                       v-if="!item.available"
                       variant="outline"
