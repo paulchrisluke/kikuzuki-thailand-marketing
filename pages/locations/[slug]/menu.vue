@@ -78,16 +78,49 @@
             <article
               v-for="item in menuItemsBySection[cat.name]"
               :key="item.id"
-              class="flex items-start gap-5"
+              :class="['flex items-start gap-5', !item.available && 'opacity-50']"
             >
+              <!-- Thumbnail left (images only) -->
+              <NuxtLink
+                v-if="item.public_url && item.kind === 'image' && item.available"
+                :to="`/menu/${itemSlug(item)}`"
+                class="shrink-0"
+              >
+                <img
+                  :src="item.public_url"
+                  :alt="item.name"
+                  class="size-24 rounded-xl object-cover bg-muted"
+                  loading="lazy"
+                />
+              </NuxtLink>
+              <div
+                v-else-if="item.public_url && item.kind === 'image'"
+                class="shrink-0"
+              >
+                <img
+                  :src="item.public_url"
+                  :alt="item.name"
+                  class="size-24 rounded-xl object-cover bg-muted"
+                  loading="lazy"
+                />
+              </div>
+
               <!-- Text -->
               <div class="min-w-0 flex-1">
                 <div class="flex items-baseline gap-2">
                   <div class="flex items-baseline gap-2 text-base font-medium text-default">
                     <NuxtLink
+                      v-if="item.available"
                       :to="`/menu/${itemSlug(item)}`"
                       class="text-default no-underline hover:underline underline-offset-2"
                     >{{ item.name }}</NuxtLink>
+                    <span v-else class="text-default">{{ item.name }}</span>
+                    <UBadge
+                      v-if="!item.available"
+                      variant="outline"
+                      size="xs"
+                      class="shrink-0 font-medium"
+                    >Unavailable</UBadge>
                     <UBadge
                       v-for="tag in getDietaryTags(item)"
                       :key="tag"
@@ -103,20 +136,6 @@
                   {{ item.description }}
                 </p>
               </div>
-
-              <!-- Thumbnail (images only) -->
-              <NuxtLink
-                v-if="item.public_url && item.kind === 'image'"
-                :to="`/menu/${itemSlug(item)}`"
-                class="shrink-0"
-              >
-                <img
-                  :src="item.public_url"
-                  :alt="item.name"
-                  class="size-24 rounded-xl object-cover bg-muted"
-                  loading="lazy"
-                />
-              </NuxtLink>
             </article>
           </div>
         </section>
