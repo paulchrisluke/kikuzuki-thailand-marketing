@@ -43,12 +43,12 @@ export default defineEventHandler(async (event) => {
   try {
     // Verify user has admin/owner permissions for settings
     const site = await db.prepare(`
-      SELECT s.id, s.organization_id, s.settings FROM sites s
+      SELECT s.id, s.organization_id, s.subdomain, s.settings FROM sites s
       JOIN organization o ON s.organization_id = o.id
       JOIN member om ON o.id = om.organizationId
       WHERE s.id = ? AND om.userId = ? AND om.role IN ('owner', 'admin')
       LIMIT 1
-    `).bind(siteId, session.user.id).first()
+    `).bind(siteId, session.user.id).first<{ id: string; organization_id: string; subdomain: string | null; settings: string | null }>()
     
     if (!site) {
       return jsonResponse({ 
@@ -182,10 +182,13 @@ export default defineEventHandler(async (event) => {
       throw new Error('Failed to update site settings')
     }
 
-    // If brand_name changed, sync subdomain record and public_url via createSystemSubdomain
+    // Only re-register the subdomain when it actually changed to avoid hitting
+    // the CF Pages API on every save (which errors if the domain is already registered).
     if (body.brand_name !== undefined) {
       const slug = body.brand_name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '').slice(0, 30)
-      await createSystemSubdomain(env, db, siteId, site.organization_id as string, slug)
+      if (slug !== site.subdomain) {
+        await createSystemSubdomain(env, db, siteId, site.organization_id as string, slug)
+      }
     }
 
     // Get updated settings
