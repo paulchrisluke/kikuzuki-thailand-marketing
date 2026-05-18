@@ -102,16 +102,19 @@
         </div>
       </div>
 
-      <!-- Delivery partners row -->
-      <div class="flex flex-wrap items-center gap-8 border-b border-inverted/10 py-10">
+      <!-- Delivery partners row — only rendered when at least one link is configured -->
+      <div v-if="orderLinks.length" class="flex flex-wrap items-center gap-8 border-b border-inverted/10 py-10">
         <span class="saya-eyebrow text-inverted/50">Order online</span>
-        <span
-          v-for="partner in deliveryPartners"
-          :key="partner"
-          class="saya-display text-lg saya-italic text-inverted/40"
+        <a
+          v-for="link in orderLinks"
+          :key="link.label"
+          :href="link.url"
+          target="_blank"
+          rel="noopener noreferrer"
+          class="saya-display text-lg saya-italic text-inverted/60 transition hover:text-inverted"
         >
-          {{ partner }}
-        </span>
+          {{ link.label }}
+        </a>
       </div>
 
       <!-- Legal bar -->
@@ -158,7 +161,20 @@ const logoUrl = computed(() => {
 const siteConfig = computed(() => (siteConfigData.value as ApiValue)?.config ?? {})
 const tagline = computed(() => (siteConfig.value as ApiValue)?.footer_tagline || 'Authentic dining, crafted with passion.')
 
-const deliveryPartners = ['Uber Eats', 'GrabFood', 'FoodPanda']
+const primaryLocation = computed<PublicLocation | null>(() =>
+  rawLocations.value.find((l: PublicLocation) => l.is_primary) ?? rawLocations.value[0] ?? null
+)
+
+interface OrderLink { label: string; url: string }
+const orderLinks = computed<OrderLink[]>(() => {
+  const loc = primaryLocation.value
+  if (!loc) return []
+  return [
+    { label: 'Grab', url: loc.grab_url ?? '' },
+    { label: 'Uber Eats', url: loc.uber_eats_url ?? '' },
+    { label: 'FoodPanda', url: loc.foodpanda_url ?? '' },
+  ].filter(o => o.url)
+})
 
 const facebookUrl = computed(() => (siteConfig.value as ApiValue)?.social_facebook || '')
 const instagramUrl = computed(() => (siteConfig.value as ApiValue)?.social_instagram || '')
@@ -181,6 +197,10 @@ interface PublicLocation {
   city?: string | null
   phone?: string | null
   googleBusinessHours?: ApiValue
+  is_primary?: boolean
+  grab_url?: string | null
+  uber_eats_url?: string | null
+  foodpanda_url?: string | null
 }
 
 interface PublicLocationsResponse {

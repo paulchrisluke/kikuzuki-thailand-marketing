@@ -213,6 +213,15 @@
               <UFormField label="TikTok URL">
                 <UInput v-model="detailsForm.tiktok_url" type="url" />
               </UFormField>
+              <UFormField label="Grab URL">
+                <UInput v-model="detailsForm.grab_url" type="url" placeholder="https://grab.com/..." />
+              </UFormField>
+              <UFormField label="Uber Eats URL">
+                <UInput v-model="detailsForm.uber_eats_url" type="url" placeholder="https://ubereats.com/..." />
+              </UFormField>
+              <UFormField label="FoodPanda URL">
+                <UInput v-model="detailsForm.foodpanda_url" type="url" placeholder="https://foodpanda.co.th/..." />
+              </UFormField>
             </div>
 
             <UFormField label="Address">
@@ -326,6 +335,9 @@ interface BusinessLocation {
   facebook_url: string | null
   instagram_url: string | null
   tiktok_url: string | null
+  grab_url: string | null
+  uber_eats_url: string | null
+  foodpanda_url: string | null
   google_place_id: string | null
   opening_hours: { weekdayDescriptions?: string[] } | null
   rating: number | null
@@ -421,6 +433,9 @@ const detailsForm = reactive({
   facebook_url: '',
   instagram_url: '',
   tiktok_url: '',
+  grab_url: '',
+  uber_eats_url: '',
+  foodpanda_url: '',
   address: '',
   short_description: '',
   description: '',
@@ -469,6 +484,9 @@ function fillDetailsForm(loc: BusinessLocation) {
   detailsForm.facebook_url = loc.facebook_url ?? ''
   detailsForm.instagram_url = loc.instagram_url ?? ''
   detailsForm.tiktok_url = loc.tiktok_url ?? ''
+  detailsForm.grab_url = loc.grab_url ?? ''
+  detailsForm.uber_eats_url = loc.uber_eats_url ?? ''
+  detailsForm.foodpanda_url = loc.foodpanda_url ?? ''
   detailsForm.address = loc.address?.addressLines?.join('\n') ?? ''
   detailsForm.short_description = loc.short_description ?? ''
   detailsForm.description = loc.description ?? ''
@@ -516,6 +534,9 @@ async function saveLocationDetails() {
         facebook_url: detailsForm.facebook_url || null,
         instagram_url: detailsForm.instagram_url || null,
         tiktok_url: detailsForm.tiktok_url || null,
+        grab_url: detailsForm.grab_url || null,
+        uber_eats_url: detailsForm.uber_eats_url || null,
+        foodpanda_url: detailsForm.foodpanda_url || null,
         address: detailsForm.address ? { addressLines: detailsForm.address.split('\n').map(line => line.trim()).filter(Boolean) } : null,
         short_description: detailsForm.short_description || null,
         description: detailsForm.description || null,

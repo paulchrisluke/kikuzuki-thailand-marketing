@@ -556,6 +556,9 @@ const TOOLS: AiTool[] = [
         facebook_url: { type: 'string' },
         instagram_url: { type: 'string' },
         tiktok_url: { type: 'string' },
+        grab_url: { type: 'string', description: 'Grab Food ordering link for this location.' },
+        uber_eats_url: { type: 'string', description: 'Uber Eats ordering link for this location.' },
+        foodpanda_url: { type: 'string', description: 'FoodPanda ordering link for this location.' },
         hero_image_asset_id: { type: 'string', description: 'Media asset ID for hero image.' },
         hero_video_asset_id: { type: 'string', description: 'Media asset ID for hero video.' },
         is_primary: { type: 'boolean' },
@@ -587,6 +590,9 @@ const TOOLS: AiTool[] = [
         facebook_url: { type: 'string' },
         instagram_url: { type: 'string' },
         tiktok_url: { type: 'string' },
+        grab_url: { type: 'string', description: 'Grab Food ordering link for this location.' },
+        uber_eats_url: { type: 'string', description: 'Uber Eats ordering link for this location.' },
+        foodpanda_url: { type: 'string', description: 'FoodPanda ordering link for this location.' },
         hero_image_asset_id: { type: 'string', description: 'Media asset ID for hero image.' },
         hero_video_asset_id: { type: 'string', description: 'Media asset ID for hero video.' },
         is_primary: { type: 'boolean' },
@@ -957,6 +963,19 @@ const TOOLS: AiTool[] = [
         description: { type: 'string', description: 'One-line brand description.' },
       },
       required: ['description'],
+    },
+  },
+  {
+    name: 'update_site_social',
+    description: 'Set site-wide social media links and footer tagline. Pass only the fields to change; omit the rest.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        facebook_url:  { type: 'string', description: 'Full Facebook page URL. Empty string to clear.' },
+        instagram_url: { type: 'string', description: 'Full Instagram profile URL. Empty string to clear.' },
+        tiktok_url:    { type: 'string', description: 'Full TikTok profile URL. Empty string to clear.' },
+        footer_tagline: { type: 'string', description: 'Short tagline shown in the site footer. Empty string to clear.' },
+      },
     },
   },
 ]
@@ -1353,9 +1372,10 @@ async function executeTool(
               id, organization_id, site_id, title, slug, city, phone, email, website_url, maps_url,
               google_place_id, description, short_description, address, opening_hours, rating,
               review_count, price_level, facebook_url, instagram_url, tiktok_url,
+              grab_url, uber_eats_url, foodpanda_url,
               hero_image_asset_id, hero_video_asset_id, is_primary, status, created_at, updated_at
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, ?)`
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, ?)`
           ).bind(
             id,
             orgId,
@@ -1383,6 +1403,9 @@ async function executeTool(
             toSqlText(input.facebook_url) ?? null,
             toSqlText(input.instagram_url) ?? null,
             toSqlText(input.tiktok_url) ?? null,
+            toSqlText(input.grab_url) ?? null,
+            toSqlText(input.uber_eats_url) ?? null,
+            toSqlText(input.foodpanda_url) ?? null,
             toSqlText(input.hero_image_asset_id) ?? null,
             toSqlText(input.hero_video_asset_id) ?? null,
             isPrimary ? 1 : 0,
@@ -1429,7 +1452,9 @@ async function executeTool(
         slugParamIndex = params.length - 1
       }
       const simpleFields = ['city', 'phone', 'email', 'description', 'short_description', 'price_level',
-        'facebook_url', 'instagram_url', 'tiktok_url', 'website_url', 'maps_url', 'google_place_id',
+        'facebook_url', 'instagram_url', 'tiktok_url',
+        'grab_url', 'uber_eats_url', 'foodpanda_url',
+        'website_url', 'maps_url', 'google_place_id',
         'hero_image_asset_id', 'hero_video_asset_id', 'status'] as const
       for (const field of simpleFields) {
         const normalizedValue = toSqlText(input[field])
@@ -2207,6 +2232,23 @@ async function executeTool(
       }
       await setConfig(db, orgId, siteId, 'default_currency', currency)
       return { default_currency: currency, updated: true }
+    }
+
+    case 'update_site_social': {
+      const map: Array<['social_facebook' | 'social_instagram' | 'social_tiktok' | 'footer_tagline', string | undefined]> = [
+        ['social_facebook',  toSqlText(input.facebook_url)   ?? undefined],
+        ['social_instagram', toSqlText(input.instagram_url)  ?? undefined],
+        ['social_tiktok',    toSqlText(input.tiktok_url)     ?? undefined],
+        ['footer_tagline',   toSqlText(input.footer_tagline) ?? undefined],
+      ]
+      const updated: Record<string, string> = {}
+      for (const [key, value] of map) {
+        if (value === undefined) continue
+        await setConfig(db, orgId, siteId, key, value)
+        updated[key] = value
+      }
+      if (Object.keys(updated).length === 0) return { error: 'No fields provided.' }
+      return { updated }
     }
 
     default:
