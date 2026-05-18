@@ -44,16 +44,11 @@ export default defineTask({
       }
     } catch (error) {
       const err = error instanceof Error ? error : new Error(String(error))
-      console.error('Analytics aggregation task failed:', err.message)
-      return {
-        result: {
-          aggregated: '',
-          cleaned: 0,
-          skipped: '',
-          message: 'Analytics aggregation failed',
-          error: err.message
-        }
-      }
+      console.error('Analytics aggregation task failed:', {
+        message: err.message,
+        stack: err.stack
+      })
+      throw err
     }
   }
 })

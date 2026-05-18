@@ -79,9 +79,11 @@
           <img
             :src="photo.thumbnail_url || photo.local_url || photo.google_url"
             :alt="photo.description || ''"
-    <div class="sticky top-0 z-40 border-b border-default bg-default">
             loading="lazy"
-          >
+            class="block w-full transition-opacity duration-200 group-hover:opacity-80"
+          />
+          <!-- If the sticky tab/header div is needed, move it here, outside the <img> -->
+          <!-- <div class="sticky top-0 z-40 border-b border-default bg-default"> ... </div> -->
           <div class="absolute inset-0 flex items-end bg-linear-to-t from-black/60 to-transparent p-6 opacity-0 transition-opacity duration-300 group-hover:opacity-100">
             <span class="saya-eyebrow rounded-full bg-white/25 px-4 py-1.5 text-[10px] font-bold tracking-widest text-white backdrop-blur-md border border-white/20">
               {{ photo.category || 'Gallery' }}

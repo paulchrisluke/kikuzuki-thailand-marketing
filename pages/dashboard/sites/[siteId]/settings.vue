@@ -385,6 +385,14 @@ const previewSubdomain = computed(() => {
   return slug || (settings.value?.subdomain ?? '')
 })
 
+const DEFAULT_URL_STRUCTURE = 'location_subdirectories'
+
+function normalizeUrlStructure(value: unknown): string {
+  return typeof value === 'string' && value.length > 0
+    ? value
+    : DEFAULT_URL_STRUCTURE
+}
+
 const isDirty = computed(() => {
   if (!settings.value) return false
   return (
@@ -394,7 +402,7 @@ const isDirty = computed(() => {
     form.contact_email !== settings.value.contact_email ||
     form.brand_color !== (settings.value.brand_color || '') ||
     form.default_currency !== (settings.value.default_currency || DEFAULT_CURRENCY) ||
-    form.url_structure !== settings.value.url_structure ||
+    form.url_structure !== normalizeUrlStructure(settings.value.url_structure) ||
     form.footer_tagline !== (settings.value.footer_tagline || '') ||
     form.social_facebook !== (settings.value.social_facebook || '') ||
     form.social_instagram !== (settings.value.social_instagram || '') ||
@@ -421,14 +429,36 @@ const loadSettings = async () => {
   }
 }
 
+function normalizeOptionalHttpUrl(value: unknown): string | null {
+  if (!value || typeof value !== 'string' || !value.trim()) return null
+
+  try {
+    const url = new URL(value.trim())
+    if (!['http:', 'https:'].includes(url.protocol)) {
+      throw new Error('URL must start with http:// or https://')
+    }
+
+    return url.toString()
+  } catch {
+    throw new Error('Enter a valid http:// or https:// URL.')
+  }
+}
+
 const saveSettings = async () => {
   saving.value = true
   error.value = null
 
   try {
+    const payload = {
+      ...form,
+      social_facebook: normalizeOptionalHttpUrl(form.social_facebook) || '',
+      social_instagram: normalizeOptionalHttpUrl(form.social_instagram) || '',
+      social_tiktok: normalizeOptionalHttpUrl(form.social_tiktok) || ''
+    }
+
     const response = await $fetch<ApiRecord>(`/api/sites/${siteId}/settings`, {
       method: 'PATCH',
-      body: { ...form }
+      body: payload
     })
 
     if (!response.success) throw new Error('Failed to save settings')
@@ -455,7 +485,7 @@ const resetForm = () => {
   const currency = (settings.value as ApiValue).default_currency
   form.default_currency = isCurrencyCode(currency) ? currency : DEFAULT_CURRENCY
   form.primary_location_id = settings.value.primary_location_id || null
-  form.url_structure = settings.value.url_structure || 'location_subdirectories'
+  form.url_structure = normalizeUrlStructure(settings.value.url_structure)
   form.footer_tagline = (settings.value as ApiValue).footer_tagline || ''
   form.social_facebook = (settings.value as ApiValue).social_facebook || ''
   form.social_instagram = (settings.value as ApiValue).social_instagram || ''

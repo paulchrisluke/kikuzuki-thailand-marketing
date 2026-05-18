@@ -72,6 +72,32 @@ const slugify = (value: string) =>
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-+|-+$/g, '')
 
+function optionalHttpUrl(value: unknown, field: string): string | null {
+  if (value === undefined || value === null || value === '') return null
+
+  if (typeof value !== 'string') {
+    throw createError({
+      statusCode: 400,
+      statusMessage: `${field} must be a URL string`
+    })
+  }
+
+  try {
+    const url = new URL(value.trim())
+
+    if (!['http:', 'https:'].includes(url.protocol)) {
+      throw new Error('Invalid protocol')
+    }
+
+    return url.toString()
+  } catch {
+    throw createError({
+      statusCode: 400,
+      statusMessage: `${field} must be a valid http:// or https:// URL`
+    })
+  }
+}
+
 async function ensureUniqueLocationSlug(
   db: D1Database,
   organizationId: string,
@@ -246,13 +272,25 @@ export default defineEventHandler(async (event) => {
     const simpleFields: Array<[keyof UpdateLocationBody, string?]> = [
       ['email'], ['description'], ['short_description'], ['price_level'],
       ['facebook_url'], ['instagram_url'], ['tiktok_url'],
-      ['grab_url'], ['uber_eats_url'], ['foodpanda_url'],
       ['google_place_id'],
     ]
     for (const [field] of simpleFields) {
       if (body[field] !== undefined) {
         setParts.push(`${field} = ?`)
         params.push((body[field] as string) || null)
+      }
+    }
+
+    const urlFields: Array<keyof UpdateLocationBody> = ['grab_url', 'uber_eats_url', 'foodpanda_url']
+    for (const field of urlFields) {
+      if (body[field] !== undefined) {
+        try {
+          const validated = optionalHttpUrl(body[field], field)
+          setParts.push(`${field} = ?`)
+          params.push(validated)
+        } catch (err) {
+          return jsonResponse({ error: err instanceof Error ? err.message : `Invalid ${field}` }, { status: 400 })
+        }
       }
     }
     if (body.special_hours !== undefined) {

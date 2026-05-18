@@ -30,8 +30,10 @@
           <h2 class="font-black italic tracking-tighter text-4xl md:text-5xl text-default leading-none mb-8">
             {{ getField('story.title', 'Our Story') }}
           </h2>
-          <!-- eslint-disable-next-line vue/no-v-html -->
-          <div class="prose prose-lg max-w-none text-default" v-html="getField('story.body', '')" />
+          <ClientOnly>
+            <!-- eslint-disable-next-line vue/no-v-html -->
+            <div class="prose prose-lg max-w-none text-default" v-html="storyBody" />
+          </ClientOnly>
         </div>
       </AppSection>
 
@@ -42,8 +44,10 @@
             <h2 class="text-3xl font-bold text-default mb-8 italic">
               {{ getField('journey.title', 'Our Journey') }}
             </h2>
-            <!-- eslint-disable-next-line vue/no-v-html -->
-            <div class="prose prose-lg max-w-none text-muted" v-html="getField('journey.body', '')" />
+            <ClientOnly>
+              <!-- eslint-disable-next-line vue/no-v-html -->
+              <div class="prose prose-lg max-w-none text-muted" v-html="journeyBody" />
+            </ClientOnly>
           </div>
         </div>
       </AppSection>
@@ -101,6 +105,8 @@
 </template>
 
 <script setup>
+import { ref, computed, onMounted } from 'vue'
+import { sanitizeHtml } from '~/utils/sanitize'
 definePageMeta({ layout: false })
 
 import { useOrganizationSchema, useBreadcrumbSchema } from '~/composables/useSchemaOrg'
@@ -108,6 +114,14 @@ import { usePageContent } from '~/composables/usePageContent'
 
 const { isPlatform, siteId } = useTenantSite()
 const { getField } = usePageContent('about')
+
+const storyBody = ref('')
+const journeyBody = ref('')
+
+onMounted(async () => {
+  storyBody.value = await sanitizeHtml(getField('story.body', ''))
+  journeyBody.value = await sanitizeHtml(getField('journey.body', ''))
+})
 
 const { data: aboutLocsData } = isPlatform || !siteId
   ? { data: ref({ locations: [] }) }

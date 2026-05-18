@@ -29,20 +29,39 @@ export function useDashboardSiteLinks(siteId: MaybeRef<string>, sitePublicUrl?: 
     return {
       base,
       setup: `${base}/setup`,
+      pages: `${base}/pages`,
       content: `${base}/content`,
       menu: `${base}/menu`,
       posts: `${base}/posts`,
+      reviews: `${base}/reviews`,
+      photos: `${base}/photos`,
+      qa: `${base}/qa`,
+      inbox: `${base}/inbox`,
+      reservations: `${base}/reservations`,
+      order: `${base}/order`,
+      integrations: `${base}/integrations`,
       media: `${base}/media`,
       locations: `${base}/locations`,
       settings: `${base}/settings`
     }
   })
 
+  function safeHttpUrl(value: unknown): string | null {
+    if (!value || typeof value !== 'string') return null
+
+    const raw = value.trim()
+    const candidate = /^https?:\/\//i.test(raw) ? raw : `https://${raw}`
+
+    try {
+      const url = new URL(candidate)
+      return ['http:', 'https:'].includes(url.protocol) ? url.toString() : null
+    } catch {
+      return null
+    }
+  }
+
   const resolvedPublicUrl = computed(() => {
-    const value = sitePublicUrl ? unref(sitePublicUrl) : null
-    if (typeof value !== 'string') return null
-    const trimmed = value.trim()
-    return trimmed.length > 0 ? trimmed : null
+    return safeHttpUrl(sitePublicUrl ? unref(sitePublicUrl) : null)
   })
 
   const previewLink = computed<DashboardActionLink>(() => ({

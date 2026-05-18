@@ -27,6 +27,18 @@ export interface DailyAggregates {
   }>
 }
 
+function dateRangeBounds(startDate: string, endDate: string) {
+  const start = `${startDate}T00:00:00.000Z`
+
+  const end = new Date(`${endDate}T00:00:00.000Z`)
+  end.setUTCDate(end.getUTCDate() + 1)
+
+  return {
+    start,
+    end: end.toISOString()
+  }
+}
+
 /**
  * Aggregate pageview events for a specific date into daily summary
  * Queries raw events and updates site_analytics_daily
@@ -37,6 +49,8 @@ export async function aggregateAnalyticsForDate(
   date: string
 ): Promise<void> {
   try {
+    const { start, end } = dateRangeBounds(date, date)
+
     // Get raw pageview events for this date
     const events = await db.prepare(`
       SELECT 
@@ -46,9 +60,10 @@ export async function aggregateAnalyticsForDate(
         COUNT(*) as page_view_count
       FROM site_pageview_events
       WHERE site_id = ?
-        AND DATE(created_at) = ?
+        AND created_at >= ?
+        AND created_at < ?
       GROUP BY session_id, page_path
-    `).bind(siteId, date).all()
+    `).bind(siteId, start, end).all()
 
     // Calculate aggregates
     const eventRows = asRows((events as ApiRecord).results)
@@ -62,9 +77,10 @@ export async function aggregateAnalyticsForDate(
         AVG(COALESCE(duration_seconds, 0)) as avg_duration
       FROM site_pageview_events
       WHERE site_id = ?
-        AND DATE(created_at) = ?
+        AND created_at >= ?
+        AND created_at < ?
       GROUP BY session_id
-    `).bind(siteId, date).all()
+    `).bind(siteId, start, end).all()
 
     const durationRows = asRows((sessionDurations as ApiRecord).results)
     const avgSessionDuration =
@@ -79,11 +95,12 @@ export async function aggregateAnalyticsForDate(
         COUNT(*) as views
       FROM site_pageview_events
       WHERE site_id = ?
-        AND DATE(created_at) = ?
+        AND created_at >= ?
+        AND created_at < ?
       GROUP BY page_path
       ORDER BY views DESC
       LIMIT 10
-    `).bind(siteId, date).all()
+    `).bind(siteId, start, end).all()
 
     const topPageRows = asRows((topPagesResult as ApiRecord).results)
     const topPages = topPageRows.map((row) => {
@@ -134,12 +151,14 @@ export async function aggregateAnalyticsForDate(
  */
 export async function aggregateAnalyticsForAllSites(db: ApiValue, date: string): Promise<void> {
   try {
+    const { start, end } = dateRangeBounds(date, date)
     // Get all unique sites that have events on this date
     const sites = await db.prepare(`
       SELECT DISTINCT site_id
       FROM site_pageview_events
-      WHERE DATE(created_at) = ?
-    `).bind(date).all()
+      WHERE created_at >= ?
+        AND created_at < ?
+    `).bind(start, end).all()
 
     const siteRows = asRows((sites as ApiRecord).results)
     console.log(`Aggregating analytics for ${siteRows.length} sites on ${date}`)
@@ -195,20 +214,39 @@ export async function getAnalyticsSummary(
   avgSessionDuration: number
 }> {
   try {
-    const summary = await db.prepare(`
+    const dailyStats = await db.prepare(`
       SELECT 
-        SUM(page_views) as total_page_views,
-        SUM(unique_sessions) as total_sessions,
-        AVG(avg_session_duration) as avg_duration
+        page_views,
+        unique_sessions,
+        avg_session_duration
       FROM site_analytics_daily
       WHERE site_id = ? AND date BETWEEN ? AND ?
-    `).bind(siteId, startDate, endDate).first()
+    `).bind(siteId, startDate, endDate).all()
 
-    const summaryRecord = (summary || {}) as ApiRecord
+    const durationTotals = asRows((dailyStats as ApiRecord).results).reduce(
+      (acc, row) => {
+        const sessions = toNumber(row.unique_sessions)
+        const averageDuration = toNumber(row.avg_session_duration)
+
+        acc.weightedDuration += averageDuration * sessions
+        acc.sessions += sessions
+        acc.pageViews += toNumber(row.page_views)
+
+        return acc
+      },
+      {
+        weightedDuration: 0,
+        sessions: 0,
+        pageViews: 0
+      }
+    )
+
     return {
-      pageViews: toNumber(summaryRecord.total_page_views),
-      uniqueSessions: toNumber(summaryRecord.total_sessions),
-      avgSessionDuration: Math.round(toNumber(summaryRecord.avg_duration))
+      pageViews: durationTotals.pageViews,
+      uniqueSessions: durationTotals.sessions,
+      avgSessionDuration: durationTotals.sessions > 0
+        ? Math.round(durationTotals.weightedDuration / durationTotals.sessions)
+        : 0
     }
   } catch (error) {
     const err = error instanceof Error ? error : new Error(String(error))

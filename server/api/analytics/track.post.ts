@@ -29,6 +29,27 @@ export default defineEventHandler(async (event) => {
 
   try {
     const body = await readBody(event) as PageviewRequest
+
+    if (!body || typeof body !== 'object' || Array.isArray(body)) {
+      return jsonResponse(
+        { error: 'Invalid analytics payload' },
+        { status: 400 }
+      )
+    }
+
+    const rawDuration = (body as unknown as Record<string, unknown>).durationSeconds
+    let durationSeconds: number | null = null
+    if (rawDuration !== undefined && rawDuration !== null && rawDuration !== '') {
+      const parsed = Number(rawDuration)
+      if (!Number.isFinite(parsed) || parsed < 0) {
+        return jsonResponse(
+          { error: 'durationSeconds must be a non-negative number' },
+          { status: 400 }
+        )
+      }
+      durationSeconds = parsed
+    }
+
     const siteId = typeof body.siteId === 'string' ? body.siteId.trim() : ''
     const sessionId = typeof body.sessionId === 'string' ? body.sessionId.trim() : ''
     const pagePath = typeof body.pagePath === 'string' ? body.pagePath.trim() : ''
@@ -119,7 +140,7 @@ export default defineEventHandler(async (event) => {
       userAgent || null,
       ipHash,
       sessionId,
-      body.durationSeconds || null,
+      durationSeconds ?? null,
       now
     ).run()
 

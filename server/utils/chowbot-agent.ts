@@ -111,15 +111,29 @@ function isValidHttpUrl(value: string): boolean {
   }
 }
 
-function normalizeOptionalHttpUrl(value: ApiValue): string | null | undefined {
-  const normalized = toSqlText(value)
-  if (normalized === undefined) return undefined
-  if (normalized === null) return null
 
-  const trimmed = normalized.trim()
+
+function normalizeOrderingUrl(value: unknown, field: string): string | null {
+  if (value === undefined || value === null || value === '') return null
+
+  if (typeof value !== 'string') {
+    throw new Error(`${field} must be a URL string`)
+  }
+
+  const trimmed = value.trim()
   if (!trimmed) return null
-  if (!isValidHttpUrl(trimmed)) return null
-  return trimmed
+
+  try {
+    const url = new URL(trimmed)
+
+    if (!['http:', 'https:'].includes(url.protocol)) {
+      throw new Error('Invalid protocol')
+    }
+
+    return url.toString()
+  } catch {
+    throw new Error(`${field} must be a valid http:// or https:// URL`)
+  }
 }
 
 function menuItemKey(name: string): string {
@@ -1423,9 +1437,9 @@ async function executeTool(
             toSqlText(input.facebook_url) ?? null,
             toSqlText(input.instagram_url) ?? null,
             toSqlText(input.tiktok_url) ?? null,
-            toSqlText(normalizeOptionalHttpUrl(input.grab_url)) ?? null,
-            toSqlText(normalizeOptionalHttpUrl(input.uber_eats_url)) ?? null,
-            toSqlText(normalizeOptionalHttpUrl(input.foodpanda_url)) ?? null,
+            normalizeOrderingUrl(input.grab_url, 'grab_url'),
+            normalizeOrderingUrl(input.uber_eats_url, 'uber_eats_url'),
+            normalizeOrderingUrl(input.foodpanda_url, 'foodpanda_url'),
             toSqlText(input.hero_image_asset_id) ?? null,
             toSqlText(input.hero_video_asset_id) ?? null,
             isPrimary ? 1 : 0,
@@ -1478,15 +1492,16 @@ async function executeTool(
         'hero_image_asset_id', 'hero_video_asset_id', 'status'] as const
       const orderingUrlFields = new Set(['grab_url', 'uber_eats_url', 'foodpanda_url'])
       for (const field of simpleFields) {
-        const normalizedValue = orderingUrlFields.has(field)
-          ? toSqlText(normalizeOptionalHttpUrl(input[field]))
-          : toSqlText(input[field])
-        if (normalizedValue !== undefined) {
-          if (field === 'status' && normalizedValue && !['active', 'inactive', 'sync_error'].includes(normalizedValue)) {
+        if (input[field] !== undefined) {
+          const rawValue = input[field]
+          if (field === 'status' && rawValue && !['active', 'inactive', 'sync_error'].includes(String(rawValue))) {
             return { error: 'Invalid location status.' }
           }
+          const val = orderingUrlFields.has(field)
+            ? normalizeOrderingUrl(rawValue, field)
+            : (toSqlText(rawValue as ApiValue) ?? null)
           sets.push(`${field} = ?`)
-          params.push(normalizedValue)
+          params.push(val)
         }
       }
       if (input.address !== undefined) {

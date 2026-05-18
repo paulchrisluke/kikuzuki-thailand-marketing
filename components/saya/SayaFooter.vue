@@ -176,9 +176,20 @@ const orderLinks = computed<OrderLink[]>(() => {
   ].filter(o => o.url)
 })
 
-const facebookUrl = computed(() => (siteConfig.value as ApiValue)?.social_facebook || '')
-const instagramUrl = computed(() => (siteConfig.value as ApiValue)?.social_instagram || '')
-const tiktokUrl = computed(() => (siteConfig.value as ApiValue)?.social_tiktok || '')
+function safeHttpUrl(value: unknown): string | null {
+  if (!value || typeof value !== 'string') return null
+
+  try {
+    const url = new URL(value.trim())
+    return ['http:', 'https:'].includes(url.protocol) ? url.toString() : null
+  } catch {
+    return null
+  }
+}
+
+const facebookUrl = computed(() => safeHttpUrl((siteConfig.value as ApiValue)?.social_facebook) || '')
+const instagramUrl = computed(() => safeHttpUrl((siteConfig.value as ApiValue)?.social_instagram) || '')
+const tiktokUrl = computed(() => safeHttpUrl((siteConfig.value as ApiValue)?.social_tiktok) || '')
 
 interface SocialLink {
   name: string

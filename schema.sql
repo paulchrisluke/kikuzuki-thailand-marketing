@@ -420,6 +420,7 @@ CREATE TABLE IF NOT EXISTS media_assets (
   height INTEGER,
   duration INTEGER,
   alt_text TEXT,
+  category TEXT CHECK (category IN ('exterior', 'interior', 'food', 'menu', 'team', 'other')),
 
   status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('pending', 'active', 'deleted', 'failed')),
   created_by_user_id TEXT,

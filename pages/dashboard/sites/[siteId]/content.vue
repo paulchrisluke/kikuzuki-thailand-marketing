@@ -466,14 +466,6 @@ const endpointWithContentScope = (path: string) =>
 
 const selectLocation = (id: string) => {
   selectedLocationId.value = id
-  activeField.value = null
-}
-
-const onLocationChange = () => {
-  iframeLoading.value = true
-  activeField.value = null
-  if (requiresLocationSelection.value) return
-  loadPageContent()
 }
 
 // ─── Pages ────────────────────────────────────────────────────────────
@@ -519,9 +511,9 @@ const iframeSrc = computed(() => {
   return url.toString()
 })
 
-const onPageChange = () => {
+const onPageChange = async (oldPageId?: string) => {
+  const previousValues = { ...currentValues.value }
   activeField.value = null
-  currentValues.value = {}
   openGroups.value = ['hero']
   // When switching to a location-scoped page, auto-select the primary/first location
   if (currentPageIsLocationScoped.value && !selectedLocationId.value && siteLocations.value.length > 0) {
@@ -532,15 +524,34 @@ const onPageChange = () => {
   if (!currentPageIsLocationScoped.value) {
     selectedLocationId.value = null
   }
-  loadPageContent()
+  try {
+    await loadPageContent()
+  } catch (_) {
+    if (oldPageId) selectedPageId.value = oldPageId
+    currentValues.value = previousValues
+  }
 }
 
-watch(selectedPageId, () => {
-  onPageChange()
+watch(selectedPageId, (newVal, oldVal) => {
+  if (newVal !== oldVal) {
+    onPageChange(oldVal)
+  }
 })
 
-watch(selectedLocationId, () => {
-  onLocationChange()
+watch(selectedLocationId, async (newVal, oldVal) => {
+  if (newVal !== oldVal) {
+    iframeLoading.value = true
+    activeField.value = null
+    const previousValues = { ...currentValues.value }
+
+    if (requiresLocationSelection.value) return
+    try {
+      await loadPageContent()
+    } catch (_) {
+      if (oldVal !== undefined) selectedLocationId.value = oldVal
+      currentValues.value = previousValues
+    }
+  }
 })
 
 // ─── Groups ───────────────────────────────────────────────────────────
@@ -771,6 +782,7 @@ const loadPageContent = async () => {
   } catch (error) {
     console.error('Failed to load page content:', error)
     toast.add({ description: 'Failed to load content', color: 'error' })
+    throw error
   }
 }
 

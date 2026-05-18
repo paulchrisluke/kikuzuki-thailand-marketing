@@ -11,6 +11,8 @@ const MAX_BYTES = 50 * 1024 * 1024
 const VIDEO_MIME_TYPES = new Set(['video/mp4', 'video/webm', 'video/quicktime', 'video/x-msvideo'])
 const IMAGE_MIME_TYPES = new Set(['image/avif'])
 const ALLOWED_MIME_TYPES = new Set([...VIDEO_MIME_TYPES, ...IMAGE_MIME_TYPES, 'application/pdf', 'image/svg+xml'])
+const VALID_CATEGORIES = new Set(['exterior', 'interior', 'food', 'menu', 'team', 'other'])
+type MediaCategory = 'exterior' | 'interior' | 'food' | 'menu' | 'team' | 'other'
 
 function sanitizeFilename(raw: string | undefined): string {
   const sanitized = (raw ?? '')
@@ -134,6 +136,16 @@ export default defineEventHandler(async (event) => {
       }
     }
 
+    const categoryPart = formData.find(p => p.name === 'category')
+    let category: MediaCategory | null = null
+    if (categoryPart?.data) {
+      const candidate = Buffer.from(categoryPart.data).toString().trim()
+      if (candidate) {
+        if (!VALID_CATEGORIES.has(candidate)) return jsonResponse({ error: 'Invalid category' }, { status: 400 })
+        category = candidate as MediaCategory
+      }
+    }
+
     const assetId = crypto.randomUUID()
     const kind = VIDEO_MIME_TYPES.has(contentType) ? 'video' : IMAGE_MIME_TYPES.has(contentType) ? 'image' : 'file'
     const r2Key = buildR2Key(siteId, assetId, filename)
@@ -154,6 +166,7 @@ export default defineEventHandler(async (event) => {
         mime_type: contentType,
         file_name: filename,
         file_size: fileSize,
+        category,
         status: 'active',
         created_by_user_id: session.user.id,
       })

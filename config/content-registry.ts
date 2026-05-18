@@ -344,6 +344,13 @@ export const contentRegistry: Record<string, PageDefinition> = {
         sources: ['manual'],
         defaultValue: ''
       },
+      'hero.video': {
+        label: 'Hero Background Video',
+        type: 'media',
+        mediaKind: 'video',
+        sources: ['manual'],
+        defaultValue: ''
+      },
       'parking.info': {
         label: 'Parking Information',
         type: 'richtext',

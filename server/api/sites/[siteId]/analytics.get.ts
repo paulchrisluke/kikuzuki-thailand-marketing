@@ -38,6 +38,20 @@ function normalizePath(value: unknown): string {
   return str || '/'
 }
 
+function parseDateParam(value: unknown, name: string): string {
+  if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    throw new Error(`${name} must be in YYYY-MM-DD format`)
+  }
+
+  const date = new Date(`${value}T00:00:00.000Z`)
+
+  if (Number.isNaN(date.getTime()) || date.toISOString().slice(0, 10) !== value) {
+    throw new Error(`${name} is not a valid date`)
+  }
+
+  return value
+}
+
 export default defineEventHandler(async (event) => {
   const siteId = getRouterParam(event, 'siteId')
 
@@ -77,9 +91,19 @@ export default defineEventHandler(async (event) => {
     }
 
     const query = getQuery(event)
-    const startDate =
-      (query.startDate as string) || getDateString(new Date(Date.now() - 30 * 24 * 60 * 60 * 1000))
-    const endDate = (query.endDate as string) || getDateString(new Date())
+    const rawStartDate = (query.startDate as string) || getDateString(new Date(Date.now() - 30 * 24 * 60 * 60 * 1000))
+    const rawEndDate = (query.endDate as string) || getDateString(new Date())
+
+    let startDate: string, endDate: string
+    try {
+      startDate = parseDateParam(rawStartDate, 'startDate')
+      endDate = parseDateParam(rawEndDate, 'endDate')
+      if (startDate > endDate) {
+        throw new Error('startDate must be before or equal to endDate')
+      }
+    } catch (err) {
+      return jsonResponse({ error: err instanceof Error ? err.message : 'Invalid date' }, { status: 400 })
+    }
 
     // Get aggregated daily analytics
     const dailyStats = await db.prepare(`
@@ -134,7 +158,6 @@ export default defineEventHandler(async (event) => {
 
     // Aggregate top pages across all daily rows.
     const topPageMap = new Map<string, number>()
-    let totalViews = 0
     for (const row of ((dailyStats.results || []) as ApiRecord[])) {
       if (!row.top_pages) continue
       try {
@@ -146,18 +169,18 @@ export default defineEventHandler(async (event) => {
           const views = toNumber(pageRecord.views || pageRecord.count)
           if (views <= 0) continue
           topPageMap.set(path, (topPageMap.get(path) || 0) + views)
-          totalViews += views
         }
       } catch {
         // Ignore malformed top_pages payloads.
       }
     }
 
+    const totalPageViews = currentPeriodStats.pageViews
     const topPages: TopPage[] = Array.from(topPageMap.entries())
       .map(([path, views]) => ({
         path,
         views,
-        percentOfTotal: totalViews > 0 ? Math.round((views / totalViews) * 100) : 0
+        percentOfTotal: totalPageViews > 0 ? Math.round((views / totalPageViews) * 100) : 0
       }))
       .sort((a, b) => b.views - a.views)
 
