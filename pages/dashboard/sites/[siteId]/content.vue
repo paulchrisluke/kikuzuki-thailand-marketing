@@ -559,22 +559,21 @@ const groupConfig: Record<string, Array<{ id: string; label: string; icon: strin
     { id: 'cta',     label: 'Call to Action',  icon: 'i-heroicons-megaphone',  fields: ['cta.title'] },
   ],
   contact: [
-    { id: 'hero',    label: 'Hero Section', icon: 'i-heroicons-photo',         fields: ['hero.title', 'hero.subtitle', 'hero.image'] },
-    { id: 'content', label: 'Page Content', icon: 'i-heroicons-document-text', fields: ['intro.body'] },
-    { id: 'social',  label: 'Social Links', icon: 'i-heroicons-link',          fields: ['social.facebook', 'social.instagram', 'social.tiktok'] },
+    { id: 'hero', label: 'Hero Section', icon: 'i-heroicons-photo', fields: ['hero.title', 'hero.subtitle'] },
   ],
   location: [
     { id: 'hero',    label: 'Hero Section',    icon: 'i-heroicons-photo',         fields: ['hero.title', 'hero.subtitle', 'hero.image', 'hero.video'] },
     { id: 'content', label: 'Additional Info', icon: 'i-heroicons-document-text', fields: ['parking.info', 'extra.notes'] },
   ],
   menu: [
-    { id: 'hero',    label: 'Hero Section',      icon: 'i-heroicons-photo',         fields: ['hero.title', 'hero.subtitle', 'hero.image'] },
-    { id: 'content', label: 'Menu Introduction', icon: 'i-heroicons-document-text', fields: ['description'] },
+    { id: 'hero',   label: 'Hero Section',   icon: 'i-heroicons-photo',          fields: ['hero.title', 'hero.subtitle'] },
+    { id: 'items',  label: 'Menu Items',     icon: 'i-heroicons-list-bullet',    fields: ['menu_items'] },
+    { id: 'google', label: 'Google Products', icon: 'i-heroicons-circle-stack', fields: ['business.products'] },
   ],
   reservations: [
-    { id: 'hero',     label: 'Hero Section',    icon: 'i-heroicons-photo',                      fields: ['hero.title', 'hero.subtitle', 'hero.image'] },
-    { id: 'contact',  label: 'Contact Details', icon: 'i-heroicons-phone',                      fields: ['contact.phone', 'contact.email'] },
-    { id: 'policies', label: 'Policies',        icon: 'i-heroicons-clipboard-document-list',    fields: ['policies.body'] },
+    { id: 'hero',     label: 'Hero Section',    icon: 'i-heroicons-photo',                   fields: ['hero.title', 'hero.subtitle'] },
+    { id: 'contact',  label: 'Contact Details', icon: 'i-heroicons-phone',                   fields: ['contact.phone', 'contact.email'] },
+    { id: 'policies', label: 'Policies',        icon: 'i-heroicons-clipboard-document-list', fields: ['policies.body'] },
   ]
 }
 

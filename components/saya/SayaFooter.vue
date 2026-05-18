@@ -134,7 +134,13 @@ import { DEFAULT_RESTAURANT_NAME } from '~/config/constants'
 import { getTodayGoogleHours } from '~/utils/formatters'
 
 const { isPlatform, siteId, site } = useTenantSite()
-const { getField } = usePageContent('contact')
+
+const { data: siteConfigData } = !isPlatform && siteId
+  ? useFetch(`/api/public/sites/${siteId}/config`, {
+      key: `footer-config-${siteId}`,
+      default: () => ({ config: {} })
+    })
+  : { data: ref({ config: {} }) }
 
 const year = new Date().getFullYear()
 const restaurantName = computed(() => {
@@ -149,13 +155,14 @@ const logoUrl = computed(() => {
   }
   return null
 })
-const tagline = computed(() => getField('footer.tagline', 'Authentic dining, crafted with passion.'))
+const siteConfig = computed(() => (siteConfigData.value as ApiValue)?.config ?? {})
+const tagline = computed(() => (siteConfig.value as ApiValue)?.footer_tagline || 'Authentic dining, crafted with passion.')
 
 const deliveryPartners = ['Uber Eats', 'GrabFood', 'FoodPanda']
 
-const facebookUrl = computed(() => getField('social.facebook', ''))
-const instagramUrl = computed(() => getField('social.instagram', ''))
-const tiktokUrl = computed(() => getField('social.tiktok', ''))
+const facebookUrl = computed(() => (siteConfig.value as ApiValue)?.social_facebook || '')
+const instagramUrl = computed(() => (siteConfig.value as ApiValue)?.social_instagram || '')
+const tiktokUrl = computed(() => (siteConfig.value as ApiValue)?.social_tiktok || '')
 
 interface SocialLink {
   name: string

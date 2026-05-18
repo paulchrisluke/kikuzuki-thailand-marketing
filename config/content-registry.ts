@@ -317,118 +317,15 @@ export const contentRegistry: Record<string, PageDefinition> = {
         label: 'Page Title',
         type: 'text',
         sources: ['manual'],
-        defaultValue: 'Contact Saya Kitchen'
+        defaultValue: 'Contact Us',
+        placeholder: 'e.g. Contact Us'
       },
       'hero.subtitle': {
         label: 'Page Subtitle',
         type: 'textarea',
         sources: ['manual'],
-        defaultValue: 'Book a table or ask us anything'
-      },
-      'hero.image': {
-        label: 'Hero Image',
-        type: 'media',
-        mediaKind: 'image',
-        sources: ['manual'],
-        defaultValue: ''
-      },
-      'intro.body': {
-        label: 'Introduction Text',
-        type: 'richtext',
-        sources: ['manual'],
-        defaultValue: '<p>Whether you are planning dinner, a celebration, or a quiet seat at the counter, the Saya team is here to help.</p>'
-      },
-      'footer.tagline': {
-        label: 'Footer Tagline',
-        type: 'text',
-        sources: ['manual'],
-        defaultValue: '',
-        placeholder: 'e.g. Authentic dining, crafted with passion.'
-      },
-      'social.facebook': {
-        label: 'Facebook URL',
-        type: 'text',
-        sources: ['manual'],
-        defaultValue: '',
-        placeholder: 'https://www.facebook.com/your-restaurant',
-        validate: socialUrlValidator
-      },
-      'social.instagram': {
-        label: 'Instagram URL',
-        type: 'text',
-        sources: ['manual'],
-        defaultValue: '',
-        placeholder: 'https://www.instagram.com/your-restaurant',
-        validate: socialUrlValidator
-      },
-      'social.tiktok': {
-        label: 'TikTok URL',
-        type: 'text',
-        sources: ['manual'],
-        defaultValue: '',
-        placeholder: 'https://www.tiktok.com/@your-restaurant',
-        validate: socialUrlValidator
-      },
-
-      'business.name': { 
-        label: 'Business Name', 
-        type: 'text', 
-        sources: ['manual', 'google'], 
-        googlePath: 'title',
-        googleLocked: true,
-        integrationConfig: {
-          type: 'google_business',
-          syncDirection: 'two_way',
-          conflictResolution: 'integration_wins'
-        }
-      },
-      'business.establishment_year': { 
-        label: 'Establishment Year', 
-        type: 'text', 
-        sources: ['manual', 'google'], 
-        googlePath: 'establishmentYear',
-        googleLocked: true,
-        integrationConfig: {
-          type: 'google_business',
-          syncDirection: 'two_way',
-          conflictResolution: 'integration_wins'
-        }
-      },
-      'business.address': { 
-        label: 'Address', 
-        type: 'text', 
-        sources: ['manual', 'google'], 
-        googlePath: 'storefrontAddress',
-        googleLocked: true,
-        integrationConfig: {
-          type: 'google_business',
-          syncDirection: 'two_way',
-          conflictResolution: 'integration_wins'
-        }
-      },
-      'business.phone': { 
-        label: 'Phone', 
-        type: 'text', 
-        sources: ['manual', 'google'], 
-        googlePath: 'phoneNumbers.0.phoneNumber',
-        googleLocked: true,
-        integrationConfig: {
-          type: 'google_business',
-          syncDirection: 'two_way',
-          conflictResolution: 'integration_wins'
-        }
-      },
-      'business.hours': { 
-        label: 'Hours', 
-        type: 'business_hours', 
-        sources: ['manual', 'google'], 
-        googlePath: 'regularHours',
-        googleLocked: true,
-        integrationConfig: {
-          type: 'google_business',
-          syncDirection: 'two_way',
-          conflictResolution: 'integration_wins'
-        }
+        defaultValue: "We'd love to hear from you",
+        placeholder: 'A short line shown under the page title'
       }
     }
   },
@@ -527,27 +424,13 @@ export const contentRegistry: Record<string, PageDefinition> = {
     path: '/menu',
     locationScoped: true,
     groups: [
-      { id: 'hero',    label: 'Hero Section',      icon: 'i-heroicons-photo', fields: ['hero.title', 'hero.subtitle', 'hero.image'] },
-      { id: 'content', label: 'Menu Introduction', icon: 'i-heroicons-document-text', fields: ['description'] },
-      { id: 'items',   label: 'Menu Items',        icon: 'i-heroicons-list-bullet', fields: ['menu_items'] },
-      { id: 'google',  label: 'Google Products',   icon: 'i-heroicons-circle-stack', fields: ['business.products'] }
+      { id: 'hero',   label: 'Hero Section',  icon: 'i-heroicons-photo',        fields: ['hero.title', 'hero.subtitle'] },
+      { id: 'items',  label: 'Menu Items',    icon: 'i-heroicons-list-bullet',   fields: ['menu_items'] },
+      { id: 'google', label: 'Google Products', icon: 'i-heroicons-circle-stack', fields: ['business.products'] }
     ],
     fields: {
-      'hero.title': { label: 'Page Title', type: 'text', sources: ['manual'], defaultValue: 'Saya Menu' },
+      'hero.title': { label: 'Page Title', type: 'text', sources: ['manual'], defaultValue: 'Our Menu' },
       'hero.subtitle': { label: 'Page Subtitle', type: 'textarea', sources: ['manual'], defaultValue: 'Robatayaki, sushi, and seasonal plates' },
-      'hero.image': {
-        label: 'Hero Image',
-        type: 'media',
-        mediaKind: 'image',
-        sources: ['manual'],
-        defaultValue: ''
-      },
-      'description': {
-        label: 'Menu Introduction',
-        type: 'richtext',
-        sources: ['manual'],
-        placeholder: 'Add a menu introduction or description...'
-      },
       'menu_items': {
         label: 'Menu Items',
         type: 'menu_items',
@@ -572,15 +455,8 @@ export const contentRegistry: Record<string, PageDefinition> = {
     label: 'Reservations',
     path: '/reservations',
     fields: {
-      'hero.title': { label: 'Page Title', type: 'text', sources: ['manual'], defaultValue: 'Reserve a Table at Saya Kitchen' },
+      'hero.title': { label: 'Page Title', type: 'text', sources: ['manual'], defaultValue: 'Reserve a Table' },
       'hero.subtitle': { label: 'Page Subtitle', type: 'textarea', sources: ['manual'], defaultValue: 'Plan your evening around the grill' },
-      'hero.image': {
-        label: 'Hero Image',
-        type: 'media',
-        mediaKind: 'image',
-        sources: ['manual'],
-        defaultValue: ''
-      },
       'policies.body': {
         label: 'Reservation Policies',
         type: 'richtext',

@@ -2291,7 +2291,9 @@ Guidelines:
 - Never use add_menu_items_batch to replace, revise, rename, or update existing menu items
 - When creating menus, omit location_id — the server links it to the current location automatically
 - Use get_reservation_policies, save_reservation_policies, and delete_reservation_policies when the user asks about reservation rules, hold times, cancellation windows, deposits, or dietary accommodations
-- Use get_site_content_page, save_site_content_field, publish_site_content_page, discard_site_content_page, and delete_site_content_field for tenant page content such as home, about, contact, location notes, menu intro, and reservations
+- Use get_site_content_page, save_site_content_field, publish_site_content_page, discard_site_content_page, and delete_site_content_field for tenant page content (home hero/story/cta, about story/journey/cta, contact title/subtitle, reservations policies, location notes)
+- Social media links (Facebook, Instagram, TikTok) and footer tagline are site settings, not content fields — they are set via site settings, not save_site_content_field
+- Contact, menu, and reservations pages do not have hero images — only home, about, and location pages support hero.image
 - Use get_platform_content_page, save_platform_content_page, and delete_platform_content_page for platform admin pages about, contact, and help
 - Before publish_post, publish_menu, delete_menu, delete_menu_item, delete_menu_section, delete_location, delete_review, delete_media_asset, delete_qa — confirm first
 - Menus are DRAFT by default — publish_menu makes them live

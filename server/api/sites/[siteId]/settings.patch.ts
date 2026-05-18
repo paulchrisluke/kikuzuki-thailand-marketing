@@ -165,6 +165,15 @@ export default defineEventHandler(async (event) => {
       setParts.push('last_published_at = ?')
       params.push(body.last_published_at)
     }
+    for (const key of ['social_facebook', 'social_instagram', 'social_tiktok', 'footer_tagline'] as const) {
+      if (body[key] !== undefined) {
+        if (body[key]) {
+          await setConfig(db, site.organization_id as string, siteId, key, body[key]!)
+        } else {
+          await deleteConfig(db, site.organization_id as string, siteId, key)
+        }
+      }
+    }
 
     setParts.push('updated_at = ?')
     setParts.push('updated_by = ?')
@@ -227,6 +236,10 @@ export default defineEventHandler(async (event) => {
       brand_color: siteConfig.brand_color || '',
       default_currency: siteConfig?.default_currency || 'THB',
       url_structure: siteSettings.url_structure || 'location_subdirectories',
+      social_facebook: siteConfig.social_facebook || '',
+      social_instagram: siteConfig.social_instagram || '',
+      social_tiktok: siteConfig.social_tiktok || '',
+      footer_tagline: siteConfig.footer_tagline || '',
       last_published_at: updatedSite.last_published_at,
       created_at: updatedSite.created_at,
       updated_at: updatedSite.updated_at
