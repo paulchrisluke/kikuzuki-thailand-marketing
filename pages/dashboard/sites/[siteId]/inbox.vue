@@ -31,7 +31,8 @@
             </div>
             <div class="flex shrink-0 flex-wrap gap-2">
               <UButton size="sm" color="neutral" variant="ghost" @click="updateContactStatus(submission, 'read')">Mark read</UButton>
-              <UButton :to="`mailto:${submission.email}`" icon="i-heroicons-envelope" color="neutral" variant="soft" size="sm" @click="updateContactStatus(submission, 'replied')">Reply</UButton>
+              <UButton :to="`mailto:${submission.email}`" icon="i-heroicons-envelope" color="neutral" variant="soft" size="sm">Reply</UButton>
+              <UButton size="sm" color="neutral" variant="ghost" @click="updateContactStatus(submission, 'replied')">Mark replied</UButton>
             </div>
           </div>
         </div>

@@ -10,7 +10,7 @@
       — restaurant sites that run themselves
     </div>
 
-    <header class="sticky top-0 z-50 border-b border-default bg-default/80 backdrop-blur-md">
+    <header ref="headerRef" class="sticky top-0 z-50 border-b border-default bg-default/80 backdrop-blur-md">
       <div class="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
         <!-- Brand logo / name -->
         <NuxtLink to="/" class="shrink-0 no-underline">
@@ -159,6 +159,25 @@ interface I18nComposable {
 const { isPlatform, siteId, site } = useTenantSite()
 const i18n = useI18n() as ApiValue as I18nComposable
 const mobileMenuOpen = ref(false)
+const headerRef = ref<HTMLElement | null>(null)
+let headerResizeObserver: ResizeObserver | null = null
+
+function syncHeaderHeight() {
+  if (!headerRef.value) return
+  document.documentElement.style.setProperty('--saya-header-height', `${headerRef.value.getBoundingClientRect().height}px`)
+}
+
+onMounted(() => {
+  syncHeaderHeight()
+  headerResizeObserver = new ResizeObserver(syncHeaderHeight)
+  if (headerRef.value) headerResizeObserver.observe(headerRef.value)
+  window.addEventListener('resize', syncHeaderHeight)
+})
+
+onUnmounted(() => {
+  headerResizeObserver?.disconnect()
+  window.removeEventListener('resize', syncHeaderHeight)
+})
 
 const currentLocale = computed(() => i18n.locale.value)
 const availableLocales = computed(() =>

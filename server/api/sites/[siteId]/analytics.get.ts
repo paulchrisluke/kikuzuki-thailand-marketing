@@ -127,7 +127,7 @@ export default defineEventHandler(async (event) => {
         return {
           pageViews: acc.pageViews + rowPageViews,
           sessions: acc.sessions + rowSessions,
-          totalDuration: acc.totalDuration + (rowAvgDuration * Math.max(1, rowSessions))
+          totalDuration: acc.totalDuration + (rowAvgDuration * rowSessions)
         }
       },
       { pageViews: 0, sessions: 0, totalDuration: 0 }

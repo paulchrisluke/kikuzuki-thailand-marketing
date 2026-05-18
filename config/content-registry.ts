@@ -461,6 +461,7 @@ export const contentRegistry: Record<string, PageDefinition> = {
   order: {
     label: 'Order Online',
     path: '/order',
+    locationScoped: true,
     fields: {
       'hero.title': {
         label: 'Page Title',

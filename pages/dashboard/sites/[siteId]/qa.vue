@@ -143,6 +143,7 @@ async function loadContext() {
 async function loadQa() {
   if (!selectedLocationId.value || selectedLocationId.value === NO_LOCATION_SELECTED) {
     qaRows.value = []
+    loading.value = false
     return
   }
   loading.value = true
@@ -221,16 +222,15 @@ async function moveQa(item: QaRow, direction: -1 | 1) {
   const target = qaRows.value[targetIndex]
   if (!target) return
   try {
-    await Promise.all([
-      $fetch(`/api/editor/sites/${siteId}/locations/${selectedLocationId.value}/qa/${item.id}`, {
-        method: 'PATCH',
-        body: { sort_order: target.sort_order }
-      }),
-      $fetch(`/api/editor/sites/${siteId}/locations/${selectedLocationId.value}/qa/${target.id}`, {
-        method: 'PATCH',
-        body: { sort_order: item.sort_order }
-      })
-    ])
+    await $fetch(`/api/editor/sites/${siteId}/locations/${selectedLocationId.value}/qa/reorder`, {
+      method: 'POST',
+      body: {
+        updates: [
+          { id: item.id, sort_order: target.sort_order },
+          { id: target.id, sort_order: item.sort_order }
+        ]
+      }
+    })
     toast.add({ description: 'Q&A reordered', color: 'success' })
     await loadQa()
   } catch (error) {

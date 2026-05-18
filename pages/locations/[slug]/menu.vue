@@ -36,7 +36,7 @@
 
     <!-- Sticky category tab bar -->
     <div v-else>
-      <div class="sticky top-0 z-40 border-b border-default bg-default">
+      <div ref="categoryNavRef" class="sticky top-[var(--saya-header-height,4rem)] z-40 border-b border-default bg-default">
         <div class="mx-auto flex h-12 max-w-7xl gap-8 overflow-x-auto px-4 sm:px-6 lg:px-8">
           <a
             v-for="cat in categories"
@@ -205,13 +205,19 @@ const categories = computed(() => {
 })
 
 const activeCategory = ref('')
+const categoryNavRef = ref<HTMLElement | null>(null)
 watch(categories, (cats: { id: string; name: string }[]) => {
   if (cats.length && !activeCategory.value) activeCategory.value = cats[0]?.id ?? ''
 }, { immediate: true })
 
 function scrollToCategory(id: string) {
   activeCategory.value = id
-  document.getElementById(`cat-${id}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  const element = document.getElementById(`cat-${id}`)
+  if (!element) return
+
+  const headerOffset = categoryNavRef.value?.getBoundingClientRect().bottom ?? 0
+  const elementPosition = element.getBoundingClientRect().top + window.pageYOffset
+  window.scrollTo({ top: elementPosition - headerOffset, behavior: 'smooth' })
 }
 
 function itemSlug(item: ApiValue): string {

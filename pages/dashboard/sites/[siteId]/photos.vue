@@ -166,7 +166,11 @@ async function loadContext() {
 }
 
 async function loadPhotos() {
-  if (!selectedLocationId.value) return
+  if (!selectedLocationId.value) {
+    assets.value = []
+    loading.value = false
+    return
+  }
   loading.value = true
   try {
     const params = new URLSearchParams({ kind: 'image', locationId: selectedLocationId.value, limit: '100' })
@@ -246,17 +250,21 @@ async function patchAsset(asset: MediaAsset, body: ApiRecord, successMessage: st
     await $fetch(`/api/editor/sites/${siteId}/media/${asset.id}`, { method: 'PATCH', body })
     toast.add({ description: successMessage, color: 'success' })
     await loadPhotos()
+    return true
   } catch (error) {
     toast.add({ description: error instanceof Error ? error.message : 'Failed to update photo', color: 'error' })
+    return false
   }
 }
 
 async function attachPhoto(asset: MediaAsset) {
-  await patchAsset(asset, {
+  const updated = await patchAsset(asset, {
     location_id: selectedLocationId.value,
     category: categoryFilter.value === 'all' ? (asset.category || 'other') : categoryFilter.value
   }, 'Photo attached')
-  attachableAssets.value = attachableAssets.value.filter(item => item.id !== asset.id)
+  if (updated) {
+    attachableAssets.value = attachableAssets.value.filter(item => item.id !== asset.id)
+  }
 }
 
 async function detachPhoto(asset: MediaAsset) {

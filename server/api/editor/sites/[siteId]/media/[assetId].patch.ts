@@ -48,15 +48,18 @@ export default defineEventHandler(async (event) => {
     if (asset.site_id !== siteId) return jsonResponse({ error: 'Forbidden' }, { status: 403 })
 
     const body = await readBody(event)
+    if (typeof body !== 'object' || body === null || Array.isArray(body)) {
+      return jsonResponse({ error: 'Invalid request body' }, { status: 400 })
+    }
     const updates: { alt_text?: string | null; location_id?: string | null; category?: MediaAsset['category'] } = {}
-    if ('alt_text' in (body || {})) {
+    if ('alt_text' in body) {
       if (body.alt_text !== null && typeof body?.alt_text !== 'string') {
         return jsonResponse({ error: 'alt_text must be a string or null' }, { status: 400 })
       }
       updates.alt_text = body.alt_text === null ? null : body.alt_text.trim().slice(0, 500)
     }
 
-    if ('location_id' in (body || {})) {
+    if ('location_id' in body) {
       if (body.location_id !== null && body.location_id !== '' && typeof body.location_id !== 'string') {
         return jsonResponse({ error: 'location_id must be a string or null' }, { status: 400 })
       }
@@ -72,7 +75,7 @@ export default defineEventHandler(async (event) => {
       updates.location_id = locationId || null
     }
 
-    if ('category' in (body || {})) {
+    if ('category' in body) {
       if (body.category !== null && body.category !== '' && typeof body.category !== 'string') {
         return jsonResponse({ error: 'category must be a string or null' }, { status: 400 })
       }

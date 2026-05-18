@@ -37,7 +37,6 @@
           value-key="id"
           label-key="label"
           class="w-44"
-          @update:model-value="onPageChange"
         />
       </div>
 
@@ -129,7 +128,6 @@
               :items="pages"
               value-key="id"
               label-key="label"
-              @update:model-value="onPageChange"
             />
           </div>
         </div>

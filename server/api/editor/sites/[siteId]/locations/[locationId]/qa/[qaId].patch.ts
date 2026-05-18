@@ -24,7 +24,11 @@ export default defineEventHandler(async (event) => {
   `).bind(siteId, session.user.id).first<{ organization_id: string }>()
   if (!site) return jsonResponse({ error: 'Access denied' }, { status: 403 })
 
-  const body = await readBody(event) as ApiRecord
+  const rawBody = await readBody(event)
+  if (typeof rawBody !== 'object' || rawBody === null || Array.isArray(rawBody)) {
+    return jsonResponse({ error: 'Invalid request body' }, { status: 400 })
+  }
+  const body = rawBody as ApiRecord
   const sets: string[] = ['updated_at = ?']
   const params: ApiValue[] = [new Date().toISOString()]
 
@@ -43,8 +47,16 @@ export default defineEventHandler(async (event) => {
     params.push(cleanString(body.question_author, 120) || null)
   }
   if (body.is_owner_answer !== undefined) {
+    let isOwnerAnswer: number
+    if (body.is_owner_answer === true || body.is_owner_answer === 1 || body.is_owner_answer === '1') {
+      isOwnerAnswer = 1
+    } else if (body.is_owner_answer === false || body.is_owner_answer === 0 || body.is_owner_answer === '0') {
+      isOwnerAnswer = 0
+    } else {
+      return jsonResponse({ error: 'is_owner_answer must be a boolean-like value' }, { status: 400 })
+    }
     sets.push('is_owner_answer = ?')
-    params.push(body.is_owner_answer ? 1 : 0)
+    params.push(isOwnerAnswer)
   }
   if (body.status !== undefined) {
     const status = cleanString(body.status, 20)

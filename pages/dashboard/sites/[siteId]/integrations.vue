@@ -119,10 +119,15 @@ async function loadIntegrations() {
     locations.value = locationsRes.locations ?? []
     whatsappPhone.value = notificationsRes.notifications.whatsapp_phone
 
-    const entries = await Promise.all(locations.value.map(async (location) => {
+    const results = await Promise.allSettled(locations.value.map(async (location) => {
       const res = await $fetch<{ connection: GoogleConnection | null }>(`/api/sites/${siteId}/locations/${location.id}/integrations/google-business`)
       return [location.id, res.connection] as const
     }))
+    const entries = results.flatMap((result, index) => {
+      if (result.status === 'fulfilled') return [result.value]
+      console.warn('google_connection_load_failed', { locationId: locations.value[index]?.id, error: result.reason })
+      return []
+    })
     googleConnections.value = Object.fromEntries(entries)
   } catch (error) {
     toast.add({ description: error instanceof Error ? error.message : 'Failed to load integrations', color: 'error' })

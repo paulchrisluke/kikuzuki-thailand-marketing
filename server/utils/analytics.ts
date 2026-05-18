@@ -74,7 +74,7 @@ export async function aggregateAnalyticsForDate(
     const sessionDurations = await db.prepare(`
       SELECT 
         session_id,
-        AVG(COALESCE(duration_seconds, 0)) as avg_duration
+        AVG(duration_seconds) as avg_duration
       FROM site_pageview_events
       WHERE site_id = ?
         AND created_at >= ?
@@ -83,6 +83,7 @@ export async function aggregateAnalyticsForDate(
     `).bind(siteId, start, end).all()
 
     const durationRows = asRows((sessionDurations as ApiRecord).results)
+      .filter((row) => row.avg_duration !== null && row.avg_duration !== undefined)
     const avgSessionDuration =
       durationRows.length > 0
         ? Math.round(durationRows.reduce((sum, row) => sum + toNumber(row.avg_duration), 0) / durationRows.length)

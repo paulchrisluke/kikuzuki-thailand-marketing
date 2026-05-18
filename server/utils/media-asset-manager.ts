@@ -126,7 +126,7 @@ export async function updateMediaAssetMetadata(
     sets.push('category = ?')
     params.push(updates.category)
   }
-  if (sets.length === 1) return true
+  if (sets.length === 1) return false
 
   params.push(id, siteId)
   const result = await db.prepare(

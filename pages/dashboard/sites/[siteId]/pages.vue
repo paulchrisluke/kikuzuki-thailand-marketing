@@ -217,10 +217,16 @@ async function loadSettings() {
 
 async function loadDraftStatuses() {
   const pages = ['home', 'about', 'location', 'menu', 'contact', 'reservations', 'order']
-  const entries = await Promise.all(pages.map(async (page) => {
+  const results = await Promise.allSettled(pages.map(async (page) => {
     const res = await $fetch<{ count: number }>(`/api/editor/sites/${siteId}/content/status`, { query: { page } })
     return [page, res.count] as const
   }))
+  const entries = results.map((result, index) => {
+    const page = pages[index]!
+    if (result.status === 'fulfilled') return result.value
+    console.warn('draft_status_load_failed', { page, error: result.reason })
+    return [page, 0] as const
+  })
   draftCounts.value = Object.fromEntries(entries)
 }
 

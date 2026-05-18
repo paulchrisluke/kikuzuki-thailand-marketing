@@ -30,6 +30,7 @@ export default defineEventHandler(async (event) => {
   const photos = assets.map((asset, index) => ({
     id: asset.id,
     thumbnail_url: asset.thumbnail_url,
+    // MediaAsset stores one canonical public URL; location galleries expose it under both legacy photo fields.
     local_url: asset.public_url,
     google_url: asset.public_url,
     description: asset.alt_text,

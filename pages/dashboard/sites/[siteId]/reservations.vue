@@ -90,12 +90,20 @@ const confirmedCount = computed(() => reservations.value.filter(item => item.sta
 async function loadReservations() {
   loading.value = true
   try {
-    const [settingsRes, reservationRes] = await Promise.all([
+    const [settingsResult, reservationsResult] = await Promise.allSettled([
       $fetch<{ settings: { public_url: string | null } }>(`/api/sites/${siteId}/settings`),
       $fetch<{ submissions: ReservationSubmission[] }>(`/api/editor/sites/${siteId}/reservation-submissions`)
     ])
-    sitePublicUrl.value = settingsRes.settings.public_url
-    reservations.value = reservationRes.submissions ?? []
+    if (settingsResult.status === 'fulfilled') {
+      sitePublicUrl.value = settingsResult.value.settings.public_url
+    } else {
+      console.warn('reservation_settings_load_failed', settingsResult.reason)
+    }
+    if (reservationsResult.status === 'fulfilled') {
+      reservations.value = reservationsResult.value.submissions ?? []
+    } else {
+      throw reservationsResult.reason
+    }
   } catch (error) {
     toast.add({ description: error instanceof Error ? error.message : 'Failed to load reservations', color: 'error' })
   } finally {

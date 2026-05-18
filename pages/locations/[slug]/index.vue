@@ -124,16 +124,16 @@
       </section>
 
       <!-- Parking & additional notes -->
-      <section v-if="parkingInfo || extraNotes" class="border-b border-default">
+      <section v-if="sanitizedParkingInfo || sanitizedExtraNotes" class="border-b border-default">
         <div class="mx-auto grid max-w-7xl gap-12 px-4 py-14 sm:px-6 lg:grid-cols-2 lg:px-8">
           <!-- eslint-disable vue/no-v-html -->
-          <div v-if="parkingInfo">
+          <div v-if="sanitizedParkingInfo">
             <p class="saya-eyebrow mb-4 text-muted">Parking</p>
-            <div class="prose prose-sm max-w-none text-default" v-html="parkingInfo" />
+            <div class="prose prose-sm max-w-none text-default" v-html="sanitizedParkingInfo" />
           </div>
-          <div v-if="extraNotes">
+          <div v-if="sanitizedExtraNotes">
             <p class="saya-eyebrow mb-4 text-muted">Additional Notes</p>
-            <div class="prose prose-sm max-w-none text-default" v-html="extraNotes" />
+            <div class="prose prose-sm max-w-none text-default" v-html="sanitizedExtraNotes" />
           </div>
           <!-- eslint-enable vue/no-v-html -->
         </div>
@@ -254,6 +254,7 @@
 <script setup lang="ts">
 import { formatGoogleHours, getTodayGoogleHours } from '~/utils/formatters'
 import { usePageContent } from '~/composables/usePageContent'
+import DOMPurify from 'isomorphic-dompurify'
 
 const { resolveMedia } = useMedia()
 definePageMeta({ layout: 'saya' })
@@ -342,6 +343,8 @@ const heroMedia = computed(() => resolveMedia({
 
 const parkingInfo = computed(() => getContentField('parking.info', '') ?? '')
 const extraNotes = computed(() => getContentField('extra.notes', '') ?? '')
+const sanitizedParkingInfo = computed(() => DOMPurify.sanitize(parkingInfo.value))
+const sanitizedExtraNotes = computed(() => DOMPurify.sanitize(extraNotes.value))
 
 // Derived location data
 const formattedAddress = computed(() => {

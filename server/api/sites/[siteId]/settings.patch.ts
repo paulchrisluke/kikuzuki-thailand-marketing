@@ -165,10 +165,24 @@ export default defineEventHandler(async (event) => {
       setParts.push('last_published_at = ?')
       params.push(body.last_published_at)
     }
+    const socialUrlKeys = new Set(['social_facebook', 'social_instagram', 'social_tiktok'])
     for (const key of ['social_facebook', 'social_instagram', 'social_tiktok', 'footer_tagline'] as const) {
       if (body[key] !== undefined) {
-        if (body[key]) {
-          await setConfig(db, site.organization_id as string, siteId, key, body[key]!)
+        const value = body[key]
+        if (value) {
+          if (socialUrlKeys.has(key)) {
+            try {
+              const url = new URL(value)
+              if (!['http:', 'https:'].includes(url.protocol) || !url.hostname) {
+                await deleteConfig(db, site.organization_id as string, siteId, key)
+                continue
+              }
+            } catch {
+              await deleteConfig(db, site.organization_id as string, siteId, key)
+              continue
+            }
+          }
+          await setConfig(db, site.organization_id as string, siteId, key, value)
         } else {
           await deleteConfig(db, site.organization_id as string, siteId, key)
         }
