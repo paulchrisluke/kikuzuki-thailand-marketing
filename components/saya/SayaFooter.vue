@@ -6,8 +6,14 @@
       <div class="grid gap-16 border-b border-inverted/10 pb-14 lg:grid-cols-[1fr_1.4fr]">
         <!-- Brand column -->
         <div>
-          <NuxtLink to="/" class="saya-display block text-5xl text-inverted no-underline leading-none">
-            {{ restaurantName }}
+          <NuxtLink to="/" class="block no-underline leading-none">
+            <img
+              v-if="logoUrl"
+              :src="logoUrl"
+              :alt="restaurantName"
+              class="h-12 w-auto max-w-40 object-contain brightness-0 invert"
+            />
+            <span v-else class="saya-display text-5xl text-inverted">{{ restaurantName }}</span>
           </NuxtLink>
           <p class="mt-4 max-w-xs text-sm leading-relaxed text-inverted/60">
             {{ tagline }}
@@ -136,6 +142,12 @@ const restaurantName = computed(() => {
     return site.brand_name
   }
   return DEFAULT_RESTAURANT_NAME
+})
+const logoUrl = computed(() => {
+  if (site && typeof site === 'object' && 'logo_url' in site && typeof site.logo_url === 'string' && site.logo_url) {
+    return site.logo_url
+  }
+  return null
 })
 const tagline = computed(() => getField('footer.tagline', 'Authentic dining, crafted with passion.'))
 

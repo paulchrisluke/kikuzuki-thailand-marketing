@@ -12,9 +12,15 @@
 
     <header class="sticky top-0 z-50 border-b border-default bg-default/80 backdrop-blur-md">
       <div class="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
-        <!-- Brand name -->
-        <NuxtLink to="/" class="saya-display shrink-0 text-2xl text-default no-underline">
-          {{ restaurantName }}
+        <!-- Brand logo / name -->
+        <NuxtLink to="/" class="shrink-0 no-underline">
+          <img
+            v-if="logoUrl"
+            :src="logoUrl"
+            :alt="restaurantName"
+            class="h-10 w-auto max-w-35 object-contain"
+          />
+          <span v-else class="saya-display text-2xl text-default">{{ restaurantName }}</span>
         </NuxtLink>
 
         <!-- Desktop nav -->
@@ -131,7 +137,8 @@
 
 <script setup lang="ts">
 interface Site {
-  name?: string
+  brand_name?: string | null
+  logo_url?: string | null
   plan?: string
 }
 
@@ -156,7 +163,8 @@ const getLocaleFlag = (code: string) =>
   ({ en: '🇺🇸', th: '🇹🇭', ja: '🇯🇵', ar: '🇸🇦' }[code] ?? '🌐')
 const getCurrentLocaleFlag = () => getLocaleFlag(currentLocale.value)
 
-const restaurantName = computed(() => (site as Site | null)?.name ?? 'Saya')
+const restaurantName = computed(() => (site as Site | null)?.brand_name || 'Saya')
+const logoUrl = computed(() => (site as Site | null)?.logo_url || null)
 const sitePlan = computed(() => (site as Site | null)?.plan ?? 'free')
 const showBrandingStrip = computed(() => !isPlatform && sitePlan.value === 'free')
 
