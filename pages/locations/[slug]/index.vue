@@ -41,13 +41,13 @@
             <NuxtLink to="/locations" class="saya-kicker mb-8 inline-block text-white/60 no-underline hover:text-white">
               ← All locations
             </NuxtLink>
-            <p class="saya-eyebrow mb-5 text-white/80">{{ location.city || location.neighborhood }}</p>
+            <p class="saya-eyebrow mb-5 text-white/80">{{ location.neighborhood || location.city }}</p>
             <h1 class="saya-display-lg text-white">
-              <em class="saya-italic">{{ heroTitle || siteName }}</em>
-              <span class="mt-6 block text-[0.45em] font-normal not-italic tracking-[0.3em] uppercase">
-                {{ heroSubtitle || location.title }}
-              </span>
+              <em class="saya-italic">{{ heroTitle || location.title }}</em>
             </h1>
+            <p v-if="!heroTitle" class="saya-display mt-5 text-2xl text-white/70">
+              <em class="saya-italic">{{ siteName }}</em>
+            </p>
             <div v-if="isOpenNow === true" class="mt-8 flex items-center gap-2.5 text-sm uppercase tracking-widest text-white">
               <span class="size-1.5 rounded-full bg-green-400" />
               Open now · {{ todayHours }}
@@ -91,7 +91,7 @@
               :href="location.maps_url"
               target="_blank"
               rel="noopener noreferrer"
-              class="mt-3 inline-block text-xs uppercase tracking-widest text-primary no-underline transition hover:opacity-70"
+              class="mt-3 inline-block text-xs uppercase tracking-widest text-default no-underline transition hover:opacity-60"
             >
               Get directions →
             </a>
@@ -216,6 +216,54 @@
         </div>
       </section>
 
+      <!-- Other locations rail (multi-location brands only) -->
+      <section v-if="otherLocations.length" class="bg-default-inverted text-inverted">
+        <div class="mx-auto max-w-7xl px-4 py-24 sm:px-6 lg:px-8">
+          <div class="mb-12 flex flex-wrap items-end justify-between gap-8">
+            <div>
+              <p class="saya-kicker mb-6 text-inverted/60">Sister rooms</p>
+              <h2 class="saya-display-md text-inverted">
+                Also part of <em class="saya-italic">{{ siteName }}</em>.
+              </h2>
+            </div>
+            <NuxtLink
+              to="/locations"
+              class="border-b border-inverted/40 pb-1 text-xs uppercase tracking-widest text-inverted no-underline transition hover:opacity-70"
+            >
+              All locations →
+            </NuxtLink>
+          </div>
+          <div :class="['grid gap-6', otherLocations.length === 1 ? 'max-w-xl' : 'sm:grid-cols-2 lg:grid-cols-3']">
+            <NuxtLink
+              v-for="loc in otherLocations"
+              :key="loc.id"
+              :to="`/locations/${loc.slug}`"
+              class="block overflow-hidden border border-inverted/10 bg-inverted/5 no-underline transition hover:border-inverted/20"
+            >
+              <div class="aspect-video overflow-hidden bg-inverted/10">
+                <video
+                  v-if="loc.public_url && loc.kind === 'video'"
+                  :src="loc.public_url"
+                  class="h-full w-full object-cover"
+                  autoplay muted loop playsinline
+                />
+                <img
+                  v-else-if="loc.public_url"
+                  :src="loc.public_url"
+                  :alt="loc.title"
+                  class="h-full w-full object-cover transition-transform duration-500 hover:scale-105"
+                >
+              </div>
+              <div class="p-7">
+                <p class="saya-eyebrow mb-3 text-inverted/50">{{ loc.neighborhood || loc.city }}</p>
+                <div class="saya-display saya-italic text-3xl text-inverted leading-none">{{ loc.title }}</div>
+                <p class="mt-4 text-xs uppercase tracking-widest text-inverted/50">Visit this room →</p>
+              </div>
+            </NuxtLink>
+          </div>
+        </div>
+      </section>
+
       <!-- Plan a visit CTA — map lives on /contact -->
       <section class="mx-auto max-w-7xl px-4 py-24 sm:px-6 lg:px-8">
         <div class="flex flex-wrap items-center justify-between gap-8">
@@ -287,6 +335,15 @@ const displayEmail = computed(() => {
   if (e && !e.includes('example.com') && !e.includes('krabiclaw.com')) return e
   return (site as ApiValue)?.config?.email || null
 })
+
+// Fetch all locations for the "other locations" rail
+const { data: allLocationsData } = await useFetch(
+  () => `/api/public/sites/${siteId}/locations`,
+  { key: () => `public-all-locations-${siteId}`, default: () => ({ locations: [] }) }
+)
+const otherLocations = computed(() =>
+  ((allLocationsData as ApiValue).value?.locations ?? []).filter((l: ApiValue) => l.slug !== slug.value)
+)
 
 // Fetch reviews preview (first 3)
 const { data: reviewsData } = await useFetch(

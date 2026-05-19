@@ -93,6 +93,28 @@
           </div>
         </div>
 
+        <!-- Brand Contact -->
+        <div class="grid gap-8 p-6 md:grid-cols-[1fr_2fr]">
+          <div>
+            <h2 class="font-semibold text-highlighted">Brand Contact</h2>
+            <p class="mt-1 text-sm text-muted">Shown on the Contact page for press, catering and partnership enquiries. Leave blank to hide.</p>
+          </div>
+          <div class="grid gap-5 sm:grid-cols-2">
+            <UFormField label="Press Email">
+              <UInput v-model="form.press_email" type="email" placeholder="press@yourrestaurant.com" />
+            </UFormField>
+            <UFormField label="Partnerships Email">
+              <UInput v-model="form.partnerships_email" type="email" placeholder="partners@yourrestaurant.com" />
+            </UFormField>
+            <UFormField label="Catering & Events Email">
+              <UInput v-model="form.catering_email" type="email" placeholder="events@yourrestaurant.com" />
+            </UFormField>
+            <UFormField label="Careers Email">
+              <UInput v-model="form.careers_email" type="email" placeholder="careers@yourrestaurant.com" />
+            </UFormField>
+          </div>
+        </div>
+
         <!-- General -->
         <div class="grid gap-8 p-6 md:grid-cols-[1fr_2fr]">
           <div>
@@ -263,16 +285,27 @@
                   <h3 class="font-medium text-highlighted">Translation jobs</h3>
                   <p class="mt-1 text-sm text-muted">Estimate AI credits, translate in batches, then publish reviewed drafts.</p>
                 </div>
-                <UButton
-                  size="sm"
-                  color="neutral"
-                  variant="ghost"
-                  icon="i-heroicons-arrow-path"
-                  :loading="translationJobsLoading"
-                  @click="loadTranslationJobs"
-                >
-                  Refresh
-                </UButton>
+                <div class="flex flex-wrap gap-2">
+                  <UButton
+                    size="sm"
+                    color="neutral"
+                    variant="soft"
+                    icon="i-heroicons-language"
+                    :to="`/dashboard/sites/${siteId}/translations?locale=${encodeURIComponent(translationForm.locale || 'th')}`"
+                  >
+                    Review
+                  </UButton>
+                  <UButton
+                    size="sm"
+                    color="neutral"
+                    variant="ghost"
+                    icon="i-heroicons-arrow-path"
+                    :loading="translationJobsLoading"
+                    @click="loadTranslationJobs"
+                  >
+                    Refresh
+                  </UButton>
+                </div>
               </div>
 
               <div class="mt-4 grid gap-3 lg:grid-cols-[1fr_12rem_auto_auto]">
@@ -386,7 +419,7 @@
                       <UBadge :color="translationStatusColor(job.status)" variant="soft">{{ job.status }}</UBadge>
                     </div>
                     <p class="mt-1 text-sm text-muted">
-                      {{ translationProgress(job) }} · {{ formatNumber(job.estimated_credits) }} credits · {{ formatDateTime(job.created_at) }}
+                      {{ translationProgress(job) }} · {{ translationCreditText(job) }} · {{ formatDateTime(job.created_at) }}
                     </p>
                     <p v-if="job.error" class="mt-1 text-xs text-error">{{ job.error }}</p>
                   </div>
@@ -715,6 +748,7 @@ interface TranslationJobRow {
   status: 'queued' | 'running' | 'succeeded' | 'failed' | 'canceled'
   total_items: number
   estimated_credits: number
+  actual_credits: number
   processed_items: number
   failed_items: number
   error: string | null
@@ -801,6 +835,10 @@ const form = reactive({
   social_facebook: '',
   social_instagram: '',
   social_tiktok: '',
+  press_email: '',
+  partnerships_email: '',
+  catering_email: '',
+  careers_email: '',
 } as {
   brand_name: string
   brand_description: string
@@ -814,6 +852,10 @@ const form = reactive({
   social_facebook: string
   social_instagram: string
   social_tiktok: string
+  press_email: string
+  partnerships_email: string
+  catering_email: string
+  careers_email: string
 })
 
 const toSubdomainSlug = (s: string) =>
@@ -845,7 +887,11 @@ const isDirty = computed(() => {
     form.footer_tagline !== (settings.value.footer_tagline || '') ||
     form.social_facebook !== (settings.value.social_facebook || '') ||
     form.social_instagram !== (settings.value.social_instagram || '') ||
-    form.social_tiktok !== (settings.value.social_tiktok || '')
+    form.social_tiktok !== (settings.value.social_tiktok || '') ||
+    form.press_email !== ((settings.value as ApiValue).press_email || '') ||
+    form.partnerships_email !== ((settings.value as ApiValue).partnerships_email || '') ||
+    form.catering_email !== ((settings.value as ApiValue).catering_email || '') ||
+    form.careers_email !== ((settings.value as ApiValue).careers_email || '')
   )
 })
 
@@ -1067,6 +1113,11 @@ const translationStatusColor = (status: TranslationJobRow['status']) => {
 const translationProgress = (job: TranslationJobRow) =>
   `${formatNumber(job.processed_items)} of ${formatNumber(job.total_items)} processed`
 
+const translationCreditText = (job: TranslationJobRow) =>
+  job.actual_credits > 0
+    ? `${formatNumber(job.actual_credits)} credits used (${formatNumber(job.estimated_credits)} est.)`
+    : `${formatNumber(job.estimated_credits)} credits est.`
+
 const formatNumber = (value: number | null | undefined) =>
   new Intl.NumberFormat().format(Number(value || 0))
 
@@ -1131,6 +1182,10 @@ const resetForm = () => {
   form.social_facebook = (settings.value as ApiValue).social_facebook || ''
   form.social_instagram = (settings.value as ApiValue).social_instagram || ''
   form.social_tiktok = (settings.value as ApiValue).social_tiktok || ''
+  form.press_email = (settings.value as ApiValue).press_email || ''
+  form.partnerships_email = (settings.value as ApiValue).partnerships_email || ''
+  form.catering_email = (settings.value as ApiValue).catering_email || ''
+  form.careers_email = (settings.value as ApiValue).careers_email || ''
 }
 
 function handleLogoChange(_asset: { id: string; publicUrl: string; thumbnailUrl: string } | null) {

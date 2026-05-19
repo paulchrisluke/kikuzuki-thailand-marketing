@@ -396,6 +396,7 @@ const siteNavigation = computed(() => [
       children: [
         { label: 'Menu', to: sitePath('/menu') },
         { label: 'Posts', to: sitePath('/posts') },
+        { label: 'Translations', to: sitePath('/translations') },
         { label: 'Photos', to: sitePath('/photos') },
         { label: 'Media', to: sitePath('/media') },
         { label: 'Q&A', to: sitePath('/qa') }
@@ -433,7 +434,7 @@ const siteNavigation = computed(() => [
 
 const siteUtilityNavigation = computed(() => [
   [
-    { label: 'All Sites', icon: 'i-lucide-squares-2x2', to: '/dashboard/sites' },
+    { label: 'All Sites', icon: 'i-heroicons-squares-2x2', to: '/dashboard/sites' },
     { label: 'Billing', icon: 'i-lucide-credit-card', to: '/dashboard/billing' }
   ]
 ])

@@ -24,6 +24,7 @@ export default defineEventHandler(async (event) => {
   const { results } = await db.prepare(`
     SELECT id, source_locale, target_locale, scope, status, total_items, total_chars,
            estimated_input_tokens, estimated_output_tokens, estimated_credits,
+           actual_input_tokens, actual_output_tokens, actual_credits,
            processed_items, failed_items, error, created_at, updated_at, started_at, finished_at
     FROM translation_jobs
     WHERE organization_id = ? AND site_id = ?

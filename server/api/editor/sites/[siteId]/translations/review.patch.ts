@@ -1,8 +1,8 @@
 import { cloudflareEnv, jsonResponse } from '~/server/utils/api-response'
 import { getAuthSession } from '~/server/utils/auth'
 import { isDemoOrg } from '~/server/utils/demo'
-import { createTranslationJob, type TranslationScope } from '~/server/utils/translation-inventory'
-import { processTranslationJobBatch } from '~/server/utils/translation-processor'
+import type { TranslationEntityType, TranslationScope } from '~/server/utils/translation-inventory'
+import { saveTranslationReviewItem } from '~/server/utils/translation-review'
 
 function parseScope(value: unknown): TranslationScope {
   return value === 'content' || value === 'menus' || value === 'locations' || value === 'posts' || value === 'site'
@@ -10,12 +10,29 @@ function parseScope(value: unknown): TranslationScope {
     : 'site'
 }
 
+function parseEntityType(value: unknown): TranslationEntityType | null {
+  return value === 'site_content' || value === 'menu' || value === 'menu_item' || value === 'business_location' || value === 'post'
+    ? value
+    : null
+}
+
 export default defineEventHandler(async (event) => {
   const siteId = getRouterParam(event, 'siteId')
   if (!siteId) return jsonResponse({ error: 'Site ID required' }, { status: 400 })
 
-  const body = await readBody(event) as { locale?: string; scope?: string; includePublished?: boolean }
+  const body = await readBody(event) as {
+    locale?: string
+    scope?: string
+    entity_type?: string
+    entity_id?: string
+    field?: string
+    fields?: Record<string, unknown>
+  }
   if (!body.locale) return jsonResponse({ error: 'locale is required' }, { status: 400 })
+  const entityType = parseEntityType(body.entity_type)
+  if (!entityType || !body.entity_id || !body.field || !body.fields) {
+    return jsonResponse({ error: 'entity_type, entity_id, field, and fields are required' }, { status: 400 })
+  }
 
   const env = cloudflareEnv(event)
   const db = env.REVIEWS_DB
@@ -27,7 +44,7 @@ export default defineEventHandler(async (event) => {
   const site = await db.prepare(`
     SELECT s.id, s.organization_id FROM sites s
     JOIN member om ON s.organization_id = om.organizationId
-    WHERE s.id = ? AND om.userId = ? AND om.role IN ('owner', 'admin')
+    WHERE s.id = ? AND om.userId = ? AND om.role IN ('owner', 'admin', 'editor')
     LIMIT 1
   `).bind(siteId, session.user.id).first<{ id: string; organization_id: string }>()
 
@@ -39,22 +56,16 @@ export default defineEventHandler(async (event) => {
   }
 
   try {
-    const job = await createTranslationJob(db, site.organization_id, siteId, session.user.id, {
+    const result = await saveTranslationReviewItem(db, site.organization_id, siteId, {
       targetLocale: body.locale,
       scope: parseScope(body.scope),
-      includePublished: body.includePublished === true,
+      entityType,
+      entityId: body.entity_id,
+      field: body.field,
+      fields: body.fields,
     })
-    const backgroundRun = processTranslationJobBatch(db, env, site.organization_id, siteId, job.id).catch((error) => {
-      console.error('translation_job_background_failed', {
-        siteId,
-        jobId: job.id,
-        error: error instanceof Error ? error.message : String(error),
-      })
-    })
-    const cfCtx = event.context.cloudflare?.context
-    if (cfCtx?.waitUntil) cfCtx.waitUntil(backgroundRun)
-    return jsonResponse({ success: true, job })
+    return jsonResponse({ success: true, item: result })
   } catch (error) {
-    return jsonResponse({ error: error instanceof Error ? error.message : 'Failed to create translation job' }, { status: 400 })
+    return jsonResponse({ error: error instanceof Error ? error.message : 'Failed to save translation' }, { status: 400 })
   }
 })

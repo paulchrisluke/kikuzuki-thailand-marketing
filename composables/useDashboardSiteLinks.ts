@@ -28,6 +28,7 @@ export function useDashboardSiteLinks(siteId: MaybeRef<string>, sitePublicUrl?: 
     const base = `/dashboard/sites/${normalizedSiteId.value}`
     return {
       base,
+      chowbot: `${base}/chowbot`,
       setup: `${base}/setup`,
       pages: `${base}/pages`,
       content: `${base}/content`,

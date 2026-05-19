@@ -376,7 +376,7 @@
         v-if="featuredReviews.length || (hasGoogleBusiness && googleReviewSummary && Number(googleReviewSummary.average) > 0) || isAuthenticated"
         class="mx-auto max-w-7xl px-4 py-24 sm:px-6 lg:px-8"
       >
-        <div class="mb-16 max-w-2xl">
+        <div class="mb-12 max-w-2xl">
           <p class="saya-kicker mb-6">Reviews</p>
           <template v-if="hasGoogleBusiness && googleReviewSummary && Number(googleReviewSummary.average) > 0">
             <h2 class="saya-display-md flex flex-wrap items-center gap-4 text-default">
@@ -384,7 +384,7 @@
               {{ googleReviewSummary.average }}
               <span v-if="googleReviewSummary.count" class="text-muted">· {{ googleReviewSummary.count?.toLocaleString() }} reviews</span>
             </h2>
-            <p class="mt-6 text-sm text-muted">Guest feedback from this restaurant.</p>
+            <p class="mt-6 text-sm text-muted">Synced live from Google Business across every location.</p>
           </template>
           <template v-else-if="isAuthenticated">
             <h2 class="saya-display-md text-default opacity-30">What your guests say.</h2>
@@ -399,6 +399,29 @@
           <template v-else>
             <h2 class="saya-display-md text-default">What our guests say.</h2>
           </template>
+        </div>
+
+        <!-- Location filter chips (multi-location only) -->
+        <div v-if="locations.length > 1 && featuredReviews.length" class="mb-8 flex flex-wrap gap-2">
+          <button
+            :class="[
+              'rounded-full border px-4 py-2 text-xs font-medium uppercase tracking-widest transition',
+              reviewFilter === 'all'
+                ? 'border-default-inverted bg-default-inverted text-inverted'
+                : 'border-default bg-default text-muted hover:border-muted hover:text-default'
+            ]"
+            @click="reviewFilter = 'all'"
+          >
+            All locations
+          </button>
+          <NuxtLink
+            v-for="loc in locations"
+            :key="loc.id"
+            :to="`/locations/${loc.slug}/reviews`"
+            class="rounded-full border border-default bg-default px-4 py-2 text-xs font-medium uppercase tracking-widest text-muted no-underline transition hover:border-muted hover:text-default"
+          >
+            {{ loc.title }}
+          </NuxtLink>
         </div>
 
         <!-- Real reviews -->
@@ -542,6 +565,11 @@ const hasOrderLinks = computed(() =>
   locations.value.some(loc => loc.grab_url || loc.uber_eats_url || loc.foodpanda_url)
 )
 
+// Single-location tenants: redirect "/" to the location home
+if (!isPlatform && locationsData.value?.locations?.length === 1) {
+  await navigateTo(`/locations/${locationsData.value.locations[0].slug}`, { replace: true, redirectCode: 301 })
+}
+
 // Get brand menu for preview
 const {
   menu,
@@ -564,6 +592,9 @@ const featuredMenuItems = computed(() => {
 
   return (featured.length > 0 ? featured : allItems.filter(item => item.available !== false)).slice(0, 6)
 })
+
+// Review location filter (chip strip — links to per-location review pages)
+const reviewFilter = ref('all')
 
 // Google Business data (tenant-scoped)
 const { data: googleBusiness } = isPlatform

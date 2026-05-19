@@ -39,6 +39,7 @@ export const useCreditPurchase = () => {
   const pendingTxId = useState<string | null>('credits:modal:txid', () => null)
   const savedCard = useState<SavedCard | null>('credits:modal:card', () => null)
   const paying = useState<boolean>('credits:modal:paying', () => false)
+  const wantsAutoTopup = useState<boolean>('credits:modal:autotopup', () => false)
 
   const toast = useToast()
 
@@ -79,12 +80,13 @@ export const useCreditPurchase = () => {
     try {
       const res = await $fetch<{ balance: number; requiresCheckout?: boolean }>(
         '/api/billing/credits/charge',
-        { method: 'POST', body: { bundle, txId } }
+        { method: 'POST', body: { bundle, txId, enableAutoTopup: wantsAutoTopup.value, autoTopupBundle: bundle } }
       )
       const balance = res.balance
       isOpen.value = false
       pendingBundle.value = null
       pendingTxId.value = null
+      wantsAutoTopup.value = false
       toast.add({ title: `${bundle.toLocaleString()} credits added`, color: 'success' })
       if (txId) {
         _successHandlers.get(txId)?.(balance)
@@ -115,8 +117,9 @@ export const useCreditPurchase = () => {
     isOpen.value = false
     pendingBundle.value = null
     pendingTxId.value = null
+    wantsAutoTopup.value = false
     if (txId) _successHandlers.delete(txId)
   }
 
-  return { isOpen, pendingBundle, savedCard, paying, bundleLabel, bundlePrice, purchase, confirm, cancel }
+  return { isOpen, pendingBundle, savedCard, paying, wantsAutoTopup, bundleLabel, bundlePrice, purchase, confirm, cancel }
 }

@@ -6,7 +6,7 @@ import { resolveSiteLocale } from '~/server/utils/site-i18n'
 export default defineEventHandler(async (event) => {
   const siteId = getRouterParam(event, 'siteId')
   const query = getQuery(event)
-  const locationId = typeof query.locationId === 'string' ? query.locationId : undefined
+  let locationId = typeof query.locationId === 'string' ? query.locationId : undefined
   const requestedLocale = typeof query.locale === 'string' ? query.locale : undefined
   
   if (!siteId) {
@@ -40,6 +40,17 @@ export default defineEventHandler(async (event) => {
     }
 
     const localeState = await resolveSiteLocale(db, site, requestedLocale)
+    if (!locationId) {
+      const primaryLocation = await db.prepare(`
+        SELECT id
+        FROM business_locations
+        WHERE site_id = ? AND status = 'active'
+        ORDER BY is_primary DESC, created_at ASC
+        LIMIT 1
+      `).bind(siteId).first<{ id: string }>()
+      locationId = primaryLocation?.id
+    }
+
     const menu = await getActiveMenu(
       db,
       site.organization_id,

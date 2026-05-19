@@ -265,6 +265,7 @@ CREATE TABLE IF NOT EXISTS business_locations (
   title TEXT NOT NULL,
   address TEXT,
   city TEXT,
+  neighborhood TEXT,
   phone TEXT,
   website_url TEXT,
   maps_url TEXT,
@@ -566,6 +567,9 @@ CREATE TABLE IF NOT EXISTS translation_jobs (
   estimated_input_tokens INTEGER NOT NULL DEFAULT 0,
   estimated_output_tokens INTEGER NOT NULL DEFAULT 0,
   estimated_credits INTEGER NOT NULL DEFAULT 0,
+  actual_input_tokens INTEGER NOT NULL DEFAULT 0,
+  actual_output_tokens INTEGER NOT NULL DEFAULT 0,
+  actual_credits INTEGER NOT NULL DEFAULT 0,
   processed_items INTEGER NOT NULL DEFAULT 0,
   failed_items INTEGER NOT NULL DEFAULT 0,
   error TEXT,
@@ -753,6 +757,9 @@ CREATE TABLE IF NOT EXISTS organization_billing (
   plan TEXT NOT NULL DEFAULT 'free',
   current_period_end TEXT,
   cancel_at_period_end BOOLEAN DEFAULT false,
+  auto_topup_enabled INTEGER NOT NULL DEFAULT 0,
+  auto_topup_bundle INTEGER NOT NULL DEFAULT 500,
+  auto_topup_threshold INTEGER NOT NULL DEFAULT 100,
   updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
   FOREIGN KEY (organization_id) REFERENCES organization(id) ON DELETE CASCADE
 );

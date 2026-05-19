@@ -89,7 +89,7 @@
           </p>
           <div class="mt-6 flex flex-col gap-2 sm:flex-row sm:justify-center">
             <UButton
-              :to="paths.value.locations"
+              :to="paths.locations"
               icon="i-heroicons-plus"
             >
               Add Location

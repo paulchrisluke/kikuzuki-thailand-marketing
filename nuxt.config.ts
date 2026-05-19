@@ -202,6 +202,7 @@ export default defineNuxtConfig({
       tasks: true
     },
     scheduledTasks: {
+      '*/5 * * * *': ['translation-jobs-process'],
       '*/10 * * * *': ['domain-reconciliation'],
       '0 3 * * *': ['domain-reconciliation-daily']
     },

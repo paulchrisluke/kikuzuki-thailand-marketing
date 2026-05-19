@@ -510,7 +510,7 @@ const TOOLS: AiTool[] = [
   },
   {
     name: 'update_menu_item',
-    description: 'Update a menu item — name, price, description, image, availability, allergens, ingredients, dietary tags, preparation, or serving note.',
+    description: 'Update a menu item — name, price, description, image, availability, featured status, allergens, ingredients, dietary tags, preparation, or serving note.',
     input_schema: {
       type: 'object',
       properties: {
@@ -521,6 +521,8 @@ const TOOLS: AiTool[] = [
         price: { type: 'string' },
         image_asset_id: { type: 'string', description: 'New media asset ID from generate_image or pending WhatsApp media.' },
         available: { type: 'boolean' },
+        featured: { type: 'boolean', description: 'Whether this item appears in the featured highlights on the home page.' },
+        featured_sort_order: { type: 'integer', description: 'Order among featured items (lower = shown first). Only relevant when featured is true.' },
         allergens: { type: 'array', items: { type: 'string' } },
         ingredients: { type: 'array', items: { type: 'string' } },
         dietary_notes: { type: 'array', items: { type: 'string' } },
@@ -609,6 +611,7 @@ const TOOLS: AiTool[] = [
         location_id: { type: 'string', description: 'ID from get_locations.' },
         title: { type: 'string', description: 'New name — also updates URL slug.' },
         city: { type: 'string' },
+        neighborhood: { type: 'string', description: 'Short neighbourhood tag shown on location hero and cards, e.g. "Beachside · 2 min from Centre Point".' },
         phone: { type: 'string' },
         address: { type: 'string' },
         email: { type: 'string' },
@@ -1001,14 +1004,18 @@ const TOOLS: AiTool[] = [
   },
   {
     name: 'update_site_social',
-    description: 'Set site-wide social media links and footer tagline. Pass only the fields to change; omit the rest.',
+    description: 'Set site-wide social media links, footer tagline, and brand contact emails. Pass only the fields to change; omit the rest.',
     input_schema: {
       type: 'object',
       properties: {
-        facebook_url:  { type: 'string', description: 'Full Facebook page URL. Empty string to clear.' },
-        instagram_url: { type: 'string', description: 'Full Instagram profile URL. Empty string to clear.' },
-        tiktok_url:    { type: 'string', description: 'Full TikTok profile URL. Empty string to clear.' },
-        footer_tagline: { type: 'string', description: 'Short tagline shown in the site footer. Empty string to clear.' },
+        facebook_url:        { type: 'string', description: 'Full Facebook page URL. Empty string to clear.' },
+        instagram_url:       { type: 'string', description: 'Full Instagram profile URL. Empty string to clear.' },
+        tiktok_url:          { type: 'string', description: 'Full TikTok profile URL. Empty string to clear.' },
+        footer_tagline:      { type: 'string', description: 'Short tagline shown in the site footer. Empty string to clear.' },
+        press_email:         { type: 'string', description: 'Email for press inquiries. Shown on brand contact page. Empty string to clear.' },
+        partnerships_email:  { type: 'string', description: 'Email for partnership inquiries. Empty string to clear.' },
+        catering_email:      { type: 'string', description: 'Email for catering and events inquiries. Empty string to clear.' },
+        careers_email:       { type: 'string', description: 'Email for careers/job inquiries. Empty string to clear.' },
       },
     },
   },
@@ -1511,12 +1518,12 @@ async function executeTool(
     }
 
     case 'update_menu_item': {
-      const updates: Record<string, string | boolean | null> = {}
-      for (const f of ['section', 'name', 'description', 'price', 'image_asset_id', 'available']) {
+      const updates: Record<string, string | boolean | number | null> = {}
+      for (const f of ['section', 'name', 'description', 'price', 'image_asset_id', 'available', 'featured', 'featured_sort_order']) {
         if (input[f] !== undefined) updates[f] = input[f]
       }
       const item = await updateMenuItem(db, input.item_id, updates, userId)
-      return { id: item.id, name: item.name, price: item.price, available: item.available }
+      return { id: item.id, name: item.name, price: item.price, available: item.available, featured: item.featured, featured_sort_order: item.featured_sort_order }
     }
 
     case 'delete_menu_item': {
@@ -1551,7 +1558,7 @@ async function executeTool(
 
     case 'get_locations': {
       const rows = await db.prepare(
-        `SELECT id, slug, title, city, phone, email, website_url, maps_url, google_place_id,
+        `SELECT id, slug, title, city, neighborhood, phone, email, website_url, maps_url, google_place_id,
                 rating, review_count, description, short_description, price_level,
                 instagram_url, facebook_url, tiktok_url, hero_image_asset_id, hero_video_asset_id,
                 status, is_primary
@@ -1670,7 +1677,7 @@ async function executeTool(
         params.push(normalizedTitle, slugBase)
         slugParamIndex = params.length - 1
       }
-      const simpleFields = ['city', 'phone', 'email', 'description', 'short_description', 'price_level',
+      const simpleFields = ['city', 'neighborhood', 'phone', 'email', 'description', 'short_description', 'price_level',
         'facebook_url', 'instagram_url', 'tiktok_url',
         'grab_url', 'uber_eats_url', 'foodpanda_url',
         'website_url', 'maps_url', 'google_place_id',
@@ -2445,19 +2452,25 @@ async function executeTool(
     }
 
     case 'update_site_social': {
-      const map: Array<['social_facebook' | 'social_instagram' | 'social_tiktok' | 'footer_tagline', string | undefined]> = [
-        ['social_facebook',  toSqlText(input.facebook_url)   ?? undefined],
-        ['social_instagram', toSqlText(input.instagram_url)  ?? undefined],
-        ['social_tiktok',    toSqlText(input.tiktok_url)     ?? undefined],
-        ['footer_tagline',   toSqlText(input.footer_tagline) ?? undefined],
+      type SocialKey = 'social_facebook' | 'social_instagram' | 'social_tiktok' | 'footer_tagline' | 'press_email' | 'partnerships_email' | 'catering_email' | 'careers_email'
+      const urlKeys = new Set<SocialKey>(['social_facebook', 'social_instagram', 'social_tiktok'])
+      const map: Array<[SocialKey, string | undefined]> = [
+        ['social_facebook',   toSqlText(input.facebook_url)       ?? undefined],
+        ['social_instagram',  toSqlText(input.instagram_url)      ?? undefined],
+        ['social_tiktok',     toSqlText(input.tiktok_url)         ?? undefined],
+        ['footer_tagline',    toSqlText(input.footer_tagline)     ?? undefined],
+        ['press_email',       toSqlText(input.press_email)        ?? undefined],
+        ['partnerships_email',toSqlText(input.partnerships_email) ?? undefined],
+        ['catering_email',    toSqlText(input.catering_email)     ?? undefined],
+        ['careers_email',     toSqlText(input.careers_email)      ?? undefined],
       ]
       const updated: Record<string, string> = {}
       const invalidFields: string[] = []
-      const normalizedEntries: Array<['social_facebook' | 'social_instagram' | 'social_tiktok' | 'footer_tagline', string]> = []
+      const normalizedEntries: Array<[SocialKey, string]> = []
       for (const [key, value] of map) {
         if (value === undefined) continue
         const trimmed = value.trim()
-        if (key !== 'footer_tagline' && trimmed && !isValidHttpUrl(trimmed)) {
+        if (urlKeys.has(key) && trimmed && !isValidHttpUrl(trimmed)) {
           invalidFields.push(key)
           continue
         }
@@ -2533,7 +2546,7 @@ async function executeTool(
     case 'list_translation_jobs': {
       const { results } = await db.prepare(`
         SELECT id, source_locale, target_locale, scope, status, total_items, total_chars,
-               estimated_credits, processed_items, failed_items, created_at, updated_at
+               estimated_credits, actual_credits, processed_items, failed_items, created_at, updated_at
         FROM translation_jobs
         WHERE organization_id = ? AND site_id = ?
         ORDER BY created_at DESC

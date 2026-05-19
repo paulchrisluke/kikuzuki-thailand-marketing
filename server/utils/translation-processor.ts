@@ -188,6 +188,25 @@ async function upsertEntityTranslation(
   ).run()
 }
 
+export async function upsertTranslationDraft(
+  db: D1Database,
+  organizationId: string,
+  siteId: string,
+  targetLocale: string,
+  item: TranslationInventoryItem,
+  fields: Record<string, string>,
+) {
+  await upsertEntityTranslation(db, {
+    id: 'manual',
+    organization_id: organizationId,
+    site_id: siteId,
+    source_locale: '',
+    target_locale: targetLocale,
+    scope: 'site',
+    status: 'running',
+  }, item, fields)
+}
+
 export async function processTranslationJobBatch(
   db: D1Database,
   env: ApiRecord,
@@ -276,7 +295,7 @@ export async function processTranslationJobBatch(
     metadata: { org_id: organizationId, site_id: siteId, action: 'translation_job' },
   })
 
-  await chargeCredits(db, organizationId, {
+  const charge = await chargeCredits(db, organizationId, {
     siteId,
     action: 'translation_job',
     model: CHOWBOT_MODEL,
@@ -284,6 +303,22 @@ export async function processTranslationJobBatch(
     outputTokens: aiResponse.usage.output_tokens,
     cfGatewayLogId: aiResponse.cfLogId,
   })
+  await db.prepare(`
+    UPDATE translation_jobs
+    SET actual_input_tokens = actual_input_tokens + ?,
+        actual_output_tokens = actual_output_tokens + ?,
+        actual_credits = actual_credits + ?,
+        updated_at = ?
+    WHERE id = ? AND organization_id = ? AND site_id = ?
+  `).bind(
+    aiResponse.usage.input_tokens,
+    aiResponse.usage.output_tokens,
+    charge.creditsCharged,
+    new Date().toISOString(),
+    jobId,
+    organizationId,
+    siteId,
+  ).run()
 
   const rawText = aiResponse.content.find(block => block.type === 'text')?.text ?? ''
   let parsed: { items?: AiTranslatedItem[] }
@@ -318,6 +353,48 @@ export async function processTranslationJobBatch(
 
   const status = await updateJobProgress(db, jobId)
   return { job_id: jobId, status, processed, failed, skipped: missingRows.length }
+}
+
+export async function processQueuedTranslationJobs(
+  db: D1Database,
+  env: ApiRecord,
+  opts: {
+    limit?: number
+    batchesPerJob?: number
+  } = {},
+) {
+  const limit = Math.max(1, Math.min(opts.limit ?? 3, 10))
+  const batchesPerJob = Math.max(1, Math.min(opts.batchesPerJob ?? 1, 5))
+  const jobs = await db.prepare(`
+    SELECT id, organization_id, site_id
+    FROM translation_jobs
+    WHERE status IN ('queued', 'running')
+    ORDER BY created_at ASC
+    LIMIT ?
+  `).bind(limit).all<{ id: string; organization_id: string; site_id: string }>()
+
+  const results: Array<{ job_id: string; status: string; processed: number; failed?: number; skipped?: number; error?: string }> = []
+  for (const job of jobs.results ?? []) {
+    for (let index = 0; index < batchesPerJob; index += 1) {
+      try {
+        const result = await processTranslationJobBatch(db, env, job.organization_id, job.site_id, job.id)
+        results.push(result)
+        if (result.status !== 'queued' && result.status !== 'running') break
+        if (result.processed === 0 && !result.skipped) break
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'Failed to process translation job.'
+        await db.prepare(`
+          UPDATE translation_jobs
+          SET status = 'failed', error = ?, finished_at = ?, updated_at = ?
+          WHERE id = ? AND organization_id = ? AND site_id = ?
+        `).bind(message, new Date().toISOString(), new Date().toISOString(), job.id, job.organization_id, job.site_id).run()
+        results.push({ job_id: job.id, status: 'failed', processed: 0, error: message })
+        break
+      }
+    }
+  }
+
+  return { processed_jobs: results.length, results }
 }
 
 async function updateJobProgress(db: D1Database, jobId: string) {

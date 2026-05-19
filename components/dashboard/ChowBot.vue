@@ -387,7 +387,10 @@ const processFile = async (file: File, caption = '') => {
       : `No items found in that file.${res.warning ? ` ${res.warning}` : ''} Try a higher-resolution photo.`
 
     messages.value = [...messages.value, { role: 'assistant', content: msg }]
-    if (count > 0) await navigateTo(`/dashboard/sites/${siteId.value}/menu`)
+    if (count > 0) {
+      const { paths } = useDashboardSiteLinks(siteId.value)
+      await navigateTo(paths.value.menu)
+    }
   } catch (err) {
     const error = err instanceof Error ? err : new Error(String(err))
     console.error('[ChowBot] processFile failed:', error.message)

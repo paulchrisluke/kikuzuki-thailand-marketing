@@ -112,7 +112,7 @@
               </p>
             </div>
             <UButton
-              :to="`${paths.value.chowbot}?prompt=Help+me+finish+setting+up+my+restaurant+site`"
+              :to="`${paths.chowbot}?prompt=Help+me+finish+setting+up+my+restaurant+site`"
               size="xs"
               variant="soft"
               color="primary"
@@ -218,6 +218,13 @@
             </UButton>
           </template>
         </UAlert>
+
+        <DashboardTranslationOpportunity
+          :site-id="siteId"
+          :menu-items-count="menuItemsCount"
+          :is-published="isPublished"
+          :can-publish="Boolean(progress?.can_publish)"
+        />
 
         <!-- Locations card -->
         <UCard v-if="locations.length > 0">

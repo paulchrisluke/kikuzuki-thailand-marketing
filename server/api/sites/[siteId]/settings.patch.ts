@@ -173,7 +173,7 @@ export default defineEventHandler(async (event) => {
       params.push(body.last_published_at)
     }
     const socialUrlKeys = new Set(['social_facebook', 'social_instagram', 'social_tiktok'])
-    for (const key of ['social_facebook', 'social_instagram', 'social_tiktok', 'footer_tagline'] as const) {
+    for (const key of ['social_facebook', 'social_instagram', 'social_tiktok', 'footer_tagline', 'press_email', 'partnerships_email', 'catering_email', 'careers_email'] as const) {
       if (body[key] !== undefined) {
         const value = body[key]
         if (value) {
@@ -261,6 +261,10 @@ export default defineEventHandler(async (event) => {
       social_instagram: siteConfig.social_instagram || '',
       social_tiktok: siteConfig.social_tiktok || '',
       footer_tagline: siteConfig.footer_tagline || '',
+      press_email: siteConfig.press_email || '',
+      partnerships_email: siteConfig.partnerships_email || '',
+      catering_email: siteConfig.catering_email || '',
+      careers_email: siteConfig.careers_email || '',
       last_published_at: updatedSite.last_published_at,
       created_at: updatedSite.created_at,
       updated_at: updatedSite.updated_at
