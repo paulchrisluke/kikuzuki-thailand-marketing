@@ -505,6 +505,7 @@ const iframeLoading = ref(true)
 const previewReloadToken = ref(0)
 const iframeSrc = computed(() => {
   if (!sitePreviewBaseUrl.value) return ''
+  if (currentPageIsLocationScoped.value && !selectedLocation.value) return ''
   const url = new URL(previewPagePath.value, sitePreviewBaseUrl.value)
   url.searchParams.set('preview', 'true')
   if (previewToken.value) url.searchParams.set('token', previewToken.value)

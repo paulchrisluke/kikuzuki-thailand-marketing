@@ -86,6 +86,32 @@ export const formatGoogleHours = (regularHours: GoogleRegularHours | GoogleRegul
   })
 }
 
+export const getIsOpenNow = (regularHours: GoogleRegularHours | GoogleRegularPeriod[] | null | undefined): boolean | undefined => {
+  const days = ['SUNDAY', 'MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY']
+  const today = days[new Date().getDay()]
+
+  const periods: GoogleRegularPeriod[] = Array.isArray(regularHours)
+    ? (regularHours as GoogleRegularPeriod[])
+    : (regularHours as GoogleRegularHours)?.periods ?? []
+
+  if (!periods.length) return undefined
+
+  const period = periods.find((p) => p.openDay === today)
+  if (!period) return false
+
+  const open = parseTimeStr(period.openTime)
+  const close = parseTimeStr(period.closeTime)
+  if (!open || !close) return undefined
+
+  const now = new Date()
+  const nowMins = now.getHours() * 60 + now.getMinutes()
+  const openMins = (open.hours ?? 0) * 60 + (open.minutes ?? 0)
+  const closeMins = (close.hours ?? 0) * 60 + (close.minutes ?? 0)
+  // Handle midnight-crossing periods (e.g. 10 PM – 2 AM)
+  if (closeMins < openMins) return nowMins >= openMins || nowMins < closeMins
+  return nowMins >= openMins && nowMins < closeMins
+}
+
 export const getTodayGoogleHours = (regularHours: GoogleRegularHours | GoogleRegularPeriod[] | null | undefined, todayOverride?: string) => {
   const days = ['SUNDAY', 'MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY']
   const today = todayOverride ? todayOverride.toUpperCase() : days[new Date().getDay()]

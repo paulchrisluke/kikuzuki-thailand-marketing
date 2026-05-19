@@ -302,7 +302,7 @@
 </template>
 
 <script setup lang="ts">
-import { formatGoogleHours, getTodayGoogleHours } from '~/utils/formatters'
+import { formatGoogleHours, getTodayGoogleHours, getIsOpenNow } from '~/utils/formatters'
 import { usePageContent } from '~/composables/usePageContent'
 import DOMPurify from 'isomorphic-dompurify'
 
@@ -433,15 +433,7 @@ const weekHours = computed(() => {
 })
 
 const todayHours = computed(() => getTodayGoogleHours(location.value?.opening_hours))
-const isOpenNow = computed(() => {
-  // Only return definite status when hours string explicitly indicates it
-  const h = todayHours.value
-  if (!h) return undefined
-  const lower = h.toLowerCase()
-  if (lower.includes('open today') && !lower.includes('closed today')) return true
-  if (lower.includes('closed today')) return false
-  return undefined
-})
+const isOpenNow = computed(() => getIsOpenNow(location.value?.opening_hours))
 
 
 
