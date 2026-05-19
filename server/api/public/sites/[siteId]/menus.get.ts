@@ -1,10 +1,13 @@
 // GET public menu for site
 import { cloudflareEnv, jsonResponse } from '~/server/utils/api-response'
 import { getActiveMenu } from '~/server/utils/menu-management'
+import { resolveSiteLocale } from '~/server/utils/site-i18n'
 
 export default defineEventHandler(async (event) => {
   const siteId = getRouterParam(event, 'siteId')
-  const locationId = getQuery(event).locationId as string | undefined
+  const query = getQuery(event)
+  const locationId = typeof query.locationId === 'string' ? query.locationId : undefined
+  const requestedLocale = typeof query.locale === 'string' ? query.locale : undefined
   
   if (!siteId) {
     return jsonResponse({ 
@@ -36,7 +39,14 @@ export default defineEventHandler(async (event) => {
       }, { status: 404 })
     }
 
-    const menu = await getActiveMenu(db, site.organization_id, siteId, locationId)
+    const localeState = await resolveSiteLocale(db, site, requestedLocale)
+    const menu = await getActiveMenu(
+      db,
+      site.organization_id,
+      siteId,
+      locationId,
+      localeState.isSourceLocale ? undefined : localeState.effectiveLocale,
+    )
     
     if (!menu) {
       return jsonResponse({
@@ -44,7 +54,10 @@ export default defineEventHandler(async (event) => {
         menu: null,
         message: 'No menu available for this scope',
         siteId,
-        locationId
+        locationId,
+        locale: localeState.effectiveLocale,
+        requestedLocale: localeState.requestedLocale,
+        sourceLocale: localeState.sourceLocale,
       })
     }
 
@@ -52,7 +65,10 @@ export default defineEventHandler(async (event) => {
       success: true,
       menu,
       siteId,
-      locationId
+      locationId,
+      locale: localeState.effectiveLocale,
+      requestedLocale: localeState.requestedLocale,
+      sourceLocale: localeState.sourceLocale,
     })
     
   } catch (error) {

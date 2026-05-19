@@ -152,18 +152,19 @@
               }"
               color="neutral"
               variant="ghost"
-              class="w-full"
+              class="w-full min-w-0"
+              :ui="{ base: 'min-w-0 justify-start', leadingAvatar: 'shrink-0' }"
               :block="collapsed"
             >
               <template v-if="!collapsed" #default>
-                <span class="truncate flex-1 text-left">{{ sessionData?.user?.name }}</span>
+                <span class="min-w-0 flex-1 truncate text-left">{{ sessionData?.user?.name }}</span>
                 <UBadge
                   v-if="currentPlan"
                   :label="currentPlan"
                   :color="currentPlan === 'free' ? 'neutral' : 'success'"
                   variant="soft"
                   size="xs"
-                  class="capitalize shrink-0"
+                  class="shrink-0 capitalize"
                 />
               </template>
             </UButton>

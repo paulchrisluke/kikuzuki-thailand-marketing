@@ -98,6 +98,18 @@ export function useDashboardSiteLinks(siteId: MaybeRef<string>, sitePublicUrl?: 
   const locationMenuPath = (locationId: string) => appendQuery(paths.value.menu, { locationId })
   const locationContentPath = (locationId: string) => appendQuery(paths.value.content, { locationId, page: 'location' })
 
+  const menuPath = (locationId?: string | null) => ({
+    path: paths.value.menu,
+    query: locationId ? { locationId } : {}
+  })
+
+  const contentPath = (page?: string) => ({
+    path: paths.value.content,
+    query: page ? { page } : {}
+  })
+
+  const editorBackPath = computed(() => paths.value.base)
+
   return {
     paths,
     overviewLink,
@@ -105,6 +117,9 @@ export function useDashboardSiteLinks(siteId: MaybeRef<string>, sitePublicUrl?: 
     buildHeaderLinks,
     locationPath,
     locationMenuPath,
-    locationContentPath
+    locationContentPath,
+    menuPath,
+    contentPath,
+    editorBackPath
   }
 }

@@ -200,15 +200,6 @@
                 :alt="loc.title"
                 class="aspect-video w-full object-cover transition-transform duration-500 group-hover:scale-105"
               >
-              <iframe
-                v-if="loc.map_embed_url"
-                :src="loc.map_embed_url"
-                class="h-full w-full border-0"
-                loading="lazy"
-                tabindex="-1"
-                referrerpolicy="no-referrer-when-downgrade"
-                aria-hidden="true"
-              />
               <div v-else class="flex h-full w-full items-center justify-center">
                 <UIcon name="i-heroicons-map-pin" class="size-10 text-muted" />
               </div>
@@ -332,26 +323,39 @@
       <!-- ── Brand story ─────────────────────────────────────── -->
       <section class="bg-inverted text-inverted">
         <div class="mx-auto max-w-7xl px-4 py-24 sm:px-6 lg:px-8">
-          <p class="saya-eyebrow mb-8 text-inverted/60">Our story</p>
 
           <!-- Filled state -->
           <template v-if="getField('story.headline') || hasGoogleBusiness">
-            <h2 class="saya-display-md max-w-3xl text-inverted">
-              {{ getField('story.headline', businessTitle) }}
-            </h2>
-            <p class="mt-8 max-w-2xl text-base leading-relaxed text-inverted/60">
-              {{ getField('story.body', businessSubtitle) }}
-            </p>
-            <NuxtLink
-              to="/about"
-              class="mt-8 inline-block border-b border-inverted pb-1 text-xs uppercase tracking-widest text-inverted no-underline transition hover:opacity-60"
-            >
-              Read more →
-            </NuxtLink>
+            <div :class="getField('story.image') ? 'grid gap-16 lg:grid-cols-2 lg:items-center' : ''">
+              <div>
+                <p class="saya-eyebrow mb-8 text-inverted/60">Our story</p>
+                <h2 class="saya-display-md text-inverted" :class="getField('story.image') ? '' : 'max-w-3xl'">
+                  {{ getField('story.headline', businessTitle) }}
+                </h2>
+                <p class="mt-8 text-base leading-relaxed text-inverted/60" :class="getField('story.image') ? '' : 'max-w-2xl'">
+                  {{ getField('story.body', businessSubtitle) }}
+                </p>
+                <NuxtLink
+                  to="/about"
+                  class="mt-8 inline-block border-b border-inverted pb-1 text-xs uppercase tracking-widest text-inverted no-underline transition hover:opacity-60"
+                >
+                  Read more →
+                </NuxtLink>
+              </div>
+              <div v-if="getField('story.image')" class="overflow-hidden">
+                <img
+                  :src="getField('story.image')"
+                  alt=""
+                  aria-hidden="true"
+                  class="h-full w-full object-cover aspect-4/3"
+                >
+              </div>
+            </div>
           </template>
 
           <!-- Empty state: owner hasn't added story yet -->
           <template v-else>
+            <p class="saya-eyebrow mb-8 text-inverted/60">Our story</p>
             <h2 class="saya-display-md max-w-3xl text-inverted/30">Your brand story goes here.</h2>
             <p class="mt-6 max-w-lg text-sm leading-relaxed text-inverted/30">
               Two or three sentences about your restaurant — what you cook, how you cook it, why it matters.
@@ -368,7 +372,10 @@
       </section>
 
       <!-- ── Aggregated reviews ──────────────────────────────── -->
-      <section class="mx-auto max-w-7xl px-4 py-24 sm:px-6 lg:px-8">
+      <section
+        v-if="featuredReviews.length || (hasGoogleBusiness && googleReviewSummary && Number(googleReviewSummary.average) > 0) || isAuthenticated"
+        class="mx-auto max-w-7xl px-4 py-24 sm:px-6 lg:px-8"
+      >
         <div class="mb-16 max-w-2xl">
           <p class="saya-kicker mb-6">Reviews</p>
           <template v-if="hasGoogleBusiness && googleReviewSummary && Number(googleReviewSummary.average) > 0">
@@ -379,18 +386,18 @@
             </h2>
             <p class="mt-6 text-sm text-muted">Guest feedback from this restaurant.</p>
           </template>
-          <template v-else>
-            <h2 class="saya-display-md text-default">What your guests say.</h2>
-            <p class="mt-6 text-sm text-muted">
-              Add guest reviews in the dashboard to display them here.
-            </p>
+          <template v-else-if="isAuthenticated">
+            <h2 class="saya-display-md text-default opacity-30">What your guests say.</h2>
+            <p class="mt-6 text-sm text-muted opacity-50">No reviews yet.</p>
             <NuxtLink
-              v-if="isAuthenticated"
               to="/dashboard/integrations"
-              class="mt-4 inline-block text-xs uppercase tracking-widest text-default no-underline underline-offset-4 hover:underline"
+              class="mt-4 inline-block text-xs uppercase tracking-widest text-default opacity-50 no-underline underline-offset-4 hover:underline hover:opacity-80"
             >
               Connect Google Business →
             </NuxtLink>
+          </template>
+          <template v-else>
+            <h2 class="saya-display-md text-default">What our guests say.</h2>
           </template>
         </div>
 
@@ -541,11 +548,21 @@ const {
   menuItemsBySection
 } = isPlatform ? { menu: ref(null), menuItemsBySection: ref({}) } : usePublicMenu(siteId, null)
 
-// Featured menu items (first 6 items from all sections)
+// Featured menu items: explicit featured picks first, then menu-order fallback.
 const featuredMenuItems = computed(() => {
   if (!menu.value) return []
   const allItems = Object.values(menuItemsBySection.value).flat()
-  return allItems.slice(0, 6)
+  const featured = allItems
+    .filter(item => item.available !== false && item.featured)
+    .sort((a, b) => {
+      if ((a.featured_sort_order ?? 0) !== (b.featured_sort_order ?? 0)) {
+        return (a.featured_sort_order ?? 0) - (b.featured_sort_order ?? 0)
+      }
+      if ((a.sort_order ?? 0) !== (b.sort_order ?? 0)) return (a.sort_order ?? 0) - (b.sort_order ?? 0)
+      return String(a.name ?? '').localeCompare(String(b.name ?? ''))
+    })
+
+  return (featured.length > 0 ? featured : allItems.filter(item => item.available !== false)).slice(0, 6)
 })
 
 // Google Business data (tenant-scoped)

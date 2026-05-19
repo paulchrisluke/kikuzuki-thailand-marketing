@@ -112,10 +112,11 @@
               </p>
             </div>
             <UButton
-              :to="`/dashboard/sites/${siteId}/chowbot?prompt=Help+me+finish+setting+up+my+restaurant+site`"
+              :to="`${paths.value.chowbot}?prompt=Help+me+finish+setting+up+my+restaurant+site`"
               size="xs"
               variant="soft"
               color="primary"
+              icon="i-heroicons-sparkles"
             >
               Ask ChowBot
             </UButton>

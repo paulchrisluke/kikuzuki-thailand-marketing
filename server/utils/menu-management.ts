@@ -4,6 +4,24 @@ const MAX_SUFFIX_ATTEMPTS = 50
 
 type SqlBindValue = string | number | boolean | null
 
+interface PublishedMenuTranslation {
+  name: string | null
+  description: string | null
+  section_order: string | null
+}
+
+interface PublishedMenuItemTranslation {
+  menu_item_id: string
+  section: string | null
+  name: string | null
+  description: string | null
+  allergens: string | null
+  ingredients: string | null
+  dietary_notes: string | null
+  preparation: string | null
+  serving_note: string | null
+}
+
 export class MenuSectionConflictError extends Error {
   code = 'MENU_SECTION_CONFLICT' as const
 
@@ -48,14 +66,143 @@ function parseStringArray(value: unknown): string[] {
   }
 }
 
+function normalizeSectionOrder(sections: unknown): string[] {
+  const source = Array.isArray(sections) ? sections : parseStringArray(sections)
+  const seen = new Set<string>()
+  const normalized: string[] = []
+  for (const section of source) {
+    if (typeof section !== 'string') continue
+    const trimmed = section.trim()
+    if (!trimmed || seen.has(trimmed)) continue
+    seen.add(trimmed)
+    normalized.push(trimmed)
+  }
+  return normalized
+}
+
+function mapMenu(row: Record<string, unknown>): Menu {
+  return {
+    ...(row as unknown as Menu),
+    section_order: normalizeSectionOrder(row.section_order),
+  }
+}
+
 function mapMenuItem(row: Record<string, unknown>): MenuItem {
   return {
     ...(row as unknown as MenuItem),
     available: Boolean(row.available),
+    featured: Boolean(row.featured),
+    featured_sort_order: typeof row.featured_sort_order === 'number' ? row.featured_sort_order : Number(row.featured_sort_order ?? 0),
     allergens: parseStringArray(row.allergens),
     ingredients: parseStringArray(row.ingredients),
     dietary_notes: parseStringArray(row.dietary_notes),
   }
+}
+
+function sortMenuItems(items: MenuItem[], sectionOrder: string[]): MenuItem[] {
+  const sectionIndex = new Map(sectionOrder.map((section, index) => [section, index]))
+  return [...items].sort((a, b) => {
+    const sectionA = a.section || 'Uncategorized'
+    const sectionB = b.section || 'Uncategorized'
+    const indexA = sectionIndex.get(sectionA)
+    const indexB = sectionIndex.get(sectionB)
+
+    if (indexA !== undefined || indexB !== undefined) {
+      if (indexA === undefined) return 1
+      if (indexB === undefined) return -1
+      if (indexA !== indexB) return indexA - indexB
+    } else if (sectionA !== sectionB) {
+      return sectionA.localeCompare(sectionB)
+    }
+
+    if (a.sort_order !== b.sort_order) return a.sort_order - b.sort_order
+    return a.name.localeCompare(b.name)
+  })
+}
+
+async function applyPublishedMenuTranslations(
+  db: D1Database,
+  organizationId: string,
+  siteId: string,
+  menu: MenuWithItems,
+  locale?: string,
+): Promise<MenuWithItems> {
+  if (!locale) return menu
+
+  const menuTranslation = await db.prepare(`
+    SELECT name, description, section_order
+    FROM menu_translations
+    WHERE organization_id = ? AND site_id = ? AND menu_id = ? AND locale = ? AND status = 'published'
+    LIMIT 1
+  `).bind(organizationId, siteId, menu.id, locale).first<PublishedMenuTranslation>()
+
+  const { results } = await db.prepare(`
+    SELECT menu_item_id, section, name, description, allergens, ingredients, dietary_notes, preparation, serving_note
+    FROM menu_item_translations
+    WHERE organization_id = ? AND site_id = ? AND locale = ? AND status = 'published'
+      AND menu_item_id IN (SELECT id FROM menu_items WHERE menu_id = ?)
+  `).bind(organizationId, siteId, locale, menu.id).all<PublishedMenuItemTranslation>()
+
+  const itemTranslations = new Map((results ?? []).map(row => [row.menu_item_id, row]))
+  const sectionOrder = menuTranslation?.section_order
+    ? normalizeSectionOrder(menuTranslation.section_order)
+    : menu.section_order ?? []
+
+  const translatedItems = menu.items.map((item) => {
+    const translation = itemTranslations.get(item.id)
+    if (!translation) return item
+
+    return {
+      ...item,
+      section: translation.section ?? item.section,
+      name: translation.name ?? item.name,
+      description: translation.description ?? item.description,
+      allergens: translation.allergens !== null ? parseStringArray(translation.allergens) : item.allergens,
+      ingredients: translation.ingredients !== null ? parseStringArray(translation.ingredients) : item.ingredients,
+      dietary_notes: translation.dietary_notes !== null ? parseStringArray(translation.dietary_notes) : item.dietary_notes,
+      preparation: translation.preparation ?? item.preparation,
+      serving_note: translation.serving_note ?? item.serving_note,
+    }
+  })
+
+  return {
+    ...menu,
+    name: menuTranslation?.name ?? menu.name,
+    description: menuTranslation?.description ?? menu.description,
+    section_order: sectionOrder,
+    items: sortMenuItems(translatedItems, sectionOrder),
+  }
+}
+
+async function getMenuSectionOrder(db: D1Database, menuId: string): Promise<string[]> {
+  const row = await db.prepare('SELECT section_order FROM menus WHERE id = ? LIMIT 1').bind(menuId).first<{ section_order: string | null }>()
+  return normalizeSectionOrder(row?.section_order)
+}
+
+async function saveMenuSectionOrder(db: D1Database, menuId: string, sectionOrder: string[], updatedBy?: string): Promise<void> {
+  const normalized = normalizeSectionOrder(sectionOrder)
+  const now = new Date().toISOString()
+  const result = updatedBy
+    ? await db.prepare(`
+        UPDATE menus
+        SET section_order = ?, updated_at = ?, updated_by = ?
+        WHERE id = ?
+      `).bind(JSON.stringify(normalized), now, updatedBy, menuId).run()
+    : await db.prepare(`
+        UPDATE menus
+        SET section_order = ?, updated_at = ?
+        WHERE id = ?
+      `).bind(JSON.stringify(normalized), now, menuId).run()
+
+  if (!result.success) throw new Error('Failed to update menu section order')
+}
+
+async function ensureMenuSectionInOrder(db: D1Database, menuId: string, section: string, updatedBy?: string): Promise<void> {
+  const normalizedSection = section.trim()
+  if (!normalizedSection) return
+  const sectionOrder = await getMenuSectionOrder(db, menuId)
+  if (sectionOrder.includes(normalizedSection)) return
+  await saveMenuSectionOrder(db, menuId, [...sectionOrder, normalizedSection], updatedBy)
 }
 
 async function uniqueSlug(db: D1Database, menuId: string, base: string, excludeId?: string): Promise<string> {
@@ -90,7 +237,7 @@ export async function getMenus(
   locationId?: string | null
 ): Promise<Menu[]> {
   let query = `
-    SELECT id, organization_id, site_id, location_id, name, description, status, 
+    SELECT id, organization_id, site_id, location_id, name, description, status, section_order,
            created_at, updated_at, created_by, updated_by
     FROM menus 
     WHERE organization_id = ? AND site_id = ?
@@ -106,7 +253,7 @@ export async function getMenus(
   query += ` ORDER BY location_id IS NULL, (status = 'published') DESC, name`
 
   const results = await db.prepare(query).bind(...params).all()
-  return (results.results || []) as unknown as Menu[]
+  return (results.results || []).map(row => mapMenu(row as Record<string, unknown>))
 }
 
 // Get menu with items
@@ -118,30 +265,31 @@ export async function getMenuWithItems(
 ): Promise<MenuWithItems | null> {
   // Get menu
   const menu = await db.prepare(`
-    SELECT id, organization_id, site_id, location_id, name, description, status, 
+    SELECT id, organization_id, site_id, location_id, name, description, status, section_order,
            created_at, updated_at, created_by, updated_by
     FROM menus 
     WHERE id = ? AND organization_id = ? AND site_id = ?
     LIMIT 1
-  `).bind(menuId, organizationId, siteId).first<Menu>()
+  `).bind(menuId, organizationId, siteId).first<Record<string, unknown>>()
 
   if (!menu) return null
+  const mappedMenu = mapMenu(menu)
 
   // Get menu items
   const items = await db.prepare(`
     SELECT mi.id, mi.menu_id, mi.section, mi.name, mi.slug, mi.description, mi.price,
-           mi.image_asset_id, ma.public_url, ma.kind, mi.available, mi.sort_order,
+           mi.image_asset_id, ma.public_url, ma.kind, mi.available, mi.featured, mi.featured_sort_order, mi.sort_order,
            mi.allergens, mi.ingredients, mi.dietary_notes, mi.preparation, mi.serving_note,
            mi.created_at, mi.updated_at, mi.created_by, mi.updated_by
     FROM menu_items mi
     LEFT JOIN media_assets ma ON mi.image_asset_id = ma.id AND ma.status = 'active'
     WHERE mi.menu_id = ?
-    ORDER BY mi.section, mi.sort_order, mi.name
+    ORDER BY mi.sort_order, mi.name
   `).bind(menuId).all()
 
   return {
-    ...menu,
-    items: (items.results || []).map(mapMenuItem)
+    ...mappedMenu,
+    items: sortMenuItems((items.results || []).map(mapMenuItem), mappedMenu.section_order ?? [])
   }
 }
 
@@ -150,63 +298,68 @@ export async function getActiveMenu(
   db: D1Database,
   organizationId: string,
   siteId: string,
-  locationId?: string | null
+  locationId?: string | null,
+  locale?: string
 ): Promise<MenuWithItems | null> {
   // First try to get location-specific menu
   if (locationId) {
     const locationMenu = await db.prepare(`
-      SELECT id, organization_id, site_id, location_id, name, description, status, 
+      SELECT id, organization_id, site_id, location_id, name, description, status, section_order,
              created_at, updated_at, created_by, updated_by
       FROM menus 
       WHERE organization_id = ? AND site_id = ? AND location_id = ? AND status = 'published'
       LIMIT 1
-    `).bind(organizationId, siteId, locationId).first<Menu>()
+    `).bind(organizationId, siteId, locationId).first<Record<string, unknown>>()
 
     if (locationMenu) {
+      const mappedMenu = mapMenu(locationMenu)
       const items = await db.prepare(`
         SELECT mi.id, mi.menu_id, mi.section, mi.name, mi.slug, mi.description, mi.price,
-               mi.image_asset_id, ma.public_url, ma.kind, mi.available, mi.sort_order,
+               mi.image_asset_id, ma.public_url, ma.kind, mi.available, mi.featured, mi.featured_sort_order, mi.sort_order,
                mi.allergens, mi.ingredients, mi.dietary_notes, mi.preparation, mi.serving_note,
                mi.created_at, mi.updated_at, mi.created_by, mi.updated_by
         FROM menu_items mi
         LEFT JOIN media_assets ma ON mi.image_asset_id = ma.id AND ma.status = 'active'
         WHERE mi.menu_id = ?
-        ORDER BY mi.section, mi.sort_order, mi.name
+        ORDER BY mi.sort_order, mi.name
       `).bind(locationMenu.id).all()
 
-      return {
-        ...locationMenu,
-        items: (items.results || []).map(mapMenuItem)
+      const menuWithItems = {
+        ...mappedMenu,
+        items: sortMenuItems((items.results || []).map(mapMenuItem), mappedMenu.section_order ?? [])
       }
+      return applyPublishedMenuTranslations(db, organizationId, siteId, menuWithItems, locale)
     }
   }
 
   // Fall back to brand/default menu
   const brandMenu = await db.prepare(`
-    SELECT id, organization_id, site_id, location_id, name, description, status, 
+    SELECT id, organization_id, site_id, location_id, name, description, status, section_order,
            created_at, updated_at, created_by, updated_by
     FROM menus 
     WHERE organization_id = ? AND site_id = ? AND location_id IS NULL AND status = 'published'
     LIMIT 1
-  `).bind(organizationId, siteId).first<Menu>()
+  `).bind(organizationId, siteId).first<Record<string, unknown>>()
 
   if (!brandMenu) return null
+  const mappedMenu = mapMenu(brandMenu)
 
   const items = await db.prepare(`
     SELECT mi.id, mi.menu_id, mi.section, mi.name, mi.slug, mi.description, mi.price,
-           mi.image_asset_id, ma.public_url, ma.kind, mi.available, mi.sort_order,
+           mi.image_asset_id, ma.public_url, ma.kind, mi.available, mi.featured, mi.featured_sort_order, mi.sort_order,
            mi.allergens, mi.ingredients, mi.dietary_notes, mi.preparation, mi.serving_note,
            mi.created_at, mi.updated_at, mi.created_by, mi.updated_by
     FROM menu_items mi
     LEFT JOIN media_assets ma ON mi.image_asset_id = ma.id AND ma.status = 'active'
     WHERE mi.menu_id = ?
-    ORDER BY mi.section, mi.sort_order, mi.name
+    ORDER BY mi.sort_order, mi.name
   `).bind(brandMenu.id).all()
 
-  return {
-    ...brandMenu,
-    items: (items.results || []).map(mapMenuItem)
+  const menuWithItems = {
+    ...mappedMenu,
+    items: sortMenuItems((items.results || []).map(mapMenuItem), mappedMenu.section_order ?? [])
   }
+  return applyPublishedMenuTranslations(db, organizationId, siteId, menuWithItems, locale)
 }
 
 // Get public menu item by slug
@@ -217,7 +370,7 @@ export async function getPublicMenuItem(
 ): Promise<MenuItem | null> {
   const item = await db.prepare(`
     SELECT mi.id, mi.menu_id, mi.section, mi.name, mi.slug, mi.description, mi.price,
-           mi.image_asset_id, ma.public_url, ma.kind, mi.available, mi.sort_order,
+           mi.image_asset_id, ma.public_url, ma.kind, mi.available, mi.featured, mi.featured_sort_order, mi.sort_order,
            mi.allergens, mi.ingredients, mi.dietary_notes, mi.preparation, mi.serving_note,
            mi.created_at, mi.updated_at, mi.created_by, mi.updated_by
     FROM menu_items mi
@@ -271,7 +424,8 @@ export async function createMenu(
     created_at: now,
     updated_at: now,
     created_by: createdBy,
-    updated_by: null
+    updated_by: null,
+    section_order: []
   }
 }
 
@@ -302,6 +456,10 @@ export async function updateMenu(
     setParts.push('status = ?')
     params.push(updates.status)
   }
+  if (updates.section_order !== undefined) {
+    setParts.push('section_order = ?')
+    params.push(JSON.stringify(normalizeSectionOrder(updates.section_order)))
+  }
 
   setParts.push('updated_at = ?')
   setParts.push('updated_by = ?')
@@ -320,18 +478,18 @@ export async function updateMenu(
   }
 
   const updatedMenu = await db.prepare(`
-    SELECT id, organization_id, site_id, location_id, name, description, status, 
+    SELECT id, organization_id, site_id, location_id, name, description, status, section_order,
            created_at, updated_at, created_by, updated_by
     FROM menus 
     WHERE id = ? AND organization_id = ? AND site_id = ?
     LIMIT 1
-  `).bind(menuId, organizationId, siteId).first<Menu>()
+  `).bind(menuId, organizationId, siteId).first<Record<string, unknown>>()
 
   if (!updatedMenu) {
     throw new Error('Menu not found after update')
   }
 
-  return updatedMenu
+  return mapMenu(updatedMenu)
 }
 
 // Delete menu
@@ -363,9 +521,9 @@ export async function createMenuItem(
   const slug = await uniqueSlug(db, menuId, item.name)
 
   const result = await db.prepare(`
-    INSERT INTO menu_items (id, menu_id, section, name, slug, description, price, image_asset_id, available, sort_order, 
+    INSERT INTO menu_items (id, menu_id, section, name, slug, description, price, image_asset_id, available, featured, featured_sort_order, sort_order,
       allergens, ingredients, dietary_notes, preparation, serving_note, created_at, updated_at, created_by)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).bind(
     id,
     menuId,
@@ -376,6 +534,8 @@ export async function createMenuItem(
     item.price || null,
     item.image_asset_id || null,
     item.available !== undefined ? item.available : true,
+    item.featured !== undefined ? item.featured : false,
+    item.featured_sort_order || 0,
     item.sort_order || 0,
     item.allergens ? JSON.stringify(item.allergens) : null,
     item.ingredients ? JSON.stringify(item.ingredients) : null,
@@ -396,7 +556,7 @@ export async function createMenuItem(
 
   const createdItem = await db.prepare(`
     SELECT mi.id, mi.menu_id, mi.section, mi.name, mi.slug, mi.description, mi.price,
-           mi.image_asset_id, ma.public_url, ma.kind, mi.available, mi.sort_order,
+           mi.image_asset_id, ma.public_url, ma.kind, mi.available, mi.featured, mi.featured_sort_order, mi.sort_order,
            mi.allergens, mi.ingredients, mi.dietary_notes, mi.preparation, mi.serving_note,
            mi.created_at, mi.updated_at, mi.created_by, mi.updated_by
     FROM menu_items mi
@@ -408,6 +568,8 @@ export async function createMenuItem(
   if (!createdItem) {
     throw new Error('Menu item not found after creation')
   }
+
+  await ensureMenuSectionInOrder(db, menuId, item.section, createdBy)
 
   return mapMenuItem(createdItem)
 }
@@ -460,6 +622,14 @@ export async function updateMenuItem(
     setParts.push('available = ?')
     params.push(updates.available)
   }
+  if (updates.featured !== undefined) {
+    setParts.push('featured = ?')
+    params.push(updates.featured)
+  }
+  if (updates.featured_sort_order !== undefined) {
+    setParts.push('featured_sort_order = ?')
+    params.push(updates.featured_sort_order)
+  }
   if (updates.sort_order !== undefined) {
     setParts.push('sort_order = ?')
     params.push(updates.sort_order)
@@ -506,7 +676,7 @@ export async function updateMenuItem(
 
   const updatedItem = await db.prepare(`
     SELECT mi.id, mi.menu_id, mi.section, mi.name, mi.slug, mi.description, mi.price,
-           mi.image_asset_id, ma.public_url, ma.kind, mi.available, mi.sort_order,
+           mi.image_asset_id, ma.public_url, ma.kind, mi.available, mi.featured, mi.featured_sort_order, mi.sort_order,
            mi.allergens, mi.ingredients, mi.dietary_notes, mi.preparation, mi.serving_note,
            mi.created_at, mi.updated_at, mi.created_by, mi.updated_by
     FROM menu_items mi
@@ -517,6 +687,11 @@ export async function updateMenuItem(
 
   if (!updatedItem) {
     throw new Error('Menu item not found after update')
+  }
+
+  if (updates.section !== undefined) {
+    const menuId = typeof updatedItem.menu_id === 'string' ? updatedItem.menu_id : ''
+    if (menuId) await ensureMenuSectionInOrder(db, menuId, updates.section, updatedBy)
   }
 
   return mapMenuItem(updatedItem)
@@ -546,6 +721,13 @@ export async function renameMenuSection(
   updatedBy: string
 ): Promise<number> {
   const now = new Date().toISOString()
+  const sectionOrder = await getMenuSectionOrder(db, menuId)
+  const oldSectionInOrder = sectionOrder.includes(oldSection)
+
+  if (sectionOrder.includes(newSection)) {
+    throw new MenuSectionConflictError()
+  }
+
   const result = await db.prepare(`
     UPDATE menu_items
     SET section = ?, updated_at = ?, updated_by = ?
@@ -561,7 +743,9 @@ export async function renameMenuSection(
   }
 
   const changes = Number(result.meta.changes ?? 0)
-  if (changes > 0) {
+  if (changes > 0 || oldSectionInOrder) {
+    const nextSectionOrder = sectionOrder.map(section => section === oldSection ? newSection : section)
+    await saveMenuSectionOrder(db, menuId, nextSectionOrder, updatedBy)
     return changes
   }
 
@@ -594,6 +778,7 @@ export async function deleteMenuSection(
   menuId: string,
   section: string
 ): Promise<number> {
+  const sectionOrder = await getMenuSectionOrder(db, menuId)
   const result = await db.prepare(`
     DELETE FROM menu_items
     WHERE menu_id = ? AND section = ?
@@ -601,6 +786,10 @@ export async function deleteMenuSection(
 
   if (!result.success) {
     throw new Error('Failed to delete menu section')
+  }
+
+  if (sectionOrder.includes(section)) {
+    await saveMenuSectionOrder(db, menuId, sectionOrder.filter(item => item !== section))
   }
 
   return result.meta.changes

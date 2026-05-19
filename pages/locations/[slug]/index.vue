@@ -43,9 +43,9 @@
             </NuxtLink>
             <p class="saya-eyebrow mb-5 text-white/80">{{ location.city || location.neighborhood }}</p>
             <h1 class="saya-display-lg text-white">
-              <em class="saya-italic">{{ siteName }}</em>
+              <em class="saya-italic">{{ heroTitle || siteName }}</em>
               <span class="mt-6 block text-[0.45em] font-normal not-italic tracking-[0.3em] uppercase">
-                {{ location.title }}
+                {{ heroSubtitle || location.title }}
               </span>
             </h1>
             <div v-if="isOpenNow === true" class="mt-8 flex items-center gap-2.5 text-sm uppercase tracking-widest text-white">
@@ -216,27 +216,26 @@
         </div>
       </section>
 
-      <!-- Map -->
+      <!-- Plan a visit CTA — map lives on /contact -->
       <section class="mx-auto max-w-7xl px-4 py-24 sm:px-6 lg:px-8">
-        <div class="mb-16 max-w-2xl">
-          <p class="saya-kicker mb-6">Find us</p>
-          <h2 class="saya-display-md text-default">{{ formattedAddress || location.title }}</h2>
-        </div>
-        <div class="aspect-21/9 overflow-hidden border border-default">
-          <iframe
-            v-if="mapEmbedSrc"
-            :src="mapEmbedSrc"
-            :title="location?.title ? `Map for ${location.title}` : 'Location map'"
-            width="100%"
-            height="100%"
-            style="border:0"
-            allowfullscreen
-            loading="lazy"
-            referrerpolicy="no-referrer-when-downgrade"
-          />
-          <div v-else class="flex h-full w-full flex-col items-center justify-center bg-muted gap-3">
-            <UIcon name="i-simple-icons-googlemaps" class="size-8 text-muted" />
-            <span class="text-sm text-muted">Google Maps will appear once synced</span>
+        <div class="flex flex-wrap items-center justify-between gap-8">
+          <h2 class="saya-display-md saya-italic text-default">See you soon.</h2>
+          <div class="flex flex-wrap gap-3">
+            <UButton
+              to="/reservations"
+              color="primary"
+              variant="solid"
+              size="xl"
+              class="rounded-full"
+            >
+              Reserve a table
+            </UButton>
+            <NuxtLink
+              :to="`/locations/${slug}/contact`"
+              class="inline-flex items-center rounded-full border border-default px-6 py-2.5 text-xs font-medium uppercase tracking-widest text-default transition hover:bg-muted"
+            >
+              Plan a visit →
+            </NuxtLink>
           </div>
         </div>
       </section>
@@ -263,9 +262,9 @@ const route = useRoute()
 const { siteId, site } = useTenantSite()
 if (!siteId) throw createError({ statusCode: 404 })
 
-// Location-scoped page content (parking info, additional notes)
+// Location-scoped page content — hero override + parking/notes
 // usePageContent scopes to the location via route.params.slug automatically
-const { getField: getContentField } = usePageContent('location')
+const { getField: getContentField, getHero: getContentHero } = usePageContent('location')
 
 const slug = computed(() => String(route.params.slug))
 const siteName = computed(() => (site as ApiValue)?.name || 'Saya')
@@ -298,7 +297,7 @@ const reviewsPreview = computed(() => ((reviewsData as ApiValue).value?.reviews 
 
 // Sanitize hero background URL to prevent CSS injection
 const heroBackgroundStyle = computed(() => {
-  const raw = String(location.value?.public_url || '').trim()
+  const raw = String(heroMedia.value?.url || '').trim()
   if (!raw) return {}
 
   let parsed: URL
@@ -336,10 +335,15 @@ const featuredItems = computed(() => {
   return items.filter((i: ApiValue) => i.featured || i.available !== false).slice(0, 3)
 })
 
-const heroMedia = computed(() => resolveMedia({
-  public_url: location.value?.public_url,
-  kind: location.value?.kind
-}))
+// Content hero fields take precedence; fall back to Google Business primary photo
+const contentHero = computed(() => getContentHero({ title: '', subtitle: '', image: '', video: '' }))
+const heroMedia = computed(() => {
+  if (contentHero.value.video) return resolveMedia({ public_url: contentHero.value.video, kind: contentHero.value.videoKind || 'video' })
+  if (contentHero.value.image) return resolveMedia({ public_url: contentHero.value.image, kind: contentHero.value.imageKind || 'image' })
+  return resolveMedia({ public_url: location.value?.public_url, kind: location.value?.kind })
+})
+const heroTitle = computed(() => contentHero.value.title || null)
+const heroSubtitle = computed(() => contentHero.value.subtitle || null)
 
 const parkingInfo = computed(() => getContentField('parking.info', '') ?? '')
 const extraNotes = computed(() => getContentField('extra.notes', '') ?? '')

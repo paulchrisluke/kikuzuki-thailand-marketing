@@ -2,7 +2,7 @@
   <div class="relative w-full bg-black text-white overflow-hidden" :style="heroStyle">
     <!-- Background image slot -->
     <div v-if="image" class="absolute inset-0">
-      <img :src="image" :alt="title" class="w-full h-full object-cover opacity-50" />
+      <img :src="image" :alt="title" class="w-full h-full object-cover" />
     </div>
 
     <!-- Background video slot -->
@@ -13,7 +13,7 @@
         muted
         loop
         playsinline
-        class="w-full h-full object-cover opacity-50"
+        class="w-full h-full object-cover"
       />
     </div>
 

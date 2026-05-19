@@ -1,13 +1,15 @@
 // Get published content for public tenant rendering (no auth required)
 import { cloudflareEnv, jsonResponse } from '~/server/utils/api-response'
-import { getPageContent, getDraftContent } from '~/server/utils/content-management'
+import { getDraftContent, getPublishedPageContentForLocale } from '~/server/utils/content-management'
 import { verifyPreviewToken } from '~/server/utils/preview-token'
+import { resolveSiteLocale } from '~/server/utils/site-i18n'
 
 export default defineEventHandler(async (event) => {
   const siteId = getRouterParam(event, 'siteId')
   const page = getRouterParam(event, 'page')
   const query = getQuery(event)
   const locationSlug = typeof query.location === 'string' && query.location ? query.location : undefined
+  const requestedLocale = typeof query.locale === 'string' ? query.locale : undefined
   
   // Initialize env first
   const env = cloudflareEnv(event)
@@ -50,7 +52,7 @@ export default defineEventHandler(async (event) => {
   try {
     // Get site info (public access)
     const site = await db.prepare(`
-      SELECT id, organization_id, status, onboarding_status 
+      SELECT id, organization_id, status, onboarding_status
       FROM sites 
       WHERE id = ? AND status = 'active' AND onboarding_status = 'active'
       LIMIT 1
@@ -76,8 +78,15 @@ export default defineEventHandler(async (event) => {
       }
     }
 
+    const localeState = await resolveSiteLocale(db, site, requestedLocale)
+
     // Get published content
-    const publishedContent = await getPageContent(db, site.organization_id, siteId, page, locationId)
+    const publishedContent = await getPublishedPageContentForLocale(db, site.organization_id, siteId, page, {
+      locale: localeState.effectiveLocale,
+      sourceLocale: localeState.sourceLocale,
+      fallbackEnabled: localeState.fallbackEnabled,
+      locationId,
+    })
     
     // In preview mode, also fetch and merge drafts
     let content = publishedContent
@@ -100,6 +109,9 @@ export default defineEventHandler(async (event) => {
       siteId,
       locationId,
       page,
+      locale: localeState.effectiveLocale,
+      requestedLocale: localeState.requestedLocale,
+      sourceLocale: localeState.sourceLocale,
       preview
     })
     

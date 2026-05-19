@@ -12,6 +12,7 @@ export interface SiteConfig {
   social_instagram?: string
   social_tiktok?: string
   footer_tagline?: string
+  source_locale?: string
 }
 
 export const getConfig = async (
