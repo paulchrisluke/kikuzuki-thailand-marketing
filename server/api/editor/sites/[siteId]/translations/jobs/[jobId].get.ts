@@ -23,7 +23,11 @@ export default defineEventHandler(async (event) => {
   if (!site) return jsonResponse({ error: 'Site not found or access denied' }, { status: 404 })
 
   const job = await db.prepare(`
-    SELECT *
+    SELECT id, source_locale, target_locale, scope, status, total_items, total_chars,
+           estimated_input_tokens, estimated_output_tokens, estimated_credits,
+           actual_input_tokens, actual_output_tokens, actual_credits,
+           processed_items, failed_items, error, created_by, started_at, finished_at,
+           created_at, updated_at
     FROM translation_jobs
     WHERE id = ? AND organization_id = ? AND site_id = ?
     LIMIT 1

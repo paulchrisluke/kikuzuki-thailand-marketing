@@ -252,6 +252,7 @@ const loading = ref(false)
 const publishing = ref(false)
 const savingKey = ref<string | null>(null)
 const error = ref('')
+const suppressReviewWatcher = ref(false)
 
 const headerLinks = computed(() => buildHeaderLinks([
   { label: 'Settings', icon: 'i-heroicons-cog-6-tooth', to: paths.value.settings, color: 'neutral', variant: 'soft' }
@@ -320,7 +321,10 @@ const loadReview = async () => {
     reviewItems.value = response.items || []
     const nextDrafts: Record<string, Record<string, string>> = {}
     for (const item of reviewItems.value) {
-      nextDrafts[itemKey(item)] = { ...item.translated_fields }
+      const key = itemKey(item)
+      nextDrafts[key] = Object.keys(draftValues.value[key] ?? {}).length
+        ? { ...draftValues.value[key] }
+        : { ...item.translated_fields }
     }
     draftValues.value = nextDrafts
   } catch (err) {
@@ -335,19 +339,32 @@ const saveItem = async (item: TranslationReviewItem) => {
   savingKey.value = key
   error.value = ''
   try {
-    await $fetch(`/api/editor/sites/${siteId}/translations/review`, {
-      method: 'PATCH',
-      body: {
-        locale: filters.locale,
-        scope: filters.scope,
-        entity_type: item.entity_type,
-        entity_id: item.entity_id,
-        field: item.field,
-        fields: draftValues.value[key] ?? {},
+    const response = await $fetch<{ success: boolean; item: Pick<TranslationReviewItem, 'entity_type' | 'entity_id' | 'field' | 'status' | 'translated_fields'> }>(
+      `/api/editor/sites/${siteId}/translations/review`,
+      {
+        method: 'PATCH',
+        body: {
+          locale: filters.locale,
+          scope: filters.scope,
+          entity_type: item.entity_type,
+          entity_id: item.entity_id,
+          field: item.field,
+          fields: draftValues.value[key] ?? {},
+        }
       }
-    })
+    )
+    const saved = response.item
+    const savedKey = itemKey(saved)
+    reviewItems.value = reviewItems.value.map(reviewItem =>
+      itemKey(reviewItem) === savedKey
+        ? { ...reviewItem, status: saved.status, translated_fields: saved.translated_fields }
+        : reviewItem
+    )
+    draftValues.value = {
+      ...draftValues.value,
+      [savedKey]: { ...saved.translated_fields },
+    }
     toast.add({ description: 'Translation draft saved', color: 'success' })
-    await loadReview()
   } catch (err) {
     error.value = err instanceof Error ? err.message : 'Failed to save translation'
   } finally {
@@ -409,16 +426,19 @@ const formatNumber = (value: number | null | undefined) =>
 watch(
   () => [filters.locale, filters.scope, filters.status],
   () => {
-    if (filters.locale) loadReview()
+    if (filters.locale && !suppressReviewWatcher.value) loadReview()
   }
 )
 
 onMounted(async () => {
   try {
+    suppressReviewWatcher.value = true
     await loadLocales()
     await loadReview()
   } catch (err) {
     error.value = err instanceof Error ? err.message : 'Failed to load translations'
+  } finally {
+    suppressReviewWatcher.value = false
   }
 })
 

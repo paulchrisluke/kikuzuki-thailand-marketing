@@ -2673,7 +2673,7 @@ async function executeTool(
       const status = toSqlText(input.status)
       if (!expId || !bookingId || !status) return { error: 'experience_id, booking_id, and status are required' }
       if (!['confirmed', 'cancelled'].includes(status)) return { error: 'status must be confirmed or cancelled' }
-      const ok = await updateBookingStatus(db, siteId, bookingId, status as 'confirmed' | 'cancelled')
+      const ok = await updateBookingStatus(db, siteId, expId, bookingId, status as 'confirmed' | 'cancelled')
       if (!ok) return { error: 'Booking not found' }
       return { updated: true }
     }

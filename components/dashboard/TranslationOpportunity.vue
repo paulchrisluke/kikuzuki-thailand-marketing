@@ -236,7 +236,6 @@ async function loadStatus() {
 async function openModal() {
   isOpen.value = true
   await loadStatus()
-  await estimateTranslation()
 }
 
 async function estimateTranslation() {
@@ -250,7 +249,7 @@ async function estimateTranslation() {
         query: {
           locale: form.locale,
           scope: form.scope,
-          includePublished: 'false',
+          includePublished: false,
         }
       }
     )
@@ -293,7 +292,6 @@ async function startTranslation() {
         includePublished: false,
       }
     })
-    await loadStatus()
     dismissed.value = true
     isOpen.value = false
     toast.add({
@@ -302,6 +300,9 @@ async function startTranslation() {
       color: 'success',
     })
     await navigateTo(`/dashboard/sites/${props.siteId}/translations?locale=${encodeURIComponent(form.locale)}`)
+    loadStatus().catch((err) => {
+      console.warn('translation_opportunity_status_refresh_failed', err)
+    })
   } catch (err) {
     error.value = err instanceof Error ? err.message : 'Failed to start translation'
   } finally {

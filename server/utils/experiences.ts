@@ -319,15 +319,16 @@ export async function listExperienceBookings(
 export async function updateBookingStatus(
   db: D1Database,
   siteId: string,
+  experienceId: string,
   bookingId: string,
   status: 'pending' | 'confirmed' | 'cancelled',
 ): Promise<boolean> {
   const result = await db
     .prepare(
       `UPDATE experience_bookings SET status = ?, updated_at = ?
-       WHERE site_id = ? AND id = ?`,
+       WHERE site_id = ? AND experience_id = ? AND id = ?`,
     )
-    .bind(status, new Date().toISOString(), siteId, bookingId)
+    .bind(status, new Date().toISOString(), siteId, experienceId, bookingId)
     .run()
   return Boolean(result.meta.changes)
 }

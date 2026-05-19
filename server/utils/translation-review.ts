@@ -36,7 +36,7 @@ async function getTranslatedFields(
 ): Promise<Map<string, Record<string, string>>> {
   const [contentRows, menuRows, itemRows, locationRows, postRows] = await Promise.all([
     db.prepare(`
-      SELECT COALESCE(location_id, 'site') || ':' || page AS entity_id, field, content, hero_title, hero_subtitle, value
+      SELECT COALESCE(location_id, 'site') || ':' || COALESCE(page, '') AS entity_id, field, content, hero_title, hero_subtitle, value
       FROM site_content_translations
       WHERE organization_id = ? AND site_id = ? AND locale = ?
     `).bind(organizationId, siteId, locale).all<Record<string, string | null>>(),

@@ -2,6 +2,12 @@ import { cloudflareEnv, jsonResponse } from '~/server/utils/api-response'
 import { getAuthSession } from '~/server/utils/auth'
 import { createExperience } from '~/server/utils/experiences'
 
+const optionalInteger = (value: unknown) => {
+  if (value === null || value === undefined || value === '') return null
+  const parsed = Number(value)
+  return Number.isFinite(parsed) && Number.isInteger(parsed) ? parsed : null
+}
+
 export default defineEventHandler(async (event) => {
   const siteId = getRouterParam(event, 'siteId')
   if (!siteId) return jsonResponse({ error: 'siteId required' }, { status: 400 })
@@ -36,12 +42,12 @@ export default defineEventHandler(async (event) => {
     body: body.body ? String(body.body).trim() : null,
     image_asset_id: body.image_asset_id ? String(body.image_asset_id) : null,
     price: body.price ? String(body.price).trim() : null,
-    duration_minutes: body.duration_minutes ? Number(body.duration_minutes) : null,
-    max_capacity: body.max_capacity ? Number(body.max_capacity) : null,
+    duration_minutes: optionalInteger(body.duration_minutes),
+    max_capacity: optionalInteger(body.max_capacity),
     time_slots: Array.isArray(body.time_slots) ? body.time_slots.map(String) : null,
     available_note: body.available_note ? String(body.available_note).trim() : null,
     status: (['active', 'inactive', 'sold_out'].includes(String(body.status)) ? String(body.status) : 'active') as 'active' | 'inactive' | 'sold_out',
-    sort_order: body.sort_order ? Number(body.sort_order) : 0,
+    sort_order: optionalInteger(body.sort_order) ?? 0,
     location_id: body.location_id ? String(body.location_id) : null,
     seo_title: body.seo_title ? String(body.seo_title).trim() : null,
     seo_description: body.seo_description ? String(body.seo_description).trim() : null,

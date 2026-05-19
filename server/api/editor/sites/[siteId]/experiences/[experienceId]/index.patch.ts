@@ -2,6 +2,17 @@ import { cloudflareEnv, jsonResponse } from '~/server/utils/api-response'
 import { getAuthSession } from '~/server/utils/auth'
 import { updateExperience } from '~/server/utils/experiences'
 
+const optionalNumber = (value: unknown) => {
+  if (value === null || value === undefined || value === '') return null
+  const parsed = Number(value)
+  return Number.isFinite(parsed) ? parsed : null
+}
+
+const optionalInteger = (value: unknown) => {
+  const parsed = optionalNumber(value)
+  return parsed !== null && Number.isInteger(parsed) ? parsed : null
+}
+
 export default defineEventHandler(async (event) => {
   const siteId = getRouterParam(event, 'siteId')
   const experienceId = getRouterParam(event, 'experienceId')
@@ -34,12 +45,16 @@ export default defineEventHandler(async (event) => {
   if ('body' in body) updates.body = body.body ? String(body.body).trim() : null
   if ('image_asset_id' in body) updates.image_asset_id = body.image_asset_id ? String(body.image_asset_id) : null
   if ('price' in body) updates.price = body.price ? String(body.price).trim() : null
-  if ('duration_minutes' in body) updates.duration_minutes = body.duration_minutes ? Number(body.duration_minutes) : null
-  if ('max_capacity' in body) updates.max_capacity = body.max_capacity ? Number(body.max_capacity) : null
+  if ('duration_minutes' in body) updates.duration_minutes = optionalInteger(body.duration_minutes)
+  if ('max_capacity' in body) updates.max_capacity = optionalInteger(body.max_capacity)
   if ('time_slots' in body) updates.time_slots = Array.isArray(body.time_slots) ? body.time_slots.map(String) : null
   if ('available_note' in body) updates.available_note = body.available_note ? String(body.available_note).trim() : null
   if ('status' in body && ['active', 'inactive', 'sold_out'].includes(String(body.status))) updates.status = String(body.status)
-  if ('sort_order' in body) updates.sort_order = Number(body.sort_order)
+  if ('sort_order' in body) {
+    const sortOrder = optionalInteger(body.sort_order)
+    if (sortOrder === null) return jsonResponse({ error: 'sort_order must be an integer' }, { status: 400 })
+    updates.sort_order = sortOrder
+  }
   if ('location_id' in body) updates.location_id = body.location_id ? String(body.location_id) : null
   if ('seo_title' in body) updates.seo_title = body.seo_title ? String(body.seo_title).trim() : null
   if ('seo_description' in body) updates.seo_description = body.seo_description ? String(body.seo_description).trim() : null

@@ -79,6 +79,7 @@ test.describe('site translations', () => {
     const publicContentBody = await publicContent.json()
     expect(publicContentBody.locale).toBe('th')
     const hero = publicContentBody.content.find((entry: { field: string }) => entry.field === 'hero')
+    expect(hero).toBeDefined()
     expect(hero.hero_title).toContain('[TH]')
 
     const changedSource = await request.post(`${baseURL}/api/editor/sites/${siteId}/content/draft`, {
@@ -104,6 +105,7 @@ test.describe('site translations', () => {
       && candidate.entity_id === item.entity_id
       && candidate.field === item.field
     )
+    expect(staleItem).toBeDefined()
     expect(staleItem.translation_status).toBe('stale')
   })
 
