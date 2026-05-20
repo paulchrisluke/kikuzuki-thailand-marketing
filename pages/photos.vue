@@ -55,20 +55,8 @@ definePageMeta({ layout: false })
 const { siteId } = useTenantSite()
 if (!siteId) throw createError({ statusCode: 404 })
 
-const { locations, data: bootstrapData, pending } = useBootstrap()
-
-// Wait for bootstrap to finish before redirecting
-await new Promise(resolve => {
-  const unwatch = watch(bootstrapData, (data) => {
-    if (data) {
-      unwatch()
-      resolve(undefined)
-    }
-  }, { immediate: true })
-  if (bootstrapData.value) {
-    resolve(undefined)
-  }
-})
+const { locations } = useBootstrap()
+const pending = ref(false)
 
 if (locations.value.length === 1) {
   await navigateTo(`/locations/${locations.value[0].slug}/photos`, { replace: true, redirectCode: 301 })

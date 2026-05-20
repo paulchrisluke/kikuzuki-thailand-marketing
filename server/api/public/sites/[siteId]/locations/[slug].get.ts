@@ -1,6 +1,5 @@
 // Get public business location by slug
 import { cloudflareEnv, jsonResponse } from '~/server/utils/api-response'
-import { getConfig } from '~/server/utils/site-config'
 import { calculateMapEmbedUrl } from '~/server/utils/google-business'
 
 export default defineEventHandler(async (event) => {
@@ -27,10 +26,10 @@ export default defineEventHandler(async (event) => {
   try {
     // Get site and verify it's active
     const site = await db.prepare(`
-      SELECT id, organization_id, status FROM sites 
+      SELECT id, organization_id, status, default_currency FROM sites 
       WHERE id = ? AND status = 'active'
       LIMIT 1
-    `).bind(siteId).first()
+    `).bind(siteId).first<{ id: string; organization_id: string; status: string; default_currency: string | null }>()
     
     if (!site) {
       return jsonResponse({ 
@@ -59,8 +58,6 @@ export default defineEventHandler(async (event) => {
       }, { status: 404 })
     }
 
-    const siteConfig = await getConfig(db, site.organization_id as string, siteId)
-
     // Counts for sub-nav badges
     const photoCount = await db.prepare(
       `SELECT COUNT(*) as n FROM media_assets WHERE location_id = ? AND status = 'active'`
@@ -82,7 +79,7 @@ export default defineEventHandler(async (event) => {
 
     // Parse JSON fields and return public-safe data (email excluded)
     const public_url = (location.hero_video_public_url || location.hero_image_public_url || null) as string | null
-    const kind = (location.hero_video_public_url ? 'video' : (location.hero_image_public_url ? 'image' : 'image')) as string
+    const kind = public_url ? (location.hero_video_public_url ? 'video' : 'image') : null
 
     const parsedLocation = {
       id: location.id,
@@ -114,7 +111,7 @@ export default defineEventHandler(async (event) => {
       hero_image_public_url: location.hero_image_public_url,
       hero_video_public_url: location.hero_video_public_url,
       city: location.city,
-      currency: siteConfig?.default_currency || DEFAULT_CURRENCY,
+      currency: site.default_currency || DEFAULT_CURRENCY,
       google_place_id: location.google_place_id,
       gmb_review_url,
       gmb_qa_url

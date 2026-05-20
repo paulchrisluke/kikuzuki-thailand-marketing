@@ -5,8 +5,6 @@
 
 PRAGMA foreign_keys = ON;
 
-BEGIN TRANSACTION;
-
 -- Theme is shared platform data, not demo-owned data.
 INSERT OR IGNORE INTO themes (id, name, slug, version, description, status)
 VALUES ('saya-theme-v1', 'Saya', 'saya', '1.0.0', 'Restaurant website theme', 'active');
@@ -36,13 +34,13 @@ INSERT INTO sites (
   id, organization_id, theme_id, theme, slug, subdomain,
   brand_name, brand_description,
   status, plan, onboarding_status, url_structure, primary_location_id,
-  contact_email
+  contact_email, default_currency
 ) VALUES (
   'site-demo', 'org-demo', 'saya-theme-v1', 'saya', 'ember-slice-demo', 'demo',
   'Ember & Slice',
   'A Brooklyn wood-fired trattoria serving blistered pies, seasonal antipasti, and easy neighborhood hospitality.',
   'active', 'free', 'active', 'location_subdirectories', NULL,
-  'hello@emberandslice.example'
+  'hello@emberandslice.example', 'USD'
 );
 
 -- Demo languages
@@ -89,18 +87,18 @@ INSERT INTO business_locations (
   'https://facebook.com/emberandslice',
   1, 'active'
 ), (
-  'loc-demo-2', 'org-demo', 'site-demo', 'ao-nang', 'Ember & Slice Ao Nang', 'Ao Nang',
-  '{"addressLines":["98 Moo 2, Ao Nang"],"locality":"Ao Nang","administrativeArea":"Krabi","postalCode":"81180","country":"TH"}',
-  '+66 81 154 3606',
+  'loc-demo-2', 'org-demo', 'site-demo', 'west-village', 'Ember & Slice West Village', 'New York',
+  '{"addressLines":["100 7th Ave S"],"locality":"New York","administrativeArea":"NY","postalCode":"10014","country":"US"}',
+  '(212) 555-0199',
   'hello@emberandslice.example',
-  'https://maps.app.goo.gl/ember-slice-aonang',
-  8.0347, 98.8182,
-  'Our signature wood-fired pies and warm Southern Thai hospitality, right on the coast of Krabi.',
-  'Wood-fired pizza, seasonal antipasti, and beachside hospitality in Ao Nang, Krabi.',
+  'https://maps.app.goo.gl/ember-slice-west-village',
+  40.7335, -74.0027,
+  'Our signature wood-fired pies and warm hospitality, brought to the heart of the West Village.',
+  'Wood-fired pizza, seasonal antipasti, and neighborhood hospitality in the West Village.',
   '[{"openDay":"MONDAY","openTime":"16:00","closeTime":"23:00"},{"openDay":"TUESDAY","openTime":"16:00","closeTime":"23:00"},{"openDay":"WEDNESDAY","openTime":"16:00","closeTime":"23:00"},{"openDay":"THURSDAY","openTime":"16:00","closeTime":"23:00"},{"openDay":"FRIDAY","openTime":"15:00","closeTime":"23:59"},{"openDay":"SATURDAY","openTime":"15:00","closeTime":"23:59"},{"openDay":"SUNDAY","openTime":"15:00","closeTime":"23:00"}]',
   4.9, 112,
   '$$',
-  '["Pizza","Italian Restaurant","Beachside Trattoria"]',
+  '["Pizza","Italian Restaurant","Trattoria"]',
   'https://instagram.com/emberandslice',
   'https://facebook.com/emberandslice',
   0, 'active'
@@ -210,10 +208,22 @@ VALUES
    'image', 'external_url', 'external',
    'https://images.unsplash.com/photo-1604382354936-07c5d9983bd3?w=1200&q=80',
    'https://images.unsplash.com/photo-1604382354936-07c5d9983bd3?w=600&q=70',
-   'image/jpeg', 'post-margherita.jpg', 'Margherita pizza special', 'food', 'active');
+   'image/jpeg', 'post-margherita.jpg', 'Margherita pizza special', 'food', 'active'),
+   
+  ('media-demo2-hero', 'org-demo', 'site-demo', 'loc-demo-2',
+   'image', 'external_url', 'external',
+   'https://images.unsplash.com/photo-1544148103-0773bf10d330?w=1200&q=80',
+   'https://images.unsplash.com/photo-1544148103-0773bf10d330?w=600&q=70',
+   'image/jpeg', 'west-village-hero.jpg', 'West Village restaurant storefront', 'exterior', 'active'),
+
+  ('media-demo2-int-1', 'org-demo', 'site-demo', 'loc-demo-2',
+   'image', 'external_url', 'external',
+   'https://images.unsplash.com/photo-1559339352-11d035aa65de?w=1200&q=80',
+   'https://images.unsplash.com/photo-1559339352-11d035aa65de?w=600&q=70',
+   'image/jpeg', 'west-village-interior.jpg', 'Cozy West Village dining room', 'interior', 'active');
 
 UPDATE business_locations SET hero_image_asset_id = 'media-demo-hero', hero_video_asset_id = 'media-demo-pizza-prep-video' WHERE id = 'loc-demo';
--- Note: loc-demo-2 (Ao Nang) intentionally left without hero media for demo purposes
+UPDATE business_locations SET hero_image_asset_id = 'media-demo2-hero' WHERE id = 'loc-demo-2';
 
 -- Reviews
 INSERT INTO reviews
@@ -268,18 +278,18 @@ VALUES
    '2026-03-30T14:45:00.000Z',
    'approved', 'google'),
   ('rev-demo2-1', 'org-demo', 'site-demo', 'loc-demo-2',
-   'Somchai K.',
+   'Michael T.',
    'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=96&q=80',
    5,
-   'Unbelievable sourdough pizza right on the beach! The Margherita is simple, fresh, and perfectly charred. Truly a hidden gem in Ao Nang.',
-   'Thank you Somchai! We are thrilled you enjoyed the beachside vibes and our signature crust.',
+   'Unbelievable sourdough pizza right in the West Village! The Margherita is simple, fresh, and perfectly charred. Truly a hidden gem.',
+   'Thank you Michael! We are thrilled you enjoyed the neighborhood vibes and our signature crust.',
    '2026-05-15T12:00:00.000Z',
    'approved', 'google'),
   ('rev-demo2-2', 'org-demo', 'site-demo', 'loc-demo-2',
    'Emma W.',
    'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=96&q=80',
    5,
-   'Beautiful space, exceptionally friendly service, and a fantastic sunset view. Highly recommend the Burrata and the Hot Honey pie!',
+   'Beautiful space, exceptionally friendly service, and a fantastic corner view. Highly recommend the Burrata and the Hot Honey pie!',
    NULL, NULL,
    'approved', 'google');
 
@@ -292,58 +302,57 @@ VALUES (
   'published'
 ), (
   'menu-demo-2', 'org-demo', 'site-demo', 'loc-demo-2', 'Menu',
-  'Beachside wood-fired pizza, fresh local antipasti, and cold tropical drinks.',
+  'Wood-fired pizza, fresh local antipasti, and craft drinks in the West Village.',
   '["Wood-Fired Pizza","Antipasti","Drinks"]',
   'published'
 );
 
 INSERT INTO menu_items
-  (id, menu_id, section, name, slug, description, price,
+  (id, menu_id, section, name, slug, description, price_amount,
    image_asset_id, allergens, dietary_notes, available, sort_order)
 VALUES
   ('mi-1', 'menu-demo', 'Wood-Fired Pizza', 'Margherita', 'margherita',
    'San Marzano tomato, fior di latte, basil, extra virgin olive oil, sea salt',
-   '$18', 'media-demo-margherita', 'Gluten, Dairy', 'Vegetarian', 1, 1),
+   18, 'media-demo-margherita', 'Gluten, Dairy', 'Vegetarian', 1, 1),
   ('mi-2', 'menu-demo', 'Wood-Fired Pizza', 'Pepperoni Calabrese', 'pepperoni-calabrese',
    'Tomato, mozzarella, cupping pepperoni, Calabrian chile, oregano',
-   '$21', 'media-demo-pepperoni', 'Gluten, Dairy', NULL, 1, 2),
+   21, 'media-demo-pepperoni', 'Gluten, Dairy', NULL, 1, 2),
   ('mi-3', 'menu-demo', 'Wood-Fired Pizza', 'Funghi Bianco', 'funghi-bianco',
    'Roasted mushrooms, ricotta crema, garlic, thyme, mozzarella, pecorino',
-   '$22', 'media-demo-funghi', 'Gluten, Dairy', 'Vegetarian', 1, 3),
+   22, 'media-demo-funghi', 'Gluten, Dairy', 'Vegetarian', 1, 3),
   ('mi-4', 'menu-demo', 'Wood-Fired Pizza', 'Soppressata Hot Honey', 'soppressata-hot-honey',
    'Spicy soppressata, tomato, mozzarella, pickled Fresno chile, Brooklyn hot honey',
-   '$23', NULL, 'Gluten, Dairy', NULL, 1, 4),
+   23, NULL, 'Gluten, Dairy', NULL, 1, 4),
   ('mi-5', 'menu-demo', 'Antipasti', 'Burrata', 'burrata',
    'Creamy burrata, roasted cherry tomatoes, basil oil, grilled sourdough',
-   '$16', 'media-demo-burrata', 'Gluten, Dairy', 'Vegetarian', 1, 1),
+   16, 'media-demo-burrata', 'Gluten, Dairy', 'Vegetarian', 1, 1),
   ('mi-6', 'menu-demo', 'Antipasti', 'Garlic Knots', 'garlic-knots',
    'Wood-fired knots, parsley, roasted garlic butter, marinara',
-   '$9', 'media-demo-knots', 'Gluten, Dairy', 'Vegetarian', 1, 2),
+   9, 'media-demo-knots', 'Gluten, Dairy', 'Vegetarian', 1, 2),
   ('mi-7', 'menu-demo', 'Pasta & Salads', 'Little Gem Caesar', 'little-gem-caesar',
    'Little gem lettuce, anchovy dressing, sourdough crumbs, shaved pecorino',
-   '$14', NULL, 'Gluten, Dairy, Fish', NULL, 1, 1),
+   14, NULL, 'Gluten, Dairy, Fish', NULL, 1, 1),
   ('mi-8', 'menu-demo', 'Pasta & Salads', 'Rigatoni Pomodoro', 'rigatoni-pomodoro',
    'Rigatoni, slow tomato sauce, basil, parmesan',
-   '$19', NULL, 'Gluten, Dairy', 'Vegetarian', 1, 2),
+   19, NULL, 'Gluten, Dairy', 'Vegetarian', 1, 2),
   ('mi-9', 'menu-demo', 'Drinks', 'Sparkling Lemonade', 'sparkling-lemonade',
    'House lemon cordial, soda, rosemary',
-   '$6', NULL, NULL, 'Vegan, Gluten-free', 1, 1),
+   6, NULL, NULL, 'Vegan, Gluten-free', 1, 1),
   ('mi-10', 'menu-demo', 'Drinks', 'Italian Soda', 'italian-soda',
    'Blood orange, grapefruit, or limonata',
-   '$5', NULL, NULL, 'Vegan, Gluten-free', 1, 2),
+   5, NULL, NULL, 'Vegan, Gluten-free', 1, 2),
   ('mi-demo2-1', 'menu-demo-2', 'Wood-Fired Pizza', 'Margherita', 'margherita',
    'San Marzano tomato, fior di latte, basil, extra virgin olive oil, sea salt',
-   '$18', 'media-demo-margherita', 'Gluten, Dairy', 'Vegetarian', 1, 1),
+   18, 'media-demo-margherita', 'Gluten, Dairy', 'Vegetarian', 1, 1),
   ('mi-demo2-2', 'menu-demo-2', 'Wood-Fired Pizza', 'Pepperoni Calabrese', 'pepperoni-calabrese',
    'Tomato, mozzarella, cupping pepperoni, Calabrian chile, oregano',
-   '$21', 'media-demo-pepperoni', 'Gluten, Dairy', NULL, 1, 2),
+   21, 'media-demo-pepperoni', 'Gluten, Dairy', NULL, 1, 2),
   ('mi-demo2-3', 'menu-demo-2', 'Antipasti', 'Burrata', 'burrata',
    'Creamy burrata, roasted cherry tomatoes, basil oil, grilled sourdough',
-   '$16', 'media-demo-burrata', 'Gluten, Dairy', 'Vegetarian', 1, 1),
-  ('mi-demo2-4', 'menu-demo-2', 'Drinks', 'Fresh Coconut Water', 'fresh-coconut',
-   'Whole chilled fresh coconut from local organic farms',
-   '$8', NULL, NULL, 'Vegan, Gluten-free', 1, 1);
--- Note: USD pricing for Ao Nang (Thailand) location is intentional for demo purposes to test multi-currency display
+   16, 'media-demo-burrata', 'Gluten, Dairy', 'Vegetarian', 1, 1),
+  ('mi-demo2-4', 'menu-demo-2', 'Drinks', 'Sparkling Lemonade', 'sparkling-lemonade',
+   'House lemon cordial, soda, rosemary',
+   6, NULL, NULL, 'Vegan, Gluten-free', 1, 1);
 
 -- Location Q&A
 INSERT INTO location_qa
@@ -356,13 +365,13 @@ VALUES
    'Yes. We hold room for walk-ins, but reservations are recommended for dinner and weekends.',
    'Ember & Slice Brooklyn', 1, 14, 'manual', 'published', 1),
   ('qa-demo2-1', 'org-demo', 'site-demo', 'loc-demo-2',
-   'Do you offer beach seating?', 'Beach Lover',
-   'Absolutely! We have beach bags and outdoor terrace tables right next to the sand.',
-   'Ember & Slice Ao Nang', 1, 8, 'manual', 'published', 1),
+   'Do you offer outdoor seating?', 'Outdoor Diner',
+   'Absolutely! We have a lovely patio setup for the warmer months.',
+   'Ember & Slice West Village', 1, 8, 'manual', 'published', 1),
   ('qa-demo2-2', 'org-demo', 'site-demo', 'loc-demo-2',
    'Do you offer gluten-free crust?', 'Coeliac Foodie',
    'Yes, we offer gluten-free crust for any of our wood-fired pizzas for an additional charge.',
-   'Ember & Slice Ao Nang', 1, 5, 'manual', 'published', 2),
+   'Ember & Slice West Village', 1, 5, 'manual', 'published', 2),
   ('qa-demo-2', 'org-demo', 'site-demo', 'loc-demo',
    'Do you offer gluten-free crust?', 'Another Guest',
    'Not yet. Our dough room uses wheat flour all day, so we cannot safely guarantee a gluten-free crust.',
@@ -523,5 +532,3 @@ VALUES ('org-demo', 500, 127, '2026-05-01T00:00:00.000Z');
 -- Billing
 INSERT INTO organization_billing (id, organization_id, status, plan)
 VALUES ('billing-demo', 'org-demo', 'free', 'free');
-
-COMMIT;

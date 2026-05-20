@@ -142,10 +142,10 @@
 import { DEFAULT_RESTAURANT_NAME } from '~/config/constants'
 import { getTodayGoogleHours } from '~/utils/formatters'
 
-const { isPlatform, siteId, site } = useTenantSite()
+const { isPlatform, site } = useTenantSite()
 
 // Shared bootstrap — same key as the page → zero extra SSR requests
-const { locations: bootstrapLocations, getField: getContentField, data: bootstrapData, error: bootstrapError } = useBootstrap()
+const { locations: bootstrapLocations, error: bootstrapError, config: siteConfig } = useBootstrap()
 const locationsError = computed(() => bootstrapError.value)
 const year = new Date().getFullYear()
 const logoUrl = computed(() => (site as { logo_url?: string | null } | null)?.logo_url || null)
@@ -155,7 +155,6 @@ const restaurantName = computed(() => {
   }
   return DEFAULT_RESTAURANT_NAME
 })
-const siteConfig = bootstrapData
 const tagline = computed(() => siteConfig.value?.footer_tagline || '')
 const sitePlan = computed(() => (site as { plan?: string | null } | null)?.plan)
 const showBrandingCredit = computed(() => !isPlatform && sitePlan.value === 'free')
@@ -211,10 +210,6 @@ interface PublicLocation {
   grab_url?: string | null
   uber_eats_url?: string | null
   foodpanda_url?: string | null
-}
-
-interface PublicLocationsResponse {
-  locations: PublicLocation[]
 }
 
 const allSocials = computed<SocialLink[]>(() => [

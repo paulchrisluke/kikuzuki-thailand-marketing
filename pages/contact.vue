@@ -18,7 +18,10 @@
         </header>
 
         <!-- Top grid: form (wide) + dark aside -->
-        <div class="mx-auto grid max-w-7xl gap-6 px-4 pb-6 sm:px-6 lg:grid-cols-[1.6fr_1fr] lg:px-8">
+        <div
+          class="mx-auto grid max-w-7xl gap-6 px-4 pb-6 sm:px-6 lg:px-8"
+          :class="(hasAnyBrandContact || activeSocials.length) ? 'lg:grid-cols-[1.6fr_1fr]' : 'lg:grid-cols-1'"
+        >
 
           <!-- MESSAGE FORM -->
           <section class="border border-default bg-default p-10 lg:p-11">
@@ -75,8 +78,8 @@
             </UForm>
           </section>
 
-          <!-- DARK ASIDE: brand contact + social -->
-          <aside class="bg-inverted p-10 text-inverted lg:p-11">
+          <!-- DARK ASIDE: brand contact + social — hidden when no emails or socials configured -->
+          <aside v-if="hasAnyBrandContact || activeSocials.length" class="bg-inverted p-10 text-inverted lg:p-11">
             <p class="saya-eyebrow mb-4 text-inverted/60">Brand inquiries</p>
             <h2 class="saya-display saya-italic text-3xl text-inverted">Or reach us direct.</h2>
 

@@ -475,6 +475,7 @@
 <script setup>
 import { useAuth } from '~/composables/useAuth'
 import { useOrganizationSchema } from '~/composables/useSchemaOrg'
+import { formatMoneyAmount } from '~/shared/money'
 const DOMPurify = import.meta.client ? (await import('isomorphic-dompurify')).default : { sanitize: (s) => s }
 
 definePageMeta({ layout: false })
@@ -514,6 +515,7 @@ const {
   googleBusiness: bootstrapGB,
   getField,
   getHero,
+  config: bootstrapConfig,
   menuItemsBySection,
 } = useBootstrap()
 
@@ -523,8 +525,19 @@ const hasOrderLinks = computed(() =>
   locations.value.some(loc => loc.grab_url || loc.uber_eats_url || loc.foodpanda_url)
 )
 
-// Google Business from bootstrap
-const googleBusiness = bootstrapGB
+const googleBusiness = computed(() => {
+  const gb = bootstrapGB.value
+  if (!gb) return null
+  return {
+    ...gb,
+    media: gb.media && gb.media.length ? gb.media : [{ google_url: gb.business?.profile?.photoUrl || '' }],
+    reviews: (gb.reviews || []).map((r) => ({
+      ...r,
+      author_name: r.author || r.reviewer?.displayName || r.author_name || 'Anonymous',
+      date: r.date || r.createTime || r.updateTime
+    }))
+  }
+})
 
 const starRatingMap = { ONE: 1, TWO: 2, THREE: 3, FOUR: 4, FIVE: 5 }
 const businessTitle = computed(() => googleBusiness.value?.business?.title ?? null)
@@ -586,8 +599,11 @@ if (!isPlatform && siteId) {
 }
 
 // Single-location tenants: redirect "/" to the location home
-if (!isPlatform && bootstrapLocations.value.length === 1) {
-  await navigateTo(`/locations/${bootstrapLocations.value[0].slug}`, { replace: true, redirectCode: 301 })
+if (import.meta.server && !isPlatform && bootstrapLocations.value.length === 1) {
+  const targetPath = `/locations/${bootstrapLocations.value[0].slug}`
+  if (useRoute().path !== targetPath) {
+    await navigateTo(targetPath, { replace: true, redirectCode: 301 })
+  }
 }
 
 // Featured menu items from bootstrap menu
@@ -604,6 +620,7 @@ const featuredMenuItems = computed(() => {
     })
   return (featured.length > 0 ? featured : allItems.filter(item => item.available !== false)).slice(0, 6)
 })
+const defaultCurrency = computed(() => bootstrapConfig.value.default_currency || 'THB')
 
 // Review location filter
 const reviewFilter = ref('all')
@@ -637,7 +654,7 @@ const highlights = computed(() => {
     tiles.push({
       type: 'dish',
       name: item.name,
-      price: item.price,
+      price: formatMoneyAmount(item.price_amount, defaultCurrency.value, ''),
       image: item.public_url || null,
       imageKind: item.kind || 'image',
       alt: item.name ? `${item.name} dish` : 'Featured dish image'

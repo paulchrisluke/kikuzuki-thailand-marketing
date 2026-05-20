@@ -117,22 +117,6 @@ definePageMeta({ layout: 'saya' })
 
 type AddressInput = string | { addressLines?: string[]; locality?: string; administrativeArea?: string; postalCode?: string } | null | undefined
 
-interface Location {
-  id: string
-  slug: string
-  title: string
-  city?: string
-  address?: AddressInput
-  public_url?: string
-  kind?: string
-  open_now?: boolean
-  hours_today?: string
-}
-
-interface LocationsResponse {
-  locations: Location[]
-}
-
 const { siteId, site } = useTenantSite()
 if (!siteId) throw createError({ statusCode: 404 })
 const { isAuthenticated } = useAuth()

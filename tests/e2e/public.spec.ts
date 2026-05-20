@@ -3,12 +3,16 @@ import { collectPageErrors, expectHealthyPage, tenantBaseURL } from './helpers'
 
 const tenantRoutes = [
   { path: '/', title: /Ember & Slice/, text: 'Ember & Slice' },
+  { path: '/locations', title: /Locations/, text: 'Locations' },
   { path: '/locations/brooklyn', title: /Ember & Slice Brooklyn \| Locations/, text: 'Ember & Slice Brooklyn' },
+  { path: '/locations/west-village', title: /Ember & Slice West Village \| Locations/, text: 'Ember & Slice West Village' },
   { path: '/locations/brooklyn/photos', title: /Photos .* Ember & Slice Brooklyn/, text: 'Inside' },
   { path: '/locations/brooklyn/menu', title: /Menu .* Ember & Slice Brooklyn/, text: 'Menu' },
   { path: '/locations/brooklyn/reviews', title: /Reviews .* Ember & Slice Brooklyn/, text: 'Reviews' },
   { path: '/locations/brooklyn/qa', title: /Questions and answers/, text: 'Frequently asked' },
   { path: '/locations/brooklyn/contact', title: /Plan a visit .* Ember & Slice Brooklyn/, text: 'Visit' },
+  { path: '/about', title: /About|Story|Ember/, text: 'Ember' },
+  { path: '/posts', title: /Updates|Posts|Ember/, text: 'Ember' },
   { path: '/reservations', title: /Reserve a Table/, text: 'Make a Reservation' },
   { path: '/contact', title: /Contact/, text: 'Send a message' }
 ]

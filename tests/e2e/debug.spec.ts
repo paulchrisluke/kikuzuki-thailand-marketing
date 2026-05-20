@@ -12,7 +12,7 @@ test('capture client-side error details with console logs', async ({ page }) => 
   })
 
   console.log('Navigating to production page...')
-  await page.goto('https://demo.krabiclaw.com/', { waitUntil: 'load' })
+  await page.goto('/', { waitUntil: 'load' })
   
   console.log('Waiting 5 seconds for hydration crash to render error page...')
   await page.waitForTimeout(5000)

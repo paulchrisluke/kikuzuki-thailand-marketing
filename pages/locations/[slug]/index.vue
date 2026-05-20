@@ -178,7 +178,7 @@
             <div v-else class="mb-5 aspect-4/3 bg-muted" />
             <div class="saya-display saya-italic text-2xl text-default">{{ item.name }}</div>
             <div v-if="item.description" class="mt-2 text-sm leading-relaxed text-muted">{{ item.description }}</div>
-            <div v-if="item.price" class="mt-3 text-sm tabular-nums text-default">{{ item.price }}</div>
+            <div v-if="item.price_amount" class="mt-3 text-sm tabular-nums text-default">{{ formatFeaturedPrice(item.price_amount) }}</div>
           </article>
         </div>
         <div class="mt-12 text-center">
@@ -308,8 +308,9 @@
 
 <script setup lang="ts">
 import { formatGoogleHours, getTodayGoogleHours, getIsOpenNow } from '~/utils/formatters'
+import { formatMoneyAmount } from '~/shared/money'
 
-const DOMPurify = import.meta.client ? (await import('isomorphic-dompurify')).default : { sanitize: (s: any) => s }
+const DOMPurify = import.meta.client ? (await import('isomorphic-dompurify')).default : { sanitize: (s: string) => s }
 
 const { resolveMedia } = useMedia()
 definePageMeta({ layout: 'saya' })
@@ -381,6 +382,9 @@ const featuredItems = computed(() => {
   return items.filter((i: ApiRecord) => i.featured || i.available !== false).slice(0, 3)
 })
 
+const defaultCurrency = computed(() => bootstrapData.value?.config?.default_currency || 'THB')
+const formatFeaturedPrice = (amount: unknown) => formatMoneyAmount(amount, defaultCurrency.value, '')
+
 // Content hero fields take precedence; fall back to Google Business primary photo
 const contentHero = computed(() => getContentHero({ title: '', subtitle: '', image: '', video: '' }))
 const heroMedia = computed(() => {
@@ -438,7 +442,7 @@ useSeoMeta({
 useSchemaOrg([
   computed(() => {
     const loc = location.value
-    if (!loc) return {}
+    if (!loc) return undefined
     return {
       '@type': ['Restaurant', 'LocalBusiness'],
       name: `${siteName.value} — ${loc.title}`,

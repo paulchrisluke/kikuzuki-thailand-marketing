@@ -19,30 +19,29 @@ export interface BootstrapParams {
 export const useBootstrapParams = (): BootstrapParams => {
   const route = useRoute()
 
-  return computed(() => {
-    const path = route.path
+  const path = route.path
 
-    // Location sub-pages: /locations/[slug]/*
-    const locationMatch = path.match(/^\/locations\/([^/]+)/)
-    if (locationMatch) {
-      const slug = locationMatch[1]
-      const sub = path.split('/')[3] // menu, contact, reviews, photos, qa, undefined
-      const page = sub || 'location'
-      const includeMenu = page === 'location' || page === 'menu'
-      const fullData = (page === 'reviews' || page === 'photos' || page === 'qa') ? page : null
-      return { page, location: slug ?? null, menu: includeMenu, data: fullData }
-    }
+  // Location sub-pages: /locations/[slug]/*
+  const locationMatch = path.match(/^\/locations\/([^/]+)/)
+  if (locationMatch) {
+    const slug = locationMatch[1]
+    const segments = path.split('/')
+    const sub = segments.length > 3 ? segments[3] : undefined
+    const page = sub || 'location'
+    const includeMenu = page === 'location' || page === 'menu'
+    const fullData = (page === 'reviews' || page === 'photos' || page === 'qa') ? page : null
+    return { page, location: slug ?? null, menu: includeMenu, data: fullData }
+  }
 
-    // Top-level pages
-    if (path === '/' || path === '') return { page: 'home', location: null, menu: true, data: null }
-    if (path.startsWith('/locations')) return { page: 'locations', location: null, menu: true, data: null }
-    if (path.startsWith('/about')) return { page: 'about', location: null, menu: false, data: null }
-    if (path.startsWith('/contact')) return { page: 'contact', location: null, menu: false, data: null }
-    if (path.startsWith('/reservations')) return { page: 'reservations', location: null, menu: false, data: null }
-    if (path.startsWith('/order')) return { page: 'order', location: null, menu: false, data: null }
+  // Top-level pages
+  if (path === '/' || path === '') return { page: 'home', location: null, menu: true, data: null }
+  if (path.startsWith('/locations')) return { page: 'locations', location: null, menu: true, data: null }
+  if (path.startsWith('/about')) return { page: 'about', location: null, menu: false, data: null }
+  if (path.startsWith('/contact')) return { page: 'contact', location: null, menu: false, data: null }
+  if (path.startsWith('/reservations')) return { page: 'reservations', location: null, menu: false, data: null }
+  if (path.startsWith('/order')) return { page: 'order', location: null, menu: false, data: null }
 
-    return { page: null, location: null, menu: false, data: null }
-  }).value
+  return { page: null, location: null, menu: false, data: null }
 }
 
 export const useBootstrapKey = (siteId: string | null | undefined, params: BootstrapParams) =>

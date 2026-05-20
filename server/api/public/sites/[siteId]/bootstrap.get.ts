@@ -57,8 +57,8 @@ export default defineEventHandler(async (event) => {
 
   // One-time site auth — PK lookup, fast
   const site = await db.prepare(
-    `SELECT id, organization_id FROM sites WHERE id = ? AND status = 'active' AND onboarding_status = 'active' LIMIT 1`
-  ).bind(siteId).first<{ id: string; organization_id: string }>()
+    `SELECT id, organization_id, default_currency FROM sites WHERE id = ? AND status = 'active' AND onboarding_status = 'active' LIMIT 1`
+  ).bind(siteId).first<{ id: string; organization_id: string; default_currency: string | null }>()
 
   if (!site) return jsonResponse({ error: 'Site not found' }, { status: 404 })
   const orgId = site.organization_id
@@ -73,7 +73,7 @@ export default defineEventHandler(async (event) => {
   }
 
   // Run all D1 queries in parallel
-  const [locRows, configRows, reviewRows, postRows, contentRows, menuData, locationReviewRows, fullReviewRows, photoRows, qaRows] = await Promise.all([
+  const [locRows, configRows, reviewRows, postRows, contentRows, menuData, locationReviewRows, fullReviewRows, photoRows, qaRows, localeRows, experienceCount] = await Promise.all([
     // All active locations + hero image
     db.prepare(`
       SELECT bl.id, bl.slug, bl.title, bl.address, bl.phone, bl.website_url, bl.maps_url,
@@ -123,12 +123,12 @@ export default defineEventHandler(async (event) => {
     `).bind(locationId, siteId).all<Record<string, unknown>>() : Promise.resolve({ results: [] as Record<string, unknown>[] }),
 
     // Full reviews list (type A — only for reviews page)
-    locationId && dataType === 'reviews' ? db.prepare(`
+    siteId && locationId && dataType === 'reviews' ? db.prepare(`
       SELECT id, author_name, reviewer_photo_url, rating, title, content,
              owner_reply, owner_reply_at, photo_urls, source, created_at
-      FROM reviews WHERE location_id = ? AND status = 'approved'
+      FROM reviews WHERE location_id = ? AND site_id = ? AND status = 'approved'
       ORDER BY created_at DESC LIMIT 50
-    `).bind(locationId).all<ReviewRow>() : Promise.resolve({ results: [] as ReviewRow[] }),
+    `).bind(locationId, siteId).all<ReviewRow>() : Promise.resolve({ results: [] as ReviewRow[] }),
 
     // Photos list (type E — only for photos page)
     locationId && dataType === 'photos' ? db.prepare(`
@@ -139,13 +139,27 @@ export default defineEventHandler(async (event) => {
     `).bind(siteId, locationId).all<Record<string, unknown>>() : Promise.resolve({ results: [] as Record<string, unknown>[] }),
 
     // Q&A list (type F — only for qa page)
-    locationId && dataType === 'qa' ? db.prepare(`
+    siteId && locationId && dataType === 'qa' ? db.prepare(`
       SELECT id, question, question_author, question_date,
              answer, answer_author, answer_date, is_owner_answer, upvote_count
       FROM location_qa
-      WHERE location_id = ? AND status = 'published'
+      WHERE location_id = ? AND site_id = ? AND status = 'published'
       ORDER BY is_owner_answer DESC, upvote_count DESC, sort_order, created_at
-    `).bind(locationId).all<Record<string, unknown>>() : Promise.resolve({ results: [] as Record<string, unknown>[] }),
+    `).bind(locationId, siteId).all<Record<string, unknown>>() : Promise.resolve({ results: [] as Record<string, unknown>[] }),
+
+    // Site locales for language switching
+    db.prepare(`
+      SELECT locale, label, is_source, status
+      FROM site_locales
+      WHERE organization_id = ? AND site_id = ?
+        AND (is_source = 1 OR status = 'published')
+      ORDER BY is_source DESC, locale ASC
+    `).bind(orgId, siteId).all<{ locale: string; label: string | null; is_source: number; status: string }>(),
+
+    // Experiences count — header nav link visibility
+    db.prepare(`
+      SELECT COUNT(*) AS cnt FROM experiences WHERE site_id = ? AND status = 'active'
+    `).bind(siteId).first<{ cnt: number }>(),
   ])
 
   // Shape locations
@@ -184,6 +198,7 @@ export default defineEventHandler(async (event) => {
   const config = Object.fromEntries(
     (configRows.results ?? []).map(({ key, value }) => [key, value])
   )
+  config.default_currency = site.default_currency || 'THB'
 
   const primary = (locRows.results ?? []).find(l => l.is_primary) ?? locRows.results?.[0] ?? null
 
@@ -257,5 +272,12 @@ export default defineEventHandler(async (event) => {
     ...(dataType === 'photos' ? { photosList: photos } : {}),
     // Type F — Q&A for /locations/[slug]/qa
     ...(dataType === 'qa' ? { qaList: qaRows?.results ?? [] } : {}),
+    // Site locales + experiences — always included for header/nav
+    locales: (localeRows?.results ?? []).map(l => ({
+      code: l.locale,
+      label: l.label ?? l.locale,
+      is_source: Boolean(l.is_source),
+    })),
+    hasExperiences: (experienceCount?.cnt ?? 0) > 0,
   })
 })

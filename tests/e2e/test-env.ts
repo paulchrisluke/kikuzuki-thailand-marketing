@@ -39,7 +39,8 @@ function readFileEnv() {
 export const testEnv = (key: string): string => process.env[key] ?? readFileEnv()[key] ?? ''
 
 export function testBaseUrl() {
-  const port = Number(testEnv('PORT') || 3000)
+  let port = Number.parseInt(testEnv('PORT') ?? '', 10)
+  if (Number.isNaN(port) || port <= 0) port = 3000
   return testEnv('NUXT_PUBLIC_FREE_SITE_DOMAIN') || `http://localhost:${port}`
 }
 

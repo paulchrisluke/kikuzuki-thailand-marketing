@@ -208,7 +208,7 @@ if (!siteId) throw createError({ statusCode: 404 })
 const slug = computed(() => String(route.params.slug))
 const siteName = computed(() => (site as ApiValue)?.name || 'Saya')
 
-const { location, locationReviews, reviewsAggregate, reviewsList, data: bootstrapData } = useBootstrap()
+const { location, reviewsAggregate, reviewsList, data: bootstrapData } = useBootstrap()
 const pending = computed(() => !bootstrapData.value)
 const aggregate = reviewsAggregate
 const reviews = reviewsList

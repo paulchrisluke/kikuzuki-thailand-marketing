@@ -36,6 +36,8 @@ interface BootstrapPayload {
   reviewsList: ApiRecord[]
   photosList: ApiRecord[]
   qaList: ApiRecord[]
+  locales: { code: string; label: string; is_source: boolean }[]
+  hasExperiences: boolean
 }
 
 const emptyBootstrap = (): BootstrapPayload => ({
@@ -49,6 +51,8 @@ const emptyBootstrap = (): BootstrapPayload => ({
   reviewsList: [],
   photosList: [],
   qaList: [],
+  locales: [],
+  hasExperiences: false,
 })
 
 export const useBootstrap = () => {
@@ -61,9 +65,18 @@ export const useBootstrap = () => {
 
   const empty = emptyBootstrap()
 
+  const nuxtApp = useNuxtApp()
   const { data, error } = (isPlatform || !siteId)
     ? { data: ref<BootstrapPayload>(empty), error: ref<Error | null>(null) }
-    : useFetch<BootstrapPayload>(url, { key, default: emptyBootstrap, server: true })
+    : useAsyncData<BootstrapPayload>(key, () => $fetch<BootstrapPayload>(url), {
+        default: emptyBootstrap,
+        server: true,
+        // Return payload data if already fetched this key — prevents re-fetch across
+        // header/footer/page calling the same key in the same render cycle.
+        getCachedData(k) {
+          return nuxtApp.payload.data[k] as BootstrapPayload | undefined
+        },
+      })
 
   // ── Locations ─────────────────────────────────────────────
   const locations = computed(() => (data.value?.locations ?? []) as ApiRecord[])
@@ -89,6 +102,10 @@ export const useBootstrap = () => {
   const photosList = computed(() => (data.value?.photosList ?? []) as ApiRecord[])
   const qaList = computed(() => (data.value?.qaList ?? []) as ApiRecord[])
 
+  // ── Site locales + experiences flag ──────────────────────
+  const locales = computed(() => data.value?.locales ?? [])
+  const hasExperiences = computed(() => data.value?.hasExperiences ?? false)
+
   // ── Content ───────────────────────────────────────────────
   const contentMap = computed(() => {
     const rows = (data.value?.content ?? []) as ContentRow[]
@@ -109,20 +126,22 @@ export const useBootstrap = () => {
       }
     })
 
+    const handler = (e: MessageEvent) => {
+      if (!isPreview.value) return
+      if (!expectedOrigin.value) return
+      if (e.origin !== expectedOrigin.value) return
+      const msg = e.data
+      if (msg?.type !== 'admin:content-update') return
+      if (typeof msg.field !== 'string' || typeof msg.value !== 'string') return
+      previewOverrides.value = { ...previewOverrides.value, [msg.field]: msg.value }
+    }
+
     onMounted(() => {
-      const handler = (e: MessageEvent) => {
-        if (!isPreview.value) return
-        if (!expectedOrigin.value) return
-        if (e.origin !== expectedOrigin.value) return
-        const msg = e.data
-        if (msg?.type !== 'admin:content-update') return
-        if (typeof msg.field !== 'string' || typeof msg.value !== 'string') return
-        previewOverrides.value = { ...previewOverrides.value, [msg.field]: msg.value }
-      }
       window.addEventListener('message', handler)
-      onBeforeUnmount(() => {
-        window.removeEventListener('message', handler)
-      })
+    })
+    
+    onBeforeUnmount(() => {
+      window.removeEventListener('message', handler)
     })
   }
 
@@ -183,6 +202,8 @@ export const useBootstrap = () => {
     reviewsList,
     photosList,
     qaList,
+    locales,
+    hasExperiences,
     getField,
     getFieldStr,
     getHero,

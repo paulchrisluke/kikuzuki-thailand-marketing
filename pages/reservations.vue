@@ -294,8 +294,8 @@ useBreadcrumbSchema([
 
 const brandName = computed(() => (site as ApiValue)?.brand_name || (site as ApiValue)?.title || 'Restaurant')
 useSeoMeta({
-  title: `${brandName.value} | Reserve a Table`,
-  description: `Reserve a table at ${brandName.value}.`,
+  title: computed(() => `${brandName.value} | Reserve a Table`),
+  description: computed(() => `Reserve a table at ${brandName.value}.`),
   ogImage: sharedOgImage,
   ogUrl: currentPageUrl,
   ogType: 'website'

@@ -180,7 +180,7 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown))
 const config = useRuntimeConfig()
 const siteUrl = config.public.siteUrl
 const currentPageUrl = useSeoUrl(() => `/locations/${slug.value}/photos`)
-const ogImage = useSharedOgImage(() => photos.value[0]?.google_url)
+const ogImage = useSharedOgImage(() => photos.value[0]?.local_url || photos.value[0]?.google_url || photos.value[0]?.thumbnail_url)
 
 function toAbsoluteUrl(value?: string | null): string | null {
   if (!value) return null

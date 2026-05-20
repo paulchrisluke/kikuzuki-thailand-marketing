@@ -108,7 +108,7 @@ export default defineEventHandler(async (event) => {
     // Parse JSON fields and return public-safe data
     const parsedLocations = locationRows.map((location) => {
       const public_url = (location.hero_video_public_url || location.hero_image_public_url || null) as string | null
-      const kind = (location.hero_video_public_url ? 'video' : (location.hero_image_public_url ? 'image' : 'image')) as string
+      const kind = public_url ? (location.hero_video_public_url ? 'video' : 'image') : null
       return {
         id: location.id,
         slug: location.slug,

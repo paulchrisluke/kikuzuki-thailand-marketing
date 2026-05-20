@@ -114,7 +114,7 @@
                     >{{ tag }}</UBadge>
                   </div>
                   <div class="saya-dotted-leader" />
-                  <div class="shrink-0 tabular-nums text-base text-default">{{ item.price || '—' }}</div>
+                  <div class="shrink-0 tabular-nums text-base text-default">{{ formatMenuPrice(item.price_amount, '—') }}</div>
                 </div>
                 <p v-if="item.description" class="mt-1.5 max-w-xl text-sm leading-relaxed text-muted">
                   {{ item.description }}
@@ -140,6 +140,8 @@
 </template>
 
 <script setup lang="ts">
+import { formatMoneyAmount } from '~/shared/money'
+
 definePageMeta({ layout: 'saya' })
 
 const route = useRoute()
@@ -153,7 +155,7 @@ const siteName = computed(() => (site as ApiValue)?.name || 'Saya')
 
 const { location, menu: bootstrapMenu, menuItemsBySection, data: bootstrapData } = useBootstrap()
 const menuLoading = computed(() => !bootstrapData.value)
-const hasMenu = computed(() => bootstrapMenu.value && (bootstrapMenu.value as { items?: unknown[] }).items?.length > 0)
+const hasMenu = computed(() => ((bootstrapMenu.value as { items?: unknown[] } | null)?.items?.length ?? 0) > 0)
 
 const menuUpdated = computed(() => {
   const d = bootstrapMenu.value?.updated_at
@@ -229,8 +231,12 @@ useSeoMeta({
 const locationCurrency = computed(() => {
   const loc = location.value as ApiValue
   if (loc?.currency && typeof loc.currency === 'string') return loc.currency
+  const currency = (bootstrapData.value?.config as Record<string, string> | undefined)?.default_currency
+  if (currency) return currency
   return 'THB'
 })
+
+const formatMenuPrice = (amount: unknown, emptyLabel = 'TBD') => formatMoneyAmount(amount, locationCurrency.value, emptyLabel)
 
 useSchemaOrg([
   computed(() => ({
@@ -246,8 +252,8 @@ useSchemaOrg([
           description: item.description
         }
         // Only include offers if price is valid
-        if (item.price !== null && item.price !== undefined && item.price !== '') {
-          menuItem.offers = { '@type': 'Offer', price: item.price, priceCurrency: locationCurrency.value }
+        if (item.price_amount !== null && item.price_amount !== undefined && item.price_amount !== '') {
+          menuItem.offers = { '@type': 'Offer', price: item.price_amount, priceCurrency: locationCurrency.value }
         }
         return menuItem
       })
