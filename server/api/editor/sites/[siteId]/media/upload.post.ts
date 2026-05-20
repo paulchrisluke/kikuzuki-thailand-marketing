@@ -57,6 +57,34 @@ function sniffMimeType(data: Uint8Array): string {
   return 'application/octet-stream'
 }
 
+async function assertPublicMediaUrl(publicUrl: string, expectedContentType: string): Promise<void> {
+  const controller = new AbortController()
+  const timeout = setTimeout(() => controller.abort(), 8_000)
+  try {
+    const response = await fetch(publicUrl, {
+      method: 'GET',
+      headers: { range: 'bytes=0-0' },
+      signal: controller.signal,
+    })
+
+    if (response.status !== 200 && response.status !== 206) {
+      throw new Error(`Public media URL returned HTTP ${response.status}`)
+    }
+
+    const actualContentType = response.headers.get('content-type')?.split(';', 1)[0]?.toLowerCase()
+    if (actualContentType && actualContentType !== expectedContentType) {
+      throw new Error(`Public media URL returned ${actualContentType}, expected ${expectedContentType}`)
+    }
+  } catch (error) {
+    if (error instanceof Error && error.name === 'AbortError') {
+      throw new Error('Public media URL verification timed out')
+    }
+    throw error
+  } finally {
+    clearTimeout(timeout)
+  }
+}
+
 export default defineEventHandler(async (event) => {
   try {
     const siteId = getRouterParam(event, 'siteId')
@@ -153,6 +181,7 @@ export default defineEventHandler(async (event) => {
     const publicUrl = await uploadToR2(env, r2Key, filePart.data, contentType)
 
     try {
+      await assertPublicMediaUrl(publicUrl, contentType)
       await createMediaAsset(db, {
         id: assetId,
         organization_id: site.organization_id,
@@ -170,7 +199,7 @@ export default defineEventHandler(async (event) => {
         status: 'active',
         created_by_user_id: session.user.id,
       })
-    } catch (dbError) {
+    } catch (persistError) {
       try {
         await deleteFromR2(env, r2Key)
       } catch (cleanupError) {
@@ -182,7 +211,7 @@ export default defineEventHandler(async (event) => {
           error: normalizedCleanupError.message,
         })
       }
-      throw dbError
+      throw persistError
     }
 
     return jsonResponse({ id: assetId, publicUrl, kind, status: 'active' })

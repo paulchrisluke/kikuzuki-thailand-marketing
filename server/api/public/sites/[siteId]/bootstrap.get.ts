@@ -74,16 +74,18 @@ export default defineEventHandler(async (event) => {
 
   // Run all D1 queries in parallel
   const [locRows, configRows, reviewRows, postRows, contentRows, menuData, locationReviewRows, fullReviewRows, photoRows, qaRows, localeRows, experienceCount] = await Promise.all([
-    // All active locations + hero image
+    // All active locations + hero media
     db.prepare(`
       SELECT bl.id, bl.slug, bl.title, bl.address, bl.phone, bl.website_url, bl.maps_url,
              bl.latitude, bl.longitude, bl.opening_hours, bl.rating, bl.review_count,
              bl.is_primary, bl.status, bl.city, bl.neighborhood,
              bl.grab_url, bl.uber_eats_url, bl.foodpanda_url,
              bl.description, bl.last_synced_at,
-             ma.public_url, ma.kind
+            ma_img.public_url AS hero_image_public_url,
+            ma_vid.public_url AS hero_video_public_url
       FROM business_locations bl
-      LEFT JOIN media_assets ma ON bl.hero_image_asset_id = ma.id AND ma.status = 'active'
+      LEFT JOIN media_assets ma_img ON bl.hero_image_asset_id = ma_img.id AND ma_img.status = 'active'
+      LEFT JOIN media_assets ma_vid ON bl.hero_video_asset_id = ma_vid.id AND ma_vid.status = 'active'
       WHERE bl.organization_id = ? AND bl.site_id = ? AND bl.status = 'active'
       ORDER BY bl.is_primary DESC, bl.title ASC
     `).bind(orgId, siteId).all<Record<string, unknown>>(),
@@ -163,37 +165,45 @@ export default defineEventHandler(async (event) => {
   ])
 
   // Shape locations
-  const locations = (locRows.results ?? []).map((loc) => ({
-    id: loc.id,
-    slug: loc.slug,
-    title: loc.title,
-    address: parseJson(loc.address as string | null),
-    phone: loc.phone,
-    website_url: loc.website_url,
-    maps_url: loc.maps_url,
-    map_embed_url: calculateMapEmbedUrl({
-      title: loc.title as string,
-      maps_url: loc.maps_url as string | null,
-      latitude: loc.latitude as number | null,
-      longitude: loc.longitude as number | null,
-      address: loc.address as string | null,
-      city: loc.city as string | null,
-    }),
-    latitude: loc.latitude,
-    longitude: loc.longitude,
-    opening_hours: parseJson(loc.opening_hours as string | null),
-    rating: loc.rating,
-    review_count: loc.review_count,
-    is_primary: Boolean(loc.is_primary),
-    status: loc.status,
-    public_url: loc.public_url,
-    kind: (loc.kind as string) || 'image',
-    city: loc.city,
-    neighborhood: loc.neighborhood || null,
-    grab_url: loc.grab_url || null,
-    uber_eats_url: loc.uber_eats_url || null,
-    foodpanda_url: loc.foodpanda_url || null,
-  }))
+  const locations = (locRows.results ?? []).map((loc) => {
+    const heroVideoUrl = loc.hero_video_public_url as string | null
+    const heroImageUrl = loc.hero_image_public_url as string | null
+    const publicUrl = heroVideoUrl || heroImageUrl || null
+
+    return {
+      id: loc.id,
+      slug: loc.slug,
+      title: loc.title,
+      address: parseJson(loc.address as string | null),
+      phone: loc.phone,
+      website_url: loc.website_url,
+      maps_url: loc.maps_url,
+      map_embed_url: calculateMapEmbedUrl({
+        title: loc.title as string,
+        maps_url: loc.maps_url as string | null,
+        latitude: loc.latitude as number | null,
+        longitude: loc.longitude as number | null,
+        address: loc.address as string | null,
+        city: loc.city as string | null,
+      }),
+      latitude: loc.latitude,
+      longitude: loc.longitude,
+      opening_hours: parseJson(loc.opening_hours as string | null),
+      rating: loc.rating,
+      review_count: loc.review_count,
+      is_primary: Boolean(loc.is_primary),
+      status: loc.status,
+      public_url: publicUrl,
+      kind: publicUrl ? (heroVideoUrl ? 'video' : 'image') : null,
+      hero_image_public_url: heroImageUrl,
+      hero_video_public_url: heroVideoUrl,
+      city: loc.city,
+      neighborhood: loc.neighborhood || null,
+      grab_url: loc.grab_url || null,
+      uber_eats_url: loc.uber_eats_url || null,
+      foodpanda_url: loc.foodpanda_url || null,
+    }
+  })
 
   const config = Object.fromEntries(
     (configRows.results ?? []).map(({ key, value }) => [key, value])
