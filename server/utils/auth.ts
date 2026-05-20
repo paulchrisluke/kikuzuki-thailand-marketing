@@ -22,8 +22,6 @@ export interface CloudflareEnv {
   CLOUDFLARE_API_TOKEN?: string
   CLOUDFLARE_IMAGES_ACCOUNT_ID?: string
   CLOUDFLARE_IMAGES_API_TOKEN?: string
-  CF_STREAM_API_TOKEN?: string
-  CF_STREAM_CUSTOMER_SUBDOMAIN?: string
   CF_AIG_TOKEN?: string
   CF_ZONE_ID?: string
   CF_CUSTOM_HOSTNAMES_API_TOKEN?: string

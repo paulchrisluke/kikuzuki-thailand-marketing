@@ -460,7 +460,7 @@ const requiresLocationSelection = computed(() =>
 
 const contentQuery = computed(() => {
   const params = new URLSearchParams()
-  if (selectedLocationId.value) params.set('locationId', selectedLocationId.value)
+  if (currentPageIsLocationScoped.value && selectedLocationId.value) params.set('locationId', selectedLocationId.value)
   return params.toString()
 })
 const endpointWithContentScope = (path: string) =>
@@ -488,8 +488,22 @@ const applyRouteContentScope = () => {
   }
 
   const queryLocationId = route.query.locationId
-  if (typeof queryLocationId === 'string' && siteLocations.value.some(location => location.id === queryLocationId)) {
-    selectedLocationId.value = queryLocationId
+  const queryLocation = typeof queryLocationId === 'string'
+    ? siteLocations.value.find(location => location.id === queryLocationId)
+    : null
+
+  if (
+    currentPageIsLocationScoped.value &&
+    queryLocation
+  ) {
+    selectedLocationId.value = queryLocation.id
+  } else if (currentPageIsLocationScoped.value && siteLocations.value.length > 0) {
+    const primary = siteLocations.value.find(location => location.is_primary) ?? siteLocations.value[0]!
+    selectedLocationId.value = primary.id
+    router.replace({ path: route.path, query: { ...route.query, locationId: primary.id } })
+  } else if (!currentPageIsLocationScoped.value && queryLocationId !== undefined) {
+    selectedLocationId.value = null
+    router.replace({ path: route.path, query: { ...route.query, locationId: undefined } })
   }
 }
 const previewPagePath = computed(() => {
@@ -509,7 +523,7 @@ const iframeSrc = computed(() => {
   const url = new URL(previewPagePath.value, sitePreviewBaseUrl.value)
   url.searchParams.set('preview', 'true')
   if (previewToken.value) url.searchParams.set('token', previewToken.value)
-  if (selectedLocation.value) url.searchParams.set('location', selectedLocation.value.slug)
+  if (currentPageIsLocationScoped.value && selectedLocation.value) url.searchParams.set('location', selectedLocation.value.slug)
   if (previewReloadToken.value) url.searchParams.set('t', String(previewReloadToken.value))
   return url.toString()
 })
@@ -537,7 +551,15 @@ const onPageChange = async (oldPageId?: string) => {
 
 watch(selectedPageId, (newVal, oldVal) => {
   if (newVal !== oldVal) {
-    router.replace({ query: { ...route.query, page: newVal } })
+    const nextPageIsLocationScoped = contentRegistry[newVal]?.locationScoped === true
+    router.replace({
+      path: route.path,
+      query: {
+        ...route.query,
+        page: newVal,
+        locationId: nextPageIsLocationScoped ? selectedLocationId.value || undefined : undefined
+      }
+    })
     onPageChange(oldVal)
   }
 })
@@ -547,6 +569,10 @@ watch(selectedLocationId, async (newVal, oldVal) => {
     iframeLoading.value = true
     activeField.value = null
     const previousValues = { ...currentValues.value }
+
+    if (currentPageIsLocationScoped.value) {
+      router.replace({ path: route.path, query: { ...route.query, locationId: newVal || undefined } })
+    }
 
     if (requiresLocationSelection.value) return
     try {
