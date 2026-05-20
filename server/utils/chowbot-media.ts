@@ -185,7 +185,7 @@ export async function extractMenuFromMediaAsset(
           section: String(item.section || 'Menu').slice(0, 100),
           name: String(item.name || '').slice(0, 200),
           description: item.description ? String(item.description).slice(0, 500) : undefined,
-          price_amount: priceAmount ? String(priceAmount).slice(0, 50) : undefined,
+          price_amount: priceAmount !== null && priceAmount !== undefined ? String(priceAmount).slice(0, 50) : undefined,
         },
         `ai:${opts.userId}`
       )

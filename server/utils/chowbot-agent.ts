@@ -1519,11 +1519,23 @@ async function executeTool(
 
     case 'update_menu_item': {
       const updates: Record<string, string | boolean | number | null> = {}
-      for (const f of ['section', 'name', 'description', 'price_amount', 'image_asset_id', 'available', 'featured', 'featured_sort_order']) {
+      for (const f of ['section', 'name', 'description', 'price_amount', 'image_asset_id', 'available', 'featured', 'featured_sort_order', 'allergens', 'ingredients', 'dietary_notes', 'preparation', 'serving_note']) {
         if (input[f] !== undefined) updates[f] = input[f]
       }
       const item = await updateMenuItem(db, input.item_id, updates, userId)
-      return { id: item.id, name: item.name, price_amount: item.price_amount, available: item.available, featured: item.featured, featured_sort_order: item.featured_sort_order }
+      return {
+        id: item.id,
+        name: item.name,
+        price_amount: item.price_amount,
+        available: item.available,
+        featured: item.featured,
+        featured_sort_order: item.featured_sort_order,
+        allergens: item.allergens,
+        ingredients: item.ingredients,
+        dietary_notes: item.dietary_notes,
+        preparation: item.preparation,
+        serving_note: item.serving_note,
+      }
     }
 
     case 'delete_menu_item': {
