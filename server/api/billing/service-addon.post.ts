@@ -64,6 +64,10 @@ export default defineEventHandler(async (event) => {
   const orgId = userOrg.organizationId
   const orgSlug = userOrg.slug
 
+  if (!orgSlug) {
+    return jsonResponse({ error: 'Organization slug is missing' }, { status: 400 })
+  }
+
   await requireBillingAccess(env, db, orgId, session.user.id)
 
   const billing = await db.prepare(

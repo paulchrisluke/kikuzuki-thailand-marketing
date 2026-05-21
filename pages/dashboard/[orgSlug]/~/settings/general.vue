@@ -220,6 +220,7 @@ definePageMeta({ layout: 'dashboard' })
 const { data: sessionData } = useAuth()
 const route = useRoute()
 const toast = useToast()
+const dashboard = useDashboardRestaurant()
 const organizationsState = authClient.useListOrganizations()
 const organization = computed(() => unref(organizationsState)?.data?.[0] || null)
 const organizationRole = computed(() => {
@@ -282,6 +283,14 @@ function resetDeleteModal() {
 async function loadSiteIntegrations() {
   loadingIntegrations.value = true
   try {
+    if (!dashboard.state.value) await dashboard.refresh()
+    if (!dashboard.restaurant.value) {
+      whatsappPhone.value = null
+      whatsappForm.phone = ''
+      facebookConnection.value = { connected: false }
+      return
+    }
+
     const [notificationsRes, facebookRes] = await Promise.all([
       $fetch<{ success: boolean; notifications: { whatsapp_phone: string | null } }>('/api/dashboard/editor/notifications'),
       $fetch<FacebookConnectionStatus>('/api/integrations/facebook-pages/connection')

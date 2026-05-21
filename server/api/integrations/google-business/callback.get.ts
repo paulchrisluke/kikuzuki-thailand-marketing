@@ -47,7 +47,8 @@ export default defineEventHandler(async (event) => {
     }
 
     if (!organization?.slug) return `/dashboard?gb=${status}`
-    if (!locationId) return `/dashboard/${organization.slug}?gb=${status}`
+    const encodedOrgSlug = encodeURIComponent(organization.slug)
+    if (!locationId) return `/dashboard/${encodedOrgSlug}?gb=${status}`
 
     try {
       const location = await db.prepare(`
@@ -56,11 +57,11 @@ export default defineEventHandler(async (event) => {
         LIMIT 1
       `).bind(locationId, organizationId, siteId).first<{ slug: string }>()
       return location?.slug
-        ? `/dashboard/${organization.slug}/${location.slug}?gb=${status}`
-        : `/dashboard/${organization.slug}?gb=${status}`
+        ? `/dashboard/${encodedOrgSlug}/${encodeURIComponent(location.slug)}?gb=${status}`
+        : `/dashboard/${encodedOrgSlug}?gb=${status}`
     } catch (e) {
       console.error('Google Business redirect location query failed:', e)
-      return `/dashboard/${organization.slug}?gb=${status}`
+      return `/dashboard/${encodedOrgSlug}?gb=${status}`
     }
   }
 

@@ -33,9 +33,9 @@ async function loadDashboard() {
       loading.value = true
       dashboardError.value = null
       await dashboard.refresh()
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Failed to load dashboard data:', error)
-      dashboardError.value = error.message || 'Failed to load restaurant data.'
+      dashboardError.value = error instanceof Error ? error.message : 'Failed to load restaurant data.'
     } finally {
       loading.value = false
     }
@@ -63,7 +63,12 @@ async function sendRoutePrompt() {
   }
   if (!prompt.trim()) return
   promptSent.value = true
-  await chowBot.sendMessage(prompt)
+  try {
+    await chowBot.sendMessage(prompt)
+  } catch (err) {
+    console.error('Failed to send route prompt:', err)
+    promptSent.value = false
+  }
 }
 
 onMounted(async () => {

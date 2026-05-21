@@ -149,7 +149,13 @@ async function handleCheckoutCompleted(env: Record<string, string | undefined>, 
       console.error('Invalid service_addon metadata in checkout session:', session.id, { organizationId, addonType })
       return
     }
-    await handleServiceAddon(db, organizationId, addonType, session.payment_intent as string | null)
+    let paymentIntentId: string | null = null
+    if (typeof session.payment_intent === 'string') {
+      paymentIntentId = session.payment_intent
+    } else if (session.payment_intent && typeof session.payment_intent === 'object') {
+      paymentIntentId = typeof session.payment_intent.id === 'string' ? session.payment_intent.id : null
+    }
+    await handleServiceAddon(db, organizationId, addonType, paymentIntentId)
     return
   }
 

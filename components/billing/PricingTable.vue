@@ -39,7 +39,8 @@
     </div>
 
     <!-- Managed service callout -->
-    <div class="max-w-3xl mx-auto mt-20 relative overflow-hidden bg-gradient-to-br from-primary/5 via-elevated/40 to-(--kc-teal)/5 border border-default/70 backdrop-blur-md rounded-3xl p-8 sm:p-10 text-center shadow-lg hover:shadow-xl transition-shadow duration-300">
+    <UCard class="max-w-3xl mx-auto mt-20 relative overflow-hidden text-center bg-linear-to-br from-primary/5 via-elevated/40 to-(--kc-teal)/5 border-default/70 rounded-3xl shadow-lg hover:shadow-xl transition-shadow duration-300">
+      <div class="p-8 sm:p-10">
       <div class="absolute -top-24 -right-24 w-48 h-48 bg-primary/10 rounded-full blur-3xl opacity-40" />
       <div class="absolute -bottom-24 -left-24 w-48 h-48 bg-(--kc-teal)/10 rounded-full blur-3xl opacity-40" />
 
@@ -54,7 +55,8 @@
           Less than one hour of agency work per month — at a fraction of the cost.
         </p>
       </div>
-    </div>
+      </div>
+    </UCard>
 
     <!-- Feature comparison table -->
     <div class="max-w-5xl mx-auto mt-24">

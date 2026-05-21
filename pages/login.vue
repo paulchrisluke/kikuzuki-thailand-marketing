@@ -79,13 +79,12 @@ useSeoMeta({
   robots: 'noindex, nofollow'
 })
 
-const router = useRouter()
 const loading = ref(false)
 const error = ref(null)
 
 onMounted(async () => {
   const session = await authClient.getSession()
-  if (session?.data?.user) router.replace('/dashboard')
+  if (session?.data?.user) window.location.href = '/api/post-login'
 })
 
 const handleGoogleSignIn = async () => {
@@ -137,7 +136,7 @@ const handleVerifyOtp = async () => {
       code: code.value.trim(),
       callbackURL: '/api/post-login',
     })
-    router.push('/dashboard')
+    window.location.href = '/api/post-login'
   } catch (err) {
     error.value = err?.message ?? 'Invalid or expired code. Please try again.'
     code.value = ''

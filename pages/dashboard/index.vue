@@ -6,9 +6,9 @@ const dashboardError = ref<string | null>(null)
 
 try {
   if (!dashboard.state.value) await dashboard.refresh()
-} catch (error: any) {
+} catch (error: unknown) {
   console.error('Failed to refresh dashboard:', error)
-  dashboardError.value = error.message || 'Failed to load dashboard.'
+  dashboardError.value = error instanceof Error ? error.message : 'Failed to load dashboard.'
   await navigateTo('/dashboard/account/settings', { replace: true })
 }
 

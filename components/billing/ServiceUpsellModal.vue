@@ -86,7 +86,11 @@ import type { UpsellType } from '~/composables/useServiceUpsell'
 const PAUL_PHOTO_URL = '/team/paul.jpg'
 const JULIA_PHOTO_URL = '/team/julia.jpg'
 // Paul's WhatsApp number (international format, no +)
-const WHATSAPP_NUMBER = '16197200000'
+const config = useRuntimeConfig()
+const rawWhatsapp = config.public?.whatsappNumber
+const WHATSAPP_NUMBER = typeof rawWhatsapp === 'string' && /^[1-9]\d{1,14}$/.test(rawWhatsapp.replace(/[\s\-\+\(\)]/g, ''))
+  ? rawWhatsapp.replace(/[\s\-\+\(\)]/g, '')
+  : '16197200000'
 // ---
 
 const { isOpen, type, close } = useServiceUpsell()
@@ -204,6 +208,8 @@ async function handleCta() {
       if (res.checkoutUrl) {
         close()
         await navigateTo(res.checkoutUrl, { external: true })
+      } else {
+        throw new Error('Missing checkoutUrl')
       }
     } else {
       const res = await $fetch<{ checkoutUrl: string }>('/api/billing/service-addon', {
@@ -213,9 +219,12 @@ async function handleCta() {
       if (res.checkoutUrl) {
         close()
         await navigateTo(res.checkoutUrl, { external: true })
+      } else {
+        throw new Error('Missing checkoutUrl')
       }
     }
-  } catch {
+  } catch (err) {
+    console.error('Checkout error:', err)
     toast.add({ title: 'Something went wrong', description: 'Please try WhatsApp instead.', color: 'error' })
   } finally {
     loading.value = false

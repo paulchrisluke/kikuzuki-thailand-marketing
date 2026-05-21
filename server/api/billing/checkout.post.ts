@@ -136,6 +136,7 @@ export default defineEventHandler(async (event) => {
     }
 
     // Create checkout session
+    const targetSlug = organization.slug ? encodeURIComponent(organization.slug) : encodeURIComponent(orgId)
     const checkoutSession = await stripe.checkout.sessions.create({
       customer: customerId,
       mode: 'subscription',
@@ -145,8 +146,8 @@ export default defineEventHandler(async (event) => {
           quantity: 1
         }
       ],
-      success_url: successUrl || `${getRequestURL(event).origin}/dashboard/${organization.slug}/~/settings/billing?success=true`,
-      cancel_url: cancelUrl || `${getRequestURL(event).origin}/dashboard/${organization.slug}/~/settings/billing?canceled=true`,
+      success_url: successUrl || `${getRequestURL(event).origin}/dashboard/${targetSlug}/~/settings/billing?success=true`,
+      cancel_url: cancelUrl || `${getRequestURL(event).origin}/dashboard/${targetSlug}/~/settings/billing?canceled=true`,
       metadata: {
         organization_id: organizationId,
         plan

@@ -11,7 +11,7 @@ export interface PlanPrice {
 export interface PlanLimits {
   locations: number | 'unlimited'
   sites: number | 'unlimited'
-  aiCredits: number
+  aiCredits: number | 'unlimited'
   customDomain: boolean
   googleBusiness: boolean
   advancedSeo: boolean
@@ -129,7 +129,7 @@ const STATIC_PLANS: Plan[] = [
     limits: {
       locations: 'unlimited',
       sites: 1,
-      aiCredits: -1,
+      aiCredits: 'unlimited',
       customDomain: true,
       googleBusiness: true,
       advancedSeo: true,
@@ -158,7 +158,7 @@ const STATIC_PLANS: Plan[] = [
     limits: {
       locations: 'unlimited',
       sites: 1,
-      aiCredits: -1,
+      aiCredits: 'unlimited',
       customDomain: true,
       googleBusiness: true,
       advancedSeo: true,
@@ -184,7 +184,7 @@ function parseLimits(metadata: Record<string, string>): Partial<PlanLimits> {
   return {
     locations: loc === 'unlimited' ? 'unlimited' : parseOptionalInt(loc),
     sites: sit === 'unlimited' ? 'unlimited' : parseOptionalInt(sit),
-    aiCredits: parseOptionalInt(credits),
+    aiCredits: credits === 'unlimited' || credits === '-1' ? 'unlimited' : parseOptionalInt(credits),
     customDomain: metadata.custom_domain === 'true' || metadata.custom_domains === 'true',
     googleBusiness: metadata.google_business === 'true',
     advancedSeo: metadata.advanced_seo === 'true',

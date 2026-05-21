@@ -2,7 +2,7 @@ import { cloudflareEnv, jsonResponse } from '../../../utils/api-response'
 import { getAuthSession } from '~/server/utils/auth'
 import { getFacebookAuthUrl } from '../../../utils/facebook-pages'
 import { signOAuthState } from '../../../utils/encryption'
-import { getDashboardRestaurant } from '~/server/utils/dashboard-context'
+import { getDashboardContext } from '~/server/utils/dashboard-context'
 
 export default defineEventHandler(async (event) => {
   const env = cloudflareEnv(event)
@@ -14,6 +14,7 @@ export default defineEventHandler(async (event) => {
   if (!session?.user?.id) return jsonResponse({ error: 'Authentication required' }, { status: 401 })
 
   const body = await readBody(event).catch(() => ({})) as { siteId?: string }
+  const dashboard = body?.siteId ? null : await getDashboardContext(event, { requireRestaurant: false })
   const site = body?.siteId
     ? await db.prepare(`
         SELECT s.id, s.organization_id FROM sites s
@@ -21,9 +22,9 @@ export default defineEventHandler(async (event) => {
         WHERE s.id = ? AND om.userId = ? AND om.role = 'owner'
         LIMIT 1
       `).bind(body.siteId, session.user.id).first<{ id: string; organization_id: string }>()
-    : (await getDashboardRestaurant(event)).restaurant
+    : dashboard?.restaurant
 
-  if (!site) return jsonResponse({ error: 'Restaurant not found or access denied' }, { status: 404 })
+  if (!site) return jsonResponse({ error: 'Create a restaurant before connecting Facebook.' }, { status: 400 })
 
   if (!env.CONNECTOR_TOKEN_ENCRYPTION_KEY) {
     return jsonResponse({ error: 'Server misconfiguration' }, { status: 500 })

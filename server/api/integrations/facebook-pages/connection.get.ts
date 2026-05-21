@@ -1,7 +1,7 @@
 import { cloudflareEnv, jsonResponse } from '../../../utils/api-response'
 import { getAuthSession } from '~/server/utils/auth'
 import { getFacebookPagesConnection } from '../../../utils/facebook-pages'
-import { getDashboardRestaurant } from '~/server/utils/dashboard-context'
+import { getDashboardContext } from '~/server/utils/dashboard-context'
 
 export default defineEventHandler(async (event) => {
   const env = cloudflareEnv(event)
@@ -12,6 +12,7 @@ export default defineEventHandler(async (event) => {
   if (!session?.user?.id) return jsonResponse({ error: 'Authentication required' }, { status: 401 })
 
   const query = getQuery(event) as { siteId?: string }
+  const dashboard = query.siteId ? null : await getDashboardContext(event, { requireRestaurant: false })
   const site = query.siteId
     ? await db.prepare(`
         SELECT s.id, s.organization_id FROM sites s
@@ -19,9 +20,9 @@ export default defineEventHandler(async (event) => {
         WHERE s.id = ? AND om.userId = ?
         LIMIT 1
       `).bind(query.siteId, session.user.id).first<{ id: string; organization_id: string }>()
-    : (await getDashboardRestaurant(event)).restaurant
+    : dashboard?.restaurant
 
-  if (!site) return jsonResponse({ error: 'Restaurant not found or access denied' }, { status: 404 })
+  if (!site) return jsonResponse({ connected: false })
 
   const connection = await getFacebookPagesConnection(env, site.organization_id, site.id)
 

@@ -1442,3 +1442,8 @@ CREATE TABLE IF NOT EXISTS service_addon_purchases (
 
 CREATE INDEX IF NOT EXISTS idx_service_addon_purchases_org
   ON service_addon_purchases(organization_id, created_at DESC);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_service_addon_purchases_stripe_payment_intent_id
+  ON service_addon_purchases(stripe_payment_intent_id)
+  WHERE stripe_payment_intent_id IS NOT NULL;
+

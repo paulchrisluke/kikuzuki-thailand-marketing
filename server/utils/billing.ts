@@ -25,15 +25,6 @@ interface EntitlementValueRow {
   value: string
 }
 
-interface SubscriptionItemRow {
-  stripe_subscription_item_id: string | null
-  plan: string
-}
-
-interface CountRow {
-  count: number
-}
-
 interface MembershipRow {
   role: string
 }
@@ -241,7 +232,7 @@ function getPlanEntitlements(plan: string): EntitlementsMap {
         ...baseEntitlements,
         translation: true,
         translation_languages: -1,
-        ai_credits: -1,
+        ai_credits: 'unlimited',
         managed_service: true,
         custom_domains: true,
         google_business: true,
@@ -254,7 +245,7 @@ function getPlanEntitlements(plan: string): EntitlementsMap {
         ...baseEntitlements,
         translation: true,
         translation_languages: -1,
-        ai_credits: -1,
+        ai_credits: 'unlimited',
         managed_service: true,
         seo_accelerator: true,
         custom_domains: true,

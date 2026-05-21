@@ -309,6 +309,8 @@ const handleSubmit = async () => {
   if (!text && !pendingFile.value && !pendingText.value) return
   input.value = ''
   if (setupMode.value && !siteId.value) {
+    pendingFile.value = null
+    pendingText.value = null
     await handleSetupMessage(text)
     return
   }
@@ -382,7 +384,19 @@ async function handleSetupMessage(text: string) {
 
   if (setupStep.value === 'name') {
     setupRestaurantName.value = text.trim()
-    setupSubdomain.value = normalizeSubdomain(text)
+    const sub = normalizeSubdomain(text)
+    if (!sub) {
+      messages.value = [
+        ...messages.value,
+        { role: 'user', content: text.trim() },
+        {
+          role: 'assistant',
+          content: 'Please enter a valid restaurant name or type a domain/address you would like to use.',
+        },
+      ]
+      return
+    }
+    setupSubdomain.value = sub
     setupStep.value = 'subdomain'
     messages.value = [
       ...messages.value,
@@ -398,6 +412,18 @@ async function handleSetupMessage(text: string) {
   const requestedSubdomain = /^(yes|y|ok|okay|sure)$/i.test(text.trim())
     ? setupSubdomain.value
     : normalizeSubdomain(text)
+
+  if (!requestedSubdomain) {
+    messages.value = [
+      ...messages.value,
+      { role: 'user', content: text.trim() },
+      {
+        role: 'assistant',
+        content: 'That address is invalid. Please type a valid name or subdomain (using letters and numbers).',
+      },
+    ]
+    return
+  }
 
   messages.value = [
     ...messages.value,
@@ -452,6 +478,7 @@ const onDragEnter = () => { dragCounter.value++ }
 const onDragLeave = () => { dragCounter.value = Math.max(0, dragCounter.value - 1) }
 const onDrop = (e: DragEvent) => {
   dragCounter.value = 0
+  if (!siteId.value || setupMode.value || isDepleted.value) return
   const file = e.dataTransfer?.files[0]
   if (file) stageFile(file)
 }

@@ -70,6 +70,119 @@
         </div>
       </div>
 
+      <!-- ── MEMBERS ── -->
+      <div v-if="activeTab === 'members'" class="space-y-6">
+
+        <!-- KrabiClaw Team -->
+        <UCard>
+          <template #header>
+            <div class="flex items-center justify-between gap-3">
+              <div>
+                <h2 class="font-semibold text-highlighted">KrabiClaw Team</h2>
+                <p class="mt-0.5 text-sm text-muted">Platform admins with full access.</p>
+              </div>
+              <UBadge :label="`${team.length}`" color="neutral" variant="soft" />
+            </div>
+          </template>
+
+          <div v-if="membersLoading" class="space-y-3">
+            <USkeleton v-for="i in 2" :key="i" class="h-14 rounded-lg" />
+          </div>
+          <div v-else-if="team.length" class="divide-y divide-default">
+            <div v-for="member in team" :key="member.id" class="flex items-center justify-between gap-4 py-4 first:pt-0 last:pb-0">
+              <div class="flex items-center gap-3 min-w-0">
+                <UAvatar :src="member.image || undefined" :alt="member.name || member.email" icon="i-lucide-user" />
+                <div class="min-w-0">
+                  <p class="truncate font-medium text-highlighted">{{ member.name || member.email }}</p>
+                  <p class="truncate text-sm text-muted">{{ member.email }}</p>
+                </div>
+              </div>
+              <UBadge label="admin" color="primary" variant="soft" />
+            </div>
+          </div>
+
+          <template #footer>
+            <div class="flex gap-2">
+              <UInput v-model="teamInviteEmail" placeholder="name@email.com" class="flex-1" @keyup.enter="inviteTeamMember" />
+              <UInput v-model="teamInviteName" placeholder="Name (optional)" class="w-40" />
+              <UButton :loading="invitingTeam" @click="inviteTeamMember">Add to team</UButton>
+            </div>
+            <p v-if="teamInviteResult" class="mt-2 text-sm" :class="teamInviteResult.error ? 'text-error' : 'text-success'">
+              {{ teamInviteResult.message }}
+            </p>
+          </template>
+        </UCard>
+
+        <!-- Invite Restaurant Client -->
+        <UCard>
+          <template #header>
+            <div>
+              <h2 class="font-semibold text-highlighted">Invite Restaurant Client</h2>
+              <p class="mt-0.5 text-sm text-muted">Creates an org and generates an invite link to send via WhatsApp.</p>
+            </div>
+          </template>
+
+          <div class="space-y-3">
+            <UFormField label="Restaurant name">
+              <UInput v-model="clientRestaurantName" placeholder="Kikuzuki Krabi" class="w-full" />
+            </UFormField>
+            <UFormField label="Owner email">
+              <UInput v-model="clientEmail" type="email" placeholder="owner@restaurant.com" class="w-full" @keyup.enter="inviteClient" />
+            </UFormField>
+            <UButton :loading="invitingClient" @click="inviteClient">Generate invite link</UButton>
+          </div>
+
+          <div v-if="clientInviteResult" class="mt-4">
+            <template v-if="clientInviteResult.inviteUrl">
+              <p class="text-sm font-medium text-highlighted mb-2">Invite link for {{ clientInviteResult.restaurantName }}</p>
+              <div class="flex gap-2">
+                <UInput :model-value="clientInviteResult.inviteUrl" readonly class="flex-1 font-mono text-xs" />
+                <UButton
+                  color="neutral"
+                  variant="soft"
+                  icon="i-lucide-copy"
+                  @click="copyInviteLink(clientInviteResult.inviteUrl)"
+                >
+                  Copy
+                </UButton>
+                <UButton
+                  color="success"
+                  variant="soft"
+                  icon="i-lucide-message-circle"
+                  :href="`https://wa.me/?text=${encodeURIComponent('Hi! Here is your link to set up your restaurant on KrabiClaw: ' + clientInviteResult.inviteUrl)}`"
+                  target="_blank"
+                >
+                  WhatsApp
+                </UButton>
+              </div>
+            </template>
+            <p v-else class="text-sm text-error">{{ clientInviteResult.error }}</p>
+          </div>
+        </UCard>
+
+        <!-- Pending Invitations -->
+        <UCard v-if="pendingInvitations.length">
+          <template #header>
+            <div class="flex items-center justify-between gap-3">
+              <h2 class="font-semibold text-highlighted">Pending Invitations</h2>
+              <UBadge :label="`${pendingInvitations.length}`" color="warning" variant="soft" />
+            </div>
+          </template>
+          <div class="divide-y divide-default">
+            <div v-for="inv in pendingInvitations" :key="inv.id" class="flex items-center justify-between gap-4 py-4 first:pt-0 last:pb-0">
+              <div class="min-w-0">
+                <p class="truncate font-medium text-highlighted">{{ inv.email }}</p>
+                <p class="truncate text-sm text-muted">
+                  {{ inv.orgName || 'Platform invite' }}
+                  · Expires {{ formatDate(inv.expiresAt) }}
+                </p>
+              </div>
+              <UBadge :label="inv.role || 'member'" color="neutral" variant="soft" class="capitalize" />
+            </div>
+          </div>
+        </UCard>
+      </div>
+
       <!-- ── CLIENTS ── -->
       <div v-if="activeTab === 'clients'" class="space-y-4">
         <div class="flex justify-end">
@@ -108,7 +221,8 @@
                   <UBadge :label="planLabel(client.plan)" :color="planColor(client.plan)" variant="soft" size="xs" />
                 </div>
                 <p class="text-sm text-muted">
-                  {{ client.subdomain }}.krabiclaw.com
+                  <span v-if="client.subdomain">{{ client.subdomain }}.krabiclaw.com</span>
+                  <span v-else class="italic opacity-50">No subdomain</span>
                   <template v-if="client.source_locale"> · {{ client.source_locale }}</template>
                 </p>
               </div>
@@ -303,6 +417,87 @@ function formatDate(dateString: string | null | undefined) {
   return d.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })
 }
 
+// ── Members ──────────────────────────────────────────────────────────────────
+interface TeamMember { id: string; name: string | null; email: string; image: string | null; role: string; createdAt: string }
+interface PendingInvitation { id: string; email: string; role: string | null; expiresAt: string; orgName: string | null; orgSlug: string | null }
+
+const team = ref<TeamMember[]>([])
+const pendingInvitations = ref<PendingInvitation[]>([])
+const membersLoading = ref(false)
+
+const teamInviteEmail = ref('')
+const teamInviteName = ref('')
+const invitingTeam = ref(false)
+const teamInviteResult = ref<{ error?: boolean; message: string } | null>(null)
+
+const clientEmail = ref('')
+const clientRestaurantName = ref('')
+const invitingClient = ref(false)
+const clientInviteResult = ref<{ inviteUrl?: string; restaurantName?: string; error?: string } | null>(null)
+
+async function loadMembers() {
+  membersLoading.value = true
+  try {
+    const res = await $fetch<{ team: TeamMember[]; pendingInvitations: PendingInvitation[] }>('/api/admin/members')
+    team.value = res.team
+    pendingInvitations.value = res.pendingInvitations
+  } catch {
+    toast.add({ title: 'Failed to load members', color: 'error' })
+  } finally {
+    membersLoading.value = false
+  }
+}
+
+async function inviteTeamMember() {
+  const email = teamInviteEmail.value.trim()
+  if (!email) return
+  invitingTeam.value = true
+  teamInviteResult.value = null
+  try {
+    const res = await $fetch<{ action: string; email: string }>('/api/admin/invite/team', {
+      method: 'POST',
+      body: { email, name: teamInviteName.value.trim() || undefined },
+    })
+    const verb = res.action === 'promoted' ? 'promoted to admin' : 'created as admin'
+    teamInviteResult.value = { message: `${res.email} ${verb}` }
+    teamInviteEmail.value = ''
+    teamInviteName.value = ''
+    await loadMembers()
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : 'Failed to add team member'
+    teamInviteResult.value = { error: true, message: msg }
+  } finally {
+    invitingTeam.value = false
+  }
+}
+
+async function inviteClient() {
+  const email = clientEmail.value.trim()
+  const name = clientRestaurantName.value.trim()
+  if (!email || !name) return
+  invitingClient.value = true
+  clientInviteResult.value = null
+  try {
+    const res = await $fetch<{ inviteUrl: string; restaurantName: string }>('/api/admin/invite/client', {
+      method: 'POST',
+      body: { email, restaurantName: name },
+    })
+    clientInviteResult.value = res
+    clientEmail.value = ''
+    clientRestaurantName.value = ''
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : 'Failed to create invitation'
+    clientInviteResult.value = { error: msg }
+  } finally {
+    invitingClient.value = false
+  }
+}
+
+async function copyInviteLink(url: string) {
+  await navigator.clipboard.writeText(url)
+  toast.add({ title: 'Invite link copied', color: 'success' })
+}
+
 // ── Queue ───────────────────────────────────────────────────────────────────
 interface Purchase {
   id: string
@@ -319,7 +514,7 @@ const queueLoading = ref(false)
 const fulfillingId = ref<string | null>(null)
 const showAllPurchases = ref(false)
 
-const pendingCount = computed(() => purchases.value.filter(p => !p.fulfilled_at).length)
+
 
 const ADDON_LABELS: Record<string, string> = {
   translation: 'Language Translation',
@@ -571,7 +766,7 @@ async function confirmDeletePost() {
 
 // ── Init ─────────────────────────────────────────────────────────────────────
 onMounted(() => {
-  Promise.allSettled([loadQueue(), loadClients(), loadAnalytics(), loadDomains(), loadUsers(), loadBlogPosts()])
+  Promise.allSettled([loadQueue(), loadClients(), loadMembers(), loadAnalytics(), loadDomains(), loadUsers(), loadBlogPosts()])
 })
 
 useSeoMeta({ title: 'Platform Admin | KrabiClaw', robots: 'noindex, nofollow' })

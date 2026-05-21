@@ -1,9 +1,14 @@
-import { getDashboardRestaurant } from '~/server/utils/dashboard-context'
+import { jsonResponse } from '~/server/utils/api-response'
+import { getDashboardContext } from '~/server/utils/dashboard-context'
 
 export default defineEventHandler(async (event) => {
   const rawPath = getRouterParam(event, 'path')
   const path = Array.isArray(rawPath) ? rawPath.join('/') : String(rawPath || '')
-  const { restaurant } = await getDashboardRestaurant(event)
+  const { restaurant } = await getDashboardContext(event, { requireRestaurant: false })
+
+  if (!restaurant) {
+    return jsonResponse({ error: 'Restaurant workspace has not been created yet' }, { status: 400 })
+  }
 
   let target: string
   if (path === 'restaurant') {
