@@ -32,6 +32,39 @@ export default defineEventHandler(async (event) => {
     return new Response(null, { status: 302, headers: { Location: '/dashboard?gb=expired' } })
   }
 
+  const connectionRedirect = async (status: string) => {
+    const db = env.DB
+    if (!db) return `/dashboard?gb=${status}`
+
+    let organization: { slug: string | null } | null = null
+    try {
+      organization = await db.prepare(`
+        SELECT slug FROM organization WHERE id = ? LIMIT 1
+      `).bind(organizationId).first<{ slug: string | null }>()
+    } catch (e) {
+      console.error('Google Business redirect organization query failed:', e)
+      return `/dashboard?gb=${status}`
+    }
+
+    if (!organization?.slug) return `/dashboard?gb=${status}`
+    const encodedOrgSlug = encodeURIComponent(organization.slug)
+    if (!locationId) return `/dashboard/${encodedOrgSlug}?gb=${status}`
+
+    try {
+      const location = await db.prepare(`
+        SELECT slug FROM business_locations
+        WHERE id = ? AND organization_id = ? AND site_id = ?
+        LIMIT 1
+      `).bind(locationId, organizationId, siteId).first<{ slug: string }>()
+      return location?.slug
+        ? `/dashboard/${encodedOrgSlug}/${encodeURIComponent(location.slug)}?gb=${status}`
+        : `/dashboard/${encodedOrgSlug}?gb=${status}`
+    } catch (e) {
+      console.error('Google Business redirect location query failed:', e)
+      return `/dashboard/${encodedOrgSlug}?gb=${status}`
+    }
+  }
+
   try {
     const tokenData = await exchangeGoogleBusinessCode(env, code)
 
@@ -59,13 +92,9 @@ export default defineEventHandler(async (event) => {
       status: 'active'
     })
 
-    const redirectTo = locationId
-      ? `/dashboard/locations/${locationId}?gb=connected`
-      : `/dashboard?gb=connected`
-
-    return new Response(null, { status: 302, headers: { Location: redirectTo } })
+    return new Response(null, { status: 302, headers: { Location: await connectionRedirect('connected') } })
   } catch (error) {
     console.error('Google Business OAuth callback failed:', error)
-    return new Response(null, { status: 302, headers: { Location: '/dashboard?gb=error' } })
+    return new Response(null, { status: 302, headers: { Location: await connectionRedirect('error') } })
   }
 })

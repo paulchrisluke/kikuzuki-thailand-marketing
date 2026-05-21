@@ -1,8 +1,20 @@
 <script setup lang="ts">
 definePageMeta({ layout: 'dashboard', ssr: false })
 
-const { organization } = useDashboardRestaurant()
-const slug = organization.value?.slug
+const dashboard = useDashboardRestaurant()
+const dashboardError = ref<string | null>(null)
 
-await navigateTo(slug ? `/dashboard/${slug}` : '/dashboard/onboarding', { replace: true })
+try {
+  if (!dashboard.state.value) await dashboard.refresh()
+} catch (error: unknown) {
+  console.error('Failed to refresh dashboard:', error)
+  dashboardError.value = error instanceof Error ? error.message : 'Failed to load dashboard.'
+  await navigateTo('/dashboard/account/settings', { replace: true })
+}
+
+if (!dashboardError.value) {
+  const { organization } = dashboard
+  const slug = organization.value?.slug
+  await navigateTo(slug ? `/dashboard/${slug}` : '/dashboard/account/settings', { replace: true })
+}
 </script>

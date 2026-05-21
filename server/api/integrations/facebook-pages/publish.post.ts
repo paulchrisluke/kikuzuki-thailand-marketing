@@ -1,7 +1,7 @@
 import { cloudflareEnv, jsonResponse } from '../../../utils/api-response'
 import { getAuthSession } from '~/server/utils/auth'
 import { getFacebookPagesConnection, publishToPage } from '../../../utils/facebook-pages'
-import { getDashboardRestaurant } from '~/server/utils/dashboard-context'
+import { getDashboardContext } from '~/server/utils/dashboard-context'
 
 // Publishes a post to the connected Facebook Page on behalf of a site.
 export default defineEventHandler(async (event) => {
@@ -23,6 +23,7 @@ export default defineEventHandler(async (event) => {
   if (!message?.trim()) return jsonResponse({ error: 'message is required' }, { status: 400 })
 
   const isPlatformAdmin = (session.user as { role?: string }).role === 'admin'
+  const dashboard = body.siteId ? null : await getDashboardContext(event, { requireRestaurant: false })
   const site = body.siteId && isPlatformAdmin
     ? await db.prepare(`SELECT id, organization_id FROM sites WHERE id = ? LIMIT 1`)
         .bind(body.siteId).first<{ id: string; organization_id: string }>()
@@ -33,9 +34,9 @@ export default defineEventHandler(async (event) => {
           WHERE s.id = ? AND om.userId = ? AND om.role IN ('owner','admin')
           LIMIT 1
         `).bind(body.siteId, session.user.id).first<{ id: string; organization_id: string }>()
-      : (await getDashboardRestaurant(event)).restaurant
+      : dashboard?.restaurant
 
-  if (!site) return jsonResponse({ error: 'Restaurant not found or access denied' }, { status: 404 })
+  if (!site) return jsonResponse({ error: 'Create a restaurant before publishing to Facebook.' }, { status: 400 })
 
   const connection = await getFacebookPagesConnection(env, site.organization_id, site.id)
   if (!connection) return jsonResponse({ error: 'No Facebook connection found. Connect Facebook first.' }, { status: 404 })

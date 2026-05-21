@@ -1,5 +1,5 @@
 import { jsonResponse } from '~/server/utils/api-response'
-import { getDashboardRestaurant } from '~/server/utils/dashboard-context'
+import { getDashboardContext } from '~/server/utils/dashboard-context'
 
 interface LocationPreferenceBody {
   locationId: string
@@ -13,7 +13,10 @@ export default defineEventHandler(async (event) => {
     return jsonResponse({ error: 'Location ID is required' }, { status: 400 })
   }
 
-  const { db, userId, organization, restaurant } = await getDashboardRestaurant(event)
+  const { db, userId, organization, restaurant } = await getDashboardContext(event, { requireRestaurant: false })
+  if (!restaurant) {
+    return jsonResponse({ error: 'Restaurant workspace has not been created yet' }, { status: 400 })
+  }
 
   const location = await db.prepare(`
     SELECT id

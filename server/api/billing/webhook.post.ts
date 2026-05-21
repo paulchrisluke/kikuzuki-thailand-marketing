@@ -143,6 +143,22 @@ async function handleCheckoutCompleted(env: Record<string, string | undefined>, 
     return
   }
 
+  if (session.metadata?.type === 'service_addon') {
+    const addonType = session.metadata.addon_type
+    if (!organizationId || !addonType) {
+      console.error('Invalid service_addon metadata in checkout session:', session.id, { organizationId, addonType })
+      return
+    }
+    let paymentIntentId: string | null = null
+    if (typeof session.payment_intent === 'string') {
+      paymentIntentId = session.payment_intent
+    } else if (session.payment_intent && typeof session.payment_intent === 'object') {
+      paymentIntentId = typeof session.payment_intent.id === 'string' ? session.payment_intent.id : null
+    }
+    await handleServiceAddon(db, organizationId, addonType, paymentIntentId)
+    return
+  }
+
   const plan = session.metadata?.plan
   const customerId = session.customer as string
 
@@ -312,6 +328,22 @@ async function handlePaymentFailed(db: D1Database, invoice: Stripe.Invoice) {
   }
 
   console.log(`Payment failed for organization ${billing.organization_id}`)
+}
+
+// Log a fulfilled service add-on purchase for Paul & Julia to action
+async function handleServiceAddon(db: D1Database, organizationId: string, addonType: string, paymentIntentId: string | null) {
+  const now = new Date().toISOString()
+  await db.prepare(`
+    INSERT OR IGNORE INTO service_addon_purchases (id, organization_id, addon_type, stripe_payment_intent_id, created_at)
+    VALUES (?, ?, ?, ?, ?)
+  `).bind(
+    crypto.randomUUID(),
+    organizationId,
+    addonType,
+    paymentIntentId,
+    now
+  ).run()
+  console.log(`Service add-on purchased: ${addonType} for org ${organizationId}`)
 }
 
 // Add purchased credits to org balance — atomic upsert on PRIMARY KEY

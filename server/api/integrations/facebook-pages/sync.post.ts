@@ -8,7 +8,7 @@ import {
   syncPageInfoToLocation,
   storeFacebookPagesConnection,
 } from '../../../utils/facebook-pages'
-import { getDashboardRestaurant } from '~/server/utils/dashboard-context'
+import { getDashboardContext } from '~/server/utils/dashboard-context'
 
 // Syncs page info + recent posts from Facebook into the location record.
 // Optionally accepts pageId in the body to switch which page is connected.
@@ -27,6 +27,7 @@ export default defineEventHandler(async (event) => {
   }
 
   const { locationId, pageId } = body
+  const dashboard = body.siteId ? null : await getDashboardContext(event, { requireRestaurant: false })
   const site = body.siteId
     ? await db.prepare(`
         SELECT s.id, s.organization_id FROM sites s
@@ -34,9 +35,9 @@ export default defineEventHandler(async (event) => {
         WHERE s.id = ? AND om.userId = ? AND om.role = 'owner'
         LIMIT 1
       `).bind(body.siteId, session.user.id).first<{ id: string; organization_id: string }>()
-    : (await getDashboardRestaurant(event)).restaurant
+    : dashboard?.restaurant
 
-  if (!site) return jsonResponse({ error: 'Restaurant not found or access denied' }, { status: 404 })
+  if (!site) return jsonResponse({ error: 'Create a restaurant before syncing Facebook.' }, { status: 400 })
 
   const connection = await getFacebookPagesConnection(env, site.organization_id, site.id)
   if (!connection) return jsonResponse({ error: 'No Facebook connection found. Connect Facebook first.' }, { status: 404 })
