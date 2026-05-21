@@ -386,6 +386,7 @@ async function handleSetupMessage(text: string) {
     setupRestaurantName.value = text.trim()
     const sub = normalizeSubdomain(text)
     if (!sub) {
+      setupStep.value = 'subdomain'
       messages.value = [
         ...messages.value,
         { role: 'user', content: text.trim() },

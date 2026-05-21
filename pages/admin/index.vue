@@ -494,8 +494,12 @@ async function inviteClient() {
 }
 
 async function copyInviteLink(url: string) {
-  await navigator.clipboard.writeText(url)
-  toast.add({ title: 'Invite link copied', color: 'success' })
+  try {
+    await navigator.clipboard.writeText(url)
+    toast.add({ title: 'Invite link copied', color: 'success' })
+  } catch {
+    toast.add({ title: 'Failed to copy invite link', color: 'error' })
+  }
 }
 
 // ── Queue ───────────────────────────────────────────────────────────────────

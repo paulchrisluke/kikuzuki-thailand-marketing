@@ -334,10 +334,10 @@ async function handlePaymentFailed(db: D1Database, invoice: Stripe.Invoice) {
 async function handleServiceAddon(db: D1Database, organizationId: string, addonType: string, paymentIntentId: string | null) {
   const now = new Date().toISOString()
   await db.prepare(`
-    INSERT INTO service_addon_purchases (id, organization_id, addon_type, stripe_payment_intent_id, created_at)
+    INSERT OR IGNORE INTO service_addon_purchases (id, organization_id, addon_type, stripe_payment_intent_id, created_at)
     VALUES (?, ?, ?, ?, ?)
   `).bind(
-    `addon-${organizationId}-${addonType}-${Date.now()}`,
+    crypto.randomUUID(),
     organizationId,
     addonType,
     paymentIntentId,

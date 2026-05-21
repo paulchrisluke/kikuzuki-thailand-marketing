@@ -1,7 +1,6 @@
 // POST /api/admin/invite/team — promote existing user to admin, or create new admin account
 import { cloudflareEnv, jsonResponse } from '~/server/utils/api-response'
 import { getAuthSession } from '~/server/utils/auth'
-import { isPlatformOwner } from '~/server/utils/platform-auth'
 
 export default defineEventHandler(async (event) => {
   const env = cloudflareEnv(event)
@@ -10,12 +9,17 @@ export default defineEventHandler(async (event) => {
 
   const session = await getAuthSession(event, env)
   if (!session?.user?.email) return jsonResponse({ error: 'Authentication required' }, { status: 401 })
-  if (!isPlatformOwner(session.user.email, env)) return jsonResponse({ error: 'Platform owner access required' }, { status: 403 })
+  if ((session.user as { role?: string }).role !== 'admin') return jsonResponse({ error: 'Platform owner access required' }, { status: 403 })
 
   const body = await readBody(event).catch(() => ({})) as { email?: string; name?: string }
   const email = body.email?.trim().toLowerCase()
   const name = body.name?.trim()
   if (!email) return jsonResponse({ error: 'Email is required' }, { status: 400 })
+
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+  if (!emailRegex.test(email)) {
+    return jsonResponse({ error: 'Invalid email' }, { status: 400 })
+  }
 
   const existing = await db.prepare(
     'SELECT id, email, role FROM user WHERE lower(email) = ? LIMIT 1'

@@ -1,7 +1,6 @@
 // POST /api/admin/invite/client — create org for a new restaurant client + invitation link
 import { cloudflareEnv, jsonResponse } from '~/server/utils/api-response'
 import { getAuthSession } from '~/server/utils/auth'
-import { isPlatformOwner } from '~/server/utils/platform-auth'
 
 function slugify(str: string) {
   return str.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 48)
@@ -14,7 +13,7 @@ export default defineEventHandler(async (event) => {
 
   const session = await getAuthSession(event, env)
   if (!session?.user?.email) return jsonResponse({ error: 'Authentication required' }, { status: 401 })
-  if (!isPlatformOwner(session.user.email, env)) return jsonResponse({ error: 'Platform owner access required' }, { status: 403 })
+  if ((session.user as { role?: string }).role !== 'admin') return jsonResponse({ error: 'Platform owner access required' }, { status: 403 })
 
   const body = await readBody(event).catch(() => ({})) as { email?: string; restaurantName?: string }
   const email = body.email?.trim().toLowerCase()
@@ -25,10 +24,18 @@ export default defineEventHandler(async (event) => {
   // Find a unique slug
   const baseSlug = slugify(restaurantName)
   let orgSlug = baseSlug
-  for (let i = 1; i <= 9; i++) {
+  let i = 1
+  while (true) {
     const conflict = await db.prepare('SELECT id FROM organization WHERE slug = ? LIMIT 1').bind(orgSlug).first()
     if (!conflict) break
-    orgSlug = `${baseSlug}-${i}`
+
+    if (i <= 10) {
+      orgSlug = `${baseSlug}-${i}`
+    } else {
+      const shortId = crypto.randomUUID().slice(0, 8)
+      orgSlug = `${baseSlug}-${shortId}`
+    }
+    i++
   }
 
   const orgId = crypto.randomUUID()
