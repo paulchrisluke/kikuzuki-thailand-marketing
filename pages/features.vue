@@ -200,7 +200,7 @@ const currentPageUrl = useSeoUrl('/features')
 
 useSeoMeta({
   title: 'Platform Features | KrabiClaw',
-  description: 'Explore KrabiClaw\'s comprehensive platform features: gorgeous responsive templates, Google Business Profile sync, commission-free reservations and ordering, automated SEO, and powerful dashboard analytics.',
+  description: 'KrabiClaw features: AI-built restaurant websites, WhatsApp menu updates, reservations with notifications, Google Business sync, multi-language support, and delivery link integration.',
   ogImage: sharedOgImage,
   ogUrl: currentPageUrl,
   ogType: 'website',
@@ -261,15 +261,15 @@ const detailedFeatures = [
   },
   {
     icon: 'i-heroicons-shopping-bag',
-    title: 'Commission-Free Ordering',
-    description: 'Drive pickup and delivery sales directly on your site. Keep all your profits by bypassing middleman aggregators.',
+    title: 'Delivery & Order Links',
+    description: 'Connect your Grab, Uber Eats, and FoodPanda pages so guests can order from the platform they already use — without leaving your site.',
     badgeColor: 'bg-emerald-600',
     docLink: '/docs/launch-your-restaurant-website',
     specs: [
-      'Direct Stripe payment integration with 100% payouts',
-      'Flexible prep times & operating slot controls',
-      'Custom delivery areas & variable pricing radii',
-      'Sleek modern checkout interface'
+      'Grab, Uber Eats, and FoodPanda link integration',
+      'Order links visible on menu and location pages',
+      'One-tap ordering for mobile guests',
+      'No setup fees or platform lock-in'
     ]
   },
   {
@@ -298,11 +298,11 @@ const faqItems = [
   },
   {
     q: 'How does the Google Business Profile sync work?',
-    a: 'Our integration matches your store location. When you update your restaurant hours, photos, or menu in the KrabiClaw dashboard, it syncs instantly to Google Search and Maps.'
+    a: 'Connect your Google Business account and KrabiClaw pulls in your verified hours, photos, reviews, and business details automatically. On Managed plans, we keep your Google Business profile up to date for you.'
   },
   {
     q: 'Is there a contract or setup fee?',
-    a: 'No contracts, no setup fees. You can get started on our free tier, and upgrade to paid per-location plans on a month-to-month basis. Cancel anytime.'
+    a: 'No contracts, no setup fees. Start free, and upgrade to Growth ($49/mo) or Managed ($149/mo) month-to-month. Cancel anytime.'
   }
 ]
 </script>

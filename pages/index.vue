@@ -18,7 +18,7 @@
           </h1>
 
           <p class="text-lg leading-relaxed text-muted m-0 max-w-lg">
-            The Shopify for restaurants. Beautiful sites, AI-powered content, Google Business sync — in one tidy little dashboard.
+            AI-built restaurant websites, live in minutes. Send us a WhatsApp — we handle menu updates, translations, and your Google presence.
           </p>
 
           <!-- CTAs -->
@@ -494,7 +494,7 @@ const features = [
   { icon: 'i-heroicons-sparkles', title: 'AI-powered content', body: 'Mouth-watering descriptions, allergens, translations — generated in one click.' },
   { icon: 'i-heroicons-globe-alt', title: 'Google Business sync', body: 'Hours, photos, menu — pushed to Google so guests find the right info every time.' },
   { icon: 'i-heroicons-calendar-days', title: 'Reservations + waitlist', body: 'Take bookings 24/7 with WhatsApp confirmations. Walk-ins go on the waitlist automatically.', dark: true },
-  { icon: 'i-heroicons-shopping-bag', title: 'Online ordering', body: 'Pickup & delivery with no commission. Stripe payouts straight to your bank.' },
+  { icon: 'i-heroicons-shopping-bag', title: 'Delivery links', body: 'Connect Grab, Uber Eats, and FoodPanda so guests order from the platform they already use.' },
   { icon: 'i-heroicons-chart-bar', title: 'Real-time insights', body: 'See covers, top dishes, busy hours — all in one dashboard.' },
 ]
 const { isAuthenticated } = useAuth()
@@ -578,9 +578,9 @@ if (isPlatform) {
   
   useSeoMeta({
     title: 'KrabiClaw | AI Restaurant Website Builder',
-    description: 'Build your restaurant website in minutes with AI. No coding required.',
+    description: 'Your restaurant online in minutes — AI-built, WhatsApp-managed, found by tourists. Reservations, menus, and Google Business included.',
     ogTitle: 'KrabiClaw | AI Restaurant Website Builder',
-    ogDescription: 'Professional restaurant websites with AI content and Google Business integration.',
+    ogDescription: 'Your restaurant online in minutes. AI-built site, WhatsApp updates, reservations, multi-language. No tech skills needed.',
     ogImage: sharedOgImage,
     ogUrl: currentPageUrl,
     ogType: 'website'

@@ -69,8 +69,10 @@ When an internal API returns errors, nulls, or malformed data, fix the API contr
 
 ## Multi-Tenancy
 
-- Organizations map 1:1 with restaurant owners (Better Auth `organization` plugin)
+- Organizations map 1:1 with restaurant brands/workspaces (Better Auth `organization` plugin)
 - One site per org — enforced by unique index on `sites(organization_id)`
+- Multiple physical locations live under `business_locations` (not separate orgs)
+- Dashboard route shape: `/dashboard/{orgSlug}` (restaurant workspace), `/dashboard/{orgSlug}/{locationSlug}` (location workspace), `/dashboard/{orgSlug}/~/settings/*` (org settings), `/dashboard/account/settings` (personal)
 - Tenant resolution: `server/middleware/tenant-resolution.ts`
   - `localhost` / `krabiclaw.com` = platform routes
   - `*.krabiclaw.com` or custom domains = tenant sites
@@ -103,8 +105,46 @@ When an internal API returns errors, nulls, or malformed data, fix the API contr
 
 ---
 
+## Plan System
+
+- Plans: `free` (Starter), `growth` ($49/mo), `managed` ($149/mo), `seo_accelerator` ($349/mo)
+- Stripe is the source of truth for plan names, prices, and `marketing_features` (feature bullets)
+- `server/utils/billing.ts` → `getPlanEntitlements(plan)` defines what each plan unlocks in D1
+- Entitlements stored per-org in `organization_entitlements` table, checked at API level
+- Key entitlement keys: `custom_domains`, `google_business`, `translation`, `translation_languages`, `ai_credits`, `managed_service`, `seo_accelerator`
+- `managed_service = true` on Managed and SEO Accelerator — gates Facebook sync (auth/publish/sync endpoints)
+- `plans.get.ts` — only Starter has a static definition; all paid plans come from Stripe exclusively. Returns 503 if `STRIPE_SECRET_KEY` not set.
+- `PLAN_CTA` map in `plans.get.ts` holds CTA labels/hrefs (app config, not Stripe data)
+- Seeder: `node scripts/seed-stripe.mjs` — idempotent, upserts products and updates `marketing_features`
+
+---
+
+## Managed Service Queue
+
+- `work_requests` table: type, title, description, status, priority, source (dashboard/whatsapp/chowbot/admin), notes, assigned_to
+- `POST /api/dashboard/work-requests` — restaurant owners submit requests
+- `GET /api/admin/work-requests` + `PATCH /api/admin/work-requests/[id]` — admin manages queue
+- ChowBot has `create_work_request` tool — routes managed service intents to Paul & Julia instead of handling autonomously
+- Admin Work Queue tab shows all requests with type icons, priority badges, inline status dropdown
+- Dashboard Support page (`/dashboard/[orgSlug]/support`) — free plan sees upsell, paid plans see request form + history
+
+---
+
+## Admin Workspace
+
+- `/admin` route — gated by `middleware/admin.ts` which calls `GET /api/auth/get-session` using `useRequestFetch()` to forward cookies during SSR
+- Access: `user.role = 'admin'` in DB, AND checked server-side via `isPlatformOwner()` against `PLATFORM_OWNER_EMAILS` env var
+- Admin navigation defined in `adminNavigation` computed in `layouts/dashboard.vue` — uses `i-lucide-*` icons and `?tab=` query params with explicit `active` computed
+- Tabs: Work Queue, Add-ons (service_addon_purchases), Clients, Members, Analytics, Domains, Users, Content, Blog
+- Post-login routing: `GET /api/post-login` — `isPlatformOwner` → `/admin`, else → `/dashboard/[orgSlug]`
+- Dev login: `GET /api/dev/login` → redirects to `/api/post-login`
+
+---
+
 ## Design System Enforcement
 
-- Never bypass Nuxt UI layout components (`UCard`, `UPage`, `UPageHeader`) to write custom Tailwind `div` wrappers, even when matching external design references. 
-- If a specific visual layout (like a flat Vercel card) is needed, you must use the Nuxt UI component and override its specific tokens via the `:ui` prop (e.g., `<UCard :ui="{ shadow: '', rounded: 'rounded-xl', body: { padding: 'p-0' } }">`). 
-- Do not introduce custom `border` or `bg` classes that break the global theme inheritance.
+- Never bypass Nuxt UI layout components (`UCard`, `UPage`, `UPageBody`) to write custom Tailwind `div` wrappers
+- UCard `:ui` prop only accepts: `root`, `header`, `title`, `description`, `body`, `footer` — use `class` on the element for all other styling (border, background, rounded, shadow)
+- Dashboard pages do NOT use `UPageHeader` — content goes directly in `UPageBody`
+- Admin nav uses `i-lucide-*` icons; keep consistent with the rest of the dashboard nav
+- Do not introduce custom `border` or `bg` classes that break the global theme inheritance
