@@ -1204,6 +1204,29 @@ const TOOLS: AiTool[] = [
       required: ['experience_id', 'booking_id', 'status'],
     },
   },
+  // ── Managed service work requests ─────────────────────────────────────────
+  {
+    name: 'create_work_request',
+    description: 'Submit a work request to the Paul & Julia managed service queue. Use this when the owner needs something done that requires human attention — content updates, translations, photo work, SEO, Google Business management, seasonal campaigns, or anything beyond automated tools. Always confirm the details with the owner before submitting.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        type: {
+          type: 'string',
+          enum: ['content_update', 'menu_update', 'translation', 'seo', 'google_business', 'seasonal', 'photo_update', 'social_media', 'technical', 'other'],
+          description: 'Category of work needed.',
+        },
+        title: { type: 'string', description: 'Short summary of what needs to be done (max 120 chars).' },
+        description: { type: 'string', description: 'Full details — what, where, any specific requirements or context.' },
+        priority: {
+          type: 'string',
+          enum: ['low', 'normal', 'high', 'urgent'],
+          description: 'How urgent. Default: normal. Only use high/urgent if the owner specifically says so.',
+        },
+      },
+      required: ['type', 'title'],
+    },
+  },
 ]
 
 const CONFIRM_REQUIRED = new Set(['publish_post', 'publish_menu', 'delete_menu', 'delete_menu_item', 'delete_menu_section', 'delete_location', 'delete_review', 'delete_media_asset', 'delete_qa', 'delete_reservation_policies', 'delete_site_content_field', 'delete_platform_content_page', 'delete_site_language', 'start_site_translation_job', 'run_translation_job_batch', 'publish_site_translations', 'delete_experience'])
@@ -2692,6 +2715,29 @@ async function executeTool(
       return { updated: true }
     }
 
+    case 'create_work_request': {
+      const type = toSqlText(input.type)
+      const title = toSqlText(input.title)
+      const description = toSqlText(input.description) ?? null
+      const priority = toSqlText(input.priority) ?? 'normal'
+
+      const validTypes = ['content_update', 'menu_update', 'translation', 'seo', 'google_business', 'seasonal', 'photo_update', 'social_media', 'technical', 'other']
+      const validPriorities = ['low', 'normal', 'high', 'urgent']
+
+      if (!type || !validTypes.includes(type)) return { error: `type must be one of: ${validTypes.join(', ')}` }
+      if (!title) return { error: 'title is required' }
+      if (!validPriorities.includes(priority)) return { error: 'priority must be low, normal, high, or urgent' }
+
+      const id = crypto.randomUUID()
+      const now = new Date().toISOString()
+      await db.prepare(`
+        INSERT INTO work_requests (id, organization_id, site_id, type, title, description, priority, source, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, 'chowbot', ?, ?)
+      `).bind(id, orgId, siteId, type, title, description, priority, now, now).run()
+
+      return { created: true, id, message: "Work request submitted to the Paul & Julia queue. They'll take care of it." }
+    }
+
     default:
       return { error: `Unknown tool: ${name}` }
   }
@@ -2761,6 +2807,7 @@ Capabilities (always use tools — never say you can't do something the tools su
 - Q&A: list, add, delete per location
 - Experiences: list, create (title, tagline, rich body, price, duration, capacity, time slots, image, SEO), update, delete, view/confirm/cancel guest bookings
 - Contact & reservation submissions: read
+- Managed service requests: submit work to Paul & Julia's queue (content, translation, SEO, Google Business, seasonal, photos, social media)
 - Site: rename (updates subdomain), set default menu currency, manage languages, manage reservation policies, read/write site page content
 - Translations: estimate site translation cost, queue translation jobs, inspect translation jobs, run translation batches, publish reviewed drafts
 - Platform admin pages: read/write/delete about, contact, help content
