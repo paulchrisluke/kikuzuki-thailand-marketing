@@ -1,11 +1,11 @@
 <template>
   <div>
-    <!-- Plan cards — 4 cols on large screens -->
-    <div class="grid sm:grid-cols-2 lg:grid-cols-4 gap-6 items-stretch">
+    <!-- Primary 3 plans -->
+    <div class="grid sm:grid-cols-3 gap-6 items-stretch">
       <div
-        v-for="plan in plans"
+        v-for="plan in mainPlans"
         :key="plan.id"
-        :class="plan.highlighted ? 'lg:-mt-4 lg:mb-4' : ''"
+        :class="plan.highlighted ? 'sm:-mt-4 sm:mb-4' : ''"
         class="flex flex-col"
       >
         <BillingPlanCard :plan="plan" :annual="false" class="h-full flex-1">
@@ -27,6 +27,38 @@
             </UButton>
           </template>
         </BillingPlanCard>
+      </div>
+    </div>
+
+    <!-- SEO Accelerator — premium add-on -->
+    <div v-if="seoAcceleratorPlan" class="mt-6 rounded-2xl border border-default bg-elevated/30 p-6 sm:p-8 flex flex-col sm:flex-row sm:items-center gap-6">
+      <div class="flex-1 min-w-0">
+        <div class="flex items-center gap-2 mb-1">
+          <span class="text-xs font-bold uppercase tracking-widest text-primary">Premium Add-on</span>
+          <UBadge v-if="seoAcceleratorPlan.badge" :label="seoAcceleratorPlan.badge" color="primary" variant="soft" size="xs" />
+        </div>
+        <h3 class="text-xl font-bold text-highlighted">{{ seoAcceleratorPlan.name }}</h3>
+        <p class="mt-1 text-sm text-muted">{{ seoAcceleratorPlan.tagline }}</p>
+        <ul class="mt-3 grid sm:grid-cols-2 gap-x-6 gap-y-1.5">
+          <li v-for="f in seoAcceleratorPlan.features" :key="f" class="flex items-start gap-2 text-sm text-default">
+            <UIcon name="i-heroicons-check-circle" class="mt-0.5 size-4 shrink-0 text-primary" />
+            <span>{{ f }}</span>
+          </li>
+        </ul>
+      </div>
+      <div class="shrink-0 flex flex-col items-start sm:items-end gap-3">
+        <p class="text-3xl font-bold text-highlighted">
+          ${{ (seoAcceleratorPlan.prices[0]?.amount ?? 34900) / 100 }}
+          <span class="text-base font-normal text-muted">/mo</span>
+        </p>
+        <UButton
+          size="lg"
+          :loading="upgrading === seoAcceleratorPlan.id"
+          class="font-bold"
+          @click="handleUpgrade(seoAcceleratorPlan.id)"
+        >
+          Get SEO Accelerator
+        </UButton>
       </div>
     </div>
 
@@ -71,7 +103,7 @@
             <thead>
               <tr class="border-b border-default bg-elevated/60 backdrop-blur-md">
                 <th class="text-left py-5 px-6 text-xs font-bold uppercase tracking-wider text-muted w-1/3">Feature</th>
-                <th v-for="plan in plans" :key="plan.id" class="text-center py-5 px-4 text-sm font-extrabold text-default">
+                <th v-for="plan in mainPlans" :key="plan.id" class="text-center py-5 px-4 text-sm font-extrabold text-default">
                   {{ plan.name }}
                 </th>
               </tr>
@@ -83,7 +115,7 @@
                 class="hover:bg-primary/5 transition-colors duration-150"
               >
                 <td class="py-4 px-6 font-medium text-default">{{ row.feature }}</td>
-                <td v-for="plan in plans" :key="plan.id" class="py-4 px-4 text-center">
+                <td v-for="plan in mainPlans" :key="plan.id" class="py-4 px-4 text-center">
                   <template v-if="cellValue(row, plan.id) === true">
                     <div class="inline-flex w-6 h-6 rounded-full bg-emerald-100 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 items-center justify-center">
                       <UIcon name="i-heroicons-check" class="size-3.5" />
@@ -109,6 +141,10 @@
 
 <script setup lang="ts">
 const { plans } = usePlans()
+
+const MAIN_PLAN_IDS = ['free', 'growth', 'managed']
+const mainPlans = computed(() => (plans.value ?? []).filter(p => MAIN_PLAN_IDS.includes(p.id)))
+const seoAcceleratorPlan = computed(() => (plans.value ?? []).find(p => p.id === 'seo_accelerator') ?? null)
 const { isAuthenticated } = useAuth()
 const orgSettings = useOrgSettings()
 const upgrading = ref<string | null>(null)
@@ -149,17 +185,19 @@ type CellValue = boolean | string
 type ComparisonRow = { feature: string } & Record<string, CellValue>
 
 const comparisonRows: ComparisonRow[] = [
-  { feature: 'Site & menu',            free: true,        growth: true,         managed: true,       seo_accelerator: true },
-  { feature: 'Translation',            free: false,       growth: '1 language', managed: 'Unlimited', seo_accelerator: 'Unlimited' },
-  { feature: 'Menu updates',           free: 'Self',      growth: 'Via WhatsApp', managed: 'We do it', seo_accelerator: 'We do it' },
-  { feature: 'Google Business',        free: false,       growth: 'Basics',     managed: 'Full mgmt', seo_accelerator: 'Full mgmt' },
-  { feature: 'SEO & schema markup',    free: 'Basic',     growth: 'Basic',      managed: 'Advanced', seo_accelerator: 'Expert' },
-  { feature: 'Custom domain',          free: false,       growth: false,        managed: true,       seo_accelerator: true },
-  { feature: 'AI credits / month',     free: '500',       growth: '2,000',      managed: 'Unlimited', seo_accelerator: 'Unlimited' },
-  { feature: 'Monthly report',         free: false,       growth: true,         managed: true,       seo_accelerator: true },
-  { feature: 'Content cadence',        free: false,       growth: false,        managed: false,      seo_accelerator: true },
-  { feature: 'Keyword targeting',      free: false,       growth: false,        managed: false,      seo_accelerator: true },
-  { feature: 'Support',                free: 'Community', growth: 'WhatsApp',   managed: 'Priority WhatsApp', seo_accelerator: 'Dedicated' },
+  { feature: 'AI site builder (live in minutes)', free: true,    growth: true,      managed: true },
+  { feature: 'WhatsApp menu updates',             free: false,   growth: true,      managed: true },
+  { feature: 'Reservations & experiences',        free: true,    growth: true,      managed: true },
+  { feature: 'Delivery / order links',            free: true,    growth: true,      managed: true },
+  { feature: 'AI content generation',             free: '500 credits', growth: '2,000 credits', managed: 'Unlimited' },
+  { feature: 'LLM-ready SEO (get found by AI)',   free: 'Basic', growth: 'Advanced', managed: 'Advanced' },
+  { feature: 'Multi-language support',            free: false,   growth: '1 language', managed: 'Unlimited' },
+  { feature: 'Custom domain',                     free: false,   growth: true,      managed: true },
+  { feature: 'Facebook auto-sync',                free: false,   growth: false,     managed: true },
+  { feature: 'Google Business sync',              free: false,   growth: 'Basics',  managed: 'Full management' },
+  { feature: 'WhatsApp notifications',            free: false,   growth: true,      managed: true },
+  { feature: 'Managed by Paul & Julia',           free: false,   growth: false,     managed: true },
+  { feature: 'Support',                           free: 'Community', growth: 'WhatsApp', managed: 'Priority WhatsApp' },
 ]
 
 function cellValue(row: ComparisonRow, planId: string): CellValue {

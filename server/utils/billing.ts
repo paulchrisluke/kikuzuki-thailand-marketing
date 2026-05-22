@@ -225,6 +225,7 @@ function getPlanEntitlements(plan: string): EntitlementsMap {
         translation_languages: 1,
         ai_credits: 2000,
         google_business: true,
+        custom_domains: true,
       }
 
     case 'managed':

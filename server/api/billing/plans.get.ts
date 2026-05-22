@@ -99,7 +99,7 @@ const STATIC_PLANS: Plan[] = [
       locations: 1,
       sites: 1,
       aiCredits: 2000,
-      customDomain: false,
+      customDomain: true,
       googleBusiness: true,
       advancedSeo: false,
       whiteLabel: false,
