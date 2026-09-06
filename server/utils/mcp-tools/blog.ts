@@ -93,7 +93,6 @@ export const BLOG_TOOLS: McpToolDefinition[] = [
         tags: { type: 'array', items: { type: 'string' }, description: 'Searchable topical tags. Use a short, deduplicated list; category remains the primary public grouping.' },
         content_blocks: { type: 'array', minItems: 1, description: 'Canonical ordered article blocks. Sending this replaces the complete block snapshot.', items: blogContentBlockSchema },
         expected_updated_at: { type: 'string', description: 'Required with content_blocks. Use updated_at returned by get_blog_post; stale tokens are rejected with a conflict.' },
-        expected_updated_at: { type: 'string', description: 'Optional metadata concurrency token from the post updated_at field.' },
         seo_title: { type: ['string', 'null'], description: 'Optional SEO/browser-tab title override. Falls back to the post title if unset.' },
         seo_description: { type: 'string' },
         seo_keywords: { type: ['string', 'null'], description: 'Comma-separated SEO keyword phrases when useful.' },
@@ -150,15 +149,14 @@ export const BLOG_TOOLS: McpToolDefinition[] = [
     }),
   siteTool({
       name: 'publish_blog_post',
-      description: 'Publish a scheduled tenant blog article immediately, or reschedule it with scheduled_for. Requires both current concurrency tokens. Use only after the writer has approved the final article.',
+      description: 'Publish a scheduled tenant blog article immediately, or reschedule it with scheduled_for. Requires the current document concurrency token. Use only after the writer has approved the final article.',
       domain: 'blog', minimumRole: 'editor', confirmRequired: true,
       inputSchema: {
         post_id: { type: 'string', description: 'Post id or slug.' },
         expected_updated_at: { type: 'string', description: 'Exact post.updated_at concurrency token from the latest get_blog_post or successful blog mutation.' },
-        expected_updated_at: { type: 'string', description: 'Exact post.updated_at concurrency token from the latest get_blog_post or successful blog mutation.' },
         scheduled_for: { type: ['string', 'null'], description: 'Optional future ISO 8601 datetime with timezone. Omit or pass null to publish immediately.' },
       },
-      required: ['post_id', 'expected_updated_at', 'expected_updated_at'],
+      required: ['post_id', 'expected_updated_at'],
       outputSchema: blogPostMutationResultObject,
     }),
   siteTool({

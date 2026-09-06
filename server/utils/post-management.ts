@@ -721,8 +721,8 @@ export async function getPublishedPosts(
     FROM content_documents root JOIN content_documents p ON COALESCE(p.root_id,p.id) = root.id AND p.locale = ?
     LEFT JOIN business_locations bl ON root.location_id = bl.id
     WHERE root.kind = 'social_post' AND root.row_role = 'root' AND p.site_id = ? AND root.status = 'published' AND p.summary IS NOT NULL
-      AND ((root.metadata_json ->> '$.event') IS NULL OR json_type(p.metadata_json, '$.event.title') = 'text')
-      AND ((root.metadata_json ->> '$.offer.terms_conditions') IS NULL OR json_type(p.metadata_json, '$.offer.terms_conditions') = 'text')
+      AND ((root.metadata_json ->> '$.event') IS NULL OR length(trim(p.metadata_json ->> '$.event.title')) > 0)
+      AND ((root.metadata_json ->> '$.offer.terms_conditions') IS NULL OR length(trim(p.metadata_json ->> '$.offer.terms_conditions')) > 0)
   `
   const params: SqlBindValue[] = [locale, siteId]
   if (locationId) {
@@ -796,15 +796,20 @@ export async function getPublishedPostByPublicRoute(
   let post = sourcePost
   if (translated) {
     const metadata = JSON.parse(translated.metadata_json) as Record<string, unknown>
-    if (!translated.summary || sourcePost.event && !metadata.event || sourcePost.offer?.terms_conditions && !metadata.offer) return null
+    const eventCopy = metadata.event as { title?: string } | undefined
+    const offerCopy = metadata.offer as { terms_conditions?: string } | undefined
+    if (!translated.summary || sourcePost.event && !eventCopy?.title?.trim() || sourcePost.offer?.terms_conditions && !offerCopy?.terms_conditions?.trim()) return null
+    const topic = parsePostTopic({ ...topicFields(sourcePost),
+      event: sourcePost.event ? { ...sourcePost.event, ...eventCopy } : null,
+      offer: sourcePost.offer ? { ...sourcePost.offer, ...offerCopy } : null,
+    })
     const socialMedia = (await getPostMediaByPostIds(db, siteId, [translated.id])).get(translated.id)
     const media = publicMediaFromRows(socialMedia?.media)
     const publicPath = '/' + locale + '/posts/' + slug
     post = { ...sourcePost, id: translated.id, slug, title: translated.title ?? '', body: translated.summary, summary: translated.summary,
       seo_title: translated.seo_title, seo_description: translated.seo_description, public_path: publicPath,
       canonical_url: absoluteUrl(await resolveSitePublicOrigin(db, siteId), publicPath),
-      event: sourcePost.event ? { ...sourcePost.event, ...(metadata.event as { title: string }) } : null,
-      offer: sourcePost.offer ? { ...sourcePost.offer, ...(metadata.offer as { terms_conditions?: string }) } : null,
+      ...topic,
       media: projectLocalizedMediaAlt(media, localizations), social_image: socialMedia?.social_image ?? null,
     }
   }

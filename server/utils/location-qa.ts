@@ -44,7 +44,7 @@ export interface QaDocument {
   is_owner_answer: number
   upvote_count: number
   source: string
-  status: string
+  status: 'published' | 'hidden'
   sort_order: number
   created_at: string
   updated_at: string
