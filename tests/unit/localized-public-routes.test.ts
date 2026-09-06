@@ -22,19 +22,20 @@ test('catch-all locale classification uses the tenant published-locale set', () 
 
 test('localized projection clears untranslated localizable fields', () => {
   const projected = projectExactLocalizedResource(
-    'experience',
-    { id: 'experience-1', title: 'English title', tagline: 'English tagline', price: { amount_minor: 2500 } },
+    'product',
+    { id: 'product-1', name: 'English name', description: 'English description', experience: { tagline: 'English tagline' }, price: { amount_minor: 2500 } },
     {
-      resourceType: 'experience',
-      resourceId: 'experience-1',
+      resourceType: 'product',
+      resourceId: 'product-1',
       locale: 'th',
       routePath: '/th/experiences/lesson',
-      values: { title: 'บทเรียน' },
+      values: { name: 'บทเรียน' },
     },
   )
 
-  assert.equal(projected.title, 'บทเรียน')
-  assert.equal(projected.tagline, undefined)
+  assert.equal(projected.name, 'บทเรียน')
+  assert.equal(projected.description, undefined)
+  assert.equal(projected.experience, undefined)
   assert.deepEqual(projected.price, { amount_minor: 2500 })
 })
 
