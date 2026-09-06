@@ -101,15 +101,39 @@
             <p class="text-[15px] font-semibold text-highlighted">Site type</p><p class="mt-3 text-[15px] capitalize text-muted">{{ siteType }}</p>
           </NuxtLink>
 
-          <div class="site-card flex flex-col gap-3">
-            <NuxtLink :to="`${siteDashboardPath}/links`" class="group flex items-center justify-between gap-4"><p class="text-[15px] font-semibold text-highlighted">Links</p><p class="flex items-center gap-2 text-[13px] text-muted">{{ activeLinks.length ? `${activeLinks.length} links` : 'Add your first link' }}<UIcon name="i-lucide-chevron-right" class="size-[15px]" /></p></NuxtLink>
-            <div class="space-y-2">
-              <a v-for="link in activeLinks" :key="link.id" :href="link.destination" target="_blank" rel="noopener noreferrer" class="flex min-h-12 items-center gap-3 rounded-xl border border-default px-4 py-3 text-[13px] font-medium text-highlighted hover:text-primary">
-                <UIcon :name="linkIcon(link.destination)" class="size-5 text-muted" /><span class="min-w-0 flex-1 truncate">{{ link.label }}</span><UIcon name="i-lucide-external-link" class="size-4 text-muted" />
-              </a>
-              <p v-if="!activeLinks.length" class="py-4 text-sm text-muted">No active links.</p>
+          <!--
+            Insights lives here rather than in the menu: analytics is per site,
+            and the menu is organization-scoped, where an org with two sites has
+            no single site to report on.
+          -->
+          <NuxtLink :to="`${siteDashboardPath}/analytics`" class="site-card group block">
+            <div class="flex items-center justify-between gap-3">
+              <p class="text-[15px] font-semibold text-highlighted">Insights</p>
+              <UIcon name="i-lucide-chart-no-axes-column" class="size-5 text-muted" />
             </div>
-          </div>
+            <p class="mt-3 text-[15px] text-muted">Traffic, sources and conversions for this site.</p>
+          </NuxtLink>
+
+          <!--
+            Every site-scoped collection the registry declares, rendered off the
+            registry itself. Hand-listing them here is how Testimonials, Q&A and
+            Orders ended up with pages that nothing in the dashboard linked to.
+          -->
+          <section v-if="collectionRows.length">
+            <h2 class="mb-3 text-[15px] font-semibold text-highlighted">Collections</h2>
+            <div class="overflow-hidden rounded-2xl border border-default bg-default">
+              <NuxtLink
+                v-for="row in collectionRows"
+                :key="row.id"
+                :to="row.to"
+                class="flex min-h-[66px] items-center gap-4 border-b border-default px-4 last:border-0 hover:bg-elevated"
+              >
+                <UIcon :name="row.icon" class="size-5 text-muted" />
+                <span class="min-w-0 flex-1 font-medium text-highlighted">{{ row.label }}</span>
+                <UIcon name="i-lucide-chevron-right" class="size-4 text-muted" />
+              </NuxtLink>
+            </div>
+          </section>
         </div>
 
         <div v-else class="overflow-hidden rounded-2xl border border-default bg-default">
@@ -140,7 +164,7 @@
 
 <script setup lang="ts">
 import { defaultModuleFeaturesForVertical, parseCmsFeatureOverrideDelta, resolveCmsCapabilities, templateCapabilityCatalog, type ProductFeature } from '~/config/cms-registry'
-import { resolveDashboardPrimaryLocationPath, resolveDashboardSitePageDestination } from '~/composables/useDashboardSiteLinks'
+import { resolveDashboardSitePageDestination } from '~/composables/useDashboardSiteLinks'
 import { resolvePublicTemplate } from '~/utils/template-registry'
 import { normalizeVertical, type SiteVertical } from '~/utils/vertical-copy'
 import type { DashboardHomeData } from '~/server/utils/dashboard-home'
@@ -231,16 +255,14 @@ const settings = computed(() => overview.value.settings)
 const logoUrl = computed(() => settings.value.media?.find(item => item.slot === 'logo')?.public_url ?? null)
 const pages = computed(() => overview.value.pages)
 const media = computed(() => overview.value.media)
-const activeLinks = computed(() => overview.value.links.filter(item => item.status === 'active'))
 const siteDomain = computed(() => dashboard.site.value?.custom_domain || dashboard.site.value?.public_url || '')
 const publicSiteUrl = computed(() => dashboard.site.value?.public_url || '')
 const siteType = computed(() => `${vertical.value.replaceAll('_', ' ')} · ${template.value} theme`)
 const mediaSummary = computed(() => media.value.length ? `${media.value.length}${media.value.length === 6 ? '+' : ''} photos` : 'No media yet')
 const pageIcons: Record<string, string> = { '/': 'i-lucide-house', '/about': 'i-lucide-info', '/contact': 'i-lucide-mail', '/menu': 'i-lucide-utensils', '/order': 'i-lucide-shopping-bag', '/reservations': 'i-lucide-calendar-check', '/experiences': 'i-lucide-ticket', '/services': 'i-lucide-briefcase', '/pricing': 'i-lucide-badge-dollar-sign', '/donate': 'i-lucide-heart-handshake', '/schedule': 'i-lucide-calendar-days', '/blog': 'i-lucide-newspaper' }
 const featureByRoute: Record<string, ProductFeature> = { '/menu': 'products', '/products': 'products', '/order': 'ordering', '/reservations': 'reservations', '/experiences': 'experiences', '/services': 'services', '/pricing': 'services', '/donate': 'services', '/schedule': 'services' }
-const primaryLocationPath = computed(() => resolveDashboardPrimaryLocationPath(locations.value, locationsPath.value))
 function pageDestination(path: string) {
-  return resolveDashboardSitePageDestination(path, siteDashboardPath.value, primaryLocationPath.value)
+  return resolveDashboardSitePageDestination(path, siteDashboardPath.value, locationsPath.value)
 }
 const pageRows = computed(() => {
   const catalog = templateCapabilityCatalog[template.value]
@@ -254,13 +276,36 @@ const pageRows = computed(() => {
       enabled: true,
       to: `${siteDashboardPath.value}/pages/${page.id}`,
     }))
-  const managers = [...catalog.pages.filter(page => page.scope === 'site' && featureByRoute[page.route]), { id: 'blog', label: 'Blog', route: '/blog', feature: 'blog' as ProductFeature }].map(page => {
+  const managers = catalog.pages.filter(page => page.scope === 'site' && featureByRoute[page.route]).map(page => {
     const module = featureByRoute[page.route]
     const enabled = !module || capabilities.value.pages.some(item => item.scope === 'site' && item.route === page.route)
     return { id: page.id, label: page.label, icon: pageIcons[page.route] || 'i-lucide-file-text', module, enabled, to: pageDestination(page.route) }
   })
   return [...documents, ...managers]
 })
+const collectionIcons: Record<string, string> = {
+  blog: 'i-lucide-newspaper',
+  testimonials: 'i-lucide-quote',
+  qa: 'i-lucide-message-circle-question',
+  links: 'i-lucide-link',
+  ordering: 'i-lucide-shopping-bag',
+  posts: 'i-lucide-megaphone',
+}
+
+/**
+ * Site-scoped collections, straight from the resolved capabilities. The registry
+ * already knows each one's label and route, so a manager added there reaches this
+ * page without an edit here — and cannot be left unreachable.
+ */
+const collectionRows = computed(() => capabilities.value.managers
+  .filter(manager => manager.scope === 'site' && manager.section === 'collections')
+  .map(manager => ({
+    id: manager.key,
+    label: manager.label,
+    icon: collectionIcons[manager.id] ?? 'i-lucide-file-text',
+    to: `${siteDashboardPath.value}/${manager.route}`,
+  })))
+
 const togglingModule = ref<ProductFeature | null>(null)
 async function enableModule(feature: ProductFeature) {
   togglingModule.value = feature
@@ -280,7 +325,6 @@ async function enableModule(feature: ProductFeature) {
   } finally { togglingModule.value = null }
 }
 
-function linkIcon(destination: string) { try { const host = new URL(destination).hostname.replace(/^www\./, ''); if (host.endsWith('facebook.com')) return 'i-simple-icons-facebook'; if (host.endsWith('instagram.com')) return 'i-simple-icons-instagram'; if (host.endsWith('tiktok.com')) return 'i-simple-icons-tiktok'; if (host.endsWith('youtube.com') || host === 'youtu.be') return 'i-simple-icons-youtube' } catch { return 'i-lucide-link' } return 'i-lucide-link' }
 </script>
 
 <style scoped>

@@ -1,29 +1,22 @@
 import { computed } from 'vue'
 
-interface DashboardLocationPathSource {
-  slug: string
-  is_primary: boolean
-}
-
-export function resolveDashboardPrimaryLocationPath(
-  locations: readonly DashboardLocationPathSource[],
-  locationsPath: string,
-): string | null {
-  const location = locations.find(item => item.is_primary) ?? locations[0]
-  return location ? `${locationsPath}/${location.slug}` : null
-}
-
+/**
+ * Where a site-level page row goes when opened.
+ *
+ * Menu, reservations and experiences are edited per location, and a site row
+ * cannot know which location the user means, so it opens the locations list and
+ * they choose. It previously resolved a "primary" location and opened that one
+ * directly, which silently picked for multi-location tenants.
+ */
 export function resolveDashboardSitePageDestination(
   path: string,
   sitePath: string,
-  primaryLocationPath: string | null,
-): string | null {
+  locationsPath: string,
+): string {
   if (path === '/blog') return `${sitePath}/blog`
   if (path === '/order') return `${sitePath}/orders`
   if (['/services', '/pricing', '/donate', '/schedule'].includes(path)) return `${sitePath}/professional-services`
-  if (path === '/menu' || path === '/products') return primaryLocationPath ? `${primaryLocationPath}/products` : null
-  if (path === '/reservations') return primaryLocationPath ? `${primaryLocationPath}/reservations` : null
-  if (path === '/experiences') return primaryLocationPath ? `${primaryLocationPath}/experiences` : null
+  if (['/menu', '/products', '/reservations', '/experiences'].includes(path)) return locationsPath
   return `${sitePath}/pages`
 }
 
@@ -58,6 +51,10 @@ export function useDashboardSiteLinks() {
       site,
       pages: `${site}/pages`,
       qa: `${site}/qa`,
+      testimonials: `${site}/testimonials`,
+      analytics: `${site}/analytics`,
+      blog: `${site}/blog`,
+      links: `${site}/links`,
       inbox: `${site}/inbox`,
       order: `${site}/orders`,
       media: `${site}/media`,
