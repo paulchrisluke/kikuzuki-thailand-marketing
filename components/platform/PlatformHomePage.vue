@@ -32,14 +32,10 @@
 
             <!-- CTAs -->
             <div class="flex flex-wrap gap-3">
-              <NuxtLink
-                to="/signup"
+              <PlatformAccountCta
                 class="inline-flex items-center gap-2 font-semibold text-[15px] px-6 py-3.5 rounded-[10px] hover:opacity-90 transition-all no-underline text-white shadow-lg"
                 style="background: linear-gradient(135deg, var(--kc-coral) 0%, #e0524c 100%); box-shadow: 0 4px 20px rgba(251,116,97,0.35);"
-              >
-                Start free
-                <PlatformIcon name="arrow-right" class="size-4" />
-              </NuxtLink>
+               />
               <NuxtLink
                 to="/plugin"
                 class="inline-flex items-center gap-2 bg-transparent text-(--kc-teal-600) border border-(--kc-teal)/50 font-semibold text-[15px] px-6 py-3.5 rounded-full hover:bg-(--kc-teal-100) transition-colors no-underline"

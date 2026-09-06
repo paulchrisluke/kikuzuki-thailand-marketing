@@ -1,5 +1,5 @@
 <template>
-  <div>
+  <div v-if="!isAuthenticated">
     <h1 class="text-2xl font-semibold tracking-tight text-highlighted">Create your account</h1>
 
     <UAlert v-if="error" color="error" variant="soft" :description="error" class="mt-4" />
@@ -28,14 +28,18 @@ const { trackSignUp } = useAnalytics()
 const redirect = computed(() => validatedInternalPath(route.query.redirect))
 const postLoginUrl = computed(() => buildPostLoginUrl({ redirect: redirect.value }))
 const loginUrl = computed(() => redirect.value ? { path: '/login', query: { redirect: redirect.value } } : '/login')
+const requestUrl = useRequestURL()
 const verificationCallback = computed(() => {
-  const url = new URL('/login', useRequestURL().origin)
+  const url = new URL('/login', requestUrl.origin)
   url.searchParams.set('verified', '1')
   if (redirect.value) url.searchParams.set('redirect', redirect.value)
   return url.toString()
 })
 const { loading, error, signInWithGoogle } = useAuthOperation()
 const showPhone = ref(false)
+
+const { isAuthenticated } = await useAuthSession()
+if (isAuthenticated.value) await navigateTo(postLoginUrl.value, { external: true })
 
 async function googleSignup() {
   await signInWithGoogle(postLoginUrl.value)
