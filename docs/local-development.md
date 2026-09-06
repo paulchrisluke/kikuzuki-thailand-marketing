@@ -25,8 +25,13 @@ corepack yarn local:cards
 
 It signs in as the developer account and regenerates every tenant's cards
 through the same endpoint the dashboard's own button uses. It needs `yarn dev`
-up, because rendering a card runs in the Worker. Deployed environments do not
-need it: the `social-card-backfill` task covers them nightly.
+up, because rendering a card runs in the Worker, and it takes a while on the
+first run — a card is rendered and uploaded per product, post and page. A site
+that outruns the request timeout is reported and skipped; re-run to finish it,
+since cards that already match are reused rather than regenerated.
+
+Only production runs the `social-card-backfill` task: preview and staging set
+`crons = []`, and it is bounded to a small number of owners per night.
 
 Use **Ember & Slice** (`ember-slice-demo`) for general review. It is the fixture
 that carries rolling analytics, today's reservations and upcoming bookings, so

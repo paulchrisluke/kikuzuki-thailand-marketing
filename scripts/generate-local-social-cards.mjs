@@ -16,6 +16,12 @@
 import { parseArgs } from 'node:util'
 import { credentialSession } from './utils/e2e-auth.mjs'
 
+// A site with a full menu is a hundred renders in one request, which runs past
+// fetch's five-minute headers timeout. Rather than reach for undici to disable
+// it — undici is only a transitive dependency here — a site that times out is
+// reported and the run continues. Cards that already match are reused, so
+// re-running picks up where this left off.
+
 const { values: args } = parseArgs({
   options: {
     'base-url': { type: 'string', default: 'http://localhost:3000' },
@@ -61,22 +67,31 @@ for (const organization of organizations) {
   const scoped = await fetch(new URL(`/api/dashboard/context?org=${encodeURIComponent(organization.slug)}`, baseURL), { headers: { cookie } })
   if (!scoped.ok) continue
   for (const site of (await scoped.json()).sites ?? []) {
-    const response = await fetch(new URL(`/api/editor/sites/${site.id}/social-cards/regenerate`, baseURL), {
-      method: 'POST',
-      headers: { cookie },
-    })
-    if (!response.ok) {
-      console.error(`[local:cards] ${site.id}: ${response.status}`)
+    // One site failing must not end the run: the rest of the tenants still
+    // need their cards, and a second run picks up whatever this one missed
+    // because regeneration reuses cards that already match.
+    try {
+      const response = await fetch(new URL(`/api/editor/sites/${site.id}/social-cards/regenerate`, baseURL), {
+        method: 'POST',
+        headers: { cookie },
+      })
+      if (!response.ok) {
+        console.error(`[local:cards] ${organization.slug}/${site.id}: ${response.status}`)
+        failed += 1
+        continue
+      }
+      const results = (await response.json()).results ?? []
+      const made = results.filter(result => result.kind === 'generated').length
+      generated += made
+      failed += results.filter(result => result.kind === 'failed').length
+      console.log(`[local:cards] ${organization.slug}/${site.id}: ${made} generated, ${results.length} owners`)
+    } catch (error) {
       failed += 1
-      continue
+      console.error(`[local:cards] ${organization.slug}/${site.id}: ${error instanceof Error ? error.message : String(error)}`)
     }
-    const results = (await response.json()).results ?? []
-    const made = results.filter(result => result.kind === 'generated').length
-    generated += made
-    failed += results.filter(result => result.kind === 'failed').length
-    console.log(`[local:cards] ${organization.slug}/${site.id}: ${made} generated, ${results.length} owners`)
   }
 }
 
 console.log(`[local:cards] Done. ${generated} cards generated, ${failed} failed.`)
+if (failed > 0) console.error('[local:cards] Re-run to retry the failures; cards that already match are reused.')
 process.exit(failed > 0 ? 1 : 0)
