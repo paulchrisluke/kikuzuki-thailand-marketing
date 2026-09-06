@@ -16,6 +16,22 @@ the demo, Kikuzuki, Pottery House, and NCLS fixtures, provisions local auth, and
 verifies the resulting D1 database. Do not replace its steps with direct
 Wrangler writes or a hand-edited local database.
 
+Fixtures are written as SQL, which never reaches the social card generator, so a
+freshly set-up database serves no `og:image`. Once the app is running:
+
+```sh
+corepack yarn local:cards
+```
+
+It signs in as the developer account and regenerates every tenant's cards
+through the same endpoint the dashboard's own button uses. It needs `yarn dev`
+up, because rendering a card runs in the Worker. Deployed environments do not
+need it: the `social-card-backfill` task covers them nightly.
+
+Use **Ember & Slice** (`ember-slice-demo`) for general review. It is the fixture
+that carries rolling analytics, today's reservations and upcoming bookings, so
+Today, Calendar and Insights all have something to show.
+
 ## Signing in
 
 After `local:setup`, start the app and use the URL, email, and password printed
