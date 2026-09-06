@@ -35,7 +35,7 @@ export function buildNotificationVisibilityFilter(principal: NotificationVisibil
     } else {
       const accessClauses: string[] = []
       if (principal.siteWideSiteIds?.length) {
-        accessClauses.push(`n.site_id IN (SELECT value FROM json_each(?))`)
+        accessClauses.push(`n.context_site_id IN (SELECT value FROM json_each(?))`)
       }
       if (principal.locationIds?.length) {
         accessClauses.push(`n.location_id IN (SELECT value FROM json_each(?))`)

@@ -23,10 +23,10 @@ export default defineHandler(async (event) => {
   if (since) { filters.push('d.created_at >= ?'); binds.push(since) }
 
   const notifications = await queryAll(db, `
-    SELECT id, organization_id, site_id, location_id, parent_id AS source_entry_id,
+    SELECT id, organization_id, context_site_id AS site_id, location_id, parent_id AS source_entry_id,
            json_extract(payload_json, '$.visibility_scope') AS scope, json_extract(payload_json, '$.severity') AS severity, event_name AS template, json_extract(payload_json, '$.title') AS title, created_at
     FROM activity_entries
-    WHERE kind = 'notification' AND (? IS NULL OR site_id = ?)
+    WHERE kind = 'notification' AND (? IS NULL OR context_site_id = ?)
       AND (? IS NULL OR organization_id = ?)
       AND (? IS NULL OR location_id = ?)
       AND (? IS NULL OR created_at >= ?)

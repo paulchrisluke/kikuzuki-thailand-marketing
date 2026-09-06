@@ -80,6 +80,21 @@ test('canonical requests claim one seat and update independent owner slots atomi
     assert.equal((await executeGuestThreadOperation(db, operation)).ok, true)
     assert.equal(await db.prepare("SELECT status FROM requests WHERE id='experience-booking-proof'").first('status'), 'completed')
     assert.equal(await db.prepare("SELECT count(*) FROM activity_entries WHERE request_id='experience-booking-proof' AND kind='operation'").first('count(*)'), 1)
+    await db.batch([
+      "INSERT INTO organization (id,name,slug) VALUES ('org-former','Former','former')",
+      "INSERT INTO organization (id,name,slug) VALUES ('org-current','Current','current')",
+      "INSERT INTO sites (id,organization_id,slug,subdomain) VALUES ('site-transferred','org-current','transferred','transferred')",
+      "INSERT INTO activity_entries (id,kind,scope_kind,site_id,actor_kind,event_name,payload_json,dedupe_key,occurred_at) VALUES ('audit-proof','audit','site','site-transferred','system','site.changed','{\"sourceOrganizationId\":\"org-former\"}','audit-proof','2026-09-01T00:00:00Z')",
+    ].map(statement => db.prepare(statement)))
+    const historicalNotification = buildCanonicalNotificationInsert({ scope: 'site', organizationId: 'org-proof', siteId: 'site-transferred', title: 'Original notification', template: 'site.changed' }, 'historical-notification')
+    await db.prepare(historicalNotification.query).bind(...historicalNotification.params).run()
+    await acknowledgeNotification(db, visibility, historicalNotification.id)
+    await db.prepare("DELETE FROM organization WHERE id='org-former'").run()
+    assert.equal(await db.prepare("SELECT count(*) FROM activity_entries WHERE id='audit-proof'").first('count(*)'), 1)
+    await db.prepare("DELETE FROM organization WHERE id='org-current'").run()
+    assert.equal(await db.prepare("SELECT count(*) FROM activity_entries WHERE id='audit-proof'").first('count(*)'), 0)
+    assert.deepEqual(await db.prepare("SELECT organization_id,context_site_id FROM activity_entries WHERE id='historical-notification'").first(), { organization_id: 'org-proof', context_site_id: null })
+    assert.equal(await db.prepare("SELECT count(*) FROM activity_entries WHERE kind='acknowledgement' AND parent_id='historical-notification' AND context_site_id IS NULL").first('count(*)'), 1)
     const owner = { kind: 'location', locationId: 'location-proof' } as const
     await Promise.all([
       setAvailability(db, { organizationId: 'org-proof', siteId: 'site-proof', owner, actorUserId: 'user-proof', changes: [{ directive: 'set', override_date: date, time_slot: '16:00', status: 'closed' }] }),

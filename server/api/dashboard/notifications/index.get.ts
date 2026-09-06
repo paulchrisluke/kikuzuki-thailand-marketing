@@ -26,7 +26,7 @@ export default defineHandler(async (event) => {
 
   const [rows, count] = await Promise.all([
     queryAll<NotificationRow>(access.db, `
-      SELECT n.id, json_extract(n.payload_json, '$.visibility_scope') AS scope, n.event_name AS template, json_extract(n.payload_json, '$.severity') AS severity, n.organization_id, n.site_id, n.location_id, n.target_user_id, json_extract(n.payload_json, '$.title') AS title, n.body AS message, json_extract(n.payload_json, '$.deep_link') AS deep_link, n.created_at, nr.read_at
+      SELECT n.id, json_extract(n.payload_json, '$.visibility_scope') AS scope, n.event_name AS template, json_extract(n.payload_json, '$.severity') AS severity, n.organization_id, n.context_site_id AS site_id, n.location_id, n.target_user_id, json_extract(n.payload_json, '$.title') AS title, n.body AS message, json_extract(n.payload_json, '$.deep_link') AS deep_link, n.created_at, nr.read_at
       FROM activity_entries n
       LEFT JOIN (SELECT parent_id, MAX(occurred_at) AS read_at FROM activity_entries WHERE kind = 'acknowledgement' AND actor_user_id = ? GROUP BY parent_id) nr ON nr.parent_id = n.id
       WHERE ${access.whereSql}

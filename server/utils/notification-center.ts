@@ -61,7 +61,7 @@ export function buildCanonicalNotificationInsert(
     id,
     query: `
       INSERT INTO activity_entries
-        (id, kind, scope_kind, organization_id, site_id, location_id, parent_id, actor_kind, target_user_id, body, event_name, payload_json, dedupe_key, occurred_at, created_at)
+        (id, kind, scope_kind, organization_id, context_site_id, location_id, parent_id, actor_kind, target_user_id, body, event_name, payload_json, dedupe_key, occurred_at, created_at)
       VALUES (?, 'notification', ?, ?, ?, ?, ?, 'system', ?, ?, ?, ?, ?, ?, ?)
       ON CONFLICT DO NOTHING
     `,

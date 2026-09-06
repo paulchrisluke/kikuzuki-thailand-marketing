@@ -170,7 +170,8 @@ export const activity_entries = sqliteTable("activity_entries", {
  kind: text({ enum: ["submission", "message", "operation", "assignment", "resolution", "notification", "acknowledgement", "audit"] }).notNull(),
  scope_kind: text({ enum: ["request", "site", "organization", "platform"] }).notNull(),
  organization_id: text().references((): AnySQLiteColumn => organization.id, { onDelete: "cascade" }),
- site_id: text().references((): AnySQLiteColumn => sites.id, { onDelete: "set null" }),
+ site_id: text().references((): AnySQLiteColumn => sites.id, { onDelete: "cascade" }),
+ context_site_id: text().references((): AnySQLiteColumn => sites.id, { onDelete: "set null" }),
  location_id: text().references((): AnySQLiteColumn => business_locations.id, { onDelete: "set null" }),
  request_id: text().references((): AnySQLiteColumn => requests.id, { onDelete: "cascade" }),
  parent_id: text().references((): AnySQLiteColumn => activity_entries.id, { onDelete: "cascade" }),
@@ -187,8 +188,7 @@ export const activity_entries = sqliteTable("activity_entries", {
  created_at: text().default(sql`(strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))`).notNull(),
 }, table => [
  check("activity_entries_kind_check", sql`kind IN ('submission', 'message', 'operation', 'assignment', 'resolution', 'notification', 'acknowledgement', 'audit')`),
- check("activity_entries_scope_check", sql`scope_kind IN ('request', 'site', 'organization', 'platform') AND (scope_kind != 'request' OR request_id IS NOT NULL) AND (scope_kind != 'organization' OR organization_id IS NOT NULL)`),
- check("activity_entries_request_owner_check", sql`scope_kind != 'request' OR (organization_id IS NULL AND site_id IS NULL AND location_id IS NULL)`),
+ check("activity_entries_scope_check", sql`(scope_kind = 'request' AND request_id IS NOT NULL AND organization_id IS NULL AND site_id IS NULL AND context_site_id IS NULL AND location_id IS NULL) OR (scope_kind = 'site' AND kind = 'audit' AND site_id IS NOT NULL AND context_site_id IS NULL AND organization_id IS NULL AND request_id IS NULL) OR (scope_kind = 'organization' AND organization_id IS NOT NULL AND site_id IS NULL AND request_id IS NULL) OR (scope_kind = 'platform' AND organization_id IS NULL AND site_id IS NULL AND context_site_id IS NULL AND request_id IS NULL)`),
  check("activity_entries_actor_check", sql`actor_kind IN ('guest', 'member', 'system', 'cloudflare')`),
  check("activity_entries_channel_check", sql`channel IS NULL OR channel IN ('web', 'email', 'whatsapp', 'system')`),
  check("activity_entries_payload_check", sql`json_valid(payload_json) AND json_type(payload_json) = 'object'`),
@@ -197,6 +197,7 @@ export const activity_entries = sqliteTable("activity_entries", {
  uniqueIndex("activity_entries_notification_source_unique").on(table.parent_id).where(sql`kind = 'notification' AND parent_id IS NOT NULL`),
  index("activity_entries_request_occurred_idx").on(table.request_id, table.occurred_at),
  index("activity_entries_parent_actor_idx").on(table.parent_id, table.actor_user_id, table.occurred_at),
+ index("activity_entries_context_site_created_idx").on(table.kind, table.context_site_id, table.created_at),
  index("activity_entries_site_created_idx").on(table.kind, table.site_id, table.created_at),
  index("activity_entries_org_created_idx").on(table.kind, table.organization_id, table.created_at),
  index("activity_entries_target_created_idx").on(table.kind, table.target_user_id, table.created_at)
