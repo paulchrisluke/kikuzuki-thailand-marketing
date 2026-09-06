@@ -184,6 +184,51 @@ function nowInTimezone(timezone: string | null | undefined, now: Date): { weekda
   }
 }
 
+export interface WeekdayHoursEntry {
+  open: string
+  close: string
+  closed: boolean
+}
+
+const WEEKDAY_TITLES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
+
+/**
+ * Parse Google's weekday description lines ("Monday: 9:00 AM – 6:00 PM", "Sunday: Closed")
+ * into per-day editable hours, keyed by the capitalized weekday name.
+ *
+ * Only days the source actually describes, and only when they resolve to exactly
+ * one range this file's parser understands, are returned. A day that is absent,
+ * unparseable, or split across several ranges is left out of the map so callers
+ * keep it unknown instead of inventing a working day or picking one of its ranges.
+ */
+export function parseWeekdayHoursFromDescriptions(
+  lines: readonly unknown[] | null | undefined,
+): Map<string, WeekdayHoursEntry> {
+  const parsed = new Map<string, WeekdayHoursEntry>()
+  if (!Array.isArray(lines)) return parsed
+
+  for (const line of lines) {
+    if (typeof line !== 'string') continue
+    const separatorIndex = line.indexOf(':')
+    if (separatorIndex < 0) continue
+    const rawDay = line.slice(0, separatorIndex).trim()
+    const day = WEEKDAY_TITLES.find(candidate => candidate.toUpperCase() === rawDay.toUpperCase())
+    if (!day) continue
+
+    const range = line.slice(separatorIndex + 1).trim()
+    if (/^closed$/i.test(range)) {
+      parsed.set(day, { open: '', close: '', closed: true })
+      continue
+    }
+
+    const ranges = normalizeOpeningHours({ weekdayDescriptions: [line] })
+    const entry = ranges.length === 1 ? ranges[0]! : null
+    if (entry) parsed.set(day, { open: entry.openTime, close: entry.closeTime, closed: false })
+  }
+
+  return parsed
+}
+
 /**
  * Generates reservation time options for a given calendar date from a location's structured
  * opening hours, at a fixed interval, stopping `lastSeatingBufferMinutes` before closing so the

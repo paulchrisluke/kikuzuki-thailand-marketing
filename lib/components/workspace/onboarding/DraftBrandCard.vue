@@ -172,7 +172,9 @@ const heroUploading = ref(false)
 const uploadError = ref<string | null>(null)
 const section = computed(() => props.section)
 const activeUploadInProgress = computed(() => section.value === 'brand' ? logoUploading.value : heroUploading.value)
-const customColorSelected = computed(() => !colorPresets.includes(form.value.brandColor))
+// An unset brand color is unset — not "custom". Nothing is persisted until the
+// owner picks a swatch or a custom color themselves.
+const customColorSelected = computed(() => Boolean(form.value.brandColor) && !colorPresets.includes(form.value.brandColor))
 
 function setBrandColor(color: string) {
   if (props.disabled) return

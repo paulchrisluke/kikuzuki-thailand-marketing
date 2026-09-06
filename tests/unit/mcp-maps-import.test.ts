@@ -5,6 +5,7 @@ import { resolveGoogleMapsPlace } from '../../server/utils/mcp-executor/shared.t
 import { MCP_ERROR } from '../../server/utils/mcp-protocol.ts'
 import { validateArguments } from '../../server/utils/mcp-tool-validation.ts'
 import { ONBOARDING_TOOLS } from '../../server/utils/mcp-tools/onboarding.ts'
+import { parseWeekdayHoursFromDescriptions } from '../../shared/reservation-hours.ts'
 
 const fullMapsUrl = 'https://www.google.com/maps/place/Pottery+House/@8.054,98.91,17z'
 
@@ -147,4 +148,23 @@ test('a canonical ChIJ URL needs no redirect or text-search fallback', async () 
 
   assert.equal(result.placeId, 'ChIJCanonicalPlaceId')
   assert.equal(result.usedTextSearch, false)
+})
+
+test('Google weekday descriptions never fill unknown days with invented hours', () => {
+  const parsed = parseWeekdayHoursFromDescriptions([
+    'Monday: 9:00 AM – 6:00 PM',
+    'Tuesday: Closed',
+    'Wednesday: whenever we feel like it',
+  ])
+
+  assert.deepEqual(parsed.get('Monday'), { open: '09:00', close: '18:00', closed: false })
+  assert.deepEqual(parsed.get('Tuesday'), { open: '', close: '', closed: true })
+
+  // Unparseable and absent days are omitted so the onboarding hours card leaves
+  // them blank instead of persisting a fabricated 09:00–18:00 working day.
+  for (const unknownDay of ['Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']) {
+    assert.equal(parsed.has(unknownDay), false)
+  }
+
+  assert.equal(parseWeekdayHoursFromDescriptions(null).size, 0)
 })

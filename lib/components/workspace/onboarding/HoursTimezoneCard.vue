@@ -28,6 +28,7 @@
               :items="timeOptions"
               value-key="value"
               label-key="label"
+              placeholder="Opens at"
               :disabled="day.closed"
               aria-label="Open time"
             />
@@ -38,6 +39,7 @@
               :items="timeOptions"
               value-key="value"
               label-key="label"
+              placeholder="Closes at"
               :disabled="day.closed"
               aria-label="Close time"
             />

@@ -152,7 +152,9 @@ export interface DraftDetailsInput {
   openingHours: string | null
   notificationPhone: string | null
   timezone: string | null
-  currency: CurrencyCode
+  // Null until the owner picks one on the currency step — the commit refuses a
+  // draft without it rather than inventing a default.
+  currency: CurrencyCode | null
   isPrimary: boolean
 }
 

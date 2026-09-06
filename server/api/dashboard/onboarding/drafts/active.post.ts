@@ -8,7 +8,7 @@ import {
   buildOnboardingDraftPayload, getDraftMedia, parseOnboardingDraftPayload, upsertActiveOnboardingDraft, type DraftBrandInput, type DraftDetailsInput, type DraftUploadedImage, type OnboardingDraftPayload, type PlaceDetailsSnapshot, } from '~/server/utils/onboarding-drafts'
 import { createScopedPreviewToken } from '~/server/utils/preview-token'
 import { VALID_VERTICALS } from '~/server/utils/site-creation'
-import { DEFAULT_CURRENCY, isCurrencyCode } from '~/shared/currencies'
+import { isCurrencyCode, type CurrencyCode } from '~/shared/currencies'
 import type { SiteVertical } from '~/utils/vertical-copy'
 
 type DraftSourceType = 'manual' | 'google_places'
@@ -17,16 +17,18 @@ function stringOrNull(value: unknown) {
   return typeof value === 'string' && value.trim() ? value.trim() : null
 }
 
-function parseCurrency(value: unknown, fallback = DEFAULT_CURRENCY) {
-  if (typeof value !== 'string') return fallback
+// An absent or unrecognised currency stays unknown. Defaulting it to USD here
+// would persist a currency the owner never chose as if they had.
+function parseCurrency(value: unknown): CurrencyCode | null {
+  if (typeof value !== 'string') return null
   const currency = value.toUpperCase()
-  return isCurrencyCode(currency) ? currency : fallback
+  return isCurrencyCode(currency) ? currency : null
 }
 
 function detailsFromBody(
   raw: Record<string, unknown> | null, existing: DraftDetailsInput | null, name: string, ): DraftDetailsInput {
   return {
-    name, city: stringOrNull(raw?.city) ?? existing?.city ?? null, address: stringOrNull(raw?.address) ?? existing?.address ?? null, phone: stringOrNull(raw?.phone) ?? existing?.phone ?? null, websiteUrl: stringOrNull(raw?.websiteUrl) ?? existing?.websiteUrl ?? null, openingHours: stringOrNull(raw?.openingHours) ?? existing?.openingHours ?? null, notificationPhone: stringOrNull(raw?.notificationPhone) ?? existing?.notificationPhone ?? null, timezone: stringOrNull(raw?.timezone) ?? existing?.timezone ?? null, currency: parseCurrency(raw?.currency, existing?.currency ?? DEFAULT_CURRENCY), isPrimary: typeof raw?.isPrimary === 'boolean' ? raw.isPrimary : existing?.isPrimary ?? true, }
+    name, city: stringOrNull(raw?.city) ?? existing?.city ?? null, address: stringOrNull(raw?.address) ?? existing?.address ?? null, phone: stringOrNull(raw?.phone) ?? existing?.phone ?? null, websiteUrl: stringOrNull(raw?.websiteUrl) ?? existing?.websiteUrl ?? null, openingHours: stringOrNull(raw?.openingHours) ?? existing?.openingHours ?? null, notificationPhone: stringOrNull(raw?.notificationPhone) ?? existing?.notificationPhone ?? null, timezone: stringOrNull(raw?.timezone) ?? existing?.timezone ?? null, currency: parseCurrency(raw?.currency) ?? existing?.currency ?? null, isPrimary: typeof raw?.isPrimary === 'boolean' ? raw.isPrimary : existing?.isPrimary ?? true, }
 }
 
 function imageFromBody(raw: unknown, existing: DraftUploadedImage | null): DraftUploadedImage | null {

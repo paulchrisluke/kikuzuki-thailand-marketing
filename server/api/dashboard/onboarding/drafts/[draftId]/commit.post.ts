@@ -81,6 +81,15 @@ export default defineHandler(async (event) => {
     return jsonResponse({ error: 'Draft not found' }, { status: 404 })
   }
 
+  const payload = parseOnboardingDraftPayload(draft.payload_json)
+
+  // The currency is the owner's answer, never a default. Refuse the commit
+  // rather than creating a site whose prices are quoted in an invented currency.
+  const defaultCurrency = payload.source.details.currency
+  if (!defaultCurrency) {
+    return jsonResponse({ error: 'Choose a currency before creating your site.' }, { status: 400 })
+  }
+
   // Atomic draft status transition: claim draft before site creation to prevent duplicates
   const claimResult = await execute(db, `
     UPDATE onboarding_drafts
@@ -92,7 +101,6 @@ export default defineHandler(async (event) => {
     return jsonResponse({ error: 'Draft is no longer active (concurrent commit)' }, { status: 409 })
   }
 
-  const payload = parseOnboardingDraftPayload(draft.payload_json)
   let siteId: string | null = null
   let draftCommitted = false
 
@@ -118,7 +126,7 @@ export default defineHandler(async (event) => {
       UPDATE sites
       SET default_currency = ?, updated_at = ?
       WHERE id = ? AND organization_id = ?
-    `, [payload.source.details.currency, new Date().toISOString(), siteId, organizationId])
+    `, [defaultCurrency, new Date().toISOString(), siteId, organizationId])
 
     const locationRow = await queryFirst<{ id: string; slug: string | null }>(db, `
       SELECT id, slug FROM business_locations
@@ -230,7 +238,7 @@ export default defineHandler(async (event) => {
           JSON.stringify(product.details), product.source, now, now, session.user.id, session.user.id,
         ],
       })
-      const currency = product.price.currency ?? payload.source.details.currency
+      const currency = product.price.currency ?? defaultCurrency
       batchQueries.push({
         query: `INSERT INTO prices (id, organization_id, site_id, location_id, product_id, amount_minor, currency, unit, tax_behavior, compare_at_amount_minor, valid_from, valid_until, provenance, created_by, created_at) VALUES (?,?,?,?,?,?,?,'item','unspecified',?,?,?,'import',?,?)`,
         params: [crypto.randomUUID(), organizationId, siteId, locationRow.id, product.id,
