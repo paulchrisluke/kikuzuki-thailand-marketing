@@ -13,7 +13,10 @@ export const NON_RUNTIME_PATTERNS = [
 
 export const CORE_ONLY_PATTERNS = [
   '.github/**', 'config/e2e-impact-map.mjs', 'package.json',
-  'scripts/run-preview-e2e.mjs', 'scripts/select-preview-e2e.mjs', 'tests/unit/**',
+  'scripts/run-preview-e2e.mjs', 'scripts/select-preview-e2e.mjs',
+  // Local-only sign-in convenience: no spec drives it, and it 404s wherever
+  // dev routes are off. Other server/api/dev routes stay unclassified on purpose.
+  'server/api/dev/login.get.ts', 'tests/unit/**',
 ]
 
 export const IMPACT_GROUPS = [

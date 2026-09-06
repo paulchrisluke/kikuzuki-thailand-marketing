@@ -29,11 +29,25 @@ if (persistTo && isPreview) {
   throw new Error('--persist-to is available only for local D1 fixture provisioning.')
 }
 
+// Local runs are driven by hand, so the developer's own .env is the environment
+// they mean. CI sets these in the real environment and ships no .env file, where
+// this is a no-op.
+if (isLocalDev) {
+  try {
+    process.loadEnvFile()
+  } catch {
+    // No .env: every value below stays whatever the shell exported.
+  }
+}
+
 const e2ePassword = process.env.E2E_TEST_PASSWORD || (isLocalDev ? randomUUID() : '')
 if (!e2ePassword) {
   throw new Error('E2E_TEST_PASSWORD is required when provisioning Better Auth E2E credentials.')
 }
-const localDeveloperPassword = isLocalDev ? randomUUID() : ''
+// LOCAL_DEVELOPER_PASSWORD is the single source for this account's password:
+// /api/dev/login signs in with the same value, so the two only agree when it is
+// set. Unset, this stays a throwaway that must be copied from the output below.
+const localDeveloperPassword = isLocalDev ? (process.env.LOCAL_DEVELOPER_PASSWORD || randomUUID()) : ''
 
 const sqlString = (value: string) => `'${value.replaceAll("'", "''")}'`
 const credentialFixtures = isLocalDev
@@ -108,6 +122,9 @@ try {
   console.log(`Provisioned ${E2E_AUTH_FIXTURES.length} verified Better Auth E2E credentials (${isPreview ? 'preview' : 'local'}).`)
   if (isLocalDev) {
     console.log('\nLocal developer sign-in')
+    if (process.env.LOCAL_DEVELOPER_PASSWORD) {
+      console.log('URL: http://localhost:3000/api/dev/login  (signs in and redirects, no typing)')
+    }
     console.log(`URL: ${LOCAL_DEVELOPER_LOGIN_URL}`)
     console.log(`Email: ${LOCAL_DEVELOPER_AUTH_FIXTURE.email}`)
     console.log(`Password: ${localDeveloperPassword}`)

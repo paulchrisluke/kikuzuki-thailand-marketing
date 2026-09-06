@@ -50,6 +50,22 @@ demo, Pottery House, Kikuzuki, and NCLS work. Better Auth handles the normal
 email/password request and stores only the password hash; there is no auth
 bypass, magic header, or cookie to paste.
 
+### Signing in without typing
+
+Retyping a freshly generated password every time is tedious, and an agent
+driving a browser cannot do it at all. Set `LOCAL_DEVELOPER_EMAIL` and
+`LOCAL_DEVELOPER_PASSWORD` in `.env` and re-run `corepack yarn local:setup`:
+setup then provisions the hash for the password you chose instead of a
+throwaway, and `http://localhost:3000/api/dev/login` signs you in and redirects
+to the dashboard. Pass `?next=/some/path` to land somewhere else.
+
+That route is still a real Better Auth `signInEmail` — it supplies the
+credential rather than skipping the check — and it sits behind
+`assertDevRouteAllowed`, so it 404s unless `import.meta.dev` or
+`E2E_ALLOW_DEV_ROUTES` is on, and demands the `x-dev-route-secret` header on any
+host that is not localhost. Leave both variables unset and nothing changes:
+setup keeps minting a throwaway and the route answers 400.
+
 `local:setup` refreshes the fixture users and sessions. If local data or auth is
 stale, run the whole command again and then sign in again. Do not run an
 individual seed or provisioning script as an alternate repair path.
