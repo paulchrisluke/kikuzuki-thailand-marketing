@@ -1,16 +1,13 @@
-export const PUBLICATION_CONTENT_DOCUMENT_OWNER_TYPES = [
-  'platform_blog',
+export const CONTENT_DOCUMENT_KINDS = [
+  'page',
+  'article',
   'platform_doc',
-  'tenant_blog',
+  'social_post',
+  'qa',
+  'locale_catalog',
 ] as const
 
-export const CONTENT_DOCUMENT_OWNER_TYPES = [
-  ...PUBLICATION_CONTENT_DOCUMENT_OWNER_TYPES,
-  'tenant_page',
-  'resource_localization',
-] as const
-
-export type ContentDocumentOwnerType = typeof CONTENT_DOCUMENT_OWNER_TYPES[number]
+export type ContentDocumentKind = typeof CONTENT_DOCUMENT_KINDS[number]
 
 export const PUBLICATION_CONTENT_BLOCK_TYPES = [
   'heading',
@@ -66,21 +63,7 @@ export const CONTENT_BLOCK_TYPES = [
 export type ContentBlockType = typeof CONTENT_BLOCK_TYPES[number]
 
 export const LOCALIZED_RESOURCE_TYPES = [
-  'site',
-  'business_location',
-  'product',
-  'product_category',
-  'experience',
-  'offering',
-  'site_post',
-  'tenant_blog_post',
-  'location_qa',
-  'media_asset',
-  'booking_policy',
-  'site_link_page',
-  'site_link_item',
-  'tenant_compliance',
-  'site_consultation_settings',
+  'site', 'business_location', 'product', 'product_category', 'offering', 'media_asset',
 ] as const
 
 export type LocalizedResourceType = typeof LOCALIZED_RESOURCE_TYPES[number]

@@ -2,7 +2,7 @@ import type { SiteSettings, SiteIntegrations } from '../../shared/site-settings'
 import { sql } from "drizzle-orm"
 import { sqliteTable, integer, text, real, unique, primaryKey, uniqueIndex, index, check, foreignKey } from "drizzle-orm/sqlite-core"
 import type { AnySQLiteColumn } from "drizzle-orm/sqlite-core"
-import { CONTENT_BLOCK_TYPES, CONTENT_DOCUMENT_OWNER_TYPES, LOCALIZED_RESOURCE_TYPES } from "../../shared/content-registries"
+import { CONTENT_BLOCK_TYPES, CONTENT_DOCUMENT_KINDS, LOCALIZED_RESOURCE_TYPES } from "../../shared/content-registries"
 import { MEDIA_PLACEMENT_SLOTS } from "../../shared/media-placement-contract"
 import { NONPROFIT_STATUS_CANONICAL } from "../../utils/professional-service-schema"
 import { publicTemplateRegistry } from "../../utils/template-registry"
@@ -253,37 +253,6 @@ export const jwks = sqliteTable("jwks", {
 	createdAt: integer({ mode: "timestamp" }).notNull(),
 	expiresAt: integer({ mode: "timestamp" }),
 });
-
-export const location_qa = sqliteTable("location_qa", {
-	id: text().primaryKey(),
-	organization_id: text().notNull().references(() => organization.id, { onDelete: "cascade" } ),
-	site_id: text().notNull().references(() => sites.id, { onDelete: "cascade" } ),
-	location_id: text().references(() => business_locations.id, { onDelete: "cascade" } ),
-	page_path: text(),
-	question: text().notNull(),
-	question_author: text(),
-	question_date: text(),
-	answer: text(),
-	answer_author: text(),
-	answer_date: text(),
-	is_owner_answer: integer().default(0).notNull(),
-	upvote_count: integer().default(0).notNull(),
-	source: text().default("manual").notNull(),
-	status: text().default("published").notNull(),
-	sort_order: integer().default(0).notNull(),
-	created_at: text().default(sql`(strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))`).notNull(),
-	updated_at: text().default(sql`(strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))`).notNull(),
-}, (table) => [
-	foreignKey({ columns: [table.organization_id, table.site_id], foreignColumns: [sites.organization_id, sites.id], name: "location_qa_site_scope_fk" }).onDelete("cascade"),
-	index("idx_location_qa_location").on(table.location_id, table.status, table.sort_order),
-	index("idx_location_qa_site").on(table.site_id, table.status, table.sort_order).where(sql`location_id IS NULL`),
-	index("idx_location_qa_page").on(table.site_id, table.page_path, table.status, table.sort_order).where(sql`location_id IS NULL AND page_path IS NOT NULL`),
-	check("location_qa_scope_check", sql`location_id IS NULL OR page_path IS NULL`),
-	check("location_qa_page_path_check", sql`page_path IS NULL OR page_path LIKE '/%'`),
-	check("location_qa_source_check", sql`source IN ('manual','import','template')`),
-	check("location_qa_status_check", sql`status IN ('published','hidden')`),
-	index("location_qa_organization_id_idx").on(table.organization_id),
-]);
 
 export const media_assets = sqliteTable("media_assets", {
 	id: text().primaryKey(),
@@ -709,123 +678,6 @@ export const onboarding_drafts = sqliteTable("onboarding_drafts", {
 	index("onboarding_drafts_user_id_idx").on(table.user_id),
 ]);
 
-export const blog_posts = sqliteTable("blog_posts", {
-	id: text().primaryKey(),
-	organization_id: text().notNull().references(() => organization.id, { onDelete: "cascade" } ),
-	site_id: text().notNull().references(() => sites.id, { onDelete: "cascade" } ),
-	title: text().notNull(),
-	slug: text().notNull(),
-	excerpt: text(),
-	category: text(),
-	tags_json: text(),
-	nav_section: text(),
-	nav_title: text(),
-	nav_order: integer(),
-	nav_section_order: integer(),
-	hide_from_nav: integer().default(0).notNull(),
-	featured_order: integer(),
-	status: text().default("published").notNull(),
-	visibility: text().default("public").notNull(), // public | unlisted
-	author_id: text().references(() => user.id, { onDelete: "set null" } ),
-	published_at: text(),
-	first_published_at: text(),
-	scheduled_for: text(),
-	slug_manually_overridden: integer().default(0).notNull(),
-	created_at: text().default(sql`(strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))`).notNull(),
-	updated_at: text().default(sql`(strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))`).notNull(),
-	seo_title: text(),
-	seo_description: text(),
-	seo_keywords: text(),
-	canonical_url: text(),
-	robots: text(),
-}, (table) => [
-	foreignKey({ columns: [table.organization_id, table.site_id], foreignColumns: [sites.organization_id, sites.id], name: "blog_posts_site_scope_fk" }).onDelete("cascade"),
-	check("blog_posts_tags_json_check", sql`tags_json IS NULL OR (json_valid(tags_json) AND json_type(tags_json) IS 'array')`),
-	check("blog_posts_status_check", sql`status IN ('published', 'scheduled')`),
-	check("blog_posts_visibility_check", sql`visibility IN ('public', 'unlisted')`),
-	unique("blog_posts_site_slug_unique").on(table.site_id, table.slug),
-	index("blog_posts_org_site_idx").on(table.organization_id, table.site_id),
-]);
-
-
-export const platform_docs = sqliteTable("platform_docs", {
-	id: text().primaryKey(),
-	title: text().notNull(),
-	slug: text().notNull().unique(),
-	excerpt: text(),
-	category: text(),
-	nav_section: text(),
-	nav_title: text(),
-	nav_order: integer(),
-	nav_section_order: integer(),
-	nav_group: text(),
-	nav_group_order: integer(),
-	hide_from_nav: integer().default(0).notNull(),
-	featured_order: integer(),
-	author_id: text().references(() => user.id, { onDelete: "set null" } ),
-	seo_description: text(),
-	seo_keywords: text(),
-	sort_order: integer().default(0).notNull(),
-	difficulty_level: text(),
-	created_at: text().default(sql`(strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))`).notNull(),
-	updated_at: text().default(sql`(strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))`).notNull(),
-	canonical_url: text(),
-	robots: text(),
-});
-
-export const post_channel_jobs = sqliteTable("post_channel_jobs", {
-	id: text().primaryKey(),
-	post_id: text().notNull().references(() => posts.id, { onDelete: "cascade" } ),
-	channel: text().notNull(),
-	status: text().default("pending").notNull(),
-	provider_post_id: text(),
-	error: text(),
-	published_at: text(),
-	created_at: text().default(sql`(strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))`).notNull(),
-}, (table) => [
-	uniqueIndex("post_channel_jobs_post_channel_unique").on(table.post_id, table.channel),
-	index("post_channel_jobs_provider_post_idx").on(table.channel, table.provider_post_id),
-	check("post_channel_jobs_channel_check", sql`channel IN ('facebook', 'instagram')`),
-	check("post_channel_jobs_status_check", sql`status IN ('pending', 'published', 'failed', 'skipped')`),
-	check("post_channel_jobs_outcome_check", sql`(status = 'pending' AND provider_post_id IS NULL AND published_at IS NULL AND error IS NULL) OR (status = 'published' AND provider_post_id IS NOT NULL AND published_at IS NOT NULL AND error IS NULL) OR (status IN ('failed', 'skipped') AND provider_post_id IS NULL AND published_at IS NULL AND error IS NOT NULL)`),
-]);
-
-export const posts = sqliteTable("posts", {
-	id: text().primaryKey(),
-	organization_id: text().notNull().references(() => organization.id, { onDelete: "cascade" } ),
-	site_id: text().notNull().references(() => sites.id, { onDelete: "cascade" } ),
-	location_id: text().references(() => business_locations.id, { onDelete: "cascade" } ),
-	slug: text(),
-	post_type: text().default("standard").notNull(),
-	title: text(),
-	body: text().notNull(),
-	seo_title: text(),
-	seo_description: text(),
-	call_to_action: text(),
-	event: text(),
-	offer: text(),
-	alert_type: text(),
-	status: text().default("published").notNull(),
-	scheduled_for: text(),
-	published_at: text(),
-	source: text().default("manual").notNull(),
-	created_by: text().notNull(),
-	created_at: text().default(sql`(strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))`).notNull(),
-	updated_at: text().default(sql`(strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))`).notNull(),
-}, (table) => [
-	foreignKey({ columns: [table.organization_id, table.site_id], foreignColumns: [sites.organization_id, sites.id], name: "posts_site_scope_fk" }).onDelete("cascade"),
-	uniqueIndex("posts_site_slug_idx").on(table.site_id, table.slug),
-	check("posts_status_check", sql`status IN ('published', 'scheduled')`),
-	check("posts_publication_check", sql`(status = 'scheduled' AND scheduled_for IS NOT NULL AND published_at IS NULL) OR (status = 'published' AND scheduled_for IS NULL AND published_at IS NOT NULL)`),
-	check("posts_source_check", sql`source IN ('manual', 'template')`),
-	check("posts_post_type_check", sql`post_type IN ('standard', 'offer', 'event', 'alert')`),
-	check("posts_event_json_check", sql`event IS NULL OR (json_valid(event) AND json_type(event) IS 'object' AND json_type(event, '$.title') IS 'text' AND length(trim(json_extract(event, '$.title'))) > 0 AND json_type(event, '$.schedule') IS 'object' AND json_type(event, '$.schedule.start_date') IS 'text' AND json_type(event, '$.schedule.start_time') IS 'text' AND json_type(event, '$.schedule.end_date') IS 'text' AND json_type(event, '$.schedule.end_time') IS 'text')`),
-	check("posts_offer_json_check", sql`offer IS NULL OR (json_valid(offer) AND json_type(offer) IS 'object')`),
-	check("posts_call_to_action_check", sql`call_to_action IS NULL OR (json_valid(call_to_action) AND json_type(call_to_action) IS 'object' AND (json_extract(call_to_action, '$.action_type') IN ('book', 'order', 'shop', 'learn_more', 'sign_up', 'call')) IS 1 AND ((json_extract(call_to_action, '$.action_type') = 'call' AND json_type(call_to_action, '$.url') IS NULL) OR (json_extract(call_to_action, '$.action_type') <> 'call' AND json_type(call_to_action, '$.url') IS 'text' AND length(trim(json_extract(call_to_action, '$.url'))) > 0)))`),
-	check("posts_topic_shape_check", sql`(post_type = 'standard' AND event IS NULL AND offer IS NULL AND alert_type IS NULL) OR (post_type = 'event' AND event IS NOT NULL AND offer IS NULL AND alert_type IS NULL) OR (post_type = 'offer' AND event IS NOT NULL AND offer IS NOT NULL AND call_to_action IS NULL AND alert_type IS NULL) OR (post_type = 'alert' AND event IS NULL AND offer IS NULL AND alert_type IS 'covid_19')`),
-	index("posts_org_site_idx").on(table.organization_id, table.site_id),
-]);
-
 export const rate_limits = sqliteTable("rate_limits", {
 	key: text().primaryKey(),
 	count: integer().default(0).notNull(),
@@ -975,66 +827,6 @@ export const offerings = sqliteTable("offerings", {
 	index("offerings_site_sort_idx").on(table.site_id, table.sort_order),
 ]);
 
-export const tenant_pages = sqliteTable("tenant_pages", {
-	id: text().primaryKey(),
-	organization_id: text().notNull().references(() => organization.id, { onDelete: "cascade" } ),
-	site_id: text().notNull().references(() => sites.id, { onDelete: "cascade" } ),
-	page_type: text().default("custom").notNull(),
-	recipe: text(),
-	sort_order: integer().default(0).notNull(),
-	source: text().default("manual").notNull(),
-	source_ref: text(),
-	created_at: text().default(sql`(strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))`).notNull(),
-	updated_at: text().default(sql`(strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))`).notNull(),
-	updated_by: text(),
-}, (table) => [
-	check("tenant_pages_page_type_check", sql`page_type IN ('custom', 'recipe', 'legal', 'system')`),
-	foreignKey({ columns: [table.organization_id, table.site_id], foreignColumns: [sites.organization_id, sites.id], name: "tenant_pages_site_scope_fk" }).onDelete("cascade"),
-	index("tenant_pages_site_sort_idx").on(table.site_id, table.sort_order),
-	unique("tenant_pages_scope_unique").on(table.organization_id, table.site_id, table.id),
-]);
-
-export const site_link_pages = sqliteTable("site_link_pages", {
-	id: text().primaryKey(),
-	organization_id: text().notNull().references(() => organization.id, { onDelete: "cascade" } ),
-	site_id: text().notNull().references(() => sites.id, { onDelete: "cascade" } ).unique(),
-	path: text().default("/links").notNull(),
-	title: text().notNull(),
-	robots: text().default("noindex,follow").notNull(),
-	seo_title: text(),
-	seo_description: text(),
-	created_at: text().default(sql`(strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))`).notNull(),
-	updated_at: text().default(sql`(strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))`).notNull(),
-	updated_by: text(),
-}, (table) => [
-	foreignKey({ columns: [table.organization_id, table.site_id], foreignColumns: [sites.organization_id, sites.id], name: "site_link_pages_site_scope_fk" }).onDelete("cascade"),
-	unique("site_link_pages_organization_id_site_id_path_unique").on(table.organization_id, table.site_id, table.path),
-	check("site_link_pages_path_check", sql`path LIKE '/%' AND path NOT LIKE '//%'`),
-	check("site_link_pages_robots_check", sql`robots IN ('index,follow', 'noindex,follow', 'index,nofollow', 'noindex,nofollow')`),
-]);
-
-export const site_link_items = sqliteTable("site_link_items", {
-	id: text().primaryKey(),
-	organization_id: text().notNull().references(() => organization.id, { onDelete: "cascade" } ),
-	site_id: text().notNull().references(() => sites.id, { onDelete: "cascade" } ),
-	link_page_id: text().notNull().references(() => site_link_pages.id, { onDelete: "cascade" } ),
-	label: text().notNull(),
-	destination: text().notNull(),
-	sort_order: integer().default(0).notNull(),
-	status: text().default("active").notNull(),
-	created_at: text().default(sql`(strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))`).notNull(),
-	updated_at: text().default(sql`(strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))`).notNull(),
-	updated_by: text(),
-}, (table) => [
-	foreignKey({ columns: [table.organization_id, table.site_id], foreignColumns: [sites.organization_id, sites.id], name: "site_link_items_site_scope_fk" }).onDelete("cascade"),
-	index("site_link_items_page_status_sort_idx").on(table.link_page_id, table.status, table.sort_order),
-	index("site_link_items_site_idx").on(table.site_id),
-	check("site_link_items_status_check", sql`status IN ('active', 'hidden')`),
-]);
-
-
-
-
 export const site_redirects = sqliteTable("site_redirects", {
 	id: text().primaryKey(),
 	organization_id: text().notNull().references(() => organization.id, { onDelete: "cascade" } ),
@@ -1148,9 +940,6 @@ export const site_locales = sqliteTable("site_locales", {
 	check("site_locales_status_check", sql`status IN ('published', 'disabled') AND (is_source = 0 OR status = 'published')`),
 	check("site_locales_english_source_check", sql`locale <> 'en' OR (is_source = 1 AND status = 'published')`),
 ]);
-
-
-
 
 export const mcp_tool_call_events = sqliteTable("mcp_tool_call_events", {
 	id: text().primaryKey(),
@@ -1509,15 +1298,73 @@ export const user_workspace_state = sqliteTable("user_workspace_state", {
 
 export const content_documents = sqliteTable("content_documents", {
 	id: text().primaryKey(),
+	organization_id: text().notNull().references(() => organization.id, { onDelete: "cascade" }),
 	site_id: text().notNull().references(() => sites.id, { onDelete: "cascade" }),
-	owner_type: text().notNull(),
-	owner_id: text().notNull(),
+	kind: text().$type<typeof CONTENT_DOCUMENT_KINDS[number]>().notNull(),
+	row_role: text().$type<'root' | 'representation' | 'catalog'>().notNull(),
+	root_id: text(),
+	root_role: text().$type<'root'>(),
+	locale: text(),
+	location_id: text().references(() => business_locations.id, { onDelete: "cascade" }),
+	scope_path: text(),
+	title: text(),
+	slug: text(),
+	path: text(),
+	summary: text(),
+	status: text(),
+	visibility: text(),
+	sort_order: integer().default(0).notNull(),
+	source: text(),
+	author_id: text().references(() => user.id, { onDelete: "set null" }),
+	created_by: text(),
+	updated_by: text(),
+	published_at: text(),
+	first_published_at: text(),
+	scheduled_for: text(),
+	seo_title: text(),
+	seo_description: text(),
+	seo_keywords: text(),
+	canonical_url: text(),
+	robots: text(),
+	metadata_json: text().default('{}').notNull(),
 	created_at: text().default(sql`(strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))`).notNull(),
 	updated_at: text().default(sql`(strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))`).notNull(),
 }, (table) => [
-	unique("content_documents_owner_unique").on(table.owner_type, table.owner_id),
-	check("content_documents_owner_type_check", sql`${table.owner_type} IN (${sql.raw(CONTENT_DOCUMENT_OWNER_TYPES.map(type => `'${type}'`).join(', '))})`),
-	index("content_documents_site_idx").on(table.site_id),
+	foreignKey({ columns: [table.organization_id, table.site_id, table.location_id], foreignColumns: [business_locations.organization_id, business_locations.site_id, business_locations.id], name: "content_documents_location_scope_fk" }).onDelete("cascade"),
+	unique("content_documents_scope_role_unique").on(table.organization_id, table.site_id, table.id, table.row_role, table.kind),
+	foreignKey({ columns: [table.organization_id, table.site_id], foreignColumns: [sites.organization_id, sites.id], name: "content_documents_site_scope_fk" }).onDelete("cascade"),
+	foreignKey({ columns: [table.organization_id, table.site_id, table.root_id, table.root_role, table.kind], foreignColumns: [table.organization_id, table.site_id, table.id, table.row_role, table.kind], name: "content_documents_root_scope_fk" }).onDelete("cascade"),
+	foreignKey({ columns: [table.organization_id, table.site_id, table.locale], foreignColumns: [site_locales.organization_id, site_locales.site_id, site_locales.locale], name: "content_documents_locale_scope_fk" }).onDelete("cascade"),
+	uniqueIndex("content_documents_root_locale_unique").on(table.root_id, table.locale).where(sql`row_role = 'representation'`),
+	uniqueIndex("content_documents_route_unique").on(table.site_id, table.locale, table.path).where(sql`row_role IN ('root','representation') AND path IS NOT NULL`),
+	uniqueIndex("content_documents_slug_unique").on(table.site_id, table.kind, table.locale, table.slug).where(sql`row_role IN ('root','representation') AND slug IS NOT NULL`),
+	uniqueIndex("content_documents_catalog_locale_unique").on(sql`(metadata_json ->> '$.locale')`).where(sql`kind = 'locale_catalog'`),
+	uniqueIndex("content_documents_links_site_unique").on(table.site_id).where(sql`row_role = 'root' AND kind = 'page' AND json_extract(metadata_json, '$.recipe') = 'links'`),
+	index("content_documents_site_kind_status_idx").on(table.site_id, table.kind, table.row_role, table.status, table.sort_order),
+	index("content_documents_location_kind_status_idx").on(table.location_id, table.kind, table.row_role, table.status, table.sort_order),
+	index("content_documents_schedule_idx").on(table.kind, table.status, table.scheduled_for).where(sql`row_role = 'root' AND status = 'scheduled'`),
+	index("content_documents_facebook_post_idx").on(table.site_id, sql`(metadata_json ->> '$.channels.facebook.provider_post_id')`).where(sql`row_role = 'root' AND kind = 'social_post'`),
+	index("content_documents_instagram_post_idx").on(table.site_id, sql`(metadata_json ->> '$.channels.instagram.provider_post_id')`).where(sql`row_role = 'root' AND kind = 'social_post'`),
+	check("content_documents_kind_check", sql`${table.kind} IN (${sql.raw(CONTENT_DOCUMENT_KINDS.map(kind => `'${kind}'`).join(', '))})`),
+	check("content_documents_metadata_check", sql`json_valid(metadata_json) AND json_type(metadata_json) IS 'object'`),
+	check("content_documents_role_check", sql`(row_role = 'root' AND kind <> 'locale_catalog' AND root_id IS NULL AND root_role IS NULL AND locale = 'en') OR (row_role = 'representation' AND kind <> 'locale_catalog' AND root_id IS NOT NULL AND root_id <> id AND root_role = 'root' AND locale IS NOT NULL AND locale <> 'en' AND location_id IS NULL AND scope_path IS NULL AND status IS NULL AND visibility IS NULL AND source IS NULL AND author_id IS NULL AND published_at IS NULL AND first_published_at IS NULL AND scheduled_for IS NULL) OR (row_role = 'catalog' AND kind = 'locale_catalog' AND organization_id = 'platform' AND site_id = 'platform' AND root_id IS NULL AND root_role IS NULL AND locale IS NULL)`),
+	check("content_documents_path_check", sql`path IS NULL OR (path LIKE '/%' AND path NOT LIKE '//%')`),
+	check("content_documents_qa_scope_check", sql`kind <> 'qa' OR row_role <> 'root' OR ((location_id IS NULL OR scope_path IS NULL) AND (scope_path IS NULL OR scope_path LIKE '/%'))`),
+	check("content_documents_publication_check", sql`row_role <> 'root' OR kind NOT IN ('article', 'social_post') OR (status IN ('published','scheduled')) IS 1`),
+	check("content_documents_social_schedule_check", sql`kind <> 'social_post' OR row_role <> 'root' OR ((status = 'scheduled' AND scheduled_for IS NOT NULL AND published_at IS NULL) OR (status = 'published' AND scheduled_for IS NULL AND published_at IS NOT NULL))`),
+	check("content_documents_article_visibility_check", sql`kind <> 'article' OR row_role <> 'root' OR (visibility IN ('public','unlisted')) IS 1`),
+	check("content_documents_qa_state_check", sql`kind <> 'qa' OR row_role <> 'root' OR ((status IN ('published','hidden')) IS 1 AND (source IN ('manual','import','template')) IS 1)`),
+	check("content_documents_copy_required_check", sql`row_role <> 'root' OR ((kind NOT IN ('page','article','platform_doc','qa') OR title IS NOT NULL) AND (kind NOT IN ('article','platform_doc') OR slug IS NOT NULL) AND (kind <> 'social_post' OR summary IS NOT NULL))`),
+	check("content_documents_article_tags_check", sql`kind <> 'article' OR json_type(metadata_json, '$.tags') IS NULL OR json_type(metadata_json, '$.tags') IN ('array','null')`),
+	check("content_documents_social_source_check", sql`kind <> 'social_post' OR row_role <> 'root' OR (source IN ('manual','template')) IS 1`),
+	check("content_documents_social_post_type_check", sql`(kind <> 'social_post' OR row_role <> 'root' OR ((metadata_json ->> '$.post_type') IN ('standard', 'offer', 'event', 'alert'))) IS 1`),
+	check("content_documents_social_event_json_check", sql`kind <> 'social_post' OR row_role <> 'root' OR ((metadata_json ->> '$.event') IS NULL OR (json_valid((metadata_json ->> '$.event')) AND json_type((metadata_json ->> '$.event')) IS 'object' AND json_type((metadata_json ->> '$.event'), '$.title') IS 'text' AND length(trim(json_extract((metadata_json ->> '$.event'), '$.title'))) > 0 AND json_type((metadata_json ->> '$.event'), '$.schedule') IS 'object' AND json_type((metadata_json ->> '$.event'), '$.schedule.start_date') IS 'text' AND json_type((metadata_json ->> '$.event'), '$.schedule.start_time') IS 'text' AND json_type((metadata_json ->> '$.event'), '$.schedule.end_date') IS 'text' AND json_type((metadata_json ->> '$.event'), '$.schedule.end_time') IS 'text'))`),
+	check("content_documents_social_offer_json_check", sql`kind <> 'social_post' OR row_role <> 'root' OR ((metadata_json ->> '$.offer') IS NULL OR (json_valid((metadata_json ->> '$.offer')) AND json_type((metadata_json ->> '$.offer')) IS 'object'))`),
+	check("content_documents_social_call_to_action_check", sql`kind <> 'social_post' OR row_role <> 'root' OR ((metadata_json ->> '$.call_to_action') IS NULL OR (json_valid((metadata_json ->> '$.call_to_action')) AND json_type((metadata_json ->> '$.call_to_action')) IS 'object' AND (json_extract((metadata_json ->> '$.call_to_action'), '$.action_type') IN ('book', 'order', 'shop', 'learn_more', 'sign_up', 'call')) IS 1 AND ((json_extract((metadata_json ->> '$.call_to_action'), '$.action_type') = 'call' AND json_type((metadata_json ->> '$.call_to_action'), '$.url') IS NULL) OR (json_extract((metadata_json ->> '$.call_to_action'), '$.action_type') <> 'call' AND json_type((metadata_json ->> '$.call_to_action'), '$.url') IS 'text' AND length(trim(json_extract((metadata_json ->> '$.call_to_action'), '$.url'))) > 0))))`),
+	check("content_documents_social_topic_shape_check", sql`(kind <> 'social_post' OR row_role <> 'root' OR (((metadata_json ->> '$.post_type') = 'standard' AND (metadata_json ->> '$.event') IS NULL AND (metadata_json ->> '$.offer') IS NULL AND (metadata_json ->> '$.alert_type') IS NULL) OR ((metadata_json ->> '$.post_type') = 'event' AND (metadata_json ->> '$.event') IS NOT NULL AND (metadata_json ->> '$.offer') IS NULL AND (metadata_json ->> '$.alert_type') IS NULL) OR ((metadata_json ->> '$.post_type') = 'offer' AND (metadata_json ->> '$.event') IS NOT NULL AND (metadata_json ->> '$.offer') IS NOT NULL AND (metadata_json ->> '$.call_to_action') IS NULL AND (metadata_json ->> '$.alert_type') IS NULL) OR ((metadata_json ->> '$.post_type') = 'alert' AND (metadata_json ->> '$.event') IS NULL AND (metadata_json ->> '$.offer') IS NULL AND (metadata_json ->> '$.alert_type') IS 'covid_19'))) IS 1`),
+	check("content_documents_channel_facebook_check", sql`kind <> 'social_post' OR row_role <> 'root' OR (json_type(metadata_json, '$.channels.facebook') IS NULL OR (json_type(metadata_json, '$.channels.facebook') IS 'object' AND json_type(metadata_json, '$.channels.facebook.created_at') IS 'text' AND (((metadata_json ->> '$.channels.facebook.status') = 'pending' AND (metadata_json ->> '$.channels.facebook.provider_post_id') IS NULL AND (metadata_json ->> '$.channels.facebook.published_at') IS NULL AND (metadata_json ->> '$.channels.facebook.error_message') IS NULL) OR ((metadata_json ->> '$.channels.facebook.status') = 'published' AND (metadata_json ->> '$.channels.facebook.provider_post_id') IS NOT NULL AND (metadata_json ->> '$.channels.facebook.published_at') IS NOT NULL AND (metadata_json ->> '$.channels.facebook.error_message') IS NULL) OR ((metadata_json ->> '$.channels.facebook.status') IN ('failed','skipped') AND (metadata_json ->> '$.channels.facebook.provider_post_id') IS NULL AND (metadata_json ->> '$.channels.facebook.published_at') IS NULL AND (metadata_json ->> '$.channels.facebook.error_message') IS NOT NULL))) IS 1)`),
+	check("content_documents_channel_instagram_check", sql`kind <> 'social_post' OR row_role <> 'root' OR (json_type(metadata_json, '$.channels.instagram') IS NULL OR (json_type(metadata_json, '$.channels.instagram') IS 'object' AND json_type(metadata_json, '$.channels.instagram.created_at') IS 'text' AND (((metadata_json ->> '$.channels.instagram.status') = 'pending' AND (metadata_json ->> '$.channels.instagram.provider_post_id') IS NULL AND (metadata_json ->> '$.channels.instagram.published_at') IS NULL AND (metadata_json ->> '$.channels.instagram.error_message') IS NULL) OR ((metadata_json ->> '$.channels.instagram.status') = 'published' AND (metadata_json ->> '$.channels.instagram.provider_post_id') IS NOT NULL AND (metadata_json ->> '$.channels.instagram.published_at') IS NOT NULL AND (metadata_json ->> '$.channels.instagram.error_message') IS NULL) OR ((metadata_json ->> '$.channels.instagram.status') IN ('failed','skipped') AND (metadata_json ->> '$.channels.instagram.provider_post_id') IS NULL AND (metadata_json ->> '$.channels.instagram.published_at') IS NULL AND (metadata_json ->> '$.channels.instagram.error_message') IS NOT NULL))) IS 1)`),
+	check("content_documents_catalog_check", sql`kind <> 'locale_catalog' OR (row_role = 'catalog' AND (status IN ('available','unavailable')) IS 1 AND json_type(metadata_json, '$.locale') IS 'text' AND json_type(metadata_json, '$.messages') IS 'object' AND (json_extract(metadata_json, '$.direction') IN ('ltr','rtl')) IS 1)`),
 ]);
 
 export const resource_localizations = sqliteTable("resource_localizations", {
@@ -1529,7 +1376,6 @@ export const resource_localizations = sqliteTable("resource_localizations", {
 	locale: text().notNull(),
 	values_json: text().notNull(),
 	route_path: text(),
-	document_id: text().references(() => content_documents.id),
 	created_at: text().default(sql`(strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))`).notNull(),
 	created_by_user_id: text().notNull(),
 	updated_at: text().default(sql`(strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))`).notNull(),
@@ -1560,6 +1406,7 @@ export const resource_localizations = sqliteTable("resource_localizations", {
 
 export const content_blocks = sqliteTable("content_blocks", {
 	id: text().primaryKey(),
+	source_block_id: text(),
 	document_id: text().notNull().references(() => content_documents.id, { onDelete: "cascade" } ),
 	parent_block_id: text(),
 	type: text().notNull(),
@@ -1570,6 +1417,9 @@ export const content_blocks = sqliteTable("content_blocks", {
 	updated_at: text().default(sql`(strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))`).notNull(),
 }, (table) => [
 	index("content_blocks_document_position_idx").on(table.document_id, table.position),
+	foreignKey({ columns: [table.source_block_id], foreignColumns: [table.id], name: "content_blocks_source_fk" }).onDelete("cascade"),
+	uniqueIndex("content_blocks_document_source_unique").on(table.document_id, table.source_block_id).where(sql`source_block_id IS NOT NULL`),
+	check("content_blocks_source_check", sql`source_block_id IS NULL OR (source_block_id <> id AND type = 'cta')`),
 	index("content_blocks_parent_idx").on(table.parent_block_id),
 	unique("content_blocks_document_id_unique").on(table.document_id, table.id),
 	foreignKey({ columns: [table.document_id, table.parent_block_id], foreignColumns: [table.document_id, table.id], name: "content_blocks_parent_document_fk" }).onDelete("cascade"),
@@ -1578,33 +1428,6 @@ export const content_blocks = sqliteTable("content_blocks", {
 	check("content_blocks_parent_check", sql`${table.parent_block_id} IS NULL OR ${table.parent_block_id} <> ${table.id}`),
 	check("content_blocks_position_check", sql`${table.position} >= 0`),
 	check("content_blocks_level_check", sql`${table.level} IS NULL OR ${table.level} BETWEEN 1 AND 6`),
-]);
-
-export const tenant_page_variants = sqliteTable("tenant_page_variants", {
-	id: text().primaryKey(),
-	organization_id: text().notNull().references(() => organization.id, { onDelete: "cascade" } ),
-	site_id: text().notNull().references(() => sites.id, { onDelete: "cascade" } ),
-	page_id: text().notNull().references(() => tenant_pages.id, { onDelete: "cascade" } ),
-	locale: text().notNull(),
-	document_id: text().notNull().references(() => content_documents.id, { onDelete: "cascade" } ),
-	path: text().notNull(),
-	title: text().notNull(),
-	summary: text(),
-	seo_title: text(),
-	seo_description: text(),
-	canonical_url: text(),
-	robots: text(),
-	created_at: text().default(sql`(strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))`).notNull(),
-	updated_at: text().default(sql`(strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))`).notNull(),
-	updated_by: text(),
-}, (table) => [
-	unique("tenant_page_variants_page_locale_unique").on(table.page_id, table.locale),
-	unique("tenant_page_variants_document_unique").on(table.document_id),
-	foreignKey({ columns: [table.organization_id, table.site_id, table.page_id], foreignColumns: [tenant_pages.organization_id, tenant_pages.site_id, tenant_pages.id], name: "tenant_page_variants_page_scope_fk" }).onDelete("cascade"),
-	foreignKey({ columns: [table.organization_id, table.site_id, table.locale], foreignColumns: [site_locales.organization_id, site_locales.site_id, site_locales.locale], name: "tenant_page_variants_locale_scope_fk" }).onDelete("cascade"),
-	unique("tenant_page_variants_site_locale_path_unique").on(table.site_id, table.locale, table.path),
-	index("tenant_page_variants_site_path_idx").on(table.site_id, table.path),
-	check("tenant_page_variants_path_check", sql`path LIKE '/%' AND path NOT LIKE '//%'`),
 ]);
 
 export const public_resource_cache_invalidations = sqliteTable("public_resource_cache_invalidations", {
