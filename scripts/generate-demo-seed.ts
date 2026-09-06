@@ -233,7 +233,6 @@ PRAGMA foreign_keys = ON;
 -- Theme is shared platform data, not demo-owned data.
 
 -- Cleanly replace the protected demo tenant and MCP fixture orgs.
--- Canonical foreign keys cascade fixture-owned documents, requests, and activity.
 DELETE FROM organization WHERE id IN ('org-demo', 'org_demo', 'org-mcp-free', 'org-mcp-growth', 'org-mcp-growth-service', 'org-mcp-managed', 'org-transfer-recipient');
 
 -- Better Auth subscriptions do not reference organization with a foreign key.

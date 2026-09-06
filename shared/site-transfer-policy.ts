@@ -8,62 +8,17 @@
  */
 
 export const SITE_TRANSFER_REPARENT_TABLES = [
-  'customers',
-  'business_locations',
-  'contact_submissions',
-  'guest_threads',
-  'experience_bookings',
-  'availability_overrides',
-  'location_qa',
-  'media_assets',
-  'media_placements',
-  'product_categories',
-  'products',
-  'prices',
-  'blog_posts',
-  'posts',
-  'reservation_submissions',
-  'booking_policies',
-  'review_requests',
-  'reviews',
-  'site_config',
-  'offerings',
-  'tenant_pages',
-  'site_link_pages',
-  'site_link_items',
-  'tenant_compliance',
-  'site_consultation_settings',
-  'site_theme_tokens',
-  'site_redirects',
-  'resource_localizations',
-  'analytics_summaries',
-  'analytics_events',
-  'site_domain_events',
-  'site_domains',
-  'organization_events',
-  'site_locales',
-  'work_requests',
-  'experiences',
-  'tenant_page_variants',
+  'customers', 'business_locations', 'requests', 'content_documents',
+  'media_assets', 'media_placements', 'product_categories', 'products', 'prices',
+  'review_requests', 'reviews', 'offerings', 'site_redirects', 'resource_localizations',
+  'analytics_summaries', 'analytics_events', 'site_domains', 'site_locales',
 ] as const
 
 export const SITE_TRANSFER_RETAIN_TABLES = [
-  'usage_events',
-  'stripe_ga4_subscription_intents',
-  'canary_runs',
-  'mcp_tool_call_events',
-  'notifications',
-  'chowbot_conversations',
-  'chowbot_messages',
+  'usage_events', 'stripe_ga4_subscription_intents', 'mcp_tool_call_events', 'activity_entries',
 ] as const
 
-export const SITE_TRANSFER_REVOKE_TABLES = [
-  'facebook_pages_connections',
-  'google_analytics_connections',
-  'mcp_workspace_preferences',
-  'site_language_licenses',
-] as const
-
+export const SITE_TRANSFER_REVOKE_TABLES = ['user_workspace_state'] as const
 // Epoch 3 inherits access directly from the destination organization. No billing,
 // entitlement, or other derived projection is rebuilt during a site transfer.
 export const SITE_TRANSFER_REBUILD_TABLES = [] as const

@@ -6,16 +6,16 @@ import { getOrCreateSessionId, getOrCreateVisitorId, hashIp } from '~/server/uti
 import type { SiteConversionEventName } from '~/utils/site-conversion-events'
 
 export type ConversionStage = 'schedule_navigation' | 'external_booking_handoff' | 'submitted' | 'external_handoff'
-export type ConversionEntityType = 'contact_submission' | 'reservation_submission' | 'experience_booking' | 'product' | 'site_link_item' | 'tenant_page'
+export type ConversionEntityType = 'request' | 'product' | 'content_block' | 'content_document'
 
 const TAXONOMY: Record<SiteConversionEventName, { stages: ConversionStage[]; entityType: ConversionEntityType | null }> = {
   consultation_cta_click: { stages: ['schedule_navigation', 'external_booking_handoff'], entityType: null },
-  contact_submit: { stages: ['submitted'], entityType: 'contact_submission' },
-  reservation_submit: { stages: ['submitted'], entityType: 'reservation_submission' },
-  experience_booking_submit: { stages: ['submitted'], entityType: 'experience_booking' },
+  contact_submit: { stages: ['submitted'], entityType: 'request' },
+  reservation_submit: { stages: ['submitted'], entityType: 'request' },
+  experience_booking_submit: { stages: ['submitted'], entityType: 'request' },
   product_order_external_click: { stages: ['external_handoff'], entityType: 'product' },
-  link_click: { stages: ['external_handoff'], entityType: 'site_link_item' },
-  donation_click: { stages: ['external_handoff'], entityType: 'tenant_page' },
+  link_click: { stages: ['external_handoff'], entityType: 'content_block' },
+  donation_click: { stages: ['external_handoff'], entityType: 'content_document' },
 }
 
 export interface SiteConversionInput {
@@ -38,7 +38,7 @@ export async function recordSiteConversionEvent(db: DbClient, event: H3Event, in
   if (rule.entityType !== null && input.entityType !== rule.entityType) throw new Error(`Invalid entity type for ${input.eventName}`)
   if ((input.entityType && !input.entityId) || (!input.entityType && input.entityId)) throw new Error('entityType and entityId must be supplied together')
   if (input.eventName === 'consultation_cta_click') {
-    const validScheduleEntity = input.entityType === undefined || input.entityType === null || input.entityType === 'tenant_page'
+    const validScheduleEntity = input.entityType === undefined || input.entityType === null || input.entityType === 'content_document'
     if (input.stage === 'schedule_navigation' && !validScheduleEntity) throw new Error('Invalid entity type for consultation_cta_click')
     if (input.stage === 'external_booking_handoff' && (input.entityType || input.entityId)) throw new Error('External consultation handoffs cannot include an entity')
   }

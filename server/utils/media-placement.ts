@@ -238,7 +238,10 @@ export async function attachMediaPlacement(db: DbClient, input: {
         WHERE (SELECT COUNT(*) FROM media_placements WHERE organization_id = ? AND site_id = ? AND owner_type = ? AND owner_id = ? AND slot = ?) < ?
           AND EXISTS (${owner.query})
           AND EXISTS (SELECT 1 FROM media_assets WHERE id = ? AND organization_id = ? AND site_id = ? AND status = 'active')
-          AND (? != 'post' OR EXISTS (SELECT 1 FROM posts WHERE id = ? AND organization_id = ? AND site_id = ? AND post_type != 'alert'))`,
+          AND (? != 'content_document' OR ? NOT IN ('cover','gallery') OR EXISTS (
+            SELECT 1 FROM content_documents d JOIN content_documents root ON root.id = COALESCE(d.root_id,d.id)
+             WHERE d.id = ? AND d.organization_id = ? AND d.site_id = ?
+               AND (root.kind != 'social_post' OR (root.metadata_json ->> '$.post_type') != 'alert')))`,
       params: [
         crypto.randomUUID(), ...scopeParams, asset.asset_id,
         ...scopeParams,
@@ -247,7 +250,7 @@ export async function attachMediaPlacement(db: DbClient, input: {
         MAX_ORDERED_MEDIA_ASSETS,
         ...owner.params!,
         asset.asset_id, input.organizationId, input.siteId,
-        input.placement.owner_type, input.placement.owner_id, input.organizationId, input.siteId,
+        input.placement.owner_type, input.placement.slot, input.placement.owner_id, input.organizationId, input.siteId,
       ],
     }])
   } catch (error) {

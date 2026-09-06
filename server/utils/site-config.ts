@@ -1,5 +1,6 @@
 import { HTTPError } from 'nitro'
 import { execute, queryFirst, type DbClient } from '~/server/db'
+import { isValidTimeZone } from '~/server/utils/analytics-calendar'
 
 export interface SiteConfig {
   brand_color?: string
@@ -105,6 +106,7 @@ export const setConfig = async (
   key: keyof SiteConfig,
   value: string
 ) => {
+  if (key === 'default_timezone' && !isValidTimeZone(value)) throw new HTTPError({ statusCode: 422, statusMessage: 'A valid analytics timezone is required' })
   if (key === 'social_facebook' || key === 'social_instagram' || key === 'social_tiktok') {
     const result = await execute(db, `UPDATE sites SET ${key}_url = ?, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE organization_id = ? AND id = ?`, [value || null, organizationId, siteId])
     if (result.meta?.changes !== 1) throw new HTTPError({ statusCode: 409, statusMessage: 'Site ownership changed. Reload before saving.' })
@@ -147,6 +149,7 @@ export const deleteConfig = async (
   siteId: string,
   key: keyof SiteConfig
 ) => {
+  if (key === 'default_timezone') throw new HTTPError({ statusCode: 422, statusMessage: 'The analytics timezone cannot be removed' })
   if (key === 'google_analytics_measurement_id' || key === 'social_facebook' || key === 'social_instagram' || key === 'social_tiktok') return setConfig(db, organizationId, siteId, key, '')
   const result = await execute(
     db,

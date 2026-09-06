@@ -1,5 +1,3 @@
-// Single source of truth for blog category <-> slug conversion across routing, nav, sitemap,
-// and admin editing surfaces.
 export const BLOG_CATEGORY_SLUGS: Record<string, string> = {
   Marketing: 'marketing',
   Technology: 'technology',

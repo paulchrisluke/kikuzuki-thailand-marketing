@@ -14,13 +14,14 @@ test('retired history preserves exact SQLite facts and rejects a missing or alte
     const details = JSON.stringify({ label: 'ประวัติ\nretained', result: null })
     source.prepare("INSERT INTO canary_runs (id, run_type, status, details_json) VALUES ('proof', 'auth', 'pass', ?)").run(details)
     const archive = JSON.parse(JSON.stringify(historicalArchive(source)))
-    assert.deepEqual(archive.tables.map(table => [table.table, table.records.length]), [
+    assert.equal(archive.tables.length, 96)
+    assert.deepEqual(archive.tables.filter(table => ['canary_runs', 'chowbot_conversations', 'chowbot_messages'].includes(table.table)).map(table => [table.table, table.records.length]), [
       ['canary_runs', 1], ['chowbot_conversations', 0], ['chowbot_messages', 0],
     ])
-    const canaries = archive.tables[0]
+    const canaries = archive.tables.find(table => table.table === 'canary_runs')
     const detailsIndex = canaries.columns.indexOf('details_json')
     assert.deepEqual(canaries.records[0][detailsIndex], ['text', details])
-    assert.equal(verifyHistoricalArchive(source, archive)[0].rows, 1)
+    assert.equal(verifyHistoricalArchive(source, archive).find(table => table.table === 'canary_runs').rows, 1)
     assert.throws(() => verifyHistoricalArchive(source, undefined), /archive differs/)
     canaries.records[0][detailsIndex] = ['text', 'altered']
     assert.throws(() => verifyHistoricalArchive(source, archive), /archive differs/)
@@ -47,23 +48,23 @@ test('obsolete synthetic placements are accounted for while their Markdown and a
     assert.equal(projection.discardedRows[0].parent_block_id, 'block')
     assert.equal(projection.data.media_placements.length, 0)
     assert.deepEqual(projection.data.media_assets, projection.sourceData.media_assets)
-    assert.deepEqual(projection.data.content_blocks, projection.sourceData.content_blocks)
+    assert.deepEqual(projection.data.content_blocks, projection.sourceData.content_blocks.map(block => ({ ...block, document_id: 'blog', source_block_id: null })))
     source.prepare("UPDATE content_blocks SET data_json=? WHERE id='block'").run(JSON.stringify({ markdown: 'Plain URL is not an image: https://media.example.test/image' }))
     assert.throws(() => project(source), /lacks exact retained Markdown and media evidence/)
   } finally { source.close() }
 })
 
-test('actual SQLite ownership audits reject cross-site media, document scope, cycles and missing source pages', () => {
+test('actual SQLite ownership audits reject cross-site media, document scope, cycles and missing source locales', () => {
   const target = new Database(':memory:')
   try {
+    target.pragma('foreign_keys = OFF')
     for (const name of readdirSync(resolve(root, 'migrations')).filter(name => /^\d{4}_.+\.sql$/.test(name)).sort()) target.exec(readFileSync(resolve(root, 'migrations', name), 'utf8'))
     target.exec("INSERT INTO organization (id,name,slug) VALUES ('org','Org','org')")
     for (const id of ['site-a', 'site-b']) {
       target.prepare('INSERT INTO sites (id,organization_id,slug) VALUES (?, ?, ?)').run(id, 'org', id)
       target.prepare("INSERT INTO site_locales (id,organization_id,site_id,locale,is_source,status) VALUES (?, 'org', ?, 'en', 1, 'published')").run(id, id)
     }
-    target.exec("INSERT INTO blog_posts (id,organization_id,site_id,title,slug) VALUES ('blog','org','site-a','Title','title')")
-    target.exec("INSERT INTO content_documents (id,site_id,owner_type,owner_id) VALUES ('doc','site-a','tenant_blog','blog')")
+    target.exec("INSERT INTO content_documents (id,organization_id,site_id,kind,row_role,locale,title,slug,status,visibility) VALUES ('doc','org','site-a','article','root','en','Title','title','published','public')")
     target.exec("INSERT INTO content_blocks (id,document_id,type,data_json) VALUES ('b1','doc','markdown','{}'),('b2','doc','markdown','{}')")
     target.exec("INSERT INTO media_assets (id,organization_id,site_id,kind,provider,source) VALUES ('asset','org','site-a','image','cloudflare_r2','uploaded')")
     target.exec("INSERT INTO media_placements (id,organization_id,site_id,owner_type,owner_id,slot,asset_id) VALUES ('placement','org','site-a','site','site-a','logo','asset')")
@@ -72,14 +73,14 @@ test('actual SQLite ownership audits reject cross-site media, document scope, cy
     target.exec("UPDATE media_placements SET owner_id='site-b'")
     assert.equal(counts().media_owner_scope, 1)
     target.exec("UPDATE media_placements SET owner_id='site-a'")
-    target.exec("UPDATE content_documents SET site_id='site-b'")
+    target.exec("UPDATE content_documents SET organization_id='missing'")
     assert.equal(counts().document_owner_scope, 1)
-    target.exec("UPDATE content_documents SET site_id='site-a'")
+    target.exec("UPDATE content_documents SET organization_id='org'")
     target.exec("UPDATE content_blocks SET parent_block_id=CASE id WHEN 'b1' THEN 'b2' ELSE 'b1' END")
     assert.equal(counts().block_cycles, 2)
     target.exec('UPDATE content_blocks SET parent_block_id=NULL')
-    target.exec("INSERT INTO tenant_pages (id,organization_id,site_id) VALUES ('page','org','site-a')")
-    assert.equal(counts().english_source_page, 1)
+    target.exec("DELETE FROM site_locales WHERE site_id='site-a'")
+    assert.equal(counts().english_source_locale, 1)
   } finally { target.close() }
 })
 
@@ -99,16 +100,17 @@ test('Epoch 5 verifier detects changed actual identity and scope rows', () => {
       const insert = target.prepare(`INSERT INTO "${table}" (${names.map(name => `"${name}"`).join(',')}) VALUES (${names.map(() => '?').join(',')})`)
       for (const record of records) insert.run(names.map(name => record[name]))
     }
-    assert.doesNotThrow(() => verifyDatabases(source, target))
+    const archive = historicalArchive(source)
+    assert.doesNotThrow(() => verifyDatabases(source, target, {}, archive))
     assert.deepEqual(target.prepare('SELECT scopes, requirePKCE FROM oauthClient').get(), { scopes: '["openid","tenant"]', requirePKCE: 1 })
     target.prepare('UPDATE user SET email = ?').run('tampered@example.test')
-    assert.throws(() => verifyDatabases(source, target), /user: actual target differs/)
+    assert.throws(() => verifyDatabases(source, target, {}, archive), /user: actual target differs/)
     target.prepare('UPDATE user SET email = ?').run('epoch5@example.test')
     target.prepare('UPDATE oauthClient SET scopes = ?').run('["openid","tenant","admin"]')
-    assert.throws(() => verifyDatabases(source, target), /oauthClient: actual target differs/)
+    assert.throws(() => verifyDatabases(source, target, {}, archive), /oauthClient: actual target differs/)
     target.prepare('UPDATE oauthClient SET scopes = ?').run('["openid","tenant"]')
     target.prepare('DELETE FROM oauthClient').run()
-    assert.throws(() => verifyDatabases(source, target), /oauthClient: actual target differs/)
+    assert.throws(() => verifyDatabases(source, target, {}, archive), /oauthClient: actual target differs/)
   } finally { source.close(); target.close() }
 })
 

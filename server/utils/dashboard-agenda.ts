@@ -175,7 +175,7 @@ function scopeConditions(query: AgendaQuery, alias: string): string {
 
 function mediaUrlSelect(
   alias: string,
-  ownerType: 'business_location' | 'product' | 'post' | 'site',
+  ownerType: 'business_location' | 'product' | 'content_document' | 'site',
   ownerId: string,
   slots: string[],
 ): string {

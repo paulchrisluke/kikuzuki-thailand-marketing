@@ -103,7 +103,7 @@ await mkdir(OUT_DIR, { recursive: true });
 
 // ── Route parity check ────────────────────────────────────────────────────────
 
-const CONTENT_TYPES = ["products", "posts", "menu", "products", "locations", "reviews"];
+const CONTENT_TYPES = ["products", "posts", "menu", "experiences", "locations", "reviews"];
 
 function checkRouteParity() {
   const issues = [];

@@ -94,7 +94,7 @@ export default defineHandler(async (event) => {
     eventName: 'contact_submit',
     stage: 'submitted',
     locationId: assignedLocationId,
-    entityType: 'contact_submission',
+    entityType: 'request',
     entityId: id,
     pageType: 'contact',
     pagePath: '/contact',

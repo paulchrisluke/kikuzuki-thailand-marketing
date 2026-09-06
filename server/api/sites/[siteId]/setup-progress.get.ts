@@ -104,9 +104,9 @@ export default defineHandler(async (event) => {
 
     const aboutContent = await queryFirst<{ id: string }>(db, `
       SELECT v.id
-      FROM tenant_page_variants v
-      JOIN content_blocks b ON b.document_id = v.document_id
-      WHERE v.site_id = ? AND v.organization_id = ? AND v.path = '/about'
+      FROM content_documents v
+      JOIN content_blocks b ON b.document_id = v.id
+      WHERE v.kind = 'page' AND v.row_role = 'root' AND v.site_id = ? AND v.organization_id = ? AND v.path = '/about'
         AND b.type = 'markdown'
         AND length(COALESCE(json_extract(b.data_json, '$.markdown'), '')) > 0
       LIMIT 1

@@ -1,6 +1,6 @@
 {
   "surface": "tenant",
-  "fingerprint": "sha256:5598efee76f19ccc0a4acf990263f5a2239692d1901ae6607586aa4f893b2c53",
+  "fingerprint": "sha256:0c024a91c1934648ff48a18550fa9379879e4e7b7186d4a7f8fea31e17b6dbbb",
   "tools": [
     {
       "name": "analyze_document",
@@ -88,14 +88,11 @@
                   "site",
                   "business_location",
                   "product",
-                  "post",
-                  "blog_post",
-                  "experience",
+                  "content_document",
                   "offering",
                   "content_block",
                   "review",
-                  "review_request",
-                  "tenant_compliance"
+                  "review_request"
                 ],
                 "type": "string"
               },
@@ -228,14 +225,11 @@
                   "site",
                   "business_location",
                   "product",
-                  "post",
-                  "blog_post",
-                  "experience",
+                  "content_document",
                   "offering",
                   "content_block",
                   "review",
-                  "review_request",
-                  "tenant_compliance"
+                  "review_request"
                 ],
                 "type": "string"
               },
@@ -868,7 +862,7 @@
       "inputSchema": {
         "additionalProperties": false,
         "properties": {
-          "expected_document_updated_at": {
+          "expected_updated_at": {
             "type": "string"
           },
           "new_path": {
@@ -885,7 +879,7 @@
         "required": [
           "variant_id",
           "new_path",
-          "expected_document_updated_at"
+          "expected_updated_at"
         ],
         "type": "object"
       },
@@ -3495,6 +3489,15 @@
             "type": "string"
           },
           "resource_type": {
+            "enum": [
+              "site",
+              "business_location",
+              "product",
+              "product_category",
+              "offering",
+              "media_asset",
+              "content_document"
+            ],
             "type": "string"
           },
           "site_id": {
@@ -3522,6 +3525,15 @@
             "type": "string"
           },
           "resource_type": {
+            "enum": [
+              "site",
+              "business_location",
+              "product",
+              "product_category",
+              "offering",
+              "media_asset",
+              "content_document"
+            ],
             "type": "string"
           }
         },
@@ -5973,6 +5985,15 @@
             "type": "string"
           },
           "resource_type": {
+            "enum": [
+              "site",
+              "business_location",
+              "product",
+              "product_category",
+              "offering",
+              "media_asset",
+              "content_document"
+            ],
             "type": "string"
           },
           "site_id": {
@@ -5991,56 +6012,190 @@
         "additionalProperties": false,
         "properties": {
           "localization": {
-            "additionalProperties": false,
-            "properties": {
-              "content_document": {
-                "additionalProperties": true,
-                "type": [
-                  "object",
-                  "null"
-                ]
+            "oneOf": [
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "created_at": {
+                    "type": "string"
+                  },
+                  "created_by_user_id": {
+                    "type": "string"
+                  },
+                  "id": {
+                    "type": "string"
+                  },
+                  "locale": {
+                    "type": "string"
+                  },
+                  "organization_id": {
+                    "type": "string"
+                  },
+                  "resource_id": {
+                    "type": "string"
+                  },
+                  "resource_type": {
+                    "enum": [
+                      "site",
+                      "business_location",
+                      "product",
+                      "product_category",
+                      "offering",
+                      "media_asset"
+                    ],
+                    "type": "string"
+                  },
+                  "route_path": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "site_id": {
+                    "type": "string"
+                  },
+                  "updated_at": {
+                    "type": "string"
+                  },
+                  "updated_by_user_id": {
+                    "type": "string"
+                  },
+                  "values": {
+                    "additionalProperties": true,
+                    "description": "Localized values follow the canonical owner fields. content_document uses title, summary, slug, SEO fields and typed metadata; content_blocks edits its representation. Other allowed fields depend on resource_type. For product_category, use { name }. Product values never include category; category names are localized on the category record.",
+                    "type": "object"
+                  }
+                },
+                "required": [
+                  "id",
+                  "organization_id",
+                  "site_id",
+                  "locale",
+                  "created_at",
+                  "updated_at",
+                  "resource_type",
+                  "resource_id",
+                  "values",
+                  "route_path",
+                  "created_by_user_id",
+                  "updated_by_user_id"
+                ],
+                "type": "object"
               },
-              "document_id": {
-                "type": [
-                  "string",
-                  "null"
-                ]
-              },
-              "id": {
-                "type": "string"
-              },
-              "locale": {
-                "type": "string"
-              },
-              "resource_id": {
-                "type": "string"
-              },
-              "resource_type": {
-                "type": "string"
-              },
-              "route_path": {
-                "type": [
-                  "string",
-                  "null"
-                ]
-              },
-              "values": {
-                "additionalProperties": true,
-                "description": "Localized scalar values. Allowed fields depend on resource_type. For product_category, use { name }. Product values never include category; category names are localized on the category record.",
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "content_blocks": {
+                    "items": {
+                      "additionalProperties": true,
+                      "type": "object"
+                    },
+                    "type": "array"
+                  },
+                  "created_at": {
+                    "type": "string"
+                  },
+                  "id": {
+                    "type": "string"
+                  },
+                  "kind": {
+                    "enum": [
+                      "page",
+                      "article",
+                      "platform_doc",
+                      "social_post",
+                      "qa"
+                    ],
+                    "type": "string"
+                  },
+                  "locale": {
+                    "type": "string"
+                  },
+                  "metadata": {
+                    "additionalProperties": true,
+                    "type": "object"
+                  },
+                  "organization_id": {
+                    "type": "string"
+                  },
+                  "path": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "root_id": {
+                    "type": "string"
+                  },
+                  "row_role": {
+                    "const": "representation"
+                  },
+                  "seo_description": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "seo_keywords": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "seo_title": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "site_id": {
+                    "type": "string"
+                  },
+                  "slug": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "summary": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "title": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "updated_at": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "id",
+                  "organization_id",
+                  "site_id",
+                  "locale",
+                  "created_at",
+                  "updated_at",
+                  "kind",
+                  "row_role",
+                  "root_id",
+                  "title",
+                  "summary",
+                  "slug",
+                  "path",
+                  "seo_title",
+                  "seo_description",
+                  "seo_keywords",
+                  "metadata",
+                  "content_blocks"
+                ],
                 "type": "object"
               }
-            },
-            "required": [
-              "id",
-              "resource_type",
-              "resource_id",
-              "locale",
-              "values",
-              "route_path",
-              "document_id",
-              "content_document"
-            ],
-            "type": "object"
+            ]
           }
         },
         "required": [
@@ -10507,10 +10662,6 @@
       "inputSchema": {
         "additionalProperties": false,
         "properties": {
-          "expected_document_updated_at": {
-            "description": "Exact post.document_updated_at concurrency token from the latest get_blog_post or successful blog mutation.",
-            "type": "string"
-          },
           "expected_updated_at": {
             "description": "Exact post.updated_at concurrency token from the latest get_blog_post or successful blog mutation.",
             "type": "string"
@@ -10533,8 +10684,7 @@
         },
         "required": [
           "post_id",
-          "expected_updated_at",
-          "expected_document_updated_at"
+          "expected_updated_at"
         ],
         "type": "object"
       },
@@ -11010,7 +11160,7 @@
               "null"
             ]
           },
-          "expected_document_updated_at": {
+          "expected_updated_at": {
             "type": [
               "string",
               "null"
@@ -11023,6 +11173,15 @@
             "type": "string"
           },
           "resource_type": {
+            "enum": [
+              "site",
+              "business_location",
+              "product",
+              "product_category",
+              "offering",
+              "media_asset",
+              "content_document"
+            ],
             "type": "string"
           },
           "route_path": {
@@ -11037,7 +11196,7 @@
           },
           "values": {
             "additionalProperties": true,
-            "description": "Localized scalar values. Allowed fields depend on resource_type. For product_category, use { name }. Product values never include category; category names are localized on the category record.",
+            "description": "Localized values follow the canonical owner fields. content_document uses title, summary, slug, SEO fields and typed metadata; content_blocks edits its representation. Other allowed fields depend on resource_type. For product_category, use { name }. Product values never include category; category names are localized on the category record.",
             "type": "object"
           }
         },
@@ -11053,56 +11212,190 @@
         "additionalProperties": false,
         "properties": {
           "localization": {
-            "additionalProperties": false,
-            "properties": {
-              "content_document": {
-                "additionalProperties": true,
-                "type": [
-                  "object",
-                  "null"
-                ]
+            "oneOf": [
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "created_at": {
+                    "type": "string"
+                  },
+                  "created_by_user_id": {
+                    "type": "string"
+                  },
+                  "id": {
+                    "type": "string"
+                  },
+                  "locale": {
+                    "type": "string"
+                  },
+                  "organization_id": {
+                    "type": "string"
+                  },
+                  "resource_id": {
+                    "type": "string"
+                  },
+                  "resource_type": {
+                    "enum": [
+                      "site",
+                      "business_location",
+                      "product",
+                      "product_category",
+                      "offering",
+                      "media_asset"
+                    ],
+                    "type": "string"
+                  },
+                  "route_path": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "site_id": {
+                    "type": "string"
+                  },
+                  "updated_at": {
+                    "type": "string"
+                  },
+                  "updated_by_user_id": {
+                    "type": "string"
+                  },
+                  "values": {
+                    "additionalProperties": true,
+                    "description": "Localized values follow the canonical owner fields. content_document uses title, summary, slug, SEO fields and typed metadata; content_blocks edits its representation. Other allowed fields depend on resource_type. For product_category, use { name }. Product values never include category; category names are localized on the category record.",
+                    "type": "object"
+                  }
+                },
+                "required": [
+                  "id",
+                  "organization_id",
+                  "site_id",
+                  "locale",
+                  "created_at",
+                  "updated_at",
+                  "resource_type",
+                  "resource_id",
+                  "values",
+                  "route_path",
+                  "created_by_user_id",
+                  "updated_by_user_id"
+                ],
+                "type": "object"
               },
-              "document_id": {
-                "type": [
-                  "string",
-                  "null"
-                ]
-              },
-              "id": {
-                "type": "string"
-              },
-              "locale": {
-                "type": "string"
-              },
-              "resource_id": {
-                "type": "string"
-              },
-              "resource_type": {
-                "type": "string"
-              },
-              "route_path": {
-                "type": [
-                  "string",
-                  "null"
-                ]
-              },
-              "values": {
-                "additionalProperties": true,
-                "description": "Localized scalar values. Allowed fields depend on resource_type. For product_category, use { name }. Product values never include category; category names are localized on the category record.",
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "content_blocks": {
+                    "items": {
+                      "additionalProperties": true,
+                      "type": "object"
+                    },
+                    "type": "array"
+                  },
+                  "created_at": {
+                    "type": "string"
+                  },
+                  "id": {
+                    "type": "string"
+                  },
+                  "kind": {
+                    "enum": [
+                      "page",
+                      "article",
+                      "platform_doc",
+                      "social_post",
+                      "qa"
+                    ],
+                    "type": "string"
+                  },
+                  "locale": {
+                    "type": "string"
+                  },
+                  "metadata": {
+                    "additionalProperties": true,
+                    "type": "object"
+                  },
+                  "organization_id": {
+                    "type": "string"
+                  },
+                  "path": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "root_id": {
+                    "type": "string"
+                  },
+                  "row_role": {
+                    "const": "representation"
+                  },
+                  "seo_description": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "seo_keywords": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "seo_title": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "site_id": {
+                    "type": "string"
+                  },
+                  "slug": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "summary": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "title": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "updated_at": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "id",
+                  "organization_id",
+                  "site_id",
+                  "locale",
+                  "created_at",
+                  "updated_at",
+                  "kind",
+                  "row_role",
+                  "root_id",
+                  "title",
+                  "summary",
+                  "slug",
+                  "path",
+                  "seo_title",
+                  "seo_description",
+                  "seo_keywords",
+                  "metadata",
+                  "content_blocks"
+                ],
                 "type": "object"
               }
-            },
-            "required": [
-              "id",
-              "resource_type",
-              "resource_id",
-              "locale",
-              "values",
-              "route_path",
-              "document_id",
-              "content_document"
-            ],
-            "type": "object"
+            ]
           }
         },
         "required": [
@@ -11131,14 +11424,11 @@
                   "site",
                   "business_location",
                   "product",
-                  "post",
-                  "blog_post",
-                  "experience",
+                  "content_document",
                   "offering",
                   "content_block",
                   "review",
-                  "review_request",
-                  "tenant_compliance"
+                  "review_request"
                 ],
                 "type": "string"
               },
@@ -11271,14 +11561,11 @@
                   "site",
                   "business_location",
                   "product",
-                  "post",
-                  "blog_post",
-                  "experience",
+                  "content_document",
                   "offering",
                   "content_block",
                   "review",
-                  "review_request",
-                  "tenant_compliance"
+                  "review_request"
                 ],
                 "type": "string"
               },
@@ -11783,14 +12070,11 @@
                   "site",
                   "business_location",
                   "product",
-                  "post",
-                  "blog_post",
-                  "experience",
+                  "content_document",
                   "offering",
                   "content_block",
                   "review",
-                  "review_request",
-                  "tenant_compliance"
+                  "review_request"
                 ],
                 "type": "string"
               },
@@ -11923,14 +12207,11 @@
                   "site",
                   "business_location",
                   "product",
-                  "post",
-                  "blog_post",
-                  "experience",
+                  "content_document",
                   "offering",
                   "content_block",
                   "review",
-                  "review_request",
-                  "tenant_compliance"
+                  "review_request"
                 ],
                 "type": "string"
               },
@@ -12195,8 +12476,8 @@
             "minItems": 1,
             "type": "array"
           },
-          "expected_document_updated_at": {
-            "description": "Concurrency token from the post document_updated_at (get_blog_post). A stale token is rejected with a conflict.",
+          "expected_updated_at": {
+            "description": "Concurrency token from the post updated_at (get_blog_post). A stale token is rejected with a conflict.",
             "type": "string"
           },
           "post_id": {
@@ -12211,7 +12492,7 @@
         "required": [
           "post_id",
           "content_blocks",
-          "expected_document_updated_at"
+          "expected_updated_at"
         ],
         "type": "object"
       },
@@ -12844,14 +13125,11 @@
                   "site",
                   "business_location",
                   "product",
-                  "post",
-                  "blog_post",
-                  "experience",
+                  "content_document",
                   "offering",
                   "content_block",
                   "review",
-                  "review_request",
-                  "tenant_compliance"
+                  "review_request"
                 ],
                 "type": "string"
               },
@@ -12984,14 +13262,11 @@
                   "site",
                   "business_location",
                   "product",
-                  "post",
-                  "blog_post",
-                  "experience",
+                  "content_document",
                   "offering",
                   "content_block",
                   "review",
-                  "review_request",
-                  "tenant_compliance"
+                  "review_request"
                 ],
                 "type": "string"
               },
@@ -13433,7 +13708,7 @@
                 },
                 "values": {
                   "additionalProperties": true,
-                  "description": "Localized scalar values. Allowed fields depend on resource_type. For product_category, use { name }. Product values never include category; category names are localized on the category record.",
+                  "description": "Localized values follow the canonical owner fields. content_document uses title, summary, slug, SEO fields and typed metadata; content_blocks edits its representation. Other allowed fields depend on resource_type. For product_category, use { name }. Product values never include category; category names are localized on the category record.",
                   "type": "object"
                 }
               },
@@ -14674,12 +14949,8 @@
           "excerpt": {
             "type": "string"
           },
-          "expected_document_updated_at": {
-            "description": "Required with content_blocks. Use document_updated_at returned by get_blog_post; stale tokens are rejected with a conflict.",
-            "type": "string"
-          },
           "expected_updated_at": {
-            "description": "Optional metadata concurrency token from the post updated_at field.",
+            "description": "Required with content_blocks. Use updated_at returned by get_blog_post; stale tokens are rejected with a conflict.",
             "type": "string"
           },
           "post_id": {
@@ -15685,9 +15956,9 @@
           },
           "status": {
             "enum": [
-              "pending",
               "confirmed",
-              "cancelled"
+              "cancelled",
+              "completed"
             ],
             "type": "string"
           }
@@ -17788,7 +18059,7 @@
           "confirmation_token": {
             "type": "string"
           },
-          "expected_document_updated_at": {
+          "expected_updated_at": {
             "type": "string"
           },
           "pageType": {
@@ -17858,7 +18129,7 @@
         },
         "required": [
           "variant_id",
-          "expected_document_updated_at",
+          "expected_updated_at",
           "blocks"
         ],
         "type": "object"

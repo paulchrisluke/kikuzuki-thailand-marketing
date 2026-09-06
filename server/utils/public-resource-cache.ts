@@ -175,13 +175,6 @@ export async function putPublicResourceCache(
 
 /**
  * Purge all cached public resource entries for a site.
- * Called after any write to public-resource tables (tenant pages, products,
- * business_locations, experiences, blog_posts, location_qa, media_assets,
- * sites, site_locales) so the next read reflects the edit immediately
- * instead of waiting out the TTL.
- *
- * KV keys are structured as: public~<siteId>~...
- * We list by prefix public~<siteId>~ and delete all matches.
  */
 export async function purgePublicResourceCache(kv: KVNamespace, siteId: string): Promise<void> {
   const prefix = `public~${encodeKeyField(siteId)}~`

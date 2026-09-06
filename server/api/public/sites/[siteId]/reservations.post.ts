@@ -177,7 +177,7 @@ export default defineHandler(async (event) => {
       eventName: 'reservation_submit',
       stage: 'submitted',
       locationId: resolvedLocationId,
-      entityType: 'reservation_submission',
+      entityType: 'request',
       entityId: id,
       pageType: 'reservations',
       pagePath: '/reservations',

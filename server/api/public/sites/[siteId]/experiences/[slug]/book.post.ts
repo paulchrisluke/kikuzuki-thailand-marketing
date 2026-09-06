@@ -163,7 +163,7 @@ export default defineHandler(async (event) => {
       eventName: 'experience_booking_submit',
       stage: 'submitted',
       locationId: experience.location_id,
-      entityType: 'experience_booking',
+      entityType: 'request',
       entityId: booking.id,
       pageType: 'experience',
       pagePath: `/experiences/${slug}`,

@@ -18,6 +18,7 @@ test('scheduled posts compare instants across timezone offsets and publish once'
     for (const statement of [
       "INSERT INTO organization (id, name, slug) VALUES ('org-proof', 'Proof', 'proof')",
       "INSERT INTO sites (id, organization_id, slug, subdomain) VALUES ('site-proof', 'org-proof', 'proof', 'proof')",
+      "INSERT INTO site_locales (id, organization_id, site_id, locale, is_source, status) VALUES ('source-proof', 'org-proof', 'site-proof', 'en', 1, 'published')",
       "INSERT INTO user (id, name, email) VALUES ('user-proof', 'Proof Owner', 'owner@proof.example')",
     ]) await db.prepare(statement).run()
     for (const [id, scheduledFor] of [
@@ -25,13 +26,13 @@ test('scheduled posts compare instants across timezone offsets and publish once'
       ['positive-offset', '2099-01-01T11:00:00+02:00'],
     ]) {
       await db.prepare(`
-        INSERT INTO posts (id, organization_id, site_id, body, status, scheduled_for, created_by, updated_at)
-        VALUES (?, 'org-proof', 'site-proof', 'Scheduled proof', 'scheduled', ?, 'user-proof', '2098-12-31T00:00:00.000Z')
+        INSERT INTO content_documents (id, organization_id, site_id, kind, row_role, locale, summary, status, source, metadata_json, scheduled_for, created_by, updated_at)
+        VALUES (?, 'org-proof', 'site-proof', 'social_post', 'root', 'en', 'Scheduled proof', 'scheduled', 'manual', '{"post_type":"standard","channels":{}}', ?, 'user-proof', '2098-12-31T00:00:00.000Z')
       `).bind(id, scheduledFor).run()
     }
     const cutoff = new Date('2099-01-01T10:00:00.000Z')
     assert.deepEqual(await publishDuePosts(db, cutoff), { published: 1 })
-    const rows = await db.prepare('SELECT id, status, scheduled_for, published_at FROM posts ORDER BY id').all()
+    const rows = await db.prepare("SELECT id, status, scheduled_for, published_at FROM content_documents WHERE kind = 'social_post' ORDER BY id").all()
     assert.deepEqual(rows.results, [
       { id: 'negative-offset', status: 'scheduled', scheduled_for: '2099-01-01T09:00:00-05:00', published_at: null },
       { id: 'positive-offset', status: 'published', scheduled_for: null, published_at: '2099-01-01T11:00:00+02:00' },
@@ -41,8 +42,8 @@ test('scheduled posts compare instants across timezone offsets and publish once'
     const concurrent = await Promise.all([publishDuePosts(db, finalCutoff), publishDuePosts(db, finalCutoff)])
     assert.equal(concurrent.reduce((sum, result) => sum + result.published, 0), 1)
     assert.deepEqual(await publishDuePosts(db, finalCutoff), { published: 0 })
-    assert.equal(await db.prepare('SELECT count(*) FROM organization_events').first('count(*)'), 2)
-    assert.equal(await db.prepare('SELECT count(*) FROM post_channel_jobs').first('count(*)'), 0)
+    assert.equal(await db.prepare("SELECT count(*) FROM activity_entries WHERE kind = 'audit'").first('count(*)'), 2)
+    assert.equal(await db.prepare("SELECT count(*) FROM content_documents, json_each(metadata_json, '$.channels') WHERE kind = 'social_post'").first('count(*)'), 0)
   } finally {
     await runtime.dispose()
   }

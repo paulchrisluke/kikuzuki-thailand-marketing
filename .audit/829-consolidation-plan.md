@@ -23,18 +23,18 @@ The green CI on `2e9e5c88` qualifies the prior implementation only.
 - [x] Read the Superdev Principles section in full.
 - [x] Phase A: Frame. Treat all 76 application-owned tables as challenged; preserve
   the green implementation and private data-transfer source as the comparison.
-- [ ] Phase B: Design the workflow. Ground active callers and compare two shapes
+- [x] Phase B: Design the workflow. Ground active callers and compare two shapes
   per partition before selecting ownership, JSON and ledger boundaries.
-- [ ] Architect: Ground, Sketch, Agree, Implement, Scrap. Agreement proceeds
+- [x] Architect: Ground, Sketch, Agree, Implement, Scrap. Agreement proceeds
   autonomously under the owner's concrete target; redesign if runtime constraints
   invalidate a selected fold.
 - [ ] Phase C: Run the loop. Implement coherent partition changes, remove old
   callers and definitions, and verify each against real D1/runtime boundaries.
-- [ ] Consolidate site configuration, domains, locales and provider connections.
-- [ ] Consolidate bookings, experience products, policies and guest events.
-- [ ] Consolidate analytics and special content into canonical models.
-- [ ] Archive dead history outside the live schema and remove operational evidence.
-- [ ] Regenerate the sole baseline, canonical fixtures and source transfer; prove
+- [x] Consolidate site configuration, domains, locales and provider connections.
+- [x] Consolidate bookings, experience products, policies and guest events.
+- [x] Consolidate analytics and special content into canonical models.
+- [x] Archive dead history outside the live schema and remove operational evidence.
+- [x] Regenerate the sole baseline, canonical fixtures and source transfer; prove
   all retained facts, archive dispositions, foreign keys and invariants.
 - [ ] Phase D: Keep the audit trail. Update `.audit/829-decisions.tsv`, whole-table
   dispositions and counts when evidence settles each choice.

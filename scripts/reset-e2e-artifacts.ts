@@ -6,9 +6,6 @@ import { join } from 'node:path'
 import { PLATFORM_ORGANIZATION_ID } from '../shared/platform-scope.ts'
 import { spawnYarn } from './utils/spawn-yarn.mjs'
 
-// Sweeps only local/preview disposable data. Fixed seed organizations and users are protected;
-// other organizations must predate the cutoff and own no newer sites. Fixture guest requests
-// additionally require the explicit @playwright.example email marker. Every selection is bounded.
 const FIXTURE_ORG_IDS = [
   PLATFORM_ORGANIZATION_ID,
   'org-demo',
@@ -41,7 +38,6 @@ const RETAINED_SITE_TABLES = [
   'requests',
 ] as const
 
-// Protect every user provisioned by the canonical demo/client fixtures, including review actors.
 const FIXTURE_USER_IDS = [
   'user-demo',
   'user-mcp-free',
@@ -161,10 +157,8 @@ WHERE stripe_subscription_id IN (${eligibleSubscriptionIds});
 
 DELETE FROM subscription WHERE referenceId IN (${eligibleOrgIds});
 
--- Remove disposable retained rows before owner cascades can clear their scope.
 ${retainedSiteDeletes}
 
--- Workspace rows belong to users. Clear only references to disposable sites.
 UPDATE user_workspace_state
 SET whatsapp_pending_confirmation = NULL, whatsapp_updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
 WHERE json_extract(whatsapp_pending_confirmation, '$.siteId') IN (${eligibleSiteIds})
@@ -180,8 +174,6 @@ DELETE FROM site_transfer_requests WHERE site_id IN (${eligibleSiteIds});
 DELETE FROM sites WHERE id IN (${eligibleE2eFixtureSiteIds});
 DELETE FROM organization WHERE id IN (${eligibleOrgIds});
 
--- Guest journeys mark their submissions explicitly, including those on protected fixtures.
--- Their timeline, notification, acknowledgement, and delivery facts cascade from request_id.
 DELETE FROM requests WHERE id IN (
   SELECT id FROM requests
   WHERE site_id IN (${guestBookingSiteIdList})

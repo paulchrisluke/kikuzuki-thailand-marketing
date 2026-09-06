@@ -803,11 +803,6 @@ export async function createCustomDomainPair(
     }
 
     for (const entry of entries) {
-      // domainId is intentionally omitted: by this point the site_domains row for
-      // entry.id has either never been inserted or was just deleted by the cleanup
-      // above, and domain_id is a foreign key — referencing a nonexistent row here
-      // throws inside the catch block itself, silently swallowing the real error
-      // and leaving no audit event.
       await logDomainEvent(db, {
         organizationId: opts.organizationId,
         siteId: opts.siteId,

@@ -41,13 +41,11 @@ async function resolveTenantRedirectForRequest(event: H3Event) {
       `, [siteId, firstSegment])
     : null
   const locale = localized?.locale ?? 'en'
-  // tenant_page_variants.path is stored locale-bare regardless of locale -
-  // strip the matched locale segment back off before matching it.
   const tenantPagePath = localized ? (path.slice(locale.length + 1) || '/') : path
 
   const exactPage = await queryFirst<{ id: string } | null>(db, `
-    SELECT id FROM tenant_page_variants
-     WHERE site_id = ? AND locale = ? AND path = ?
+    SELECT id FROM content_documents
+     WHERE kind = 'page' AND row_role IN ('root','representation') AND site_id = ? AND locale = ? AND path = ?
      LIMIT 1
   `, [siteId, locale, tenantPagePath])
   if (exactPage) return null
@@ -149,9 +147,6 @@ export default defineHandler(async (event) => {
     }
   }
 
-  // Durable blog slugs are separate from tenant-page redirects because they
-  // are scoped to blog_posts and must work on both Saya (/blog) and Blawby
-  // (/article) route surfaces.
   if (event.req.method === 'GET') {
     if (event.context.tenantType === TENANT_TYPES.PLATFORM) {
       const db = cloudflareEnv(event).db

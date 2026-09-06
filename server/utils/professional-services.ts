@@ -5,7 +5,7 @@ import type { CloudflareEnv } from '~/server/utils/auth'
 import { parseSocialImageSource } from '~/utils/social-metadata'
 import { listPageQa } from '~/server/utils/location-qa'
 import { listSiteReviews } from '~/server/utils/site-reviews'
-import { getPublishedLocalizedSiteBlogPost, getPublishedSiteBlogPost } from '~/server/utils/platform-content'
+import { getPublishedLocalizedSiteBlogPost } from '~/server/utils/platform-content'
 import {
   loadExactPublicLocalizations,
   projectExactLocalizedCollection,
@@ -188,18 +188,20 @@ function mapPublicOfferingSummaries(rows: PublicTenantPageOfferingRow[]): Public
   }))
 }
 
-export async function listPublicBlogSummaries(db: DbClient, siteId: string, limit = 50): Promise<PublicBlogSummary[]> {
+export async function listPublicBlogSummaries(db: DbClient, siteId: string, limit = 50, locale = 'en'): Promise<PublicBlogSummary[]> {
   const rows = await queryAll<ApiRecord>(db, `
-    SELECT p.id, p.title, p.slug, p.excerpt, p.category, p.tags_json, p.published_at, p.canonical_url, p.featured_order,
+    SELECT root.id, p.id AS representation_id, p.title, p.slug, p.summary AS excerpt, p.metadata_json ->> '$.category' AS category,
+           p.metadata_json ->> '$.tags' AS tags_json, root.published_at, p.canonical_url, p.path,
+           root.metadata_json ->> '$.featured_order' AS featured_order,
            featured.asset_id AS asset_id, media.public_url, media.thumbnail_url, media.kind, media.width, media.height
-      FROM blog_posts p
-      LEFT JOIN media_placements featured ON featured.owner_type = 'blog_post' AND featured.owner_id = p.id AND featured.slot = 'featured' AND featured.sort_order = 0 AND featured.status = 'active'
+      FROM content_documents root JOIN content_documents p ON COALESCE(p.root_id,p.id) = root.id AND p.locale = ?
+      LEFT JOIN media_placements featured ON featured.owner_type = 'content_document' AND featured.owner_id = p.id AND featured.slot = 'featured' AND featured.sort_order = 0 AND featured.status = 'active'
       LEFT JOIN media_assets media ON media.id = featured.asset_id AND media.status = 'active'
-     WHERE p.site_id = ? AND p.status = 'published' AND p.visibility = 'public'
-     ORDER BY COALESCE(p.featured_order, 999999), p.published_at IS NULL, p.published_at DESC, p.id DESC
+     WHERE root.site_id = ? AND root.kind = 'article' AND root.row_role = 'root' AND root.status = 'published' AND root.visibility = 'public'
+     ORDER BY COALESCE(root.metadata_json ->> '$.featured_order', 999999), root.published_at IS NULL, root.published_at DESC, root.id DESC
      LIMIT ?
-  `, [siteId, Math.max(1, Math.min(50, Math.trunc(limit)))])
-  const socialMedia = await loadPublicSocialMedia(db, siteId, 'blog_post', rows.map(row => String(row.id)))
+  `, [locale, siteId, Math.max(1, Math.min(50, Math.trunc(limit)))])
+  const socialMedia = await loadPublicSocialMedia(db, siteId, 'content_document', rows.map(row => String(row.representation_id)))
   return rows.map(row => ({
     id: String(row.id),
     title: String(row.title),
@@ -209,7 +211,7 @@ export async function listPublicBlogSummaries(db: DbClient, siteId: string, limi
     tags: row.tags_json ? JSON.parse(row.tags_json) as string[] : [],
     featured_order: Number.isFinite(Number(row.featured_order)) ? Number(row.featured_order) : null,
     published_at: typeof row.published_at === 'string' ? row.published_at : null,
-    canonical_url: resolvePublicArticleCanonicalUrl(row.canonical_url, row.slug),
+    canonical_url: locale === 'en' ? resolvePublicArticleCanonicalUrl(row.canonical_url, row.slug) : `/${locale}${requiredText(row.path, 'localized article path')}`,
     media: typeof row.public_url === 'string' && row.public_url
       ? [{
           asset_id: String(row.asset_id),
@@ -221,7 +223,7 @@ export async function listPublicBlogSummaries(db: DbClient, siteId: string, limi
           height: Number.isFinite(Number(row.height)) ? Number(row.height) : null,
         }]
       : [],
-    social_image: socialMedia.get(String(row.id))?.social_image ?? null,
+    social_image: socialMedia.get(String(row.representation_id))?.social_image ?? null,
   }))
 }
 
@@ -446,13 +448,13 @@ export async function getPublicBlawbyShellData(
   let compliance = sourceCompliance
   let offeringLinks = sourceOfferingLinks
   if (localizedRepresentation) {
-    const consultationValues = localizations.find(row => row.resourceType === 'site_consultation_settings')?.values
+    const consultationValues = siteLocalization?.values.consultation as { cta_label?: unknown } | undefined
     consultation = {
       ...sourceConsultation,
       cta_label: typeof consultationValues?.cta_label === 'string' ? consultationValues.cta_label : '',
       metadata: { ...sourceConsultation.metadata, header_cta_label: null },
     }
-    const complianceValues = localizations.find(row => row.resourceType === 'tenant_compliance')?.values
+    const complianceValues = siteLocalization?.values.compliance as { service_area?: unknown; disclaimer?: unknown; footer_disclaimer?: unknown } | undefined
     compliance = sourceCompliance
       ? {
           ...sourceCompliance,
@@ -515,24 +517,20 @@ export async function getPublicBlawbyDocumentData(
      LIMIT 1
   `, [site.organization_id, siteId]))?.label ?? 'English'
   const pagePath = ROUTE_PAGE_PATHS[recipe]
-  const resource = recipe === 'offering' && route.offering
-    ? { type: 'offering' as const, id: route.offering.id }
-    : recipe === 'article' && route.post
-      ? { type: 'tenant_blog_post' as const, id: route.post.id }
-      : undefined
-  route.localeRepresentations = resource
+  if (recipe === 'article') return { shell, route }
+  route.localeRepresentations = recipe === 'offering' && route.offering
     ? await listPublicResourceLocaleRepresentations(db, {
         organizationId: site.organization_id,
         siteId,
         sourceLabel,
-        resource,
+        resource: { type: 'offering', id: route.offering.id },
       })
     : await listPublicLocaleRepresentations(db, {
         organizationId: site.organization_id,
         siteId,
         sourcePath: pagePath ?? '/',
         sourceLabel,
-        pageId: route.page?.page_id,
+        documentId: route.page?.page_id,
       })
   return { shell, route }
 }
@@ -668,7 +666,7 @@ export async function getPublicBlawbyRouteData(
     ? listPublicTenantPageOfferingRows(db, siteId)
     : Promise.resolve([])
   const qaRowsPromise = needsQa && pagePath
-    ? listPageQa(db, siteId, pagePath, true)
+    ? listPageQa(db, siteId, pagePath, true, options.locale ?? 'en')
     : Promise.resolve([])
   const localized = options.locale !== undefined && options.locale !== 'en'
   const localizedOfferingId = localized && recipe === 'offering' && options.slug
@@ -696,11 +694,9 @@ export async function getPublicBlawbyRouteData(
       : Promise.resolve(null),
     qaRowsPromise,
     needsReviews ? listSiteReviews(db, siteId, { publishedOnly: true }) : Promise.resolve([]),
-    postLimit ? listPublicBlogSummaries(db, siteId, postLimit) : Promise.resolve([]),
+    postLimit ? listPublicBlogSummaries(db, siteId, postLimit, options.locale ?? 'en') : Promise.resolve([]),
     recipe === 'article' && options.slug
-      ? options.locale && options.locale !== 'en'
-        ? getPublishedLocalizedSiteBlogPost(db, siteId, options.slug, options.locale, env)
-        : getPublishedSiteBlogPost(db, siteId, options.slug, env)
+      ? getPublishedLocalizedSiteBlogPost(db, siteId, options.slug, options.locale ?? 'en', env)
       : Promise.resolve(null),
   ])
   const localizations = options.localizations ?? []
@@ -748,28 +744,17 @@ export async function getPublicBlawbyRouteData(
     }
   }
 
-  const sourceQa = mapPublicQa(qaRows)
-  const qa = localized ? projectExactLocalizedCollection('location_qa', sourceQa, localizations) : sourceQa
-  const sourcePosts = posts
-  const resolvedPosts = localized
-    ? projectExactLocalizedCollection('tenant_blog_post', sourcePosts, localizations).map(item => {
-        const representation = localizations.find(value => value.resourceType === 'tenant_blog_post' && value.resourceId === item.id)
-        if (!representation?.routePath?.startsWith('/')) {
-          throw new HTTPError({ statusCode: 500, statusMessage: 'Stored localized blog route is invalid', data: { code: 'INVALID_STORED_CONTENT' } })
-        }
-        return { ...item, canonical_url: representation.routePath }
-      })
-    : sourcePosts
+  const qa = mapPublicQa(qaRows)
   const resolvedPost = mapPublicBlogPost(postRow)
   return {
     recipe,
-    localeRepresentations: [],
+    localeRepresentations: postRow?.localeRepresentations ?? [],
     page,
     offerings,
     offering: resolvedOffering,
     qa,
     reviews: mapPublicReviews(reviewRows),
-    posts: resolvedPosts,
+    posts,
     post: resolvedPost,
   }
 }

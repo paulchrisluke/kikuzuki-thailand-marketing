@@ -11,8 +11,6 @@ import {
 import {
   RESOURCE_TEAM_GENERATION_CONFIG_KEY,
   SITE_TRANSFER_REPARENT_TABLES,
-  SITE_TRANSFER_RETAIN_TABLES,
-  SITE_TRANSFER_REVOKE_TABLES,
   serializeResourceTeamGeneration,
 } from '~/shared/site-transfer-policy'
 
@@ -136,41 +134,29 @@ function buildSiteTransferAssertions(
 ): BatchQuery[] {
   const assertions: BatchQuery[] = []
   for (const table of SITE_TRANSFER_REPARENT_TABLES) {
+    const ownedRows = table === 'analytics_events' ? " AND kind = 'conversion'" : ''
     assertions.push(transferAssertion(
-      `SELECT 1 FROM ${table} WHERE site_id = ? AND organization_id = ? LIMIT 1`,
+      `SELECT 1 FROM ${table} WHERE site_id = ? AND organization_id = ?${ownedRows} LIMIT 1`,
       [siteId, fromOrgId],
       `site transfer left source rows in ${table}`,
     ))
     assertions.push(transferAssertion(
-      `SELECT 1 FROM ${table} WHERE site_id = ? AND (organization_id IS NULL OR organization_id != ?) LIMIT 1`,
+      `SELECT 1 FROM ${table} WHERE site_id = ? AND (organization_id IS NULL OR organization_id != ?)${ownedRows} LIMIT 1`,
       [siteId, toOrgId],
       `site transfer left a scope mismatch in ${table}`,
     ))
   }
-  for (const table of SITE_TRANSFER_RETAIN_TABLES) {
-    assertions.push(transferAssertion(
-      `SELECT 1 FROM ${table} WHERE site_id = ? AND organization_id = ? LIMIT 1`,
-      [siteId, toOrgId],
-      `retained ${table} rows were reparented`,
-    ))
-  }
-  for (const table of SITE_TRANSFER_REVOKE_TABLES) {
-    if (table === 'mcp_workspace_preferences') continue
-    assertions.push(transferAssertion(
-      `SELECT 1 FROM ${table} WHERE site_id = ? LIMIT 1`,
-      [siteId],
-      `revoked ${table} rows remain`,
-    ))
-  }
   assertions.push(transferAssertion(
-    `SELECT 1 FROM mcp_workspace_preferences
+    `SELECT 1 FROM user_workspace_state
       WHERE site_id = ? OR location_id IN (SELECT id FROM business_locations WHERE site_id = ?)` ,
     [siteId, siteId],
     'mcp workspace selection still references transferred site',
   ))
   assertions.push(transferAssertion(
-    `SELECT 1 FROM site_config WHERE site_id = ? AND organization_id = ?
-       AND key IN ('whatsapp_phone', 'owner_notification_channels') LIMIT 1`,
+    `SELECT 1 FROM sites WHERE id = ? AND organization_id = ?
+       AND (json_type(settings_json, '$.config.whatsapp_phone') IS NOT NULL
+         OR json_type(settings_json, '$.config.owner_notification_channels') IS NOT NULL
+         OR integrations_json != '{}') LIMIT 1`,
     [siteId, toOrgId],
     'sensitive site configuration survived transfer',
   ))
@@ -224,11 +210,6 @@ export function buildSiteTransferMutationBatch(input: {
     )`,
     [input.siteId, input.fromOrgId],
     'site transfer source site is missing or no longer owned by the source organization',
-  ))
-  batch.push(transferAssertion(
-    `SELECT 1 FROM site_language_licenses WHERE site_id = ? AND status != 'disabled' LIMIT 1`,
-    [input.siteId],
-    'all paid site languages must be disabled before transfer',
   ))
 
   const billing = input.projection.organizationBilling
@@ -285,39 +266,26 @@ export function buildSiteTransferMutationBatch(input: {
   // Site access is inherited from its organization. Transfers only reparent
   // domain state and never materialize site billing or entitlement mirrors.
   batch.push({
-    query: `UPDATE sites SET organization_id = ?, team_id = NULL, updated_at = ? WHERE id = ? AND organization_id = ?`,
-    params: [input.toOrgId, now, input.siteId, input.fromOrgId],
+    query: `UPDATE sites SET organization_id = ?, team_id = NULL, updated_at = ?, integrations_json = '{}',
+      settings_json = json_set(json_remove(settings_json, '$.config.whatsapp_phone', '$.config.owner_notification_channels'), ?, json(?))
+      WHERE id = ? AND organization_id = ?`,
+    params: [input.toOrgId, now, '$.config.' + RESOURCE_TEAM_GENERATION_CONFIG_KEY, resourceTeamGeneration, input.siteId, input.fromOrgId],
   })
 
-  const facebookConnections = SITE_TRANSFER_REVOKE_TABLES.find(table => table === 'facebook_pages_connections')
-  const googleAnalyticsConnections = SITE_TRANSFER_REVOKE_TABLES.find(table => table === 'google_analytics_connections')
-  const siteLanguageLicenses = SITE_TRANSFER_REVOKE_TABLES.find(table => table === 'site_language_licenses')
-  if (!facebookConnections || !googleAnalyticsConnections || !siteLanguageLicenses) {
-    throw new Error('Site transfer policy is missing a revoke table')
-  }
   batch.push(
-    { query: `DELETE FROM ${facebookConnections} WHERE site_id = ?`, params: [input.siteId] },
-    { query: `DELETE FROM ${googleAnalyticsConnections} WHERE site_id = ?`, params: [input.siteId] },
-    { query: `DELETE FROM ${siteLanguageLicenses} WHERE site_id = ? AND status = 'disabled'`, params: [input.siteId] },
-    { query: `UPDATE site_locales SET status = 'disabled', updated_at = ? WHERE site_id = ? AND is_source = 0`, params: [now, input.siteId] },
+    { query: `UPDATE site_locales SET status = 'disabled', disabled_at = COALESCE(disabled_at, ?), updated_at = ? WHERE site_id = ? AND is_source = 0`, params: [now, now, input.siteId] },
     {
-      query: `UPDATE mcp_workspace_preferences
+      query: `UPDATE user_workspace_state
                  SET site_id = NULL, location_id = NULL, updated_at = ?
                WHERE site_id = ? OR location_id IN (SELECT id FROM business_locations WHERE site_id = ?)`,
       params: [now, input.siteId, input.siteId],
     },
     {
-      query: `UPDATE chowbot_channel_state SET pending_confirmation = NULL, updated_at = ?
-               WHERE json_extract(pending_confirmation, '$.siteId') = ?
-                  OR EXISTS (SELECT 1 FROM json_each(pending_confirmation, '$.candidates') candidate
+      query: `UPDATE user_workspace_state SET whatsapp_pending_confirmation = NULL, whatsapp_updated_at = ?
+               WHERE json_extract(whatsapp_pending_confirmation, '$.siteId') = ?
+                  OR EXISTS (SELECT 1 FROM json_each(whatsapp_pending_confirmation, '$.candidates') candidate
                              WHERE json_extract(candidate.value, '$.siteId') = ?)`,
       params: [now, input.siteId, input.siteId],
-    },
-    {
-      query: `DELETE FROM site_config
-               WHERE site_id = ? AND organization_id = ?
-                 AND key IN ('whatsapp_phone', 'owner_notification_channels')`,
-      params: [input.siteId, input.fromOrgId],
     },
   )
 
@@ -328,21 +296,11 @@ export function buildSiteTransferMutationBatch(input: {
 
   for (const table of SITE_TRANSFER_REPARENT_TABLES) {
     batch.push({
-      query: `UPDATE ${table} SET organization_id = ? WHERE site_id = ? AND organization_id = ?`,
+      query: `UPDATE ${table} SET organization_id = ?${table === 'site_domains' ? ', reconciliation_token = NULL, reconciliation_expires_at = NULL' : ''}
+        WHERE site_id = ? AND organization_id = ?${table === 'analytics_events' ? " AND kind = 'conversion'" : ''}`,
       params: [input.toOrgId, input.siteId, input.fromOrgId],
     })
   }
-
-  const siteConfigTable = 'site_config'
-  batch.push({
-    query: `
-      INSERT INTO ${siteConfigTable} (organization_id, site_id, key, value, updated_at)
-      VALUES (?, ?, ?, ?, ?)
-      ON CONFLICT(organization_id, site_id, key) DO UPDATE SET
-        value = excluded.value, updated_at = excluded.updated_at
-    `,
-    params: [input.toOrgId, input.siteId, RESOURCE_TEAM_GENERATION_CONFIG_KEY, resourceTeamGeneration, now],
-  })
 
   batch.push(...buildSiteTransferAssertions(input.siteId, input.fromOrgId, input.toOrgId))
 

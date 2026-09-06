@@ -1,7 +1,6 @@
 import { sha256 } from '@noble/hashes/sha2.js'
 import { bytesToHex } from '@noble/hashes/utils.js'
 import { queryAll, type DbClient } from '~/server/db'
-import { d1JsonStringSet } from '~/server/db/d1-limits'
 import type { CloudflareEnv } from '~/server/utils/auth'
 import { PLATFORM_SITE_ID } from '~/shared/platform-scope'
 import {
@@ -100,17 +99,19 @@ interface TenantBlogDocRow {
   seo_keywords: string | null
 }
 
-async function loadContentBodies(db: DbClient, ownerTypes: Array<'platform_doc' | 'platform_blog' | 'tenant_blog'>) {
-  const rows = await queryAll<{ owner_type: string; owner_id: string; type: string; position: number; level: number | null; data_json: string }>(db, `
-    SELECT cd.owner_type, cd.owner_id, cb.type, cb.position, cb.level, cb.data_json
+async function loadContentBodies(db: DbClient, platform: boolean) {
+  const rows = await queryAll<{ id: string; type: string; position: number; level: number | null; data_json: string }>(db, `
+    SELECT cd.id, cb.type, cb.position, cb.level, cb.data_json
     FROM content_documents cd
     JOIN content_blocks cb ON cb.document_id = cd.id
-    WHERE cd.owner_type IN (SELECT value FROM json_each(?))
-    ORDER BY cd.owner_type, cd.owner_id, cb.position
-  `, [d1JsonStringSet(ownerTypes)])
+    WHERE cd.row_role = 'root' AND cd.kind IN ('article','platform_doc')
+      AND (cd.kind = 'platform_doc' OR (cd.status = 'published' AND cd.visibility = 'public'))
+      AND (cd.site_id = ?) = ?
+    ORDER BY cd.id, cb.position
+  `, [PLATFORM_SITE_ID, platform ? 1 : 0])
   const blocks = new Map<string, Array<{ type: string; position: number; level: number | null; data: Record<string, unknown>; media: [] }>>()
   for (const row of rows ?? []) {
-    const key = `${row.owner_type}:${row.owner_id}`
+    const key = row.id
     const items = blocks.get(key) ?? []
     items.push({ type: row.type, position: row.position, level: row.level, data: JSON.parse(row.data_json) as Record<string, unknown>, media: [] })
     blocks.set(key, items)
@@ -423,15 +424,16 @@ async function waitForIndexing(env: CloudflareEnv, timeoutMs = 10 * 60 * 1000) {
 
 export async function buildTenantBlogDocuments(db: DbClient): Promise<PlatformKnowledgeDocument[]> {
   const [posts, contentBodies] = await Promise.all([queryAll<TenantBlogDocRow>(db, `
-    SELECT id, site_id, title, slug, excerpt, category, tags_json, seo_description, seo_keywords
-    FROM blog_posts
-    WHERE status = 'published' AND site_id <> '${PLATFORM_SITE_ID}' AND visibility = 'public'
+    SELECT id, site_id, title, slug, summary AS excerpt, metadata_json ->> '$.category' AS category,
+      metadata_json ->> '$.tags' AS tags_json, seo_description, seo_keywords
+    FROM content_documents
+    WHERE kind = 'article' AND row_role = 'root' AND status = 'published' AND site_id <> '${PLATFORM_SITE_ID}' AND visibility = 'public'
     ORDER BY site_id, published_at DESC, updated_at DESC
-  `), loadContentBodies(db, ['tenant_blog'])])
+  `), loadContentBodies(db, false)])
 
   return (posts ?? []).map((post) => {
     const tags = post.tags_json ? JSON.parse(post.tags_json) as string[] : []
-    const canonicalBody = contentBodies.get(`tenant_blog:${post.id}`) ?? ''
+    const canonicalBody = contentBodies.get(post.id) ?? ''
     const snippet = truncateSnippet(post.excerpt || post.seo_description || canonicalBody || post.title)
     const body = [
       post.title,
@@ -463,24 +465,24 @@ export async function buildTenantBlogDocuments(db: DbClient): Promise<PlatformKn
 export async function buildPlatformKnowledgeDocuments(db: DbClient): Promise<PlatformKnowledgeDocument[]> {
   const [docs, posts, tenantBlogRecords, contentBodies] = await Promise.all([
     queryAll<PlatformDocSearchRow>(db, `
-      SELECT id, title, slug, excerpt, category, seo_description, seo_keywords
-      FROM platform_docs
+      SELECT id, title, slug, summary AS excerpt, metadata_json ->> '$.category' AS category, seo_description, seo_keywords
+      FROM content_documents WHERE kind = 'platform_doc' AND row_role = 'root' AND site_id = '${PLATFORM_SITE_ID}'
       ORDER BY category, sort_order, updated_at DESC
     `),
     queryAll<PlatformBlogSearchRow>(db, `
-      SELECT id, title, slug, excerpt, category, seo_description, seo_keywords
-      FROM blog_posts
-      WHERE status = 'published' AND site_id = '${PLATFORM_SITE_ID}' AND visibility = 'public'
+      SELECT id, title, slug, summary AS excerpt, metadata_json ->> '$.category' AS category, seo_description, seo_keywords
+      FROM content_documents
+      WHERE kind = 'article' AND row_role = 'root' AND status = 'published' AND site_id = '${PLATFORM_SITE_ID}' AND visibility = 'public'
       ORDER BY category, published_at DESC, updated_at DESC
     `),
     buildTenantBlogDocuments(db),
-    loadContentBodies(db, ['platform_doc', 'platform_blog']),
+    loadContentBodies(db, true),
   ])
 
   const docRecords: PlatformKnowledgeDocument[] = (docs ?? []).flatMap((doc) => {
     const path = getDocPath(doc.category, doc.slug)
     if (!path) return []
-    const canonicalBody = contentBodies.get(`platform_doc:${doc.id}`) ?? ''
+    const canonicalBody = contentBodies.get(doc.id) ?? ''
     const snippet = truncateSnippet(doc.excerpt || doc.seo_description || canonicalBody || doc.title)
     const body = [
       doc.title,
@@ -508,7 +510,7 @@ export async function buildPlatformKnowledgeDocuments(db: DbClient): Promise<Pla
   const blogRecords: PlatformKnowledgeDocument[] = (posts ?? []).flatMap((post) => {
     const path = getPlatformBlogPath(post.category, post.slug)
     if (!path) return []
-    const canonicalBody = contentBodies.get(`platform_blog:${post.id}`) ?? ''
+    const canonicalBody = contentBodies.get(post.id) ?? ''
     const snippet = truncateSnippet(post.excerpt || post.seo_description || canonicalBody || post.title)
     const body = [
       post.title,
@@ -865,18 +867,17 @@ export async function searchPublicResources(
       const likePattern = `%${escapeLikePattern(normalized)}%`
       return await queryAll<TenantBlogSearchRow>(
           env.db,
-          `SELECT DISTINCT p.id, p.title, p.slug, p.excerpt, p.category, p.seo_description, p.seo_keywords
-           FROM blog_posts p
-           LEFT JOIN content_documents cd ON cd.owner_type = 'tenant_blog' AND cd.owner_id = p.id
-           LEFT JOIN content_blocks cb ON cb.document_id = cd.id
-           WHERE p.status = 'published'
+          `SELECT DISTINCT p.id, p.title, p.slug, p.summary AS excerpt, p.metadata_json ->> '$.category' AS category, p.seo_description, p.seo_keywords
+           FROM content_documents p
+           LEFT JOIN content_blocks cb ON cb.document_id = p.id
+           WHERE p.kind = 'article' AND p.row_role = 'root' AND p.status = 'published'
              AND p.site_id = ?
              AND p.visibility = 'public'
              AND (
                lower(p.title) LIKE lower(?) ESCAPE '\\'
                OR lower(COALESCE(cb.data_json, '')) LIKE lower(?) ESCAPE '\\'
-               OR lower(COALESCE(p.excerpt, '')) LIKE lower(?) ESCAPE '\\'
-               OR lower(COALESCE(p.category, '')) LIKE lower(?) ESCAPE '\\'
+               OR lower(COALESCE(p.summary, '')) LIKE lower(?) ESCAPE '\\'
+               OR lower(COALESCE(p.metadata_json ->> '$.category', '')) LIKE lower(?) ESCAPE '\\'
                OR lower(COALESCE(p.seo_description, '')) LIKE lower(?) ESCAPE '\\'
                OR lower(COALESCE(p.seo_keywords, '')) LIKE lower(?) ESCAPE '\\'
              )

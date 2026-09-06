@@ -16,116 +16,124 @@ CREATE TABLE `account` (
 );
 --> statement-breakpoint
 CREATE INDEX `account_userId_idx` ON `account` (`userId`);--> statement-breakpoint
-CREATE TABLE `availability_overrides` (
+CREATE TABLE `activity_entries` (
 	`id` text PRIMARY KEY NOT NULL,
-	`organization_id` text NOT NULL,
-	`site_id` text NOT NULL,
-	`owner_type` text NOT NULL,
+	`kind` text NOT NULL,
+	`scope_kind` text NOT NULL,
+	`organization_id` text,
+	`site_id` text,
+	`context_site_id` text,
 	`location_id` text,
-	`experience_id` text,
-	`override_date` text NOT NULL,
-	`time_slot` text NOT NULL,
-	`status` text DEFAULT 'closed' NOT NULL,
-	`capacity_override` integer,
-	`note` text,
+	`request_id` text,
+	`parent_id` text,
+	`actor_kind` text NOT NULL,
+	`actor_user_id` text,
+	`target_user_id` text,
+	`channel` text,
+	`body` text,
+	`event_name` text,
+	`payload_json` text DEFAULT '{}' NOT NULL,
+	`dedupe_key` text NOT NULL,
+	`sequence` integer,
+	`occurred_at` text NOT NULL,
 	`created_at` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
-	`updated_at` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
-	`created_by` text,
 	FOREIGN KEY (`organization_id`) REFERENCES `organization`(`id`) ON UPDATE no action ON DELETE cascade,
 	FOREIGN KEY (`site_id`) REFERENCES `sites`(`id`) ON UPDATE no action ON DELETE cascade,
-	FOREIGN KEY (`organization_id`,`site_id`,`location_id`) REFERENCES `business_locations`(`organization_id`,`site_id`,`id`) ON UPDATE no action ON DELETE cascade,
-	FOREIGN KEY (`organization_id`,`site_id`,`experience_id`) REFERENCES `experiences`(`organization_id`,`site_id`,`id`) ON UPDATE no action ON DELETE cascade,
-	CONSTRAINT "availability_overrides_owner_check" CHECK(
-		(owner_type = 'location' AND location_id IS NOT NULL AND experience_id IS NULL)
-		OR (owner_type = 'experience' AND location_id IS NULL AND experience_id IS NOT NULL)
-	),
-	CONSTRAINT "availability_overrides_status_check" CHECK(status IN ('open', 'closed')),
-	CONSTRAINT "availability_overrides_capacity_check" CHECK(capacity_override IS NULL OR capacity_override >= 0)
+	FOREIGN KEY (`context_site_id`) REFERENCES `sites`(`id`) ON UPDATE no action ON DELETE set null,
+	FOREIGN KEY (`location_id`) REFERENCES `business_locations`(`id`) ON UPDATE no action ON DELETE set null,
+	FOREIGN KEY (`request_id`) REFERENCES `requests`(`id`) ON UPDATE no action ON DELETE cascade,
+	FOREIGN KEY (`parent_id`) REFERENCES `activity_entries`(`id`) ON UPDATE no action ON DELETE cascade,
+	FOREIGN KEY (`actor_user_id`) REFERENCES `user`(`id`) ON UPDATE no action ON DELETE set null,
+	FOREIGN KEY (`target_user_id`) REFERENCES `user`(`id`) ON UPDATE no action ON DELETE set null,
+	CONSTRAINT "activity_entries_kind_check" CHECK(kind IN ('submission', 'message', 'operation', 'assignment', 'resolution', 'notification', 'acknowledgement', 'audit')),
+	CONSTRAINT "activity_entries_scope_check" CHECK((scope_kind = 'request' AND request_id IS NOT NULL AND organization_id IS NULL AND site_id IS NULL AND context_site_id IS NULL AND location_id IS NULL) OR (scope_kind = 'site' AND kind = 'audit' AND site_id IS NOT NULL AND context_site_id IS NULL AND organization_id IS NULL AND request_id IS NULL) OR (scope_kind = 'organization' AND organization_id IS NOT NULL AND site_id IS NULL AND request_id IS NULL) OR (scope_kind = 'platform' AND organization_id IS NULL AND site_id IS NULL AND context_site_id IS NULL AND request_id IS NULL)),
+	CONSTRAINT "activity_entries_actor_check" CHECK(actor_kind IN ('guest', 'member', 'system', 'cloudflare')),
+	CONSTRAINT "activity_entries_channel_check" CHECK(channel IS NULL OR channel IN ('web', 'email', 'whatsapp', 'system')),
+	CONSTRAINT "activity_entries_payload_check" CHECK(json_valid(payload_json) AND json_type(payload_json) = 'object'),
+	CONSTRAINT "activity_entries_timeline_check" CHECK((kind IN ('submission', 'message', 'operation', 'assignment', 'resolution') AND request_id IS NOT NULL AND sequence IS NOT NULL AND sequence > 0 AND scope_kind = 'request') OR (kind NOT IN ('submission', 'message', 'operation', 'assignment', 'resolution') AND sequence IS NULL))
 );
 --> statement-breakpoint
-CREATE UNIQUE INDEX `availability_overrides_location_slot_unique` ON `availability_overrides` (`location_id`,`override_date`,`time_slot`) WHERE owner_type = 'location';--> statement-breakpoint
-CREATE UNIQUE INDEX `availability_overrides_experience_slot_unique` ON `availability_overrides` (`experience_id`,`override_date`,`time_slot`) WHERE owner_type = 'experience';--> statement-breakpoint
-CREATE INDEX `availability_overrides_site_month_idx` ON `availability_overrides` (`site_id`,`override_date`);--> statement-breakpoint
-CREATE TABLE `blog_posts` (
+CREATE UNIQUE INDEX `activity_entries_dedupe_key_unique` ON `activity_entries` (`dedupe_key`);--> statement-breakpoint
+CREATE UNIQUE INDEX `activity_entries_request_sequence_unique` ON `activity_entries` (`request_id`,`sequence`);--> statement-breakpoint
+CREATE UNIQUE INDEX `activity_entries_notification_source_unique` ON `activity_entries` (`parent_id`) WHERE kind = 'notification' AND parent_id IS NOT NULL;--> statement-breakpoint
+CREATE INDEX `activity_entries_request_occurred_idx` ON `activity_entries` (`request_id`,`occurred_at`);--> statement-breakpoint
+CREATE INDEX `activity_entries_parent_actor_idx` ON `activity_entries` (`parent_id`,`actor_user_id`,`occurred_at`);--> statement-breakpoint
+CREATE INDEX `activity_entries_context_site_created_idx` ON `activity_entries` (`kind`,`context_site_id`,`created_at`);--> statement-breakpoint
+CREATE INDEX `activity_entries_site_created_idx` ON `activity_entries` (`kind`,`site_id`,`created_at`);--> statement-breakpoint
+CREATE INDEX `activity_entries_org_created_idx` ON `activity_entries` (`kind`,`organization_id`,`created_at`);--> statement-breakpoint
+CREATE INDEX `activity_entries_target_created_idx` ON `activity_entries` (`kind`,`target_user_id`,`created_at`);--> statement-breakpoint
+CREATE TABLE `analytics_events` (
 	`id` text PRIMARY KEY NOT NULL,
-	`organization_id` text NOT NULL,
+	`kind` text NOT NULL,
+	`organization_id` text,
 	`site_id` text NOT NULL,
-	`title` text NOT NULL,
-	`slug` text NOT NULL,
-	`excerpt` text,
-	`category` text,
-	`tags_json` text,
-	`nav_section` text,
-	`nav_title` text,
-	`nav_order` integer,
-	`nav_section_order` integer,
-	`hide_from_nav` integer DEFAULT 0 NOT NULL,
-	`featured_order` integer,
-	`status` text DEFAULT 'published' NOT NULL,
-	`visibility` text DEFAULT 'public' NOT NULL,
-	`author_id` text,
-	`published_at` text,
-	`first_published_at` text,
-	`scheduled_for` text,
-	`slug_manually_overridden` integer DEFAULT 0 NOT NULL,
-	`created_at` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
-	`updated_at` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
-	`seo_title` text,
-	`seo_description` text,
-	`seo_keywords` text,
-	`canonical_url` text,
-	`robots` text,
-	FOREIGN KEY (`organization_id`) REFERENCES `organization`(`id`) ON UPDATE no action ON DELETE cascade,
-	FOREIGN KEY (`site_id`) REFERENCES `sites`(`id`) ON UPDATE no action ON DELETE cascade,
-	FOREIGN KEY (`author_id`) REFERENCES `user`(`id`) ON UPDATE no action ON DELETE set null,
-	FOREIGN KEY (`organization_id`,`site_id`) REFERENCES `sites`(`organization_id`,`id`) ON UPDATE no action ON DELETE cascade,
-	CONSTRAINT "blog_posts_tags_json_check" CHECK(tags_json IS NULL OR (json_valid(tags_json) AND json_type(tags_json) IS 'array')),
-	CONSTRAINT "blog_posts_status_check" CHECK(status IN ('published', 'scheduled')),
-	CONSTRAINT "blog_posts_visibility_check" CHECK(visibility IN ('public', 'unlisted'))
-);
---> statement-breakpoint
-CREATE INDEX `blog_posts_org_site_idx` ON `blog_posts` (`organization_id`,`site_id`);--> statement-breakpoint
-CREATE UNIQUE INDEX `blog_posts_site_slug_unique` ON `blog_posts` (`site_id`,`slug`);--> statement-breakpoint
-CREATE TABLE `booking_policies` (
-	`id` text PRIMARY KEY NOT NULL,
-	`organization_id` text NOT NULL,
-	`site_id` text NOT NULL,
-	`policy_type` text NOT NULL,
-	`scope_type` text NOT NULL,
 	`location_id` text,
-	`experience_id` text,
-	`advance_notice_minutes` integer,
-	`free_cancellation_until_minutes` integer,
-	`reschedule_allowed` integer,
-	`reschedule_cutoff_minutes` integer,
-	`deposit_required` integer,
-	`deposit_trigger_party_size` integer,
-	`minimum_guest_age` integer,
-	`accessibility_contact_required` integer,
-	`additional_notes_html` text,
+	`session_id` text,
+	`visitor_id` text,
+	`page_path` text,
+	`duration_seconds` integer,
+	`payload_json` text NOT NULL,
+	`created_at` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
+	FOREIGN KEY (`organization_id`) REFERENCES `organization`(`id`) ON UPDATE no action ON DELETE cascade,
+	FOREIGN KEY (`site_id`) REFERENCES `sites`(`id`) ON UPDATE no action ON DELETE cascade,
+	FOREIGN KEY (`location_id`) REFERENCES `business_locations`(`id`) ON UPDATE no action ON DELETE set null,
+	FOREIGN KEY (`organization_id`,`site_id`) REFERENCES `sites`(`organization_id`,`id`) ON UPDATE no action ON DELETE cascade,
+	CONSTRAINT "analytics_events_kind_check" CHECK(kind IN ('pageview', 'conversion')),
+	CONSTRAINT "analytics_events_payload_check" CHECK(json_valid(payload_json) AND json_type(payload_json) IS 'object'),
+	CONSTRAINT "analytics_events_shape_check" CHECK((kind = 'pageview' AND page_path IS NOT NULL) OR (kind = 'conversion' AND organization_id IS NOT NULL AND session_id IS NOT NULL AND visitor_id IS NOT NULL AND duration_seconds IS NULL
+    AND json_type(payload_json, '$.event_name') IS 'text' AND length(payload_json ->> '$.event_name') BETWEEN 1 AND 64
+    AND (payload_json ->> '$.event_name') GLOB '[a-z]*' AND (payload_json ->> '$.event_name') NOT GLOB '*[^a-z0-9_]*'
+    AND json_type(payload_json, '$.stage') IS 'text' AND (payload_json ->> '$.stage') IN ('schedule_navigation', 'external_booking_handoff', 'submitted', 'external_handoff')
+    AND json_type(payload_json, '$.attribution.source') IS 'text' AND json_type(payload_json, '$.attribution.medium') IS 'text'
+    AND json_type(payload_json, '$.attributed_at') IS 'text'))
+);
+--> statement-breakpoint
+CREATE INDEX `analytics_events_site_kind_created_idx` ON `analytics_events` (`site_id`,`kind`,`created_at`);--> statement-breakpoint
+CREATE INDEX `analytics_events_site_session_idx` ON `analytics_events` (`site_id`,`kind`,`session_id`);--> statement-breakpoint
+CREATE INDEX `analytics_events_site_visitor_idx` ON `analytics_events` (`site_id`,`kind`,`visitor_id`);--> statement-breakpoint
+CREATE INDEX `analytics_events_conversion_name_idx` ON `analytics_events` (`kind`,(payload_json ->> '$.event_name'),`created_at`);--> statement-breakpoint
+CREATE INDEX `analytics_events_conversion_entity_idx` ON `analytics_events` (`site_id`,(payload_json ->> '$.entity_type'),(payload_json ->> '$.entity_id')) WHERE kind = 'conversion';--> statement-breakpoint
+CREATE UNIQUE INDEX `analytics_events_conversion_entity_unique` ON `analytics_events` (`site_id`,(payload_json ->> '$.event_name'),(payload_json ->> '$.entity_type'),(payload_json ->> '$.entity_id')) WHERE kind = 'conversion' AND (payload_json ->> '$.entity_type') IS NOT NULL AND (payload_json ->> '$.entity_id') IS NOT NULL AND (payload_json ->> '$.event_name') IN ('contact_submit', 'reservation_submit', 'experience_booking_submit');--> statement-breakpoint
+CREATE TABLE `analytics_summaries` (
+	`id` text PRIMARY KEY NOT NULL,
+	`kind` text NOT NULL,
+	`organization_id` text NOT NULL,
+	`site_id` text NOT NULL,
+	`date` text NOT NULL,
+	`key` text NOT NULL,
+	`payload_json` text NOT NULL,
 	`created_at` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
 	`updated_at` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
 	FOREIGN KEY (`organization_id`) REFERENCES `organization`(`id`) ON UPDATE no action ON DELETE cascade,
 	FOREIGN KEY (`site_id`) REFERENCES `sites`(`id`) ON UPDATE no action ON DELETE cascade,
-	FOREIGN KEY (`location_id`) REFERENCES `business_locations`(`id`) ON UPDATE no action ON DELETE cascade,
-	FOREIGN KEY (`experience_id`) REFERENCES `experiences`(`id`) ON UPDATE no action ON DELETE cascade,
 	FOREIGN KEY (`organization_id`,`site_id`) REFERENCES `sites`(`organization_id`,`id`) ON UPDATE no action ON DELETE cascade,
-	CONSTRAINT "booking_policies_reschedule_allowed_check" CHECK(reschedule_allowed IS NULL OR reschedule_allowed IN (0, 1)),
-	CONSTRAINT "booking_policies_deposit_required_check" CHECK(deposit_required IS NULL OR deposit_required IN (0, 1)),
-	CONSTRAINT "booking_policies_accessibility_contact_required_check" CHECK(accessibility_contact_required IS NULL OR accessibility_contact_required IN (0, 1)),
-	CONSTRAINT "booking_policies_scope_shape_check" CHECK((scope_type = 'site' AND location_id IS NULL AND experience_id IS NULL) OR (scope_type = 'location' AND location_id IS NOT NULL AND experience_id IS NULL) OR (scope_type = 'experience' AND location_id IS NULL AND experience_id IS NOT NULL)),
-	CONSTRAINT "booking_policies_policy_type_check" CHECK(policy_type IN ('reservation', 'experience')),
-	CONSTRAINT "booking_policies_scope_type_check" CHECK(scope_type IN ('site', 'location', 'experience')),
-	CONSTRAINT "booking_policies_reservation_location_scope_check" CHECK(policy_type != 'reservation' OR (scope_type = 'location' AND location_id IS NOT NULL AND experience_id IS NULL))
+	CONSTRAINT "analytics_summaries_kind_check" CHECK(kind IN ('session', 'site_day', 'page_day', 'dimension_day')),
+	CONSTRAINT "analytics_summaries_payload_check" CHECK(json_valid(payload_json) AND json_type(payload_json) IS 'object'),
+	CONSTRAINT "analytics_summaries_scope_check" CHECK((kind = 'session' AND date = ''
+    AND json_type(payload_json, '$.visitor_id') IS 'text' AND json_type(payload_json, '$.started_at') IS 'text'
+    AND json_type(payload_json, '$.last_seen_at') IS 'text' AND json_type(payload_json, '$.landing_path') IS 'text'
+    AND json_type(payload_json, '$.attribution.source') IS 'text' AND json_type(payload_json, '$.attribution.medium') IS 'text'
+    AND json_type(payload_json, '$.duration_seconds') IS 'integer' AND (payload_json ->> '$.duration_seconds') >= 0)
+    OR (kind != 'session' AND date GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]'
+      AND json_type(payload_json, '$.page_views') IS 'integer' AND (payload_json ->> '$.page_views') >= 0)),
+	CONSTRAINT "analytics_summaries_day_metrics_check" CHECK(kind != 'site_day' OR (key = ''
+    AND json_type(payload_json, '$.unique_sessions') IS 'integer' AND (payload_json ->> '$.unique_sessions') >= 0
+    AND json_type(payload_json, '$.unique_visitors') IS 'integer' AND (payload_json ->> '$.unique_visitors') >= 0
+    AND json_type(payload_json, '$.returning_visitors') IS 'integer' AND (payload_json ->> '$.returning_visitors') >= 0
+    AND json_type(payload_json, '$.avg_session_duration') IN ('integer', 'real') AND (payload_json ->> '$.avg_session_duration') >= 0
+    AND json_type(payload_json, '$.pages_per_session') IN ('integer', 'real') AND (payload_json ->> '$.pages_per_session') >= 0
+    AND json_type(payload_json, '$.avg_session_duration') IS NOT NULL AND json_type(payload_json, '$.pages_per_session') IS NOT NULL)),
+	CONSTRAINT "analytics_summaries_dimension_key_check" CHECK(kind != 'dimension_day' OR (json_valid(key) AND json_type(key) IS 'array' AND json_array_length(key) = 3
+    AND json_type(key, '$[0]') IS 'text' AND (key ->> '$[0]') IN ('country', 'city', 'device', 'referrer')
+    AND json_type(key, '$[1]') IS 'text' AND json_type(key, '$[2]') IS 'text'))
 );
 --> statement-breakpoint
-CREATE INDEX `booking_policies_site_type_idx` ON `booking_policies` (`site_id`,`policy_type`);--> statement-breakpoint
-CREATE UNIQUE INDEX `booking_policies_reservation_location_unique` ON `booking_policies` (`location_id`) WHERE policy_type = 'reservation' AND scope_type = 'location' AND location_id IS NOT NULL;--> statement-breakpoint
-CREATE UNIQUE INDEX `booking_policies_experience_site_unique` ON `booking_policies` (`site_id`) WHERE policy_type = 'experience' AND scope_type = 'site';--> statement-breakpoint
-CREATE UNIQUE INDEX `booking_policies_experience_location_unique` ON `booking_policies` (`location_id`) WHERE policy_type = 'experience' AND scope_type = 'location' AND location_id IS NOT NULL;--> statement-breakpoint
-CREATE UNIQUE INDEX `booking_policies_experience_scope_unique` ON `booking_policies` (`experience_id`) WHERE policy_type = 'experience' AND scope_type = 'experience' AND experience_id IS NOT NULL;--> statement-breakpoint
-CREATE INDEX `booking_policies_organization_id_idx` ON `booking_policies` (`organization_id`);--> statement-breakpoint
+CREATE UNIQUE INDEX `analytics_summaries_grain_unique` ON `analytics_summaries` (`site_id`,`kind`,`date`,`key`);--> statement-breakpoint
+CREATE INDEX `analytics_summaries_session_started_idx` ON `analytics_summaries` (`site_id`,(payload_json ->> '$.started_at')) WHERE kind = 'session';--> statement-breakpoint
+CREATE INDEX `analytics_summaries_session_seen_idx` ON `analytics_summaries` (`site_id`,(payload_json ->> '$.last_seen_at')) WHERE kind = 'session';--> statement-breakpoint
+CREATE INDEX `analytics_summaries_session_visitor_idx` ON `analytics_summaries` (`site_id`,(payload_json ->> '$.visitor_id'),(payload_json ->> '$.started_at')) WHERE kind = 'session';--> statement-breakpoint
 CREATE TABLE `business_locations` (
+	`booking_json` text DEFAULT '{}' NOT NULL,
 	`id` text PRIMARY KEY NOT NULL,
 	`organization_id` text NOT NULL,
 	`site_id` text NOT NULL,
@@ -174,6 +182,7 @@ CREATE TABLE `business_locations` (
 	FOREIGN KEY (`site_id`) REFERENCES `sites`(`id`) ON UPDATE no action ON DELETE cascade,
 	FOREIGN KEY (`team_id`) REFERENCES `team`(`id`) ON UPDATE no action ON DELETE set null,
 	FOREIGN KEY (`organization_id`,`site_id`) REFERENCES `sites`(`organization_id`,`id`) ON UPDATE no action ON DELETE cascade,
+	CONSTRAINT "business_locations_booking_check" CHECK(json_valid(booking_json) AND json_type(booking_json) = 'object'),
 	CONSTRAINT "business_locations_address_check" CHECK(address IS NULL OR (json_valid(address) AND json_type(address) IS 'object')),
 	CONSTRAINT "business_locations_categories_check" CHECK(categories IS NULL OR (json_valid(categories) AND json_type(categories) IS 'array')),
 	CONSTRAINT "business_locations_feature_overrides_check" CHECK(feature_overrides IS NULL OR (json_valid(feature_overrides) AND json_type(feature_overrides) IS 'object')),
@@ -184,107 +193,9 @@ CREATE TABLE `business_locations` (
 --> statement-breakpoint
 CREATE UNIQUE INDEX `business_locations_organization_id_site_id_slug_unique` ON `business_locations` (`organization_id`,`site_id`,`slug`);--> statement-breakpoint
 CREATE UNIQUE INDEX `business_locations_organization_id_site_id_id_unique` ON `business_locations` (`organization_id`,`site_id`,`id`);--> statement-breakpoint
-CREATE TABLE `canary_runs` (
-	`id` text PRIMARY KEY NOT NULL,
-	`run_type` text NOT NULL,
-	`environment` text DEFAULT 'production' NOT NULL,
-	`status` text NOT NULL,
-	`organization_id` text,
-	`site_id` text,
-	`details_json` text,
-	`created_at` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
-	FOREIGN KEY (`organization_id`) REFERENCES `organization`(`id`) ON UPDATE no action ON DELETE set null,
-	FOREIGN KEY (`site_id`) REFERENCES `sites`(`id`) ON UPDATE no action ON DELETE set null,
-	CONSTRAINT "canary_runs_run_type_check" CHECK(run_type IN ('auth', 'notifications')),
-	CONSTRAINT "canary_runs_status_check" CHECK(status IN ('pass', 'fail')),
-	CONSTRAINT "canary_runs_details_json_check" CHECK(details_json IS NULL OR (json_valid(details_json)))
-);
---> statement-breakpoint
-CREATE INDEX `idx_canary_runs_status_created` ON `canary_runs` (`status`,`created_at`);--> statement-breakpoint
-CREATE INDEX `idx_canary_runs_type_created` ON `canary_runs` (`run_type`,`created_at`);--> statement-breakpoint
-CREATE TABLE `chowbot_channel_state` (
-	`user_id` text NOT NULL,
-	`channel` text NOT NULL,
-	`pending_confirmation` text,
-	`last_inbound_id` text,
-	`updated_at` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
-	PRIMARY KEY(`user_id`, `channel`),
-	FOREIGN KEY (`user_id`) REFERENCES `user`(`id`) ON UPDATE no action ON DELETE cascade,
-	CONSTRAINT "chowbot_channel_state_pending_confirmation_check" CHECK(pending_confirmation IS NULL OR (json_valid(pending_confirmation) AND json_type(pending_confirmation) IS 'object'))
-);
---> statement-breakpoint
-CREATE TABLE `chowbot_conversations` (
-	`id` text PRIMARY KEY NOT NULL,
-	`organization_id` text NOT NULL,
-	`site_id` text NOT NULL,
-	`user_id` text NOT NULL,
-	`title` text DEFAULT 'New Conversation' NOT NULL,
-	`active_channel` text DEFAULT 'dashboard' NOT NULL,
-	`status` text DEFAULT 'active' NOT NULL,
-	`selected_location_id` text,
-	`created_at` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
-	`updated_at` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
-	FOREIGN KEY (`organization_id`) REFERENCES `organization`(`id`) ON UPDATE no action ON DELETE cascade,
-	FOREIGN KEY (`site_id`) REFERENCES `sites`(`id`) ON UPDATE no action ON DELETE cascade,
-	FOREIGN KEY (`user_id`) REFERENCES `user`(`id`) ON UPDATE no action ON DELETE cascade,
-	FOREIGN KEY (`selected_location_id`) REFERENCES `business_locations`(`id`) ON UPDATE no action ON DELETE set null
-);
---> statement-breakpoint
-CREATE INDEX `chowbot_conversations_org_site_idx` ON `chowbot_conversations` (`organization_id`,`site_id`);--> statement-breakpoint
-CREATE INDEX `chowbot_conversations_user_id_idx` ON `chowbot_conversations` (`user_id`);--> statement-breakpoint
-CREATE INDEX `idx_chowbot_conversations_site` ON `chowbot_conversations` (`site_id`,`user_id`,`status`,`updated_at`);--> statement-breakpoint
-CREATE UNIQUE INDEX `chowbot_conversations_id_site_user_unique` ON `chowbot_conversations` (`id`,`site_id`,`user_id`);--> statement-breakpoint
-CREATE UNIQUE INDEX `chowbot_conversations_id_org_site_unique` ON `chowbot_conversations` (`id`,`organization_id`,`site_id`);--> statement-breakpoint
-CREATE TABLE `chowbot_messages` (
-	`id` text PRIMARY KEY NOT NULL,
-	`conversation_id` text NOT NULL,
-	`organization_id` text NOT NULL,
-	`site_id` text NOT NULL,
-	`user_id` text,
-	`role` text NOT NULL,
-	`channel` text NOT NULL,
-	`content` text,
-	`meta_message_id` text,
-	`tool_calls` text,
-	`status` text DEFAULT 'sent' NOT NULL,
-	`error` text,
-	`created_at` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
-	FOREIGN KEY (`conversation_id`) REFERENCES `chowbot_conversations`(`id`) ON UPDATE no action ON DELETE cascade,
-	FOREIGN KEY (`organization_id`) REFERENCES `organization`(`id`) ON UPDATE no action ON DELETE cascade,
-	FOREIGN KEY (`site_id`) REFERENCES `sites`(`id`) ON UPDATE no action ON DELETE cascade,
-	FOREIGN KEY (`user_id`) REFERENCES `user`(`id`) ON UPDATE no action ON DELETE set null,
-	FOREIGN KEY (`conversation_id`,`organization_id`,`site_id`) REFERENCES `chowbot_conversations`(`id`,`organization_id`,`site_id`) ON UPDATE no action ON DELETE no action,
-	CONSTRAINT "chowbot_messages_tool_calls_check" CHECK(tool_calls IS NULL OR (json_valid(tool_calls)))
-);
---> statement-breakpoint
-CREATE UNIQUE INDEX `chowbot_messages_meta_message_id_unique` ON `chowbot_messages` (`meta_message_id`);--> statement-breakpoint
-CREATE INDEX `idx_chowbot_messages_conversation` ON `chowbot_messages` (`conversation_id`,`created_at`);--> statement-breakpoint
-CREATE INDEX `chowbot_messages_org_site_idx` ON `chowbot_messages` (`organization_id`,`site_id`);--> statement-breakpoint
-CREATE TABLE `contact_submissions` (
-	`id` text PRIMARY KEY NOT NULL,
-	`organization_id` text NOT NULL,
-	`site_id` text NOT NULL,
-	`name` text NOT NULL,
-	`email` text NOT NULL,
-	`subject` text,
-	`message` text NOT NULL,
-	`consent_at` text,
-	`ip_hash` text,
-	`location_id` text,
-	`experience_id` text,
-	`created_at` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
-	FOREIGN KEY (`organization_id`) REFERENCES `organization`(`id`) ON UPDATE no action ON DELETE cascade,
-	FOREIGN KEY (`site_id`) REFERENCES `sites`(`id`) ON UPDATE no action ON DELETE cascade,
-	FOREIGN KEY (`location_id`) REFERENCES `business_locations`(`id`) ON UPDATE no action ON DELETE set null,
-	FOREIGN KEY (`experience_id`) REFERENCES `experiences`(`id`) ON UPDATE no action ON DELETE set null,
-	FOREIGN KEY (`organization_id`,`site_id`) REFERENCES `sites`(`organization_id`,`id`) ON UPDATE no action ON DELETE cascade
-);
---> statement-breakpoint
-CREATE INDEX `contact_submissions_org_site_idx` ON `contact_submissions` (`organization_id`,`site_id`);--> statement-breakpoint
-CREATE INDEX `contact_submissions_location_idx` ON `contact_submissions` (`location_id`,`created_at`);--> statement-breakpoint
-CREATE INDEX `idx_contact_submissions_site` ON `contact_submissions` (`site_id`,`created_at`);--> statement-breakpoint
 CREATE TABLE `content_blocks` (
 	`id` text PRIMARY KEY NOT NULL,
+	`source_block_id` text,
 	`document_id` text NOT NULL,
 	`parent_block_id` text,
 	`type` text NOT NULL,
@@ -294,7 +205,9 @@ CREATE TABLE `content_blocks` (
 	`created_at` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
 	`updated_at` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
 	FOREIGN KEY (`document_id`) REFERENCES `content_documents`(`id`) ON UPDATE no action ON DELETE cascade,
+	FOREIGN KEY (`source_block_id`) REFERENCES `content_blocks`(`id`) ON UPDATE no action ON DELETE cascade,
 	FOREIGN KEY (`document_id`,`parent_block_id`) REFERENCES `content_blocks`(`document_id`,`id`) ON UPDATE no action ON DELETE cascade,
+	CONSTRAINT "content_blocks_source_check" CHECK(source_block_id IS NULL OR (source_block_id <> id AND type = 'cta')),
 	CONSTRAINT "content_blocks_type_check" CHECK("content_blocks"."type" IN ('heading', 'markdown', 'image', 'gallery', 'faq', 'how_to', 'divider', 'ai_assistance', 'cta', 'callout', 'hero', 'button_group', 'feature_grid', 'testimonial_grid', 'contact_cta', 'booking_cta', 'donation_choices', 'offering_grid', 'location_grid')),
 	CONSTRAINT "content_blocks_data_json_check" CHECK(json_valid("content_blocks"."data_json") AND json_type("content_blocks"."data_json") IS 'object'),
 	CONSTRAINT "content_blocks_parent_check" CHECK("content_blocks"."parent_block_id" IS NULL OR "content_blocks"."parent_block_id" <> "content_blocks"."id"),
@@ -303,21 +216,88 @@ CREATE TABLE `content_blocks` (
 );
 --> statement-breakpoint
 CREATE INDEX `content_blocks_document_position_idx` ON `content_blocks` (`document_id`,`position`);--> statement-breakpoint
+CREATE UNIQUE INDEX `content_blocks_document_source_unique` ON `content_blocks` (`document_id`,`source_block_id`) WHERE source_block_id IS NOT NULL;--> statement-breakpoint
 CREATE INDEX `content_blocks_parent_idx` ON `content_blocks` (`parent_block_id`);--> statement-breakpoint
 CREATE UNIQUE INDEX `content_blocks_document_id_unique` ON `content_blocks` (`document_id`,`id`);--> statement-breakpoint
 CREATE TABLE `content_documents` (
 	`id` text PRIMARY KEY NOT NULL,
+	`organization_id` text NOT NULL,
 	`site_id` text NOT NULL,
-	`owner_type` text NOT NULL,
-	`owner_id` text NOT NULL,
+	`kind` text NOT NULL,
+	`row_role` text NOT NULL,
+	`root_id` text,
+	`root_role` text,
+	`locale` text,
+	`location_id` text,
+	`scope_path` text,
+	`title` text,
+	`slug` text,
+	`path` text,
+	`summary` text,
+	`status` text,
+	`visibility` text,
+	`sort_order` integer DEFAULT 0 NOT NULL,
+	`source` text,
+	`author_id` text,
+	`created_by` text,
+	`updated_by` text,
+	`published_at` text,
+	`first_published_at` text,
+	`scheduled_for` text,
+	`seo_title` text,
+	`seo_description` text,
+	`seo_keywords` text,
+	`canonical_url` text,
+	`robots` text,
+	`metadata_json` text DEFAULT '{}' NOT NULL,
 	`created_at` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
 	`updated_at` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
+	FOREIGN KEY (`organization_id`) REFERENCES `organization`(`id`) ON UPDATE no action ON DELETE cascade,
 	FOREIGN KEY (`site_id`) REFERENCES `sites`(`id`) ON UPDATE no action ON DELETE cascade,
-	CONSTRAINT "content_documents_owner_type_check" CHECK("content_documents"."owner_type" IN ('platform_blog', 'platform_doc', 'tenant_blog', 'tenant_page', 'resource_localization'))
+	FOREIGN KEY (`location_id`) REFERENCES `business_locations`(`id`) ON UPDATE no action ON DELETE cascade,
+	FOREIGN KEY (`author_id`) REFERENCES `user`(`id`) ON UPDATE no action ON DELETE set null,
+	FOREIGN KEY (`organization_id`,`site_id`,`location_id`) REFERENCES `business_locations`(`organization_id`,`site_id`,`id`) ON UPDATE no action ON DELETE cascade,
+	FOREIGN KEY (`organization_id`,`site_id`) REFERENCES `sites`(`organization_id`,`id`) ON UPDATE no action ON DELETE cascade,
+	FOREIGN KEY (`organization_id`,`site_id`,`root_id`,`root_role`,`kind`) REFERENCES `content_documents`(`organization_id`,`site_id`,`id`,`row_role`,`kind`) ON UPDATE no action ON DELETE cascade,
+	FOREIGN KEY (`organization_id`,`site_id`,`locale`) REFERENCES `site_locales`(`organization_id`,`site_id`,`locale`) ON UPDATE no action ON DELETE cascade,
+	CONSTRAINT "content_documents_kind_check" CHECK("content_documents"."kind" IN ('page', 'article', 'platform_doc', 'social_post', 'qa', 'locale_catalog')),
+	CONSTRAINT "content_documents_metadata_check" CHECK(json_valid(metadata_json) AND json_type(metadata_json) IS 'object'),
+	CONSTRAINT "content_documents_role_check" CHECK((row_role = 'root' AND kind <> 'locale_catalog' AND root_id IS NULL AND root_role IS NULL AND locale = 'en') OR (row_role = 'representation' AND kind <> 'locale_catalog' AND root_id IS NOT NULL AND root_id <> id AND root_role = 'root' AND locale IS NOT NULL AND locale <> 'en' AND location_id IS NULL AND scope_path IS NULL AND status IS NULL AND visibility IS NULL AND source IS NULL AND author_id IS NULL AND published_at IS NULL AND first_published_at IS NULL AND scheduled_for IS NULL) OR (row_role = 'catalog' AND kind = 'locale_catalog' AND organization_id = 'platform' AND site_id = 'platform' AND root_id IS NULL AND root_role IS NULL AND locale IS NULL)),
+	CONSTRAINT "content_documents_path_check" CHECK(path IS NULL OR (path LIKE '/%' AND path NOT LIKE '//%')),
+	CONSTRAINT "content_documents_platform_doc_scope_check" CHECK(kind <> 'platform_doc' OR (organization_id = 'platform' AND site_id = 'platform')),
+	CONSTRAINT "content_documents_page_copy_check" CHECK(kind <> 'page' OR (path IS NOT NULL AND title IS NOT NULL)),
+	CONSTRAINT "content_documents_page_type_check" CHECK(kind <> 'page' OR row_role <> 'root' OR ((metadata_json ->> '$.page_type') IN ('custom','recipe','legal','system')) IS 1),
+	CONSTRAINT "content_documents_channel_names_check" CHECK(kind <> 'social_post' OR row_role <> 'root' OR json_type(metadata_json, '$.channels') IS NULL OR (json_type(metadata_json, '$.channels') IS 'object' AND json_remove(json_extract(metadata_json, '$.channels'), '$.facebook', '$.instagram') = '{}')),
+	CONSTRAINT "content_documents_qa_scope_check" CHECK(kind <> 'qa' OR row_role <> 'root' OR ((location_id IS NULL OR scope_path IS NULL) AND (scope_path IS NULL OR scope_path LIKE '/%'))),
+	CONSTRAINT "content_documents_publication_check" CHECK(row_role <> 'root' OR kind NOT IN ('article', 'social_post') OR (status IN ('published','scheduled')) IS 1),
+	CONSTRAINT "content_documents_social_schedule_check" CHECK(kind <> 'social_post' OR row_role <> 'root' OR ((status = 'scheduled' AND scheduled_for IS NOT NULL AND published_at IS NULL) OR (status = 'published' AND scheduled_for IS NULL AND published_at IS NOT NULL))),
+	CONSTRAINT "content_documents_article_visibility_check" CHECK(kind <> 'article' OR row_role <> 'root' OR (visibility IN ('public','unlisted')) IS 1),
+	CONSTRAINT "content_documents_qa_state_check" CHECK(kind <> 'qa' OR row_role <> 'root' OR ((status IN ('published','hidden')) IS 1 AND (source IN ('manual','import','template')) IS 1)),
+	CONSTRAINT "content_documents_qa_counts_check" CHECK(kind <> 'qa' OR row_role <> 'root' OR ((json_type(metadata_json, '$.is_owner_answer') = 'integer' AND json_type(metadata_json, '$.upvote_count') = 'integer') IS 1)),
+	CONSTRAINT "content_documents_copy_required_check" CHECK(row_role <> 'root' OR ((kind NOT IN ('page','article','platform_doc','qa') OR title IS NOT NULL) AND (kind NOT IN ('article','platform_doc') OR slug IS NOT NULL) AND (kind <> 'social_post' OR summary IS NOT NULL))),
+	CONSTRAINT "content_documents_article_tags_check" CHECK(kind <> 'article' OR json_type(metadata_json, '$.tags') IS NULL OR json_type(metadata_json, '$.tags') IN ('array','null')),
+	CONSTRAINT "content_documents_social_source_check" CHECK(kind <> 'social_post' OR row_role <> 'root' OR (source IN ('manual','template')) IS 1),
+	CONSTRAINT "content_documents_social_post_type_check" CHECK((kind <> 'social_post' OR row_role <> 'root' OR ((metadata_json ->> '$.post_type') IN ('standard', 'offer', 'event', 'alert'))) IS 1),
+	CONSTRAINT "content_documents_social_event_json_check" CHECK(kind <> 'social_post' OR row_role <> 'root' OR ((metadata_json ->> '$.event') IS NULL OR (json_valid((metadata_json ->> '$.event')) AND json_type((metadata_json ->> '$.event')) IS 'object' AND json_type((metadata_json ->> '$.event'), '$.title') IS 'text' AND length(trim(json_extract((metadata_json ->> '$.event'), '$.title'))) > 0 AND json_type((metadata_json ->> '$.event'), '$.schedule') IS 'object' AND json_type((metadata_json ->> '$.event'), '$.schedule.start_date') IS 'text' AND json_type((metadata_json ->> '$.event'), '$.schedule.start_time') IS 'text' AND json_type((metadata_json ->> '$.event'), '$.schedule.end_date') IS 'text' AND json_type((metadata_json ->> '$.event'), '$.schedule.end_time') IS 'text'))),
+	CONSTRAINT "content_documents_social_offer_json_check" CHECK(kind <> 'social_post' OR row_role <> 'root' OR ((metadata_json ->> '$.offer') IS NULL OR (json_valid((metadata_json ->> '$.offer')) AND json_type((metadata_json ->> '$.offer')) IS 'object'))),
+	CONSTRAINT "content_documents_social_call_to_action_check" CHECK(kind <> 'social_post' OR row_role <> 'root' OR ((metadata_json ->> '$.call_to_action') IS NULL OR (json_valid((metadata_json ->> '$.call_to_action')) AND json_type((metadata_json ->> '$.call_to_action')) IS 'object' AND (json_extract((metadata_json ->> '$.call_to_action'), '$.action_type') IN ('book', 'order', 'shop', 'learn_more', 'sign_up', 'call')) IS 1 AND ((json_extract((metadata_json ->> '$.call_to_action'), '$.action_type') = 'call' AND json_type((metadata_json ->> '$.call_to_action'), '$.url') IS NULL) OR (json_extract((metadata_json ->> '$.call_to_action'), '$.action_type') <> 'call' AND json_type((metadata_json ->> '$.call_to_action'), '$.url') IS 'text' AND length(trim(json_extract((metadata_json ->> '$.call_to_action'), '$.url'))) > 0))))),
+	CONSTRAINT "content_documents_social_topic_shape_check" CHECK((kind <> 'social_post' OR row_role <> 'root' OR (((metadata_json ->> '$.post_type') = 'standard' AND (metadata_json ->> '$.event') IS NULL AND (metadata_json ->> '$.offer') IS NULL AND (metadata_json ->> '$.alert_type') IS NULL) OR ((metadata_json ->> '$.post_type') = 'event' AND (metadata_json ->> '$.event') IS NOT NULL AND (metadata_json ->> '$.offer') IS NULL AND (metadata_json ->> '$.alert_type') IS NULL) OR ((metadata_json ->> '$.post_type') = 'offer' AND (metadata_json ->> '$.event') IS NOT NULL AND (metadata_json ->> '$.offer') IS NOT NULL AND (metadata_json ->> '$.call_to_action') IS NULL AND (metadata_json ->> '$.alert_type') IS NULL) OR ((metadata_json ->> '$.post_type') = 'alert' AND (metadata_json ->> '$.event') IS NULL AND (metadata_json ->> '$.offer') IS NULL AND (metadata_json ->> '$.alert_type') IS 'covid_19'))) IS 1),
+	CONSTRAINT "content_documents_channel_facebook_check" CHECK(kind <> 'social_post' OR row_role <> 'root' OR (json_type(metadata_json, '$.channels.facebook') IS NULL OR (json_type(metadata_json, '$.channels.facebook') IS 'object' AND json_type(metadata_json, '$.channels.facebook.created_at') IS 'text' AND (((metadata_json ->> '$.channels.facebook.status') = 'pending' AND (metadata_json ->> '$.channels.facebook.provider_post_id') IS NULL AND (metadata_json ->> '$.channels.facebook.published_at') IS NULL AND (metadata_json ->> '$.channels.facebook.error_message') IS NULL) OR ((metadata_json ->> '$.channels.facebook.status') = 'published' AND (metadata_json ->> '$.channels.facebook.provider_post_id') IS NOT NULL AND (metadata_json ->> '$.channels.facebook.published_at') IS NOT NULL AND (metadata_json ->> '$.channels.facebook.error_message') IS NULL) OR ((metadata_json ->> '$.channels.facebook.status') IN ('failed','skipped') AND (metadata_json ->> '$.channels.facebook.provider_post_id') IS NULL AND (metadata_json ->> '$.channels.facebook.published_at') IS NULL AND (metadata_json ->> '$.channels.facebook.error_message') IS NOT NULL))) IS 1)),
+	CONSTRAINT "content_documents_channel_instagram_check" CHECK(kind <> 'social_post' OR row_role <> 'root' OR (json_type(metadata_json, '$.channels.instagram') IS NULL OR (json_type(metadata_json, '$.channels.instagram') IS 'object' AND json_type(metadata_json, '$.channels.instagram.created_at') IS 'text' AND (((metadata_json ->> '$.channels.instagram.status') = 'pending' AND (metadata_json ->> '$.channels.instagram.provider_post_id') IS NULL AND (metadata_json ->> '$.channels.instagram.published_at') IS NULL AND (metadata_json ->> '$.channels.instagram.error_message') IS NULL) OR ((metadata_json ->> '$.channels.instagram.status') = 'published' AND (metadata_json ->> '$.channels.instagram.provider_post_id') IS NOT NULL AND (metadata_json ->> '$.channels.instagram.published_at') IS NOT NULL AND (metadata_json ->> '$.channels.instagram.error_message') IS NULL) OR ((metadata_json ->> '$.channels.instagram.status') IN ('failed','skipped') AND (metadata_json ->> '$.channels.instagram.provider_post_id') IS NULL AND (metadata_json ->> '$.channels.instagram.published_at') IS NULL AND (metadata_json ->> '$.channels.instagram.error_message') IS NOT NULL))) IS 1)),
+	CONSTRAINT "content_documents_catalog_check" CHECK(kind <> 'locale_catalog' OR (row_role = 'catalog' AND (status IN ('available','unavailable')) IS 1 AND json_type(metadata_json, '$.locale') IS 'text' AND json_type(metadata_json, '$.messages') IS 'object' AND (json_extract(metadata_json, '$.direction') IN ('ltr','rtl')) IS 1))
 );
 --> statement-breakpoint
-CREATE INDEX `content_documents_site_idx` ON `content_documents` (`site_id`);--> statement-breakpoint
-CREATE UNIQUE INDEX `content_documents_owner_unique` ON `content_documents` (`owner_type`,`owner_id`);--> statement-breakpoint
+CREATE UNIQUE INDEX `content_documents_root_locale_unique` ON `content_documents` (`root_id`,`locale`) WHERE row_role = 'representation';--> statement-breakpoint
+CREATE UNIQUE INDEX `content_documents_route_unique` ON `content_documents` (`site_id`,`locale`,`path`) WHERE row_role IN ('root','representation') AND path IS NOT NULL;--> statement-breakpoint
+CREATE UNIQUE INDEX `content_documents_slug_unique` ON `content_documents` (`site_id`,`kind`,`locale`,`slug`) WHERE row_role IN ('root','representation') AND slug IS NOT NULL;--> statement-breakpoint
+CREATE UNIQUE INDEX `content_documents_catalog_locale_unique` ON `content_documents` ((metadata_json ->> '$.locale')) WHERE kind = 'locale_catalog';--> statement-breakpoint
+CREATE UNIQUE INDEX `content_documents_links_site_unique` ON `content_documents` (`site_id`) WHERE row_role = 'root' AND kind = 'page' AND json_extract(metadata_json, '$.recipe') = 'links';--> statement-breakpoint
+CREATE INDEX `content_documents_site_kind_status_idx` ON `content_documents` (`site_id`,`kind`,`row_role`,`status`,`sort_order`);--> statement-breakpoint
+CREATE INDEX `content_documents_location_kind_status_idx` ON `content_documents` (`location_id`,`kind`,`row_role`,`status`,`sort_order`);--> statement-breakpoint
+CREATE INDEX `content_documents_schedule_idx` ON `content_documents` (`kind`,`status`,`scheduled_for`) WHERE row_role = 'root' AND status = 'scheduled';--> statement-breakpoint
+CREATE INDEX `content_documents_facebook_post_idx` ON `content_documents` (`site_id`,(metadata_json ->> '$.channels.facebook.provider_post_id')) WHERE row_role = 'root' AND kind = 'social_post';--> statement-breakpoint
+CREATE INDEX `content_documents_instagram_post_idx` ON `content_documents` (`site_id`,(metadata_json ->> '$.channels.instagram.provider_post_id')) WHERE row_role = 'root' AND kind = 'social_post';--> statement-breakpoint
+CREATE UNIQUE INDEX `content_documents_scope_role_unique` ON `content_documents` (`organization_id`,`site_id`,`id`,`row_role`,`kind`);--> statement-breakpoint
 CREATE TABLE `customers` (
 	`id` text PRIMARY KEY NOT NULL,
 	`organization_id` text NOT NULL,
@@ -351,139 +331,6 @@ CREATE UNIQUE INDEX `idx_customers_stripe_customer_id_unique` ON `customers` (`s
 CREATE INDEX `idx_customers_site_id` ON `customers` (`site_id`);--> statement-breakpoint
 CREATE INDEX `idx_customers_org_site_email_hash` ON `customers` (`organization_id`,`site_id`,`email_hash`);--> statement-breakpoint
 CREATE INDEX `idx_customers_user_id` ON `customers` (`user_id`);--> statement-breakpoint
-CREATE TABLE `domain_reconciliation_jobs` (
-	`id` text PRIMARY KEY NOT NULL,
-	`domain_id` text NOT NULL,
-	`status` text DEFAULT 'queued' NOT NULL,
-	`run_after` text NOT NULL,
-	`attempts` integer DEFAULT 0 NOT NULL,
-	`last_error` text,
-	`created_at` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
-	`updated_at` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
-	FOREIGN KEY (`domain_id`) REFERENCES `site_domains`(`id`) ON UPDATE no action ON DELETE cascade,
-	CONSTRAINT "domain_reconciliation_jobs_status_check" CHECK(status IN ('queued', 'running', 'succeeded', 'failed'))
-);
---> statement-breakpoint
-CREATE UNIQUE INDEX `domain_reconciliation_jobs_domain_id_unique` ON `domain_reconciliation_jobs` (`domain_id`);--> statement-breakpoint
-CREATE INDEX `idx_domain_reconciliation_jobs_due` ON `domain_reconciliation_jobs` (`status`,`run_after`);--> statement-breakpoint
-CREATE TABLE `experience_bookings` (
-	`id` text PRIMARY KEY NOT NULL,
-	`experience_id` text NOT NULL,
-	`organization_id` text NOT NULL,
-	`site_id` text NOT NULL,
-	`customer_id` text,
-	`location_id` text NOT NULL,
-	`guest_name` text NOT NULL,
-	`guest_email` text NOT NULL,
-	`guest_phone` text,
-	`party_size` integer DEFAULT 1 NOT NULL,
-	`booking_date` text NOT NULL,
-	`time_slot` text NOT NULL,
-	`status` text DEFAULT 'pending' NOT NULL,
-	`notes` text,
-	`ip_hash` text,
-	`cancellation_token_hash` text,
-	`cancellation_token_expires_at` text,
-	`cancellation_token_used_at` text,
-	`completed_at` text,
-	`completion_source` text,
-	`review_request_sent_at` text,
-	`review_reminder_sent_at` text,
-	`review_submitted_at` text,
-	`review_id` text,
-	`created_at` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
-	`updated_at` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
-	FOREIGN KEY (`experience_id`) REFERENCES `experiences`(`id`) ON UPDATE no action ON DELETE cascade,
-	FOREIGN KEY (`organization_id`) REFERENCES `organization`(`id`) ON UPDATE no action ON DELETE cascade,
-	FOREIGN KEY (`site_id`) REFERENCES `sites`(`id`) ON UPDATE no action ON DELETE cascade,
-	FOREIGN KEY (`customer_id`) REFERENCES `customers`(`id`) ON UPDATE no action ON DELETE set null,
-	FOREIGN KEY (`location_id`) REFERENCES `business_locations`(`id`) ON UPDATE no action ON DELETE cascade,
-	FOREIGN KEY (`review_id`) REFERENCES `reviews`(`id`) ON UPDATE no action ON DELETE set null,
-	FOREIGN KEY (`organization_id`,`site_id`) REFERENCES `sites`(`organization_id`,`id`) ON UPDATE no action ON DELETE cascade,
-	CONSTRAINT "experience_bookings_status_check" CHECK(status IN ('pending', 'confirmed', 'cancelled')),
-	CONSTRAINT "experience_bookings_completion_source_check" CHECK(completion_source IS NULL OR completion_source IN ('manual', 'auto'))
-);
---> statement-breakpoint
-CREATE INDEX `idx_experience_bookings_customer_id` ON `experience_bookings` (`customer_id`);--> statement-breakpoint
-CREATE INDEX `idx_experience_bookings_review_request_due` ON `experience_bookings` (`site_id`,`status`,`completed_at`,`review_request_sent_at`);--> statement-breakpoint
-CREATE INDEX `idx_experience_bookings_review_reminder_due` ON `experience_bookings` (`site_id`,`review_request_sent_at`,`review_reminder_sent_at`,`review_submitted_at`);--> statement-breakpoint
-CREATE INDEX `experience_bookings_site_date_owner_slot_idx` ON `experience_bookings` (`site_id`,`booking_date`,`experience_id`,`time_slot`,`status`);--> statement-breakpoint
-CREATE INDEX `experience_bookings_organization_id_idx` ON `experience_bookings` (`organization_id`);--> statement-breakpoint
-CREATE TABLE `experiences` (
-	`id` text PRIMARY KEY NOT NULL,
-	`organization_id` text NOT NULL,
-	`site_id` text NOT NULL,
-	`location_id` text NOT NULL,
-	`tagline` text,
-	`pricing_note` text,
-	`duration_minutes` integer,
-	`max_capacity` integer,
-	`recurring_slots` text,
-	`created_at` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
-	`updated_at` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
-	`included_items` text,
-	`what_to_bring` text,
-	`meeting_point` text,
-	`cancellation_policy` text,
-	FOREIGN KEY (`id`) REFERENCES `products`(`id`) ON UPDATE no action ON DELETE cascade,
-	FOREIGN KEY (`organization_id`) REFERENCES `organization`(`id`) ON UPDATE no action ON DELETE cascade,
-	FOREIGN KEY (`site_id`) REFERENCES `sites`(`id`) ON UPDATE no action ON DELETE cascade,
-	FOREIGN KEY (`location_id`) REFERENCES `business_locations`(`id`) ON UPDATE no action ON DELETE cascade,
-	FOREIGN KEY (`organization_id`,`site_id`,`location_id`,`id`) REFERENCES `products`(`organization_id`,`site_id`,`location_id`,`id`) ON UPDATE no action ON DELETE cascade,
-	CONSTRAINT "experiences_included_items_check" CHECK(included_items IS NULL OR (json_valid(included_items) AND json_type(included_items) IS 'array')),
-	CONSTRAINT "experiences_what_to_bring_check" CHECK(what_to_bring IS NULL OR (json_valid(what_to_bring) AND json_type(what_to_bring) IS 'array')),
-	CONSTRAINT "experiences_recurring_slots_check" CHECK(recurring_slots IS NULL OR (json_valid(recurring_slots) AND json_type(recurring_slots) IS 'object'))
-);
---> statement-breakpoint
-CREATE UNIQUE INDEX `experiences_org_site_id_unique` ON `experiences` (`organization_id`,`site_id`,`id`);--> statement-breakpoint
-CREATE TABLE `facebook_pages_connections` (
-	`id` text PRIMARY KEY NOT NULL,
-	`organization_id` text NOT NULL,
-	`site_id` text NOT NULL,
-	`connected_by_user_id` text,
-	`facebook_user_id` text NOT NULL,
-	`facebook_page_id` text,
-	`facebook_page_name` text,
-	`encrypted_user_token` text NOT NULL,
-	`encrypted_page_token` text,
-	`user_token_expires_at` text,
-	`scopes` text,
-	`status` text DEFAULT 'active' NOT NULL,
-	`created_at` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
-	`updated_at` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
-	FOREIGN KEY (`organization_id`) REFERENCES `organization`(`id`) ON UPDATE no action ON DELETE cascade,
-	FOREIGN KEY (`site_id`) REFERENCES `sites`(`id`) ON UPDATE no action ON DELETE cascade,
-	FOREIGN KEY (`connected_by_user_id`) REFERENCES `user`(`id`) ON UPDATE no action ON DELETE set null,
-	FOREIGN KEY (`organization_id`,`site_id`) REFERENCES `sites`(`organization_id`,`id`) ON UPDATE no action ON DELETE cascade,
-	CONSTRAINT "facebook_pages_connections_status_check" CHECK(status IN ('active', 'disabled', 'error'))
-);
---> statement-breakpoint
-CREATE UNIQUE INDEX `facebook_pages_connections_organization_id_site_id_unique` ON `facebook_pages_connections` (`organization_id`,`site_id`);--> statement-breakpoint
-CREATE TABLE `google_analytics_connections` (
-	`id` text PRIMARY KEY NOT NULL,
-	`organization_id` text NOT NULL,
-	`site_id` text NOT NULL,
-	`connected_by_user_id` text,
-	`provider_account_email` text NOT NULL,
-	`encrypted_access_token` text NOT NULL,
-	`encrypted_refresh_token` text NOT NULL,
-	`scopes` text NOT NULL,
-	`ga4_property_id` text,
-	`ga4_property_name` text,
-	`ga4_measurement_id` text,
-	`search_console_site_url` text,
-	`status` text DEFAULT 'active' NOT NULL,
-	`expires_at` text,
-	`created_at` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
-	`updated_at` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
-	FOREIGN KEY (`organization_id`) REFERENCES `organization`(`id`) ON UPDATE no action ON DELETE cascade,
-	FOREIGN KEY (`site_id`) REFERENCES `sites`(`id`) ON UPDATE no action ON DELETE cascade,
-	FOREIGN KEY (`connected_by_user_id`) REFERENCES `user`(`id`) ON UPDATE no action ON DELETE set null,
-	FOREIGN KEY (`organization_id`,`site_id`) REFERENCES `sites`(`organization_id`,`id`) ON UPDATE no action ON DELETE cascade,
-	CONSTRAINT "google_analytics_connections_status_check" CHECK(status IN ('active', 'disabled', 'error'))
-);
---> statement-breakpoint
-CREATE UNIQUE INDEX `google_analytics_connections_organization_id_site_id_unique` ON `google_analytics_connections` (`organization_id`,`site_id`);--> statement-breakpoint
 CREATE TABLE `guest_thread_deliveries` (
 	`id` text PRIMARY KEY NOT NULL,
 	`entry_id` text NOT NULL,
@@ -495,7 +342,7 @@ CREATE TABLE `guest_thread_deliveries` (
 	`error` text,
 	`created_at` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
 	`updated_at` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
-	FOREIGN KEY (`entry_id`) REFERENCES `guest_thread_entries`(`id`) ON UPDATE no action ON DELETE cascade,
+	FOREIGN KEY (`entry_id`) REFERENCES `activity_entries`(`id`) ON UPDATE no action ON DELETE cascade,
 	CONSTRAINT "guest_thread_deliveries_channel_check" CHECK(channel IN ('email', 'whatsapp')),
 	CONSTRAINT "guest_thread_deliveries_provider_check" CHECK((channel = 'email' AND provider IN ('resend', 'log_only')) OR (channel = 'whatsapp' AND provider IN ('meta', 'log_only'))),
 	CONSTRAINT "guest_thread_deliveries_purpose_check" CHECK(purpose IN ('owner_alert', 'guest_acknowledgement', 'member_reply', 'status_update')),
@@ -504,55 +351,6 @@ CREATE TABLE `guest_thread_deliveries` (
 --> statement-breakpoint
 CREATE UNIQUE INDEX `guest_thread_deliveries_provider_message_unique` ON `guest_thread_deliveries` (`provider`,`provider_message_id`) WHERE provider_message_id IS NOT NULL;--> statement-breakpoint
 CREATE INDEX `guest_thread_deliveries_entry_status_idx` ON `guest_thread_deliveries` (`entry_id`,`status`);--> statement-breakpoint
-CREATE TABLE `guest_thread_entries` (
-	`id` text PRIMARY KEY NOT NULL,
-	`thread_id` text NOT NULL,
-	`kind` text NOT NULL,
-	`actor_kind` text NOT NULL,
-	`actor_user_id` text,
-	`channel` text,
-	`body` text,
-	`event_name` text,
-	`payload_json` text,
-	`dedupe_key` text NOT NULL,
-	`sequence` integer NOT NULL,
-	`occurred_at` text NOT NULL,
-	`created_at` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
-	FOREIGN KEY (`thread_id`) REFERENCES `guest_threads`(`id`) ON UPDATE no action ON DELETE cascade,
-	FOREIGN KEY (`actor_user_id`) REFERENCES `user`(`id`) ON UPDATE no action ON DELETE set null,
-	CONSTRAINT "guest_thread_entries_payload_json_check" CHECK(payload_json IS NULL OR (json_valid(payload_json))),
-	CONSTRAINT "guest_thread_entries_kind_check" CHECK(kind IN ('submission', 'message', 'operation', 'assignment', 'resolution')),
-	CONSTRAINT "guest_thread_entries_actor_kind_check" CHECK(actor_kind IN ('guest', 'member', 'system')),
-	CONSTRAINT "guest_thread_entries_channel_check" CHECK(channel IS NULL OR channel IN ('web', 'email', 'whatsapp', 'system'))
-);
---> statement-breakpoint
-CREATE INDEX `guest_thread_entries_thread_occurred_idx` ON `guest_thread_entries` (`thread_id`,`occurred_at`);--> statement-breakpoint
-CREATE UNIQUE INDEX `guest_thread_entries_dedupe_key_unique` ON `guest_thread_entries` (`dedupe_key`);--> statement-breakpoint
-CREATE UNIQUE INDEX `guest_thread_entries_thread_sequence_unique` ON `guest_thread_entries` (`thread_id`,`sequence`);--> statement-breakpoint
-CREATE TABLE `guest_threads` (
-	`id` text PRIMARY KEY NOT NULL,
-	`organization_id` text NOT NULL,
-	`site_id` text NOT NULL,
-	`location_id` text,
-	`submission_type` text NOT NULL,
-	`submission_id` text NOT NULL,
-	`conversation_state` text DEFAULT 'needs_attention' NOT NULL,
-	`resolved_at` text,
-	`created_at` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
-	`updated_at` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
-	FOREIGN KEY (`organization_id`) REFERENCES `organization`(`id`) ON UPDATE no action ON DELETE cascade,
-	FOREIGN KEY (`site_id`) REFERENCES `sites`(`id`) ON UPDATE no action ON DELETE cascade,
-	FOREIGN KEY (`location_id`) REFERENCES `business_locations`(`id`) ON UPDATE no action ON DELETE set null,
-	FOREIGN KEY (`organization_id`,`site_id`) REFERENCES `sites`(`organization_id`,`id`) ON UPDATE no action ON DELETE cascade,
-	CONSTRAINT "guest_threads_submission_type_check" CHECK(submission_type IN ('contact', 'reservation', 'experience_booking')),
-	CONSTRAINT "guest_threads_conversation_state_check" CHECK(conversation_state IN ('needs_attention', 'waiting_on_guest', 'resolved'))
-);
---> statement-breakpoint
-CREATE INDEX `guest_threads_site_updated_idx` ON `guest_threads` (`site_id`,`updated_at`);--> statement-breakpoint
-CREATE INDEX `guest_threads_location_updated_idx` ON `guest_threads` (`location_id`,`updated_at`);--> statement-breakpoint
-CREATE INDEX `guest_threads_conversation_state_idx` ON `guest_threads` (`site_id`,`conversation_state`,`updated_at`);--> statement-breakpoint
-CREATE INDEX `guest_threads_organization_id_idx` ON `guest_threads` (`organization_id`);--> statement-breakpoint
-CREATE UNIQUE INDEX `guest_threads_submission_unique` ON `guest_threads` (`submission_type`,`submission_id`);--> statement-breakpoint
 CREATE TABLE `invitation` (
 	`id` text PRIMARY KEY NOT NULL,
 	`organizationId` text NOT NULL,
@@ -581,39 +379,6 @@ CREATE TABLE `jwks` (
 	`expiresAt` integer
 );
 --> statement-breakpoint
-CREATE TABLE `location_qa` (
-	`id` text PRIMARY KEY NOT NULL,
-	`organization_id` text NOT NULL,
-	`site_id` text NOT NULL,
-	`location_id` text,
-	`page_path` text,
-	`question` text NOT NULL,
-	`question_author` text,
-	`question_date` text,
-	`answer` text,
-	`answer_author` text,
-	`answer_date` text,
-	`is_owner_answer` integer DEFAULT 0 NOT NULL,
-	`upvote_count` integer DEFAULT 0 NOT NULL,
-	`source` text DEFAULT 'manual' NOT NULL,
-	`status` text DEFAULT 'published' NOT NULL,
-	`sort_order` integer DEFAULT 0 NOT NULL,
-	`created_at` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
-	`updated_at` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
-	FOREIGN KEY (`organization_id`) REFERENCES `organization`(`id`) ON UPDATE no action ON DELETE cascade,
-	FOREIGN KEY (`site_id`) REFERENCES `sites`(`id`) ON UPDATE no action ON DELETE cascade,
-	FOREIGN KEY (`location_id`) REFERENCES `business_locations`(`id`) ON UPDATE no action ON DELETE cascade,
-	FOREIGN KEY (`organization_id`,`site_id`) REFERENCES `sites`(`organization_id`,`id`) ON UPDATE no action ON DELETE cascade,
-	CONSTRAINT "location_qa_scope_check" CHECK(location_id IS NULL OR page_path IS NULL),
-	CONSTRAINT "location_qa_page_path_check" CHECK(page_path IS NULL OR page_path LIKE '/%'),
-	CONSTRAINT "location_qa_source_check" CHECK(source IN ('manual','import','template')),
-	CONSTRAINT "location_qa_status_check" CHECK(status IN ('published','hidden'))
-);
---> statement-breakpoint
-CREATE INDEX `idx_location_qa_location` ON `location_qa` (`location_id`,`status`,`sort_order`);--> statement-breakpoint
-CREATE INDEX `idx_location_qa_site` ON `location_qa` (`site_id`,`status`,`sort_order`) WHERE location_id IS NULL;--> statement-breakpoint
-CREATE INDEX `idx_location_qa_page` ON `location_qa` (`site_id`,`page_path`,`status`,`sort_order`) WHERE location_id IS NULL AND page_path IS NOT NULL;--> statement-breakpoint
-CREATE INDEX `location_qa_organization_id_idx` ON `location_qa` (`organization_id`);--> statement-breakpoint
 CREATE TABLE `mcp_tool_call_events` (
 	`id` text PRIMARY KEY NOT NULL,
 	`organization_id` text,
@@ -662,20 +427,6 @@ CREATE INDEX `idx_mcp_tool_call_events_org` ON `mcp_tool_call_events` (`organiza
 CREATE INDEX `idx_mcp_tool_call_events_method_created` ON `mcp_tool_call_events` (`method`,`created_at`);--> statement-breakpoint
 CREATE INDEX `idx_mcp_tool_call_events_session` ON `mcp_tool_call_events` (`session_id_hash`,`created_at`);--> statement-breakpoint
 CREATE INDEX `idx_mcp_tool_call_events_unknown` ON `mcp_tool_call_events` (`unknown_tool_name`,`created_at`);--> statement-breakpoint
-CREATE TABLE `mcp_workspace_preferences` (
-	`user_id` text PRIMARY KEY NOT NULL,
-	`organization_id` text,
-	`site_id` text,
-	`location_id` text,
-	`created_at` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
-	`updated_at` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
-	FOREIGN KEY (`user_id`) REFERENCES `user`(`id`) ON UPDATE no action ON DELETE cascade,
-	FOREIGN KEY (`organization_id`) REFERENCES `organization`(`id`) ON UPDATE no action ON DELETE set null,
-	FOREIGN KEY (`site_id`) REFERENCES `sites`(`id`) ON UPDATE no action ON DELETE set null,
-	FOREIGN KEY (`location_id`) REFERENCES `business_locations`(`id`) ON UPDATE no action ON DELETE set null,
-	FOREIGN KEY (`organization_id`,`site_id`) REFERENCES `sites`(`organization_id`,`id`) ON UPDATE no action ON DELETE no action
-);
---> statement-breakpoint
 CREATE TABLE `media_assets` (
 	`id` text PRIMARY KEY NOT NULL,
 	`organization_id` text NOT NULL,
@@ -728,7 +479,7 @@ CREATE TABLE `media_placements` (
 	FOREIGN KEY (`organization_id`) REFERENCES `organization`(`id`) ON UPDATE no action ON DELETE cascade,
 	FOREIGN KEY (`site_id`) REFERENCES `sites`(`id`) ON UPDATE no action ON DELETE cascade,
 	FOREIGN KEY (`organization_id`,`site_id`,`asset_id`) REFERENCES `media_assets`(`organization_id`,`site_id`,`id`) ON UPDATE no action ON DELETE cascade,
-	CONSTRAINT "media_placements_owner_type_check" CHECK("media_placements"."owner_type" IN ('site', 'business_location', 'product', 'post', 'blog_post', 'experience', 'offering', 'content_block', 'platform_doc', 'review', 'review_request', 'tenant_compliance', 'tenant_page')),
+	CONSTRAINT "media_placements_owner_type_check" CHECK("media_placements"."owner_type" IN ('site', 'business_location', 'product', 'content_document', 'offering', 'content_block', 'review', 'review_request')),
 	CONSTRAINT "media_placements_sort_order_check" CHECK("media_placements"."sort_order" >= 0),
 	CONSTRAINT "media_placements_status_check" CHECK("media_placements"."status" IN ('pending', 'active', 'rejected'))
 );
@@ -748,42 +499,6 @@ CREATE TABLE `member` (
 --> statement-breakpoint
 CREATE INDEX `member_userId_organizationId_idx` ON `member` (`userId`,`organizationId`);--> statement-breakpoint
 CREATE INDEX `member_organizationId_idx` ON `member` (`organizationId`);--> statement-breakpoint
-CREATE TABLE `notification_reads` (
-	`notification_id` text NOT NULL,
-	`user_id` text NOT NULL,
-	`read_at` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
-	PRIMARY KEY(`notification_id`, `user_id`),
-	FOREIGN KEY (`notification_id`) REFERENCES `notifications`(`id`) ON UPDATE no action ON DELETE cascade,
-	FOREIGN KEY (`user_id`) REFERENCES `user`(`id`) ON UPDATE no action ON DELETE cascade
-);
---> statement-breakpoint
-CREATE INDEX `notification_reads_user_read_at_idx` ON `notification_reads` (`user_id`,`read_at`);--> statement-breakpoint
-CREATE TABLE `notifications` (
-	`id` text PRIMARY KEY NOT NULL,
-	`organization_id` text,
-	`site_id` text,
-	`location_id` text,
-	`source_entry_id` text,
-	`scope` text DEFAULT 'organization' NOT NULL,
-	`severity` text DEFAULT 'info' NOT NULL,
-	`target_user_id` text,
-	`deep_link` text,
-	`message` text,
-	`template` text NOT NULL,
-	`title` text,
-	`created_at` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
-	FOREIGN KEY (`organization_id`) REFERENCES `organization`(`id`) ON UPDATE no action ON DELETE cascade,
-	FOREIGN KEY (`site_id`) REFERENCES `sites`(`id`) ON UPDATE no action ON DELETE set null,
-	FOREIGN KEY (`location_id`) REFERENCES `business_locations`(`id`) ON UPDATE no action ON DELETE set null,
-	FOREIGN KEY (`source_entry_id`) REFERENCES `guest_thread_entries`(`id`) ON UPDATE no action ON DELETE cascade,
-	FOREIGN KEY (`target_user_id`) REFERENCES `user`(`id`) ON UPDATE no action ON DELETE set null
-);
---> statement-breakpoint
-CREATE INDEX `notifications_scope_created_at_idx` ON `notifications` (`scope`,`created_at`);--> statement-breakpoint
-CREATE INDEX `notifications_organization_created_at_idx` ON `notifications` (`organization_id`,`created_at`);--> statement-breakpoint
-CREATE INDEX `notifications_site_created_at_idx` ON `notifications` (`site_id`,`created_at`);--> statement-breakpoint
-CREATE INDEX `notifications_target_user_created_at_idx` ON `notifications` (`target_user_id`,`created_at`);--> statement-breakpoint
-CREATE UNIQUE INDEX `notifications_source_entry_unique` ON `notifications` (`source_entry_id`) WHERE source_entry_id IS NOT NULL;--> statement-breakpoint
 CREATE TABLE `oauthAccessToken` (
 	`id` text PRIMARY KEY NOT NULL,
 	`clientId` text NOT NULL,
@@ -1000,151 +715,6 @@ CREATE TABLE `organization_billing` (
 	CONSTRAINT "organization_billing_access_plan_check" CHECK("organization_billing"."access_plan" IN ('free', 'growth'))
 );
 --> statement-breakpoint
-CREATE TABLE `organization_events` (
-	`id` text PRIMARY KEY NOT NULL,
-	`organization_id` text NOT NULL,
-	`site_id` text,
-	`location_id` text,
-	`actor_id` text,
-	`event_type` text NOT NULL,
-	`entity_type` text,
-	`entity_id` text,
-	`metadata` text,
-	`created_at` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
-	FOREIGN KEY (`organization_id`) REFERENCES `organization`(`id`) ON UPDATE no action ON DELETE cascade,
-	FOREIGN KEY (`site_id`) REFERENCES `sites`(`id`) ON UPDATE no action ON DELETE set null,
-	FOREIGN KEY (`location_id`) REFERENCES `business_locations`(`id`) ON UPDATE no action ON DELETE set null,
-	FOREIGN KEY (`actor_id`) REFERENCES `user`(`id`) ON UPDATE no action ON DELETE set null,
-	FOREIGN KEY (`organization_id`,`site_id`) REFERENCES `sites`(`organization_id`,`id`) ON UPDATE no action ON DELETE no action,
-	CONSTRAINT "organization_events_metadata_check" CHECK(metadata IS NULL OR (json_valid(metadata)))
-);
---> statement-breakpoint
-CREATE INDEX `organization_events_org_created_idx` ON `organization_events` (`organization_id`,`created_at`);--> statement-breakpoint
-CREATE INDEX `organization_events_location_created_idx` ON `organization_events` (`location_id`,`created_at`) WHERE location_id IS NOT NULL;--> statement-breakpoint
-CREATE INDEX `organization_events_site_created_idx` ON `organization_events` (`site_id`,`created_at`) WHERE site_id IS NOT NULL;--> statement-breakpoint
-CREATE TABLE `platform_contact_submissions` (
-	`id` text PRIMARY KEY NOT NULL,
-	`name` text NOT NULL,
-	`email` text NOT NULL,
-	`topic` text,
-	`message` text NOT NULL,
-	`source` text DEFAULT 'contact_page' NOT NULL,
-	`route_context` text,
-	`suggested_summary` text,
-	`agent_metadata_json` text,
-	`ip_hash` text,
-	`created_at` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
-	CONSTRAINT "platform_contact_submissions_agent_metadata_json_check" CHECK(agent_metadata_json IS NULL OR (json_valid(agent_metadata_json)))
-);
---> statement-breakpoint
-CREATE TABLE `platform_docs` (
-	`id` text PRIMARY KEY NOT NULL,
-	`title` text NOT NULL,
-	`slug` text NOT NULL,
-	`excerpt` text,
-	`category` text,
-	`nav_section` text,
-	`nav_title` text,
-	`nav_order` integer,
-	`nav_section_order` integer,
-	`nav_group` text,
-	`nav_group_order` integer,
-	`hide_from_nav` integer DEFAULT 0 NOT NULL,
-	`featured_order` integer,
-	`author_id` text,
-	`seo_description` text,
-	`seo_keywords` text,
-	`sort_order` integer DEFAULT 0 NOT NULL,
-	`difficulty_level` text,
-	`created_at` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
-	`updated_at` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
-	`canonical_url` text,
-	`robots` text,
-	FOREIGN KEY (`author_id`) REFERENCES `user`(`id`) ON UPDATE no action ON DELETE set null
-);
---> statement-breakpoint
-CREATE UNIQUE INDEX `platform_docs_slug_unique` ON `platform_docs` (`slug`);--> statement-breakpoint
-CREATE TABLE `platform_locale_catalogs` (
-	`locale` text PRIMARY KEY NOT NULL,
-	`label` text NOT NULL,
-	`direction` text NOT NULL,
-	`status` text DEFAULT 'unavailable' NOT NULL,
-	`source_manifest_hash` text,
-	`available_at` text,
-	`available_by_user_id` text,
-	`created_at` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
-	`created_by_user_id` text NOT NULL,
-	`updated_at` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
-	`updated_by_user_id` text NOT NULL,
-	CONSTRAINT "platform_locale_catalogs_direction_check" CHECK("platform_locale_catalogs"."direction" IN ('ltr', 'rtl')),
-	CONSTRAINT "platform_locale_catalogs_status_check" CHECK("platform_locale_catalogs"."status" IN ('unavailable', 'available'))
-);
---> statement-breakpoint
-CREATE TABLE `platform_locale_messages` (
-	`locale` text NOT NULL,
-	`message_key` text NOT NULL,
-	`message_value` text NOT NULL,
-	`updated_at` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
-	`updated_by_user_id` text NOT NULL,
-	PRIMARY KEY(`locale`, `message_key`),
-	FOREIGN KEY (`locale`) REFERENCES `platform_locale_catalogs`(`locale`) ON UPDATE no action ON DELETE cascade
-);
---> statement-breakpoint
-CREATE TABLE `post_channel_jobs` (
-	`id` text PRIMARY KEY NOT NULL,
-	`post_id` text NOT NULL,
-	`channel` text NOT NULL,
-	`status` text DEFAULT 'pending' NOT NULL,
-	`provider_post_id` text,
-	`error` text,
-	`published_at` text,
-	`created_at` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
-	FOREIGN KEY (`post_id`) REFERENCES `posts`(`id`) ON UPDATE no action ON DELETE cascade,
-	CONSTRAINT "post_channel_jobs_channel_check" CHECK(channel IN ('facebook', 'instagram')),
-	CONSTRAINT "post_channel_jobs_status_check" CHECK(status IN ('pending', 'published', 'failed', 'skipped')),
-	CONSTRAINT "post_channel_jobs_outcome_check" CHECK((status = 'pending' AND provider_post_id IS NULL AND published_at IS NULL AND error IS NULL) OR (status = 'published' AND provider_post_id IS NOT NULL AND published_at IS NOT NULL AND error IS NULL) OR (status IN ('failed', 'skipped') AND provider_post_id IS NULL AND published_at IS NULL AND error IS NOT NULL))
-);
---> statement-breakpoint
-CREATE UNIQUE INDEX `post_channel_jobs_post_channel_unique` ON `post_channel_jobs` (`post_id`,`channel`);--> statement-breakpoint
-CREATE INDEX `post_channel_jobs_provider_post_idx` ON `post_channel_jobs` (`channel`,`provider_post_id`);--> statement-breakpoint
-CREATE TABLE `posts` (
-	`id` text PRIMARY KEY NOT NULL,
-	`organization_id` text NOT NULL,
-	`site_id` text NOT NULL,
-	`location_id` text,
-	`slug` text,
-	`post_type` text DEFAULT 'standard' NOT NULL,
-	`title` text,
-	`body` text NOT NULL,
-	`seo_title` text,
-	`seo_description` text,
-	`call_to_action` text,
-	`event` text,
-	`offer` text,
-	`alert_type` text,
-	`status` text DEFAULT 'published' NOT NULL,
-	`scheduled_for` text,
-	`published_at` text,
-	`source` text DEFAULT 'manual' NOT NULL,
-	`created_by` text NOT NULL,
-	`created_at` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
-	`updated_at` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
-	FOREIGN KEY (`organization_id`) REFERENCES `organization`(`id`) ON UPDATE no action ON DELETE cascade,
-	FOREIGN KEY (`site_id`) REFERENCES `sites`(`id`) ON UPDATE no action ON DELETE cascade,
-	FOREIGN KEY (`location_id`) REFERENCES `business_locations`(`id`) ON UPDATE no action ON DELETE cascade,
-	FOREIGN KEY (`organization_id`,`site_id`) REFERENCES `sites`(`organization_id`,`id`) ON UPDATE no action ON DELETE cascade,
-	CONSTRAINT "posts_status_check" CHECK(status IN ('published', 'scheduled')),
-	CONSTRAINT "posts_publication_check" CHECK((status = 'scheduled' AND scheduled_for IS NOT NULL AND published_at IS NULL) OR (status = 'published' AND scheduled_for IS NULL AND published_at IS NOT NULL)),
-	CONSTRAINT "posts_source_check" CHECK(source IN ('manual', 'template')),
-	CONSTRAINT "posts_post_type_check" CHECK(post_type IN ('standard', 'offer', 'event', 'alert')),
-	CONSTRAINT "posts_event_json_check" CHECK(event IS NULL OR (json_valid(event) AND json_type(event) IS 'object' AND json_type(event, '$.title') IS 'text' AND length(trim(json_extract(event, '$.title'))) > 0 AND json_type(event, '$.schedule') IS 'object' AND json_type(event, '$.schedule.start_date') IS 'text' AND json_type(event, '$.schedule.start_time') IS 'text' AND json_type(event, '$.schedule.end_date') IS 'text' AND json_type(event, '$.schedule.end_time') IS 'text')),
-	CONSTRAINT "posts_offer_json_check" CHECK(offer IS NULL OR (json_valid(offer) AND json_type(offer) IS 'object')),
-	CONSTRAINT "posts_call_to_action_check" CHECK(call_to_action IS NULL OR (json_valid(call_to_action) AND json_type(call_to_action) IS 'object' AND (json_extract(call_to_action, '$.action_type') IN ('book', 'order', 'shop', 'learn_more', 'sign_up', 'call')) IS 1 AND ((json_extract(call_to_action, '$.action_type') = 'call' AND json_type(call_to_action, '$.url') IS NULL) OR (json_extract(call_to_action, '$.action_type') <> 'call' AND json_type(call_to_action, '$.url') IS 'text' AND length(trim(json_extract(call_to_action, '$.url'))) > 0)))),
-	CONSTRAINT "posts_topic_shape_check" CHECK((post_type = 'standard' AND event IS NULL AND offer IS NULL AND alert_type IS NULL) OR (post_type = 'event' AND event IS NOT NULL AND offer IS NULL AND alert_type IS NULL) OR (post_type = 'offer' AND event IS NOT NULL AND offer IS NOT NULL AND call_to_action IS NULL AND alert_type IS NULL) OR (post_type = 'alert' AND event IS NULL AND offer IS NULL AND alert_type IS 'covid_19'))
-);
---> statement-breakpoint
-CREATE UNIQUE INDEX `posts_site_slug_idx` ON `posts` (`site_id`,`slug`);--> statement-breakpoint
-CREATE INDEX `posts_org_site_idx` ON `posts` (`organization_id`,`site_id`);--> statement-breakpoint
 CREATE TABLE `prices` (
 	`id` text PRIMARY KEY NOT NULL,
 	`organization_id` text NOT NULL,
@@ -1204,6 +774,7 @@ CREATE UNIQUE INDEX `product_categories_scope_id_unique` ON `product_categories`
 CREATE UNIQUE INDEX `product_categories_location_type_slug_unique` ON `product_categories` (`site_id`,`location_id`,`product_type`,`slug`);--> statement-breakpoint
 CREATE UNIQUE INDEX `product_categories_location_type_name_unique` ON `product_categories` (`site_id`,`location_id`,`product_type`,`name`);--> statement-breakpoint
 CREATE TABLE `products` (
+	`experience_json` text,
 	`id` text PRIMARY KEY NOT NULL,
 	`organization_id` text NOT NULL,
 	`site_id` text NOT NULL,
@@ -1240,6 +811,8 @@ CREATE TABLE `products` (
 	CONSTRAINT "products_sort_order_check" CHECK("products"."sort_order" >= 0),
 	CONSTRAINT "products_featured_sort_order_check" CHECK("products"."featured_sort_order" >= 0),
 	CONSTRAINT "products_boolean_check" CHECK("products"."is_visible" IN (0, 1) AND "products"."available" IN (0, 1) AND "products"."featured" IN (0, 1)),
+	CONSTRAINT "products_experience_check" CHECK((product_type = 'experience' AND experience_json IS NOT NULL AND json_valid(experience_json) AND json_type(experience_json) = 'object') OR (product_type = 'standard' AND experience_json IS NULL)),
+	CONSTRAINT "products_experience_fields_check" CHECK(experience_json IS NULL OR ((json_type(experience_json, '$.recurring_slots') IS NULL OR json_type(experience_json, '$.recurring_slots') IN ('null', 'object')) AND (json_type(experience_json, '$.included_items') IS NULL OR json_type(experience_json, '$.included_items') IN ('null', 'array')) AND (json_type(experience_json, '$.what_to_bring') IS NULL OR json_type(experience_json, '$.what_to_bring') IN ('null', 'array')))),
 	CONSTRAINT "products_type_check" CHECK("products"."product_type" IN ('standard', 'experience')),
 	CONSTRAINT "products_tags_json_check" CHECK(json_valid("products"."tags_json") AND json_type("products"."tags_json") = 'array'),
 	CONSTRAINT "products_details_json_check" CHECK(json_valid("products"."details_json") AND json_type("products"."details_json") = 'array'),
@@ -1253,6 +826,7 @@ CREATE INDEX `products_site_location_type_sort_order_idx` ON `products` (`site_i
 CREATE INDEX `products_site_location_visible_sort_idx` ON `products` (`site_id`,`location_id`,`is_visible`,`sort_order`);--> statement-breakpoint
 CREATE INDEX `products_site_location_featured_sort_idx` ON `products` (`site_id`,`location_id`,`featured`,`featured_sort_order`);--> statement-breakpoint
 CREATE UNIQUE INDEX `products_scope_id_unique` ON `products` (`organization_id`,`site_id`,`location_id`,`id`);--> statement-breakpoint
+CREATE UNIQUE INDEX `products_org_site_id_unique` ON `products` (`organization_id`,`site_id`,`id`);--> statement-breakpoint
 CREATE UNIQUE INDEX `products_site_location_slug_unique` ON `products` (`site_id`,`location_id`,`slug`);--> statement-breakpoint
 CREATE TABLE `public_resource_cache_invalidations` (
 	`id` text PRIMARY KEY NOT NULL,
@@ -1279,47 +853,55 @@ CREATE TABLE `rate_limits` (
 );
 --> statement-breakpoint
 CREATE INDEX `idx_rate_limits_expires` ON `rate_limits` (`expires_at`);--> statement-breakpoint
-CREATE TABLE `reservation_submissions` (
+CREATE TABLE `requests` (
 	`id` text PRIMARY KEY NOT NULL,
-	`organization_id` text NOT NULL,
-	`site_id` text NOT NULL,
+	`kind` text NOT NULL,
+	`organization_id` text,
+	`site_id` text,
+	`location_id` text,
+	`product_id` text,
 	`customer_id` text,
-	`location_id` text NOT NULL,
-	`name` text NOT NULL,
-	`email` text NOT NULL,
-	`phone` text NOT NULL,
-	`date` text NOT NULL,
-	`time` text NOT NULL,
-	`guests` text NOT NULL,
-	`requests` text,
-	`status` text DEFAULT 'new' NOT NULL,
-	`ip_hash` text,
-	`cancellation_token_hash` text,
-	`cancellation_token_expires_at` text,
-	`cancellation_token_used_at` text,
-	`completed_at` text,
-	`completion_source` text,
-	`review_request_sent_at` text,
-	`review_reminder_sent_at` text,
-	`review_submitted_at` text,
+	`assigned_to` text,
 	`review_id` text,
+	`status` text,
+	`priority` text,
+	`booking_date` text,
+	`time_slot` text,
+	`party_size` integer,
+	`conversation_state` text,
+	`resolved_at` text,
+	`payload_json` text NOT NULL,
 	`created_at` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
 	`updated_at` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
 	FOREIGN KEY (`organization_id`) REFERENCES `organization`(`id`) ON UPDATE no action ON DELETE cascade,
 	FOREIGN KEY (`site_id`) REFERENCES `sites`(`id`) ON UPDATE no action ON DELETE cascade,
+	FOREIGN KEY (`location_id`) REFERENCES `business_locations`(`id`) ON UPDATE no action ON DELETE set null,
+	FOREIGN KEY (`product_id`) REFERENCES `products`(`id`) ON UPDATE no action ON DELETE set null,
 	FOREIGN KEY (`customer_id`) REFERENCES `customers`(`id`) ON UPDATE no action ON DELETE set null,
-	FOREIGN KEY (`location_id`) REFERENCES `business_locations`(`id`) ON UPDATE no action ON DELETE cascade,
+	FOREIGN KEY (`assigned_to`) REFERENCES `user`(`id`) ON UPDATE no action ON DELETE set null,
 	FOREIGN KEY (`review_id`) REFERENCES `reviews`(`id`) ON UPDATE no action ON DELETE set null,
 	FOREIGN KEY (`organization_id`,`site_id`) REFERENCES `sites`(`organization_id`,`id`) ON UPDATE no action ON DELETE cascade,
-	CONSTRAINT "reservation_submissions_status_check" CHECK(status IN ('new', 'confirmed', 'cancelled', 'completed')),
-	CONSTRAINT "reservation_submissions_completion_source_check" CHECK(completion_source IS NULL OR completion_source IN ('manual', 'auto'))
+	FOREIGN KEY (`organization_id`,`site_id`,`location_id`) REFERENCES `business_locations`(`organization_id`,`site_id`,`id`) ON UPDATE no action ON DELETE no action,
+	FOREIGN KEY (`organization_id`,`site_id`,`product_id`) REFERENCES `products`(`organization_id`,`site_id`,`id`) ON UPDATE no action ON DELETE no action,
+	FOREIGN KEY (`organization_id`,`site_id`,`location_id`,`product_id`) REFERENCES `products`(`organization_id`,`site_id`,`location_id`,`id`) ON UPDATE no action ON DELETE no action,
+	CONSTRAINT "requests_kind_check" CHECK(kind IN ('contact', 'reservation', 'experience_booking', 'platform_contact', 'work')),
+	CONSTRAINT "requests_payload_check" CHECK(json_valid(payload_json) AND json_type(payload_json) = 'object'),
+	CONSTRAINT "requests_guest_payload_check" CHECK(kind = 'work' OR (json_type(payload_json, '$.guest.name') IS 'text' AND json_type(payload_json, '$.guest.email') IS 'text' AND (json_type(payload_json, '$.guest.phone') IS 'text' OR json_type(payload_json, '$.guest.phone') IS 'null'))),
+	CONSTRAINT "requests_booking_payload_check" CHECK(kind NOT IN ('reservation', 'experience_booking') OR (json_type(payload_json, '$.party_size_is_minimum') IN ('true', 'false') AND json_type(payload_json, '$.cancellation') IS 'object' AND json_type(payload_json, '$.completion') IS 'object' AND json_type(payload_json, '$.review') IS 'object' AND (kind != 'reservation' OR json_type(payload_json, '$.guest.phone') IS 'text')) IS TRUE),
+	CONSTRAINT "requests_work_payload_check" CHECK(kind != 'work' OR (json_type(payload_json, '$.title') IS 'text' AND (payload_json ->> '$.type') IN ('content_update', 'product_update', 'seo', 'google_places', 'seasonal', 'photo_update', 'social_media', 'technical', 'other') AND (payload_json ->> '$.source') IN ('dashboard', 'whatsapp')) IS TRUE),
+	CONSTRAINT "requests_message_payload_check" CHECK(kind NOT IN ('contact', 'platform_contact') OR json_type(payload_json, '$.message') IS 'text'),
+	CONSTRAINT "requests_scope_check" CHECK((kind = 'platform_contact' AND organization_id IS NULL AND site_id IS NULL AND location_id IS NULL AND product_id IS NULL AND customer_id IS NULL) OR (kind = 'work' AND organization_id IS NOT NULL AND location_id IS NULL AND product_id IS NULL AND customer_id IS NULL) OR (kind IN ('contact', 'reservation', 'experience_booking') AND organization_id IS NOT NULL AND site_id IS NOT NULL)),
+	CONSTRAINT "requests_booking_check" CHECK((kind IN ('reservation', 'experience_booking') AND location_id IS NOT NULL AND booking_date IS NOT NULL AND time_slot IS NOT NULL AND party_size IS NOT NULL AND party_size > 0 AND status IS NOT NULL AND status IN ('pending', 'confirmed', 'cancelled', 'completed') AND (kind != 'experience_booking' OR product_id IS NOT NULL) AND (kind != 'reservation' OR product_id IS NULL)) OR (kind NOT IN ('reservation', 'experience_booking') AND booking_date IS NULL AND time_slot IS NULL AND party_size IS NULL)),
+	CONSTRAINT "requests_state_check" CHECK((kind = 'work' AND status IS NOT NULL AND status IN ('pending', 'in_progress', 'done', 'cancelled') AND priority IS NOT NULL AND priority IN ('low', 'normal', 'high', 'urgent') AND conversation_state IS NULL) OR (kind IN ('contact', 'reservation', 'experience_booking') AND conversation_state IS NOT NULL AND conversation_state IN ('needs_attention', 'waiting_on_guest', 'resolved') AND priority IS NULL AND assigned_to IS NULL AND (kind != 'contact' OR status IS NULL)) OR (kind = 'platform_contact' AND status IS NULL AND priority IS NULL AND conversation_state IS NULL AND assigned_to IS NULL))
 );
 --> statement-breakpoint
-CREATE INDEX `idx_reservation_submissions_customer_id` ON `reservation_submissions` (`customer_id`);--> statement-breakpoint
-CREATE INDEX `idx_reservation_submissions_review_request_due` ON `reservation_submissions` (`site_id`,`status`,`completed_at`,`review_request_sent_at`);--> statement-breakpoint
-CREATE INDEX `idx_reservation_submissions_review_reminder_due` ON `reservation_submissions` (`site_id`,`review_request_sent_at`,`review_reminder_sent_at`,`review_submitted_at`);--> statement-breakpoint
-CREATE INDEX `reservation_submissions_site_date_owner_slot_idx` ON `reservation_submissions` (`site_id`,`date`,`location_id`,`time`,`status`);--> statement-breakpoint
-CREATE INDEX `reservation_submissions_organization_id_idx` ON `reservation_submissions` (`organization_id`);--> statement-breakpoint
+CREATE UNIQUE INDEX `requests_review_owner_unique` ON `requests` (`organization_id`,`site_id`,`id`,`kind`);--> statement-breakpoint
+CREATE UNIQUE INDEX `requests_scope_id_unique` ON `requests` (`organization_id`,`site_id`,`id`);--> statement-breakpoint
+CREATE INDEX `requests_site_activity_idx` ON `requests` (`site_id`,`conversation_state`,`updated_at`);--> statement-breakpoint
+CREATE INDEX `requests_booking_slot_idx` ON `requests` (`site_id`,`kind`,`location_id`,`product_id`,`booking_date`,`time_slot`,`status`);--> statement-breakpoint
+CREATE INDEX `requests_customer_idx` ON `requests` (`customer_id`);--> statement-breakpoint
+CREATE INDEX `requests_work_queue_idx` ON `requests` (`kind`,`status`,`priority`,`created_at`);--> statement-breakpoint
+CREATE INDEX `requests_org_created_idx` ON `requests` (`organization_id`,`created_at`);--> statement-breakpoint
 CREATE TABLE `resource_localizations` (
 	`id` text PRIMARY KEY NOT NULL,
 	`organization_id` text NOT NULL,
@@ -1329,14 +911,12 @@ CREATE TABLE `resource_localizations` (
 	`locale` text NOT NULL,
 	`values_json` text NOT NULL,
 	`route_path` text,
-	`document_id` text,
 	`created_at` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
 	`created_by_user_id` text NOT NULL,
 	`updated_at` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
 	`updated_by_user_id` text NOT NULL,
-	FOREIGN KEY (`document_id`) REFERENCES `content_documents`(`id`) ON UPDATE no action ON DELETE no action,
 	FOREIGN KEY (`organization_id`,`site_id`,`locale`) REFERENCES `site_locales`(`organization_id`,`site_id`,`locale`) ON UPDATE no action ON DELETE cascade,
-	CONSTRAINT "resource_localizations_resource_type_check" CHECK("resource_localizations"."resource_type" IN ('site', 'business_location', 'product', 'product_category', 'experience', 'offering', 'site_post', 'tenant_blog_post', 'location_qa', 'media_asset', 'booking_policy', 'site_link_page', 'site_link_item', 'tenant_compliance', 'site_consultation_settings')),
+	CONSTRAINT "resource_localizations_resource_type_check" CHECK("resource_localizations"."resource_type" IN ('site', 'business_location', 'product', 'product_category', 'offering', 'media_asset')),
 	CONSTRAINT "resource_localizations_values_json_check" CHECK(json_valid("resource_localizations"."values_json") AND json_type("resource_localizations"."values_json") = 'object'),
 	CONSTRAINT "resource_localizations_non_english_check" CHECK("resource_localizations"."locale" <> 'en'),
 	CONSTRAINT "resource_localizations_route_path_check" CHECK("resource_localizations"."route_path" IS NULL OR ("resource_localizations"."route_path" LIKE '/' || "resource_localizations"."locale" || '/%' AND "resource_localizations"."route_path" NOT LIKE '%?%' AND "resource_localizations"."route_path" NOT LIKE '%#%' AND "resource_localizations"."route_path" NOT LIKE '%//%'))
@@ -1373,6 +953,7 @@ CREATE TABLE `review_requests` (
 	FOREIGN KEY (`customer_id`) REFERENCES `customers`(`id`) ON UPDATE no action ON DELETE cascade,
 	FOREIGN KEY (`anonymous_user_id`) REFERENCES `user`(`id`) ON UPDATE no action ON DELETE set null,
 	FOREIGN KEY (`user_id`) REFERENCES `user`(`id`) ON UPDATE no action ON DELETE set null,
+	FOREIGN KEY (`organization_id`,`site_id`,`booking_id`,`booking_type`) REFERENCES `requests`(`organization_id`,`site_id`,`id`,`kind`) ON UPDATE no action ON DELETE cascade,
 	FOREIGN KEY (`organization_id`,`site_id`) REFERENCES `sites`(`organization_id`,`id`) ON UPDATE no action ON DELETE cascade,
 	CONSTRAINT "review_requests_booking_type_check" CHECK(booking_type IN ('reservation', 'experience_booking'))
 );
@@ -1455,211 +1036,16 @@ CREATE TABLE `session` (
 --> statement-breakpoint
 CREATE UNIQUE INDEX `session_token_unique` ON `session` (`token`);--> statement-breakpoint
 CREATE INDEX `session_userId_idx` ON `session` (`userId`);--> statement-breakpoint
-CREATE TABLE `site_analytics_daily` (
-	`id` text PRIMARY KEY NOT NULL,
-	`organization_id` text NOT NULL,
-	`site_id` text NOT NULL,
-	`date` text NOT NULL,
-	`page_views` integer DEFAULT 0 NOT NULL,
-	`unique_sessions` integer DEFAULT 0 NOT NULL,
-	`avg_session_duration` integer DEFAULT 0 NOT NULL,
-	`created_at` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
-	`updated_at` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
-	`unique_visitors` integer DEFAULT 0 NOT NULL,
-	`pages_per_session` real DEFAULT 0 NOT NULL,
-	`returning_visitors` integer DEFAULT 0 NOT NULL,
-	FOREIGN KEY (`organization_id`) REFERENCES `organization`(`id`) ON UPDATE no action ON DELETE cascade,
-	FOREIGN KEY (`site_id`) REFERENCES `sites`(`id`) ON UPDATE no action ON DELETE cascade,
-	FOREIGN KEY (`organization_id`,`site_id`) REFERENCES `sites`(`organization_id`,`id`) ON UPDATE no action ON DELETE cascade,
-	CONSTRAINT "site_analytics_daily_counts_check" CHECK(page_views >= 0 AND unique_sessions >= 0 AND avg_session_duration >= 0 AND unique_visitors >= 0 AND pages_per_session >= 0 AND returning_visitors >= 0)
-);
---> statement-breakpoint
-CREATE INDEX `site_analytics_daily_organization_id_idx` ON `site_analytics_daily` (`organization_id`);--> statement-breakpoint
-CREATE UNIQUE INDEX `site_analytics_daily_site_id_date_unique` ON `site_analytics_daily` (`site_id`,`date`);--> statement-breakpoint
-CREATE TABLE `site_analytics_dimension_daily` (
-	`id` text PRIMARY KEY NOT NULL,
-	`organization_id` text NOT NULL,
-	`site_id` text NOT NULL,
-	`date` text NOT NULL,
-	`dimension` text NOT NULL,
-	`value` text NOT NULL,
-	`subvalue` text DEFAULT '' NOT NULL,
-	`page_views` integer DEFAULT 0 NOT NULL,
-	`created_at` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
-	`updated_at` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
-	FOREIGN KEY (`organization_id`) REFERENCES `organization`(`id`) ON UPDATE no action ON DELETE cascade,
-	FOREIGN KEY (`site_id`) REFERENCES `sites`(`id`) ON UPDATE no action ON DELETE cascade,
-	FOREIGN KEY (`organization_id`,`site_id`) REFERENCES `sites`(`organization_id`,`id`) ON UPDATE no action ON DELETE cascade,
-	CONSTRAINT "site_analytics_dimension_daily_counts_check" CHECK(page_views >= 0),
-	CONSTRAINT "site_analytics_dimension_daily_dimension_check" CHECK("site_analytics_dimension_daily"."dimension" IN ('country', 'city', 'device', 'referrer'))
-);
---> statement-breakpoint
-CREATE INDEX `site_analytics_dimension_daily_organization_id_idx` ON `site_analytics_dimension_daily` (`organization_id`);--> statement-breakpoint
-CREATE UNIQUE INDEX `site_analytics_dimension_daily_site_date_value_unique` ON `site_analytics_dimension_daily` (`site_id`,`date`,`dimension`,`value`,`subvalue`);--> statement-breakpoint
-CREATE TABLE `site_analytics_page_daily` (
-	`id` text PRIMARY KEY NOT NULL,
-	`organization_id` text NOT NULL,
-	`site_id` text NOT NULL,
-	`date` text NOT NULL,
-	`page_path` text NOT NULL,
-	`page_views` integer DEFAULT 0 NOT NULL,
-	`created_at` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
-	`updated_at` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
-	FOREIGN KEY (`organization_id`) REFERENCES `organization`(`id`) ON UPDATE no action ON DELETE cascade,
-	FOREIGN KEY (`site_id`) REFERENCES `sites`(`id`) ON UPDATE no action ON DELETE cascade,
-	FOREIGN KEY (`organization_id`,`site_id`) REFERENCES `sites`(`organization_id`,`id`) ON UPDATE no action ON DELETE cascade,
-	CONSTRAINT "site_analytics_page_daily_counts_check" CHECK(page_views >= 0)
-);
---> statement-breakpoint
-CREATE INDEX `site_analytics_page_daily_organization_id_idx` ON `site_analytics_page_daily` (`organization_id`);--> statement-breakpoint
-CREATE UNIQUE INDEX `site_analytics_page_daily_site_date_path_unique` ON `site_analytics_page_daily` (`site_id`,`date`,`page_path`);--> statement-breakpoint
-CREATE TABLE `site_analytics_sessions` (
-	`id` text PRIMARY KEY NOT NULL,
-	`organization_id` text NOT NULL,
-	`site_id` text NOT NULL,
-	`session_id` text NOT NULL,
-	`visitor_id` text NOT NULL,
-	`started_at` text NOT NULL,
-	`last_seen_at` text NOT NULL,
-	`landing_path` text NOT NULL,
-	`duration_seconds` integer DEFAULT 0 NOT NULL,
-	`last_touch_source` text DEFAULT 'Direct' NOT NULL,
-	`last_touch_medium` text DEFAULT '(none)' NOT NULL,
-	`last_touch_campaign` text,
-	`last_touch_term` text,
-	`last_touch_content` text,
-	`last_touch_referrer_host` text,
-	`last_touch_gclid` text,
-	`last_touch_gbraid` text,
-	`last_touch_wbraid` text,
-	`last_touch_fbclid` text,
-	`last_touch_msclkid` text,
-	`last_touch_at` text,
-	`created_at` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
-	`updated_at` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
-	FOREIGN KEY (`organization_id`) REFERENCES `organization`(`id`) ON UPDATE no action ON DELETE cascade,
-	FOREIGN KEY (`site_id`) REFERENCES `sites`(`id`) ON UPDATE no action ON DELETE cascade,
-	FOREIGN KEY (`organization_id`,`site_id`) REFERENCES `sites`(`organization_id`,`id`) ON UPDATE no action ON DELETE cascade,
-	CONSTRAINT "site_analytics_sessions_duration_check" CHECK(duration_seconds >= 0)
-);
---> statement-breakpoint
-CREATE INDEX `site_analytics_sessions_organization_id_idx` ON `site_analytics_sessions` (`organization_id`);--> statement-breakpoint
-CREATE INDEX `site_analytics_sessions_site_started_idx` ON `site_analytics_sessions` (`site_id`,`started_at`);--> statement-breakpoint
-CREATE INDEX `site_analytics_sessions_site_last_seen_idx` ON `site_analytics_sessions` (`site_id`,`last_seen_at`);--> statement-breakpoint
-CREATE INDEX `site_analytics_sessions_site_visitor_started_idx` ON `site_analytics_sessions` (`site_id`,`visitor_id`,`started_at`);--> statement-breakpoint
-CREATE INDEX `site_analytics_sessions_site_touch_started_idx` ON `site_analytics_sessions` (`site_id`,`last_touch_source`,`last_touch_medium`,`started_at`);--> statement-breakpoint
-CREATE UNIQUE INDEX `site_analytics_sessions_site_session_unique` ON `site_analytics_sessions` (`site_id`,`session_id`);--> statement-breakpoint
-CREATE TABLE `site_config` (
-	`organization_id` text NOT NULL,
-	`site_id` text NOT NULL,
-	`key` text NOT NULL,
-	`value` text,
-	`updated_at` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
-	PRIMARY KEY(`organization_id`, `site_id`, `key`),
-	FOREIGN KEY (`organization_id`) REFERENCES `organization`(`id`) ON UPDATE no action ON DELETE cascade,
-	FOREIGN KEY (`site_id`) REFERENCES `sites`(`id`) ON UPDATE no action ON DELETE cascade,
-	FOREIGN KEY (`organization_id`,`site_id`) REFERENCES `sites`(`organization_id`,`id`) ON UPDATE no action ON DELETE cascade
-);
---> statement-breakpoint
-CREATE TABLE `site_consultation_settings` (
-	`id` text PRIMARY KEY NOT NULL,
-	`organization_id` text NOT NULL,
-	`site_id` text NOT NULL,
-	`mode` text DEFAULT 'external_url' NOT NULL,
-	`cta_label` text NOT NULL,
-	`external_url` text,
-	`schedule_path` text NOT NULL,
-	`confirmation_path` text NOT NULL,
-	`tracking_enabled` integer DEFAULT 1 NOT NULL,
-	`metadata_json` text,
-	`created_at` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
-	`updated_at` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
-	`updated_by` text,
-	FOREIGN KEY (`organization_id`) REFERENCES `organization`(`id`) ON UPDATE no action ON DELETE cascade,
-	FOREIGN KEY (`site_id`) REFERENCES `sites`(`id`) ON UPDATE no action ON DELETE cascade,
-	FOREIGN KEY (`organization_id`,`site_id`) REFERENCES `sites`(`organization_id`,`id`) ON UPDATE no action ON DELETE cascade,
-	CONSTRAINT "site_consultation_settings_metadata_json_check" CHECK(metadata_json IS NULL OR (json_valid(metadata_json))),
-	CONSTRAINT "site_consultation_settings_mode_check" CHECK(mode IN ('external_url', 'native_disabled')),
-	CONSTRAINT "site_consultation_settings_schedule_path_check" CHECK(schedule_path LIKE '/%'),
-	CONSTRAINT "site_consultation_settings_confirmation_path_check" CHECK(confirmation_path LIKE '/%')
-);
---> statement-breakpoint
-CREATE UNIQUE INDEX `site_consultation_settings_site_id_unique` ON `site_consultation_settings` (`site_id`);--> statement-breakpoint
-CREATE INDEX `site_consultation_settings_organization_id_idx` ON `site_consultation_settings` (`organization_id`);--> statement-breakpoint
-CREATE TABLE `site_conversion_events` (
-	`id` text PRIMARY KEY NOT NULL,
-	`organization_id` text NOT NULL,
-	`site_id` text NOT NULL,
-	`event_name` text NOT NULL,
-	`stage` text NOT NULL,
-	`session_id` text NOT NULL,
-	`visitor_id` text NOT NULL,
-	`location_id` text,
-	`entity_type` text,
-	`entity_id` text,
-	`page_type` text,
-	`page_path` text,
-	`cta_destination` text,
-	`source` text DEFAULT 'Direct' NOT NULL,
-	`medium` text DEFAULT '(none)' NOT NULL,
-	`campaign` text,
-	`term` text,
-	`content` text,
-	`referrer_host` text,
-	`gclid` text,
-	`gbraid` text,
-	`wbraid` text,
-	`fbclid` text,
-	`msclkid` text,
-	`attributed_at` text NOT NULL,
-	`metadata_json` text,
-	`ip_hash` text,
-	`user_agent` text,
-	`created_at` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
-	FOREIGN KEY (`organization_id`) REFERENCES `organization`(`id`) ON UPDATE no action ON DELETE cascade,
-	FOREIGN KEY (`site_id`) REFERENCES `sites`(`id`) ON UPDATE no action ON DELETE cascade,
-	FOREIGN KEY (`location_id`) REFERENCES `business_locations`(`id`) ON UPDATE no action ON DELETE set null,
-	FOREIGN KEY (`organization_id`,`site_id`) REFERENCES `sites`(`organization_id`,`id`) ON UPDATE no action ON DELETE cascade,
-	CONSTRAINT "site_conversion_events_metadata_json_check" CHECK(metadata_json IS NULL OR (json_valid(metadata_json))),
-	CONSTRAINT "site_conversion_events_name_check" CHECK((event_name GLOB '[a-z]' OR event_name GLOB '[a-z][a-z0-9_]*') AND length(event_name) <= 64),
-	CONSTRAINT "site_conversion_events_stage_check" CHECK("site_conversion_events"."stage" IN ('schedule_navigation', 'external_booking_handoff', 'submitted', 'external_handoff'))
-);
---> statement-breakpoint
-CREATE INDEX `site_conversion_events_site_created_idx` ON `site_conversion_events` (`site_id`,`created_at`);--> statement-breakpoint
-CREATE INDEX `site_conversion_events_name_created_idx` ON `site_conversion_events` (`event_name`,`created_at`);--> statement-breakpoint
-CREATE INDEX `site_conversion_events_session_idx` ON `site_conversion_events` (`site_id`,`session_id`);--> statement-breakpoint
-CREATE INDEX `site_conversion_events_entity_idx` ON `site_conversion_events` (`site_id`,`entity_type`,`entity_id`);--> statement-breakpoint
-CREATE INDEX `site_conversion_events_source_medium_created_idx` ON `site_conversion_events` (`site_id`,`source`,`medium`,`created_at`);--> statement-breakpoint
-CREATE UNIQUE INDEX `site_conversion_events_entity_unique` ON `site_conversion_events` (`site_id`,`event_name`,`entity_type`,`entity_id`) WHERE "site_conversion_events"."entity_type" IS NOT NULL AND "site_conversion_events"."entity_id" IS NOT NULL AND "site_conversion_events"."event_name" IN ('contact_submit', 'reservation_submit', 'experience_booking_submit');--> statement-breakpoint
-CREATE INDEX `site_conversion_events_organization_id_idx` ON `site_conversion_events` (`organization_id`);--> statement-breakpoint
-CREATE TABLE `site_domain_events` (
-	`id` text PRIMARY KEY NOT NULL,
-	`organization_id` text NOT NULL,
-	`site_id` text NOT NULL,
-	`domain_id` text,
-	`event_type` text NOT NULL,
-	`actor_type` text DEFAULT 'system' NOT NULL,
-	`actor_id` text,
-	`message` text,
-	`before_state` text,
-	`after_state` text,
-	`metadata` text,
-	`created_at` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
-	FOREIGN KEY (`organization_id`) REFERENCES `organization`(`id`) ON UPDATE no action ON DELETE cascade,
-	FOREIGN KEY (`site_id`) REFERENCES `sites`(`id`) ON UPDATE no action ON DELETE cascade,
-	FOREIGN KEY (`domain_id`) REFERENCES `site_domains`(`id`) ON UPDATE no action ON DELETE set null,
-	FOREIGN KEY (`organization_id`,`site_id`) REFERENCES `sites`(`organization_id`,`id`) ON UPDATE no action ON DELETE cascade,
-	CONSTRAINT "site_domain_events_before_state_check" CHECK(before_state IS NULL OR (json_valid(before_state))),
-	CONSTRAINT "site_domain_events_after_state_check" CHECK(after_state IS NULL OR (json_valid(after_state))),
-	CONSTRAINT "site_domain_events_metadata_check" CHECK(metadata IS NULL OR (json_valid(metadata)))
-);
---> statement-breakpoint
-CREATE INDEX `idx_site_domain_events_domain` ON `site_domain_events` (`domain_id`,`created_at`);--> statement-breakpoint
-CREATE INDEX `idx_site_domain_events_site` ON `site_domain_events` (`site_id`,`created_at`);--> statement-breakpoint
 CREATE TABLE `site_domains` (
 	`id` text PRIMARY KEY NOT NULL,
-	`organization_id` text NOT NULL,
-	`site_id` text NOT NULL,
+	`organization_id` text,
+	`site_id` text,
+	`former_site_id` text,
+	`successor_domain` text,
+	`retired_at` text,
+	`reconciliation_token` text,
+	`reconciliation_expires_at` text,
+	`desired_state` text DEFAULT 'active' NOT NULL,
 	`domain` text NOT NULL,
 	`type` text NOT NULL,
 	`role` text DEFAULT 'secondary' NOT NULL,
@@ -1699,10 +1085,13 @@ CREATE TABLE `site_domains` (
 	FOREIGN KEY (`organization_id`) REFERENCES `organization`(`id`) ON UPDATE no action ON DELETE cascade,
 	FOREIGN KEY (`site_id`) REFERENCES `sites`(`id`) ON UPDATE no action ON DELETE cascade,
 	FOREIGN KEY (`organization_id`,`site_id`) REFERENCES `sites`(`organization_id`,`id`) ON UPDATE no action ON DELETE cascade,
+	CONSTRAINT "site_domains_owner_check" CHECK((status = 'retired' AND type = 'subdomain' AND role = 'secondary' AND organization_id IS NULL AND site_id IS NULL AND former_site_id IS NOT NULL AND retired_at IS NOT NULL) OR (status <> 'retired' AND organization_id IS NOT NULL AND site_id IS NOT NULL AND former_site_id IS NULL AND retired_at IS NULL AND successor_domain IS NULL)),
+	CONSTRAINT "site_domains_desired_state_check" CHECK(desired_state IN ('active', 'deleted') AND (desired_state <> 'deleted' OR type = 'custom')),
+	CONSTRAINT "site_domains_lease_check" CHECK((reconciliation_token IS NULL) = (reconciliation_expires_at IS NULL)),
 	CONSTRAINT "site_domains_metadata_check" CHECK(metadata IS NULL OR (json_valid(metadata))),
 	CONSTRAINT "site_domains_type_check" CHECK(type IN ('subdomain', 'custom')),
 	CONSTRAINT "site_domains_role_check" CHECK(role IN ('canonical', 'secondary')),
-	CONSTRAINT "site_domains_status_check" CHECK(status IN ('pending', 'verifying', 'active', 'blocked', 'failed', 'disabled', 'deleted')),
+	CONSTRAINT "site_domains_status_check" CHECK(status IN ('pending', 'verifying', 'active', 'blocked', 'failed', 'disabled', 'deleted', 'retired')),
 	CONSTRAINT "site_domains_validation_strategy_check" CHECK(validation_strategy IN ('http_auto', 'txt_manual', 'delegated_dcv')),
 	CONSTRAINT "site_domains_dns_status_check" CHECK(dns_status IN ('pending', 'valid', 'invalid', 'unknown'))
 );
@@ -1711,73 +1100,8 @@ CREATE UNIQUE INDEX `site_domains_domain_unique` ON `site_domains` (`domain`);--
 CREATE UNIQUE INDEX `site_domains_cloudflare_hostname_id_unique` ON `site_domains` (`cloudflare_hostname_id`);--> statement-breakpoint
 CREATE INDEX `site_domains_org_site_idx` ON `site_domains` (`organization_id`,`site_id`);--> statement-breakpoint
 CREATE UNIQUE INDEX `idx_site_domains_one_canonical` ON `site_domains` (`site_id`) WHERE role = 'canonical' AND status = 'active';--> statement-breakpoint
+CREATE UNIQUE INDEX `site_domains_one_active_subdomain` ON `site_domains` (`site_id`) WHERE type = 'subdomain' AND status = 'active';--> statement-breakpoint
 CREATE INDEX `idx_site_domains_reconcile` ON `site_domains` (`status`,`next_check_at`);--> statement-breakpoint
-CREATE TABLE `site_language_licenses` (
-	`id` text PRIMARY KEY NOT NULL,
-	`organization_id` text NOT NULL,
-	`site_id` text NOT NULL,
-	`locale` text NOT NULL,
-	`stripe_subscription_id` text,
-	`stripe_subscription_item_id` text,
-	`status` text DEFAULT 'disabled' NOT NULL,
-	`operation_id` text,
-	`provider_idempotency_key` text,
-	`last_provider_quantity` integer,
-	`last_error_code` text,
-	`activated_at` text,
-	`disabled_at` text,
-	`created_at` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
-	`updated_at` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
-	FOREIGN KEY (`organization_id`,`site_id`,`locale`) REFERENCES `site_locales`(`organization_id`,`site_id`,`locale`) ON UPDATE no action ON DELETE cascade,
-	CONSTRAINT "site_language_licenses_status_check" CHECK("site_language_licenses"."status" IN ('enabling', 'active', 'disabling', 'disabled')),
-	CONSTRAINT "site_language_licenses_non_english_check" CHECK("site_language_licenses"."locale" <> 'en')
-);
---> statement-breakpoint
-CREATE INDEX `site_language_licenses_organization_status_idx` ON `site_language_licenses` (`organization_id`,`status`);--> statement-breakpoint
-CREATE INDEX `site_language_licenses_subscription_item_idx` ON `site_language_licenses` (`stripe_subscription_item_id`);--> statement-breakpoint
-CREATE UNIQUE INDEX `site_language_licenses_org_site_locale_unique` ON `site_language_licenses` (`organization_id`,`site_id`,`locale`);--> statement-breakpoint
-CREATE TABLE `site_link_items` (
-	`id` text PRIMARY KEY NOT NULL,
-	`organization_id` text NOT NULL,
-	`site_id` text NOT NULL,
-	`link_page_id` text NOT NULL,
-	`label` text NOT NULL,
-	`destination` text NOT NULL,
-	`sort_order` integer DEFAULT 0 NOT NULL,
-	`status` text DEFAULT 'active' NOT NULL,
-	`created_at` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
-	`updated_at` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
-	`updated_by` text,
-	FOREIGN KEY (`organization_id`) REFERENCES `organization`(`id`) ON UPDATE no action ON DELETE cascade,
-	FOREIGN KEY (`site_id`) REFERENCES `sites`(`id`) ON UPDATE no action ON DELETE cascade,
-	FOREIGN KEY (`link_page_id`) REFERENCES `site_link_pages`(`id`) ON UPDATE no action ON DELETE cascade,
-	FOREIGN KEY (`organization_id`,`site_id`) REFERENCES `sites`(`organization_id`,`id`) ON UPDATE no action ON DELETE cascade,
-	CONSTRAINT "site_link_items_status_check" CHECK(status IN ('active', 'hidden'))
-);
---> statement-breakpoint
-CREATE INDEX `site_link_items_page_status_sort_idx` ON `site_link_items` (`link_page_id`,`status`,`sort_order`);--> statement-breakpoint
-CREATE INDEX `site_link_items_site_idx` ON `site_link_items` (`site_id`);--> statement-breakpoint
-CREATE TABLE `site_link_pages` (
-	`id` text PRIMARY KEY NOT NULL,
-	`organization_id` text NOT NULL,
-	`site_id` text NOT NULL,
-	`path` text DEFAULT '/links' NOT NULL,
-	`title` text NOT NULL,
-	`robots` text DEFAULT 'noindex,follow' NOT NULL,
-	`seo_title` text,
-	`seo_description` text,
-	`created_at` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
-	`updated_at` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
-	`updated_by` text,
-	FOREIGN KEY (`organization_id`) REFERENCES `organization`(`id`) ON UPDATE no action ON DELETE cascade,
-	FOREIGN KEY (`site_id`) REFERENCES `sites`(`id`) ON UPDATE no action ON DELETE cascade,
-	FOREIGN KEY (`organization_id`,`site_id`) REFERENCES `sites`(`organization_id`,`id`) ON UPDATE no action ON DELETE cascade,
-	CONSTRAINT "site_link_pages_path_check" CHECK(path LIKE '/%' AND path NOT LIKE '//%'),
-	CONSTRAINT "site_link_pages_robots_check" CHECK(robots IN ('index,follow', 'noindex,follow', 'index,nofollow', 'noindex,nofollow'))
-);
---> statement-breakpoint
-CREATE UNIQUE INDEX `site_link_pages_site_id_unique` ON `site_link_pages` (`site_id`);--> statement-breakpoint
-CREATE UNIQUE INDEX `site_link_pages_organization_id_site_id_path_unique` ON `site_link_pages` (`organization_id`,`site_id`,`path`);--> statement-breakpoint
 CREATE TABLE `site_locales` (
 	`id` text PRIMARY KEY NOT NULL,
 	`organization_id` text NOT NULL,
@@ -1786,6 +1110,8 @@ CREATE TABLE `site_locales` (
 	`label` text,
 	`is_source` integer DEFAULT 0 NOT NULL,
 	`status` text DEFAULT 'disabled' NOT NULL,
+	`activated_at` text,
+	`disabled_at` text,
 	`created_at` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
 	`updated_at` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
 	FOREIGN KEY (`organization_id`) REFERENCES `organization`(`id`) ON UPDATE no action ON DELETE cascade,
@@ -1796,35 +1122,9 @@ CREATE TABLE `site_locales` (
 	CONSTRAINT "site_locales_english_source_check" CHECK(locale <> 'en' OR (is_source = 1 AND status = 'published'))
 );
 --> statement-breakpoint
+CREATE UNIQUE INDEX `site_locales_secondary_published_unique` ON `site_locales` (`organization_id`,`site_id`) WHERE is_source = 0 AND status = 'published';--> statement-breakpoint
 CREATE UNIQUE INDEX `idx_site_locales_one_source_per_site` ON `site_locales` (`organization_id`,`site_id`) WHERE is_source = 1;--> statement-breakpoint
 CREATE UNIQUE INDEX `site_locales_organization_id_site_id_locale_unique` ON `site_locales` (`organization_id`,`site_id`,`locale`);--> statement-breakpoint
-CREATE TABLE `site_pageview_events` (
-	`id` text PRIMARY KEY NOT NULL,
-	`site_id` text NOT NULL,
-	`location_id` text,
-	`page_path` text NOT NULL,
-	`page_id` text,
-	`page_type` text,
-	`recipe` text,
-	`locale` text,
-	`revision_id` text,
-	`referrer` text,
-	`user_agent` text,
-	`ip_hash` text,
-	`session_id` text,
-	`duration_seconds` integer,
-	`created_at` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
-	`visitor_id` text,
-	`country` text,
-	`region` text,
-	`city` text,
-	FOREIGN KEY (`site_id`) REFERENCES `sites`(`id`) ON UPDATE no action ON DELETE cascade,
-	FOREIGN KEY (`location_id`) REFERENCES `business_locations`(`id`) ON UPDATE no action ON DELETE set null
-);
---> statement-breakpoint
-CREATE INDEX `site_pageview_events_site_created_idx` ON `site_pageview_events` (`site_id`,`created_at`);--> statement-breakpoint
-CREATE INDEX `idx_pageview_events_session` ON `site_pageview_events` (`site_id`,`session_id`);--> statement-breakpoint
-CREATE INDEX `idx_pageview_events_site_visitor` ON `site_pageview_events` (`site_id`,`visitor_id`);--> statement-breakpoint
 CREATE TABLE `site_redirects` (
 	`id` text PRIMARY KEY NOT NULL,
 	`organization_id` text NOT NULL,
@@ -1852,25 +1152,6 @@ CREATE TABLE `site_redirects` (
 CREATE INDEX `site_redirects_organization_id_idx` ON `site_redirects` (`organization_id`);--> statement-breakpoint
 CREATE INDEX `site_redirects_owner_idx` ON `site_redirects` (`owner_type`,`owner_id`);--> statement-breakpoint
 CREATE UNIQUE INDEX `site_redirects_site_locale_from_path_unique` ON `site_redirects` (`site_id`,`locale`,`from_path`);--> statement-breakpoint
-CREATE TABLE `site_theme_tokens` (
-	`id` text PRIMARY KEY NOT NULL,
-	`organization_id` text NOT NULL,
-	`site_id` text NOT NULL,
-	`template_slug` text NOT NULL,
-	`tokens_json` text NOT NULL,
-	`status` text DEFAULT 'active' NOT NULL,
-	`created_at` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
-	`updated_at` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
-	`updated_by` text,
-	FOREIGN KEY (`organization_id`) REFERENCES `organization`(`id`) ON UPDATE no action ON DELETE cascade,
-	FOREIGN KEY (`site_id`) REFERENCES `sites`(`id`) ON UPDATE no action ON DELETE cascade,
-	FOREIGN KEY (`organization_id`,`site_id`) REFERENCES `sites`(`organization_id`,`id`) ON UPDATE no action ON DELETE cascade,
-	CONSTRAINT "site_theme_tokens_tokens_json_check" CHECK(tokens_json IS NULL OR (json_valid(tokens_json) AND json_type(tokens_json) IS 'object')),
-	CONSTRAINT "site_theme_tokens_status_check" CHECK(status IN ('active', 'disabled'))
-);
---> statement-breakpoint
-CREATE INDEX `site_theme_tokens_organization_id_idx` ON `site_theme_tokens` (`organization_id`);--> statement-breakpoint
-CREATE UNIQUE INDEX `site_theme_tokens_site_template_unique` ON `site_theme_tokens` (`site_id`,`template_slug`);--> statement-breakpoint
 CREATE TABLE `site_transfer_requests` (
 	`id` text PRIMARY KEY NOT NULL,
 	`site_id` text NOT NULL,
@@ -1909,6 +1190,8 @@ CREATE INDEX `idx_site_transfer_site` ON `site_transfer_requests` (`site_id`,`st
 CREATE UNIQUE INDEX `idx_site_transfer_token` ON `site_transfer_requests` (`token`);--> statement-breakpoint
 CREATE TABLE `sites` (
 	`id` text PRIMARY KEY NOT NULL,
+	`settings_json` text DEFAULT '{"config":{"default_timezone":"UTC"}}' NOT NULL,
+	`integrations_json` text DEFAULT '{}' NOT NULL,
 	`organization_id` text NOT NULL,
 	`theme_id` text DEFAULT 'saya-theme-v1' NOT NULL,
 	`slug` text NOT NULL,
@@ -1938,6 +1221,33 @@ CREATE TABLE `sites` (
 	`analytics_data_start_at` text,
 	FOREIGN KEY (`organization_id`) REFERENCES `organization`(`id`) ON UPDATE no action ON DELETE cascade,
 	FOREIGN KEY (`team_id`) REFERENCES `team`(`id`) ON UPDATE no action ON DELETE set null,
+	CONSTRAINT "sites_settings_json_check" CHECK(json_valid(settings_json) AND json_type(settings_json) IS 'object'),
+	CONSTRAINT "sites_integrations_json_check" CHECK(json_valid(integrations_json) AND json_type(integrations_json) IS 'object'),
+	CONSTRAINT "sites_config_brand_color_check" CHECK(json_type(settings_json, '$.config.brand_color') IS NULL OR json_type(settings_json, '$.config.brand_color') IS 'text'),
+	CONSTRAINT "sites_config_press_email_check" CHECK(json_type(settings_json, '$.config.press_email') IS NULL OR json_type(settings_json, '$.config.press_email') IS 'text'),
+	CONSTRAINT "sites_config_partnerships_email_check" CHECK(json_type(settings_json, '$.config.partnerships_email') IS NULL OR json_type(settings_json, '$.config.partnerships_email') IS 'text'),
+	CONSTRAINT "sites_config_catering_email_check" CHECK(json_type(settings_json, '$.config.catering_email') IS NULL OR json_type(settings_json, '$.config.catering_email') IS 'text'),
+	CONSTRAINT "sites_config_careers_email_check" CHECK(json_type(settings_json, '$.config.careers_email') IS NULL OR json_type(settings_json, '$.config.careers_email') IS 'text'),
+	CONSTRAINT "sites_config_google_site_verification_check" CHECK(json_type(settings_json, '$.config.google_site_verification') IS NULL OR json_type(settings_json, '$.config.google_site_verification') IS 'text'),
+	CONSTRAINT "sites_config_default_timezone_check" CHECK(json_type(settings_json, '$.config.default_timezone') IS 'text' AND length(json_extract(settings_json, '$.config.default_timezone')) > 0),
+	CONSTRAINT "sites_config_whatsapp_phone_check" CHECK(json_type(settings_json, '$.config.whatsapp_phone') IS NULL OR json_type(settings_json, '$.config.whatsapp_phone') IS 'text'),
+	CONSTRAINT "sites_config_notifications_check" CHECK(json_type(settings_json, '$.config.owner_notification_channels') IS NULL OR json_type(settings_json, '$.config.owner_notification_channels') IS 'array'),
+	CONSTRAINT "sites_config_resource_generation_check" CHECK(json_type(settings_json, '$.config.resource_team_generation') IS NULL OR (json_type(settings_json, '$.config.resource_team_generation') IS 'object' AND json_type(settings_json, '$.config.resource_team_generation.transfer_id') IS 'text' AND json_type(settings_json, '$.config.resource_team_generation.generation') IS 'text')),
+	CONSTRAINT "sites_consultation_metadata_check" CHECK(json_type(settings_json, '$.consultation.metadata_json') IS NULL OR json_type(settings_json, '$.consultation.metadata_json') IN ('null', 'object')),
+	CONSTRAINT "sites_compliance_metadata_check" CHECK(json_type(settings_json, '$.compliance.metadata_json') IS NULL OR json_type(settings_json, '$.compliance.metadata_json') IN ('null', 'object')),
+	CONSTRAINT "sites_theme_saya_check" CHECK(json_type(settings_json, '$.theme_by_template.saya') IS NULL OR (json_type(settings_json, '$.theme_by_template.saya') IS 'object' AND json_type(settings_json, '$.theme_by_template.saya.tokens') IS 'object' AND json_extract(settings_json, '$.theme_by_template.saya.status') IN ('active', 'disabled')) IS TRUE),
+	CONSTRAINT "sites_theme_blawby_check" CHECK(json_type(settings_json, '$.theme_by_template.blawby') IS NULL OR (json_type(settings_json, '$.theme_by_template.blawby') IS 'object' AND json_type(settings_json, '$.theme_by_template.blawby.tokens') IS 'object' AND json_extract(settings_json, '$.theme_by_template.blawby.status') IN ('active', 'disabled')) IS TRUE),
+	CONSTRAINT "sites_config_object_check" CHECK(json_type(settings_json, '$.config') IS NULL OR json_type(settings_json, '$.config') IS 'object'),
+	CONSTRAINT "sites_theme_by_template_object_check" CHECK(json_type(settings_json, '$.theme_by_template') IS NULL OR json_type(settings_json, '$.theme_by_template') IS 'object'),
+	CONSTRAINT "sites_consultation_object_check" CHECK(json_type(settings_json, '$.consultation') IS NULL OR json_type(settings_json, '$.consultation') IS 'object'),
+	CONSTRAINT "sites_compliance_object_check" CHECK(json_type(settings_json, '$.compliance') IS NULL OR json_type(settings_json, '$.compliance') IS 'object'),
+	CONSTRAINT "sites_consultation_check" CHECK(json_type(settings_json, '$.consultation') IS NULL OR (json_extract(settings_json, '$.consultation.mode') IN ('external_url', 'native_disabled') AND json_type(settings_json, '$.consultation.cta_label') IS 'text' AND json_extract(settings_json, '$.consultation.schedule_path') LIKE '/%' AND json_extract(settings_json, '$.consultation.confirmation_path') LIKE '/%' AND json_type(settings_json, '$.consultation.tracking_enabled') IN ('true', 'false')) IS TRUE),
+	CONSTRAINT "sites_compliance_check" CHECK(json_type(settings_json, '$.compliance') IS NULL OR (json_extract(settings_json, '$.compliance.address_visibility') IN ('visible', 'hidden') AND (json_extract(settings_json, '$.compliance.service_area_type') IS NULL OR json_extract(settings_json, '$.compliance.service_area_type') IN ('AdministrativeArea', 'City', 'Country', 'Place', 'State')) AND json_type(settings_json, '$.compliance.same_as') IN ('array', 'null') AND json_type(settings_json, '$.compliance.contact_points') IN ('array', 'null')) IS TRUE),
+	CONSTRAINT "sites_compliance_nonprofit_check" CHECK(json_extract(settings_json, '$.compliance.nonprofit_status') IS NULL OR json_extract(settings_json, '$.compliance.nonprofit_status') IN ('https://schema.org/Nonprofit501c1', 'https://schema.org/Nonprofit501c2', 'https://schema.org/Nonprofit501c3', 'https://schema.org/Nonprofit501c4', 'https://schema.org/Nonprofit501c5', 'https://schema.org/Nonprofit501c6', 'https://schema.org/Nonprofit501c7', 'https://schema.org/Nonprofit501c8', 'https://schema.org/Nonprofit501c9', 'https://schema.org/Nonprofit501c10', 'https://schema.org/Nonprofit501c11', 'https://schema.org/Nonprofit501c12', 'https://schema.org/Nonprofit501c13', 'https://schema.org/Nonprofit501c14', 'https://schema.org/Nonprofit501c15', 'https://schema.org/Nonprofit501c16', 'https://schema.org/Nonprofit501c17', 'https://schema.org/Nonprofit501c18', 'https://schema.org/Nonprofit501c19', 'https://schema.org/Nonprofit501c20', 'https://schema.org/Nonprofit501c21', 'https://schema.org/Nonprofit501c22', 'https://schema.org/Nonprofit501c23', 'https://schema.org/Nonprofit501c24', 'https://schema.org/Nonprofit501c25', 'https://schema.org/Nonprofit501c26', 'https://schema.org/Nonprofit501c27', 'https://schema.org/Nonprofit501c28', 'https://schema.org/NonprofitANBI', 'https://schema.org/NonprofitSBBI')),
+	CONSTRAINT "sites_facebook_integration_check" CHECK(json_type(integrations_json, '$.facebook') IS NULL OR (json_type(integrations_json, '$.facebook') IS 'object' AND json_type(integrations_json, '$.facebook.revision') IS 'text' AND json_extract(integrations_json, '$.facebook.kind') IN ('oauth') AND json_extract(integrations_json, '$.facebook.status') IN ('active', 'disabled', 'error')) IS TRUE),
+	CONSTRAINT "sites_google_integration_check" CHECK(json_type(integrations_json, '$.google') IS NULL OR (json_type(integrations_json, '$.google') IS 'object' AND json_type(integrations_json, '$.google.revision') IS 'text' AND json_extract(integrations_json, '$.google.kind') IN ('oauth', 'manual') AND json_extract(integrations_json, '$.google.status') IN ('active', 'disabled', 'error')) IS TRUE),
+	CONSTRAINT "sites_google_credentials_check" CHECK(json_type(integrations_json, '$.google') IS NULL OR (CASE json_extract(integrations_json, '$.google.kind') WHEN 'oauth' THEN json_type(integrations_json, '$.google.encrypted_access_token') IS 'text' AND json_type(integrations_json, '$.google.encrypted_refresh_token') IS 'text' WHEN 'manual' THEN json_type(integrations_json, '$.google.encrypted_access_token') IS NULL AND json_type(integrations_json, '$.google.encrypted_refresh_token') IS NULL END) IS TRUE),
+	CONSTRAINT "sites_facebook_credentials_check" CHECK(json_type(integrations_json, '$.facebook') IS NULL OR json_type(integrations_json, '$.facebook.encrypted_user_token') IS 'text'),
 	CONSTRAINT "sites_feature_overrides_check" CHECK(feature_overrides IS NULL OR (json_valid(feature_overrides) AND json_type(feature_overrides) IS 'object')),
 	CONSTRAINT "sites_theme_id_check" CHECK("sites"."theme_id" IN ('saya-theme-v1', 'blawby-theme-v1')),
 	CONSTRAINT "sites_status_check" CHECK("sites"."status" IN ('active', 'inactive', 'suspended')),
@@ -1951,14 +1261,6 @@ CREATE UNIQUE INDEX `sites_slug_unique` ON `sites` (`slug`);--> statement-breakp
 CREATE UNIQUE INDEX `sites_subdomain_unique` ON `sites` (`subdomain`);--> statement-breakpoint
 CREATE INDEX `sites_created_at_idx` ON `sites` (`created_at`);--> statement-breakpoint
 CREATE UNIQUE INDEX `sites_organization_id_id_unique` ON `sites` (`organization_id`,`id`);--> statement-breakpoint
-CREATE TABLE `spent_subdomains` (
-	`domain` text PRIMARY KEY NOT NULL,
-	`site_id` text NOT NULL,
-	`successor_domain` text,
-	`spent_at` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL
-);
---> statement-breakpoint
-CREATE INDEX `spent_subdomains_site_idx` ON `spent_subdomains` (`site_id`);--> statement-breakpoint
 CREATE TABLE `stripe_ga4_subscription_intents` (
 	`id` text PRIMARY KEY NOT NULL,
 	`organization_id` text NOT NULL,
@@ -2090,95 +1392,6 @@ CREATE TABLE `teamMember` (
 CREATE UNIQUE INDEX `teamMember_membershipKey_unique` ON `teamMember` (`membershipKey`);--> statement-breakpoint
 CREATE INDEX `teamMember_teamId_idx` ON `teamMember` (`teamId`);--> statement-breakpoint
 CREATE INDEX `teamMember_userId_idx` ON `teamMember` (`userId`);--> statement-breakpoint
-CREATE TABLE `tenant_compliance` (
-	`id` text PRIMARY KEY NOT NULL,
-	`organization_id` text NOT NULL,
-	`site_id` text NOT NULL,
-	`entity_name` text,
-	`dba_name` text,
-	`entity_type` text,
-	`nonprofit_status` text,
-	`registration_number` text,
-	`service_area` text,
-	`service_area_type` text,
-	`disclaimer` text,
-	`footer_disclaimer` text,
-	`privacy_page_id` text,
-	`terms_page_id` text,
-	`notice_page_id` text,
-	`founder_name` text,
-	`founding_date` text,
-	`same_as` text,
-	`contact_points` text,
-	`address_visibility` text DEFAULT 'hidden' NOT NULL,
-	`metadata_json` text,
-	`created_at` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
-	`updated_at` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
-	`updated_by` text,
-	FOREIGN KEY (`organization_id`) REFERENCES `organization`(`id`) ON UPDATE no action ON DELETE cascade,
-	FOREIGN KEY (`site_id`) REFERENCES `sites`(`id`) ON UPDATE no action ON DELETE cascade,
-	FOREIGN KEY (`privacy_page_id`) REFERENCES `tenant_pages`(`id`) ON UPDATE no action ON DELETE set null,
-	FOREIGN KEY (`terms_page_id`) REFERENCES `tenant_pages`(`id`) ON UPDATE no action ON DELETE set null,
-	FOREIGN KEY (`notice_page_id`) REFERENCES `tenant_pages`(`id`) ON UPDATE no action ON DELETE set null,
-	FOREIGN KEY (`organization_id`,`site_id`) REFERENCES `sites`(`organization_id`,`id`) ON UPDATE no action ON DELETE cascade,
-	CONSTRAINT "tenant_compliance_service_area_type_check" CHECK(service_area_type IN ('AdministrativeArea', 'City', 'Country', 'Place', 'State')),
-	CONSTRAINT "tenant_compliance_same_as_check" CHECK(same_as IS NULL OR (json_valid(same_as) AND json_type(same_as) IS 'array')),
-	CONSTRAINT "tenant_compliance_contact_points_check" CHECK(contact_points IS NULL OR (json_valid(contact_points) AND json_type(contact_points) IS 'array')),
-	CONSTRAINT "tenant_compliance_nonprofit_status_check" CHECK(nonprofit_status IN ('https://schema.org/Nonprofit501c1', 'https://schema.org/Nonprofit501c2', 'https://schema.org/Nonprofit501c3', 'https://schema.org/Nonprofit501c4', 'https://schema.org/Nonprofit501c5', 'https://schema.org/Nonprofit501c6', 'https://schema.org/Nonprofit501c7', 'https://schema.org/Nonprofit501c8', 'https://schema.org/Nonprofit501c9', 'https://schema.org/Nonprofit501c10', 'https://schema.org/Nonprofit501c11', 'https://schema.org/Nonprofit501c12', 'https://schema.org/Nonprofit501c13', 'https://schema.org/Nonprofit501c14', 'https://schema.org/Nonprofit501c15', 'https://schema.org/Nonprofit501c16', 'https://schema.org/Nonprofit501c17', 'https://schema.org/Nonprofit501c18', 'https://schema.org/Nonprofit501c19', 'https://schema.org/Nonprofit501c20', 'https://schema.org/Nonprofit501c21', 'https://schema.org/Nonprofit501c22', 'https://schema.org/Nonprofit501c23', 'https://schema.org/Nonprofit501c24', 'https://schema.org/Nonprofit501c25', 'https://schema.org/Nonprofit501c26', 'https://schema.org/Nonprofit501c27', 'https://schema.org/Nonprofit501c28', 'https://schema.org/NonprofitANBI', 'https://schema.org/NonprofitSBBI')),
-	CONSTRAINT "tenant_compliance_address_visibility_check" CHECK(address_visibility IN ('visible', 'hidden'))
-);
---> statement-breakpoint
-CREATE UNIQUE INDEX `tenant_compliance_site_id_unique` ON `tenant_compliance` (`site_id`);--> statement-breakpoint
-CREATE TABLE `tenant_page_variants` (
-	`id` text PRIMARY KEY NOT NULL,
-	`organization_id` text NOT NULL,
-	`site_id` text NOT NULL,
-	`page_id` text NOT NULL,
-	`locale` text NOT NULL,
-	`document_id` text NOT NULL,
-	`path` text NOT NULL,
-	`title` text NOT NULL,
-	`summary` text,
-	`seo_title` text,
-	`seo_description` text,
-	`canonical_url` text,
-	`robots` text,
-	`created_at` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
-	`updated_at` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
-	`updated_by` text,
-	FOREIGN KEY (`organization_id`) REFERENCES `organization`(`id`) ON UPDATE no action ON DELETE cascade,
-	FOREIGN KEY (`site_id`) REFERENCES `sites`(`id`) ON UPDATE no action ON DELETE cascade,
-	FOREIGN KEY (`page_id`) REFERENCES `tenant_pages`(`id`) ON UPDATE no action ON DELETE cascade,
-	FOREIGN KEY (`document_id`) REFERENCES `content_documents`(`id`) ON UPDATE no action ON DELETE cascade,
-	FOREIGN KEY (`organization_id`,`site_id`,`page_id`) REFERENCES `tenant_pages`(`organization_id`,`site_id`,`id`) ON UPDATE no action ON DELETE cascade,
-	FOREIGN KEY (`organization_id`,`site_id`,`locale`) REFERENCES `site_locales`(`organization_id`,`site_id`,`locale`) ON UPDATE no action ON DELETE cascade,
-	CONSTRAINT "tenant_page_variants_path_check" CHECK(path LIKE '/%' AND path NOT LIKE '//%')
-);
---> statement-breakpoint
-CREATE INDEX `tenant_page_variants_site_path_idx` ON `tenant_page_variants` (`site_id`,`path`);--> statement-breakpoint
-CREATE UNIQUE INDEX `tenant_page_variants_page_locale_unique` ON `tenant_page_variants` (`page_id`,`locale`);--> statement-breakpoint
-CREATE UNIQUE INDEX `tenant_page_variants_document_unique` ON `tenant_page_variants` (`document_id`);--> statement-breakpoint
-CREATE UNIQUE INDEX `tenant_page_variants_site_locale_path_unique` ON `tenant_page_variants` (`site_id`,`locale`,`path`);--> statement-breakpoint
-CREATE TABLE `tenant_pages` (
-	`id` text PRIMARY KEY NOT NULL,
-	`organization_id` text NOT NULL,
-	`site_id` text NOT NULL,
-	`page_type` text DEFAULT 'custom' NOT NULL,
-	`recipe` text,
-	`sort_order` integer DEFAULT 0 NOT NULL,
-	`source` text DEFAULT 'manual' NOT NULL,
-	`source_ref` text,
-	`created_at` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
-	`updated_at` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
-	`updated_by` text,
-	FOREIGN KEY (`organization_id`) REFERENCES `organization`(`id`) ON UPDATE no action ON DELETE cascade,
-	FOREIGN KEY (`site_id`) REFERENCES `sites`(`id`) ON UPDATE no action ON DELETE cascade,
-	FOREIGN KEY (`organization_id`,`site_id`) REFERENCES `sites`(`organization_id`,`id`) ON UPDATE no action ON DELETE cascade,
-	CONSTRAINT "tenant_pages_page_type_check" CHECK(page_type IN ('custom', 'recipe', 'legal', 'system'))
-);
---> statement-breakpoint
-CREATE INDEX `tenant_pages_site_sort_idx` ON `tenant_pages` (`site_id`,`sort_order`);--> statement-breakpoint
-CREATE UNIQUE INDEX `tenant_pages_scope_unique` ON `tenant_pages` (`organization_id`,`site_id`,`id`);--> statement-breakpoint
 CREATE TABLE `usage_events` (
 	`id` text PRIMARY KEY NOT NULL,
 	`organization_id` text NOT NULL,
@@ -2243,6 +1456,24 @@ CREATE TABLE `user` (
 --> statement-breakpoint
 CREATE UNIQUE INDEX `user_email_unique` ON `user` (`email`);--> statement-breakpoint
 CREATE UNIQUE INDEX `user_phoneNumber_unique` ON `user` (`phoneNumber`);--> statement-breakpoint
+CREATE TABLE `user_workspace_state` (
+	`user_id` text PRIMARY KEY NOT NULL,
+	`organization_id` text,
+	`site_id` text,
+	`location_id` text,
+	`created_at` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
+	`updated_at` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
+	`whatsapp_pending_confirmation` text,
+	`whatsapp_last_inbound_id` text,
+	`whatsapp_updated_at` text,
+	FOREIGN KEY (`user_id`) REFERENCES `user`(`id`) ON UPDATE no action ON DELETE cascade,
+	FOREIGN KEY (`organization_id`) REFERENCES `organization`(`id`) ON UPDATE no action ON DELETE set null,
+	FOREIGN KEY (`site_id`) REFERENCES `sites`(`id`) ON UPDATE no action ON DELETE set null,
+	FOREIGN KEY (`location_id`) REFERENCES `business_locations`(`id`) ON UPDATE no action ON DELETE set null,
+	FOREIGN KEY (`organization_id`,`site_id`) REFERENCES `sites`(`organization_id`,`id`) ON UPDATE no action ON DELETE no action,
+	CONSTRAINT "user_workspace_state_whatsapp_pending_check" CHECK(whatsapp_pending_confirmation IS NULL OR (json_valid(whatsapp_pending_confirmation) AND json_type(whatsapp_pending_confirmation) IS 'object'))
+);
+--> statement-breakpoint
 CREATE TABLE `verification` (
 	`id` text PRIMARY KEY NOT NULL,
 	`identifier` text NOT NULL,
@@ -2250,36 +1481,4 @@ CREATE TABLE `verification` (
 	`expiresAt` integer NOT NULL,
 	`createdAt` integer DEFAULT (unixepoch()) NOT NULL,
 	`updatedAt` integer DEFAULT (unixepoch()) NOT NULL
-);
---> statement-breakpoint
-CREATE TABLE `work_requests` (
-	`id` text PRIMARY KEY NOT NULL,
-	`organization_id` text NOT NULL,
-	`site_id` text,
-	`type` text NOT NULL,
-	`title` text NOT NULL,
-	`description` text,
-	`status` text DEFAULT 'pending' NOT NULL,
-	`priority` text DEFAULT 'normal' NOT NULL,
-	`source` text DEFAULT 'dashboard' NOT NULL,
-	`notes` text,
-	`assigned_to` text,
-	`completed_at` text,
-	`created_at` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
-	`updated_at` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
-	FOREIGN KEY (`organization_id`) REFERENCES `organization`(`id`) ON UPDATE no action ON DELETE cascade,
-	FOREIGN KEY (`site_id`) REFERENCES `sites`(`id`) ON UPDATE no action ON DELETE set null,
-	FOREIGN KEY (`assigned_to`) REFERENCES `user`(`id`) ON UPDATE no action ON DELETE set null,
-	FOREIGN KEY (`organization_id`,`site_id`) REFERENCES `sites`(`organization_id`,`id`) ON UPDATE no action ON DELETE no action,
-	CONSTRAINT "work_requests_status_check" CHECK(status IN ('pending', 'in_progress', 'done', 'cancelled')),
-	CONSTRAINT "work_requests_priority_check" CHECK(priority IN ('low', 'normal', 'high', 'urgent')),
-	CONSTRAINT "work_requests_type_check" CHECK(type IN ('content_update', 'product_update', 'seo', 'google_places', 'seasonal', 'photo_update', 'social_media', 'technical', 'other')),
-	CONSTRAINT "work_requests_source_check" CHECK(source IN ('dashboard', 'whatsapp'))
-);
---> statement-breakpoint
-CREATE INDEX `idx_work_requests_org` ON `work_requests` (`organization_id`,`status`,`created_at`);--> statement-breakpoint
-CREATE INDEX `idx_work_requests_status` ON `work_requests` (`status`,`priority`,`created_at`);--> statement-breakpoint
-CREATE TABLE `zaraz_sync_lock` (
-	`id` text PRIMARY KEY NOT NULL,
-	`locked_at` text
 );

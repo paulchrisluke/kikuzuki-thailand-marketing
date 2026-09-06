@@ -9,11 +9,9 @@ import { TENANT_TYPES, type TenantType } from "~/utils/tenant-routing";
 import { cloudflareEnv, isInternalSelfFetch } from "../utils/api-response";
 import {
   environmentTenantAliasSlug,
-  getFreeSiteDomain,
   hostnameOf,
   isPlatformHost,
   usesTenantHeader,
-  type TenantHostEnv,
 } from "../utils/tenant-hosts";
 import { verifyScopedPreviewToken } from "../utils/preview-token";
 import { isPlatformPath } from "~/utils/platform-routes";
@@ -100,10 +98,8 @@ function requireTenantMetadata(site: Pick<TenantSiteRow, 'theme_id' | 'vertical'
 
 async function resolveRegisteredSubdomainSite(
   db: DbClient,
-  env: TenantHostEnv,
   tenantSlug: string,
 ): Promise<TenantSiteRow | null> {
-  const tenantDomain = `${tenantSlug}.${getFreeSiteDomain(env)}`
   return await queryFirst<TenantSiteRow>(
     db,
     `
@@ -119,10 +115,10 @@ async function resolveRegisteredSubdomainSite(
         ON canonical.site_id = s.id
        AND canonical.role = 'canonical'
        AND canonical.status = 'active'
-      WHERE requested.domain = ? AND s.status = 'active' AND s.onboarding_status = 'active'
+      WHERE s.subdomain = ? AND s.status = 'active' AND s.onboarding_status = 'active'
       LIMIT 1
     `,
-    [tenantDomain],
+    [tenantSlug],
   )
 }
 
@@ -175,7 +171,7 @@ export default defineHandler(async (event) => {
     if (previewSlug && /^[a-z0-9-]+$/.test(previewSlug)) {
       const db = env.db;
       if (db) {
-        const site = await resolveRegisteredSubdomainSite(db, env, previewSlug)
+        const site = await resolveRegisteredSubdomainSite(db, previewSlug)
         if (site) {
           setResolvedTenantContext(event, site, host, hostnameOf(host))
           return;
@@ -187,7 +183,7 @@ export default defineHandler(async (event) => {
   const aliasSlug = environmentTenantAliasSlug(host, env)
   if (aliasSlug) {
     const site = env.db
-      ? await resolveRegisteredSubdomainSite(env.db, env, aliasSlug)
+      ? await resolveRegisteredSubdomainSite(env.db, aliasSlug)
       : null
     if (site) {
       setResolvedTenantContext(event, site, host, hostnameOf(host))
