@@ -703,7 +703,11 @@ function hasOwnField<T extends object>(input: T, key: PropertyKey) {
 
 // The fixed PLATFORM_BLOG_CATEGORIES taxonomy (Marketing, SEO, ...) only makes sense
 // for KrabiClaw's own marketing blog — a tenant restaurant's blog category is free text.
-function validateBlogCommon(input: Partial<PlatformBlogCreateInput>, isTenant = false) {
+function validateBlogCommon(input: Partial<PlatformBlogCreateInput>, isTenant: boolean, operation: 'create' | 'update') {
+  const writable = new Set<string>([...BLOG_UPDATE_MUTATION_FIELDS, operation === 'create' ? 'scheduled_for' : 'expected_updated_at'])
+  if (operation === 'create') { writable.delete('redirect_old_slug'); writable.delete('reset_slug_override') }
+  const unknown = Object.keys(input).find(field => !writable.has(field))
+  if (unknown) badRequest(unknown + ' is not writable through article ' + operation)
   normalizeBlankToNull(input)
   validateNavMetadata(input)
   if ('visibility' in input && input.visibility !== undefined && !['public', 'unlisted'].includes(String(input.visibility))) badRequest('visibility must be public or unlisted')
@@ -722,20 +726,6 @@ function validateBlogCommon(input: Partial<PlatformBlogCreateInput>, isTenant = 
   if (input.seo_keywords !== undefined) assertStringLength(input.seo_keywords ?? null, BLOG_SEO_KEYWORDS_MAX, 'seo_keywords')
   if (input.canonical_url !== undefined) assertValidCanonicalUrl(input.canonical_url)
   if (input.robots !== undefined) assertValidRobotsDirective(input.robots)
-}
-
-function rejectLegacyBlogContentFields(input: object) {
-  const fields = ['body', 'components', 'faq_items', 'faq_label', 'faq_status', 'faq_render_enabled', 'faq_schema_enabled', 'how_to_steps', 'how_to_estimated_time', 'how_to_tool_items', 'how_to_supply_items', 'how_to_label', 'how_to_status', 'how_to_render_enabled', 'how_to_schema_enabled']
-  const legacy = fields.find(field => Object.prototype.hasOwnProperty.call(input, field))
-  if (legacy) badRequest(`${legacy} is not writable for blogs; use content_blocks`)
-}
-
-function rejectBlogUpdateLifecycleFields(input: object) {
-  const lifecycleField = ['scheduled_for']
-    .find(field => Object.prototype.hasOwnProperty.call(input, field))
-  if (lifecycleField) {
-    badRequest(`${lifecycleField} is not writable through a blog update; use the publish operation for scheduled articles`)
-  }
 }
 
 function validateDocCommon(input: Partial<PlatformDocCreateInput>) {
@@ -941,10 +931,9 @@ export async function createPlatformBlogPost(
   scope: BlogScope = {},
   env?: CloudflareEnv,
 ) {
-  rejectLegacyBlogContentFields(input)
   if (!input.title?.trim()) badRequest('title is required')
   const isTenant = Boolean(scope.site_id)
-  validateBlogCommon(input, isTenant)
+  validateBlogCommon(input, isTenant, 'create')
   if (!isTenant) {
     if (!input.category?.trim()) badRequest('category is required')
     assertValidBlogCategory(input.category)
@@ -1062,12 +1051,10 @@ export async function updatePlatformBlogPost(
   siteId: string | null = null, env?: CloudflareEnv,
 ) {
   const resolvedSiteId = siteId ?? PLATFORM_SITE_ID
-  rejectLegacyBlogContentFields(input)
-  rejectBlogUpdateLifecycleFields(input)
   if (!BLOG_UPDATE_MUTATION_FIELDS.some(field => input[field] !== undefined)) badRequest('At least one blog mutation field is required')
   const postId = await resolvePlatformContentId(db, 'article', postIdOrSlug, 'Post not found', resolvedSiteId)
   const isTenant = !isPlatformSite(resolvedSiteId)
-  validateBlogCommon(input, isTenant)
+  validateBlogCommon(input, isTenant, 'update')
   const current = await queryFirst<{ organization_id: string; category: string | null; title: string; slug: string;
     first_published_at: string | null; slug_manually_overridden: number; updated_at: string }>(db, `
     SELECT organization_id, metadata_json ->> '$.category' AS category, title, slug, first_published_at,
