@@ -120,7 +120,6 @@ interface Props {
     locations?: Array<{ id: string; slug: string; title: string }>
     businessTitle?: string
     businessSubtitle?: string
-    businessCity?: string
     hasOrderLinks?: boolean
     ctaRoute?: string
     reserveCta?: string
@@ -140,12 +139,11 @@ interface Props {
 const props = withDefaults(defineProps<Props>(), { data: () => ({}) })
 
 const hero = computed(() => props.data?.hero || {})
-const eyebrow = computed(() => props.data?.eyebrow || businessCity.value)
+const eyebrow = computed(() => props.data?.eyebrow || '')
 const locations = computed(() => props.data?.locations || [])
 const hasLocations = computed(() => locations.value.length > 0)
 const businessTitle = computed(() => props.data?.businessTitle || '')
 const businessSubtitle = computed(() => props.data?.businessSubtitle || '')
-const businessCity = computed(() => props.data?.businessCity || '')
 const hasOrderLinks = computed(() => props.data?.hasOrderLinks || false)
 const ctaRoute = computed(() => props.data?.ctaRoute || '')
 const reserveCta = computed(() => props.data?.reserveCta || '')

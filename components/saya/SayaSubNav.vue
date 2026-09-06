@@ -47,7 +47,9 @@ const items = computed(() => {
   if (location.value && products.value.some(product => product.location_id === location.value?.id) && productPresentation.value) {
     list.push({
       key: productPresentation.value.locationCollectionSegment,
-      label: productPresentation.value.collectionLabel,
+      label: productPresentation.value.locationCollectionSegment === 'menu'
+        ? t('saya.subnav.menu')
+        : t('saya.footer.products'),
       href: productLocationCollectionPath((site as ApiRecord | null)?.vertical as string | null | undefined, props.locationSlug),
     })
   }

@@ -749,10 +749,12 @@ async function loadPublicPageSource(
         localizations: localizedLocale ? publicLocalizations : null,
       })
     : null
-  // Contact has a complete built-in route. Its CMS page is an optional hero and
-  // additional-content overlay, so a translated route remains valid when an
-  // older tenant has no canonical contact-page variant to translate.
+  // These complete built-in routes may display an optional CMS content overlay.
+  // The route remains valid when that optional overlay has no translated page.
   const allowsMissingLocalizedTenantPage = page === 'contact'
+    || page === 'reservations'
+    || page === 'experiences'
+    || page === 'order'
   if (contentPagePath && !tenantPage && locale && locale !== sourceLocale && !isPreviewAuthorized && !allowsMissingLocalizedTenantPage) {
     throw new HTTPError({ statusCode: 404, statusMessage: 'Localized page was not found' })
   }
@@ -1075,7 +1077,11 @@ async function loadPublicPageSource(
     ? projectExactLocalizedCollection('location_qa', sourceQaList, publicLocalizations)
     : sourceQaList
 
-  const sourceLabel = shell.locales.find(item => item.code === 'en')?.label ?? 'English'
+  const sourceLocaleRepresentation = shell.locales.find(item => item.code === 'en')
+  if (!sourceLocaleRepresentation?.label) {
+    throw new HTTPError({ statusCode: 500, statusMessage: 'Site source locale label is missing' })
+  }
+  const sourceLabel = sourceLocaleRepresentation.label
   const sourceLocationRow = locationId
     ? (locRows.results ?? []).find(row => row.id === locationId)
     : null

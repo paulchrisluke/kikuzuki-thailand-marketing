@@ -53,7 +53,10 @@ export default defineNuxtRouteMiddleware(async (to) => {
   `, [siteId, candidate])
   if (!locale) return
   const entitlement = await assertPublicSiteLanguageEntitlement(db, locale.organization_id, siteId, locale.locale)
-  const messages = entitlement.platform_messages ?? {}
+  if (!entitlement.platform_messages) {
+    throw createError({ statusCode: 503, statusMessage: 'Published platform locale messages are unavailable' })
+  }
+  const messages = entitlement.platform_messages
   state.value = locale.locale
   useState<Record<string, string> | null>('platform-locale-messages', () => null).value = messages
   setAppLocale(locale.locale, messages)

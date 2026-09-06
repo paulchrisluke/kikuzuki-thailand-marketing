@@ -189,6 +189,7 @@ const { location, getField: getContentField, pending } = await usePublicPageData
 const formattedAddress = computed(() => {
   const loc = location.value
   if (!loc) return ''
+  if (locale.value !== 'en') return typeof loc.address_translated === 'string' ? loc.address_translated : ''
   if (loc.address && typeof loc.address === 'object') {
     const a = loc.address
     return [a.addressLines?.[0], a.locality, a.administrativeArea, a.postalCode].filter(Boolean).join(', ')
@@ -203,7 +204,9 @@ function currentLocationWeekday(timezone: unknown): string {
 }
 
 const weekHours = computed(() => {
-  const hours = location.value?.opening_hours
+  const hours = locale.value === 'en'
+    ? location.value?.opening_hours
+    : location.value?.opening_hours_translated
   if (!hours) return []
   const days = ['MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY', 'SUNDAY']
   const timezone = location.value?.time_zone || location.value?.timezone || null
