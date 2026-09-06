@@ -1,58 +1,49 @@
 <template>
-  <UDashboardPanel id="site-locations">
-    <template #header>
-      <UDashboardNavbar :title="locationsLabel" :toggle="false">
-        <template #leading>
-          <DashboardNavbarLeading :to="sitePath" label="Site overview" />
-        </template>
-        <template #right>
-          <UButton
-            :to="`${locationsPath}/new`"
-            icon="i-lucide-plus"
-            color="neutral"
-            variant="soft"
-            square
-            :aria-label="`Add a ${locationNoun}`"
-          />
-        </template>
-      </UDashboardNavbar>
-    </template>
+  <div class="space-y-6">
+    <div class="flex flex-wrap items-center justify-end gap-2">
+    <UButton
+      :to="`${locationsPath}/new`"
+      icon="i-lucide-plus"
+      color="neutral"
+      variant="soft"
+      square
+      :aria-label="`Add a ${locationNoun}`"
+    />
+    </div>
 
-    <template #body>
-      <!--
-        The skeleton borrows the selector's own grid and card ratio, so the page
-        does not jump when the locations arrive.
-      -->
-      <div v-if="pending" class="space-y-6">
-        <div class="grid grid-cols-[repeat(auto-fit,minmax(min(100%,34rem),1fr))] gap-6">
-          <USkeleton v-for="index in 2" :key="index" class="aspect-[4/3] rounded-2xl sm:aspect-[16/10]" />
-        </div>
-      </div>
+  <!--
+    The skeleton borrows the selector's own grid and card ratio, so the page
+    does not jump when the locations arrive.
+  -->
+  <div v-if="pending" class="space-y-6">
+    <div class="grid grid-cols-[repeat(auto-fit,minmax(min(100%,34rem),1fr))] gap-6">
+      <USkeleton v-for="index in 2" :key="index" class="aspect-[4/3] rounded-2xl sm:aspect-[16/10]" />
+    </div>
+  </div>
 
-      <div
-        v-else-if="!locations.length"
-        class="rounded-2xl border border-default bg-elevated px-6 py-20 text-center"
-      >
-        <div class="mx-auto flex size-14 items-center justify-center rounded-full bg-muted">
-          <UIcon name="i-lucide-map-pin" class="size-6 text-muted" />
-        </div>
-        <h2 class="mt-5 text-base font-semibold text-highlighted">No {{ locationsLabel.toLowerCase() }} yet</h2>
-        <UButton
-          :label="`Add your first ${locationNoun}`"
-          icon="i-lucide-plus"
-          class="mt-6"
-          :to="`${locationsPath}/new`"
-        />
-      </div>
+  <div
+    v-else-if="!locations.length"
+    class="rounded-2xl border border-default bg-elevated px-6 py-20 text-center"
+  >
+    <div class="mx-auto flex size-14 items-center justify-center rounded-full bg-muted">
+      <UIcon name="i-lucide-map-pin" class="size-6 text-muted" />
+    </div>
+    <h2 class="mt-5 text-base font-semibold text-highlighted">No {{ locationsLabel.toLowerCase() }} yet</h2>
+    <UButton
+      :label="`Add your first ${locationNoun}`"
+      icon="i-lucide-plus"
+      class="mt-6"
+      :to="`${locationsPath}/new`"
+    />
+  </div>
 
-      <DashboardSiteLocationSelector
-        v-else
-        :items="selectorItems"
-        missing-image-label="No social image"
-        missing-image-hint="Its social card has not been generated yet."
-      />
-    </template>
-  </UDashboardPanel>
+  <DashboardSiteLocationSelector
+    v-else
+    :items="selectorItems"
+    missing-image-label="No social image"
+    missing-image-hint="Its social card has not been generated yet."
+  />
+  </div>
 </template>
 
 <script setup lang="ts">
@@ -69,10 +60,6 @@ const { sitePaths } = useDashboardSiteLinks()
 const pending = dashboard.pending
 const locations = computed(() => dashboard.locations.value)
 
-const sitePath = computed(() => {
-  if (!sitePaths.value) throw createError({ statusCode: 400, statusMessage: 'Dashboard site scope is required' })
-  return sitePaths.value.site
-})
 const locationsPath = computed(() => {
   if (!sitePaths.value) throw createError({ statusCode: 400, statusMessage: 'Dashboard site scope is required' })
   return sitePaths.value.locations

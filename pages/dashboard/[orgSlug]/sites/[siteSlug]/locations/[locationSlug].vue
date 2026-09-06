@@ -258,24 +258,6 @@ watch([overview, overviewPending, overviewError], ([resource, pending, cause]) =
 }, { immediate: true })
 
 /**
- * At `lg` the hub opens on its first section rather than a rail beside an empty
- * half, matching the listing editor, which never shows a bare list on a wide
- * screen. Below `lg` the rail is the whole screen and nothing is chosen for the
- * tenant, so this runs only once the width is known — after mount, on the
- * client, replacing the entry so Back still leaves the location.
- */
-const DESKTOP = '(min-width: 1024px)'
-onMounted(() => {
-  const stop = watch([loading, hasDetail], ([isLoading, detailOpen]) => {
-    if (isLoading || detailOpen) return
-    stop()
-    if (!window.matchMedia(DESKTOP).matches) return
-    const first = contentGroups.value[0]?.items[0]
-    if (first) void navigateTo(first.to, { replace: true })
-  }, { immediate: true })
-})
-
-/**
  * Where there is a pane, it opens on the first section rather than sitting
  * empty beside the rail — the listing editor does the same, sending /details to
  * /details/photo-tour, but only at the width where the pane exists. Below it

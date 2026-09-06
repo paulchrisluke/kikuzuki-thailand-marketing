@@ -101,12 +101,18 @@ if (!siteId) throw createError({ statusCode: 404, statusMessage: 'Site not found
 
 const sitePath = computed(() => `/dashboard/${String(route.params.orgSlug)}/sites/${String(route.params.siteSlug)}`)
 
-const STANDALONE_SECTIONS = ['settings', 'brand', 'inbox', 'locations']
-const sectionSegment = computed(() => {
-  const rest = route.path.slice(sitePath.value.length).replace(/^\//, '')
-  return rest.split('/')[0] ?? ''
-})
-const rendersStandalone = computed(() => STANDALONE_SECTIONS.includes(sectionSegment.value))
+const STANDALONE_SECTIONS = ['settings', 'brand', 'inbox']
+const routeSegments = computed(() => route.path.slice(sitePath.value.length).replace(/^\//, '').split('/').filter(Boolean))
+const sectionSegment = computed(() => routeSegments.value[0] ?? '')
+
+/**
+ * The list of locations belongs in the pane, like any other section. One
+ * location does not: it is a different object with its own rail and pane, the
+ * way choosing a listing leaves the listings index for that listing's editor.
+ */
+const rendersStandalone = computed(() =>
+  STANDALONE_SECTIONS.includes(sectionSegment.value)
+  || (sectionSegment.value === 'locations' && routeSegments.value.length > 1))
 const hasDetail = computed(() => Boolean(sectionSegment.value))
 const activeSection = computed(() => sectionSegment.value || null)
 
@@ -219,7 +225,7 @@ let sectionChosen = false
 function openFirstSectionBesideTheRail() {
   if (sectionChosen || pending.value || hasDetail.value) return
   if (!window.matchMedia(PANE_BREAKPOINT).matches) return
-  const first = sectionGroups.value.find(group => group.id === 'content')?.items[0]
+  const first = sectionGroups.value[0]?.items[0]
   if (!first) return
   sectionChosen = true
   void navigateTo(first.to, { replace: true })
