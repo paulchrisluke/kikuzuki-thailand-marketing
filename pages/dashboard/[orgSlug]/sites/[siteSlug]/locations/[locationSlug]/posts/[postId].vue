@@ -293,8 +293,8 @@ async function saveTranslation() {
   try {
     const metadata: Record<string, unknown> = {}
     const values: Record<string, unknown> = { metadata }
-    if (translationFields.event.title.trim()) metadata.event = { title: translationFields.event.title.trim() }
-    if (translationFields.offer.terms_conditions.trim()) metadata.offer = { terms_conditions: translationFields.offer.terms_conditions.trim() }
+    if (post.value?.post_type === 'event') metadata.event = { title: translationFields.event.title.trim() }
+    if (post.value?.post_type === 'offer') metadata.offer = { terms_conditions: translationFields.offer.terms_conditions.trim() }
     for (const field of ['title', 'body', 'seo_title', 'seo_description'] as const) {
       values[field === 'body' ? 'summary' : field] = translationFields[field].trim()
     }

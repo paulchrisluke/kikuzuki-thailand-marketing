@@ -233,9 +233,9 @@ function attachPostPublicFields(
   }
 }
 
-function formatPublishedPost(row: PublishedPostRow, socialMedia: PublicSocialMedia | undefined, origin: string | null): PublishedPostSummary {
+function formatPublishedPost(row: PublishedPostRow, socialMedia: PublicSocialMedia | undefined, origin: string | null, locale = 'en'): PublishedPostSummary {
   const slug = row.slug ?? row.id
-  const publicPath = postPublicPath(slug)
+  const publicPath = (locale === 'en' ? '' : '/' + locale) + postPublicPath(slug)
   const media = publicMediaFromRows(socialMedia?.media)
   return {
     id: row.id,
@@ -719,14 +719,14 @@ export async function getPublishedPosts(
            p.seo_title, p.seo_description,
            json_extract(root.metadata_json, '$.call_to_action') AS call_to_action, CASE WHEN (root.metadata_json ->> '$.event') IS NULL THEN NULL ELSE json_patch(json_extract(root.metadata_json, '$.event'), COALESCE(json_extract(p.metadata_json, '$.event'), '{}')) END AS event, CASE WHEN (root.metadata_json ->> '$.offer') IS NULL THEN NULL ELSE json_patch(json_extract(root.metadata_json, '$.offer'), COALESCE(json_extract(p.metadata_json, '$.offer'), '{}')) END AS offer, (root.metadata_json ->> '$.alert_type') AS alert_type, root.published_at, p.created_at, p.updated_at
     FROM content_documents root JOIN content_documents p ON COALESCE(p.root_id,p.id) = root.id AND p.locale = ?
-    LEFT JOIN business_locations bl ON p.location_id = bl.id
-    WHERE root.kind = 'social_post' AND root.row_role = 'root' AND p.site_id = ? AND root.status = 'published'
+    LEFT JOIN business_locations bl ON root.location_id = bl.id
+    WHERE root.kind = 'social_post' AND root.row_role = 'root' AND p.site_id = ? AND root.status = 'published' AND p.summary IS NOT NULL
       AND ((root.metadata_json ->> '$.event') IS NULL OR json_type(p.metadata_json, '$.event.title') = 'text')
       AND ((root.metadata_json ->> '$.offer.terms_conditions') IS NULL OR json_type(p.metadata_json, '$.offer.terms_conditions') = 'text')
   `
   const params: SqlBindValue[] = [locale, siteId]
   if (locationId) {
-    query += ` AND p.location_id = ?`
+    query += ` AND root.location_id = ?`
     params.push(locationId)
   }
   query += ` ORDER BY root.published_at DESC LIMIT ?`
@@ -737,7 +737,7 @@ export async function getPublishedPosts(
     getPostMediaByPostIds(db, siteId, (rows ?? []).map((post) => post.id)),
   ])
 
-  return (rows ?? []).map((row) => formatPublishedPost(row, mediaByPost.get(row.id), origin))
+  return (rows ?? []).map((row) => formatPublishedPost(row, mediaByPost.get(row.id), origin, locale))
 }
 
 export async function getPublishedPostBySlug(
@@ -798,8 +798,10 @@ export async function getPublishedPostByPublicRoute(
     const metadata = JSON.parse(translated.metadata_json) as Record<string, unknown>
     if (!translated.summary || sourcePost.event && !metadata.event || sourcePost.offer?.terms_conditions && !metadata.offer) return null
     const media = publicMediaFromRows((await getPostMediaByPostIds(db, siteId, [translated.id])).get(translated.id)?.media)
-    post = { ...sourcePost, title: translated.title ?? '', body: translated.summary, summary: translated.summary,
-      seo_title: translated.seo_title, seo_description: translated.seo_description, public_path: '/' + locale + '/posts/' + slug,
+    const publicPath = '/' + locale + '/posts/' + slug
+    post = { ...sourcePost, id: translated.id, slug, title: translated.title ?? '', body: translated.summary, summary: translated.summary,
+      seo_title: translated.seo_title, seo_description: translated.seo_description, public_path: publicPath,
+      canonical_url: absoluteUrl(await resolveSitePublicOrigin(db, siteId), publicPath),
       event: sourcePost.event ? { ...sourcePost.event, ...(metadata.event as { title: string }) } : null,
       offer: sourcePost.offer ? { ...sourcePost.offer, ...(metadata.offer as { terms_conditions?: string }) } : null,
       media: projectLocalizedMediaAlt(media, localizations),
