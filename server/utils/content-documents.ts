@@ -237,16 +237,25 @@ export async function getContentRepresentation(db: DbClient, input: { rootId: st
   `, [input.rootId, input.locale ?? null, input.locale ?? null])
 }
 
-export function prepareContentDocumentDeletion(input: { documentId: string; organizationId: string; siteId: string }): BatchQuery[] {
-  const owned = "SELECT id FROM content_documents WHERE (id = ? OR root_id = ?) AND organization_id = ? AND site_id = ?"
-  const params = [input.documentId, input.documentId, input.organizationId, input.siteId]
+export function prepareContentDocumentDeletion(input: { organizationId: string; siteId: string } & ({ documentId: string } | { locationId: string })): BatchQuery[] {
+  const document = 'documentId' in input
+  const owned = document
+    ? 'SELECT id FROM content_documents WHERE (id = ? OR root_id = ?) AND organization_id = ? AND site_id = ?'
+    : `SELECT d.id FROM content_documents d LEFT JOIN content_documents root ON root.id = d.root_id
+       WHERE (d.location_id = ? OR root.location_id = ?) AND d.organization_id = ? AND d.site_id = ?`
+  const id = document ? input.documentId : input.locationId
+  const params = [id, id, input.organizationId, input.siteId]
   return [
+    { query: `DELETE FROM site_redirects WHERE owner_type = 'content_document' AND owner_id IN (${owned})`, params },
+    { query: `DELETE FROM site_redirects WHERE owner_type = 'content_block' AND owner_id IN (
+      SELECT id FROM content_blocks WHERE document_id IN (${owned})
+    )`, params },
     { query: `DELETE FROM media_placements WHERE owner_type = 'content_document' AND owner_id IN (${owned})`, params },
     { query: `DELETE FROM media_placements WHERE owner_type = 'content_block' AND owner_id IN (
       SELECT id FROM content_blocks WHERE document_id IN (${owned})
     )`, params },
-    { query: 'DELETE FROM content_documents WHERE id = ? AND organization_id = ? AND site_id = ?',
-      params: [input.documentId, input.organizationId, input.siteId] },
+    { query: `DELETE FROM content_documents WHERE ${document ? 'id' : 'location_id'} = ? AND organization_id = ? AND site_id = ?`,
+      params: [id, input.organizationId, input.siteId] },
   ]
 }
 

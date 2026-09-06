@@ -271,12 +271,12 @@ export async function listAgenda(
            NULL AS guest_image_url,
            ${enrichment.resourceImage ?? `COALESCE(${locationMediaUrlSelect(alias)}, ${siteMediaUrlSelect(alias)})`} AS resource_image_url,
            ${enrichment.resourceTitle ?? 'COALESCE(l.title, s.brand_name, s.subdomain, s.id)'} AS resource_title
-    FROM ${kind === 'post' ? 'posts' : 'requests'} ${alias}
+    FROM ${kind === 'post' ? 'content_documents' : 'requests'} ${alias}
     JOIN sites s ON s.id = ${alias}.site_id AND s.organization_id = ${alias}.organization_id
     LEFT JOIN business_locations l ON l.id = ${alias}.location_id AND l.site_id = ${alias}.site_id
     
     ${enrichment.joins ?? ''}
-    WHERE ${kind === 'post' ? '' : `${alias}.kind = '${kind}' AND `}${alias}.organization_id = ? ${scopeConditions(query, alias)}
+    WHERE ${kind === 'post' ? `${alias}.kind = 'social_post' AND ${alias}.row_role = 'root' AND ` : `${alias}.kind = '${kind}' AND `}${alias}.organization_id = ? ${scopeConditions(query, alias)}
   `
   const params = () => scopeParams(organizationId, query)
 
@@ -289,8 +289,8 @@ export async function listAgenda(
     resourceTitle: 'COALESCE(agenda_product.name, l.title, s.brand_name, s.subdomain, s.id)',
   })} AND b.booking_date BETWEEN ? AND ?`, [...params(), query.from, query.to]))
   if (requestedKinds.has('post')) sourceQueries.push(queryAll(db, `${commonSelect('p', 'post', `NULL AS local_date, NULL AS local_time, CASE WHEN p.status = 'published' AND p.published_at IS NOT NULL THEN p.published_at ELSE COALESCE(p.scheduled_for, p.published_at) END AS starts_at, NULL AS ends_at,
-    NULLIF(COALESCE(NULLIF(p.title, ''), json_extract(p.event, '$.title')), '') AS title, p.post_type AS subtitle, NULL AS party_size, p.status`, {
-    resourceImage: `COALESCE(${mediaUrlSelect('p', 'post', 'p.id', ['cover'])}, ${locationMediaUrlSelect('p')}, ${siteMediaUrlSelect('p')})`,
+    NULLIF(COALESCE(NULLIF(p.title, ''), json_extract(p.metadata_json, '$.event.title')), '') AS title, json_extract(p.metadata_json, '$.post_type') AS subtitle, NULL AS party_size, p.status`, {
+    resourceImage: `COALESCE(${mediaUrlSelect('p', 'content_document', 'p.id', ['cover'])}, ${locationMediaUrlSelect('p')}, ${siteMediaUrlSelect('p')})`,
   })}
     AND CASE WHEN p.status = 'published' AND p.published_at IS NOT NULL THEN p.published_at ELSE COALESCE(p.scheduled_for, p.published_at) END BETWEEN ? AND ?`, [...params(), broadFrom, broadTo]))
 

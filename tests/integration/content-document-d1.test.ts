@@ -101,6 +101,31 @@ test('document scopes, translations, block ownership and concurrent edits persis
     assert.deepEqual(await listBlocksForDocument(db, translated.document.id), [])
     assert.deepEqual((await db.prepare('SELECT id FROM media_placements').all()).results, [{ id: 'retained-image' }])
     assert.equal(await db.prepare('SELECT count(*) AS count FROM media_assets').first('count'), 1)
+    await db.prepare("INSERT INTO business_locations (id,organization_id,site_id,slug,title) VALUES ('delete-location','one','one','delete','Delete'),('keep-location','one','one','keep','Keep')").run()
+    await db.prepare("INSERT INTO media_assets (id,organization_id,site_id,kind,provider,source,status) VALUES ('retained-asset','one','one','image','cloudflare_r2','uploaded','active')").run()
+    const deletion = prepareContentDocumentDeletion({ locationId: 'delete-location', organizationId: 'one', siteId: 'one' })
+    for (const id of ['late-a', 'late-b', 'keep']) {
+      await db.prepare(`INSERT INTO content_documents (id,organization_id,site_id,location_id,kind,row_role,locale,title,slug,status,visibility)
+        VALUES (?,'one','one',?,'article','root','en',?,?,'published','public')`).bind(id, id === 'keep' ? 'keep-location' : 'delete-location', id, id).run()
+      await db.prepare(`INSERT INTO content_documents (id,organization_id,site_id,kind,row_role,root_id,root_role,locale,title,slug)
+        VALUES (?,'one','one','article','representation',?,'root','th',?,?)`).bind(id + '-th', id, id, id).run()
+      for (const owner of [id, id + '-th']) {
+        await db.prepare("INSERT INTO content_blocks (id,document_id,type,data_json) VALUES (?,?,'markdown','{}')").bind(owner + '-parent', owner).run()
+        await db.prepare("INSERT INTO content_blocks (id,document_id,parent_block_id,type,data_json) VALUES (?,?,?,'image','{}')").bind(owner + '-child', owner, owner + '-parent').run()
+        for (const [type, ownerId] of [['content_document', owner], ['content_block', owner + '-child']]) {
+          await db.prepare("INSERT INTO media_placements (id,organization_id,site_id,owner_type,owner_id,slot,asset_id) VALUES (?,'one','one',?,?,'image','retained-asset')").bind(ownerId + '-media', type, ownerId).run()
+          await db.prepare("INSERT INTO site_redirects (id,organization_id,site_id,from_path,to_path,owner_type,owner_id,locale) VALUES (?,'one','one',?,'/target',?,?,'en')").bind(ownerId + '-redirect', '/' + ownerId, type, ownerId).run()
+        }
+      }
+    }
+    await assert.rejects(executeBatch(db, [...deletion, { query: "INSERT INTO sites (id,organization_id,slug) VALUES ('invalid',NULL,'invalid')" }]))
+    assert.equal(await db.prepare("SELECT count(*) AS count FROM media_placements WHERE asset_id='retained-asset'").first('count'), 12)
+    await executeBatch(db, [...deletion, { query: "DELETE FROM business_locations WHERE id='delete-location' AND organization_id='one' AND site_id='one'" }])
+    assert.equal(await db.prepare("SELECT count(*) AS count FROM content_documents WHERE id LIKE 'late-%'").first('count'), 0)
+    assert.equal(await db.prepare("SELECT count(*) AS count FROM content_blocks WHERE id LIKE 'late-%'").first('count'), 0)
+    assert.equal(await db.prepare("SELECT count(*) AS count FROM media_placements WHERE asset_id='retained-asset'").first('count'), 4)
+    assert.equal(await db.prepare("SELECT count(*) AS count FROM site_redirects WHERE id LIKE 'late-%'").first('count'), 0)
+    assert.equal(await db.prepare("SELECT count(*) AS count FROM media_assets WHERE id='retained-asset'").first('count'), 1)
     assert.equal((await db.prepare('PRAGMA foreign_key_check').all()).results.length, 0)
   } finally {
     await miniflare.dispose()

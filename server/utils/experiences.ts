@@ -618,10 +618,6 @@ export async function deleteExperience(
     { query: `DELETE FROM reviews WHERE product_id IN (SELECT id FROM products WHERE product_type = 'experience' AND ${where})`, params },
     { query: `UPDATE review_requests SET revoked_at = ?, updated_at = ? WHERE booking_type = 'experience_booking' AND booking_id IN (SELECT id FROM requests WHERE kind = 'experience_booking' AND product_id IN (SELECT id FROM products WHERE product_type = 'experience' AND ${where})) AND revoked_at IS NULL`, params: [new Date().toISOString(), new Date().toISOString(), ...params] },
     {
-      query: `DELETE FROM media_placements WHERE owner_type = 'experience' AND owner_id IN (SELECT id FROM products WHERE product_type = 'experience' AND ${where})`,
-      params,
-    },
-    {
       query: `DELETE FROM requests WHERE kind = 'experience_booking' AND product_id IN (SELECT id FROM products WHERE product_type = 'experience' AND ${where})`,
       params,
     },

@@ -247,7 +247,7 @@ export async function copyLocationBatch(
       `, [siteId, JSON.stringify(copiedProductIds)])
       refreshOwners.push(...publicProducts.map(row => ({ owner_type: 'product' as const, owner_id: row.id })))
     }
-    refreshOwners.push(...manifest.entities.experiences.new_ids.map(owner_id => ({ owner_type: 'experience' as const, owner_id })))
+    refreshOwners.push(...manifest.entities.experiences.new_ids.map(owner_id => ({ owner_type: 'product' as const, owner_id })))
     const copiedReviewIds = manifest.entities.reviews.new_ids
     if (copiedReviewIds.length) {
       const publicReviews = await queryAll<{ id: string }>(db, `
@@ -485,7 +485,7 @@ async function copyLocationQa(
 ) {
   const qa = await queryAll<{ id: string }>(
     db,
-    'SELECT id FROM location_qa WHERE location_id = ? AND organization_id = ? AND site_id = ?',
+    "SELECT id FROM content_documents WHERE kind = 'qa' AND row_role = 'root' AND location_id = ? AND organization_id = ? AND site_id = ?",
     [sourceLocationId, organizationId, siteId],
   )
 
@@ -495,11 +495,11 @@ async function copyLocationQa(
 
     statements.push({
       query: `
-        INSERT INTO location_qa (id, organization_id, site_id, location_id, question, question_author, question_date, answer, answer_author, answer_date, is_owner_answer, upvote_count, source, status, sort_order, created_at, updated_at)
-        SELECT ?, organization_id, site_id, ?, question, question_author, question_date, answer, answer_author, answer_date, is_owner_answer, upvote_count, source, status, sort_order, ?, ?
-        FROM location_qa WHERE id = ?
+        INSERT INTO content_documents (id, organization_id, site_id, location_id, kind, row_role, locale, title, summary, metadata_json, source, status, visibility, sort_order, created_by, updated_by, created_at, updated_at)
+        SELECT ?, organization_id, site_id, ?, 'qa', 'root', 'en', title, summary, metadata_json, source, status, visibility, sort_order, created_by, updated_by, ?, ?
+        FROM content_documents WHERE id = ? AND kind = 'qa' AND row_role = 'root' AND organization_id = ? AND site_id = ?
       `,
-      params: [newId, targetLocationId, now, now, item.id],
+      params: [newId, targetLocationId, now, now, item.id, organizationId, siteId],
     })
 
     manifest.entities.location_qa.copied++
@@ -533,7 +533,7 @@ async function copyExperiences(
     manifest.id_mappings[exp.id] = newId
     manifest.entities.experiences.new_ids.push(newId)
 
-    // experiences.slug is unique per site_id, so a same-site copy must not reuse the source slug.
+    // Experience product slugs are unique per site, including copies.
     const newSlug = await uniqueSlug(db, siteId, exp.slug)
 
     statements.push({
