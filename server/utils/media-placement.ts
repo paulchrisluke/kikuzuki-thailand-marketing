@@ -83,15 +83,17 @@ function isUniqueConstraintError(error: unknown): boolean {
 }
 
 function allowedKindsFor(placement: MediaPlacementKey): Array<'image' | 'video' | 'file'> {
-  return placement.owner_type === 'tenant_compliance' ? ['file'] : ['image', 'video']
+  return placement.owner_type === 'site' && placement.slot === 'compliance_document' ? ['file'] : ['image', 'video']
 }
 
 async function requirePostMediaAllowed(db: DbClient, input: PlacementAuthInput): Promise<void> {
-  if (input.placement.owner_type !== 'post' || !['cover', 'gallery'].includes(input.placement.slot)) return
-  const post = await queryFirst<{ post_type: string }>(db,
-    'SELECT post_type FROM posts WHERE id = ? AND organization_id = ? AND site_id = ?',
+  if (input.placement.owner_type !== 'content_document' || !['cover', 'gallery'].includes(input.placement.slot)) return
+  const document = await queryFirst<{ kind: string; post_type: string | null }>(db,
+    `SELECT root.kind, root.metadata_json ->> '$.post_type' AS post_type
+      FROM content_documents d JOIN content_documents root ON root.id = COALESCE(d.root_id, d.id)
+      WHERE d.id = ? AND d.organization_id = ? AND d.site_id = ?`,
     [input.placement.owner_id, input.organizationId, input.siteId])
-  if (!post || post.post_type === 'alert') throw new HTTPError({ statusCode: 400, statusMessage: 'Alert posts do not accept media' })
+  if (!document || (document.kind === 'social_post' && document.post_type === 'alert')) throw new HTTPError({ statusCode: 400, statusMessage: 'Alert posts do not accept media' })
 }
 
 async function authorizePlacementWrite(db: DbClient, input: PlacementAuthInput): Promise<void> {

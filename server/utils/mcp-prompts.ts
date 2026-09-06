@@ -106,7 +106,7 @@ export function renderMcpPrompt(name: string, args: Record<string, string>): { d
         text: [
           `Call create_post with this body: ${body}`,
           postType ? `Use post_type "${postType}".` : "",
-          "If the user has supplied or approved media for this post, create the post first, then use set_media with placement { owner_type: 'post', owner_id: <exact post id>, slot: 'cover' } for the selected cover asset.",
+          "If the user has supplied or approved media for this post, create the post first, then use set_media with placement { owner_type: 'content_document', owner_id: <exact post id>, slot: 'cover' } for the selected cover asset.",
           channels
             ? `If media is supplied or approved, call publish_post with channels [${channels}] only after set_media succeeds; otherwise immediately after create_post succeeds. Do not stop to describe the publish step instead of executing it.`
             : "If media is supplied or approved, call publish_post only after set_media succeeds; otherwise immediately after create_post succeeds. publish_post defaults to the site channel. Do not stop to describe the publish step instead of executing it.",
@@ -121,7 +121,7 @@ export function renderMcpPrompt(name: string, args: Record<string, string>): { d
         text: [
           `Based on this description, call create_experience with a sensible title, tagline, body, and any nested Price, duration_minutes, max_capacity, or recurring_slots that are implied or stated: ${description}`,
           "Use active only when the user has approved making the experience public; otherwise use inactive.",
-          "If the user has media ready, call attach_media once per asset after creation with placement { owner_type: 'experience', owner_id: <exact experience id>, slot: 'gallery' }, then use reorder_media only if the requested order differs.",
+          "If the user has media ready, call attach_media once per asset after creation with placement { owner_type: 'product', owner_id: <exact experience id>, slot: 'gallery' }, then use reorder_media only if the requested order differs.",
           "Report back what was created, its current status, and the live URL when one is available.",
         ].join(" "),
       };

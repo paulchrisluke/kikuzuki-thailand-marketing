@@ -4,8 +4,6 @@ import { deleteFromR2 } from './cloudflare-r2'
 import { execute, executeBatch, queryAll, queryFirst, type BatchQuery, type DbClient } from '~/server/db'
 import { d1JsonStringSet } from '~/server/db/d1-limits'
 import { fireOrganizationEventSafe } from '~/server/utils/organization-events'
-import { CONTENT_DOCUMENT_SCOPE_SQL } from '~/server/utils/content-documents'
-import { PLATFORM_ORGANIZATION_ID, PLATFORM_SITE_ID } from '~/shared/platform-scope'
 import {
   isSingleMediaPlacement,
   isSupportedMediaPlacement,
@@ -115,10 +113,9 @@ export interface MediaPlacementInsertInput {
 }
 
 const OWNER_TABLES = {
-  site: 'sites', business_location: 'business_locations', product: 'products', post: 'posts',
-  blog_post: 'blog_posts', experience: 'experiences', offering: 'offerings', review: 'reviews',
-  review_request: 'review_requests', tenant_compliance: 'tenant_compliance',
-  tenant_page: 'tenant_page_variants', platform_doc: 'platform_docs',
+  site: 'sites', business_location: 'business_locations', product: 'products',
+  content_document: 'content_documents', offering: 'offerings', review: 'reviews',
+  review_request: 'review_requests',
   content_block: 'content_blocks',
 } as const satisfies Record<MediaPlacementOwnerType, string>
 
@@ -128,15 +125,18 @@ export function mediaPlacementOwnerQuery(input: {
   if (!isMediaPlacementOwnerType(input.ownerType)) throw new HTTPError({ statusCode: 400, statusMessage: 'Unsupported media owner' })
   const params = [input.ownerId, input.organizationId, input.siteId]
   if (input.ownerType === 'content_block') return {
-    query: `SELECT NULL AS location_id FROM content_blocks cb JOIN (${CONTENT_DOCUMENT_SCOPE_SQL}) owner
-      ON owner.document_id = cb.document_id WHERE cb.id = ? AND owner.organization_id = ? AND owner.site_id = ?`, params,
+    query: `SELECT root.location_id FROM content_blocks cb JOIN content_documents owner ON owner.id = cb.document_id
+      JOIN content_documents root ON root.id = COALESCE(owner.root_id, owner.id)
+      WHERE cb.id = ? AND owner.organization_id = ? AND owner.site_id = ? AND owner.row_role != 'catalog'`, params,
   }
-  if (input.ownerType === 'platform_doc') return {
-    query: `SELECT NULL AS location_id FROM platform_docs WHERE id = ? AND ? = '${PLATFORM_ORGANIZATION_ID}' AND ? = '${PLATFORM_SITE_ID}'`, params,
+  if (input.ownerType === 'content_document') return {
+    query: `SELECT root.location_id FROM content_documents owner
+      JOIN content_documents root ON root.id = COALESCE(owner.root_id, owner.id)
+      WHERE owner.id = ? AND owner.organization_id = ? AND owner.site_id = ? AND owner.row_role != 'catalog'`, params,
   }
   const table = OWNER_TABLES[input.ownerType]
   const location = input.ownerType === 'business_location' ? 'id'
-    : ['product', 'post', 'experience', 'offering', 'review', 'review_request'].includes(input.ownerType) ? 'location_id' : 'NULL'
+    : ['product', 'offering', 'review', 'review_request'].includes(input.ownerType) ? 'location_id' : 'NULL'
   return {
     query: `SELECT ${location} AS location_id FROM ${table} WHERE id = ? AND organization_id = ? AND ${input.ownerType === 'site' ? 'id' : 'site_id'} = ?`, params,
   }
@@ -153,8 +153,10 @@ export function buildMediaPlacementInsertQuery(input: MediaPlacementInsertInput)
       VALUES (?, ?, ?, ?, ?, ?, CASE WHEN EXISTS (${owner.query})
         AND EXISTS (SELECT 1 FROM media_assets WHERE id = ? AND organization_id = ? AND site_id = ?
           AND (status = 'active' OR (status = 'pending' AND ? = 'review_request' AND ? = 'pending')))
-        AND (? != 'post' OR ? NOT IN ('cover', 'gallery') OR EXISTS
-        (SELECT 1 FROM posts WHERE id = ? AND organization_id = ? AND site_id = ? AND post_type != 'alert')) THEN ? ELSE NULL END, ?, ?, ?, ?)`,
+        AND (? != 'content_document' OR ? NOT IN ('cover', 'gallery') OR EXISTS
+        (SELECT 1 FROM content_documents d JOIN content_documents root ON root.id = COALESCE(d.root_id, d.id)
+          WHERE d.id = ? AND d.organization_id = ? AND d.site_id = ?
+          AND (root.kind != 'social_post' OR (root.metadata_json ->> '$.post_type') != 'alert'))) THEN ? ELSE NULL END, ?, ?, ?, ?)`,
     params: [input.id ?? crypto.randomUUID(), input.organizationId, input.siteId, input.ownerType, input.ownerId, input.slot,
       ...owner.params!, input.assetId, input.organizationId, input.siteId, input.ownerType, input.status ?? 'active',
       input.ownerType, input.slot, input.ownerId, input.organizationId, input.siteId, input.assetId,

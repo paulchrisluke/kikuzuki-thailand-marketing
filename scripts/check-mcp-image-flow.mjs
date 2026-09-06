@@ -263,7 +263,7 @@ async function main() {
 
   await assertImageAssignmentTool(headers, 'set_media', {
     site_id: siteId,
-    placement: { owner_type: 'post', owner_id: postId, slot: 'cover' },
+    placement: { owner_type: 'content_document', owner_id: postId, slot: 'cover' },
     asset_id: assetId,
   }, (payload) => {
     expectValue('set_media post_image returns post id', payload?.id === postId, payload)
@@ -272,7 +272,7 @@ async function main() {
 
   await assertImageAssignmentTool(headers, 'attach_media', {
     site_id: siteId,
-    placement: { owner_type: 'experience', owner_id: experienceId, slot: 'gallery' },
+    placement: { owner_type: 'product', owner_id: experienceId, slot: 'gallery' },
     asset_id: assetId,
   }, (payload) => {
     expectValue('attach_media experience gallery returns experience id', payload?.id === experienceId, payload)

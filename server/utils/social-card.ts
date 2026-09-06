@@ -7,7 +7,7 @@ import {
 } from '~/server/utils/media-asset-manager'
 import { uploadResolvedMediaToAssetStore, type UploadResolvedMediaInput } from '~/server/utils/media-upload'
 import { renderOgImagePng } from '~/server/utils/og-image/render'
-import { PLATFORM_ORGANIZATION_ID, PLATFORM_SITE_ID } from '~/shared/platform-scope'
+import { PLATFORM_SITE_ID } from '~/shared/platform-scope'
 import {
   hashSocialCardGenerationInput,
   OG_IMAGE_HEIGHT,
@@ -21,14 +21,10 @@ import { resolvePublicTemplate } from '~/utils/template-registry'
 const SOCIAL_CARD_OWNERS = {
   site: { table: 'sites', site: 'o.id', filter: "o.status = 'active'", slots: [] },
   business_location: { table: 'business_locations', site: 'o.site_id', filter: "o.status = 'active'", slots: ['hero', 'gallery'] },
-  product: { table: 'products', site: 'o.site_id', filter: "o.is_visible = 1 AND o.product_type = 'standard'", slots: ['image', 'gallery'] },
-  post: { table: 'posts', site: 'o.site_id', filter: "o.status = 'published'", slots: ['cover', 'gallery'] },
-  blog_post: { table: 'blog_posts', site: 'o.site_id', filter: "o.status = 'published'", slots: ['featured'] },
-  experience: { table: 'experiences', site: 'o.site_id', filter: '1 = 1', slots: ['gallery'] },
+  product: { table: 'products', site: 'o.site_id', filter: 'o.is_visible = 1', slots: ['image', 'gallery'] },
+  content_document: { table: 'content_documents', site: 'o.site_id', filter: "o.kind IN ('page','article','platform_doc','social_post') AND EXISTS (SELECT 1 FROM content_documents root WHERE root.id = COALESCE(o.root_id, o.id) AND root.status = 'published') AND (o.kind != 'page' OR o.path != '/')", slots: ['cover', 'featured', 'gallery'] },
   offering: { table: 'offerings', site: 'o.site_id', filter: '1 = 1', slots: ['hero', 'thumbnail', 'gallery'] },
-  platform_doc: { table: 'platform_docs', site: "'platform'", filter: '1 = 1', slots: ['featured'] },
   review: { table: 'reviews', site: 'o.site_id', filter: "o.status = 'approved' AND o.site_id IS NOT NULL", slots: ['portrait', 'gallery'] },
-  tenant_page: { table: 'tenant_page_variants', site: 'o.site_id', filter: "o.path != '/'", slots: [] },
 } satisfies Record<string, { table: string; site: string; filter: string; slots: string[] }>
 
 export type SocialCardOwner = { owner_type: keyof typeof SOCIAL_CARD_OWNERS; owner_id: string }
@@ -87,30 +83,23 @@ export async function socialCardRefreshOwnersForPlacement(db: DbClient, placemen
         ? [{ owner_type: 'site', owner_id: placement.owner_id }]
         : []
     case 'content_block': {
-      const page = await queryFirst<{ variant_id: string; site_id: string; path: string }>(db, `
-        SELECT v.id AS variant_id, v.site_id, v.path
+      const document = await queryFirst<{ id: string; site_id: string; kind: string; path: string | null }>(db, `
+        SELECT d.id, d.site_id, d.kind, d.path
           FROM content_blocks cb
-          JOIN content_documents d ON d.id = cb.document_id AND d.owner_type = 'tenant_page'
-          JOIN tenant_page_variants v ON v.id = d.owner_id
-         WHERE cb.id = ?
+          JOIN content_documents d ON d.id = cb.document_id
+         WHERE cb.id = ? AND d.kind IN ('page','article','platform_doc','social_post')
          LIMIT 1
       `, [placement.owner_id])
-      if (!page) return []
-      // The homepage is represented by the site card. A homepage content-block
-      // change refreshes the site card only — no second tenant_page card for `/`.
-      return page.path === '/'
-        ? [{ owner_type: 'site', owner_id: page.site_id }]
-        : [{ owner_type: 'tenant_page', owner_id: page.variant_id }]
+      if (!document) return []
+      return document.kind === 'page' && document.path === '/'
+        ? [{ owner_type: 'site', owner_id: document.site_id }]
+        : [{ owner_type: 'content_document', owner_id: document.id }]
     }
     case 'business_location':
     case 'product':
-    case 'post':
-    case 'blog_post':
-    case 'experience':
+    case 'content_document':
     case 'offering':
-    case 'platform_doc':
     case 'review':
-    case 'tenant_page':
       return SOCIAL_CARD_OWNERS[placement.owner_type].slots.some(slot => slot === placement.slot)
         ? [{ owner_type: placement.owner_type, owner_id: placement.owner_id }]
         : []
@@ -145,48 +134,28 @@ async function loadOwner(db: DbClient, owner: SocialCardOwner): Promise<OwnerRec
       return await queryFirst<OwnerRecord>(db, `SELECT p.organization_id, p.site_id,
         COALESCE(NULLIF(trim(p.seo_title), ''), p.name) AS title,
         COALESCE(NULLIF(trim(p.seo_description), ''), NULLIF(trim(p.description), '')) AS description,
-        'Product' AS label, bl.title AS location
+        CASE p.product_type WHEN 'experience' THEN 'Experience' ELSE 'Product' END AS label, bl.title AS location
         FROM products p JOIN business_locations bl ON bl.id = p.location_id WHERE p.id = ? LIMIT 1`, [owner.owner_id]) ?? null
-    case 'post':
-      return await queryFirst<OwnerRecord>(db, `SELECT p.organization_id, p.site_id,
-        COALESCE(NULLIF(trim(p.seo_title), ''), NULLIF(trim(p.title), ''), NULLIF(trim(substr(p.body, 1, 80)), '')) AS title,
-        COALESCE(NULLIF(trim(p.seo_description), ''), NULLIF(trim(p.body), '')) AS description,
-        'Update' AS label, bl.title AS location
-        FROM posts p LEFT JOIN business_locations bl ON bl.id = p.location_id WHERE p.id = ? LIMIT 1`, [owner.owner_id]) ?? null
-    case 'blog_post':
-      return await queryFirst<OwnerRecord>(db, `SELECT organization_id, site_id,
-        COALESCE(NULLIF(trim(seo_title), ''), title) AS title,
-        COALESCE(NULLIF(trim(seo_description), ''), NULLIF(trim(excerpt), '')) AS description,
-        'Article' AS label, NULL AS location FROM blog_posts WHERE id = ? LIMIT 1`, [owner.owner_id]) ?? null
-    case 'experience':
-      return await queryFirst<OwnerRecord>(db, `SELECT p.organization_id, p.site_id,
-        COALESCE(NULLIF(trim(p.seo_title), ''), p.name) AS title,
-        COALESCE(NULLIF(trim(p.seo_description), ''), NULLIF(trim(p.description), '')) AS description,
-        'Experience' AS label, bl.title AS location
-        FROM experiences e JOIN products p ON p.id = e.id JOIN business_locations bl ON bl.id = p.location_id
-        WHERE e.id = ? LIMIT 1`, [owner.owner_id]) ?? null
+    case 'content_document':
+      return await queryFirst<OwnerRecord>(db, `SELECT d.organization_id, d.site_id,
+        COALESCE(NULLIF(trim(d.seo_title), ''), NULLIF(trim(d.title), ''), NULLIF(trim(substr(d.summary, 1, 80)), '')) AS title,
+        COALESCE(NULLIF(trim(d.seo_description), ''), NULLIF(trim(d.summary), '')) AS description,
+        CASE d.kind WHEN 'article' THEN 'Article' WHEN 'platform_doc' THEN 'Documentation' WHEN 'social_post' THEN 'Update' END AS label,
+        bl.title AS location
+        FROM content_documents d JOIN content_documents root ON root.id = COALESCE(d.root_id, d.id)
+        LEFT JOIN business_locations bl ON bl.id = root.location_id
+        WHERE d.id = ? AND d.kind IN ('page','article','platform_doc','social_post') LIMIT 1`, [owner.owner_id]) ?? null
     case 'offering':
       return await queryFirst<OwnerRecord>(db, `SELECT o.organization_id, o.site_id,
         COALESCE(NULLIF(trim(o.seo_title), ''), o.name) AS title,
         COALESCE(NULLIF(trim(o.seo_description), ''), NULLIF(trim(o.short_description), ''), NULLIF(trim(o.summary), '')) AS description,
         'Service' AS label, bl.title AS location
         FROM offerings o LEFT JOIN business_locations bl ON bl.id = o.location_id WHERE o.id = ? LIMIT 1`, [owner.owner_id]) ?? null
-    case 'platform_doc':
-      return await queryFirst<OwnerRecord>(db, `SELECT ? AS organization_id, ? AS site_id,
-        title, COALESCE(NULLIF(trim(seo_description), ''), NULLIF(trim(excerpt), '')) AS description,
-        'Documentation' AS label, NULL AS location FROM platform_docs WHERE id = ? LIMIT 1`,
-      [PLATFORM_ORGANIZATION_ID, PLATFORM_SITE_ID, owner.owner_id]) ?? null
     case 'review':
       return await queryFirst<OwnerRecord>(db, `SELECT organization_id, site_id,
         COALESCE(NULLIF(trim(title), ''), 'Review by ' || COALESCE(NULLIF(trim(author_name), ''), 'a customer')) AS title,
         NULLIF(trim(content), '') AS description, 'Review' AS label, NULL AS location
         FROM reviews WHERE id = ? AND organization_id IS NOT NULL AND site_id IS NOT NULL LIMIT 1`, [owner.owner_id]) ?? null
-    case 'tenant_page':
-      return await queryFirst<OwnerRecord>(db, `SELECT v.organization_id, v.site_id,
-        COALESCE(NULLIF(trim(v.seo_title), ''), v.title) AS title,
-        COALESCE(NULLIF(trim(v.seo_description), ''), NULLIF(trim(v.summary), '')) AS description,
-        NULL AS label, NULL AS location FROM tenant_page_variants v WHERE v.id = ? LIMIT 1`, [owner.owner_id]) ?? null
-
   }
 }
 
@@ -196,15 +165,14 @@ async function loadSite(db: DbClient, siteId: string): Promise<SiteRecord | null
     FROM sites s WHERE s.id = ? LIMIT 1`, [siteId]) ?? null
 }
 
-async function loadTenantPageBlockAssets(db: DbClient, siteId: string, variantId: string): Promise<SocialCardPlacedAsset[]> {
+async function loadDocumentBlockAssets(db: DbClient, siteId: string, documentId: string): Promise<SocialCardPlacedAsset[]> {
   const blocks = await queryAll<{ id: string }>(db, `
     SELECT cb.id
-      FROM content_documents d
-      JOIN content_blocks cb ON cb.document_id = d.id
-     WHERE d.owner_type = 'tenant_page' AND d.owner_id = ?
+      FROM content_blocks cb
+     WHERE cb.document_id = ?
      ORDER BY CASE cb.type WHEN 'hero' THEN 0 WHEN 'image' THEN 1 WHEN 'gallery' THEN 2 ELSE 3 END,
               cb.position, cb.created_at, cb.id
-  `, [variantId])
+  `, [documentId])
   if (!blocks.length) return []
   const placements = await readMediaPlacements(db, {
     siteId,
@@ -220,13 +188,10 @@ async function loadTenantPageBlockAssets(db: DbClient, siteId: string, variantId
   })
 }
 
-async function homepageVariantId(db: DbClient, siteId: string): Promise<string | null> {
+async function homepageDocumentId(db: DbClient, siteId: string): Promise<string | null> {
   const row = await queryFirst<{ id: string }>(db, `
-    SELECT v.id
-      FROM tenant_page_variants v
-      LEFT JOIN site_locales sl ON sl.site_id = v.site_id AND sl.locale = v.locale
-     WHERE v.site_id = ? AND v.path = '/'
-     ORDER BY COALESCE(sl.is_source, 0) DESC, v.locale, v.id
+    SELECT id FROM content_documents
+     WHERE site_id = ? AND kind = 'page' AND path = '/' AND row_role = 'root'
      LIMIT 1
   `, [siteId])
   return row?.id ?? null
@@ -239,12 +204,12 @@ async function loadPlacedAssets(db: DbClient, siteId: string, owner: SocialCardO
     ownerIds: [owner.owner_id],
     includePendingSocialCard: true,
   })).get(owner.owner_id) ?? []
-  const pageVariantId = owner.owner_type === 'tenant_page'
+  const documentId = owner.owner_type === 'content_document'
     ? owner.owner_id
     : owner.owner_type === 'site'
-      ? await homepageVariantId(db, siteId)
+      ? await homepageDocumentId(db, siteId)
       : null
-  const pageAssets = pageVariantId ? await loadTenantPageBlockAssets(db, siteId, pageVariantId) : []
+  const pageAssets = documentId ? await loadDocumentBlockAssets(db, siteId, documentId) : []
   if (owner.owner_type === 'site') return [...ownerAssets, ...pageAssets]
   const siteAssets = (await readMediaPlacements(db, {
     siteId,
@@ -274,7 +239,7 @@ export function selectSocialCardPlacements(
   siteId: string,
 ) {
   const ownerSource = firstAsset(assets, owner, SOCIAL_CARD_OWNERS[owner.owner_type].slots)
-  const contentSource = (owner.owner_type === 'site' || owner.owner_type === 'tenant_page')
+  const contentSource = (owner.owner_type === 'site' || owner.owner_type === 'content_document')
     ? assets.find(item => item.owner_type === 'content_block' && mediaUrl(item)) ?? null
     : null
   const socialShare = siteAsset(assets, siteId, 'social_share')
