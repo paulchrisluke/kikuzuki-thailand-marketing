@@ -3,8 +3,8 @@ import { Buffer } from 'node:buffer'
 import { defineConfig, devices } from '@playwright/test'
 
 const previewUrl = process.env.PLAYWRIGHT_PREVIEW_URL
-const port = 3000
-const baseURL = previewUrl || 'http://localhost:3000'
+const port = Number(process.env.PLAYWRIGHT_PORT ?? 3000)
+const baseURL = previewUrl || `http://localhost:${port}`
 const localPrepared = process.env.PLAYWRIGHT_LOCAL_PREPARED === 'true'
 const captureServerLogs = process.env.PLAYWRIGHT_SERVER_LOGS === 'true' || !!process.env.CI
 const localDevRouteSecret = previewUrl ? '' : 'local-playwright-dev-route-secret'

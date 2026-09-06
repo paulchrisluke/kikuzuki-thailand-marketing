@@ -12,7 +12,7 @@ import { refreshSocialCard } from '~/server/utils/social-card'
 // Require format-valid E.164 at the shared location write boundary (issue
 // #293 Section D/I) — this is the one place createLocation/updateLocation
 // both funnel through, so it also covers callers that don't go through the
-// dashboard HTTP routes (e.g. MCP/ChowBot's create_location/update_location
+// dashboard HTTP routes (e.g. MCP's update_location
 // tools in server/utils/mcp-executor/locations.ts), which previously wrote
 // input.notification_phone straight to the column with no validation at all.
 export function normalizeLocationNotificationPhone(raw: string | null | undefined): string | null {

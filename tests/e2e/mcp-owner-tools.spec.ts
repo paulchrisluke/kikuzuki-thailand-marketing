@@ -272,11 +272,7 @@ test.describe('stateless MCP server', () => {
     })
     expect(qaDeleteSecond.status()).toBe(200)
 
-    const deleteLocationRes = await mcpRequest(request, baseURL!, {
-      method: 'tools/call',
-      toolName: 'delete_location',
-      args: { site_id: siteId, location_id: locationId },
-    })
+    const deleteLocationRes = await request.delete(`${baseURL}/api/sites/${siteId}/locations/${locationId}`)
     expect(deleteLocationRes.status()).toBe(200)
   })
 
@@ -370,17 +366,25 @@ test.describe('stateless MCP server', () => {
   // All four tests mutate the shared Growth service fixture, so they run serially.
   // to avoid concurrent state mutations.
   test.describe.serial('owner management workflows', () => {
-    test('owner can manage a scratch location', async ({ request, baseURL }) => {
+    test('CMS manages locations while MCP rejects business setup tools', async ({ request, baseURL }) => {
       await loginAs(request, baseURL!, MCP_GROWTH_SERVICE_USER_ID)
       const siteId = MCP_GROWTH_SERVICE_SITE_ID
       const locationId = await createScratchLocation(request, baseURL!, siteId)
 
-      const deleteLocationRes = await mcpRequest(request, baseURL!, {
-        method: 'tools/call',
-        toolName: 'delete_location',
-        args: { site_id: siteId, location_id: locationId },
-      })
+      const deleteLocationRes = await request.delete(`${baseURL}/api/sites/${siteId}/locations/${locationId}`)
       expect(deleteLocationRes.status()).toBe(200)
+      const catalog = await mcpRequest(request, baseURL!, { method: 'tools/list' })
+      const names = (await catalog.json()).result.tools.map((tool: { name: string }) => tool.name)
+      for (const toolName of ['create_site', 'create_location', 'delete_location', 'copy_location_batch']) {
+        expect(names).not.toContain(toolName)
+        const rejected = await mcpRequest(request, baseURL!, {
+          method: 'tools/call', toolName, args: { site_id: siteId, location_id: locationId },
+        })
+        expect(rejected.status()).toBe(200)
+        expect((await rejected.json()).error.code).toBe(-32601)
+      }
+      expect(names).toEqual(expect.arrayContaining(['delete_media_asset', 'delete_experience', 'update_location']))
+
     })
 
     test('owner can manage location-owned Product tools', async ({ request, baseURL }) => {

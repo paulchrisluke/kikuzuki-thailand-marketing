@@ -312,7 +312,7 @@ test.describe('stateless MCP server', () => {
     // default — so they're intentionally excluded below.
     const allToolNames = listBody.result.tools.map(tool => tool.name)
     expect(allToolNames).toEqual(expect.arrayContaining([
-      'list_sites', 'create_site',
+      'list_sites',
       'get_site', 'list_locations', 'list_location_products', 'list_posts', 'get_site_media_assets',
       'list_tenant_pages', 'list_experiences', 'get_contact_inquiries',
     ]))

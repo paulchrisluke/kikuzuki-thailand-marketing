@@ -904,7 +904,7 @@ export const organizationListItemObject = {
 // ---
 
 export const siteIdSchema = {
-  site_id: { type: 'string', description: 'Internal KrabiClaw site ID from get_workspace_context, list_sites, or create_site, e.g. site-pottery-house. Do not pass a public URL, hostname, subdomain, custom domain, slug, or site name here.' },
+  site_id: { type: 'string', description: 'Internal KrabiClaw site ID from get_workspace_context or list_sites, e.g. site-pottery-house. Do not pass a public URL, hostname, subdomain, custom domain, slug, or site name here.' },
 }
 
 export const generatedImagePickerOutputSchema = {
@@ -1019,21 +1019,17 @@ export const EXPECTED_TOOL_ANNOTATIONS = {
   attach_media: W,
   batch_create_products: W,
   change_tenant_page_path: D,
-  copy_location_batch: D,
   create_blog_post: W,
   create_experience: W,
-  create_location: W,
   create_location_qa: W,
   create_owner_entered_site_review: W,
   create_post: W,
   create_product: W,
-  create_site: W,
   create_product_category: W,
   create_site_qa: W,
   create_tenant_page: W,
   delete_blog_post: D,
   delete_experience: D,
-  delete_location: D,
   delete_location_qa: D,
   delete_media_asset: D,
   delete_owner_entered_site_review: D,

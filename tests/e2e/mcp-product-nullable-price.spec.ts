@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test'
 import { loginAs } from './helpers/auth'
-import { ensureSite, mcpData, mcpRequest } from './helpers/mcp'
+import { ensureLocation, ensureSite, mcpData, mcpRequest } from './helpers/mcp'
 import { MCP_GROWTH_USER_ID } from './helpers/plan-fixtures'
 
 interface ProductRow {
@@ -32,12 +32,7 @@ test('deployed MCP transport preserves an explicit no-fixed-price Product', asyn
     },
   })
   const siteId = await ensureSite(request, baseURL!)
-  const locationResponse = await mcpRequest(request, baseURL!, {
-    method: 'tools/call',
-    toolName: 'create_location',
-    args: { site_id: siteId, title: `Nullable Price ${Date.now()}` },
-  })
-  const locationId = mcpData<{ id: string }>(await locationResponse.json()).id
+  const locationId = await ensureLocation(request, baseURL!, siteId)
 
   const categoryResponse = await mcpRequest(request, baseURL!, {
     method: 'tools/call',

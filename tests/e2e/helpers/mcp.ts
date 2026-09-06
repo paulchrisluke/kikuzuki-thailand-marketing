@@ -87,39 +87,13 @@ export function mcpData<T>(body: { error?: unknown; result?: { isError?: boolean
   throw new Error('MCP tool response contained no result.structuredContent')
 }
 
-type McpToolCallBody = {
-  error?: unknown
-  result?: {
-    isError?: boolean
-    content?: Array<{ type?: string; text?: string }>
-    structuredContent?: unknown
-  }
-}
-
 export async function ensureSite(request: APIRequestContext, baseURL: string) {
   const suffix = `${Date.now()}-${Math.random().toString(36).substring(2, 8)}`
-  const res = await mcpRequest(request, baseURL, {
-    method: 'tools/call',
-    toolName: 'create_site',
-    args: {
-      name: `MCP E2E ${suffix}`,
-      subdomain: `e2e-mcp-${suffix}`,
-      vertical: 'restaurant',
-    },
+  const res = await request.post(`${baseURL}/api/sites`, {
+    data: { name: `MCP E2E ${suffix}`, subdomain: `e2e-mcp-${suffix}`, vertical: 'restaurant' },
   })
-
-  const responseBody = await res.text()
-  expect(res.status(), `create_site HTTP response: ${responseBody}`).toBe(200)
-
-  let body: McpToolCallBody
-  try {
-    body = JSON.parse(responseBody) as McpToolCallBody
-  } catch {
-    throw new Error(`create_site returned invalid JSON: ${responseBody}`)
-  }
-
-  const data = mcpData<{ siteId: string }>(body)
-  const siteId = data.siteId
+  expect(res.ok(), await res.text()).toBe(true)
+  const { siteId } = await res.json() as { siteId: string }
   expect(siteId).toEqual(expect.any(String))
   return siteId
 }
@@ -132,38 +106,20 @@ export async function ensureLocation(request: APIRequestContext, baseURL: string
   })
   expect(locations.status()).toBe(200)
   const locationsBody = await locations.json()
-  let locationId = mcpData<{ locations: Array<{ id: string }> }>(locationsBody).locations[0]?.id
-  if (!locationId) {
-    const createLocation = await mcpRequest(request, baseURL, {
-      method: 'tools/call',
-      toolName: 'create_location',
-      args: { site_id: siteId, title: `MCP Location ${Date.now()}`, city: 'Krabi' },
-    })
-    expect(createLocation.status()).toBe(200)
-    const locationBody = await createLocation.json()
-    const locationData = mcpData<{ id: string }>(locationBody)
-    locationId = locationData.id
-  }
-  expect(locationId).toEqual(expect.any(String))
-  return locationId as string
+  const data = mcpData<{ locations: Array<{ id: string }> }>(locationsBody)
+  expect(data.locations, 'A newly provisioned test site has one seeded location').toHaveLength(1)
+  return data.locations[0]!.id
 }
 
-// Unlike ensureLocation, this never reuses an existing fixture location — tests that
-// later call delete_location must create their own scratch location, otherwise running
-// tests can race over the same shared fixture location and delete it out from under
-// each other.
+// Create disposable locations through the same API used by the CMS.
 export async function createScratchLocation(request: APIRequestContext, baseURL: string, siteId: string) {
-  const createLocation = await mcpRequest(request, baseURL, {
-    method: 'tools/call',
-    toolName: 'create_location',
-    args: { site_id: siteId, title: `MCP Scratch Location ${Date.now()}`, city: 'Krabi' },
+  const response = await request.post(`${baseURL}/api/sites/${siteId}/locations`, {
+    data: { title: `MCP Scratch Location ${Date.now()}`, city: 'Krabi' },
   })
-  expect(createLocation.status()).toBe(200)
-  const locationBody = await createLocation.json()
-  const locationData = mcpData<{ id: string }>(locationBody)
-  const locationId = locationData.id
-  expect(locationId).toEqual(expect.any(String))
-  return locationId as string
+  expect(response.status(), await response.text()).toBe(201)
+  const { location } = await response.json() as { location: { id: string } }
+  expect(location.id).toEqual(expect.any(String))
+  return location.id
 }
 
 export async function loginAsFreshMcpUser(request: APIRequestContext, baseURL: string, label: string) {

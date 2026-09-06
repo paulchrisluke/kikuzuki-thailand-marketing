@@ -11,7 +11,8 @@ KrabiClaw ships two separate MCP surfaces with strict security boundaries.
 - Protected resource: `/.well-known/oauth-protected-resource`
 - Server entrypoint: `server/api/mcp.post.ts`
 - Scope: `tenant`
-- Exposes by default: site setup, menus, experiences, posts, media, reviews, submissions, notifications, content, QA, analytics
+- Exposes by default: existing-site content management, menus, experiences, posts, media, reviews, submissions, notifications, content, QA, analytics
+- Site creation and location creation, copying, and deletion are CMS-only. MCP retains daily content operations, including media asset and experience deletion.
 - Feature-flagged conversational groups: social/OAuth publishing, domains, managed-service work requests. Manual locale management remains available as ordinary content editing.
 
 ### Platform Admin MCP

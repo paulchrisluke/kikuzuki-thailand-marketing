@@ -8,13 +8,15 @@ const BASE_URL = (process.argv.includes('--base-url')
 const SITE_ID = process.argv.includes('--site-id')
   ? process.argv[process.argv.indexOf('--site-id') + 1]
   : process.env.MCP_SITE_ID
+const LOCATION_ID = process.argv.includes('--location-id')
+  ? process.argv[process.argv.indexOf('--location-id') + 1]
+  : process.env.MCP_LOCATION_ID
 const USER_ID = process.argv.includes('--user-id')
   ? process.argv[process.argv.indexOf('--user-id') + 1]
   : process.env.MCP_USER_ID
 const MCP_VERSION = process.env.MCP_PROTOCOL_VERSION ?? '2025-06-18'
 
 const isLocal = BASE_URL.includes('localhost') || BASE_URL.includes('127.0.0.1')
-const allowCreate = isLocal || process.env.MCP_ALLOW_CREATE === '1'
 let failed = false
 
 function pass(message) {
@@ -91,35 +93,16 @@ function expectValue(label, condition, detail) {
   else fail(label, detail)
 }
 
-async function getOrCreateSite(headers) {
-  if (SITE_ID) return SITE_ID
-  if (!allowCreate) throw new Error('Refusing to create a site on a non-local target. Pass --site-id or set MCP_ALLOW_CREATE=1.')
-
-  const suffix = Date.now()
-  const create = await mcp(headers, 'create_site', {
-    name: `MCP Ops Check ${suffix}`,
-    subdomain: `e2e-mcp-ops-check-${suffix}`,
-    vertical: 'restaurant',
-  })
-  expectStatus('create_site succeeds', create)
-  const siteId = data(create.body)?.siteId
-  expectValue('create_site returns siteId', Boolean(siteId), create.body)
-  return siteId
-}
 
 async function main() {
   console.log(`Checking MCP operations flow at ${BASE_URL}`)
   const headers = await getAuthHeaders()
-  const siteId = await getOrCreateSite(headers)
+  const siteId = SITE_ID
+  if (!siteId) throw new Error('Pass --site-id for a disposable site provisioned through local setup or the CMS.')
   if (!siteId) process.exit(1)
 
-  const location = await mcp(headers, 'create_location', {
-    site_id: siteId,
-    title: `MCP Ops Location ${Date.now()}`,
-  })
-  expectStatus('create_location succeeds', location)
-  const locationId = data(location.body)?.id
-  expectValue('create_location returns location id', Boolean(locationId), location.body)
+  const locationId = LOCATION_ID
+  if (!locationId) throw new Error('Pass --location-id for a disposable location provisioned through the CMS.')
 
   const categoryIds = new Map()
   for (const name of ['Mains', 'Shots']) {

@@ -7,7 +7,7 @@ const { media: _experienceMedia, ...experienceUpdateWriteSchema } = experienceWr
 export const EXPERIENCES_TOOLS: McpToolDefinition[] = [
   siteTool({
       name: 'list_experiences',
-      description: 'Use this when the user asks what experiences/activities the site offers, or as the first step before looking at bookings for a specific one. Optionally filter by location_id. If no experiences exist yet and the site has no primary location, create a location first before calling create_experience.',
+      description: 'Use this when the user asks what experiences/activities the site offers, or as the first step before looking at bookings for a specific one. Optionally filter by location_id. If the site has no locations, ask the user to create a location in the CMS before creating an experience.',
       domain: 'experiences',
       minimumRole: 'editor',
       confirmRequired: false,
