@@ -177,6 +177,8 @@ export default defineNuxtConfig({
     build: {
       modulePreload: false,
       rollupOptions: {
+        // Nitro bundles shared modules after Vite; retain their resolved source paths.
+        makeAbsoluteExternalsRelative: false,
         external: [workerWasmExternal],
         output: {
           assetFileNames: publicSurfaceCssAssetFileName,
