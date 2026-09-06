@@ -1,32 +1,78 @@
 import assert from 'node:assert/strict'
+import { createHmac } from 'node:crypto'
 import { generateSQLiteDrizzleJson, generateSQLiteMigration } from 'drizzle-kit/api'
 import * as schema from '../../server/db/schema.ts'
-import { bookingPayloadForGuest, requestInsertQueries } from '../../server/domain/requests.ts'
+import { bookingPayloadForGuest, requestInsertQueries, getGuestRequest } from '../../server/domain/requests.ts'
 import test from 'node:test'
 import { Miniflare } from 'miniflare'
 import { claimDelivery, createDeliveryReceipt, getDeliveryById, getDeliveryRetryEligibility, listDeliveryFailures, recordDeliveryOutcome } from '../../server/domain/guest-threads/deliveries.ts'
 import { appendEntry } from '../../server/domain/guest-threads/entries.ts'
 import { executeGuestThreadOperation } from '../../server/domain/guest-threads/operations.ts'
-import { updateThreadProjectionIfLatestEntry } from '../../server/domain/guest-threads/repository.ts'
+import { listGuestThreads, updateThreadProjectionIfLatestEntry } from '../../server/domain/guest-threads/repository.ts'
+import { requestBookingChange, respondToBookingChange } from '../../server/domain/guest-threads/booking-changes.ts'
+import { notifyContactSubmitted } from '../../server/utils/notifications.ts'
+import type { CloudflareEnv } from '../../server/utils/auth.ts'
 
 test('D1 claims fence concurrent sends and bound ambiguous provider retries', async () => {
   const runtime = new Miniflare({ workers: [{ config: {
     name: 'guest-delivery-proof', type: 'worker', compatibilityDate: '2024-11-01',
-    manifest: { mainModule: 'index.mjs', modules: { 'index.mjs': { type: 'esm', contents: 'export default { fetch() { return new Response("ok") } }' } } },
-    env: { DB: { type: 'd1' } },
+    manifest: { mainModule: 'index.mjs', modules: { 'index.mjs': { type: 'esm', contents: 'export class Hub { fetch() { return new Response(null, { status: 204 }) } } export default { fetch() { return new Response("ok") } }' } } },
+    exports: { Hub: { type: 'durable-object', storage: 'sqlite' } },
+    env: { DB: { type: 'd1' }, GUEST_INBOX_HUBS: { type: 'durable-object', workerName: 'guest-delivery-proof', exportName: 'Hub' } },
   } }] })
 
   try {
     const db = await runtime.getD1Database('DB')
+    const env = { ...await runtime.getBindings<CloudflareEnv>(), BETTER_AUTH_SECRET: 'local-proof-secret-long-enough-for-auth', BETTER_AUTH_URL: 'https://proof.example',
+      NUXT_PUBLIC_PLATFORM_DOMAIN: 'https://proof.example', EMAIL_REPLY_SECRET: 'local-reply-proof', EMAIL_DELIVERY_MODE: 'log_only', WHATSAPP_DELIVERY_MODE: 'log_only' }
     await db.batch((await generateSQLiteMigration(await generateSQLiteDrizzleJson({}), await generateSQLiteDrizzleJson(schema))).map(statement => db.prepare(statement)))
     for (const statement of [
       "INSERT INTO organization (id, name, slug) VALUES ('org-proof', 'Proof', 'proof')",
       "INSERT INTO sites (id, organization_id, slug, subdomain, brand_name) VALUES ('site-proof', 'org-proof', 'proof', 'proof', 'Proof')",
       "INSERT INTO user (id, name, email) VALUES ('user-proof', 'Proof Owner', 'owner@proof.example')",
+      "INSERT INTO member (id, organizationId, userId, role) VALUES ('member-proof','org-proof','user-proof','owner')",
     ]) await db.prepare(statement).run()
     const now = new Date().toISOString()
     const opening = requestInsertQueries({ id: 'contact-proof', kind: 'contact', organization_id: 'org-proof', site_id: 'site-proof', location_id: null, product_id: null, customer_id: null, review_id: null, status: null, conversation_state: 'needs_attention', resolved_at: null, payload: { guest: { name: 'Proof Guest', email: 'guest@proof.example', phone: null }, subject: null, message: 'Hello', consent_at: null, ip_hash: null }, created_at: now, updated_at: now })
     await db.batch(opening.map(write => db.prepare(write.query).bind(...write.params)))
+    await notifyContactSubmitted(env, db, { organizationId: 'org-proof', siteId: 'site-proof', siteName: 'Proof', locationId: null,
+      contactId: 'contact-proof', guestName: 'Proof Guest', email: 'guest@proof.example', subject: null, message: 'Hello' })
+    assert.equal((await listGuestThreads(db, 'site-proof', { userId: 'user-proof', unreadOnly: true }))[0]?.id, 'contact-proof')
+    assert.deepEqual((await db.prepare("SELECT d.purpose,d.status FROM guest_thread_deliveries d JOIN activity_entries e ON e.id=d.entry_id WHERE e.request_id='contact-proof' ORDER BY d.purpose").all()).results,
+      [{ purpose: 'guest_acknowledgement', status: 'sent' }, { purpose: 'owner_alert', status: 'sent' }])
+
+    await db.prepare("INSERT INTO business_locations (id,organization_id,site_id,slug,title,timezone,max_capacity,opening_hours) VALUES ('booking-location','org-proof','site-proof','booking','Booking','Asia/Bangkok',10,?)")
+      .bind(JSON.stringify({ periods: [{ open: { day: 1, hour: 16, minute: 0 }, close: { day: 1, hour: 22, minute: 0 } }] })).run()
+    const booking = requestInsertQueries({ id: 'change-proof', kind: 'reservation', organization_id: 'org-proof', site_id: 'site-proof', location_id: 'booking-location',
+      product_id: null, customer_id: null, review_id: null, status: 'pending', booking_date: '2099-01-05', time_slot: '16:00', party_size: 1,
+      conversation_state: 'needs_attention', resolved_at: null, payload: bookingPayloadForGuest({ name: 'Guest', email: 'guest@proof.example', phone: '+66812345678' }), created_at: now, updated_at: now })
+    await db.batch(booking.map(write => db.prepare(write.query).bind(...write.params)))
+    const propose = async (key: string, partySize: number) => {
+      const current = await getGuestRequest(db, 'change-proof')
+      assert(current)
+      await requestBookingChange(db, env, current, 'user-proof', { bookingDate: '2099-01-05', bookingTime: '16:00', partySize, locationId: 'booking-location', expectedUpdatedAt: current.updated_at }, key)
+      const requestId = await db.prepare('SELECT id FROM activity_entries WHERE dedupe_key=?').bind(`booking-change-request:change-proof:${key}`).first<string>('id')
+      assert(requestId)
+      return { threadId: 'change-proof', requestId, token: createHmac('sha256', env.EMAIL_REPLY_SECRET).update(`booking-change:v1:change-proof:${requestId}`).digest('hex'), decision: 'accept' as const }
+    }
+    const proposal = await propose('first-change', 2)
+    assert.equal((await respondToBookingChange(db, env, proposal)).status, 'accepted')
+    assert.equal((await respondToBookingChange(db, env, proposal)).status, 'accepted')
+    assert.equal(await db.prepare("SELECT party_size FROM requests WHERE id='change-proof'").first('party_size'), 2)
+    assert.equal(await db.prepare("SELECT count(*) AS count FROM activity_entries WHERE request_id='change-proof' AND event_name='booking_change.accepted'").first('count'), 1)
+    const stale = await propose('stale-change', 3)
+    await executeGuestThreadOperation(db, { threadId: 'change-proof', siteId: 'site-proof', action: 'confirm', actorUserId: 'user-proof', idempotencyKey: 'owner-confirm', env })
+    await assert.rejects(respondToBookingChange(db, env, stale), /changed since the request/)
+    const concurrent = await propose('concurrent-change', 4)
+    const [decision, cancellation] = await Promise.allSettled([respondToBookingChange(db, env, concurrent), executeGuestThreadOperation(db, {
+      threadId: 'change-proof', siteId: 'site-proof', action: 'cancel', actorUserId: 'user-proof', idempotencyKey: 'owner-cancel', env })])
+    assert(cancellation.status === 'fulfilled' && cancellation.value.ok)
+    if (decision.status === 'fulfilled') assert.equal(decision.value.status, 'accepted')
+    else assert.match(String(decision.reason), /changed|no longer/)
+    assert.equal(await db.prepare("SELECT status FROM requests WHERE id='change-proof'").first('status'), 'cancelled')
+    assert.equal(await db.prepare("SELECT count(*) AS count FROM activity_entries WHERE request_id='change-proof' AND event_name='reservation.cancel'").first('count'), 1)
+    assert.equal(await db.prepare(`SELECT count(*) AS count FROM activity_entries accepted JOIN activity_entries cancelled ON cancelled.request_id=accepted.request_id
+      WHERE accepted.request_id='change-proof' AND accepted.event_name='booking_change.accepted' AND cancelled.event_name='reservation.cancel' AND accepted.sequence>cancelled.sequence`).first('count'), 0)
     await db.prepare("INSERT INTO activity_entries (id,request_id,kind,scope_kind,actor_kind,channel,dedupe_key,sequence,occurred_at) VALUES ('entry-proof','contact-proof','message','request','guest','email','proof',2,'2026-09-05T00:00:00.000Z')").run()
 
 

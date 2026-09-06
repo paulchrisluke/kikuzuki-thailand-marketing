@@ -132,10 +132,10 @@ test('guest thread state stays source-owned, per-user, tenant-isolated, and idem
     expect(openingEntries).toHaveLength(1)
     expect(openingEntries[0]).toMatchObject({
       actorKind: 'guest',
-      channel: 'system',
+      channel: 'web',
       body: null,
-      eventName: 'contact_submitted',
-      payload: null,
+      eventName: null,
+      payload: { kind: 'contact' },
     })
 
     const [ownerListAfterRead, ownerNotificationsAfterRead, secondOwnerListStillUnread, secondOwnerNotificationsStillUnread] = await Promise.all([

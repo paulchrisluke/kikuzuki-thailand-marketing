@@ -441,11 +441,11 @@ async function getOpeningThreadContext(
   db: DbClient,
   submissionType: 'contact' | 'reservation' | 'experience_booking',
   submissionId: string,
-): Promise<{ guestThreadId: string; sourceEntryId: string } | null> {
+): Promise<{ guestThreadId: string; sourceEntryId: string }> {
   const thread = await getGuestRequest(db, submissionId, undefined, submissionType)
-  if (!thread) return null
-  const entry = await findEntryByDedupeKey(db, `submission:${submissionType}:${submissionId}`)
-  if (!entry) return null
+  if (!thread) throw new Error('Submission notification has no canonical request')
+  const entry = await findEntryByDedupeKey(db, `request:${submissionId}:submission`)
+  if (!entry) throw new Error('Submission notification has no opening activity entry')
   return { guestThreadId: thread.id, sourceEntryId: entry.id }
 }
 

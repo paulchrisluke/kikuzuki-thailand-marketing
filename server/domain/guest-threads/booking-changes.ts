@@ -35,9 +35,11 @@ const fieldsSchema = z.object({
   locationId: z.string().min(1),
 })
 const requestSchema = fieldsSchema.extend({ expectedUpdatedAt: z.string().min(1) })
-const proposalSchema = z.object({ before: fieldsSchema, after: fieldsSchema, updatedAt: z.string(), locationTitle: z.string(), originalLocationTitle: z.string() })
+const sourceSchema = fieldsSchema.extend({ status: z.string(), experienceId: z.string().nullable(), completedAt: z.string().nullable(),
+  partySizeIsMinimum: z.boolean(), notes: z.string().nullable(), guest: z.object({ name: z.string(), email: z.string(), phone: z.string().nullable() }) })
+const proposalSchema = z.object({ before: sourceSchema, after: fieldsSchema, updatedAt: z.string(), locationTitle: z.string(), originalLocationTitle: z.string() })
 type Fields = z.infer<typeof fieldsSchema>
-type Source = Fields & { updatedAt: string; status: string; experienceId: string | null; completedAt: string | null }
+type Source = z.infer<typeof sourceSchema> & { updatedAt: string }
 type ChangeEnv = CloudflareEnv
 
 async function sourceSummary(db: DbClient, thread: GuestThreadRow) {
@@ -48,7 +50,8 @@ async function loadSource(db: DbClient, thread: GuestThreadRow): Promise<Source>
   if (thread.kind === 'contact') throw new HTTPError({ statusCode: 400, message: 'This conversation is not a reservation or booking' })
   if (!thread.location_id) throw new HTTPError({ statusCode: 409, message: 'Booking location is missing' })
   return { bookingDate: thread.booking_date, bookingTime: thread.time_slot, partySize: thread.party_size, locationId: thread.location_id,
-    updatedAt: thread.updated_at, status: thread.status, experienceId: thread.product_id, completedAt: thread.payload.completion.at }
+    updatedAt: thread.updated_at, status: thread.status, experienceId: thread.product_id, completedAt: thread.payload.completion.at,
+    partySizeIsMinimum: thread.payload.party_size_is_minimum, notes: thread.payload.notes, guest: thread.payload.guest }
 }
 
 async function validateDestination(db: DbClient, thread: GuestThreadRow, before: Source, after: Fields) {
@@ -134,7 +137,7 @@ export async function requestBookingChange(db: DbClient, env: CloudflareEnv, thr
     if (!summary.guestEmail || !env.NUXT_PUBLIC_PLATFORM_DOMAIN) throw new HTTPError({ statusCode: 503, message: 'Guest email delivery is not configured' })
     entry = await appendEntry(db, { threadId: thread.id, kind: 'operation', actorKind: 'member', actorUserId,
       eventName: 'booking_change.requested', dedupeKey: externalId, body: `Requested ${after.bookingDate} at ${after.bookingTime} for ${after.partySize} guests at ${location.title}.`,
-      payloadJson: { before: fieldsSchema.parse(before), after, updatedAt: before.updatedAt, locationTitle: location.title, originalLocationTitle: original?.title || location.title },
+      payloadJson: { before: sourceSchema.parse(before), after, updatedAt: before.updatedAt, locationTitle: location.title, originalLocationTitle: original?.title || location.title },
     })
   }
   const noun = await bookingNoun(db, thread)
@@ -159,12 +162,12 @@ export async function respondToBookingChange(db: DbClient, env: ChangeEnv, input
   let result = await findEntryByDedupeKey(db, resultId)
   if (!result && Date.now() > Date.parse(entry.occurred_at) + 7 * 86400_000) throw new HTTPError({ statusCode: 410, message: 'This change request has expired' })
   const current = await loadSource(db, thread)
-  if (!result && current.updatedAt !== proposal.updatedAt) throw new HTTPError({ statusCode: 409, message: 'This reservation has changed since the request was sent. Ask your host for a new request.' })
+  if (!result && JSON.stringify(sourceSchema.parse(current)) !== JSON.stringify(proposal.before)) throw new HTTPError({ statusCode: 409, message: 'This reservation has changed since the request was sent. Ask your host for a new request.' })
   if (!result && input.decision) {
     if (current.completedAt || !['pending', 'confirmed'].includes(current.status)) throw new HTTPError({ statusCode: 409, message: 'This reservation or booking can no longer be changed' })
     const destination = input.decision === 'accept' ? await validateDestination(db, thread, current, proposal.after) : null
     const id = crypto.randomUUID()
-    const condition = { sql: `source.id = ? AND source.site_id = ? AND source.updated_at = ? AND source.status IN ('pending', 'confirmed') AND json_extract(source.payload_json, '$.completion.at') IS NULL`, params: [thread.id, thread.site_id, proposal.updatedAt] as unknown[] }
+    const condition = { sql: `source.id = ? AND source.site_id = ? AND source.updated_at = ? AND source.status IN ('pending', 'confirmed') AND json_extract(source.payload_json, '$.completion.at') IS NULL`, params: [thread.id, thread.site_id, current.updatedAt] as unknown[] }
     if (destination) condition.sql += ' AND /* availability_claim */'
     const now = new Date().toISOString()
     const entryInsert: BatchQuery = {
@@ -194,6 +197,6 @@ export async function respondToBookingChange(db: DbClient, env: ChangeEnv, input
       accepted ? `Your changes are confirmed: ${proposal.after.bookingDate} at ${proposal.after.bookingTime} for ${proposal.after.partySize} guests at ${proposal.locationTitle}.` : `You declined the requested changes. Your original ${noun} remains unchanged.`, accepted ? 'accepted' : 'declined', proposal, noun)
     await updateThreadProjection(db, thread.id, { conversationState: 'resolved' })
   }
-  return { type: thread.kind, noun, guestName: summary.guestName, before: proposal.before, after: proposal.after, locationTitle: proposal.locationTitle,
+  return { type: thread.kind, noun, guestName: summary.guestName, before: fieldsSchema.parse(proposal.before), after: proposal.after, locationTitle: proposal.locationTitle,
     originalLocationTitle: proposal.originalLocationTitle, status: result ? result.event_name === 'booking_change.accepted' ? 'accepted' : 'declined' : 'pending' }
 }
