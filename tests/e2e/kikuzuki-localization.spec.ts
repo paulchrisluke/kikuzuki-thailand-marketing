@@ -40,7 +40,7 @@ async function expectLocalizedMenu(page: Page) {
   await expect(page.locator('body')).not.toContainText('Tuna Sushi')
 }
 
-test('Kikuzuki keeps its Thai shell and category translations on a hard load', async ({ page, playwright }, testInfo) => {
+test.beforeAll(async ({ playwright }, testInfo) => {
   testInfo.setTimeout(120_000)
   const baseURL = testBaseUrl()
   const admin = await playwright.request.newContext({ baseURL })
@@ -103,56 +103,59 @@ test('Kikuzuki keeps its Thai shell and category translations on a hard load', a
         details_json: [],
       },
     })
-
-    const errors: string[] = []
-    page.on('console', message => {
-      if (message.type() === 'error') errors.push(message.text())
-    })
-    const response = await openTenantPage(page, `${kikuzukiTestBaseUrl()}/th/menu`, kikuzukiTestExtraHeaders())
-    expect(response?.status()).toBeLessThan(400)
-    await expectLocalizedMenu(page)
-    await page.reload()
-    await expectLocalizedMenu(page)
-
-    await page.getByRole('button', { name: /🇹🇭 th/ }).click()
-    await page.getByRole('menuitem', { name: /🇺🇸/ }).click()
-    await expect(page).toHaveURL(`${kikuzukiTestBaseUrl()}/menu`)
-    await expect(page.locator('html')).toHaveAttribute('lang', 'en')
-    await expect(page.getByRole('navigation', { name: 'Primary navigation' })).toBeVisible()
-    await expect(page.getByRole('link', { name: 'Tuna Sushi' }).first()).toBeVisible()
-
-    await page.getByRole('button', { name: /🇺🇸 en/ }).click()
-    await page.getByRole('menuitem', { name: /🇹🇭/ }).click()
-    await expect(page).toHaveURL(`${kikuzukiTestBaseUrl()}/th/menu`)
-    await expectLocalizedMenu(page)
-
-    const contactResponse = await openTenantPage(page, `${kikuzukiTestBaseUrl()}/th/contact`, kikuzukiTestExtraHeaders())
-    expect(contactResponse?.status()).toBeLessThan(400)
-    await expect(page.locator('html')).toHaveAttribute('lang', locale)
-    await expect(page.getByText('ติดต่อเรา', { exact: true }).first()).toBeVisible()
-    await expect(page.getByRole('button', { name: /🇹🇭 th/ })).toBeVisible()
-    expect(errors.filter(message => message.includes('Localized route representation was not found'))).toEqual([])
-
-    const locationPageResponse = await openTenantPage(
-      page,
-      `${kikuzukiTestBaseUrl()}/th/locations/kikuzuki-japanese-robatayaki-izakaya`,
-      kikuzukiTestExtraHeaders(),
-    )
-    expect(locationPageResponse?.status()).toBeLessThan(400)
-    for (const day of ['วันจันทร์', 'วันอังคาร']) {
-      const hoursRow = page.getByText(day, { exact: true }).locator('..')
-      await expect(hoursRow).toContainText('14:00')
-      await expect(hoursRow).toContainText('23:00')
-    }
-
-    for (const path of ['/th/reservations', '/th/experiences']) {
-      const builtInResponse = await openTenantPage(page, `${kikuzukiTestBaseUrl()}${path}`, kikuzukiTestExtraHeaders())
-      expect(builtInResponse?.status()).toBeLessThan(400)
-      await expect(page.locator('html')).toHaveAttribute('lang', locale)
-      await expect(page.getByRole('navigation', { name: 'การนำทางหลัก' }).getByRole('link', { name: 'เมนู', exact: true })).toBeVisible()
-    }
   } finally {
     await admin.dispose()
     await owner.dispose()
+  }
+})
+
+test('Kikuzuki keeps its Thai shell and category translations on a hard load', async ({ page }, testInfo) => {
+  testInfo.setTimeout(120_000)
+  const errors: string[] = []
+  page.on('console', message => {
+    if (message.type() === 'error') errors.push(message.text())
+  })
+  const response = await openTenantPage(page, `${kikuzukiTestBaseUrl()}/th/menu`, kikuzukiTestExtraHeaders())
+  expect(response?.status()).toBeLessThan(400)
+  await expectLocalizedMenu(page)
+  await page.reload()
+  await expectLocalizedMenu(page)
+
+  await page.getByRole('button', { name: /🇹🇭 th/ }).click()
+  await page.getByRole('menuitem', { name: /🇺🇸/ }).click()
+  await expect(page).toHaveURL(`${kikuzukiTestBaseUrl()}/menu`)
+  await expect(page.locator('html')).toHaveAttribute('lang', 'en')
+  await expect(page.getByRole('navigation', { name: 'Primary navigation' })).toBeVisible()
+  await expect(page.getByRole('link', { name: 'Tuna Sushi' }).first()).toBeVisible()
+
+  await page.getByRole('button', { name: /🇺🇸 en/ }).click()
+  await page.getByRole('menuitem', { name: /🇹🇭/ }).click()
+  await expect(page).toHaveURL(`${kikuzukiTestBaseUrl()}/th/menu`)
+  await expectLocalizedMenu(page)
+
+  const contactResponse = await openTenantPage(page, `${kikuzukiTestBaseUrl()}/th/contact`, kikuzukiTestExtraHeaders())
+  expect(contactResponse?.status()).toBeLessThan(400)
+  await expect(page.locator('html')).toHaveAttribute('lang', locale)
+  await expect(page.getByText('ติดต่อเรา', { exact: true }).first()).toBeVisible()
+  await expect(page.getByRole('button', { name: /🇹🇭 th/ })).toBeVisible()
+  expect(errors.filter(message => message.includes('Localized route representation was not found'))).toEqual([])
+
+  const locationPageResponse = await openTenantPage(
+    page,
+    `${kikuzukiTestBaseUrl()}/th/locations/kikuzuki-japanese-robatayaki-izakaya`,
+    kikuzukiTestExtraHeaders(),
+  )
+  expect(locationPageResponse?.status()).toBeLessThan(400)
+  for (const day of ['วันจันทร์', 'วันอังคาร']) {
+    const hoursRow = page.getByText(day, { exact: true }).locator('..')
+    await expect(hoursRow).toContainText('14:00')
+    await expect(hoursRow).toContainText('23:00')
+  }
+
+  for (const path of ['/th/reservations', '/th/experiences']) {
+    const builtInResponse = await openTenantPage(page, `${kikuzukiTestBaseUrl()}${path}`, kikuzukiTestExtraHeaders())
+    expect(builtInResponse?.status()).toBeLessThan(400)
+    await expect(page.locator('html')).toHaveAttribute('lang', locale)
+    await expect(page.getByRole('navigation', { name: 'การนำทางหลัก' }).getByRole('link', { name: 'เมนู', exact: true })).toBeVisible()
   }
 })

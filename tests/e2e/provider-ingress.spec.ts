@@ -35,41 +35,66 @@ test('signed Stripe ingress processes one event and rejects invalid signatures',
 })
 
 test('compact signed email reply persists once and rejects a changed address', async ({ request, baseURL }) => {
+  test.setTimeout(90_000)
+  const fetchPhase = async (phase: string, path: string, options: Parameters<typeof request.fetch>[1]) => {
+    const requestId = randomUUID()
+    const startedAt = Date.now()
+    const diagnostic = { phase, requestId, path }
+    return test.step(phase, async () => {
+      console.info('[e2e-provider-ingress]', JSON.stringify({ event: 'started', ...diagnostic, at: new Date(startedAt).toISOString() }))
+      try {
+        const response = await request.fetch(path, {
+          ...options, timeout: 15_000, maxRetries: 0,
+          headers: { ...options?.headers, 'x-request-id': requestId },
+        })
+        console.info('[e2e-provider-ingress]', JSON.stringify({
+          event: 'finished', ...diagnostic, durationMs: Date.now() - startedAt,
+          status: response.status(), rayId: response.headers()['cf-ray'] ?? null,
+        }))
+        return response
+      } catch {
+        console.error('[e2e-provider-ingress]', JSON.stringify({ event: 'transport_failed', ...diagnostic, durationMs: Date.now() - startedAt }))
+        throw new Error(`Provider ingress request failed: ${phase}; requestId=${requestId}`)
+      }
+    })
+  }
   const name = `E5 ${randomUUID().slice(0, 12)}`
-  const submitted = await request.post('/api/public/sites/site-demo/contact', {
+  const submitted = await fetchPhase('create contact', '/api/public/sites/site-demo/contact', {
+    method: 'POST',
     data: { name, email: 'paulchrisluke@gmail.com', message: 'Please confirm the continuity check.', subject: 'general' },
   })
   expect(submitted.status(), await submitted.text()).toBe(201)
-  await loginAs(request, baseURL!, 'user-e2e-demo-owner')
-  const listed = await request.get('/api/dashboard/sites/site-demo/guest-threads', { params: { search: name } })
+  await test.step('authenticate owner and select organization', () => loginAs(request, baseURL!, 'user-e2e-demo-owner'), { timeout: 30_000 })
+  const listed = await fetchPhase('find contact thread', '/api/dashboard/sites/site-demo/guest-threads', { params: { search: name } })
   expect(listed.status(), await listed.text()).toBe(200)
   const { threads } = await listed.json()
   expect(threads).toHaveLength(1)
   const detailUrl = `/api/dashboard/sites/site-demo/guest-threads/${threads[0].id}`
-  const initialResponse = await request.get(detailUrl)
+  const initialResponse = await fetchPhase('read initial entries', detailUrl, {})
   expect(initialResponse.status(), await initialResponse.text()).toBe(200)
   const { thread: initial } = await initialResponse.json()
   const data = {
     submissionType: 'contact', submissionId: initial.submissionId,
     body: `Signed guest reply ${randomUUID()}`, messageId: randomUUID(),
   }
-  const received = await request.post('/api/dev/inbound-email', { headers: devLoginHeaders(), data })
+  const received = await fetchPhase('receive signed reply', '/api/dev/inbound-email', { method: 'POST', headers: devLoginHeaders(), data })
   expect(received.status(), await received.text()).toBe(200)
   const { replyTo } = await received.json()
   expect(replyTo).toMatch(/^rc[0-9a-f]{56}@/)
-  const duplicate = await request.post('/api/dev/inbound-email', { headers: devLoginHeaders(), data: { ...data, replyTo } })
+  const duplicate = await fetchPhase('receive duplicate reply', '/api/dev/inbound-email', { method: 'POST', headers: devLoginHeaders(), data: { ...data, replyTo } })
   expect(duplicate.status(), await duplicate.text()).toBe(200)
   const [localPart, domain] = replyTo.split('@')
-  for (const invalidAddress of [
-    `${localPart.slice(0, -1)}${localPart.endsWith('0') ? '1' : '0'}@${domain}`,
-    `${localPart}@invalid.example`,
+  for (const { phase, address } of [
+    { phase: 'reject altered signature', address: `${localPart.slice(0, -1)}${localPart.endsWith('0') ? '1' : '0'}@${domain}` },
+    { phase: 'reject wrong domain', address: `${localPart}@invalid.example` },
   ]) {
-    const invalid = await request.post('/api/dev/inbound-email', {
-      headers: devLoginHeaders(), data: { ...data, messageId: randomUUID(), replyTo: invalidAddress },
+    const invalid = await fetchPhase(phase, '/api/dev/inbound-email', {
+      method: 'POST',
+      headers: devLoginHeaders(), data: { ...data, messageId: randomUUID(), replyTo: address },
     })
     expect(invalid.status()).toBeGreaterThanOrEqual(400)
   }
-  const finalResponse = await request.get(detailUrl)
+  const finalResponse = await fetchPhase('verify final entries', detailUrl, {})
   expect(finalResponse.status(), await finalResponse.text()).toBe(200)
   const { thread: final } = await finalResponse.json()
   expect(final.entries).toHaveLength(initial.entries.length + 1)

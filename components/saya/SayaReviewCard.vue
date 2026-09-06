@@ -12,11 +12,11 @@
       />
     </div>
     <p class="text-sm leading-relaxed text-default">"{{ review.content }}"</p>
-    <div class="mt-6 flex items-center justify-between gap-3 border-t border-default pt-4">
+    <div class="mt-6 flex flex-wrap items-center justify-between gap-3 border-t border-default pt-4">
       <p class="text-sm font-medium text-default">{{ review.author }}</p>
       <span
         v-if="review.locationTitle"
-        class="shrink-0 rounded-full border border-default px-2 py-0.5 text-xs text-muted"
+        class="max-w-full rounded-full border border-default px-2 py-0.5 text-xs break-words text-muted"
       >
         {{ review.locationTitle }}
       </span>

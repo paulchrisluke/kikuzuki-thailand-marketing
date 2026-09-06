@@ -47,14 +47,29 @@ export async function publishDashboardInvalidation(
   }
 
   const hub = env.GUEST_INBOX_HUBS.get(env.GUEST_INBOX_HUBS.idFromName(event.organizationId))
-  const response = await hub.fetch('https://guest-inbox.internal/broadcast', {
+  const request = {
     method: 'POST',
     headers: {
       'content-type': 'application/json',
       'x-krabiclaw-organization-id': event.organizationId,
     },
     body: JSON.stringify(event),
-  })
+  }
+  const publication = { eventId: event.eventId, type: event.type, organizationId: event.organizationId }
+  let response: Response
+  try {
+    response = await hub.fetch('https://guest-inbox.internal/broadcast', request)
+  } catch (error) {
+    console.error('dashboard_invalidation_transport_failed', {
+      ...publication,
+      error: error instanceof Error ? error.message : String(error),
+    })
+    return
+  }
+  if (response.status >= 500) {
+    console.error('dashboard_invalidation_transport_failed', { ...publication, status: response.status })
+    return
+  }
   if (!response.ok) {
     throw new Error(`Dashboard invalidation publication failed with HTTP ${response.status}`)
   }
