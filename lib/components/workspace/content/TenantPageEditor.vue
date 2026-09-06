@@ -125,7 +125,7 @@ import { computed, onBeforeUnmount, onMounted, ref, toRaw, watch } from 'vue'
 import { onBeforeRouteLeave } from 'vue-router'
 import DashboardResourceLocalization from '~/components/dashboard/DashboardResourceLocalization.vue'
 import { slugifyTitle } from '~/utils/post-slugs'
-import { TENANT_PAGE_BLOCK_REGISTRY, createTenantPageBlock, createTenantPageTranslationBlocks, isTenantPageBlockAllowed, tenantPageLocalizedTextFields, writeTenantPageLocalizedText, type TenantPageBlock, type TenantPageBlockType, type TenantPageType } from '~/utils/tenant-page-blocks'
+import { TENANT_PAGE_BLOCK_REGISTRY, alignTenantPageTranslationBlocks, createTenantPageBlock, createTenantPageTranslationBlocks, isTenantPageBlockAllowed, tenantPageLocalizedTextFields, tenantPageTranslationSourceBlockId, writeTenantPageLocalizedText, type TenantPageBlock, type TenantPageBlockType, type TenantPageType } from '~/utils/tenant-page-blocks'
 import { createTenantPageEditorData, tenantPageBlockSummary, validateTenantPageBlock } from '~/utils/tenant-page-editor'
 import { canProceedWithTenantPageTransition, createTenantPageRequestGate, previewHrefForTenantPage } from '~/utils/tenant-page-editor-safety'
 
@@ -370,12 +370,17 @@ async function save() {
   }
 }
 
-let localizedPageVariant: PageDetail | null = null
-let localizedPageBlocks: TenantPageBlock[] = []
-let localizedPageLocale = ''
+interface PageLocalizationState {
+  locale: string
+  variant: PageDetail | null
+  blocks: TenantPageBlock[]
+}
 
-function pageBlockFieldKey(blockIndex: number, path: readonly (string | number)[]): string {
-  return `content:${blockIndex}:${path.join('.')}`
+let pageLocalizationState: PageLocalizationState | null = null
+let pageLocalizationLoadGeneration = 0
+
+function pageBlockFieldKey(blockId: string, path: readonly (string | number)[]): string {
+  return `content:${blockId}:${path.join('.')}`
 }
 
 const pageLocalizationFields = computed(() => {
@@ -388,7 +393,7 @@ const pageLocalizationFields = computed(() => {
   page.blocks.forEach((block, blockIndex) => {
     tenantPageLocalizedTextFields(block).forEach((field) => {
       fields.push({
-        key: pageBlockFieldKey(blockIndex, field.path),
+        key: pageBlockFieldKey(block.id, field.path),
         label: `${blockTypeLabel(block.type)} ${blockIndex + 1} · ${field.label}`,
         source: field.value,
         multiline: true,
@@ -402,9 +407,9 @@ const pageLocalizationFields = computed(() => {
 async function loadPageLocalization(locale: string): Promise<Record<string, unknown>> {
   const source = selected.value
   if (!source) throw new Error('The source page is unavailable.')
-  localizedPageLocale = locale
-  localizedPageVariant = null
-  localizedPageBlocks = createTenantPageTranslationBlocks(toRaw(source.blocks))
+  const generation = ++pageLocalizationLoadGeneration
+  let variant: PageDetail | null = null
+  let blocks = createTenantPageTranslationBlocks(toRaw(source.blocks))
   const list = await dashboardApi<{ pages: PageSummary[] }>(
     `/api/editor/sites/${siteId}/pages?locale=${encodeURIComponent(locale)}`,
     { validate: validateList },
@@ -416,14 +421,19 @@ async function loadPageLocalization(locale: string): Promise<Record<string, unkn
       `/api/editor/sites/${siteId}/pages/${summary.id}`,
       { validate: validatePage },
     )
-    localizedPageVariant = toEditorPage(response.page)
-    localizedPageBlocks = structuredClone(response.page.blocks)
+    variant = toEditorPage(response.page)
+    blocks = alignTenantPageTranslationBlocks(toRaw(source.blocks), response.page.blocks)
     values.title = response.page.title
     if (response.page.summary) values.summary = response.page.summary
   }
-  localizedPageBlocks.forEach((block, blockIndex) => {
+  if (generation !== pageLocalizationLoadGeneration) return {}
+  const state = { locale, variant, blocks }
+  pageLocalizationState = state
+  source.blocks.forEach((sourceBlock) => {
+    const block = state.blocks.find(candidate => tenantPageTranslationSourceBlockId(candidate) === sourceBlock.id)
+    if (!block) throw new Error(`The translation for source block ${sourceBlock.id} is unavailable.`)
     tenantPageLocalizedTextFields(block).forEach((field) => {
-      values[pageBlockFieldKey(blockIndex, field.path)] = field.value
+      values[pageBlockFieldKey(sourceBlock.id, field.path)] = field.value
     })
   })
   return values
@@ -431,19 +441,22 @@ async function loadPageLocalization(locale: string): Promise<Record<string, unkn
 
 async function savePageLocalization(locale: string, submitted: Record<string, unknown>): Promise<void> {
   const source = selected.value
-  if (!source || localizedPageLocale !== locale) throw new Error('Choose the language again before saving.')
+  const state = pageLocalizationState
+  if (!source || !state || state.locale !== locale) throw new Error('Choose the language again before saving.')
   const title = submitted.title
   if (typeof title !== 'string' || !title.trim()) throw new Error('Add the translated page title before saving.')
-  const blocks = structuredClone(localizedPageBlocks)
-  blocks.forEach((block, blockIndex) => {
+  const blocks = structuredClone(state.blocks)
+  source.blocks.forEach((sourceBlock) => {
+    const block = blocks.find(candidate => tenantPageTranslationSourceBlockId(candidate) === sourceBlock.id)
+    if (!block) throw new Error(`The translation for source block ${sourceBlock.id} is unavailable.`)
     tenantPageLocalizedTextFields(block).forEach((field) => {
-      const value = submitted[pageBlockFieldKey(blockIndex, field.path)]
+      const value = submitted[pageBlockFieldKey(sourceBlock.id, field.path)]
       if (typeof value === 'string') writeTenantPageLocalizedText(block, field.path, value)
     })
   })
   const summary = typeof submitted.summary === 'string' ? submitted.summary : ''
   const body = {
-    id: localizedPageVariant?.id,
+    id: state.variant?.id,
     pageId: source.page_id,
     locale,
     path: source.path,
@@ -457,13 +470,16 @@ async function savePageLocalization(locale: string, submitted: Record<string, un
     recipe: source.recipe || null,
     sortOrder: source.sort_order,
     blocks,
-    expectedDocumentUpdatedAt: localizedPageVariant?.document.updated_at,
+    expectedDocumentUpdatedAt: state.variant?.document.updated_at,
   }
-  const response = localizedPageVariant
-    ? await dashboardApi<{ page: PageDetailResponse }>(`/api/editor/sites/${siteId}/pages/${localizedPageVariant.id}`, { method: 'PATCH', body, validate: validatePage })
+  const response = state.variant
+    ? await dashboardApi<{ page: PageDetailResponse }>(`/api/editor/sites/${siteId}/pages/${state.variant.id}`, { method: 'PATCH', body, validate: validatePage })
     : await dashboardApi<{ page: PageDetailResponse }>(`/api/editor/sites/${siteId}/pages`, { method: 'POST', body, validate: validatePage })
-  localizedPageVariant = toEditorPage(response.page)
-  localizedPageBlocks = structuredClone(response.page.blocks)
+  pageLocalizationState = {
+    locale,
+    variant: toEditorPage(response.page),
+    blocks: alignTenantPageTranslationBlocks(toRaw(source.blocks), response.page.blocks),
+  }
 }
 
 const siteLocalizationSettingsPath = computed(() => `/dashboard/${route.params.orgSlug}/sites/${route.params.siteSlug}/settings/localization`)

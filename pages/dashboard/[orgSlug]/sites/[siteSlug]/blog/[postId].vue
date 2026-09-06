@@ -85,9 +85,13 @@ useSeoMeta({ title: 'Edit Post | Dashboard' })
 // the blog document's translatable text onto that common field contract.
 const dashboardApi = useDashboardApi()
 type BlogTranslationResponse = { localization: { values: Record<string, unknown>; content_document?: { document: { updated_at: string }; blocks: BlogEditorBlock[] } } }
-const loadedTranslationBlocks = ref<BlogEditorBlock[]>([])
-const loadedTranslationLocale = ref('')
-const translationDocumentUpdatedAt = ref<string | null>(null)
+interface BlogLocalizationState {
+  locale: string
+  blocks: BlogEditorBlock[]
+  documentUpdatedAt: string | null
+}
+let blogLocalizationState: BlogLocalizationState | null = null
+let blogLocalizationLoadGeneration = 0
 
 function isBlogTranslationResponse(value: unknown): value is BlogTranslationResponse {
   if (!isRecord(value) || !isRecord(value.localization) || !isRecord(value.localization.values)) return false
@@ -130,9 +134,9 @@ function blankTranslationBlocks(): BlogEditorBlock[] {
 }
 
 async function loadBlogLocalization(locale: string): Promise<Record<string, unknown>> {
-  loadedTranslationLocale.value = locale
-  translationDocumentUpdatedAt.value = null
-  loadedTranslationBlocks.value = blankTranslationBlocks()
+  const generation = ++blogLocalizationLoadGeneration
+  let blocks = blankTranslationBlocks()
+  let documentUpdatedAt: string | null = null
   let values: Record<string, unknown> = {}
   try {
     const response = await dashboardApi<BlogTranslationResponse>(
@@ -140,23 +144,26 @@ async function loadBlogLocalization(locale: string): Promise<Record<string, unkn
       { validate: isBlogTranslationResponse },
     )
     values = response.localization.values
-    loadedTranslationBlocks.value = structuredClone(response.localization.content_document?.blocks ?? [])
-    translationDocumentUpdatedAt.value = response.localization.content_document?.document.updated_at ?? null
+    blocks = structuredClone(response.localization.content_document?.blocks ?? [])
+    documentUpdatedAt = response.localization.content_document?.document.updated_at ?? null
   } catch (cause) {
     const statusCode = isRecord(cause) && typeof cause.statusCode === 'number' ? cause.statusCode : null
     if (statusCode !== 404) throw cause
   }
-  loadedTranslationBlocks.value.forEach((block, blockIndex) => {
+  blocks.forEach((block, blockIndex) => {
     blogLocalizedTextFields(block).forEach((field) => {
       values[blogBlockFieldKey(blockIndex, field.path)] = field.value
     })
   })
+  if (generation !== blogLocalizationLoadGeneration) return {}
+  blogLocalizationState = { locale, blocks, documentUpdatedAt }
   return values
 }
 
 async function saveBlogLocalization(locale: string, submitted: Record<string, unknown>): Promise<void> {
-  if (loadedTranslationLocale.value !== locale) throw new Error('Choose the language again before saving.')
-  const blocks = structuredClone(loadedTranslationBlocks.value)
+  const state = blogLocalizationState
+  if (!state || state.locale !== locale) throw new Error('Choose the language again before saving.')
+  const blocks = structuredClone(state.blocks)
   sourceBlogBlocks.value.forEach((source, blockIndex) => {
     const translated = blocks[blockIndex]
     if (!translated) throw new Error('The translated article structure is incomplete.')
@@ -183,13 +190,16 @@ async function saveBlogLocalization(locale: string, submitted: Record<string, un
         values,
         route_path: `/${locale}${sourcePath}`,
         content_blocks: blocks,
-        ...(translationDocumentUpdatedAt.value ? { expected_document_updated_at: translationDocumentUpdatedAt.value } : {}),
+        ...(state.documentUpdatedAt ? { expected_document_updated_at: state.documentUpdatedAt } : {}),
       },
       validate: isBlogTranslationResponse,
     },
   )
-  loadedTranslationBlocks.value = structuredClone(response.localization.content_document?.blocks ?? [])
-  translationDocumentUpdatedAt.value = response.localization.content_document?.document.updated_at ?? null
+  blogLocalizationState = {
+    locale,
+    blocks: structuredClone(response.localization.content_document?.blocks ?? []),
+    documentUpdatedAt: response.localization.content_document?.document.updated_at ?? null,
+  }
 }
 
 const siteLocalizationSettingsPath = `/dashboard/${orgSlug}/sites/${siteSlug}/settings/localization`

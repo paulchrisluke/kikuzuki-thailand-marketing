@@ -251,7 +251,85 @@ test.describe.serial('published Thai content saves through the CMS and renders w
     await expect(cms.getByTestId('localize-field-title')).toHaveValue(unsavedTitle)
 
     await expectStatus(await owner.post(`/api/editor/sites/${siteId}/locales/${locale}/enable`), 200)
-    await cms.getByRole('button', { name: 'Cancel' }).click()
+    const dismissedPrompt = new Promise<void>((resolve) => {
+      cms.once('dialog', async (dialog) => {
+        expect(dialog.message()).toBe('Discard unsaved translation changes?')
+        await dialog.dismiss()
+        resolve()
+      })
+    })
+    await Promise.all([dismissedPrompt, cms.getByRole('button', { name: 'Cancel' }).click()])
+    await expect(cms.getByTestId('localize-field-title')).toHaveValue(unsavedTitle)
+
+    const acceptedPrompt = new Promise<void>((resolve) => {
+      cms.once('dialog', async (dialog) => {
+        expect(dialog.message()).toBe('Discard unsaved translation changes?')
+        await dialog.accept()
+        resolve()
+      })
+    })
+    await Promise.all([acceptedPrompt, cms.getByRole('button', { name: 'Cancel' }).click()])
+    await expect(cms.getByTestId('localize-field-title')).toBeHidden()
+  })
+
+  test('keeps page translations attached to canonical block identities after reorder', async () => {
+    const suffix = randomUUID()
+    const firstBlockId = `source-first-${suffix}`
+    const secondBlockId = `source-second-${suffix}`
+    const path = `/localization-identity-${suffix}`
+    const sourceBlocks = [
+      { id: firstBlockId, type: 'heading', position: 0, data: { text: 'First source section', level: 2 }, media: [] },
+      { id: secondBlockId, type: 'heading', position: 1, data: { text: 'Second source section', level: 2 }, media: [] },
+    ]
+    const createResponse = await owner.post(`/api/editor/sites/${siteId}/pages`, {
+      data: {
+        locale: 'en', path, title: 'Localization identity', summary: '', pageType: 'custom', recipe: null,
+        seoTitle: null, seoDescription: null, canonicalUrl: null, robots: null, sortOrder: 99, blocks: sourceBlocks,
+      },
+    })
+    await expectStatus(createResponse, 201)
+    const source = (await createResponse.json() as { page: { id: string; page_id: string; document: { updated_at: string } } }).page
+
+    await openTenantPage(cms, `${baseURL}/dashboard/north-carolina-legal-services/sites/ncls/pages/${source.id}`, {})
+    await cms.getByTestId('localize-resource').click()
+    await cms.getByTestId('localize-language').click()
+    await cms.getByRole('option', { name: /ไทย \(th\)/ }).click()
+    await cms.getByTestId('localize-field-title').fill('หน้าอัตลักษณ์การแปล')
+    await cms.getByTestId(`localize-field-content:${firstBlockId}:text`).fill('ส่วนแรกภาษาไทย')
+    await cms.getByTestId(`localize-field-content:${secondBlockId}:text`).fill('ส่วนที่สองภาษาไทย')
+    const translatedCreateResponse = await Promise.all([
+      cms.waitForResponse(response => response.request().method() === 'POST' && new URL(response.url()).pathname === `/api/editor/sites/${siteId}/pages`),
+      cms.getByTestId('localize-save').click(),
+    ]).then(([response]) => response)
+    expect(translatedCreateResponse.status()).toBe(201)
+    const translated = (await translatedCreateResponse.json() as { page: { id: string } }).page
+
+    const reorderedBlocks = [
+      { ...sourceBlocks[1]!, position: 0 },
+      { ...sourceBlocks[0]!, position: 1 },
+    ]
+    const reorderResponse = await owner.patch(`/api/editor/sites/${siteId}/pages/${source.id}`, {
+      data: {
+        pageId: source.page_id, locale: 'en', path, title: 'Localization identity', summary: '',
+        pageType: 'custom', recipe: null, seoTitle: null, seoDescription: null, canonicalUrl: null,
+        robots: null, sortOrder: 99, blocks: reorderedBlocks, expectedDocumentUpdatedAt: source.document.updated_at,
+      },
+    })
+    await expectStatus(reorderResponse, 200)
+
+    await cms.reload()
+    await cms.getByTestId('localize-resource').click()
+    await cms.getByTestId('localize-language').click()
+    await cms.getByRole('option', { name: /ไทย \(th\)/ }).click()
+    await expect(cms.getByTestId(`localize-field-content:${firstBlockId}:text`)).toHaveValue('ส่วนแรกภาษาไทย')
+    await expect(cms.getByTestId(`localize-field-content:${secondBlockId}:text`)).toHaveValue('ส่วนที่สองภาษาไทย')
+    const alignedSaveResponse = await Promise.all([
+      cms.waitForResponse(response => response.request().method() === 'PATCH' && new URL(response.url()).pathname === `/api/editor/sites/${siteId}/pages/${translated.id}`),
+      cms.getByTestId('localize-save').click(),
+    ]).then(([response]) => response)
+    expect(alignedSaveResponse.status()).toBe(200)
+    const aligned = (await alignedSaveResponse.json() as { page: { blocks: Array<{ data: Record<string, unknown> }> } }).page
+    expect(aligned.blocks.map(block => block.data._localization_source_block_id)).toEqual([secondBlockId, firstBlockId])
   })
 
   async function verifyThaiLinksAndHome(page: Page) {

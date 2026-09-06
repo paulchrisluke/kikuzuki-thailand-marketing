@@ -338,7 +338,7 @@ const locationLocalizationFields = computed(() => [
   { key: 'description', label: 'Description', source: location.value?.description, multiline: true, rows: 6 },
   { key: 'city', label: 'City', source: location.value?.city },
   { key: 'neighborhood', label: 'Neighbourhood', source: location.value?.neighborhood },
-  { key: 'address', label: 'Address', source: location.value?.address?.addressLines, kind: 'string-list' as const },
+  { key: 'address', label: 'Address', source: location.value?.address?.addressLines?.join('\n'), multiline: true, rows: 3 },
   { key: 'opening_hours', label: 'Opening hours', source: location.value?.opening_hours?.weekdayDescriptions, kind: 'string-list' as const },
 ])
 function localizedLocationPath(locale: string): string {

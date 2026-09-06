@@ -10,7 +10,7 @@
   />
 
   <UModal
-    v-model:open="open"
+    v-model:open="modalOpen"
     :title="`Localize ${resourceLabel}`"
     :dismissible="!saving"
     :ui="{ content: 'max-w-3xl' }"
@@ -19,7 +19,7 @@
       <div class="space-y-6">
         <UFormField label="Language">
           <USelect
-            v-model="locale"
+            v-model="selectedLocale"
             :items="localeOptions"
             placeholder="Choose a language"
             class="w-full"
@@ -86,11 +86,11 @@
 
     <template #footer>
       <div class="flex w-full justify-end gap-3">
-        <UButton color="neutral" variant="ghost" label="Cancel" :disabled="saving" @click="open = false" />
+        <UButton color="neutral" variant="ghost" label="Cancel" :disabled="saving" @click="requestClose" />
         <UButton
           label="Save"
           :loading="saving"
-          :disabled="!locale || loading || loadingLanguages || Boolean(languageError)"
+          :disabled="!locale || loading || loadingLanguages || Boolean(languageError) || Boolean(editorError)"
           data-testid="localize-save"
           @click="save"
         />
@@ -146,12 +146,38 @@ const locale = ref('')
 const sourceLocale = ref('')
 const localeOptions = ref<Array<{ label: string, value: string }>>([])
 const draft = reactive<Record<string, string>>({})
+const baseline = ref<Record<string, string>>({})
 const loadingLanguages = ref(false)
 const loading = ref(false)
 const saving = ref(false)
 const languageError = ref<string | null>(null)
 const editorError = ref<string | null>(null)
 let requestGeneration = 0
+
+const dirty = computed(() => props.fields.some(field => draft[field.key] !== baseline.value[field.key]))
+
+function canDiscardDraft(): boolean {
+  return !dirty.value || window.confirm('Discard unsaved translation changes?')
+}
+
+const modalOpen = computed({
+  get: () => open.value,
+  set: (value: boolean) => {
+    if (value) {
+      open.value = true
+      return
+    }
+    if (!saving.value && canDiscardDraft()) open.value = false
+  },
+})
+
+const selectedLocale = computed({
+  get: () => locale.value,
+  set: (value: string) => {
+    if (value === locale.value || saving.value) return
+    if (canDiscardDraft()) locale.value = value
+  },
+})
 
 function isLanguagesResponse(value: unknown): value is { languages: LanguageRow[] } {
   return isRecord(value)
@@ -176,6 +202,10 @@ function clearDraft(): void {
   for (const field of props.fields) draft[field.key] = ''
 }
 
+function markDraftClean(): void {
+  baseline.value = Object.fromEntries(props.fields.map(field => [field.key, draft[field.key] ?? '']))
+}
+
 function applyValues(values: Record<string, unknown>): void {
   for (const field of props.fields) {
     const value = values[field.key]
@@ -183,6 +213,7 @@ function applyValues(values: Record<string, unknown>): void {
       ? (Array.isArray(value) ? value.filter(item => typeof item === 'string').join('\n') : '')
       : (typeof value === 'string' ? value : '')
   }
+  markDraftClean()
 }
 
 function serializedValues(): Record<string, unknown> {
@@ -206,6 +237,7 @@ async function loadLanguages(): Promise<void> {
   localeOptions.value = []
   sourceLocale.value = ''
   clearDraft()
+  markDraftClean()
   try {
     const response = await dashboardApi<{ languages: LanguageRow[] }>(
       `/api/editor/sites/${props.siteId}/locales`,
@@ -235,6 +267,7 @@ async function load(): Promise<void> {
   const requestedLocale = locale.value
   const generation = ++requestGeneration
   clearDraft()
+  markDraftClean()
   editorError.value = null
   if (!requestedLocale) return
   loading.value = true
@@ -280,6 +313,7 @@ async function save(): Promise<void> {
     }
     toast.add({ description: 'Translation saved', color: 'success' })
     emit('saved', requestedLocale)
+    markDraftClean()
     open.value = false
   } catch (cause) {
     editorError.value = getErrorMessage(cause, 'Failed to save translation')
@@ -288,12 +322,30 @@ async function save(): Promise<void> {
   }
 }
 
+function requestClose(): void {
+  modalOpen.value = false
+}
+
+function handleBeforeUnload(event: BeforeUnloadEvent): void {
+  if (!open.value || !dirty.value) return
+  event.preventDefault()
+  event.returnValue = ''
+}
+
+onBeforeRouteLeave(() => {
+  if (open.value && !canDiscardDraft()) return false
+})
+
+onMounted(() => window.addEventListener('beforeunload', handleBeforeUnload))
+onBeforeUnmount(() => window.removeEventListener('beforeunload', handleBeforeUnload))
+
 watch(open, (value) => {
   requestGeneration += 1
   if (value) void loadLanguages()
   else {
     locale.value = ''
     clearDraft()
+    markDraftClean()
     editorError.value = null
   }
 })
@@ -303,6 +355,7 @@ watch(() => props.resourceId, () => {
   if (open.value) {
     locale.value = ''
     clearDraft()
+    markDraftClean()
   }
 })
 watchEffect(() => {

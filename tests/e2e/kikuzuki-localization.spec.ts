@@ -35,7 +35,7 @@ async function expectLocalizedMenu(page: Page) {
   await expect(page.locator('body')).not.toContainText('Tuna Sushi')
 }
 
-test('Kikuzuki keeps its Thai shell and category translations on a hard load', async ({ page, playwright }, testInfo) => {
+test('Kikuzuki keeps its Thai shell and category translations on a hard load', async ({ page, browser, playwright }, testInfo) => {
   testInfo.setTimeout(120_000)
   const baseURL = testBaseUrl()
   const owner = await playwright.request.newContext({ baseURL })
@@ -108,6 +108,26 @@ test('Kikuzuki keeps its Thai shell and category translations on a hard load', a
       expect(builtInResponse?.status()).toBeLessThan(400)
       await expect(page.locator('html')).toHaveAttribute('lang', locale)
       await expect(page.getByRole('navigation', { name: 'การนำทางหลัก' }).getByRole('link', { name: 'เมนู', exact: true })).toBeVisible()
+    }
+
+    const dashboardContext = await browser.newContext({ baseURL, storageState: await owner.storageState() })
+    try {
+      const cms = await dashboardContext.newPage()
+      await openTenantPage(cms, `${baseURL}/dashboard/kikuzuki-krabi-thailand/sites/kikuzuki-krabi-thailand/locations/kikuzuki-japanese-robatayaki-izakaya/settings/profile`, {})
+      await cms.getByTestId('localize-resource').click()
+      await cms.getByTestId('localize-language').click()
+      await cms.getByRole('option', { name: /ไทย \(th\)/ }).click()
+      const address = cms.getByTestId('localize-field-address')
+      await expect(address).toHaveValue('325 ตำบลอ่าวนาง กระบี่ 81180 ประเทศไทย')
+      const saveResponse = await Promise.all([
+        cms.waitForResponse(response => response.request().method() === 'PUT' && response.url().includes('/localization/business_location/loc-kikuzuki/th')),
+        cms.getByTestId('localize-save').click(),
+      ]).then(([response]) => response)
+      expect(saveResponse.status()).toBe(200)
+      const payload = saveResponse.request().postDataJSON() as { values: { address: unknown } }
+      expect(payload.values.address).toBe('325 ตำบลอ่าวนาง กระบี่ 81180 ประเทศไทย')
+    } finally {
+      await dashboardContext.close()
     }
   } finally {
     await owner.dispose()
