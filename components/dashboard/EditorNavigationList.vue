@@ -22,6 +22,21 @@
         >
           <span class="block text-[15px] font-semibold text-highlighted">{{ item.label }}</span>
           <span v-if="item.summary" class="mt-1 line-clamp-2 block text-sm text-muted">{{ item.summary }}</span>
+
+          <!--
+            A card for the thing a tenant opens most shows what is inside it,
+            the way the listing editor's photo card shows the photographs. Text
+            alone makes the most important row look like the least.
+          -->
+          <span v-if="item.previews?.length" class="mt-4 flex gap-2">
+            <span
+              v-for="(preview, index) in item.previews.slice(0, 4)"
+              :key="index"
+              class="aspect-[20/19] w-full max-w-24 overflow-hidden rounded-xl bg-default"
+            >
+              <img :src="preview" alt="" class="size-full object-cover" loading="lazy" decoding="async">
+            </span>
+          </span>
         </NuxtLink>
       </div>
 
@@ -61,6 +76,8 @@ export interface EditorNavigationItem {
   summary?: string
   icon?: string
   to: string
+  /** Thumbnails of what the section holds. Cards variant only. */
+  previews?: string[]
 }
 
 export interface EditorNavigationGroup {

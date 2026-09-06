@@ -16,7 +16,7 @@
     does not jump when the locations arrive.
   -->
   <div v-if="pending" class="space-y-6">
-    <div class="grid grid-cols-[repeat(auto-fill,minmax(min(100%,26rem),1fr))] gap-6">
+    <div class="grid grid-cols-[repeat(auto-fill,minmax(min(100%,18rem),1fr))] gap-6">
       <USkeleton v-for="index in 2" :key="index" class="aspect-[20/19] rounded-2xl" />
     </div>
   </div>

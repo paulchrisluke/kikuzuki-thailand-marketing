@@ -177,20 +177,28 @@ function countSummary(total: number, noun: string, empty: string): string {
  * manager declared there cannot be left unreachable.
  */
 const sectionGroups = computed(() => {
+  // Opening a location is the thing a tenant does most, so it leads the rail
+  // and shows the locations themselves rather than only counting them.
   const place = [{
     id: 'locations',
     label: 'Locations',
     summary: countSummary(locations.value.length, 'location', 'Add your first location'),
     to: `${sitePath.value}/locations`,
+    previews: locations.value
+      .map(location => location.media.find(item => item.slot === 'social_card')?.public_url)
+      .filter((url): url is string => Boolean(url)),
   }]
 
-  const known: Record<string, { label: string; summary: string }> = {
-    blog: { label: 'Blog posts', summary: '' },
-    testimonials: { label: 'Testimonials', summary: '' },
-    qa: { label: 'Q&A', summary: '' },
-    links: { label: 'Links page', summary: countSummary(activeLinksCount.value, 'active link', 'Add your first link') },
-    ordering: { label: 'Orders', summary: '' },
-    media: { label: 'Media library', summary: countSummary(mediaCount.value, 'file', 'Upload your first file') },
+  // Ordered by how often a tenant edits it, not by the order the registry
+  // happens to declare things in. Guest-facing content first, then the
+  // long-form and peripheral surfaces.
+  const known: Record<string, { label: string; summary: string; rank: number }> = {
+    qa: { label: 'Q&A', summary: '', rank: 1 },
+    testimonials: { label: 'Testimonials', summary: '', rank: 2 },
+    ordering: { label: 'Orders', summary: '', rank: 3 },
+    blog: { label: 'Blog posts', summary: '', rank: 4 },
+    media: { label: 'Media library', summary: countSummary(mediaCount.value, 'file', 'Upload your first file'), rank: 5 },
+    links: { label: 'Links page', summary: countSummary(activeLinksCount.value, 'active link', 'Add your first link'), rank: 6 },
   }
 
   const content = [
@@ -202,7 +210,9 @@ const sectionGroups = computed(() => {
         label: known[manager.id]!.label,
         summary: known[manager.id]!.summary,
         to: `${sitePath.value}/${manager.route}`,
-      })),
+        rank: known[manager.id]!.rank,
+      }))
+      .sort((a, b) => a.rank - b.rank),
   ]
 
   return [

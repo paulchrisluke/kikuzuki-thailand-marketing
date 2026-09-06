@@ -10,7 +10,7 @@
        auto-fill, not auto-fit: auto-fit collapses the tracks it has no items
        for, so an organization with one site rendered that site across the whole
        row instead of in a card the size of every other card. -->
-  <div class="grid grid-cols-[repeat(auto-fill,minmax(min(100%,26rem),1fr))] gap-6">
+  <div class="grid grid-cols-[repeat(auto-fill,minmax(min(100%,18rem),1fr))] gap-6">
     <NuxtLink
       v-for="item in items"
       :key="item.id"
