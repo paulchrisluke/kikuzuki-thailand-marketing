@@ -7,6 +7,7 @@ import { readAvailability, executeAvailabilityClaim, setAvailability } from '../
 import { bookingPayloadForGuest, requestInsertQueries, cancelBookingRequest, getGuestRequest } from '../../server/domain/requests.ts'
 
 import { executeGuestThreadOperation } from '../../server/domain/guest-threads/operations.ts'
+import { listGuestThreads } from '../../server/domain/guest-threads/repository.ts'
 import { createExperience, updateExperience } from '../../server/utils/experiences.ts'
 import { upsertBookingPolicy, resolveBookingPolicy } from '../../server/utils/booking-policies.ts'
 import { buildCanonicalNotificationInsert } from '../../server/utils/notification-center.ts'
@@ -45,6 +46,10 @@ test('canonical requests claim one seat and update independent owner slots atomi
     assert.equal((await Promise.all([claim('first'), claim('second')])).filter(Boolean).length, 1)
     assert.equal(await db.prepare('SELECT count(*) FROM activity_entries').first('count(*)'), 1)
     const winner = await db.prepare('SELECT id FROM requests').first<string>('id')
+    const inbox = await listGuestThreads(db, 'site-proof', { userId: 'user-proof', locationId: 'location-proof', type: 'reservation', search: 'guest@proof.example' })
+    assert.deepEqual(inbox.map(item => ({ id: item.id, preview: item.preview, unread: item.unread })), [
+      { id: winner, preview: { kind: 'submission', text: '2099-01-05 16:00 - 1 guests' }, unread: false },
+    ])
     for (const field of ['party_size', 'status', 'conversation_state']) {
       await assert.rejects(() => db.prepare(`UPDATE requests SET ${field}=NULL WHERE id=?`).bind(winner).run(), /CHECK constraint/)
     }
@@ -58,8 +63,10 @@ test('canonical requests claim one seat and update independent owner slots atomi
     const entryId = await db.prepare('SELECT id FROM activity_entries').first<string>('id')
     const notification = buildCanonicalNotificationInsert({ scope: 'site', organizationId: 'org-proof', siteId: 'site-proof', title: 'Reply', template: 'guest.reply', sourceEntryId: entryId }, 'notification-proof')
     await db.prepare(notification.query).bind(...notification.params).run()
+    assert.deepEqual((await listGuestThreads(db, 'site-proof', { userId: 'user-proof', unreadOnly: true })).map(item => item.id), [winner])
     const visibility = { userId: 'user-proof', whereSql: "n.organization_id = ?", whereParams: ['org-proof'] }
     assert.equal(await acknowledgeNotification(db, visibility, notification.id), true)
+    assert.deepEqual(await listGuestThreads(db, 'site-proof', { userId: 'user-proof', unreadOnly: true }), [])
     assert.equal(await acknowledgeNotification(db, { ...visibility, whereParams: ['another-org'] }, notification.id), false)
     assert.equal(await db.prepare("SELECT count(*) FROM activity_entries WHERE kind='acknowledgement' AND parent_id=? AND actor_user_id='user-proof'").bind(notification.id).first('count(*)'), 1)
     const experience = await createExperience(db, 'org-proof', 'site-proof', { title: 'Actual product', location_id: 'location-proof', max_capacity: 4, recurring_slots: { monday: ['18:30'] } }, 'user-proof', {} as CloudflareEnv)

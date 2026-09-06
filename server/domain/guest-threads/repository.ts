@@ -17,7 +17,7 @@ import { formatOperationalStatusLabel } from './status-labels'
 const SOURCE_GUEST_NAME_SQL = "json_extract(gt.payload_json, '$.guest.name')"
 const SOURCE_GUEST_EMAIL_SQL = "json_extract(gt.payload_json, '$.guest.email')"
 const SOURCE_GUEST_PHONE_SQL = "json_extract(gt.payload_json, '$.guest.phone')"
-const SOURCE_PREVIEW_SQL = `SUBSTR(CASE WHEN gt.kind = 'contact' THEN json_extract(gt.payload_json, '$.message') ELSE COALESCE(NULLIF(TRIM(json_extract(gt.payload_json, '$.notes')), ''), gt.booking_date || ' ' || gt.time_slot || ' ? ' || gt.party_size || CASE WHEN json_extract(gt.payload_json, '$.party_size_is_minimum') THEN '+' ELSE '' END || ' guests') END, 1, 160)`
+const SOURCE_PREVIEW_SQL = `SUBSTR(CASE WHEN gt.kind = 'contact' THEN json_extract(gt.payload_json, '$.message') ELSE COALESCE(NULLIF(TRIM(json_extract(gt.payload_json, '$.notes')), ''), gt.booking_date || ' ' || gt.time_slot || ' - ' || gt.party_size || CASE WHEN json_extract(gt.payload_json, '$.party_size_is_minimum') THEN '+' ELSE '' END || ' guests') END, 1, 160)`
 
 export interface OperationSummary {
   openThreads: number
