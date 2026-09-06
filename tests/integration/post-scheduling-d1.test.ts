@@ -12,11 +12,10 @@ test('scheduled posts compare instants across timezone offsets and publish once'
   } }] })
   try {
     const db = await runtime.getD1Database('DB')
-    for (const statement of readFileSync('migrations/0000_epoch_4_baseline.sql', 'utf8').split('--> statement-breakpoint').map(sql => sql.trim()).filter(Boolean)) {
+    for (const statement of readFileSync('migrations/0000_epoch_5_baseline.sql', 'utf8').split('--> statement-breakpoint').map(sql => sql.trim()).filter(Boolean)) {
       await db.prepare(statement).run()
     }
     for (const statement of [
-      "INSERT INTO themes (id, name, slug) VALUES ('saya-theme-v1', 'Saya', 'saya')",
       "INSERT INTO organization (id, name, slug) VALUES ('org-proof', 'Proof', 'proof')",
       "INSERT INTO sites (id, organization_id, slug, subdomain) VALUES ('site-proof', 'org-proof', 'proof', 'proof')",
       "INSERT INTO user (id, name, email) VALUES ('user-proof', 'Proof Owner', 'owner@proof.example')",

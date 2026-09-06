@@ -63,6 +63,7 @@ import MediaPicker from '~/lib/components/workspace/media/MediaPicker.vue'
 import type { BlogEditorBlock, BlogPost } from '~/lib/components/workspace/blog/types'
 import { blankBlogLocalizedText, blogLocalizedTextFields, readBlogLocalizedText, writeBlogLocalizedText, type BlogLocalizedFieldPath } from '~/utils/blog-editor'
 import { tenantBlogPostPath } from '~/utils/tenant-blog-route'
+import { publicTemplateRegistry } from '~/utils/template-registry'
 
 definePageMeta({ layout: 'dashboard', cmsCapabilityKey: 'site.blog' })
 
@@ -195,7 +196,9 @@ async function saveTranslation() {
     if (translationFields.seo_description.trim()) values.seo_description = translationFields.seo_description.trim()
     if (translationFields.seo_keywords.trim()) values.seo_keywords = translationFields.seo_keywords.trim()
     const slug = String(postResource.value?.post.slug ?? '')
-    const sourcePath = tenantBlogPostPath({ theme: postResource.value?.post.editor_template }, slug)
+    const template: unknown = postResource.value?.post.editor_template
+    if (template !== 'saya' && template !== 'blawby') throw new Error('Article template is missing or invalid.')
+    const sourcePath = tenantBlogPostPath({ themeId: publicTemplateRegistry[template].themeId }, slug)
     const tags_json = translationFields.tags_text.split(',').map(tag => tag.trim()).filter(Boolean)
     const response = await dashboardApi<BlogTranslationResponse>(`/api/editor/sites/${siteId}/localization/tenant_blog_post/${postId}/${encodeURIComponent(translationLocale.value)}`, {
       method: 'PUT',

@@ -1,3 +1,4 @@
+import { parseOpeningHours, parseSpecialHours } from '~/shared/reservation-hours'
 import type { BatchQuery } from '~/server/db'
 import type { PublicBase } from '~/server/utils/public-base'
 import { calculateMapEmbedUrl } from '~/server/utils/google-places'
@@ -39,7 +40,7 @@ export function appendPublicShellQueries(
     locations: push(`SELECT bl.id, bl.slug, bl.title, bl.address, bl.phone, bl.email,
                      bl.website_url, bl.maps_url, bl.latitude, bl.longitude,
                      bl.opening_hours, bl.special_hours, bl.timezone, bl.rating,
-                     bl.review_count, bl.is_primary, bl.status, bl.city,
+                     bl.review_count, bl.status, bl.city,
                      bl.neighborhood, bl.grab_url, bl.uber_eats_url,
                      bl.foodpanda_url, bl.description, bl.short_description,
                      bl.last_synced_at, bl.seo_title, bl.seo_description,
@@ -61,7 +62,7 @@ export function appendPublicShellQueries(
                   AND social_ma.organization_id = bl.organization_id
                   AND social_ma.site_id = bl.site_id
                WHERE bl.organization_id = ? AND bl.site_id = ? AND bl.status = 'active'
-               ORDER BY bl.is_primary DESC, bl.title ASC`, [organizationId, siteId]),
+               ORDER BY bl.title ASC`, [organizationId, siteId]),
     config: push(`SELECT key, value
                 FROM site_config
                WHERE organization_id = ? AND site_id = ?
@@ -109,12 +110,11 @@ export function buildPublicShellPayload(
       }),
       latitude: location.latitude,
       longitude: location.longitude,
-      opening_hours: location.opening_hours ? JSON.parse(String(location.opening_hours)) : null,
-      special_hours: location.special_hours ? JSON.parse(String(location.special_hours)) : null,
+      opening_hours: parseOpeningHours(location.opening_hours ? JSON.parse(String(location.opening_hours)) : null),
+      special_hours: parseSpecialHours(location.special_hours ? JSON.parse(String(location.special_hours)) : null),
       timezone: location.timezone ?? null,
       rating: location.rating,
       review_count: location.review_count,
-      is_primary: Boolean(location.is_primary),
       status: location.status,
       media: [
         ...(publicUrl ? [{ asset_id: location.asset_id, slot: 'hero', public_url: publicUrl, thumbnail_url: location.media_thumbnail_url, kind: location.media_kind }] : []),
@@ -156,23 +156,6 @@ export function buildPublicShellPayload(
   if (site.social_instagram_url) config.social_instagram = site.social_instagram_url
   if (site.social_tiktok_url) config.social_tiktok = site.social_tiktok_url
 
-  const primary = rawLocations.find(location => location.is_primary) ?? rawLocations[0] ?? null
-  const verifiedLocations = rawLocations.filter(
-    location => location.last_synced_at && location.rating != null && location.review_count != null,
-  )
-  const reviewCount = verifiedLocations.reduce((sum, location) => sum + Number(location.review_count), 0)
-  const reviewSummary = reviewCount > 0
-    ? {
-        averageRating: Math.round(
-          verifiedLocations.reduce(
-            (sum, location) => sum + Number(location.rating) * Number(location.review_count),
-            0,
-          ) / reviewCount * 10,
-        ) / 10,
-        totalReviewCount: reviewCount,
-      }
-    : null
-
   return {
     platformMessages: null,
     site: {
@@ -186,25 +169,11 @@ export function buildPublicShellPayload(
     locations,
     config,
     googleBusiness: {
-      business: primary
-        ? {
-            title: primary.title,
-            city: primary.city,
-            storefrontAddress: primary.address ? JSON.parse(String(primary.address)) : null,
-            phoneNumbers: primary.phone ? [{ phoneNumber: primary.phone }] : [],
-            websiteUri: primary.website_url,
-            mapsUri: primary.maps_url,
-            latlng: primary.latitude != null && primary.longitude != null
-              ? { latitude: primary.latitude, longitude: primary.longitude }
-              : null,
-            profile: { description: primary.description },
-            reviewSummary,
-          }
-        : null,
+      business: null,
       reviews: [],
       media: [],
       posts: [],
-      syncedAt: primary?.last_synced_at ?? null,
+      syncedAt: null,
     },
     locales: ((results[indexes.locales]?.results ?? []) as Array<{
       locale: string, label: string | null, is_source: number

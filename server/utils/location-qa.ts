@@ -1,3 +1,4 @@
+import { resourceLocalizationDeletionQueries } from '~/server/utils/localization'
 import { execute, executeBatch, queryAll, queryFirst, type DbClient } from '../db/index.ts'
 import { d1JsonStringSet } from '../db/d1-limits.ts'
 
@@ -207,11 +208,13 @@ export async function updateQa(db: DbClient, scope: QaScope, qaId: string, updat
 
 export async function deleteQa(db: DbClient, scope: QaScope, qaId: string) {
   const scoped = scopeSql(scope.locationId, scope.pagePath)
-  const result = await execute(db, `
-    DELETE FROM location_qa
-    WHERE id = ? AND organization_id = ? AND site_id = ? AND ${scoped.clause}
-  `, [qaId, scope.organizationId, scope.siteId, ...scoped.params])
-  if (!Number(result.meta.changes ?? 0)) return { status: 404, data: { error: 'Q&A not found' } }
+  const params = [qaId, scope.organizationId, scope.siteId, ...scoped.params]
+  const where = `id = ? AND organization_id = ? AND site_id = ? AND ${scoped.clause}`
+  const results = await executeBatch(db, [
+    ...resourceLocalizationDeletionQueries('location_qa', { query: `SELECT id FROM location_qa WHERE ${where}`, params }),
+    { query: `DELETE FROM location_qa WHERE ${where}`, params },
+  ])
+  if (!Number(results.at(-1)?.meta.changes ?? 0)) return { status: 404, data: { error: 'Q&A not found' } }
   return { status: 200, data: { qa_id: qaId, deleted: true } }
 }
 

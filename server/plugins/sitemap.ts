@@ -251,11 +251,12 @@ export default definePlugin((nitroApp) => {
       ),
       queryAll<ApiRecord>(
         db,
-        `SELECT slug, location_id, updated_at
-         FROM experiences
-         WHERE site_id = ?
-           AND status != 'inactive'
-           AND (robots IS NULL OR robots NOT LIKE '%noindex%')`,
+        `SELECT p.slug, e.location_id, p.updated_at
+         FROM experiences e
+         JOIN products p ON p.id = e.id AND p.site_id = e.site_id AND p.organization_id = e.organization_id
+         WHERE e.site_id = ?
+           AND p.is_visible = 1
+           AND (p.robots IS NULL OR p.robots NOT LIKE '%noindex%')`,
         [siteId],
       ),
       listPublishedTenantSitemapPages(db, siteId),

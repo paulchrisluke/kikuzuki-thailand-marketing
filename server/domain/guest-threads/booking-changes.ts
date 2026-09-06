@@ -2,9 +2,7 @@ import { createHmac, timingSafeEqual } from 'node:crypto'
 import { HTTPError } from 'nitro'
 import { z } from 'zod'
 import { executeBatch, queryFirst, type BatchQuery, type DbClient } from '~/server/db'
-import { getReservationSlotAvailability } from '~/server/utils/reservations'
-import { getExperienceById, getSlotAvailability } from '~/server/utils/experiences'
-import { resolveLocationTimezone, isTimeSlotInPast } from '~/server/utils/site-config'
+import { readAvailability, executeAvailabilityClaim } from '~/server/utils/availability'
 import { assertResourceAccess, resolveOrganizationMembership } from '~/server/utils/member-access'
 import { resolveBookingPresentation } from '~/utils/booking-presentation'
 import type { CloudflareEnv } from '~/server/utils/auth'
@@ -67,26 +65,20 @@ async function loadSource(db: DbClient, thread: GuestThreadRow): Promise<Source>
 }
 
 async function validateDestination(db: DbClient, thread: GuestThreadRow, before: Source, after: Fields) {
-  const location = await queryFirst<{ id: string; title: string; timezone: string | null; max_capacity: number | null; opening_hours: string | null }>(db,
-    `SELECT id, title, timezone, max_capacity, opening_hours FROM business_locations WHERE id = ? AND site_id = ? AND organization_id = ?`,
+  const location = await queryFirst<{ id: string; title: string }>(db,
+    `SELECT id, title FROM business_locations WHERE id = ? AND site_id = ? AND organization_id = ?`,
     [after.locationId, thread.site_id, thread.organization_id])
   if (!location) throw new HTTPError({ statusCode: 400, message: 'Choose a location belonging to this site' })
-  const timezone = await resolveLocationTimezone(db, thread.organization_id, thread.site_id, location.id)
-  if (isTimeSlotInPast(after.bookingDate, after.bookingTime, timezone)) throw new HTTPError({ statusCode: 409, message: 'Choose a future time' })
-  let slots
-  if (thread.submission_type === 'reservation') {
-    slots = await getReservationSlotAvailability(db, thread.site_id, { ...location, opening_hours: location.opening_hours ? JSON.parse(location.opening_hours) : null }, after.bookingDate, timezone)
-  } else {
-    const experience = before.experienceId ? await getExperienceById(db, thread.site_id, before.experienceId) : null
-    if (!experience || experience.location_id !== after.locationId) throw new HTTPError({ statusCode: 409, message: 'This experience is only offered at its configured location' })
-    slots = await getSlotAvailability(db, thread.site_id, experience, after.bookingDate, timezone)
-  }
-  const slot = slots.find(item => item.time_slot === after.bookingTime)
-  const sameSlot = before.locationId === after.locationId && before.bookingDate === after.bookingDate && before.bookingTime === after.bookingTime
-  if (!slot || slot.is_closed || (slot.remaining !== null && slot.remaining + (sameSlot ? before.partySize : 0) < after.partySize)) {
-    throw new HTTPError({ statusCode: 409, message: 'The requested time or guest count is no longer available' })
-  }
-  return { ...location, capacity: slot.capacity }
+  if (thread.submission_type !== 'reservation' && !before.experienceId) throw new HTTPError({ statusCode: 409, message: 'Experience is missing' })
+  const [snapshot] = await readAvailability(db, { siteId: thread.site_id,
+    owners: [thread.submission_type === 'reservation' ? { kind: 'location', locationId: after.locationId } : { kind: 'experience', experienceId: before.experienceId! }],
+    dates: [after.bookingDate], excludeBookingId: thread.submission_id,
+  })
+  if (snapshot!.row.location_id !== after.locationId) throw new HTTPError({ statusCode: 409, message: 'This experience is only offered at its configured location' })
+  const slot = snapshot!.days[0]!.slots.find(s => s.time_slot === after.bookingTime)
+  if (!slot || slot.is_closed || slot.remaining !== null && slot.remaining < after.partySize) throw new HTTPError({ statusCode: 409, message: 'The requested time or guest count is no longer available' })
+  return { ...location, snapshot: snapshot! }
+
 }
 
 function linkToken(env: ChangeEnv, threadId: string, requestId: string) {
@@ -187,15 +179,7 @@ export async function respondToBookingChange(db: DbClient, env: ChangeEnv, input
     const id = crypto.randomUUID()
     const c = sourceColumns(thread.submission_type)
     const condition = { sql: `source.id = ? AND source.site_id = ? AND source.updated_at = ? AND source.status IN ('new', 'pending', 'confirmed') ${thread.submission_type === 'experience_booking' ? 'AND source.completed_at IS NULL' : ''}`, params: [thread.submission_id, thread.site_id, proposal.updatedAt] as unknown[] }
-    // Claim capacity in the same atomic statement as acceptance, just as public booking does.
-    // Exclude this reservation rather than adding its current party back to a stale read.
-    if (destination?.capacity != null) {
-      const reservation = thread.submission_type === 'reservation'
-      condition.sql += ` AND (SELECT COALESCE(SUM(${reservation ? "CAST(REPLACE(occupied.guests, '+', '') AS INTEGER)" : 'occupied.party_size'}), 0) FROM ${c.table} occupied
-        WHERE occupied.site_id = ? AND occupied.${reservation ? 'location_id' : 'experience_id'} = ? AND occupied.${c.date} = ? AND occupied.${c.time} = ? AND occupied.id != ?
-        AND ${reservation ? "occupied.status != 'cancelled'" : "occupied.status IN ('pending', 'confirmed')"}) + ? <= ?`
-      condition.params.push(thread.site_id, reservation ? proposal.after.locationId : current.experienceId, proposal.after.bookingDate, proposal.after.bookingTime, thread.submission_id, proposal.after.partySize, destination.capacity)
-    }
+    if (destination) condition.sql += ' AND /* availability_claim */'
     const now = new Date().toISOString()
     const entryInsert: BatchQuery = {
       query: `INSERT INTO guest_thread_entries
@@ -209,7 +193,8 @@ export async function respondToBookingChange(db: DbClient, env: ChangeEnv, input
     const queries: BatchQuery[] = [entryInsert]
     if (input.decision === 'accept') queries.push({ query: `UPDATE ${c.table} SET ${c.date} = ?, ${c.time} = ?, ${c.guests} = ?, location_id = ?, updated_at = ?
       WHERE id = ? AND site_id = ? AND EXISTS (SELECT 1 FROM guest_thread_entries WHERE id = ?)`, params: [proposal.after.bookingDate, proposal.after.bookingTime, thread.submission_type === 'reservation' ? String(proposal.after.partySize) : proposal.after.partySize, proposal.after.locationId, now, thread.submission_id, thread.site_id, id] })
-    await executeBatch(db, queries, { operation: 'respond to booking change' })
+    if (destination) await executeAvailabilityClaim(db, { snapshot: destination.snapshot, date: proposal.after.bookingDate, time: proposal.after.bookingTime, partySize: proposal.after.partySize, statement: entryInsert, following: queries.slice(1) })
+    else await executeBatch(db, queries, { operation: 'respond to booking change' })
     result = await findEntryByDedupeKey(db, resultId)
     if (!result) throw new HTTPError({ statusCode: 409, message: 'This reservation changed or is no longer available' })
   }

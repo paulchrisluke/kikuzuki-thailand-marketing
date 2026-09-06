@@ -275,12 +275,6 @@ export async function createSystemSubdomain(
     },
   )
 
-  if (role === 'canonical') {
-    stmts.push({
-      sql: `UPDATE sites SET public_url = ?, updated_at = ? WHERE id = ? AND organization_id = ?`,
-      values: [`https://${domain}`, now, siteId, organizationId],
-    })
-  }
 
   if (options.siteUpdate) {
     stmts.push(options.siteUpdate)
@@ -1022,7 +1016,6 @@ export async function setCanonicalDomain(
   try {
     await execute(db, `UPDATE site_domains SET role = 'secondary', updated_at = ? WHERE site_id = ? AND role = 'canonical'`, [now, siteId])
     await execute(db, `UPDATE site_domains SET role = 'canonical', updated_at = ? WHERE id = ?`, [now, domainId])
-    await updateSitePrimaryUrl(db, domain)
     await logDomainEvent(db, {
       organizationId: domain.organization_id,
       siteId,
@@ -1055,10 +1048,7 @@ async function promoteCanonicalIfReady(db: D1Database, siteId: string): Promise<
     LIMIT 1
   `, [siteId])
 
-  if (activeCanonical) {
-    await updateSitePrimaryUrl(db, activeCanonical)
-    return
-  }
+  if (activeCanonical) return
 
   const activeCustom = await queryFirst<DomainRecord>(db, `
     SELECT *
@@ -1084,26 +1074,6 @@ async function promoteCanonicalIfReady(db: D1Database, siteId: string): Promise<
   if (!activeSubdomain) return
 
   await setCanonicalDomain(db, siteId, activeSubdomain.id, 'system')
-}
-
-async function updateSitePrimaryUrl(db: D1Database, domain: DomainRecord): Promise<void> {
-  const now = new Date().toISOString()
-  // custom_domain/custom_domain_status are a cache of the site's *custom*
-  // domain specifically (DNS instructions, domain settings UI) — a platform
-  // subdomain becoming canonical must not be mistaken for one.
-  if (domain.type === 'custom') {
-    await execute(db, `
-      UPDATE sites
-      SET public_url = ?, custom_domain = ?, custom_domain_status = 'active', updated_at = ?
-      WHERE id = ? AND organization_id = ?
-    `, [`https://${domain.domain}`, domain.domain, now, domain.site_id, domain.organization_id])
-  } else {
-    await execute(db, `
-      UPDATE sites
-      SET public_url = ?, updated_at = ?
-      WHERE id = ? AND organization_id = ?
-    `, [`https://${domain.domain}`, now, domain.site_id, domain.organization_id])
-  }
 }
 
 export async function reconcileDueDomains(env: DomainEnv, db: D1Database, limit = 25): Promise<{ checked: number; failed: number }> {

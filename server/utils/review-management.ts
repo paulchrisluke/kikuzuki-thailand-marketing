@@ -1,3 +1,4 @@
+import { parseGoogleReviewMetadata } from '~/shared/google-review'
 import { execute, executeBatch, queryFirst, type DbClient, type QueryResultRow } from '~/server/db'
 import { loadPublicSocialMedia } from '~/server/utils/public-social-image'
 import { refreshSocialCard } from '~/server/utils/social-card'
@@ -6,7 +7,7 @@ import type { CloudflareEnv } from '~/server/utils/auth'
 export async function getPublicReview(db: DbClient, siteId: string, locationSlug: string, reviewId: string) {
   const review = await queryFirst<QueryResultRow>(db, `
     SELECT r.id, r.author_name, r.rating, r.title, r.content,
-           r.owner_reply, r.owner_reply_at, r.source, r.created_at,
+           r.owner_reply, r.owner_reply_at, r.source, r.created_at, r.original_review_date, r.original_reference, r.google_review_metadata,
            r.helpful_count, bl.title AS location_title, bl.slug AS location_slug,
            s.brand_name AS site_name
     FROM reviews r
@@ -24,6 +25,7 @@ export async function getPublicReview(db: DbClient, siteId: string, locationSlug
 
   return {
     ...review,
+    google_review_metadata: parseGoogleReviewMetadata(review.google_review_metadata),
     media: socialMedia?.media ?? [],
     social_image: socialMedia?.social_image ?? null,
   }

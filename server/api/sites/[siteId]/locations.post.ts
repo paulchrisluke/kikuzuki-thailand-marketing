@@ -23,7 +23,6 @@ export default defineHandler(async (event) => {
     rating?: number | string | null
     review_count?: number | string | null
     opening_hours?: ApiValue
-    is_primary?: boolean
   }>(event)
 
   const { env, db, session, site } = await requireSiteAccess(event, siteId)
@@ -37,7 +36,7 @@ export default defineHandler(async (event) => {
 
   const result = await createLocation(
     env, db, site.organization_id, siteId, {
-      title: body?.title ?? '', slug: body?.slug ?? null, address: body?.address ? JSON.stringify(body.address) : null, city: body?.city ?? null, phone: body?.phone ?? null, website_url: body?.website_url ?? null, maps_url: body?.maps_url ?? null, description: body?.description ?? null, google_place_id: body?.google_place_id ?? null, rating, review_count: reviewCount, opening_hours: (body?.opening_hours || null) as CreateLocationInput['opening_hours'], is_primary: body?.is_primary === true, }, session.user.id, )
+      title: body?.title ?? '', slug: body?.slug ?? null, address: body?.address ? JSON.stringify(body.address) : null, city: body?.city ?? null, phone: body?.phone ?? null, website_url: body?.website_url ?? null, maps_url: body?.maps_url ?? null, description: body?.description ?? null, google_place_id: body?.google_place_id ?? null, rating, review_count: reviewCount, opening_hours: (body?.opening_hours || null) as CreateLocationInput['opening_hours'], }, session.user.id, )
 
   if (result.status >= 400) {
     return jsonResponse(result.data, { status: result.status })

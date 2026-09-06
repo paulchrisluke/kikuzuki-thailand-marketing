@@ -12,7 +12,6 @@ export interface PublicBase {
   site: {
     id: string
     organization_id: string
-    primary_location_id: string | null
     default_currency: CurrencyCode
     contact_email: string | null
     contact_phone: string | null
@@ -57,7 +56,7 @@ export function loadPublicBase(
     try {
       const row = await queryFirst<Omit<PublicBase['site'], 'media'> & { media_json: string }>(
         db,
-        `SELECT s.id, s.organization_id, s.primary_location_id, s.default_currency, s.contact_email, s.contact_phone, s.brand_name, s.vertical,
+        `SELECT s.id, s.organization_id, s.default_currency, s.contact_email, s.contact_phone, s.brand_name, s.vertical,
                 s.theme_id, s.feature_overrides,
                 s.brand_description,
                 (SELECT json_group_array(json_object(

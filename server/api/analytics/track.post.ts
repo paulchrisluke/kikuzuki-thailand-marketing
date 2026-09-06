@@ -139,7 +139,6 @@ export default defineHandler(async (event) => {
       ])
       const site = event.context.site as { theme?: string | null; vertical?: string | null } | undefined
       if (!page && !isKnownTenantPublicPath(pagePath, {
-        theme: site?.theme,
         themeId: event.context.themeId as string | null | undefined,
         vertical: site?.vertical,
       })) {

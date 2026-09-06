@@ -16,11 +16,10 @@ test('D1 claims fence concurrent sends and bound ambiguous provider retries', as
 
   try {
     const db = await runtime.getD1Database('DB')
-    for (const statement of readFileSync('migrations/0000_epoch_4_baseline.sql', 'utf8').split('--> statement-breakpoint').map(sql => sql.trim()).filter(Boolean)) {
+    for (const statement of readFileSync('migrations/0000_epoch_5_baseline.sql', 'utf8').split('--> statement-breakpoint').map(sql => sql.trim()).filter(Boolean)) {
       await db.prepare(statement).run()
     }
     for (const statement of [
-      "INSERT INTO themes (id, name, slug) VALUES ('saya-theme-v1', 'Saya', 'saya')",
       "INSERT INTO organization (id, name, slug) VALUES ('org-proof', 'Proof', 'proof')",
       "INSERT INTO sites (id, organization_id, slug, subdomain, brand_name) VALUES ('site-proof', 'org-proof', 'proof', 'proof', 'Proof')",
       "INSERT INTO user (id, name, email) VALUES ('user-proof', 'Proof Owner', 'owner@proof.example')",
@@ -260,11 +259,10 @@ test('D1 status-email retries preserve recorded content and reject superseded bo
   })
   try {
     const db = await runtime.getD1Database('DB')
-    for (const statement of readFileSync('migrations/0000_epoch_4_baseline.sql', 'utf8').split('--> statement-breakpoint').map(sql => sql.trim()).filter(Boolean)) {
+    for (const statement of readFileSync('migrations/0000_epoch_5_baseline.sql', 'utf8').split('--> statement-breakpoint').map(sql => sql.trim()).filter(Boolean)) {
       await db.prepare(statement).run()
     }
     for (const statement of [
-      "INSERT INTO themes (id, name, slug) VALUES ('saya-theme-v1', 'Saya', 'saya')",
       "INSERT INTO organization (id, name, slug) VALUES ('org-status', 'Proof', 'proof')",
       "INSERT INTO sites (id, organization_id, slug, subdomain, brand_name) VALUES ('site-status', 'org-status', 'proof', 'proof', 'Proof')",
       "INSERT INTO user (id, name, email) VALUES ('user-status', 'Proof Owner', 'owner@proof.example')",

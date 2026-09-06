@@ -21,7 +21,6 @@ interface ReminderInput {
   invitedPlan: string | null
   invitedDomain: string | null
   daysPending: number
-  customDomainsPaused: boolean
 }
 
 function supportEmails(env: SiteTransferNotificationEnv): string[] {
@@ -36,16 +35,12 @@ export async function notifySiteTransferReminder(
   db: DbClient,
   opts: ReminderInput,
 ) {
-  const title = opts.customDomainsPaused
-    ? `Action needed: Finishing touches for ${opts.siteName}`
-    : `Reminder: ${opts.siteName} is ready for you!`
-  const body = opts.customDomainsPaused
-    ? 'Your website is ready, but payment setup must be completed before its custom domain can go live.'
-    : 'Your new website is ready. Review and claim it when you are ready.'
+  const title = `Reminder: ${opts.siteName} is ready for you`
+  const body = 'Your new website is ready. Review and claim it when you are ready.'
   await createCanonicalNotification(db, {
     publishEnv: env,
     scope: 'site',
-    severity: opts.customDomainsPaused ? 'warning' : 'info',
+    severity: 'info',
     organizationId: opts.organizationId,
     siteId: opts.siteId,
     title,
@@ -63,7 +58,6 @@ export async function notifySiteTransferReminder(
     transferUrl: opts.transferUrl,
     domain: opts.invitedDomain,
     planLabel: opts.invitedPlan ? (planLabel[opts.invitedPlan] ?? 'Unsupported plan') : null,
-    customDomainsPaused: opts.customDomainsPaused,
     platformDomain,
   })
   const recipients = [...new Set([opts.toEmail, ...supportEmails(env)])]

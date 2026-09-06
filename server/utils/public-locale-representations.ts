@@ -49,7 +49,7 @@ export async function resolvePublicLocalizationSourcePath(
         FROM blog_posts p JOIN sites s ON s.id = p.site_id
        WHERE p.site_id = ? AND p.id = ? LIMIT 1
     `, [siteId, resource.id])
-    sourcePath = row ? tenantBlogPostPath(row, row.slug) : null
+    sourcePath = row ? tenantBlogPostPath({ themeId: row.theme_id, vertical: row.vertical }, row.slug) : null
   } else if (resource.type === 'site_link_page') {
     const [row] = await queryAll<{ path: string }>(db, 'SELECT path FROM site_link_pages WHERE site_id = ? AND id = ? LIMIT 1', [siteId, resource.id])
     sourcePath = row?.path ?? null

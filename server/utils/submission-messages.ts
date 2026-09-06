@@ -46,9 +46,10 @@ export async function verifyReplyToken(
   return verifyReplyTokenValue(env.EMAIL_REPLY_SECRET, submissionType, submissionId, token)
 }
 
-export function parseReplyToAddress(address: string): { submissionType: string; submissionId: string; token: string } | null {
-  const local = address.split('@')[0] ?? ''
-  return parseReplyLocalPart(local)
+export function parseReplyToAddress(env: ReplyAddressEnv, address: string): { submissionType: ReplySubmissionType; submissionId: string; token: string } | null {
+  const parts = address.split('@')
+  if (parts.length !== 2 || parts[1]?.toLowerCase() !== getReplyDomain(env).toLowerCase()) return null
+  return parseReplyLocalPart(parts[0] ?? '')
 }
 
 const SUBMISSION_TABLES: Record<SubmissionType, string> = {

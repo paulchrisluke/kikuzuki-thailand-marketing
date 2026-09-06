@@ -21,11 +21,11 @@
       </div>
     </div>
 
+    <p v-if="reviews.some(review => review.source === 'google_places')" class="mb-4 text-xs text-muted">Written reviews, newest first. Google supplies a selection ordered by relevance.</p>
     <div :class="['grid gap-8', layoutClass]">
-      <!-- Real reviews -->
       <div
         v-for="review in displayedReviews"
-        :key="review.reviewId || review.id || review.name || review.createTime"
+        :key="review.id"
         class="flex flex-col rounded-lg bg-default p-8 shadow-sm border border-default hover:shadow-md transition-all"
       >
         <div
@@ -56,11 +56,12 @@
           </span>
           <div>
             <p class="text-sm font-bold text-default">{{ reviewAuthor(review) }}</p>
-            <time v-if="review.createTime || review.created_at" :datetime="review.createTime || review.created_at" class="block text-xs text-muted">
-              {{ formatDate(review.createTime || review.created_at) }}
+            <time v-if="review.source === 'google_places' ? review.original_review_date : review.created_at" :datetime="review.source === 'google_places' ? review.original_review_date : review.created_at" class="block text-xs text-muted">
+              {{ formatDate(review.source === 'google_places' ? review.original_review_date : review.created_at) }}
             </time>
           </div>
         </div>
+        <GoogleReviewAttribution v-if="review.source === 'google_places'" :metadata="review.google_review_metadata" :source-url="review.original_reference" />
       </div>
 
     </div>
@@ -131,30 +132,17 @@ const props = defineProps({
 
 const { formatDate } = useLocaleDate()
 
-const starRatingMap = {
-  ONE: 1,
-  TWO: 2,
-  THREE: 3,
-  FOUR: 4,
-  FIVE: 5
-}
-
 const reviewAuthor = review => {
-  return review.reviewer?.displayName?.trim() || review.author_name?.trim() || ''
+  return review.author_name ?? ''
 }
 const reviewText = review => {
-  const text = typeof review.comment === 'string' ? review.comment : review.comment?.text ?? review.content ?? ''
+  const text = review.content ?? ''
   if (props.limit && text.length > 280) {
     return text.slice(0, 280) + '...'
   }
   return text
 }
-const reviewRating = review => {
-  const mapped = starRatingMap[review.starRating]
-  if (mapped !== undefined) return mapped
-  const numeric = Number(review.starRating ?? review.rating ?? 0)
-  return isNaN(numeric) ? 0 : numeric
-}
+const reviewRating = review => review.rating
 
 const displayedReviews = computed(() => {
   const filtered = props.reviews.filter(review => reviewText(review) && reviewAuthor(review))

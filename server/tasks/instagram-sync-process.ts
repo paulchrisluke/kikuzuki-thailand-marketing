@@ -21,8 +21,6 @@ interface ConnectionRow {
   facebook_page_id: string | null
   encrypted_user_token: string
   encrypted_page_token: string | null
-  stripe_customer_id: string | null
-  stripe_subscription_id: string | null
   access_plan: string | null
   access_expires_at: string | null
   payment_status: string | null
@@ -67,7 +65,7 @@ export default defineScheduledTask({
     const billingRows = await queryAll<ConnectionRow>(db, `
       SELECT fpc.id, fpc.organization_id, fpc.site_id,
              fpc.facebook_page_id, fpc.encrypted_user_token, fpc.encrypted_page_token,
-             ob.stripe_customer_id, ob.stripe_subscription_id, ob.access_plan,
+             ob.access_plan,
              ob.access_expires_at, ob.payment_status, ob.paid_through, ob.past_due_since, ob.updated_at
       FROM facebook_pages_connections fpc
       INNER JOIN organization_billing ob

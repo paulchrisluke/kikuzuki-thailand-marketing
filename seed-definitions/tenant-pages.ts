@@ -119,8 +119,8 @@ function renderPage(
 VALUES (${sqlValue(pageId)}, ${sqlValue(organizationId)}, ${sqlValue(siteId)}, ${sqlValue(pageTypeForPage(page))}, ${sqlValue(page)}, 0, 'fixture', CURRENT_TIMESTAMP);
 `
     : ''
-  return `${pageSql}INSERT OR REPLACE INTO content_documents (id, owner_type, owner_id, created_at, updated_at)
-VALUES (${sqlValue(documentId)}, 'tenant_page', ${sqlValue(variantId)}, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP);
+  return `${pageSql}INSERT OR REPLACE INTO content_documents (id, site_id, owner_type, owner_id, created_at, updated_at)
+VALUES (${sqlValue(documentId)}, ${sqlValue(siteId)}, 'tenant_page', ${sqlValue(variantId)}, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP);
 DELETE FROM media_placements WHERE owner_type = 'content_block' AND owner_id IN (SELECT id FROM content_blocks WHERE document_id = ${sqlValue(documentId)});
 DELETE FROM content_blocks WHERE document_id = ${sqlValue(documentId)};
 INSERT OR REPLACE INTO tenant_page_variants (id, organization_id, site_id, page_id, locale, document_id, path, title, summary, seo_title, seo_description, canonical_url, robots, created_at, updated_at)

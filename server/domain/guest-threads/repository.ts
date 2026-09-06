@@ -326,7 +326,6 @@ export async function listGuestThreads(
       CASE gt.submission_type
         WHEN 'reservation' THEN rs.status
         WHEN 'experience_booking' THEN eb.status
-        WHEN 'contact' THEN cs.status
       END AS operational_status
     FROM guest_threads gt
     LEFT JOIN business_locations bl ON bl.id = gt.location_id
@@ -449,7 +448,6 @@ export async function listOrganizationGuestThreads(
       CASE gt.submission_type
         WHEN 'reservation' THEN rs.status
         WHEN 'experience_booking' THEN eb.status
-        WHEN 'contact' THEN cs.status
       END AS operational_status
     FROM guest_threads gt
     LEFT JOIN business_locations bl ON bl.id = gt.location_id

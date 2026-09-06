@@ -1,5 +1,6 @@
+import { readAvailability, assertAvailabilityDate } from '~/server/utils/availability'
 import { cloudflareEnv, jsonResponse } from '~/server/utils/api-response'
-import { PUBLIC_BOOKING_WINDOW_DAYS, getExperienceBySlug, getSlotAvailabilityRange, resolveExperienceTimezone } from '~/server/utils/experiences'
+import { PUBLIC_BOOKING_WINDOW_DAYS, getExperienceBySlug } from '~/server/utils/experiences'
 import { queryFirst } from '~/server/db'
 
 const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/
@@ -34,8 +35,8 @@ export default defineHandler(async (event) => {
     return jsonResponse({ timezone: null, dates: [] })
   }
 
-  const timezone = await resolveExperienceTimezone(db, site.organization_id, siteId, experience)
 
+  assertAvailabilityDate(date)
   const dateStrings: string[] = []
   const cursor = new Date(`${date}T00:00:00Z`)
   if (isNaN(cursor.getTime())) {
@@ -45,10 +46,8 @@ export default defineHandler(async (event) => {
     dateStrings.push(cursor.toISOString().slice(0, 10))
     cursor.setUTCDate(cursor.getUTCDate() + 1)
   }
-  const availability = await getSlotAvailabilityRange(db, siteId, experience, dateStrings, timezone)
-  const dates = dateStrings.map(dateStr => ({ date: dateStr, slots: availability[dateStr] ?? [] }))
-
-  return jsonResponse({ timezone, dates })
+  const [snapshot] = await readAvailability(db, { siteId, owners: [{ kind: 'experience', experienceId: experience.id }], dates: dateStrings })
+  return jsonResponse({ timezone: snapshot!.timezone, dates: snapshot!.days })
 })
 import { defineHandler } from 'nitro';
 import { getQuery } from 'nitro/h3';

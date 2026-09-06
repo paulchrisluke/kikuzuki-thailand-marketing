@@ -24,10 +24,9 @@ function table(name: string): NclsSeedTable {
   return definition
 }
 
-function renderRows(definition: NclsSeedTable, transform?: (_row: Record<string, NclsSeedValue>) => Record<string, NclsSeedValue>): string {
+function renderRows(definition: NclsSeedTable): string {
   if (definition.rows.length === 0) return ''
-  return definition.rows.map((source) => {
-    const row = transform ? transform({ ...source }) : source
+  return definition.rows.map((row) => {
     const columns = Object.keys(row)
     const values = columns.map(column => sqlValue(row[column] ?? null))
     return `INSERT INTO ${definition.table} (${columns.join(', ')}) VALUES (${values.join(', ')});`
@@ -37,17 +36,9 @@ function renderRows(definition: NclsSeedTable, transform?: (_row: Record<string,
 export function renderNclsFixtureSql(): string {
   const site = table('sites').rows[0]
   if (!site) throw new Error('NCLS fixture has no site row')
-  const initialSite = (row: Record<string, NclsSeedValue>) => {
-    const { plan: _plan, settings: _settings, ...canonical } = row
-    return { ...canonical, primary_location_id: null }
-  }
-  const blogPostWithoutBody = (row: Record<string, NclsSeedValue>) => {
-    const { body: _body, ...rest } = row
-    return rest
-  }
 
   const afterCore = [
-    'site_locales',
+    'site_config',
     'site_domains',
     'tenant_compliance',
     'site_consultation_settings',
@@ -59,26 +50,12 @@ export function renderNclsFixtureSql(): string {
 
   return `PRAGMA foreign_keys = ON;
 
-DELETE FROM content_blocks
- WHERE document_id IN (
-   SELECT id FROM content_documents
-    WHERE (owner_type = 'tenant_page' AND owner_id IN (SELECT id FROM tenant_page_variants WHERE site_id = ${sqlValue(nclsFixture.siteId)}))
-       OR (owner_type = 'tenant_blog' AND owner_id IN (SELECT id FROM blog_posts WHERE site_id = ${sqlValue(nclsFixture.siteId)}))
- );
-DELETE FROM content_documents
- WHERE (owner_type = 'tenant_page' AND owner_id IN (SELECT id FROM tenant_page_variants WHERE site_id = ${sqlValue(nclsFixture.siteId)}))
-    OR (owner_type = 'tenant_blog' AND owner_id IN (SELECT id FROM blog_posts WHERE site_id = ${sqlValue(nclsFixture.siteId)}));
-UPDATE sites
-   SET primary_location_id = NULL
- WHERE id = ${sqlValue(nclsFixture.siteId)} OR subdomain = 'ncls';
 DELETE FROM sites WHERE id = ${sqlValue(nclsFixture.siteId)} OR subdomain = 'ncls';
 DELETE FROM organization WHERE id = ${sqlValue(nclsFixture.organizationId)} OR slug = 'north-carolina-legal-services';
 DELETE FROM user WHERE id = ${sqlValue(nclsFixture.user.id)};
 DELETE FROM site_domains
  WHERE domain IN ('ncls.localhost', 'ncls.krabiclaw.com', 'www.northcarolinalegalservices.org', 'northcarolinalegalservices.org');
 
-INSERT OR IGNORE INTO themes (id, name, slug, version, description, status)
-VALUES ('blawby-theme-v1', 'Blawby', 'blawby', '1.0.0', 'Professional-service public template', 'active');
 
 INSERT INTO user (id, name, email, emailVerified, role, createdAt, updatedAt)
 VALUES (${sqlValue(nclsFixture.user.id)}, ${sqlValue(nclsFixture.user.name)}, ${sqlValue(nclsFixture.user.email)}, 1, 'user', unixepoch(), unixepoch());
@@ -89,7 +66,7 @@ VALUES (${sqlValue(nclsFixture.organizationId)}, 'North Carolina Legal Services'
 INSERT INTO member (id, organizationId, userId, role, createdAt)
 VALUES ('member-ncls-blawby', ${sqlValue(nclsFixture.organizationId)}, ${sqlValue(nclsFixture.user.id)}, 'owner', unixepoch());
 
-${renderRows(table('sites'), initialSite)}
+${renderRows(table('sites'))}
 
 ${renderCanonicalBillingSql(nclsFixture.siteId, nclsFixture.organizationId, { status: 'active', plan: 'growth' }, sqlValue)}
 
@@ -97,13 +74,11 @@ ${renderCanonicalBillingSql(nclsFixture.siteId, nclsFixture.organizationId, { st
 
 ${renderRows(table('media_assets'))}
 
-UPDATE sites
-   SET primary_location_id = ${sqlValue(site.primary_location_id ?? null)}
- WHERE id = ${sqlValue(nclsFixture.siteId)};
+${renderRows(table('site_locales'))}
 
 ${renderRows(table('tenant_pages'))}
 
-${renderRows(table('blog_posts'), blogPostWithoutBody)}
+${renderRows(table('blog_posts'))}
 
 ${renderRows(table('content_documents'))}
 

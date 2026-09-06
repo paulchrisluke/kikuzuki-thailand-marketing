@@ -9,7 +9,7 @@ import { normalizeHost } from '~/server/utils/tenant-hosts'
 import { rootDomainForPair } from '~/server/utils/domain-shared'
 import { assertNewSalePlan, type NewSalePlanId } from '~/shared/billing-model'
 import {
-  buildTransferDomainSnapshot, cancelPendingSiteTransfer, serializeTransferDomainSnapshot, } from '~/server/utils/site-transfer'
+  cancelPendingSiteTransfer, } from '~/server/utils/site-transfer'
 import { renderEmail } from '~/server/emails/vue-email'
 import SiteTransferInvite from '~/server/emails/templates/SiteTransferInvite'
 import { getOrgAdapter } from 'better-auth/plugins'
@@ -111,9 +111,8 @@ export default defineHandler(async (event) => {
   const pendingTransfers = await queryAll<{
     id: string
     to_email: string
-    custom_domains_removed_at: string | null
   }>(
-    db, `SELECT id, to_email, custom_domains_removed_at
+    db, `SELECT id, to_email
        FROM site_transfer_requests
       WHERE site_id = ? AND status = 'pending'
       ORDER BY created_at ASC`, [siteId], )
@@ -133,45 +132,25 @@ export default defineHandler(async (event) => {
       const cleanup = await cancelPendingSiteTransfer(env, db, pendingTransfer.id)
       if (!cleanup.cancelled) {
         return jsonResponse({
-          error: pendingTransfer.custom_domains_removed_at
-            ? 'An existing transfer changed while its custom-domain cleanup was pending. Retry after it settles.'
-            : 'An existing transfer could not be safely cancelled. Retry after it settles.', }, { status: 409 })
-      }
-      const remainingMarker = await queryFirst<{
-        status: string
-        custom_domains_removed_at: string | null
-      }>(db, `
-        SELECT status, custom_domains_removed_at
-          FROM site_transfer_requests
-         WHERE id = ?
-        LIMIT 1
-      `, [pendingTransfer.id])
-      if (!remainingMarker || remainingMarker.status === 'pending' || remainingMarker.custom_domains_removed_at) {
-        return jsonResponse({ error: 'The existing transfer custom-domain cleanup is incomplete. Finish cleanup before replacing it.' }, { status: 409 })
+          error: 'An existing transfer could not be safely cancelled. Retry after it settles.', }, { status: 409 })
       }
     } catch (error) {
       console.error('site_transfer_replacement_cleanup_failed', {
         transferId: pendingTransfer.id, siteId, error, })
       return jsonResponse({
-        error: pendingTransfer.custom_domains_removed_at
-          ? 'The existing transfer custom-domain cleanup is incomplete. Finish cleanup before replacing it.'
-          : 'The existing transfer could not be safely cancelled. Retry after it settles.', }, { status: 409 })
+        error: 'The existing transfer could not be safely cancelled. Retry after it settles.', }, { status: 409 })
     }
   }
 
   const id = crypto.randomUUID()
   const token = generateToken()
   const now = new Date()
-  const domainSnapshot = requiresPayment
-    ? await buildTransferDomainSnapshot(db, siteId)
-    : []
-  const customDomainsSnapshot = requiresPayment
-    ? serializeTransferDomainSnapshot(domainSnapshot)
-    : null
-
   if (invitedDomain) {
     const invitedDomainRoot = rootDomainForPair(invitedDomain)
-    const hasInvitedDomain = domainSnapshot.some((entry) => rootDomainForPair(entry.domain) === invitedDomainRoot)
+    const hasInvitedDomain = await queryFirst(db, `
+      SELECT id FROM site_domains WHERE site_id = ? AND type = 'custom' AND status != 'deleted'
+        AND domain IN (?, ?) LIMIT 1
+    `, [siteId, invitedDomainRoot, `www.${invitedDomainRoot}`])
     if (!hasInvitedDomain) {
       return jsonResponse({ error: 'This site is not currently configured for that custom domain handoff.' }, { status: 400 })
     }
@@ -184,9 +163,9 @@ export default defineHandler(async (event) => {
          WHERE site_id = ? AND status = 'pending'
       ) THEN json(?) ELSE NULL END`, params: [siteId, 'pending transfer appeared while the replacement was being prepared'], }, {
       query: `INSERT INTO site_transfer_requests
-       (id, site_id, from_organization_id, to_email, token, status, initiated_by_user_id, message, invited_plan, invited_coupon, invited_interval, invited_domain, requires_payment, created_at, custom_domains_snapshot)
-       VALUES (?, ?, ?, ?, ?, 'pending', ?, ?, ?, ?, ?, ?, ?, ?, ?)`, params: [
-        id, siteId, site.organization_id, toEmail, token, userId, body.message?.trim() ?? null, invitedPlan, invitedCoupon, invitedInterval, invitedDomain, requiresPayment ? 1 : 0, now.toISOString(), customDomainsSnapshot, ], }, ]
+       (id, site_id, from_organization_id, to_email, token, status, initiated_by_user_id, message, invited_plan, invited_coupon, invited_interval, invited_domain, requires_payment, created_at)
+       VALUES (?, ?, ?, ?, ?, 'pending', ?, ?, ?, ?, ?, ?, ?, ?)`, params: [
+        id, siteId, site.organization_id, toEmail, token, userId, body.message?.trim() ?? null, invitedPlan, invitedCoupon, invitedInterval, invitedDomain, requiresPayment ? 1 : 0, now.toISOString(), ], }, ]
 
   try {
     await executeBatch(db, batch)

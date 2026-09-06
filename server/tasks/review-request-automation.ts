@@ -20,8 +20,6 @@ interface AutoCompleteRow {
   booking_date: string
   time_slot: string
   duration_minutes: number | null
-  stripe_customer_id: string | null
-  stripe_subscription_id: string | null
   access_plan: string | null
   access_expires_at: string | null
   payment_status: string | null
@@ -35,8 +33,6 @@ interface SendDueRow {
   organization_id: string
   site_id: string
   booking_type: ReviewBookingType
-  stripe_customer_id: string | null
-  stripe_subscription_id: string | null
   access_plan: string | null
   access_expires_at: string | null
   payment_status: string | null
@@ -79,7 +75,7 @@ async function autoCompleteReservations(db: D1Database, env: ApiRecord): Promise
   const rows = await collectScheduledPaidRows((limit, offset) => queryAll<AutoCompleteRow>(db, `
       SELECT rs.id, rs.organization_id, rs.site_id, rs.location_id,
              rs.date AS booking_date, rs.time AS time_slot, NULL AS duration_minutes,
-             ob.stripe_customer_id, ob.stripe_subscription_id, ob.access_plan,
+             ob.access_plan,
              ob.access_expires_at, ob.payment_status, ob.paid_through, ob.past_due_since, ob.updated_at
         FROM reservation_submissions rs
         INNER JOIN organization_billing ob
@@ -112,7 +108,7 @@ async function autoCompleteExperienceBookings(db: D1Database, env: ApiRecord): P
   const rows = await collectScheduledPaidRows((limit, offset) => queryAll<AutoCompleteRow>(db, `
       SELECT eb.id, eb.organization_id, eb.site_id, eb.location_id,
              eb.booking_date, eb.time_slot, e.duration_minutes,
-             ob.stripe_customer_id, ob.stripe_subscription_id, ob.access_plan,
+             ob.access_plan,
              ob.access_expires_at, ob.payment_status, ob.paid_through, ob.past_due_since, ob.updated_at
         FROM experience_bookings eb
         JOIN experiences e ON e.id = eb.experience_id
@@ -149,7 +145,7 @@ async function sendDue(db: D1Database, env: ApiRecord, kind: 'first' | 'reminder
   const rows = await collectScheduledPaidRows((limit, offset) => queryAll<SendDueRow>(db, `
       SELECT * FROM (
         SELECT rs.id, rs.organization_id, rs.site_id, 'reservation' AS booking_type,
-               ob.stripe_customer_id, ob.stripe_subscription_id, ob.access_plan,
+               ob.access_plan,
                ob.access_expires_at, ob.payment_status, ob.paid_through, ob.past_due_since, ob.updated_at
           FROM reservation_submissions rs
           JOIN customers c ON c.id = rs.customer_id
@@ -163,7 +159,7 @@ async function sendDue(db: D1Database, env: ApiRecord, kind: 'first' | 'reminder
            AND ${kind === 'first' ? "rs.review_request_sent_at IS NULL AND rs.completed_at <= datetime('now', ?)" : "rs.review_request_sent_at IS NOT NULL AND rs.review_reminder_sent_at IS NULL AND rs.review_request_sent_at <= datetime('now', ?)"}
         UNION ALL
         SELECT eb.id, eb.organization_id, eb.site_id, 'experience_booking' AS booking_type,
-               ob.stripe_customer_id, ob.stripe_subscription_id, ob.access_plan,
+               ob.access_plan,
                ob.access_expires_at, ob.payment_status, ob.paid_through, ob.past_due_since, ob.updated_at
           FROM experience_bookings eb
           JOIN customers c ON c.id = eb.customer_id

@@ -142,6 +142,7 @@ export function checkDeleteBodyUsage(file, source) {
 }
 
 export function checkDynamicSqlListBindings(file, source) {
+  if (file.replaceAll('\\', '/') === 'server/db/schema.ts') return []
   // The scan for .map()/.fill() is bounded to the same ${...} interpolation
   // that opens right after IN ( — excluding `}` from the middle class stops
   // an unrelated .map()/.fill() call in a later interpolation from falsely

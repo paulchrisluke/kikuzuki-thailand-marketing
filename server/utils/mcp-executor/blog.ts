@@ -186,7 +186,7 @@ export function projectBlogPostForMcp(post: Record<string, unknown>) {
 }
 
 function blogPostResponse(post: Record<string, unknown>, site: McpExecutorContext['site'], message: string) {
-  const hydrated = attachViewUrlToRecord(post, site, {}, site.env)
+  const hydrated = attachViewUrlToRecord(post, site, {})
   return renderStructuredResponse(
     { post: projectBlogPostForMcp(hydrated) },
     message,
@@ -203,7 +203,7 @@ export async function handleBlogTools(ctx: McpExecutorContext): Promise<unknown>
           optionalString(args, "status"),
           site.siteId,
           site.env,
-        )).map((post) => toBlogPostSummary(attachViewUrlToRecord(post, site, {}, site.env)));
+        )).map((post) => toBlogPostSummary(attachViewUrlToRecord(post, site, {})));
         const { items, page_info } = paginateMcpCollection(posts, args, { resource: `blog-posts:${site.siteId}` });
         return { posts: items, page_info };
       }
@@ -216,7 +216,7 @@ export async function handleBlogTools(ctx: McpExecutorContext): Promise<unknown>
           site.env,
         );
         return {
-          post: projectBlogPostForMcp(attachViewUrlToRecord(post, site, {}, site.env)),
+          post: projectBlogPostForMcp(attachViewUrlToRecord(post, site, {})),
         };
       }
     case "create_blog_post": {
@@ -227,7 +227,7 @@ export async function handleBlogTools(ctx: McpExecutorContext): Promise<unknown>
         { site_id: site.siteId, organization_id: site.organizationId },
         site.env,
       );
-      const hydratedBlogPost = attachViewUrlToRecord(result.post, site, {}, site.env);
+      const hydratedBlogPost = attachViewUrlToRecord(result.post, site, {});
       return renderStructuredResponse(
         { post: projectBlogPostForMcp(hydratedBlogPost) },
         `${result.post.status === 'scheduled' ? 'Scheduled' : 'Published'} blog article "${result.post.title ?? result.post.id}".`,
@@ -242,7 +242,7 @@ export async function handleBlogTools(ctx: McpExecutorContext): Promise<unknown>
         site.siteId,
         site.env,
       );
-      const hydratedUpdatedBlogPost = attachViewUrlToRecord(result.post, site, {}, site.env);
+      const hydratedUpdatedBlogPost = attachViewUrlToRecord(result.post, site, {});
       return renderStructuredResponse(
         { post: projectBlogPostForMcp(hydratedUpdatedBlogPost) },
         `Saved changes to blog article "${result.post.title ?? result.post.id}".`,
@@ -297,7 +297,7 @@ export async function handleBlogTools(ctx: McpExecutorContext): Promise<unknown>
           : {}),
       }, site.siteId)
       const result = await getPlatformBlogPost(site.db, postId, site.siteId, site.env)
-      const post = attachViewUrlToRecord(result, site, {}, site.env)
+      const post = attachViewUrlToRecord(result, site, {})
       return renderStructuredResponse(
         { post: projectBlogPostForMcp(post) },
         `${result.status === 'scheduled' ? 'Rescheduled' : 'Published'} blog article "${result.title}".`,
@@ -346,7 +346,7 @@ export async function handleBlogTools(ctx: McpExecutorContext): Promise<unknown>
       const result = await reorderPlatformBlogPosts(site.db, items, site.siteId, site.env)
       return {
         success: result.success,
-        posts: result.posts.map((post) => toBlogPostSummary(attachViewUrlToRecord(post, site, {}, site.env))),
+        posts: result.posts.map((post) => toBlogPostSummary(attachViewUrlToRecord(post, site, {}))),
       }
     }
     case "delete_blog_post": {

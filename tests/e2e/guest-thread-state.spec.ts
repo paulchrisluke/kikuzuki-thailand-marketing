@@ -123,6 +123,8 @@ test('guest thread state stays source-owned, per-user, tenant-isolated, and idem
       submissionType: 'contact',
       source: {
         submissionType: 'contact',
+        operationalStatus: null,
+        operationalStatusLabel: null,
         fields: { subject, message },
       },
     })

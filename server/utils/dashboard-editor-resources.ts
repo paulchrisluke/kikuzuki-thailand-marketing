@@ -35,7 +35,6 @@ interface EditorLocationRow {
   id: string
   slug: string
   title: string
-  is_primary: number | boolean
   status: 'active' | 'inactive' | 'sync_error'
   feature_overrides: string | null
 }
@@ -55,16 +54,15 @@ export async function loadDashboardEditorContext(event: H3Event, siteId: string)
   const accessibleLocationIds = await listAccessibleLocationIds(db, principal)
   const [locationRows, billing] = await Promise.all([
     queryAll<EditorLocationRow>(db, `
-      SELECT id, slug, title, is_primary, status, feature_overrides
+      SELECT id, slug, title, status, feature_overrides
         FROM business_locations
        WHERE organization_id = ? AND site_id = ? AND status = 'active'
-       ORDER BY is_primary DESC, title ASC
+       ORDER BY title ASC
     `, [site.organization_id, siteId]),
     getOrganizationBillingProjection(db, site.organization_id),
   ])
   const locations = locationRows
     .filter(location => accessibleLocationIds === null || accessibleLocationIds.includes(location.id))
-    .map(location => ({ ...location, is_primary: Boolean(location.is_primary) }))
   const entitlements = billing.entitlements
   if (typeof env.PREVIEW_SECRET !== 'string' || !env.PREVIEW_SECRET) {
     throw new HTTPError({ statusCode: 500, statusMessage: 'PREVIEW_SECRET is required for editor previews' })
@@ -391,7 +389,7 @@ export async function loadDashboardLocationPosts(
 ) {
   const { env, db, site } = await requireLocationAccess(event, siteId, locationId)
   const [posts, connection] = await Promise.all([
-    listPosts(db, site.organization_id, siteId, env, status, locationId),
+    listPosts(db, site.organization_id, siteId, status, locationId),
     getFacebookPagesConnection(env, site.organization_id, siteId),
   ])
   return {

@@ -1,3 +1,4 @@
+import { resourceLocalizationDeletionQueries } from '~/server/utils/localization'
 import { executeBatch, queryAll, queryFirst, type BatchQuery, type DbClient } from '~/server/db'
 import { d1JsonStringSet } from '~/server/db/d1-limits'
 import { cleanString } from '~/server/utils/api-response'
@@ -356,6 +357,10 @@ export async function upsertLinksPage(db: DbClient, input: {
     ],
   }]
 
+  statements.push(...resourceLocalizationDeletionQueries('site_link_item', {
+    query: `SELECT id FROM site_link_items WHERE organization_id = ? AND site_id = ? AND link_page_id = ? AND id NOT IN (SELECT value FROM json_each(?))`,
+    params: [input.organizationId, input.siteId, pageId, d1JsonStringSet(itemIds)],
+  }))
   if (itemIds.length) {
     statements.push({
       query: `

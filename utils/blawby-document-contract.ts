@@ -28,8 +28,6 @@ function hasValidIdentity(value: unknown) {
     && isNullableString(value.phone)
     && isNullableString(value.banner_content)
     && typeof value.banner_dismissible === 'boolean'
-    && isNullableString(value.primary_location_address_street)
-    && isNullableString(value.primary_location_address_locality)
 }
 
 function hasValidConsultation(value: unknown) {

@@ -1,4 +1,4 @@
-// GET /api/admin/clients — paid organization clients
+import { getOrganizationBillingStatus } from '~/server/utils/billing'
 import { cloudflareEnv, jsonResponse } from '~/server/utils/api-response'
 import { platformPermissionError, requirePlatformEventPermission } from '~/server/utils/platform-admin-users'
 import { queryAll } from '~/server/db'
@@ -143,7 +143,7 @@ export default defineHandler(async (event) => {
       WHERE status = 'pending'
     )
     SELECT
-      ob.organization_id AS org_id, NULL AS org_name, NULL AS org_slug, ob.access_plan AS plan, s.id AS site_id, s.brand_name, s.subdomain, s.custom_domain, ob.payment_status AS subscription_status, ob.access_expires_at AS current_period_end, ob.stripe_customer_id, ob.stripe_subscription_id, pt.to_email AS pending_transfer_email, NULL AS impersonation_user_id, NULL AS created_at
+      ob.organization_id AS org_id, NULL AS org_name, NULL AS org_slug, ob.access_plan AS plan, s.id AS site_id, s.brand_name, s.subdomain, (SELECT domain FROM site_domains WHERE site_id = s.id AND role = 'canonical' AND status = 'active' AND type = 'custom') AS custom_domain, NULL AS subscription_status, NULL AS current_period_end, NULL AS stripe_customer_id, NULL AS stripe_subscription_id, pt.to_email AS pending_transfer_email, NULL AS impersonation_user_id, NULL AS created_at
     FROM organization_billing ob
     LEFT JOIN single_site s ON s.organization_id = ob.organization_id AND s.rn = 1
     LEFT JOIN pending_transfer pt ON pt.from_organization_id = ob.organization_id AND pt.rn = 1
@@ -162,8 +162,9 @@ export default defineHandler(async (event) => {
     }
     const organization = normalizeOrganization(
       await organizationAdapter.findOrganizationById(organizationId), organizationId, )
+    const billing = await getOrganizationBillingStatus(env, db, organizationId)
     return {
-      ...client, org_id: organization.id, org_name: organization.name, org_slug: organization.slug, plan, created_at: organization.createdAt, impersonation_user_id: await primaryWorkspaceMember(organizationAdapter, organizationId), _organization_created_at: organization.createdAt, }
+      ...client, stripe_customer_id: billing.stripeCustomerId ?? null, stripe_subscription_id: billing.stripeSubscriptionId ?? null, subscription_status: billing.subscriptionStatus ?? null, current_period_end: billing.currentPeriodEnd ?? null, org_id: organization.id, org_name: organization.name, org_slug: organization.slug, plan, created_at: organization.createdAt, impersonation_user_id: await primaryWorkspaceMember(organizationAdapter, organizationId), _organization_created_at: organization.createdAt, }
   }))
 
   resolvedClients.sort((left, right) => (

@@ -24,7 +24,7 @@ function d1Query(sql) {
 }
 
 function sqlEscape(value) {
-  return String(value).replace(/\\/g, '\\\\').replace(/'/g, "''")
+  return String(value).replace(/'/g, "''")
 }
 
 function d1Exec(sql) {

@@ -1,0 +1,435 @@
+[
+  {
+    "table": "blog_posts",
+    "column": "tags_json",
+    "shapes": [
+      {
+        "shape": "SQL NULL",
+        "n": 6
+      },
+      {
+        "shape": "array",
+        "n": 20
+      }
+    ]
+  },
+  {
+    "table": "business_locations",
+    "column": "address",
+    "shapes": [
+      {
+        "shape": "SQL NULL",
+        "n": 3
+      },
+      {
+        "shape": "object",
+        "n": 10
+      }
+    ]
+  },
+  {
+    "table": "business_locations",
+    "column": "categories",
+    "shapes": [
+      {
+        "shape": "SQL NULL",
+        "n": 6
+      },
+      {
+        "shape": "array",
+        "n": 7
+      }
+    ]
+  },
+  {
+    "table": "business_locations",
+    "column": "description_provenance",
+    "shapes": [
+      {
+        "shape": "SQL NULL",
+        "n": 13
+      }
+    ]
+  },
+  {
+    "table": "business_locations",
+    "column": "attributes",
+    "shapes": [
+      {
+        "shape": "SQL NULL",
+        "n": 13
+      }
+    ]
+  },
+  {
+    "table": "business_locations",
+    "column": "feature_overrides",
+    "shapes": [
+      {
+        "shape": "SQL NULL",
+        "n": 13
+      }
+    ]
+  },
+  {
+    "table": "canary_runs",
+    "column": "details_json",
+    "shapes": [
+      {
+        "shape": "INVALID",
+        "n": 13
+      },
+      {
+        "shape": "object",
+        "n": 175
+      }
+    ]
+  },
+  {
+    "table": "chowbot_channel_state",
+    "column": "pending_confirmation",
+    "shapes": [
+      {
+        "shape": "SQL NULL",
+        "n": 2
+      },
+      {
+        "shape": "object",
+        "n": 1
+      }
+    ]
+  },
+  {
+    "table": "chowbot_messages",
+    "column": "tool_calls",
+    "shapes": [
+      {
+        "shape": "SQL NULL",
+        "n": 30
+      },
+      {
+        "shape": "array",
+        "n": 12
+      }
+    ]
+  },
+  {
+    "table": "content_blocks",
+    "column": "data_json",
+    "shapes": [
+      {
+        "shape": "object",
+        "n": 679
+      }
+    ]
+  },
+  {
+    "table": "experiences",
+    "column": "included_items",
+    "shapes": [
+      {
+        "shape": "SQL NULL",
+        "n": 4
+      },
+      {
+        "shape": "array",
+        "n": 8
+      }
+    ]
+  },
+  {
+    "table": "experiences",
+    "column": "what_to_bring",
+    "shapes": [
+      {
+        "shape": "SQL NULL",
+        "n": 4
+      },
+      {
+        "shape": "array",
+        "n": 8
+      }
+    ]
+  },
+  {
+    "table": "facebook_pages_connections",
+    "column": "scopes",
+    "shapes": []
+  },
+  {
+    "table": "google_analytics_connections",
+    "column": "scopes",
+    "shapes": [
+      {
+        "shape": "INVALID",
+        "n": 1
+      }
+    ]
+  },
+  {
+    "table": "guest_thread_entries",
+    "column": "payload_json",
+    "shapes": []
+  },
+  {
+    "table": "mcp_tool_call_events",
+    "column": "arguments_summary_json",
+    "shapes": [
+      {
+        "shape": "SQL NULL",
+        "n": 270
+      },
+      {
+        "shape": "object",
+        "n": 1231
+      }
+    ]
+  },
+  {
+    "table": "mcp_tool_call_events",
+    "column": "result_summary_json",
+    "shapes": [
+      {
+        "shape": "INVALID",
+        "n": 118
+      },
+      {
+        "shape": "SQL NULL",
+        "n": 526
+      },
+      {
+        "shape": "object",
+        "n": 857
+      }
+    ]
+  },
+  {
+    "table": "offerings",
+    "column": "features",
+    "shapes": [
+      {
+        "shape": "array",
+        "n": 6
+      }
+    ]
+  },
+  {
+    "table": "offerings",
+    "column": "faqs",
+    "shapes": [
+      {
+        "shape": "array",
+        "n": 6
+      }
+    ]
+  },
+  {
+    "table": "onboarding_drafts",
+    "column": "payload_json",
+    "shapes": [
+      {
+        "shape": "object",
+        "n": 1
+      }
+    ]
+  },
+  {
+    "table": "organization_events",
+    "column": "metadata",
+    "shapes": [
+      {
+        "shape": "SQL NULL",
+        "n": 43
+      },
+      {
+        "shape": "object",
+        "n": 347
+      }
+    ]
+  },
+  {
+    "table": "platform_contact_submissions",
+    "column": "agent_metadata_json",
+    "shapes": []
+  },
+  {
+    "table": "prices",
+    "column": "provenance",
+    "shapes": [
+      {
+        "shape": "INVALID",
+        "n": 629
+      }
+    ]
+  },
+  {
+    "table": "products",
+    "column": "tags_json",
+    "shapes": [
+      {
+        "shape": "array",
+        "n": 492
+      }
+    ]
+  },
+  {
+    "table": "products",
+    "column": "details_json",
+    "shapes": [
+      {
+        "shape": "array",
+        "n": 492
+      }
+    ]
+  },
+  {
+    "table": "resource_localizations",
+    "column": "values_json",
+    "shapes": [
+      {
+        "shape": "object",
+        "n": 597
+      }
+    ]
+  },
+  {
+    "table": "site_consultation_settings",
+    "column": "metadata_json",
+    "shapes": [
+      {
+        "shape": "object",
+        "n": 1
+      }
+    ]
+  },
+  {
+    "table": "site_conversion_events",
+    "column": "metadata_json",
+    "shapes": [
+      {
+        "shape": "SQL NULL",
+        "n": 83
+      },
+      {
+        "shape": "object",
+        "n": 46
+      }
+    ]
+  },
+  {
+    "table": "site_domain_events",
+    "column": "before_state",
+    "shapes": [
+      {
+        "shape": "SQL NULL",
+        "n": 10
+      },
+      {
+        "shape": "object",
+        "n": 11
+      }
+    ]
+  },
+  {
+    "table": "site_domain_events",
+    "column": "after_state",
+    "shapes": [
+      {
+        "shape": "SQL NULL",
+        "n": 10
+      },
+      {
+        "shape": "object",
+        "n": 11
+      }
+    ]
+  },
+  {
+    "table": "site_domain_events",
+    "column": "metadata",
+    "shapes": [
+      {
+        "shape": "SQL NULL",
+        "n": 19
+      },
+      {
+        "shape": "object",
+        "n": 2
+      }
+    ]
+  },
+  {
+    "table": "site_domains",
+    "column": "metadata",
+    "shapes": [
+      {
+        "shape": "SQL NULL",
+        "n": 12
+      },
+      {
+        "shape": "object",
+        "n": 4
+      }
+    ]
+  },
+  {
+    "table": "site_theme_tokens",
+    "column": "tokens_json",
+    "shapes": [
+      {
+        "shape": "object",
+        "n": 1
+      }
+    ]
+  },
+  {
+    "table": "sites",
+    "column": "feature_overrides",
+    "shapes": [
+      {
+        "shape": "SQL NULL",
+        "n": 11
+      }
+    ]
+  },
+  {
+    "table": "tenant_compliance",
+    "column": "same_as",
+    "shapes": [
+      {
+        "shape": "array",
+        "n": 1
+      }
+    ]
+  },
+  {
+    "table": "tenant_compliance",
+    "column": "contact_points",
+    "shapes": [
+      {
+        "shape": "array",
+        "n": 1
+      }
+    ]
+  },
+  {
+    "table": "tenant_compliance",
+    "column": "metadata_json",
+    "shapes": [
+      {
+        "shape": "object",
+        "n": 1
+      }
+    ]
+  },
+  {
+    "table": "usage_events",
+    "column": "metadata_json",
+    "shapes": [
+      {
+        "shape": "object",
+        "n": 85
+      }
+    ]
+  }
+]

@@ -51,8 +51,8 @@ export default defineHandler(async (event) => {
     SELECT id
     FROM site_transfer_requests
     WHERE site_id = ?
-      AND (status = 'pending' OR (status = 'cancelled' AND custom_domains_removed_at IS NOT NULL))
-    ORDER BY CASE WHEN status = 'pending' THEN 0 ELSE 1 END, created_at DESC
+      AND status = 'pending'
+    ORDER BY created_at DESC
     LIMIT 1
   `, [siteId])
 
@@ -73,7 +73,7 @@ export default defineHandler(async (event) => {
     return jsonResponse({ error: 'No pending transfer found, or another operation won the cancellation race.' }, { status: 409 })
   }
 
-  return jsonResponse({ cancelled: true, custom_domains_deleted: result.customDomainsDeleted })
+  return jsonResponse({ cancelled: true })
 })
 import { defineHandler } from 'nitro';
 import { getRouterParam } from 'nitro/h3';

@@ -1,6 +1,7 @@
+import { parseOpeningHours, parseSpecialHours, type OpeningHours, type SpecialHours } from '~/shared/reservation-hours'
 import type { SiteVertical } from '~/utils/vertical-copy'
 import { queryFirst } from '~/server/db'
-import type { PlaceDetails } from '~/server/utils/google-places'
+import type { PlaceDetails, PlaceReview } from '~/server/utils/google-places'
 import type { CurrencyCode } from '~/shared/currencies'
 import type { PriceInput } from '~/shared/prices'
 
@@ -37,10 +38,10 @@ export interface DraftLocationRecord {
   description: string | null
   phone: string | null
   website_url: string | null
-  opening_hours: string | null
+  opening_hours: OpeningHours
+  special_hours: SpecialHours
   rating: number | null
   review_count: number | null
-  is_primary: boolean
   status: 'active'
 }
 
@@ -63,12 +64,9 @@ export interface DraftProductRecord {
   source: 'import'
 }
 
-export interface DraftReviewRecord {
+export interface DraftReviewRecord extends PlaceReview {
   id: string
-  author_name: string | null
-  rating: number
   title: string | null
-  content: string | null
   owner_reply: string | null
   owner_reply_at: string | null
   source: string | null
@@ -149,11 +147,11 @@ export interface DraftDetailsInput {
   address: string | null
   phone: string | null
   websiteUrl: string | null
-  openingHours: string | null
+  openingHours: OpeningHours
+  specialHours: SpecialHours
   notificationPhone: string | null
   timezone: string | null
   currency: CurrencyCode
-  isPrimary: boolean
 }
 
 export interface PlaceDetailsSnapshot {
@@ -166,14 +164,9 @@ export interface PlaceDetailsSnapshot {
   websiteUrl: string | null
   rating: number | null
   ratingCount: number | null
-  openingHours: string[] | null
-  reviews: Array<{
-    reviewId: string | null
-    authorName: string | null
-    rating: number | null
-    text: string | null
-    publishedAt: string | null
-  }>
+  openingHours: OpeningHours
+  timezone: string | null
+  reviews: PlaceReview[]
 }
 
 function slugify(value: string) {
@@ -198,13 +191,8 @@ function asPlaceSnapshot(place: DraftPlaceSource): PlaceDetailsSnapshot {
     rating: place.rating ?? null,
     ratingCount: place.ratingCount ?? null,
     openingHours: place.openingHours ?? null,
-    reviews: place.reviews.map(review => ({
-      reviewId: review.reviewId ?? null,
-      authorName: review.authorName ?? null,
-      rating: review.rating ?? null,
-      text: review.text ?? null,
-      publishedAt: review.publishedAt ?? null,
-    })),
+    timezone: place.timezone,
+    reviews: place.reviews,
   }
 }
 
@@ -248,19 +236,12 @@ export function buildOnboardingDraftPayload(input: {
   const description = null
   const products: DraftProductRecord[] = []
 
-  const reviews = (placeSnapshot?.reviews ?? [])
-    .filter(review => typeof review.rating === 'number' && review.rating > 0)
-    .map((review, index) => ({
-      id: review.reviewId ? `draft-review-${review.reviewId.replace(/\//g, '-')}` : `draft-review-${index + 1}`,
-      author_name: review.authorName,
-      rating: review.rating ?? 0,
-      title: null,
-      content: review.text,
-      owner_reply: null,
-      owner_reply_at: null,
-      source: 'google_places',
-      created_at: review.publishedAt,
-    }))
+  const reviews = (placeSnapshot?.reviews ?? []).map(review => ({
+    ...review,
+    id: `draft-review-${review.google_review_id.replace(/\//g, '-')}`,
+    title: null, owner_reply: null, owner_reply_at: null,
+    source: 'google_places', created_at: review.original_review_date,
+  }))
 
   const qa: DraftQaRecord[] = []
   const posts: DraftPostRecord[] = []
@@ -301,11 +282,12 @@ export function buildOnboardingDraftPayload(input: {
         description,
         phone: input.details.phone ?? placeSnapshot?.phone ?? null,
         website_url: input.details.websiteUrl ?? placeSnapshot?.websiteUrl ?? null,
-        opening_hours: input.details.openingHours ?? (placeSnapshot?.openingHours ? placeSnapshot.openingHours.join('\n') : null),
+        opening_hours: input.details.openingHours,
+        special_hours: input.details.specialHours,
         rating: placeSnapshot?.rating ?? null,
         review_count: placeSnapshot?.ratingCount ?? null,
-        is_primary: true,
-        status: 'active',
+
+      status: 'active',
       }],
       products,
       reviews,
@@ -322,6 +304,13 @@ export function parseOnboardingDraftPayload(raw: string): OnboardingDraftPayload
   const parsed = JSON.parse(raw) as OnboardingDraftPayload
   if (!parsed || parsed.version !== 2 || !parsed.preview || !Array.isArray(parsed.preview.media) || !Array.isArray(parsed.preview.products)) {
     throw new Error('Unsupported onboarding draft payload')
+  }
+  parsed.source.details.openingHours = parseOpeningHours(parsed.source.details.openingHours)
+  parsed.source.details.specialHours = parseSpecialHours(parsed.source.details.specialHours)
+  if (parsed.source.place) parsed.source.place.openingHours = parseOpeningHours(parsed.source.place.openingHours)
+  for (const location of parsed.preview.locations) {
+    location.opening_hours = parseOpeningHours(location.opening_hours)
+    location.special_hours = parseSpecialHours(location.special_hours)
   }
   return parsed
 }

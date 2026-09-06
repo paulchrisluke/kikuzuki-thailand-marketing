@@ -84,8 +84,6 @@ interface StripeInvoicePaymentRow {
 
 interface OrganizationBillingReplayRow {
   organization_id: string
-  stripe_customer_id: string | null
-  stripe_subscription_id: string | null
   access_plan: string | null
   access_expires_at: string | null
   payment_status: string | null
@@ -353,7 +351,7 @@ async function readInvoiceRow(db: DbClient, invoiceId: string): Promise<StripeIn
 
 async function readOrganizationRow(db: DbClient, organizationId: string): Promise<OrganizationBillingReplayRow> {
   const row = await queryFirst<OrganizationBillingReplayRow>(db, `
-    SELECT organization_id, stripe_customer_id, stripe_subscription_id, access_plan,
+    SELECT organization_id, access_plan,
            access_expires_at, payment_status, paid_through, past_due_since,
            last_paid_invoice_id, last_payment_event_created,
            last_payment_event_id, updated_at
@@ -419,10 +417,10 @@ function validateProviderEvidence(
     || !report.provider.modeVerified
     || !report.provider.account.verified
     || report.provider.account.id !== input.expectedStripeAccountId
-    || report.provider.customer.id !== organization.stripe_customer_id
+    || report.provider.customer.id !== report.betterAuth.organization.stripeCustomerId
     || report.provider.customer.deleted
-    || report.provider.customer.metadata?.ownerMetadataConflict
-    || report.provider.customer.metadata?.ownerId !== input.organizationId
+
+    || report.provider.customer.metadata?.organizationId !== input.organizationId
     || report.provider.customer.metadata?.customerType !== 'organization'
     || report.betterAuth.organization.id !== input.organizationId
     || unexpectedBlockedDrift
@@ -446,16 +444,15 @@ function validateProviderEvidence(
   if (
     provider?.canonicalPlan !== 'growth'
     || provider.quantity !== 1
-    || provider.metadata.ownerMetadataConflict
-    || provider.metadata.ownerId !== input.organizationId
+
+    || provider.metadata.referenceId !== input.organizationId
     || betterAuth?.plan !== 'growth'
-    || betterAuth.ownerMetadataConflict
+
     || betterAuth.referenceId !== input.organizationId
-    || provider.customerId !== organization.stripe_customer_id
-    || betterAuth.stripeCustomerId !== organization.stripe_customer_id
+    || provider.customerId !== report.betterAuth.organization.stripeCustomerId
+    || betterAuth.stripeCustomerId !== report.betterAuth.organization.stripeCustomerId
     || betterAuth.periodEnd !== provider.periodEnd
     || organization.access_expires_at !== provider.periodEnd
-    || organization.stripe_subscription_id !== retained.subscriptionId
     || invoice?.id !== retained.invoiceId
     || provider.latestInvoiceId !== retained.invoiceId
     || invoice.subscriptionId !== retained.subscriptionId
@@ -510,7 +507,6 @@ async function readReplayEvidence(
     || invoice.status !== 'paid'
     || organization.organization_id !== input.organizationId
     || organization.access_plan !== 'growth'
-    || organization.stripe_subscription_id !== retained.subscriptionId
   ) {
     fail('local_evidence_mismatch', 409, 'Local invoice or organization billing evidence does not match the retained event.')
   }
@@ -796,8 +792,6 @@ export async function applyStripeProcessedInvoiceReplay(
          SELECT 1
            FROM organization_billing ob
           WHERE ob.organization_id = ?
-            AND ob.stripe_customer_id IS ?
-            AND ob.stripe_subscription_id IS ?
             AND ob.access_plan IS ?
             AND ob.access_expires_at IS ?
             AND ob.payment_status IS ?
@@ -830,8 +824,6 @@ export async function applyStripeProcessedInvoiceReplay(
     evidence.invoice.last_event_created,
     evidence.invoice.last_event_id,
     evidence.organization.organization_id,
-    evidence.organization.stripe_customer_id,
-    evidence.organization.stripe_subscription_id,
     evidence.organization.access_plan,
     evidence.organization.access_expires_at,
     evidence.organization.payment_status,

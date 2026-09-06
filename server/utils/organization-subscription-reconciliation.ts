@@ -75,7 +75,7 @@ export interface OrganizationReconciliationDrift {
 export interface OrganizationReconciliationBetterAuthSubscription {
   id: string | null
   referenceId: string | null
-  ownerMetadataConflict: boolean
+
   plan: string | null
   status: string | null
   stripeCustomerId: string | null
@@ -92,12 +92,9 @@ export interface OrganizationReconciliationProviderSubscription {
   customerId: string | null
   status: string | null
   metadata: {
-    organizationId: string | null
-    organization_id: string | null
     referenceId: string | null
     subscriptionId: string | null
-    ownerId: string | null
-    ownerMetadataConflict: boolean
+
   }
   canonicalPlan: string | null
   canonicalBasePriceId: string | null
@@ -181,9 +178,7 @@ export interface OrganizationSubscriptionReconciliationReport {
       deleted: boolean
       metadata: {
         organizationId: string | null
-        organization_id: string | null
-        ownerId: string | null
-        ownerMetadataConflict: boolean
+
         customerType: string | null
       } | null
     }
@@ -310,47 +305,6 @@ function isoFromUnix(value: unknown): string | null {
 
 function metadataValue(metadata: Stripe.Metadata | null | undefined, key: string): string | null {
   return nullableString(metadata?.[key])
-}
-
-interface ResolvedOwnerMetadata {
-  referenceId: string | null
-  organizationId: string | null
-  organization_id: string | null
-  ownerId: string | null
-  conflict: boolean
-}
-
-function resolveOwnerMetadata(metadata: Stripe.Metadata | null | undefined): ResolvedOwnerMetadata {
-  const referenceId = metadataValue(metadata, 'referenceId')
-  const organizationId = metadataValue(metadata, 'organizationId')
-  const organization_id = metadataValue(metadata, 'organization_id')
-  const values = [...new Set([referenceId, organizationId, organization_id].filter((value): value is string => Boolean(value)))]
-  return {
-    referenceId,
-    organizationId,
-    organization_id,
-    ownerId: values[0] ?? null,
-    conflict: values.length > 1,
-  }
-}
-
-interface ResolvedCustomerOwnerMetadata {
-  organizationId: string | null
-  organization_id: string | null
-  ownerId: string | null
-  conflict: boolean
-}
-
-function resolveCustomerOwnerMetadata(metadata: Stripe.Metadata | null | undefined): ResolvedCustomerOwnerMetadata {
-  const organizationId = metadataValue(metadata, 'organizationId')
-  const organization_id = metadataValue(metadata, 'organization_id')
-  const values = [...new Set([organizationId, organization_id].filter((value): value is string => Boolean(value)))]
-  return {
-    organizationId,
-    organization_id,
-    ownerId: values[0] ?? null,
-    conflict: values.length > 1,
-  }
 }
 
 function providerCustomerId(value: Stripe.Subscription['customer']): string | null {
@@ -521,29 +475,23 @@ async function searchOrganizationCustomers(
   organizationId: string,
 ): Promise<{ ids: string[]; hasMore: boolean }> {
   const ids = new Set<string>()
-  let hasMore = false
-  for (const key of ['organizationId', 'organization_id']) {
-    const searchResult = await stripe.customers.search({
-      query: `metadata["${key}"]:"${escapeSearchValue(organizationId)}"`,
-      limit: 100,
-    })
-    if (!Array.isArray(searchResult.data) || typeof searchResult.has_more !== 'boolean') {
-      throw new ReconciliationProviderReadBoundError('provider_search_malformed', 'Stripe customer metadata search returned malformed pagination evidence.')
-    }
-    if (searchResult.data.length > 100) {
-      throw new ReconciliationProviderReadBoundError('provider_search_unbounded', 'Stripe customer metadata search returned more than its bounded page size.')
-    }
-    for (const customer of searchResult.data) {
-      if (typeof customer?.id !== 'string' || !customer.id.trim()) {
-        throw new ReconciliationProviderReadBoundError('provider_search_malformed', 'Stripe customer metadata search returned a customer without an id.')
-      }
-      ids.add(customer.id)
-    }
-    if (searchResult.has_more) {
-      hasMore = true
-    }
+  const searchResult = await stripe.customers.search({
+    query: `metadata["organizationId"]:"${escapeSearchValue(organizationId)}"`,
+    limit: 100,
+  })
+  if (!Array.isArray(searchResult.data) || typeof searchResult.has_more !== 'boolean') {
+    throw new ReconciliationProviderReadBoundError('provider_search_malformed', 'Stripe customer metadata search returned malformed pagination evidence.')
   }
-  return { ids: [...ids].sort(), hasMore }
+  if (searchResult.data.length > 100) {
+    throw new ReconciliationProviderReadBoundError('provider_search_unbounded', 'Stripe customer metadata search returned more than its bounded page size.')
+  }
+  for (const customer of searchResult.data) {
+    if (typeof customer?.id !== 'string' || !customer.id.trim()) {
+      throw new ReconciliationProviderReadBoundError('provider_search_malformed', 'Stripe customer metadata search returned a customer without an id.')
+    }
+    ids.add(customer.id)
+  }
+  return { ids: [...ids].sort(), hasMore: searchResult.has_more }
 }
 
 async function searchOrganizationSubscriptions(
@@ -552,33 +500,31 @@ async function searchOrganizationSubscriptions(
 ): Promise<{ subscriptions: Stripe.Subscription[]; customerIds: string[]; hasMore: boolean }> {
   const subscriptionsById = new Map<string, Stripe.Subscription>()
   let hasMore = false
-  for (const key of ['referenceId', 'organizationId', 'organization_id']) {
-    let page: string | undefined
-    for (let pageNumber = 0; pageNumber < MAX_PROVIDER_SEARCH_PAGES; pageNumber += 1) {
-      const searchResult = await stripe.subscriptions.search({
-        query: `metadata["${key}"]:"${escapeSearchValue(organizationId)}"`,
-        limit: 100,
-        ...(page ? { page } : {}),
-      })
-      if (!Array.isArray(searchResult.data) || typeof searchResult.has_more !== 'boolean') {
-        throw new ReconciliationProviderReadBoundError('provider_search_malformed', 'Stripe subscription metadata search returned malformed pagination evidence.')
-      }
-      if (searchResult.data.length > 100) {
-        throw new ReconciliationProviderReadBoundError('provider_search_unbounded', 'Stripe subscription metadata search returned more than its bounded page size.')
-      }
-      for (const subscription of searchResult.data) {
-        if (typeof subscription?.id !== 'string' || !subscription.id.trim()) {
-          throw new ReconciliationProviderReadBoundError('provider_search_malformed', 'Stripe subscription metadata search returned a subscription without an id.')
-        }
-        subscriptionsById.set(subscription.id, subscription)
-      }
-      if (!searchResult.has_more) break
-      if (typeof searchResult.next_page !== 'string' || !searchResult.next_page.trim() || pageNumber === MAX_PROVIDER_SEARCH_PAGES - 1) {
-        hasMore = true
-        break
-      }
-      page = searchResult.next_page
+  let page: string | undefined
+  for (let pageNumber = 0; pageNumber < MAX_PROVIDER_SEARCH_PAGES; pageNumber += 1) {
+    const searchResult = await stripe.subscriptions.search({
+      query: `metadata["referenceId"]:"${escapeSearchValue(organizationId)}"`,
+      limit: 100,
+      ...(page ? { page } : {}),
+    })
+    if (!Array.isArray(searchResult.data) || typeof searchResult.has_more !== 'boolean') {
+      throw new ReconciliationProviderReadBoundError('provider_search_malformed', 'Stripe subscription metadata search returned malformed pagination evidence.')
     }
+    if (searchResult.data.length > 100) {
+      throw new ReconciliationProviderReadBoundError('provider_search_unbounded', 'Stripe subscription metadata search returned more than its bounded page size.')
+    }
+    for (const subscription of searchResult.data) {
+      if (typeof subscription?.id !== 'string' || !subscription.id.trim()) {
+        throw new ReconciliationProviderReadBoundError('provider_search_malformed', 'Stripe subscription metadata search returned a subscription without an id.')
+      }
+      subscriptionsById.set(subscription.id, subscription)
+    }
+    if (!searchResult.has_more) break
+    if (typeof searchResult.next_page !== 'string' || !searchResult.next_page.trim() || pageNumber === MAX_PROVIDER_SEARCH_PAGES - 1) {
+      hasMore = true
+      break
+    }
+    page = searchResult.next_page
   }
   const subscriptions = [...subscriptionsById.values()].sort((a, b) => a.id.localeCompare(b.id))
   const customerIds = [...new Set(subscriptions
@@ -826,7 +772,6 @@ function hasOrderedPeriod(periodStart: string | null, periodEnd: string | null):
   return Number.isFinite(start) && Number.isFinite(end) && start < end
 }
 
-
 function addDrift(
   drifts: OrganizationReconciliationDrift[],
   code: string,
@@ -847,20 +792,18 @@ function sortById<T extends { id?: string | null }>(rows: T[]): T[] {
 
 function normalizeBetterAuthSubscription(row: Record<string, unknown>): OrganizationReconciliationBetterAuthSubscription {
   const referenceId = nullableString(row.referenceId)
-  const legacyReferenceId = nullableString(row.reference_id)
-  const ownerMetadataConflict = Boolean(referenceId && legacyReferenceId && referenceId !== legacyReferenceId)
   return {
     id: nullableString(row.id),
-    referenceId: referenceId ?? legacyReferenceId,
-    ownerMetadataConflict,
+    referenceId,
+
     plan: nullableString(row.plan),
     status: nullableString(row.status),
-    stripeCustomerId: nullableString(row.stripeCustomerId ?? row.stripe_customer_id),
-    stripeSubscriptionId: nullableString(row.stripeSubscriptionId ?? row.stripe_subscription_id),
-    periodStart: safeTimestamp(row.periodStart ?? row.period_start, 'subscription.periodStart'),
-    periodEnd: safeTimestamp(row.periodEnd ?? row.period_end, 'subscription.periodEnd'),
-    cancelAtPeriodEnd: nullableBoolean(row.cancelAtPeriodEnd ?? row.cancel_at_period_end),
-    billingInterval: nullableString(row.billingInterval ?? row.billing_interval),
+    stripeCustomerId: nullableString(row.stripeCustomerId),
+    stripeSubscriptionId: nullableString(row.stripeSubscriptionId),
+    periodStart: safeTimestamp(row.periodStart, 'subscription.periodStart'),
+    periodEnd: safeTimestamp(row.periodEnd, 'subscription.periodEnd'),
+    cancelAtPeriodEnd: nullableBoolean(row.cancelAtPeriodEnd),
+    billingInterval: nullableString(row.billingInterval),
     seats: nullableNumber(row.seats),
   }
 }
@@ -869,8 +812,6 @@ function normalizeProjectionRow(row: OrganizationBillingProjectionRow | null): O
   if (!row) return null
   return {
     organization_id: nullableString(row.organization_id),
-    stripe_customer_id: nullableString(row.stripe_customer_id),
-    stripe_subscription_id: nullableString(row.stripe_subscription_id),
     payment_status: nullableString(row.payment_status),
     paid_through: nullableString(row.paid_through),
     past_due_since: nullableString(row.past_due_since),
@@ -886,18 +827,14 @@ function normalizeProviderSubscription(
   resolutionError?: string,
 ): OrganizationReconciliationProviderSubscription {
   const item = resolved?.item ?? subscription.items.data[0]
-  const ownerMetadata = resolveOwnerMetadata(subscription.metadata)
   return {
     id: subscription.id,
     customerId: providerCustomerId(subscription.customer),
     status: nullableString(subscription.status),
     metadata: {
-      organizationId: ownerMetadata.organizationId,
-      organization_id: ownerMetadata.organization_id,
-      referenceId: ownerMetadata.referenceId,
+      referenceId: metadataValue(subscription.metadata, 'referenceId'),
       subscriptionId: metadataValue(subscription.metadata, 'subscriptionId'),
-      ownerId: ownerMetadata.ownerId,
-      ownerMetadataConflict: ownerMetadata.conflict,
+
     },
     canonicalPlan: resolved?.plan.name ?? null,
     canonicalBasePriceId: resolved?.item.price.id ?? null,
@@ -968,9 +905,6 @@ function compareSubscriptionPair(
   compareValue(drifts, 'subscription_cancel_mismatch', 'subscription.cancelAtPeriodEnd', betterAuth.cancelAtPeriodEnd, provider.cancelAtPeriodEnd)
   compareValue(drifts, 'subscription_interval_mismatch', 'subscription.billingInterval', betterAuth.billingInterval, provider.billingInterval)
   compareValue(drifts, 'subscription_quantity_mismatch', 'subscription.seats', betterAuth.seats, provider.quantity)
-  if (betterAuth.ownerMetadataConflict) {
-    addDrift(drifts, 'better_auth_subscription_owner_metadata_conflict', 'blocked', betterAuth.id ?? 'unknown', 'Better Auth subscription owner metadata keys conflict.')
-  }
   if (provider.metadata.subscriptionId && provider.metadata.subscriptionId !== (betterAuth.id ?? provider.id)) {
     addDrift(drifts, 'provider_subscription_metadata_id_mismatch', 'blocked', provider.id, 'Provider subscriptionId metadata differs from Better Auth.')
   }
@@ -1065,7 +999,7 @@ function compareAppProjection(
     return
   }
   if (!ba || !provider) {
-    if (projection.plan !== 'free' || projection.stripeSubscriptionId || projection.stripeCustomerId) {
+    if (projection.accessPlan !== 'free') {
       addDrift(drifts, 'app_authoritative_subscription_missing', 'blocked', 'organization_billing', 'Paid organization projection has no matched Better Auth and Stripe subscription pair.')
     }
     return
@@ -1074,12 +1008,10 @@ function compareAppProjection(
     addDrift(drifts, 'app_projection_missing', 'blocked', 'organization_billing', 'Matched paid subscription has no materialized organization projection.')
     return
   }
-  compareValue(drifts, 'app_customer_mismatch', 'organization_billing.stripeCustomerId', projection.stripeCustomerId, ba.stripeCustomerId)
-  compareValue(drifts, 'app_subscription_mismatch', 'organization_billing.stripeSubscriptionId', projection.stripeSubscriptionId, ba.stripeSubscriptionId)
-  compareValue(drifts, 'app_plan_mismatch', 'organization_billing.accessPlan', projection.plan, ba.plan)
-  compareValue(drifts, 'app_provider_plan_mismatch', 'organization_billing.accessPlan', projection.plan, provider.canonicalPlan)
-  compareValue(drifts, 'app_period_end_mismatch', 'organization_billing.accessExpiresAt', projection.currentPeriodEnd, ba.periodEnd)
-  compareValue(drifts, 'app_provider_period_end_mismatch', 'organization_billing.accessExpiresAt', projection.currentPeriodEnd, provider.periodEnd)
+  compareValue(drifts, 'app_plan_mismatch', 'organization_billing.accessPlan', projection.accessPlan, ba.plan)
+  compareValue(drifts, 'app_provider_plan_mismatch', 'organization_billing.accessPlan', projection.accessPlan, provider.canonicalPlan)
+  compareValue(drifts, 'app_period_end_mismatch', 'organization_billing.accessExpiresAt', projection.accessExpiresAt, ba.periodEnd)
+  compareValue(drifts, 'app_provider_period_end_mismatch', 'organization_billing.accessExpiresAt', projection.accessExpiresAt, provider.periodEnd)
 }
 
 function comparePaymentEvidence(
@@ -1212,7 +1144,7 @@ export async function reconcileOrganizationSubscription(
   let appProjectionRow: OrganizationBillingProjectionRow | null = null
   try {
     appProjectionRow = await queryFirst<OrganizationBillingProjectionRow>(options.db, `
-      SELECT organization_id, stripe_customer_id, stripe_subscription_id,
+      SELECT organization_id,
              payment_status, paid_through, past_due_since,
              last_paid_invoice_id, last_payment_event_created, last_payment_event_id,
              access_plan, access_expires_at, updated_at
@@ -1249,8 +1181,7 @@ export async function reconcileOrganizationSubscription(
   const betterAuthSubscriptions = sortById(betterAuthRows.map(normalizeBetterAuthSubscription))
   for (const subscription of betterAuthSubscriptions) {
     if (
-      subscription.ownerMetadataConflict
-      || !subscription.id
+      !subscription.id
       || !subscription.referenceId
       || subscription.referenceId !== request.organizationId
       || !subscription.plan
@@ -1266,14 +1197,12 @@ export async function reconcileOrganizationSubscription(
     }
   }
   const betterAuthOrganizationCustomerId = nullableString(options.organization.stripeCustomerId)
-  const appCustomerId = normalizedRow?.stripe_customer_id ?? null
   const betterAuthSubscriptionCustomerIds = betterAuthSubscriptions
     .map(subscription => subscription.stripeCustomerId)
     .filter((value): value is string => Boolean(value))
   const candidateCustomerIds = [...new Set([
     betterAuthOrganizationCustomerId,
     ...betterAuthSubscriptionCustomerIds,
-    appCustomerId,
   ].filter((value): value is string => Boolean(value)))].sort()
   let account: Stripe.Account | null = null
   let accountRequestError = false
@@ -1316,17 +1245,14 @@ export async function reconcileOrganizationSubscription(
       for (const searchedSubscription of subscriptionSearch.subscriptions) {
         const searchedSubscriptionId = nullableString(searchedSubscription.id)
         const searchedCustomerId = providerCustomerId(searchedSubscription.customer)
-        const searchedOwner = resolveOwnerMetadata(searchedSubscription.metadata)
+        const searchedOwner = metadataValue(searchedSubscription.metadata, 'referenceId')
         if (!searchedSubscriptionId || !searchedCustomerId) {
           metadataSearchEvidenceValid = false
           addDrift(drifts, 'provider_subscription_search_malformed', 'blocked', searchedSubscriptionId ?? 'unknown', 'Provider subscription metadata search returned a subscription without a valid id or customer identity.')
         } else {
           metadataSearchSubscriptionIds.add(searchedSubscriptionId)
         }
-        if (searchedOwner.conflict) {
-          metadataSearchEvidenceValid = false
-          addDrift(drifts, 'provider_subscription_search_owner_metadata_conflict', 'blocked', searchedSubscriptionId ?? 'unknown', 'Provider subscription metadata search returned conflicting owner keys.')
-        } else if (searchedOwner.ownerId !== request.organizationId) {
+        if (searchedOwner !== request.organizationId) {
           metadataSearchEvidenceValid = false
           addDrift(drifts, 'provider_subscription_search_owner_mismatch', 'blocked', searchedSubscriptionId ?? 'unknown', 'Provider subscription metadata search returned a subscription owned by another organization.')
         }
@@ -1378,9 +1304,9 @@ export async function reconcileOrganizationSubscription(
       if (isDeletedCustomer(customer)) {
         addDrift(drifts, 'provider_customer_deleted', 'blocked', customerId, 'The organization customer is deleted.')
       } else {
-        const ownerMetadata = resolveCustomerOwnerMetadata(customer.metadata)
+        const organizationId = metadataValue(customer.metadata, 'organizationId')
         const customerType = metadataValue(customer.metadata, 'customerType')
-        if (ownerMetadata.conflict || ownerMetadata.ownerId !== request.organizationId || customerType !== 'organization') {
+        if (organizationId !== request.organizationId || customerType !== 'organization') {
           addDrift(drifts, 'provider_customer_metadata_conflict', 'blocked', customerId, 'Provider customer metadata does not identify this organization.')
         }
         const subscriptions: Stripe.Subscription[] = []
@@ -1430,16 +1356,14 @@ export async function reconcileOrganizationSubscription(
             const resolved = await resolveCanonicalSubscriptionPlan(boundedHistoricalProvider, providerSubscription, snapshotLoader)
             const normalized = normalizeProviderSubscription(providerSubscription, resolved)
             providerSubscriptions.push(normalized)
-            if (normalized.metadata.ownerMetadataConflict) {
-              addDrift(drifts, 'provider_subscription_owner_metadata_conflict', 'blocked', providerSubscription.id, 'Provider subscription owner metadata keys conflict.')
-            } else if (normalized.metadata.ownerId !== request.organizationId) {
+            if (normalized.status !== 'canceled' && normalized.metadata.referenceId !== request.organizationId) {
               addDrift(drifts, 'provider_subscription_owner_mismatch', 'blocked', providerSubscription.id, 'Provider subscription owner metadata does not identify this organization.')
             }
             if (
               !normalized.id
               || !normalized.status
               || !KNOWN_PROVIDER_SUBSCRIPTION_STATUSES.has(normalized.status)
-              || !normalized.customerId
+              || normalized.customerId !== customerId
               || normalized.quantity !== 1
               || normalized.cancelAtPeriodEnd === null
               || !hasOrderedPeriod(normalized.periodStart, normalized.periodEnd)
@@ -1591,15 +1515,7 @@ export async function reconcileOrganizationSubscription(
   const sortedDrifts = sortDrifts(drifts)
   const providerCustomerMetadata = customer && !isDeletedCustomer(customer)
     ? {
-        ...(() => {
-          const ownerMetadata = resolveCustomerOwnerMetadata(customer.metadata)
-          return {
-            organizationId: ownerMetadata.organizationId,
-            organization_id: ownerMetadata.organization_id,
-            ownerId: ownerMetadata.ownerId,
-            ownerMetadataConflict: ownerMetadata.conflict,
-          }
-        })(),
+        organizationId: metadataValue(customer.metadata, 'organizationId'),
         customerType: metadataValue(customer.metadata, 'customerType'),
       }
     : null

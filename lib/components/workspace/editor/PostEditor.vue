@@ -61,6 +61,50 @@
           </UFormField>
         </div>
 
+        <div v-if="showTopic" class="space-y-4 rounded-lg border border-default p-4">
+          <UFormField label="Post type">
+            <USelect :model-value="topic.post_type ?? 'standard'" :items="POST_TYPES.map(value => ({ value, label: value === 'standard' ? 'News' : value[0]!.toUpperCase() + value.slice(1) }))" @update:model-value="setTopic" />
+          </UFormField>
+          <p v-if="topic.post_type === 'alert'" class="text-sm text-muted">COVID-19 alert. Only the announcement text and a call to action are supported. Saving removes the post's images.</p>
+          <template v-if="topic.event">
+            <UFormField label="Event name" required><UInput v-model="topic.event.title" class="w-full" /></UFormField>
+            <div class="grid gap-3 sm:grid-cols-2">
+              <UFormField label="Start date" required><UInput v-model="topic.event.schedule.start_date" type="date" /></UFormField>
+              <UFormField label="Start time" required><UInput :model-value="topic.event.schedule.start_time" placeholder="HH:MM:SS" @update:model-value="setEventTime('start_time', $event)" /></UFormField>
+              <UFormField label="End date" required><UInput v-model="topic.event.schedule.end_date" type="date" /></UFormField>
+              <UFormField label="End time" required><UInput :model-value="topic.event.schedule.end_time" placeholder="HH:MM:SS" @update:model-value="setEventTime('end_time', $event)" /></UFormField>
+            </div>
+            <p class="text-xs text-muted">Dates and times use this location's local time.</p>
+            <UFormField label="Repeats"><USelect :model-value="topic.event.recurrence_info?.kind ?? 'none'" :items="['none', 'daily', 'weekly', 'monthly']" @update:model-value="setRecurrence" /></UFormField>
+            <div v-if="topic.event.recurrence_info?.kind === 'weekly'" class="flex flex-wrap gap-3">
+              <UCheckbox v-for="day in POST_WEEKDAYS" :key="day" :label="day" :model-value="topic.event.recurrence_info.days_of_week.includes(day)" @update:model-value="toggleWeekday(day, $event === true)" />
+              <p class="w-full text-xs text-muted">With no days selected, repeats on the start date's weekday.</p>
+            </div>
+            <template v-if="topic.event.recurrence_info?.kind === 'monthly'">
+              <USelect :model-value="'day_of_month' in topic.event.recurrence_info ? 'date' : 'weekday'" :items="[{ value: 'date', label: 'Day of month' }, { value: 'weekday', label: 'Weekday occurrence' }]" @update:model-value="setMonthlyRule" />
+              <UInput v-if="'day_of_month' in topic.event.recurrence_info" v-model.number="topic.event.recurrence_info.day_of_month" type="number" :min="1" :max="31" />
+              <USelect v-else v-model="topic.event.recurrence_info.day_of_week_occurrence" :items="['first', 'second', 'third', 'fourth', 'last']" />
+              <p class="text-xs text-muted">Weekday occurrences use the start date's weekday. Months without the selected date are skipped.</p>
+            </template>
+            <UFormField v-if="topic.event.recurrence_info" label="Series ends" description="Optional RFC 3339 timestamp with timezone, such as 2026-12-31T23:59:59+07:00.">
+              <UInput :model-value="topic.event.recurrence_info.series_end_time ?? ''" class="w-full" @update:model-value="setSeriesEnd" />
+            </UFormField>
+          </template>
+          <template v-if="topic.offer">
+            <UFormField label="Coupon code"><UInput :model-value="topic.offer.coupon_code ?? ''" @update:model-value="setOffer('coupon_code', $event)" /></UFormField>
+            <UFormField label="Redeem online URL"><UInput :model-value="topic.offer.redeem_online_url ?? ''" type="url" class="w-full" @update:model-value="setOffer('redeem_online_url', $event)" /></UFormField>
+            <UFormField label="Offer terms"><UTextarea :model-value="topic.offer.terms_conditions ?? ''" class="w-full" @update:model-value="setOffer('terms_conditions', $event)" /></UFormField>
+          </template>
+          <template v-if="topic.post_type !== 'offer'">
+            <UFormField label="Call to action"><USelect :model-value="topic.call_to_action?.action_type ?? 'none'" :items="['none', ...POST_ACTIONS]" @update:model-value="setAction" /></UFormField>
+            <p v-if="topic.call_to_action?.action_type === 'call'" class="text-xs text-muted">Calls the phone number saved on this location.</p>
+            <UFormField v-else-if="topic.call_to_action" label="Destination URL" required><UInput v-model="topic.call_to_action.url" type="url" class="w-full" /></UFormField>
+          </template>
+          <UFormField label="Publish at" description="Leave empty to publish now. To schedule, enter an RFC 3339 timestamp with timezone.">
+            <UInput :model-value="topic.scheduled_for ?? ''" class="w-full" @update:model-value="topic.scheduled_for = String($event).trim() || null" />
+          </UFormField>
+        </div>
+
         <UFormField :label="bodyLabel">
           <UTextarea
             v-model="body"
@@ -80,7 +124,7 @@
           </UFormField>
         </div>
 
-        <UFormField v-if="showImage" label="Cover image">
+        <UFormField v-if="showImage && topic.post_type !== 'alert'" label="Cover image">
           <DashboardCoverPhotoField
             :site-id="siteId"
             :model-value="coverMediaId"
@@ -92,7 +136,7 @@
           />
         </UFormField>
 
-        <UFormField v-if="showImage" label="Gallery">
+        <UFormField v-if="showImage && topic.post_type !== 'alert'" label="Gallery">
           <DashboardMediaGalleryField
             :items="galleryItems"
             :site-id="siteId"
@@ -156,6 +200,48 @@
 <script setup lang="ts">
 import DashboardCoverPhotoField from '~/components/dashboard/DashboardCoverPhotoField.vue'
 import DashboardMediaGalleryField from '~/components/dashboard/DashboardMediaGalleryField.vue'
+import { POST_TYPES, POST_ACTIONS, POST_WEEKDAYS, type PostMutation } from '~/shared/posts'
+
+const topic = defineModel<PostMutation>('topic', { default: () => ({ post_type: 'standard' }) })
+function setTopic(value: typeof POST_TYPES[number]) {
+  if (value === 'alert') media.value = []
+  topic.value = { post_type: value, scheduled_for: topic.value.scheduled_for,
+    event: value === 'event' || value === 'offer' ? { title: '', schedule: { start_date: '', start_time: '', end_date: '', end_time: '' } } : null,
+    offer: value === 'offer' ? {} : null, call_to_action: null, alert_type: value === 'alert' ? 'covid_19' : null }
+}
+function setEventTime(field: 'start_time' | 'end_time', value: string | number) {
+  if (topic.value.event) topic.value.event.schedule[field] = String(value).length === 5 ? `${value}:00` : String(value)
+}
+function setRecurrence(value: string) {
+  if (!['none', 'daily', 'weekly', 'monthly'].includes(value)) return
+  if (!topic.value.event) return
+  if (value === 'none') { delete topic.value.event.recurrence_info; return }
+  topic.value.event.recurrence_info = value === 'daily' ? { kind: value } : value === 'weekly' ? { kind: value, days_of_week: [] } : { kind: 'monthly', day_of_month: 1 }
+}
+function toggleWeekday(day: typeof POST_WEEKDAYS[number], checked: boolean) {
+  const rule = topic.value.event?.recurrence_info
+  if (rule?.kind === 'weekly') rule.days_of_week = checked ? [...rule.days_of_week, day] : rule.days_of_week.filter(value => value !== day)
+}
+function setMonthlyRule(value: string) {
+  if (value !== 'date' && value !== 'weekday') return
+  if (topic.value.event) topic.value.event.recurrence_info = value === 'date' ? { kind: 'monthly', day_of_month: 1 } : { kind: 'monthly', day_of_week_occurrence: 'first' }
+}
+function setSeriesEnd(value: string | number) {
+  const rule = topic.value.event?.recurrence_info
+  if (!rule) return
+  if (String(value).trim()) rule.series_end_time = String(value).trim()
+  else delete rule.series_end_time
+}
+function setOffer(field: 'coupon_code' | 'redeem_online_url' | 'terms_conditions', value: string | number) {
+  if (!topic.value.offer) return
+  if (String(value).trim()) topic.value.offer[field] = String(value).trim()
+  else topic.value.offer = Object.fromEntries(Object.entries(topic.value.offer).filter(([key]) => key !== field))
+}
+function setAction(value: string) {
+  if (value !== 'none' && !POST_ACTIONS.some(action => action === value)) return
+  const action = POST_ACTIONS.find(action => action === value)
+  topic.value.call_to_action = !action ? null : action === 'call' ? { action_type: action } : { action_type: action, url: '' }
+}
 
 interface PostMediaItem {
   asset_id: string
@@ -222,6 +308,7 @@ const props = withDefaults(defineProps<{
   showExcerpt?: boolean
   showCategory?: boolean
   showImage?: boolean
+  showTopic?: boolean
   /** Off where the slug is derived from the title and must not be hand-edited. */
   showSlug?: boolean
   /** Off where SEO fields are generated rather than authored. */
@@ -250,6 +337,7 @@ const props = withDefaults(defineProps<{
   showExcerpt: false,
   showCategory: false,
   showImage: false,
+  showTopic: false,
   showSlug: true,
   showSeo: true,
   showPreview: true,

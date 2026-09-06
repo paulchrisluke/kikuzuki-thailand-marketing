@@ -35,7 +35,6 @@ async function publishedTenantPagePaths(event: H3Event, db: DbClient | undefined
 function isAllowedTenantPath(event: H3Event, path: string, publishedPaths: Set<string>) {
   const site = event.context.site as { theme?: string | null; vertical?: string | null } | undefined
   const template = resolvePublicTemplate({
-    theme: site?.theme,
     themeId: event.context.themeId as string | null | undefined,
     vertical: site?.vertical,
   })

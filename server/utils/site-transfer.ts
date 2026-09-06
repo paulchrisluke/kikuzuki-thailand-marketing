@@ -1,10 +1,7 @@
 import {
-  createCustomDomainPair,
-  deleteCustomDomain,
   platformDomain,
   type DomainEnv,
 } from '~/server/utils/domains'
-import { rootDomainForPair } from '~/server/utils/domain-shared'
 import { execute, executeBatch, queryAll, queryFirst, type BatchQuery } from '~/server/db'
 import { notifySiteTransferReminder } from '~/server/utils/site-transfer-notifications'
 import {
@@ -28,25 +25,15 @@ type SiteTransferEnv = DomainEnv & {
   STRIPE_SECRET_KEY?: string
 }
 
-/**
- * site_transfer_requests.status is constrained to the historical
- * pending/accepted/cancelled values.  A pending row is therefore a small
- * state machine encoded by the checkout-session column:
- *
- *   claiming       pending + stripe_checkout_session_id = claim:<nonce>
- *   checkout_pending pending + a real Checkout id + exact claimant/org
- *
- * The sentinel is written with a compare-and-set before any provider or
- * Better Auth side effect.  It is intentionally not a Stripe identifier and
- * must never be sent to the provider.
- */
 export const TRANSFER_CLAIM_SENTINEL_PREFIX = 'claim:'
 
-export function isTransferClaimSentinel(value: string | null | undefined): boolean {
+export type TransferClaimSentinel = `claim:${string}`
+
+export function isTransferClaimSentinel(value: string | null | undefined): value is TransferClaimSentinel {
   return typeof value === 'string' && value.startsWith(TRANSFER_CLAIM_SENTINEL_PREFIX)
 }
 
-export function newTransferClaimSentinel(): string {
+export function newTransferClaimSentinel(): TransferClaimSentinel {
   return `${TRANSFER_CLAIM_SENTINEL_PREFIX}${crypto.randomUUID()}`
 }
 
@@ -69,11 +56,6 @@ function isStripeResourceMissing(error: unknown): boolean {
     || (candidate?.statusCode === 404 && candidate?.type === 'StripeInvalidRequestError')
 }
 
-export interface TransferDomainSnapshot {
-  domain: string
-  include_www: boolean
-}
-
 interface TransferCleanupRow {
   id: string
   site_id: string
@@ -83,8 +65,6 @@ interface TransferCleanupRow {
   claiming_user_id: string | null
   claiming_organization_id: string | null
   stripe_checkout_session_id: string | null
-  custom_domains_snapshot: string | null
-  custom_domains_removed_at: string | null
 }
 
 interface TransferCompletionRow {
@@ -95,8 +75,6 @@ interface TransferCompletionRow {
   claiming_user_id: string | null
   claiming_organization_id: string | null
   stripe_checkout_session_id: string | null
-  custom_domains_snapshot: string | null
-  custom_domains_removed_at: string | null
   payment_completed_at: string | null
 }
 
@@ -111,201 +89,20 @@ interface TransferReminderRow {
   invited_domain: string | null
   reminder_count: number | null
   requires_payment: number
-  custom_domains_snapshot: string | null
-  custom_domains_removed_at: string | null
   site_name: string | null
 }
 
-export function serializeTransferDomainSnapshot(snapshot: TransferDomainSnapshot[]): string {
-  return JSON.stringify(snapshot)
-}
-
-const TRANSFER_DOMAIN_LABEL_PATTERN = /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/
-
-function transferDomainSnapshotError(message: string): Error {
-  return new Error(`Invalid custom-domain restoration snapshot: ${message}`)
-}
-
-function normalizeTransferSnapshotDomain(raw: unknown, index: number): string {
-  if (typeof raw !== 'string') {
-    throw transferDomainSnapshotError(`entry ${index} has a non-string domain`)
-  }
-
-  const candidate = raw.trim().toLowerCase()
-  const root = rootDomainForPair(candidate)
-  if (!root || (candidate !== root && candidate !== `www.${root}`)) {
-    throw transferDomainSnapshotError(`entry ${index} has an unsupported domain value`)
-  }
-
-  if (root.length < 3 || root.length > 253 || root.startsWith('www.')) {
-    throw transferDomainSnapshotError(`entry ${index} has an unsupported domain value`)
-  }
-
-  const labels = root.split('.')
-  if (labels.length < 2 || labels.some((label) => !TRANSFER_DOMAIN_LABEL_PATTERN.test(label))) {
-    throw transferDomainSnapshotError(`entry ${index} has an unsupported domain value`)
-  }
-
-  return root
-}
-
-export function parseTransferDomainSnapshot(raw: string | null | undefined): TransferDomainSnapshot[] {
-  if (raw === null || raw === undefined) return []
-  if (typeof raw !== 'string') {
-    throw transferDomainSnapshotError('snapshot must be a JSON string')
-  }
-  if (raw.trim() === '') return []
-
-  let parsed: unknown
-  try {
-    parsed = JSON.parse(raw)
-  } catch {
-    throw transferDomainSnapshotError('snapshot is not valid JSON')
-  }
-
-  if (!Array.isArray(parsed)) {
-    throw transferDomainSnapshotError('snapshot must be an array')
-  }
-
-  const byRoot = new Map<string, TransferDomainSnapshot>()
-  for (const [index, entry] of parsed.entries()) {
-    if (entry === null || typeof entry !== 'object' || Array.isArray(entry)) {
-      throw transferDomainSnapshotError(`entry ${index} must be an object`)
-    }
-
-    const keys = Object.keys(entry)
-    if (keys.length !== 2 || !keys.includes('domain') || !keys.includes('include_www')) {
-      throw transferDomainSnapshotError(`entry ${index} has an unsupported shape`)
-    }
-
-    const candidate = entry as { domain: unknown; include_www: unknown }
-    if (typeof candidate.include_www !== 'boolean') {
-      throw transferDomainSnapshotError(`entry ${index} has a non-boolean include_www value`)
-    }
-
-    const domain = normalizeTransferSnapshotDomain(candidate.domain, index)
-    const existing = byRoot.get(domain)
-    if (existing) {
-      // A legacy snapshot may contain both root and www rows for the same
-      // pair. Restore that pair once, retaining the broader include_www
-      // request rather than issuing duplicate provider calls.
-      existing.include_www = existing.include_www || candidate.include_www
-    } else {
-      byRoot.set(domain, { domain, include_www: candidate.include_www })
-    }
-  }
-
-  return Array.from(byRoot.values())
-}
-
-function hasTransferDomainSnapshot(raw: string | null | undefined): raw is string {
-  return typeof raw === 'string' && raw.trim() !== ''
-}
-
-export async function buildTransferDomainSnapshot(db: D1Database, siteId: string): Promise<TransferDomainSnapshot[]> {
-  const rows = await queryAll<{ domain: string }>(db, `
-    SELECT domain
-    FROM site_domains
-    WHERE site_id = ? AND type = 'custom' AND status != 'deleted'
-    ORDER BY created_at ASC
-  `, [siteId])
-
-  const byRoot = new Map<string, { hasRoot: boolean; hasWww: boolean }>()
-
-  for (const row of rows || []) {
-    const domain = String(row.domain || '').trim().toLowerCase()
-    if (!domain) continue
-    const root = rootDomainForPair(domain)
-    const current = byRoot.get(root) ?? { hasRoot: false, hasWww: false }
-    if (domain === root) current.hasRoot = true
-    if (domain === `www.${root}`) current.hasWww = true
-    byRoot.set(root, current)
-  }
-
-  return Array.from(byRoot.entries()).map(([domain, flags]) => ({
-    domain,
-    include_www: flags.hasWww || !flags.hasRoot,
-  }))
-}
-
-export async function deleteSiteCustomDomains(
-  env: SiteTransferEnv,
-  db: D1Database,
-  siteId: string,
-  actorType: 'owner' | 'admin' | 'system',
-  actorId?: string | null,
-): Promise<{ deletedCount: number; failedDomainIds: string[] }> {
-  const domains = await queryAll<{ id: string }>(db, `
-    SELECT id
-    FROM site_domains
-    WHERE site_id = ? AND type = 'custom' AND status != 'deleted'
-    ORDER BY created_at ASC
-  `, [siteId])
-
-  let deletedCount = 0
-  const failedDomainIds: string[] = []
-
-  for (const domain of domains || []) {
-    try {
-      await deleteCustomDomain(env, db, domain.id, actorType, actorId)
-      deletedCount += 1
-    } catch (error) {
-      failedDomainIds.push(domain.id)
-      console.error('delete_site_custom_domain_failed', {
-        siteId,
-        domainId: domain.id,
-        actorType,
-        actorId,
-        error,
-      })
-    }
-  }
-
-  return { deletedCount, failedDomainIds }
-}
-
-export async function restoreSiteCustomDomains(
-  env: SiteTransferEnv,
-  db: D1Database,
-  siteId: string,
-  organizationId: string,
-  snapshotRaw: string | null | undefined,
-  actorType: 'owner' | 'admin' | 'system',
-  actorId?: string | null,
-): Promise<number> {
-  const snapshot = parseTransferDomainSnapshot(snapshotRaw)
-  let restored = 0
-
-  for (const entry of snapshot) {
-    await createCustomDomainPair(env, db, {
-      siteId,
-      organizationId,
-      domain: entry.domain,
-      includeWww: entry.include_www,
-      actorType: actorType === 'system' ? 'admin' : actorType,
-      actorId,
-    })
-    restored += 1
-  }
-
-  return restored
-}
-
-export type OrganizationBillingMirrorRow = OrganizationBillingProjectionRow
-
 export interface SiteTransferBillingProjection {
   organizationId: string
-  organizationBilling: OrganizationBillingMirrorRow | null
+  organizationBilling: OrganizationBillingProjectionRow | null
 }
 
 async function loadSiteTransferBillingProjection(
   db: D1Database,
   organizationId: string,
 ): Promise<SiteTransferBillingProjection> {
-  // Read the organization billing row once and validate that exact snapshot.
-  // A malformed recipient projection must abort before any transfer mutation.
-  const organizationBilling = await queryFirst<OrganizationBillingMirrorRow>(db, `
-    SELECT organization_id, stripe_customer_id, stripe_subscription_id,
+  const organizationBilling = await queryFirst<OrganizationBillingProjectionRow>(db, `
+    SELECT organization_id,
            payment_status, paid_through, past_due_since,
            last_paid_invoice_id, last_payment_event_created, last_payment_event_id,
            access_plan, access_expires_at, updated_at
@@ -322,33 +119,6 @@ async function loadSiteTransferBillingProjection(
   }
 }
 
-const MEDIA_ASSET_COLUMNS = [
-  'id',
-  'organization_id',
-  'site_id',
-  'kind',
-  'provider',
-  'source',
-  'cloudflare_image_id',
-  'r2_key',
-  'public_url',
-  'thumbnail_url',
-  'mime_type',
-  'file_name',
-  'file_size',
-  'width',
-  'height',
-  'duration',
-  'alt_text',
-  'category',
-  'status',
-  'created_by_user_id',
-  'created_at',
-  'updated_at',
-] as const
-
-const MEDIA_ASSET_COPY_COLUMNS = MEDIA_ASSET_COLUMNS.slice(3).join(', ')
-
 function transferAssertion(query: string, params: unknown[], message: string): BatchQuery {
   // SQLite's JSON function is deliberately used as a conditional assertion:
   // malformed JSON raises an error only when the invariant is false, which
@@ -359,69 +129,10 @@ function transferAssertion(query: string, params: unknown[], message: string): B
   }
 }
 
-function buildMediaClusterQueries(
-  siteId: string,
-  fromOrgId: string,
-  toOrgId: string,
-  transferPrefix: string,
-): BatchQuery[] {
-  const mediaAssetTable = SITE_TRANSFER_REPARENT_TABLES.find(table => table === 'media_assets')
-  if (!mediaAssetTable) throw new Error('Site transfer policy is missing media_assets')
-
-  const assetColumns = MEDIA_ASSET_COLUMNS.join(', ')
-  return [
-    {
-      query: `
-        INSERT INTO ${mediaAssetTable} (${assetColumns})
-        SELECT ? || id, ?, site_id, ${MEDIA_ASSET_COPY_COLUMNS}
-          FROM ${mediaAssetTable}
-         WHERE site_id = ? AND organization_id = ?
-      `,
-      params: [transferPrefix, toOrgId, siteId, fromOrgId],
-    },
-    // Move every media usage to recipient-scoped temporary assets before the
-    // guarded asset scope update.
-    {
-      query: `
-        UPDATE media_placements
-           SET organization_id = ?, asset_id = ? || asset_id
-         WHERE site_id = ? AND organization_id = ?
-      `,
-      params: [toOrgId, transferPrefix, siteId, fromOrgId],
-    },
-    {
-      query: `
-        UPDATE ${mediaAssetTable}
-           SET organization_id = ?
-         WHERE site_id = ? AND organization_id = ?
-      `,
-      params: [toOrgId, siteId, fromOrgId],
-    },
-    // Restore the original IDs after the guarded parent scope update.
-    {
-      query: `
-        UPDATE media_placements
-           SET asset_id = CASE
-                 WHEN substr(asset_id, 1, length(?)) = ? THEN substr(asset_id, length(?) + 1)
-                 ELSE asset_id
-               END
-         WHERE site_id = ? AND organization_id = ?
-      `,
-      params: [transferPrefix, transferPrefix, transferPrefix, siteId, toOrgId],
-    },
-    {
-      query: `DELETE FROM ${mediaAssetTable}
-               WHERE substr(id, 1, length(?)) = ? AND site_id = ? AND organization_id = ?`,
-      params: [transferPrefix, transferPrefix, siteId, toOrgId],
-    },
-  ]
-}
-
 function buildSiteTransferAssertions(
   siteId: string,
   fromOrgId: string,
   toOrgId: string,
-  transferPrefix: string,
 ): BatchQuery[] {
   const assertions: BatchQuery[] = []
   for (const table of SITE_TRANSFER_REPARENT_TABLES) {
@@ -436,11 +147,6 @@ function buildSiteTransferAssertions(
       `site transfer left a scope mismatch in ${table}`,
     ))
   }
-  assertions.push(transferAssertion(
-    `SELECT 1 FROM media_assets WHERE substr(id, 1, length(?)) = ?`,
-    [transferPrefix, transferPrefix],
-    'site transfer left temporary media rows',
-  ))
   for (const table of SITE_TRANSFER_RETAIN_TABLES) {
     assertions.push(transferAssertion(
       `SELECT 1 FROM ${table} WHERE site_id = ? AND organization_id = ? LIMIT 1`,
@@ -502,12 +208,10 @@ export function buildSiteTransferMutationBatch(input: {
   }
   const now = input.now ?? new Date().toISOString()
   const transferId = input.transferId ?? `reassign-${input.siteId}-${now}`
-  const transferPrefix = `__site_transfer_${transferId}__`
   const resourceTeamGeneration = serializeResourceTeamGeneration({
     transfer_id: transferId,
     generation: String(input.teamGeneration ?? now),
   })
-  const mediaTables = new Set(['media_assets', 'media_placements'])
   const batch: BatchQuery[] = [{ query: 'PRAGMA defer_foreign_keys = ON' }]
 
   // The site scope is the root invariant for every transfer mutation. Check
@@ -527,16 +231,11 @@ export function buildSiteTransferMutationBatch(input: {
     'all paid site languages must be disabled before transfer',
   ))
 
-  // The projection was read before constructing this batch. Re-check the
-  // exact recipient row before any mutation so a concurrent subscription
-  // transition cannot leave stale compatibility state behind.
   const billing = input.projection.organizationBilling
   const billingSnapshotQuery = billing
     ? `SELECT 1 WHERE NOT EXISTS (
          SELECT 1 FROM organization_billing
           WHERE organization_id = ?
-            AND stripe_customer_id IS ?
-            AND stripe_subscription_id IS ?
             AND payment_status IS ?
             AND paid_through IS ?
             AND past_due_since IS ?
@@ -552,8 +251,6 @@ export function buildSiteTransferMutationBatch(input: {
   const billingSnapshotParams = billing
     ? [
         input.toOrgId,
-        billing.stripe_customer_id,
-        billing.stripe_subscription_id,
         billing.payment_status,
         billing.paid_through,
         billing.past_due_since,
@@ -585,12 +282,6 @@ export function buildSiteTransferMutationBatch(input: {
       'site transfer is no longer pending for this site and source organization',
     ))
   }
-  batch.push(transferAssertion(
-    `SELECT 1 FROM media_assets WHERE substr(id, 1, length(?)) = ? LIMIT 1`,
-    [transferPrefix, transferPrefix],
-    'site transfer temporary media prefix collides with an existing asset',
-  ))
-
   // Site access is inherited from its organization. Transfers only reparent
   // domain state and never materialize site billing or entitlement mirrors.
   batch.push({
@@ -616,20 +307,11 @@ export function buildSiteTransferMutationBatch(input: {
       params: [now, input.siteId, input.siteId],
     },
     {
-      query: `UPDATE dashboard_preferences
-                 SET selected_location_id = NULL
-               WHERE selected_location_id IN (SELECT id FROM business_locations WHERE site_id = ?)`,
-      params: [input.siteId],
-    },
-    {
-      query: `UPDATE chowbot_channel_state
-                 SET selected_site_id = NULL, active_conversation_id = NULL,
-                     pending_message_id = NULL, pending_confirmation = NULL
-               WHERE selected_site_id = ?
-                  OR active_conversation_id IN (
-                    SELECT id FROM chowbot_conversations WHERE site_id = ?
-                  )`,
-      params: [input.siteId, input.siteId],
+      query: `UPDATE chowbot_channel_state SET pending_confirmation = NULL, updated_at = ?
+               WHERE json_extract(pending_confirmation, '$.siteId') = ?
+                  OR EXISTS (SELECT 1 FROM json_each(pending_confirmation, '$.candidates') candidate
+                             WHERE json_extract(candidate.value, '$.siteId') = ?)`,
+      params: [now, input.siteId, input.siteId],
     },
     {
       query: `DELETE FROM site_config
@@ -639,18 +321,12 @@ export function buildSiteTransferMutationBatch(input: {
     },
   )
 
-  batch.push(...buildMediaClusterQueries(input.siteId, input.fromOrgId, input.toOrgId, transferPrefix))
-
   batch.push({
     query: `UPDATE business_locations SET notification_phone = NULL, team_id = NULL WHERE site_id = ? AND organization_id = ?`,
     params: [input.siteId, input.fromOrgId],
   })
 
-  // Parent rows and all ordinary business/content rows use deferred composite
-  // FKs. The media cluster above is kept separate because its scope triggers
-  // intentionally reject a naive media_assets organization update.
   for (const table of SITE_TRANSFER_REPARENT_TABLES) {
-    if (mediaTables.has(table)) continue
     batch.push({
       query: `UPDATE ${table} SET organization_id = ? WHERE site_id = ? AND organization_id = ?`,
       params: [input.toOrgId, input.siteId, input.fromOrgId],
@@ -668,7 +344,7 @@ export function buildSiteTransferMutationBatch(input: {
     params: [input.toOrgId, input.siteId, RESOURCE_TEAM_GENERATION_CONFIG_KEY, resourceTeamGeneration, now],
   })
 
-  batch.push(...buildSiteTransferAssertions(input.siteId, input.fromOrgId, input.toOrgId, transferPrefix))
+  batch.push(...buildSiteTransferAssertions(input.siteId, input.fromOrgId, input.toOrgId))
 
   return batch
 }
@@ -765,36 +441,16 @@ export async function cancelPendingSiteTransfer(
   env: SiteTransferEnv,
   db: D1Database,
   transferId: string,
-): Promise<{ cancelled: boolean; customDomainsDeleted: number; reason?: 'payment_completed' }> {
+): Promise<{ cancelled: boolean; reason?: 'payment_completed' }> {
   const transfer = await queryFirst<TransferCleanupRow>(db, `
     SELECT id, site_id, from_organization_id, status, requires_payment,
-           claiming_user_id, claiming_organization_id, stripe_checkout_session_id,
-           custom_domains_snapshot, custom_domains_removed_at
+           claiming_user_id, claiming_organization_id, stripe_checkout_session_id
     FROM site_transfer_requests
     WHERE id = ?
     LIMIT 1
   `, [transferId])
 
-  const cleanupRetry = transfer?.status === 'cancelled' && Boolean(transfer.custom_domains_removed_at)
-  if (!transfer || (transfer.status !== 'pending' && !cleanupRetry)) {
-    return { cancelled: false, customDomainsDeleted: 0 }
-  }
-
-  let snapshotRaw = transfer.custom_domains_snapshot
-  let customDomainsDeleted = 0
-  const hadRemovalMarker = Boolean(transfer.custom_domains_removed_at)
-
-  if (hadRemovalMarker && !hasTransferDomainSnapshot(snapshotRaw)) {
-    throw new Error('Transfer is missing the custom-domain restoration snapshot')
-  }
-  // Validate the immutable legacy snapshot before any Checkout/provider work.
-  // Restoration below parses again at the side-effect boundary so this guard
-  // cannot be bypassed by a future caller that invokes the helper directly.
-  if (hadRemovalMarker) parseTransferDomainSnapshot(snapshotRaw)
-
-  if (transfer.status === 'pending' && transfer.requires_payment && !snapshotRaw) {
-    snapshotRaw = serializeTransferDomainSnapshot(await buildTransferDomainSnapshot(db, transfer.site_id))
-  }
+  if (!transfer || transfer.status !== 'pending') return { cancelled: false }
 
   const checkoutSessionId = transfer.stripe_checkout_session_id
   const isClaiming = isTransferClaimSentinel(checkoutSessionId)
@@ -808,7 +464,7 @@ export async function cancelPendingSiteTransfer(
   // expire, or quarantine the exact provider resource; cancellation can then
   // retry through the real-session branch below.
   if (transfer.status === 'pending' && isClaiming) {
-    return { cancelled: false, customDomainsDeleted: 0 }
+    return { cancelled: false }
   }
 
   // A real open Checkout must be expired before the durable cancellation CAS.
@@ -831,7 +487,7 @@ export async function cancelPendingSiteTransfer(
     }
 
     if (checkoutSession.status === 'complete') {
-      return { cancelled: false, customDomainsDeleted: 0, reason: 'payment_completed' }
+      return { cancelled: false, reason: 'payment_completed' }
     }
     if (checkoutSession.status !== 'expired') {
       if (checkoutSession.status !== 'open') {
@@ -842,7 +498,7 @@ export async function cancelPendingSiteTransfer(
         if (expired.status !== 'expired') {
           const latest = await stripe.checkout.sessions.retrieve(checkoutSessionId)
           if (latest.status === 'complete') {
-            return { cancelled: false, customDomainsDeleted: 0, reason: 'payment_completed' }
+            return { cancelled: false, reason: 'payment_completed' }
           }
           if (latest.status !== 'expired') {
             throw new Error(`Stripe Checkout ${checkoutSessionId} expiration was not proven`)
@@ -855,11 +511,10 @@ export async function cancelPendingSiteTransfer(
         try {
           const latest = await stripe.checkout.sessions.retrieve(checkoutSessionId)
           if (latest.status === 'complete') {
-            return { cancelled: false, customDomainsDeleted: 0, reason: 'payment_completed' }
+            return { cancelled: false, reason: 'payment_completed' }
           }
         } catch {
-          // Preserve the original provider error below; ambiguity must not be
-          // converted into a successful cancellation.
+          throw error
         }
         throw error
       }
@@ -879,83 +534,53 @@ export async function cancelPendingSiteTransfer(
       transfer.claiming_organization_id,
     ])
     if ((cancelResult.meta?.changes ?? 0) === 0) {
-      return { cancelled: false, customDomainsDeleted: 0 }
+      return { cancelled: false }
     }
   }
 
   if (transfer.status === 'pending' && !isClaiming && !isCheckoutPending && checkoutSessionId) {
-    throw new Error('Transfer has an unowned legacy Checkout session; cancellation is retryable')
+    throw new Error('Transfer has an unowned Checkout session; cancellation is retryable')
   }
 
   if (transfer.status === 'pending' && !isClaiming && !isCheckoutPending) {
-    // Claim cancellation before any external Cloudflare restoration. The
-    // cancelled state is durable and terminal for acceptance, while the
-    // removed-at marker remains set until the restoration saga succeeds.
     const cancelResult = await execute(db, `
       UPDATE site_transfer_requests
-      SET status = 'cancelled',
-          custom_domains_snapshot = COALESCE(custom_domains_snapshot, ?)
+      SET status = 'cancelled'
       WHERE id = ? AND status = 'pending'
         AND stripe_checkout_session_id IS NULL
-    `, [snapshotRaw ?? null, transferId])
+    `, [transferId])
 
     if ((cancelResult.meta?.changes ?? 0) === 0) {
-      return { cancelled: false, customDomainsDeleted: 0 }
+      return { cancelled: false }
     }
   }
 
-  if (transfer.requires_payment && transfer.custom_domains_removed_at) {
-    const removedAt = transfer.custom_domains_removed_at
-    // The source row is now durably cancelled. If this external saga fails,
-    // leave the marker in place so an operator can retry only this cleanup
-    // path without reopening acceptance.
-    customDomainsDeleted = (await restoreSiteCustomDomains(
-      env,
-      db,
-      transfer.site_id,
-      transfer.from_organization_id,
-      snapshotRaw,
-      'system',
-    ))
-
-    const cleanupResult = await execute(db, `
-      UPDATE site_transfer_requests
-      SET custom_domains_removed_at = NULL
-      WHERE id = ? AND status = 'cancelled' AND custom_domains_removed_at = ?
-    `, [transferId, removedAt])
-
-    // Another cleanup retry may have won the conditional clear while this
-    // worker was restoring. The row is still terminally cancelled either way.
-    if ((cleanupResult.meta?.changes ?? 0) === 0) return { cancelled: true, customDomainsDeleted }
-  }
-
-  return { cancelled: true, customDomainsDeleted }
+  return { cancelled: true }
 }
 
 export async function completePaidSiteTransfer(
-  env: SiteTransferEnv,
   db: D1Database,
   transferId: string,
-): Promise<{ completed: boolean; restoredDomains: number }> {
+): Promise<{ completed: boolean }> {
   const transfer = await queryFirst<TransferCompletionRow>(db, `
     SELECT id, site_id, from_organization_id, status,
            claiming_user_id, claiming_organization_id,
            stripe_checkout_session_id,
-           custom_domains_snapshot, custom_domains_removed_at, payment_completed_at
+           payment_completed_at
     FROM site_transfer_requests
     WHERE id = ?
     LIMIT 1
   `, [transferId])
 
   if (!transfer) {
-    return { completed: false, restoredDomains: 0 }
+    return { completed: false }
   }
 
   if (transfer.status !== 'pending' && transfer.status !== 'accepted') {
-    return { completed: false, restoredDomains: 0 }
+    return { completed: false }
   }
   if (transfer.status === 'accepted' && transfer.payment_completed_at) {
-    return { completed: false, restoredDomains: 0 }
+    return { completed: false }
   }
 
   if (!transfer.claiming_user_id || !transfer.claiming_organization_id) {
@@ -967,14 +592,6 @@ export async function completePaidSiteTransfer(
   )) {
     throw new Error('Transfer is missing an explicit claim session')
   }
-
-  if (transfer.custom_domains_removed_at && !hasTransferDomainSnapshot(transfer.custom_domains_snapshot)) {
-    // A removal marker without its immutable snapshot cannot be safely
-    // restored. Keep payment incomplete so an operator can repair the legacy
-    // record instead of silently clearing the marker and losing the domain.
-    throw new Error('Transfer is missing the custom-domain restoration snapshot')
-  }
-  if (transfer.custom_domains_removed_at) parseTransferDomainSnapshot(transfer.custom_domains_snapshot)
 
   if (transfer.status === 'pending') {
     try {
@@ -1003,37 +620,23 @@ export async function completePaidSiteTransfer(
         [transfer.id],
       )
       if (!latest || latest.status !== 'pending') {
-        return { completed: false, restoredDomains: 0 }
+        return { completed: false }
       }
       throw error
     }
   }
 
-  let restoredDomains = 0
-  if (transfer.custom_domains_removed_at && transfer.custom_domains_snapshot) {
-    restoredDomains = await restoreSiteCustomDomains(
-      env,
-      db,
-      transfer.site_id,
-      transfer.claiming_organization_id,
-      transfer.custom_domains_snapshot,
-      'system',
-      transfer.claiming_user_id,
-    )
-  }
-
   const paymentClaim = await execute(db, `
     UPDATE site_transfer_requests
-    SET payment_completed_at = ?,
-        custom_domains_removed_at = NULL
+    SET payment_completed_at = ?
     WHERE id = ? AND status = 'accepted' AND payment_completed_at IS NULL
   `, [new Date().toISOString(), transfer.id])
 
   if ((paymentClaim.meta?.changes ?? 0) === 0) {
-    return { completed: false, restoredDomains: 0 }
+    return { completed: false }
   }
 
-  return { completed: true, restoredDomains }
+  return { completed: true }
 }
 
 function reminderThresholdForCount(reminderCount: number): number {
@@ -1049,13 +652,12 @@ export async function processSiteTransferReminders(
   env: SiteTransferEnv,
   db: D1Database,
   opts: { force?: boolean; now?: Date } = {},
-): Promise<{ reminded: number; paused_domains: number; checked: number }> {
+): Promise<{ reminded: number; checked: number }> {
   const now = opts.now ?? new Date()
   const nowIso = now.toISOString()
   const transfers = await queryAll<TransferReminderRow>(db, `
     SELECT r.id, r.site_id, r.from_organization_id, r.to_email, r.token, r.created_at,
            r.invited_plan, r.invited_domain, r.reminder_count, r.requires_payment,
-           r.custom_domains_snapshot, r.custom_domains_removed_at,
            s.brand_name AS site_name
     FROM site_transfer_requests r
     JOIN sites s ON s.id = r.site_id
@@ -1065,12 +667,6 @@ export async function processSiteTransferReminders(
 
   let checked = 0
   let reminded = 0
-  // A reminder is informational only. The source owner keeps control of the
-  // live domain while a handoff is pending; domain restoration/deletion belongs
-  // to the acceptance or cancellation saga, where it can be compare-and-set
-  // fenced against a competing terminal transition.
-  const pausedDomains = 0
-
   for (const transfer of transfers || []) {
     checked += 1
     const createdAt = new Date(transfer.created_at)
@@ -1089,7 +685,6 @@ export async function processSiteTransferReminders(
       invitedPlan: transfer.invited_plan,
       invitedDomain: transfer.invited_domain,
       daysPending,
-      customDomainsPaused: Boolean(transfer.requires_payment && transfer.custom_domains_removed_at),
     })
 
     const reminderResult = await execute(db, `
@@ -1100,5 +695,5 @@ export async function processSiteTransferReminders(
     if ((reminderResult.meta?.changes ?? 0) > 0) reminded += 1
   }
 
-  return { reminded, paused_domains: pausedDomains, checked }
+  return { reminded, checked }
 }

@@ -1,3 +1,5 @@
+import type { PostMutation, PostTopic } from '../shared/posts.ts'
+import type { OpeningHours, RecurringSlots } from '../shared/reservation-hours.ts'
 export interface SeedPublicRouteExpectation {
   path: string
   title: RegExp
@@ -22,16 +24,13 @@ export interface CuratedSiteDefinition extends CuratedSiteIdentity {
     brandName: string
     media: CuratedMediaPlacement<'logo' | 'logo_dark' | 'favicon'>[]
     themeId: string
-    theme: string
     brandDescription: string
     status: 'active' | 'inactive'
     onboardingStatus: 'pending' | 'active' | 'failed'
-    primaryLocationId: string
     contactEmail: string | null
     contactPhone?: string | null
-    publicUrl: string
     defaultCurrency: string
-    vertical: 'restaurant' | 'experience' | 'service' | 'professional_service'
+    vertical: 'restaurant' | 'experience' | 'service'
   }
   siteConfig: CuratedSiteConfigEntry[]
   siteLocales: CuratedSiteLocaleDefinition[]
@@ -98,11 +97,7 @@ export interface CuratedLocationDefinition {
   longitude: number
   description: string
   shortDescription: string
-  openingHours: Array<{
-    openDay: string
-    openTime: string
-    closeTime: string
-  }>
+  openingHours: OpeningHours
   rating: number | null
   reviewCount: number | null
   // Set only when rating/reviewCount reflect a real, verified Google Places
@@ -115,7 +110,6 @@ export interface CuratedLocationDefinition {
   categories: string[]
   instagramUrl: string
   facebookUrl: string
-  isPrimary: boolean
   status: 'active' | 'inactive' | 'sync_error'
   media: CuratedMediaPlacement<'hero' | 'gallery'>[]
   notificationPhone?: string | null
@@ -174,7 +168,7 @@ export interface CuratedExperienceDefinition {
   priceAmount: number | null
   durationMinutes: number | null
   maxCapacity: number | null
-  timeSlots: string[]
+  recurringSlots: RecurringSlots
   status: 'active' | 'inactive' | 'sold_out'
   sortOrder: number
   featured: boolean
@@ -226,19 +220,11 @@ export interface CuratedLocationQaDefinition {
   sortOrder: number
 }
 
-export interface CuratedPostDefinition {
+export type CuratedPostDefinition = Pick<PostMutation, 'post_type' | 'event' | 'offer' | 'call_to_action' | 'alert_type'> & {
   id: string
   locationId: string | null
-  postType: 'update' | 'standard' | 'offer' | 'event'
   title: string | null
   body: string
-  ctaType?: string | null
-  ctaUrl?: string | null
-  eventTitle?: string | null
-  eventStartAt?: string | null
-  eventEndAt?: string | null
-  offerCoupon?: string | null
-  offerTerms?: string | null
   media: CuratedMediaPlacement<'cover' | 'gallery'>[]
   status: 'published' | 'scheduled'
   publishedAt: string
@@ -339,7 +325,7 @@ export interface CompiledSeedExperience {
   priceAmount: number | null
   durationMinutes: number | null
   maxCapacity: number | null
-  timeSlots: string[]
+  recurringSlots: RecurringSlots
   status: CuratedExperienceDefinition['status']
   sortOrder: number
   featured: boolean
@@ -397,21 +383,13 @@ export interface CompiledSeedLocationQa {
   sortOrder: number
 }
 
-export interface CompiledSeedPost {
+export type CompiledSeedPost = PostTopic & {
   id: string
   organizationId: string
   siteId: string
   locationId: string | null
-  postType: CuratedPostDefinition['postType']
   title: string | null
   body: string
-  ctaType: string | null
-  ctaUrl: string | null
-  eventTitle: string | null
-  eventStartAt: string | null
-  eventEndAt: string | null
-  offerCoupon: string | null
-  offerTerms: string | null
   media: CuratedMediaPlacement<'cover' | 'gallery'>[]
   status: CuratedPostDefinition['status']
   publishedAt: string

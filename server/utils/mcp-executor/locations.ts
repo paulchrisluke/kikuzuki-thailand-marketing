@@ -17,7 +17,7 @@ export async function handleLocationsTools(ctx: McpExecutorContext): Promise<unk
       );
       const page = paginateMcpCollection(workspaceLocationsPayload(workspace), args, { resource: `locations:${site.siteId}` });
       return {
-        context: workspaceContextPayload(workspace.organization, workspace.site, workspace.location, site.env),
+        context: workspaceContextPayload(workspace.organization, workspace.site, workspace.location),
         locations: page.items,
         page_info: page.page_info,
       };

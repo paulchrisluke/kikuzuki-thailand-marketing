@@ -133,8 +133,8 @@ export async function ensurePlatformMediaScope(env: CloudflareEnv, db: DbClient)
 
   const now = new Date().toISOString()
   await execute(db, `
-    INSERT INTO sites (id, organization_id, theme_id, theme, slug, brand_name, status, onboarding_status, created_at, updated_at)
-    VALUES (?, ?, 'saya-theme-v1', 'saya', ?, 'KrabiClaw', 'active', 'active', ?, ?)
+    INSERT INTO sites (id, organization_id, theme_id, slug, brand_name, status, onboarding_status, created_at, updated_at)
+    VALUES (?, ?, 'saya-theme-v1', ?, 'KrabiClaw', 'active', 'active', ?, ?)
     ON CONFLICT(id) DO UPDATE SET
       brand_name = excluded.brand_name,
       updated_at = excluded.updated_at

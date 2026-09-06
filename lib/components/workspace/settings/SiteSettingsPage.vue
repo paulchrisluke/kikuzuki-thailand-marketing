@@ -590,11 +590,16 @@ async function patchSettings(body: Record<string, unknown>, successMessage: stri
 async function regenerateSocialCards() {
   regeneratingCards.value = true
   try {
-    const response = await dashboardApi<SocialCardRegenerationResponse>(`/api/editor/sites/${siteId}/social-cards/regenerate`, {
-      method: 'POST',
-      validate: isSocialCardRegenerationResponse,
-    })
-    const notice = socialCardRefreshNotice(response.summary)
+    const summary = { generated: 0, reused: 0, skipped: 0, failed: 0, total: 0 }
+    let after: string | null = null
+    do {
+      const response: SocialCardRegenerationResponse = await dashboardApi<SocialCardRegenerationResponse>(`/api/editor/sites/${siteId}/social-cards/regenerate`, {
+        method: 'POST', body: { after }, validate: isSocialCardRegenerationResponse,
+      })
+      for (const key of ['generated', 'reused', 'skipped', 'failed', 'total'] as const) summary[key] += response.summary[key]
+      after = response.next_cursor
+    } while (after)
+    const notice = socialCardRefreshNotice(summary)
     toast.add({ description: notice.message, color: notice.color })
   } catch (error) {
     toast.add({ description: errorMessage(error, 'Failed to regenerate social cards'), color: 'error' })

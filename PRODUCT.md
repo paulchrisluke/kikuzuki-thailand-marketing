@@ -2,7 +2,7 @@
 
 ## What It Is
 
-**Website builder for local and professional-service businesses** — multi-tenant SaaS where owners get a subdomain site and build their web presence completely through conversation with ChatGPT (via MCP) or the dashboard CMS. SSR-rendered, SEO-optimised sites. The ChatGPT plugin is the primary creation surface. Supports the `restaurant`, `experience`, and `professional_service` verticals today, with the model designed to easily accommodate more local-business categories over time. See `CONTEXT.md` for the canonical vertical contract (app-level `professional_service` vs. its `service` DB-storage alias).
+**Website builder for local and professional-service businesses** — multi-tenant SaaS where owners get a subdomain site and build their web presence completely through conversation with ChatGPT (via MCP) or the dashboard CMS. SSR-rendered, SEO-optimised sites. The ChatGPT plugin is the primary creation surface. Supports the `restaurant`, `experience`, and `service` verticals today, with the model designed to easily accommodate more local-business categories over time. See `CONTEXT.md` for the canonical vertical contract.
 
 ---
 
@@ -19,7 +19,7 @@ Customer-facing ChatGPT app for tenant site management.
 - Scope: `tenant`
 - MCP capabilities cover site setup, locations, menus, experiences, posts, media, locale management, Google Places, Facebook, and analytics. Priority-support work requests (Growth plan) are a dashboard-only feature, not exposed on the free ChatGPT-facing MCP surface. The generated catalog is authoritative.
 - Every public tool rejects unknown top-level arguments and declares explicit `readOnlyHint`, `openWorldHint`, and `destructiveHint` values. `server/utils/mcp-tools/shared.ts` contains the reviewed per-tool table.
-- Location-scoped mutations require an explicit `location_id`. Product-by-ID mutations resolve the Product's stored owning location and do not use the site's primary location as a write fallback.
+- Location-scoped mutations require an explicit `location_id`. Product-by-ID mutations resolve the Product's stored owning location.
 - `chatgpt-app-submission.json` contains the review import data. Run `node --experimental-strip-types scripts/generate-chatgpt-app-submission.mjs` after changing the public tool catalog.
 - Widget system is legacy/deprecated for client uploads; Client MCP should ask users to attach files directly in ChatGPT and then call `upload_user_media` once with the resolved native file argument. `list_sites`, `import_from_maps`, `show_generated_images`, and onboarding return plain text.
 - Image generation via ChatGPT's native `image_generation` Responses API tool (`gpt-image-1` / `gpt-image-2`) — not DALL-E
@@ -48,9 +48,9 @@ KrabiClaw supports multiple business verticals. ChatGPT asks the user directly d
 |----------|-------------|-------------|
 | `restaurant` | Food & beverage — menus, reviews, hours, reservations | `restaurant` |
 | `experience` | Activity-based businesses — experiences, bookings, classes | `experience` |
-| `professional_service` | Legal and other professional/advisory services — offerings (practice areas), consultations, pricing/donate pages | `service` |
+| `service` | Legal and other professional/advisory services — offerings (practice areas), consultations, pricing/donate pages | `service` |
 
-`professional_service` is the one canonical app-level value; `service` is its DB-storage alias, not a second vertical — see `CONTEXT.md`'s "Tenant vertical (canonical contract)" entry for the full normalization-boundary explanation (`toStoredVertical()` / `normalizeVertical()`).
+`service` is the canonical professional-service vertical across the application, database, and import pipeline.
 
 Experiences are one-to-one booking extensions of canonical Products and retain the same stable ID. Product owns shared title/slug/content/visibility/order/SEO/Price fields; `experiences`, `experience_bookings`, experience-specific MCP tools (`list_experiences`, `create_experience`, `list_experience_bookings`, etc.), and Saya routes at `/experiences/[slug]` own the booking-specific behavior.
 
@@ -156,7 +156,7 @@ Default template for restaurant/experience tenants. SSR-rendered, SEO-first, edi
 
 Nav: Logo | Locations (dropdown) | Story | Contact | **RESERVE** (primary CTA). Locations dropdown built at runtime from `business_locations`.
 
-### Blawby (professional_service)
+### Blawby (service)
 
 Template for professional-service tenants, proven first against NCLS (#194). Offerings default to site-level (not location-scoped), since many professional-service tenants serve a statewide/remote area rather than a single storefront.
 

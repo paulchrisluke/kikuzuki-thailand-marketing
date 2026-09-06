@@ -215,6 +215,7 @@
               <p class="text-sm leading-relaxed text-default">"{{ review.content }}"</p>
               <div class="mt-6 border-t border-default pt-4">
                 <div class="text-sm font-medium text-default">{{ review.author_name }}</div>
+                <GoogleReviewAttribution v-if="review.source === 'google_places'" :metadata="review.google_review_metadata" :source-url="review.original_reference" />
               </div>
             </div>
           </div>
@@ -307,7 +308,8 @@
 </template>
 
 <script setup lang="ts">
-import { formatGoogleHours, getTodayGoogleHours, getIsOpenNow, getActiveSpecialClosure, formatClosureMessage, nowInTimezone } from '~/utils/formatters'
+import { formatOpeningHours, getIsOpenNow, getActiveSpecialClosure, formatClosureMessage } from '~/utils/formatters'
+import { getTodayHoursLabel } from '~/shared/reservation-hours'
 import { formatProductMoney, formatProductPriceLabel } from '~/utils/product-money'
 import { productLocationCollectionPath, resolveProductPresentation } from '~/utils/product-presentation'
 import { useDynamicComponent } from '~/composables/useDynamicComponent'
@@ -499,23 +501,9 @@ const formattedAddress = computed(() => locale.value === 'en'
   ? canonicalFormattedAddress.value
   : location.value?.address_translated ?? '')
 
-const weekHours = computed(() => {
-  const hours = locale.value === 'en'
-    ? location.value?.opening_hours
-    : location.value?.opening_hours_translated
-  if (!hours) return []
-  const days = ['MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY', 'SUNDAY']
-  const today = nowInTimezone(location.value?.timezone).weekday
-  return formatGoogleHours(hours, locale.value, t('saya.location.closed')).map((h: ApiValue, i: number) => ({
-    ...h,
-    today: days[i] === today
-  }))
-})
-
-const todayHours = computed(() => locale.value === 'en'
-  ? getTodayGoogleHours(location.value?.opening_hours, nowInTimezone(location.value?.timezone).weekday)
-  : weekHours.value.find(day => day.today)?.hours ?? '')
-const isOpenNow = computed(() => getIsOpenNow(location.value?.opening_hours, location.value?.timezone))
+const weekHours = computed(() => formatOpeningHours(location.value?.opening_hours ?? null, locale.value, t('saya.location.closed'), location.value?.timezone))
+const todayHours = computed(() => getTodayHoursLabel(location.value?.opening_hours ?? null, t('saya.location.closed'), location.value?.timezone, new Date(), location.value?.special_hours ?? null, locale.value))
+const isOpenNow = computed(() => getIsOpenNow(location.value?.opening_hours ?? null, location.value?.timezone, location.value?.special_hours ?? null))
 
 const activeClosure = computed(() => getActiveSpecialClosure(location.value?.special_hours, location.value?.timezone))
 const activeClosureMessage = computed(() => locale.value === 'en'

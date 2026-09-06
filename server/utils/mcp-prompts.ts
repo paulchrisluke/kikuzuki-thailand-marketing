@@ -25,7 +25,7 @@ export const MCP_PROMPTS: McpPromptDefinition[] = [
     description: "Create a post and publish it to the requested channels.",
     arguments: [
       { name: "body", description: "The post body text.", required: true },
-      { name: "post_type", description: "standard, offer, event, or update. Defaults to standard.", required: false },
+      { name: "post_type", description: "standard, offer, event, or alert. Event and offer require a complete event schedule. Defaults to standard.", required: false },
       { name: "channels", description: "Comma-separated channels: site, facebook, instagram. Defaults to site.", required: false },
     ],
   },
@@ -119,7 +119,7 @@ export function renderMcpPrompt(name: string, args: Record<string, string>): { d
       return {
         description: "Create a new bookable experience",
         text: [
-          `Based on this description, call create_experience with a sensible title, tagline, body, and any nested Price, duration_minutes, max_capacity, or time_slots that are implied or stated: ${description}`,
+          `Based on this description, call create_experience with a sensible title, tagline, body, and any nested Price, duration_minutes, max_capacity, or recurring_slots that are implied or stated: ${description}`,
           "Use active only when the user has approved making the experience public; otherwise use inactive.",
           "If the user has media ready, call attach_media once per asset after creation with placement { owner_type: 'experience', owner_id: <exact experience id>, slot: 'gallery' }, then use reorder_media only if the requested order differs.",
           "Report back what was created, its current status, and the live URL when one is available.",

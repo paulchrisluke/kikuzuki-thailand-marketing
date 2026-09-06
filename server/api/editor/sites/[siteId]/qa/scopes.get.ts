@@ -8,7 +8,7 @@ export default defineHandler(async (event) => {
   
   const scopes = await db.prepare(`
     SELECT DISTINCT page_path
-    FROM site_qa
+    FROM location_qa
     WHERE site_id = ? AND location_id IS NULL AND page_path IS NOT NULL
     ORDER BY page_path ASC
   `).bind(siteId).all()

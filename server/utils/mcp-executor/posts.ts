@@ -29,10 +29,9 @@ export async function handlePostsTools(ctx: McpExecutorContext): Promise<unknown
           site.db,
           site.organizationId,
           site.siteId,
-          site.env,
           optionalString(args, "status") ?? undefined,
           optionalString(args, "location_id") ?? undefined,
-        )).map((post) => attachViewUrlToRecord(post, site, {}, site.env));
+        )).map((post) => attachViewUrlToRecord(post, site, {}));
         const page = paginateMcpCollection(posts, args, { resource: `posts:${site.siteId}:${optionalString(args, 'status') ?? ''}:${optionalString(args, 'location_id') ?? ''}` });
         return { posts: page.items, page_info: page.page_info };
       }
@@ -43,10 +42,9 @@ export async function handlePostsTools(ctx: McpExecutorContext): Promise<unknown
           site.organizationId,
           site.siteId,
           requiredString(args, "post_id"),
-          site.env,
         );
         return {
-          post: post ? attachViewUrlToRecord(post, site, {}, site.env) : null,
+          post: post ? attachViewUrlToRecord(post, site, {}) : null,
         };
       }
     case "create_post":
@@ -55,11 +53,11 @@ export async function handlePostsTools(ctx: McpExecutorContext): Promise<unknown
           site.db,
           site.organizationId,
           site.siteId,
-          args as never,
+          omit(args, ["site_id"]),
           site.userId,
           site.env,
         ));
-        const hydratedPost = attachViewUrlToRecord(post, site, {}, site.env);
+        const hydratedPost = attachViewUrlToRecord(post, site, {});
         const createPostContext = await mutationContextPayload(site, {
           locationId: post && typeof post.location_id === "string" ? post.location_id : null,
         });
@@ -84,7 +82,7 @@ export async function handlePostsTools(ctx: McpExecutorContext): Promise<unknown
           site.organizationId,
           site.siteId,
           requiredString(args, "post_id"),
-          omit(args, ["post_id"]) as never,
+          omit(args, ["post_id", "site_id"]),
           site.userId,
           site.env,
         ));
@@ -94,7 +92,7 @@ export async function handlePostsTools(ctx: McpExecutorContext): Promise<unknown
             "No post found with that id — nothing was changed.",
           );
         }
-        const hydratedPost = attachViewUrlToRecord(post, site, {}, site.env);
+        const hydratedPost = attachViewUrlToRecord(post, site, {});
         const updatePostContext = await mutationContextPayload(site, {
           locationId: typeof post.location_id === "string" ? post.location_id : null,
         });
@@ -173,7 +171,7 @@ export async function handlePostsTools(ctx: McpExecutorContext): Promise<unknown
         locationId: post && typeof post.location_id === "string" ? post.location_id : null,
       });
 
-      const hydratedPublishedPost = attachViewUrlToRecord(post, site, {}, site.env);
+      const hydratedPublishedPost = attachViewUrlToRecord(post, site, {});
 
       const hasFailures = failedChannels.length > 0 || skippedChannels.length > 0;
       const successMessage = hasFailures || pendingChannels.length > 0

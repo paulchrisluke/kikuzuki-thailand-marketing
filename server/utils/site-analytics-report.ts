@@ -51,15 +51,16 @@ const n = (value: unknown) => Number(value || 0)
 
 export async function resolveSiteAnalyticsContext(db: DbClient, siteId: string): Promise<SiteContext> {
   const row = await queryFirst<{ organization_id: string; analytics_data_start_at: string | null; timezone: string | null }>(db, `
-    SELECT s.organization_id, s.analytics_data_start_at, bl.timezone
+    SELECT s.organization_id, s.analytics_data_start_at, tz.value AS timezone
     FROM sites s
-    LEFT JOIN business_locations bl ON bl.id = s.primary_location_id AND bl.site_id = s.id
+    LEFT JOIN site_config tz ON tz.site_id = s.id AND tz.organization_id = s.organization_id AND tz.key = 'default_timezone'
     WHERE s.id = ? LIMIT 1
   `, [siteId])
   if (!row) throw new HTTPError({ statusCode: 404, statusMessage: 'Site not found' })
+  if (!isValidTimeZone(row.timezone)) throw new HTTPError({ statusCode: 422, statusMessage: 'Site default_timezone is missing or invalid' })
   return {
     organizationId: row.organization_id,
-    timezone: isValidTimeZone(row.timezone) ? row.timezone : 'UTC',
+    timezone: row.timezone,
     analyticsDataStartAt: row.analytics_data_start_at,
   }
 }
@@ -311,10 +312,11 @@ export async function getSiteAnalyticsReport(db: DbClient, input: {
 }
 
 export async function aggregatePreviousLocalDateForAllSites(db: DbClient, now = new Date()): Promise<string[]> {
-  const sites = await queryAll<{ id: string; timezone: string | null }>(db, `SELECT s.id, bl.timezone FROM sites s LEFT JOIN business_locations bl ON bl.id = s.primary_location_id AND bl.site_id = s.id WHERE s.status = 'active'`)
+  const sites = await queryAll<{ id: string; timezone: string | null }>(db, `SELECT s.id, tz.value AS timezone FROM sites s LEFT JOIN site_config tz ON tz.site_id = s.id AND tz.organization_id = s.organization_id AND tz.key = 'default_timezone' WHERE s.status = 'active'`)
   const aggregated: string[] = []
   for (const site of sites) {
-    const timezone = isValidTimeZone(site.timezone) ? site.timezone : 'UTC'
+    if (!isValidTimeZone(site.timezone)) throw new Error(`Site ${site.id} default_timezone is missing or invalid`)
+    const timezone = site.timezone
     const date = addLocalDays(localDateAt(now, timezone), -1)
     await aggregateSiteAnalyticsDate(db, site.id, date)
     aggregated.push(`${site.id}:${date}`)
@@ -326,8 +328,8 @@ export async function cleanupTenantAnalytics(db: DbClient, now = new Date()): Pr
   const rawCutoff = new Date(now.getTime() - 90 * 86_400_000).toISOString()
   const retainedCutoff = new Date(now.getTime() - 740 * 86_400_000).toISOString()
   const sites = await queryAll<{ id: string; timezone: string | null }>(db, `
-    SELECT s.id, bl.timezone FROM sites s
-    LEFT JOIN business_locations bl ON bl.id = s.primary_location_id AND bl.site_id = s.id
+    SELECT s.id, tz.value AS timezone FROM sites s
+    LEFT JOIN site_config tz ON tz.site_id = s.id AND tz.organization_id = s.organization_id AND tz.key = 'default_timezone'
   `)
   const initialResults = await executeBatch(db, [
     { query: 'DELETE FROM site_pageview_events WHERE created_at < ?', params: [rawCutoff] },
@@ -335,7 +337,8 @@ export async function cleanupTenantAnalytics(db: DbClient, now = new Date()): Pr
   ], { operation: 'clean retained tenant analytics events and sessions' })
   let changes = initialResults.reduce((sum, result) => sum + Number(result.meta?.changes ?? 0), 0)
   for (const site of sites) {
-    const timezone = isValidTimeZone(site.timezone) ? site.timezone : 'UTC'
+    if (!isValidTimeZone(site.timezone)) throw new Error(`Site ${site.id} default_timezone is missing or invalid`)
+    const timezone = site.timezone
     const retainedDate = addLocalDays(localDateAt(now, timezone), -739)
     const results = await executeBatch(db, [
       { query: 'DELETE FROM site_analytics_daily WHERE site_id = ? AND date < ?', params: [site.id, retainedDate] },

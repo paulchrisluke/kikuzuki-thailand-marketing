@@ -1,3 +1,4 @@
+import { getOrganizationBillingStatus } from '~/server/utils/billing'
 import { cloudflareEnv, jsonResponse } from '~/server/utils/api-response'
 import { assertDevRouteAllowed } from '~/server/utils/dev-route-auth'
 import { defineHandler } from 'nitro'
@@ -20,7 +21,7 @@ export default defineHandler(async (event) => {
   }
 
   const billing = await queryFirst<OrganizationBillingProjectionRow>(db, `
-    SELECT ob.organization_id, ob.stripe_customer_id, ob.stripe_subscription_id,
+    SELECT ob.organization_id,
            ob.payment_status, ob.paid_through, ob.past_due_since,
            ob.access_plan, ob.access_expires_at, ob.updated_at
     FROM organization_billing ob
@@ -58,6 +59,7 @@ export default defineHandler(async (event) => {
 
   return jsonResponse({
     billing: billing ?? null,
+    subscription: await getOrganizationBillingStatus(env, db, organizationId),
     entitlements: validateOrganizationBillingProjection(billing, organizationId).entitlements,
     site_plans: sitePlans ?? [], invoice_payments: invoicePayments ?? [], webhook_events: webhookEvents ?? [], })
 })

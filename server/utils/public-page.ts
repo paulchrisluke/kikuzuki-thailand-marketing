@@ -1,3 +1,5 @@
+import { parseOpeningHours, parseSpecialHours, parseRecurringSlots } from '~/shared/reservation-hours'
+import { parseGoogleReviewMetadata } from '~/shared/google-review'
 // Canonical route-capability-driven public page service.
 //   ?page=home|about|contact|location|reviews|photos|qa|...
 //   ?location=slug          scope content to a location
@@ -108,6 +110,9 @@ interface ReviewRow {
   owner_reply: string | null;
   owner_reply_at: string | null;
   source: string | null;
+  original_review_date: string | null;
+  original_reference: string | null;
+  google_review_metadata: string | null;
   created_at: string | null;
 }
 
@@ -178,15 +183,7 @@ function tenantPageToContentRows(page: PublicTenantPage): SiteContent[] {
   return rows
 }
 
-export function parseStoredExperienceTimeSlots(value: unknown): string[] | null {
-  if (value == null || value === '') return null;
-  const parsed = JSON.parse(String(value));
-  if (parsed === null) return null;
-  if (!Array.isArray(parsed) || !parsed.every((item) => typeof item === "string")) {
-    throw new HTTPError({ statusCode: 500, statusMessage: 'Stored experience time slots are invalid', data: { code: 'INVALID_STORED_CONTENT' } })
-  }
-  return parsed;
-}
+
 
 function parseExperienceRow(row: Record<string, unknown>): Experience {
   const parseStringArr = (value: unknown): string[] => {
@@ -207,25 +204,14 @@ function parseExperienceRow(row: Record<string, unknown>): Experience {
     throw new HTTPError({ statusCode: 500, statusMessage: 'Stored experience string array is invalid', data: { code: 'INVALID_STORED_CONTENT' } })
   };
 
-  const isStringArray = (value: unknown): value is string[] =>
-    Array.isArray(value) && value.every((item) => typeof item === "string");
-
-  const time_slots = parseStoredExperienceTimeSlots(row.time_slots);
-
-  let recurring_slots: Partial<Record<string, string[]>> | null = null;
-  if (row.recurring_slots != null && row.recurring_slots !== '') {
-    const parsed = JSON.parse(String(row.recurring_slots));
-    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed) || !Object.values(parsed).every(isStringArray)) {
-      throw new HTTPError({ statusCode: 500, statusMessage: 'Stored experience recurring slots are invalid', data: { code: 'INVALID_STORED_CONTENT' } })
-    }
-    recurring_slots = parsed as Partial<Record<string, string[]>>
-  }
+  const recurring_slots = parseRecurringSlots(row.recurring_slots ? JSON.parse(String(row.recurring_slots)) : null)
 
   const {
     price_id, amount_minor, currency, price_unit, tax_behavior, compare_at_amount_minor,
     valid_from, valid_until, provenance, price_created_by, price_created_at,
     ...experienceRow
   } = row
+
   return {
     ...(experienceRow as unknown as Experience),
     price: price_id == null ? null : {
@@ -242,7 +228,6 @@ function parseExperienceRow(row: Record<string, unknown>): Experience {
     included_items: parseStringArr(row.included_items),
     what_to_bring: parseStringArr(row.what_to_bring),
     meeting_point: row.meeting_point ?? null,
-    time_slots,
     recurring_slots,
     featured: Boolean(row.featured),
   } as Experience
@@ -417,7 +402,7 @@ async function loadPublicPageSource(
     ? resolveLocalizedRouteResourceId(
         publicLocalizations,
         'tenant_blog_post',
-        `/${localizedLocale}/${normalizedVertical === 'professional_service' ? 'article' : 'blog'}/${blogSlug}`,
+        `/${localizedLocale}/${normalizedVertical === 'service' ? 'article' : 'blog'}/${blogSlug}`,
       )
     : null
   if (localizedLocale && blogSlug && !localizedBlogPostId) {
@@ -448,7 +433,7 @@ async function loadPublicPageSource(
     idxPhotos = -1,
     idxQa = -1;
   let idxProducts = -1, idxProductMedia = -1;
-    
+
   let idxExperiencesList = -1,
     idxExperienceDetail = -1;
   let idxBlogList = -1,
@@ -514,7 +499,7 @@ async function loadPublicPageSource(
                          pr.id AS price_id, pr.amount_minor, pr.currency, pr.unit AS price_unit, pr.tax_behavior,
                          pr.compare_at_amount_minor, pr.valid_from, pr.valid_until, pr.provenance,
                          pr.created_by AS price_created_by, pr.created_at AS price_created_at,
-                         e.duration_minutes, e.max_capacity, e.time_slots, e.recurring_slots,
+                         e.duration_minutes, e.max_capacity, e.recurring_slots,
                          p.tags_json, p.details_json, e.included_items, e.what_to_bring, e.meeting_point,
                          CASE WHEN p.available = 0 THEN 'sold_out' ELSE 'active' END AS status,
                          p.sort_order, p.featured, p.featured_sort_order,
@@ -539,7 +524,7 @@ async function loadPublicPageSource(
               pr.id AS price_id, pr.amount_minor, pr.currency, pr.unit AS price_unit, pr.tax_behavior,
               pr.compare_at_amount_minor, pr.valid_from, pr.valid_until, pr.provenance,
               pr.created_by AS price_created_by, pr.created_at AS price_created_at,
-              e.duration_minutes, e.max_capacity, e.time_slots, e.recurring_slots,
+              e.duration_minutes, e.max_capacity, e.recurring_slots,
               p.tags_json, p.details_json, e.included_items, e.what_to_bring, e.meeting_point,
               CASE WHEN p.is_visible = 0 THEN 'inactive' WHEN p.available = 0 THEN 'sold_out' ELSE 'active' END AS status,
               p.sort_order, p.featured, p.featured_sort_order,
@@ -553,15 +538,15 @@ async function loadPublicPageSource(
     );
   }
 
-  // Conditional
   if (needsGlobalReviews)
     idxReviews = push(
-      `SELECT r.author_name AS author, r.rating, r.content, r.created_at AS date,
+      `SELECT r.id, r.author_name, r.rating, r.content, r.created_at, r.source,
+              r.original_review_date, r.original_reference, r.google_review_metadata,
               r.location_id, bl.title AS location_title
        FROM reviews r
        LEFT JOIN business_locations bl ON bl.id = r.location_id
        WHERE r.site_id = ? AND r.status = 'approved'
-       ORDER BY r.created_at DESC LIMIT 50`,
+       ORDER BY CASE WHEN r.source = 'google_places' THEN r.original_review_date ELSE r.created_at END DESC, r.id ASC LIMIT 50`,
       [siteId],
     );
 
@@ -571,18 +556,18 @@ async function loadPublicPageSource(
 
   if (locationId && requestedDatasets.has("reviews"))
     idxLocReviews = push(
-      `SELECT r.id, r.author_name, r.rating, r.content, r.created_at
+      `SELECT r.id, r.author_name, r.rating, r.content, r.created_at, r.source, r.original_review_date, r.original_reference, r.google_review_metadata
        FROM reviews r WHERE r.location_id = ? AND r.site_id = ? AND r.status = 'approved'
-       ORDER BY created_at DESC LIMIT 3`,
+       ORDER BY CASE WHEN r.source = 'google_places' THEN r.original_review_date ELSE r.created_at END DESC, r.id ASC LIMIT 3`,
       [locationId, siteId],
     );
 
   if (locationId && requestedDatasets.has("reviews"))
     idxFullReviews = push(
       `SELECT r.id, r.author_name, r.rating, r.title, r.content, r.owner_reply, r.owner_reply_at,
-              r.source, r.created_at
+              r.source, r.created_at, r.original_review_date, r.original_reference, r.google_review_metadata
        FROM reviews r WHERE r.location_id = ? AND r.site_id = ? AND r.status = 'approved'
-       ORDER BY created_at DESC LIMIT 50`,
+       ORDER BY CASE WHEN r.source = 'google_places' THEN r.original_review_date ELSE r.created_at END DESC, r.id ASC LIMIT 50`,
       [locationId, siteId],
     );
 
@@ -675,7 +660,6 @@ async function loadPublicPageSource(
       ? projectExactLocalizedResource('site', site, siteLocalization)
       : { ...site, brand_name: null, brand_description: null, seo_title: null, seo_description: null }
     const locations = projectExactLocalizedCollection('business_location', sourceShell.locations, publicLocalizations)
-    const primary = locations.find(location => location.is_primary) ?? locations[0] ?? null
     const {
       brand_name: _sourceBrandName,
       brand_description: _sourceBrandDescription,
@@ -698,15 +682,7 @@ async function loadPublicPageSource(
       config,
       googleBusiness: {
         ...sourceShell.googleBusiness,
-        business: primary && sourceShell.googleBusiness.business
-          ? {
-              ...sourceShell.googleBusiness.business,
-              title: primary.title,
-              city: primary.city,
-              storefrontAddress: primary.address,
-              profile: { description: primary.description },
-            }
-          : null,
+        business: null,
       },
     }
   })()
@@ -823,16 +799,8 @@ async function loadPublicPageSource(
   options.signal?.throwIfAborted();
   const experiencesWithMedia = await attachExperienceMedia(db, siteId, experiencesListRaw);
   options.signal?.throwIfAborted();
-  const availabilityContext = {
-    locations: (locRows.results ?? []).map(location => ({
-      id: String(location.id),
-      special_hours: typeof location.special_hours === "string" ? location.special_hours : null,
-      timezone: typeof location.timezone === "string" ? location.timezone : null,
-    })),
-    defaultTimezone: site.default_timezone ?? "UTC",
-  };
   const experiencesList = requestedDatasets.has("experiences")
-    ? await attachAvailabilitySummaries(db, orgId, siteId, experiencesWithMedia, availabilityContext)
+    ? await attachAvailabilitySummaries(db, siteId, experiencesWithMedia)
     : experiencesWithMedia;
 
   const sourceExperienceDetail: Experience | null =
@@ -862,18 +830,16 @@ async function loadPublicPageSource(
     experienceDetailRaw && experienceDetailRaw.status !== "inactive"
       ? (await attachAvailabilitySummaries(
           db,
-          orgId,
           siteId,
           await attachExperienceMedia(db, siteId, [experienceDetailRaw]),
-          availabilityContext,
         ))[0]
       : null;
 
   options.signal?.throwIfAborted();
   let [globalPublishedPosts, locationPublishedPosts] = await Promise.all([
-    needsGlobalPosts ? getPublishedPosts(db, siteId, env, page === "posts" ? 50 : 6) : Promise.resolve([]),
+    needsGlobalPosts ? getPublishedPosts(db, siteId, page === "posts" ? 50 : 6) : Promise.resolve([]),
     locationId && requestedDatasets.has("posts")
-      ? getPublishedPosts(db, siteId, env, 50, locationId)
+      ? getPublishedPosts(db, siteId, 50, locationId)
       : Promise.resolve([]),
   ]);
   if (localizedLocale) {
@@ -909,12 +875,11 @@ async function loadPublicPageSource(
       }),
       latitude: loc.latitude,
       longitude: loc.longitude,
-      opening_hours: openingHours ? JSON.parse(openingHours) : null,
-      special_hours: specialHours ? JSON.parse(specialHours) : null,
-      timezone: loc.timezone || null,
+      opening_hours: parseOpeningHours(openingHours ? JSON.parse(openingHours) : null),
+      special_hours: parseSpecialHours(specialHours ? JSON.parse(specialHours) : null),
+      timezone: loc.timezone,
       rating: loc.rating,
       review_count: loc.review_count,
-      is_primary: Boolean(loc.is_primary),
       status: loc.status,
       media: publicUrl ? [{
         asset_id: loc.asset_id,
@@ -1001,7 +966,7 @@ async function loadPublicPageSource(
     : null;
   const fullReviewList = fullReviewRows?.results ?? []
   const reviewMedia = await getMediaPlacements(db, { siteId, ownerType: 'review', ownerIds: fullReviewList.map(review => String(review.id)) })
-  const fullReviews = fullReviewList.map(r => ({ ...r, media: reviewMedia.get(String(r.id)) ?? [] }));
+  const fullReviews = fullReviewList.map(r => ({ ...r, google_review_metadata: parseGoogleReviewMetadata(r.google_review_metadata), media: reviewMedia.get(String(r.id)) ?? [] }));
   const aggregateLocation = locationForAggregate ? {
     rating: typeof locationForAggregate.rating === 'number' ? locationForAggregate.rating : null,
     review_count: typeof locationForAggregate.review_count === 'number' ? locationForAggregate.review_count : null,
@@ -1092,7 +1057,7 @@ async function loadPublicPageSource(
     representationSourcePath = `/experiences/${sourceExperienceDetail.slug}`
     representationResource = { type: 'experience', id: sourceExperienceDetail.id }
   } else if (sourceBlogPostIdentity) {
-    const prefix = normalizedVertical === 'professional_service' ? 'article' : 'blog'
+    const prefix = normalizedVertical === 'service' ? 'article' : 'blog'
     representationSourcePath = `/${prefix}/${sourceBlogPostIdentity.slug}`
     representationResource = { type: 'tenant_blog_post', id: sourceBlogPostIdentity.id }
   } else if (locationId && sourceLocationSlug) {
@@ -1118,8 +1083,8 @@ async function loadPublicPageSource(
     content_blocks: groupContentBlocks(contentRows),
     tenant_page: tenantPage,
     products,
-    locationReviews: locationReviewRows?.results ?? [],
-    globalReviews: needsGlobalReviews ? reviewRows.results ?? [] : [],
+    locationReviews: (locationReviewRows?.results ?? []).map(review => ({ ...review, google_review_metadata: parseGoogleReviewMetadata(review.google_review_metadata) })),
+    globalReviews: needsGlobalReviews ? (reviewRows.results ?? []).map(review => ({ ...review, google_review_metadata: parseGoogleReviewMetadata(review.google_review_metadata) })) : [],
     reviewsAggregate: requestedDatasets.has("reviews") ? reviewsAggregate : null,
     reviewsList: requestedDatasets.has("reviews") ? fullReviews : [],
     media: requestedDatasets.has("photos") ? media : [],

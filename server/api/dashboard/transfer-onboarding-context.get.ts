@@ -8,9 +8,7 @@ export default defineHandler(async event => {
   if (transferScope.kind === 'invalid') {
     return jsonResponse({ error: transferScope.message }, { status: 400 })
   }
-  return jsonResponse(await loadTransferOnboardingContext(event, transferScope.kind === 'exact'
-    ? { transferId: transferScope.transferId }
-    : {}))
+  return jsonResponse(await loadTransferOnboardingContext(event, { transferId: transferScope.transferId }))
 })
 import { defineHandler } from 'nitro';
 import { getQuery } from 'nitro/h3';

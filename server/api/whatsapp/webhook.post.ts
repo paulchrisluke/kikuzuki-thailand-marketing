@@ -2,7 +2,7 @@ import { cloudflareEnv, jsonResponse } from '~/server/utils/api-response'
 import { compareWhatsAppDeliveryStatus, sendWhatsAppText } from '~/server/utils/whatsapp'
 import { parseMetaMsisdn } from '~/utils/phone'
 import {
-  getChannelState, metaMessageExists, upsertChannelState, type JsonSerializable, } from '~/server/utils/chowbot-conversations'
+  getChannelState, upsertChannelState, type JsonSerializable, } from '~/server/utils/chowbot-conversations'
 import { execute, queryAll, queryFirst } from '~/server/db'
 import { ensureGuestThread, getGuestThreadById, updateThreadProjectionIfLatestEntry } from '~/server/domain/guest-threads/repository'
 import { getAdapter } from '~/server/domain/guest-threads/adapters/registry'
@@ -514,7 +514,6 @@ async function routeManagerWhatsAppMessage(
 }
 
 async function handleMessage(db: D1Database, env: ApiRecord, message: WhatsAppMessage): Promise<void> {
-  if (await metaMessageExists(db, message.id)) return
 
   const toPhone = parseMetaMsisdn(message.from)
   const user = await resolveUser(env, message.from)

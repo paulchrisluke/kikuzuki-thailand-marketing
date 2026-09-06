@@ -267,14 +267,14 @@ export async function listAgenda(
     SELECT ${alias}.id, '${kind}' AS kind, ${fields}, ${alias}.site_id,
            COALESCE(s.subdomain, s.id) AS site_slug, ${alias}.location_id,
            l.slug AS location_slug, l.title AS location_title,
-           COALESCE(l.timezone, primary_location.timezone) AS timezone,
+           CASE WHEN ${alias}.location_id IS NULL THEN tz.value ELSE l.timezone END AS timezone,
            NULL AS guest_image_url,
            ${enrichment.resourceImage ?? `COALESCE(${locationMediaUrlSelect(alias)}, ${siteMediaUrlSelect(alias)})`} AS resource_image_url,
            ${enrichment.resourceTitle ?? 'COALESCE(l.title, s.brand_name, s.subdomain, s.id)'} AS resource_title
     FROM ${kind === 'reservation' ? 'reservation_submissions' : kind === 'experience_booking' ? 'experience_bookings' : 'posts'} ${alias}
     JOIN sites s ON s.id = ${alias}.site_id AND s.organization_id = ${alias}.organization_id
     LEFT JOIN business_locations l ON l.id = ${alias}.location_id AND l.site_id = ${alias}.site_id
-    LEFT JOIN business_locations primary_location ON primary_location.id = s.primary_location_id AND primary_location.site_id = s.id
+    LEFT JOIN site_config tz ON tz.site_id = s.id AND tz.organization_id = s.organization_id AND tz.key = 'default_timezone'
     ${enrichment.joins ?? ''}
     WHERE ${alias}.organization_id = ? ${scopeConditions(query, alias)}
   `
@@ -288,11 +288,11 @@ export async function listAgenda(
     resourceImage: `COALESCE(${mediaUrlSelect('b', 'experience', 'b.experience_id', ['gallery'])}, ${locationMediaUrlSelect('b')}, ${siteMediaUrlSelect('b')})`,
     resourceTitle: 'COALESCE(agenda_product.name, l.title, s.brand_name, s.subdomain, s.id)',
   })} AND b.booking_date BETWEEN ? AND ?`, [...params(), query.from, query.to]))
-  if (requestedKinds.has('post')) sourceQueries.push(queryAll(db, `${commonSelect('p', 'post', `NULL AS local_date, NULL AS local_time, CASE WHEN p.status = 'published' AND p.published_at IS NOT NULL THEN p.published_at ELSE COALESCE(p.scheduled_for, p.published_at, p.event_start) END AS starts_at, p.event_end AS ends_at,
-    NULLIF(COALESCE(NULLIF(p.title, ''), NULLIF(p.event_title, '')), '') AS title, p.post_type AS subtitle, NULL AS party_size, p.status`, {
+  if (requestedKinds.has('post')) sourceQueries.push(queryAll(db, `${commonSelect('p', 'post', `NULL AS local_date, NULL AS local_time, CASE WHEN p.status = 'published' AND p.published_at IS NOT NULL THEN p.published_at ELSE COALESCE(p.scheduled_for, p.published_at) END AS starts_at, NULL AS ends_at,
+    NULLIF(COALESCE(NULLIF(p.title, ''), json_extract(p.event, '$.title')), '') AS title, p.post_type AS subtitle, NULL AS party_size, p.status`, {
     resourceImage: `COALESCE(${mediaUrlSelect('p', 'post', 'p.id', ['cover'])}, ${locationMediaUrlSelect('p')}, ${siteMediaUrlSelect('p')})`,
   })}
-    AND CASE WHEN p.status = 'published' AND p.published_at IS NOT NULL THEN p.published_at ELSE COALESCE(p.scheduled_for, p.published_at, p.event_start) END BETWEEN ? AND ?`, [...params(), broadFrom, broadTo]))
+    AND CASE WHEN p.status = 'published' AND p.published_at IS NOT NULL THEN p.published_at ELSE COALESCE(p.scheduled_for, p.published_at) END BETWEEN ? AND ?`, [...params(), broadFrom, broadTo]))
 
   const rows = (await Promise.all(sourceQueries)).flat().filter((row) => {
     if (!scoped) return true
@@ -301,7 +301,8 @@ export async function listAgenda(
   })
   const organizationSlug = query.organizationSlug ?? organizationId
   const items = rows.flatMap<AgendaItem>((row) => {
-    const timeZone = validTimeZone(row.timezone) ?? 'UTC'
+    const timeZone = validTimeZone(row.timezone)
+    if (!timeZone) throw new Error(`Timezone is not configured for agenda item ${row.id}`)
     const startsAt = row.local_date
       ? localDateTimeToIso(row.local_date, row.local_time, timeZone)
       : row.starts_at && !Number.isNaN(Date.parse(row.starts_at)) ? new Date(row.starts_at).toISOString() : ''
@@ -316,10 +317,9 @@ export async function listAgenda(
     return [{
       id: `${row.kind}:${row.id}`, kind: row.kind, startsAt,
       endsAt: row.ends_at && !Number.isNaN(Date.parse(row.ends_at)) ? new Date(row.ends_at).toISOString() : null,
-      dayKey, timeZone, showTimeZone: !validTimeZone(row.timezone), title: row.title,
+      dayKey, timeZone, showTimeZone: false, title: row.title,
       subtitle: row.subtitle, status: row.status, siteId: row.site_id,
       locationId: row.location_id, locationTitle: row.location_title,
-      // Guest avatars are intentionally absent: tenant customer records have no avatar field.
       guestImageUrl: row.guest_image_url, resourceImageUrl: row.resource_image_url,
       resourceTitle: row.resource_title, partySize: row.party_size, to,
     }]

@@ -46,8 +46,12 @@ test('calendar range edits persist and public availability excludes private note
   const savedResponse = await saved
   expect(savedResponse.status(), await savedResponse.text()).toBe(200)
   await expect(panel).not.toBeVisible()
+  const reloaded = page.waitForResponse(result => result.request().method() === 'GET' && result.url().includes('/site-demo/availability'))
   await page.reload()
+  expect((await reloaded).status()).toBe(200)
+  const restoredMonth = page.waitForResponse(result => result.request().method() === 'GET' && result.url().includes('/site-demo/availability'))
   await page.getByRole('button', { name: 'Next month', exact: true }).click()
+  expect((await restoredMonth).status()).toBe(200)
   for (const day of days) {
     const cell = page.getByRole('button', { name: `Pizza Making Class, ${day.date}, Blocked`, exact: true })
     await expect(cell).toContainText(note)
@@ -76,10 +80,18 @@ test('concurrent guests cannot claim the same final seat in an open override', a
   const today = new Date()
   const date = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth() + 1, 20)).toISOString().slice(0, 10)
   const availabilityUrl = `${baseURL}/api/editor/sites/site-demo/availability?org=ember-slice-demo`
+  const initial = await page.request.get(availabilityUrl, {
+    params: { location_id: 'loc-demo', from: date, to: date, owner_type: 'experience', owner_id: 'exp-demo-pizza-class' },
+  })
+  expect(initial.status(), await initial.text()).toBe(200)
+  const before: { calendar: AvailabilityCalendar } = await initial.json()
+  const initialDay = before.calendar.owners[0]!.days[0]!
+  const initialBookings = initialDay.bookings.filter(booking => booking.time_slot === '23:30')
+  const capacity = (initialDay.slots.find(slot => slot.time_slot === '23:30')?.booked ?? 0) + 1
   const configured = await page.request.put(availabilityUrl, {
     data: {
       owner: { kind: 'experience', experienceId: 'exp-demo-pizza-class' },
-      changes: [{ override_date: date, time_slot: '23:30', directive: 'set', status: 'open', capacity_override: 1, note: null }],
+      changes: [{ override_date: date, time_slot: '23:30', directive: 'set', status: 'open', capacity_override: capacity, note: null }],
     },
   })
   expect(configured.status(), await configured.text()).toBe(200)
@@ -104,8 +116,8 @@ test('concurrent guests cannot claim the same final seat in an open override', a
   expect(read.status(), await read.text()).toBe(200)
   const { calendar }: { calendar: AvailabilityCalendar } = await read.json()
   const day = calendar.owners[0]!.days[0]!
-  expect(day.bookings.filter(booking => booking.time_slot === '23:30')).toHaveLength(1)
+  expect(day.bookings.filter(booking => booking.time_slot === '23:30')).toHaveLength(initialBookings.length + 1)
   expect(day.slots.find(slot => slot.time_slot === '23:30')).toMatchObject({
-    booked: 1, remaining: 0, is_full: true, is_closed: false,
+    capacity, booked: capacity, remaining: 0, is_full: true, is_closed: false,
   })
 })

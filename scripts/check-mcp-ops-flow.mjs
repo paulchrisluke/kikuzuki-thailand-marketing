@@ -208,7 +208,7 @@ async function main() {
     body: 'Half-day tour created by MCP ops checker',
     status: 'active',
     price: '1500 THB',
-    time_slots: ['14:00'],
+    recurring_slots: { monday: ['14:00'], tuesday: ['14:00'], wednesday: ['14:00'], thursday: ['14:00'], friday: ['14:00'], saturday: ['14:00'], sunday: ['14:00'] },
     max_capacity: 6,
   })
   expectStatus('create_experience succeeds', experience)

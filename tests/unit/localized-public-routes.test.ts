@@ -39,7 +39,7 @@ test('localized projection clears untranslated localizable fields', () => {
 })
 
 test('professional-service blog paths use the Blawby article route', () => {
-  assert.equal(tenantBlogPostPath({ vertical: 'professional_service' }, 'thai-law'), '/article/thai-law')
+  assert.equal(tenantBlogPostPath({ vertical: 'service' }, 'thai-law'), '/article/thai-law')
 })
 
 test('platform catalog validation rejects placeholder drift', () => {

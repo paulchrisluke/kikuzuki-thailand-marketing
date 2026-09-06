@@ -47,7 +47,6 @@ export async function loadExactPublicLocalizations(
 const PROJECTED_FIELD_NAMES: Partial<Record<LocalizedResourceType, Readonly<Record<string, string>>>> = {
   business_location: {
     address: 'address_translated',
-    opening_hours: 'opening_hours_translated',
   },
   product: {
     tags_json: 'tags',
@@ -108,6 +107,17 @@ export function projectExactLocalizedResource<T extends { id: string }>(
   if (resourceType === 'site_post' && typeof localization.values.body === 'string') {
     projectedValues.body = localization.values.body
     projectedValues.summary = localization.values.body
+  }
+  if (resourceType === 'site_post') {
+    for (const field of ['event', 'offer'] as const) {
+      const source = field === 'event' ? ('event' in canonical ? canonical.event : null) : ('offer' in canonical ? canonical.offer : null)
+      const translated = localization.values[field]
+      if (!source || typeof source !== 'object') { projectedValues[field] = null; continue }
+      if (field === 'event' && !translated || field === 'offer' && 'terms_conditions' in source && !translated) {
+        throw new HTTPError({ statusCode: 404, statusMessage: 'Post translation is incomplete' })
+      }
+      projectedValues[field] = { ...source, ...(translated && typeof translated === 'object' ? translated : {}) }
+    }
   }
   const slug = localizedSlug(localization.routePath)
   const routeFields = {

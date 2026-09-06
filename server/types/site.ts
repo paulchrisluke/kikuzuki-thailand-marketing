@@ -1,5 +1,6 @@
 // Site management types
 
+import type { DomainStatus } from '~/server/utils/domains'
 import type { CurrencyCode } from '~/shared/currencies'
 
 export type { CurrencyCode }
@@ -11,9 +12,8 @@ export interface SiteSettings {
   subdomain: string
   theme: string
   status: 'active' | 'inactive' | 'suspended'
-  primary_location_id: string | null
-  public_url: string
-  custom_domain_status: 'none' | 'pending' | 'active' | 'failed'
+  public_url: string | null
+  custom_domain_status: DomainStatus | 'none'
   brand_name: string
   brand_description: string | null
   media: Array<{ asset_id: string; slot: string; public_url: string | null; thumbnail_url: string | null; kind: string }>
@@ -34,7 +34,6 @@ export interface UpdateSiteSettingsRequest {
   contact_email?: string
   brand_color?: string
   default_currency?: CurrencyCode
-  primary_location_id?: string
   last_published_at?: string
   press_email?: string
   partnerships_email?: string
@@ -68,7 +67,7 @@ export interface LaunchReadiness {
         subdomain: boolean
         theme: boolean
         status: boolean
-        primary_location: boolean
+        locations: boolean
       }
     }
     brand_basics: {

@@ -35,19 +35,17 @@ export const demoFixture: CuratedSiteDefinition = {
     subdomain: 'demo',
     brandName: 'Ember & Slice',
     themeId: 'saya-theme-v1',
-    theme: 'saya',
     brandDescription:
       'A Brooklyn wood-fired trattoria serving blistered pies, seasonal antipasti, and easy neighborhood hospitality.',
     status: 'active',
     onboardingStatus: 'active',
-    primaryLocationId: 'loc-demo',
     contactEmail: 'hello@emberandslice.example',
-    publicUrl: 'https://demo.krabiclaw.com',
     defaultCurrency: 'USD',
     vertical: 'restaurant',
     media: [{ asset_id: 'media-demo-logo', slot: 'logo' }],
   },
   siteConfig: [
+    { key: 'default_timezone', value: 'America/New_York' },
     { key: 'source_locale', value: 'en' },
     { key: 'brand_color', value: '#C2410C' }, // Ember orange, matching the wood-fired "Ember & Slice" brand
   ],
@@ -107,22 +105,21 @@ export const demoFixture: CuratedSiteDefinition = {
         'A Brooklyn wood-fired trattoria built around blistered sourdough pies, bright antipasti, and an open oven that runs from lunch through late dinner.',
       shortDescription:
         'Wood-fired pizza, seasonal antipasti, and warm neighborhood hospitality in Brooklyn.',
-      openingHours: [
-        { openDay: 'MONDAY', openTime: '12:00', closeTime: '22:00' },
-        { openDay: 'TUESDAY', openTime: '12:00', closeTime: '22:00' },
-        { openDay: 'WEDNESDAY', openTime: '12:00', closeTime: '22:00' },
-        { openDay: 'THURSDAY', openTime: '12:00', closeTime: '22:00' },
-        { openDay: 'FRIDAY', openTime: '12:00', closeTime: '23:00' },
-        { openDay: 'SATURDAY', openTime: '11:00', closeTime: '23:00' },
-        { openDay: 'SUNDAY', openTime: '11:00', closeTime: '21:00' },
-      ],
+      openingHours: { periods: [
+        { open: { day: 1, hour: 12, minute: 0 }, close: { day: 1, hour: 22, minute: 0 } },
+        { open: { day: 2, hour: 12, minute: 0 }, close: { day: 2, hour: 22, minute: 0 } },
+        { open: { day: 3, hour: 12, minute: 0 }, close: { day: 3, hour: 22, minute: 0 } },
+        { open: { day: 4, hour: 12, minute: 0 }, close: { day: 4, hour: 22, minute: 0 } },
+        { open: { day: 5, hour: 12, minute: 0 }, close: { day: 5, hour: 23, minute: 0 } },
+        { open: { day: 6, hour: 11, minute: 0 }, close: { day: 6, hour: 23, minute: 0 } },
+        { open: { day: 0, hour: 11, minute: 0 }, close: { day: 0, hour: 21, minute: 0 } },
+      ] },
       rating: 4.8,
       reviewCount: 188,
       priceLevel: '$$',
       categories: ['Pizza', 'Italian Restaurant', 'Wood-fired Trattoria'],
       instagramUrl: 'https://instagram.com/emberandslice',
       facebookUrl: 'https://facebook.com/emberandslice',
-      isPrimary: true,
       status: 'active',
       media: [
         { asset_id: 'media-demo-pizza-prep-video', slot: 'hero' },
@@ -156,22 +153,21 @@ export const demoFixture: CuratedSiteDefinition = {
         'Our signature wood-fired pies and warm hospitality, brought to the heart of the West Village.',
       shortDescription:
         'Wood-fired pizza, seasonal antipasti, and neighborhood hospitality in the West Village.',
-      openingHours: [
-        { openDay: 'MONDAY', openTime: '16:00', closeTime: '23:00' },
-        { openDay: 'TUESDAY', openTime: '16:00', closeTime: '23:00' },
-        { openDay: 'WEDNESDAY', openTime: '16:00', closeTime: '23:00' },
-        { openDay: 'THURSDAY', openTime: '16:00', closeTime: '23:00' },
-        { openDay: 'FRIDAY', openTime: '15:00', closeTime: '23:59' },
-        { openDay: 'SATURDAY', openTime: '15:00', closeTime: '23:59' },
-        { openDay: 'SUNDAY', openTime: '15:00', closeTime: '23:00' },
-      ],
+      openingHours: { periods: [
+        { open: { day: 1, hour: 16, minute: 0 }, close: { day: 1, hour: 23, minute: 0 } },
+        { open: { day: 2, hour: 16, minute: 0 }, close: { day: 2, hour: 23, minute: 0 } },
+        { open: { day: 3, hour: 16, minute: 0 }, close: { day: 3, hour: 23, minute: 0 } },
+        { open: { day: 4, hour: 16, minute: 0 }, close: { day: 4, hour: 23, minute: 0 } },
+        { open: { day: 5, hour: 15, minute: 0 }, close: { day: 5, hour: 23, minute: 59 } },
+        { open: { day: 6, hour: 15, minute: 0 }, close: { day: 6, hour: 23, minute: 59 } },
+        { open: { day: 0, hour: 15, minute: 0 }, close: { day: 0, hour: 23, minute: 0 } },
+      ] },
       rating: 4.9,
       reviewCount: 112,
       priceLevel: '$$',
       categories: ['Pizza', 'Italian Restaurant', 'Trattoria'],
       instagramUrl: 'https://instagram.com/emberandslice',
       facebookUrl: 'https://facebook.com/emberandslice',
-      isPrimary: false,
       status: 'active',
       media: [
         { asset_id: 'media-demo2-hero', slot: 'hero' },
@@ -600,7 +596,7 @@ export const demoFixture: CuratedSiteDefinition = {
       priceAmount: 95,
       durationMinutes: 120,
       maxCapacity: 10,
-      timeSlots: ['14:00', '18:00'],
+      recurringSlots: { sunday: ['14:00', '18:00'], monday: ['14:00', '18:00'], tuesday: ['14:00', '18:00'], wednesday: ['14:00', '18:00'], thursday: ['14:00', '18:00'], friday: ['14:00', '18:00'], saturday: ['14:00', '18:00'] },
       status: 'active',
       sortOrder: 1,
       featured: true,
@@ -634,7 +630,7 @@ export const demoFixture: CuratedSiteDefinition = {
       priceAmount: 78,
       durationMinutes: 150,
       maxCapacity: 16,
-      timeSlots: ['19:30'],
+      recurringSlots: { sunday: ['19:30'], monday: ['19:30'], tuesday: ['19:30'], wednesday: ['19:30'], thursday: ['19:30'], friday: ['19:30'], saturday: ['19:30'] },
       status: 'active',
       sortOrder: 2,
       featured: true,
@@ -668,7 +664,7 @@ export const demoFixture: CuratedSiteDefinition = {
       priceAmount: 140,
       durationMinutes: 105,
       maxCapacity: 6,
-      timeSlots: ['17:00', '18:30'],
+      recurringSlots: { sunday: ['17:00', '18:30'], monday: ['17:00', '18:30'], tuesday: ['17:00', '18:30'], wednesday: ['17:00', '18:30'], thursday: ['17:00', '18:30'], friday: ['17:00', '18:30'], saturday: ['17:00', '18:30'] },
       status: 'active',
       sortOrder: 3,
       featured: true,
@@ -1059,7 +1055,7 @@ export const demoFixture: CuratedSiteDefinition = {
     {
       id: 'post-demo-1',
       locationId: 'loc-demo',
-      postType: 'update',
+      post_type: 'standard',
       title: 'Weekend lunch now starts at 11',
       body: 'The oven is lighting up earlier on Saturdays and Sundays. Come by for lunch pies, garlic knots, and spritzes from 11am.',
       media: [{ asset_id: 'media-demo-post1', slot: 'cover' }],
@@ -1070,7 +1066,7 @@ export const demoFixture: CuratedSiteDefinition = {
     {
       id: 'post-demo-2',
       locationId: 'loc-demo',
-      postType: 'standard',
+      post_type: 'standard',
       title: null,
       body: 'Our Funghi Bianco is back with roasted mushrooms, ricotta crema, thyme, and a little pecorino snow at the pass.',
       media: [{ asset_id: 'media-demo-post2', slot: 'cover' }],
@@ -1081,13 +1077,11 @@ export const demoFixture: CuratedSiteDefinition = {
     {
       id: 'post-demo-3',
       locationId: 'loc-demo',
-      postType: 'offer',
+      post_type: 'offer',
       title: 'Margherita Monday',
       body: 'Every Monday in May: Margherita pies are $14 from open to close. Dine-in only, one per guest.',
-      offerCoupon: 'MONDAY14',
-      offerTerms: 'Dine-in Mondays in May; limit one Margherita pizza per guest.',
-      ctaType: 'order',
-      ctaUrl: '/locations/brooklyn',
+      event: { title: 'Monday Margherita offer', schedule: { start_date: '2026-05-01', start_time: '00:00:00', end_date: '2026-05-31', end_time: '23:59:59' } },
+      offer: { coupon_code: 'MONDAY14', terms_conditions: 'Dine-in Mondays in May; limit one Margherita pizza per guest.' },
       media: [{ asset_id: 'media-demo-post3', slot: 'cover' }],
       status: 'published',
       publishedAt: '2026-04-10T09:00:00.000Z',
@@ -1096,14 +1090,11 @@ export const demoFixture: CuratedSiteDefinition = {
     {
       id: 'post-demo-4',
       locationId: 'loc-demo',
-      postType: 'event',
+      post_type: 'event',
       title: 'Harvest Table Supper',
       body: 'Join us for a one-night family-style supper built around late-summer produce and the wood-fired oven.',
-      eventTitle: 'Harvest Table Supper',
-      eventStartAt: '2026-10-10T23:00:00.000Z',
-      eventEndAt: '2026-10-11T02:00:00.000Z',
-      ctaType: 'book',
-      ctaUrl: '/reservations',
+      event: { title: 'Harvest Table Supper', schedule: { start_date: '2026-10-10', start_time: '19:00:00', end_date: '2026-10-10', end_time: '22:00:00' } },
+      call_to_action: { action_type: 'book', url: 'https://demo.krabiclaw.com/reservations' },
       media: [],
       status: 'published',
       publishedAt: '2026-09-01T09:00:00.000Z',
@@ -1248,23 +1239,20 @@ export function renderCompiledDemoCoreSeedBlock(): string {
   return `-- BEGIN GENERATED: demo_core
 -- Canonical demo site core generated from the curated fixture contract.
 INSERT OR REPLACE INTO sites (
-  id, organization_id, theme_id, theme, slug, subdomain,
-  public_url, brand_name, brand_description,
-  status, onboarding_status, primary_location_id,
+  id, organization_id, theme_id, slug, subdomain,
+  brand_name, brand_description,
+  status, onboarding_status,
   contact_email, default_currency, vertical, analytics_data_start_at
 ) VALUES (
   ${sqlValue(compiledDemoSeed.identity.siteId)},
   ${sqlValue(compiledDemoSeed.identity.organizationId)},
   ${sqlValue(compiledDemoSeed.site.themeId)},
-  ${sqlValue(compiledDemoSeed.site.theme)},
   ${sqlValue(compiledDemoSeed.site.slug)},
   ${sqlValue(compiledDemoSeed.site.subdomain)},
-  ${sqlValue(compiledDemoSeed.site.publicUrl)},
   ${sqlValue(compiledDemoSeed.site.brandName)},
   ${sqlValue(compiledDemoSeed.site.brandDescription)},
   ${sqlValue(compiledDemoSeed.site.status)},
   ${sqlValue(compiledDemoSeed.site.onboardingStatus)},
-  NULL,
   ${sqlValue(compiledDemoSeed.site.contactEmail)},
   ${sqlValue(compiledDemoSeed.site.defaultCurrency)},
   ${sqlValue(compiledDemoSeed.site.vertical)},
@@ -1345,7 +1333,6 @@ export function renderCompiledDemoMediaBlock(): string {
       sqlJson(location.categories),
       sqlValue(location.instagramUrl),
       sqlValue(location.facebookUrl),
-      sqlValue(location.isPrimary),
       sqlValue(location.status),
       sqlValue('America/New_York'),
     ].join(', ')})`)
@@ -1361,7 +1348,7 @@ INSERT OR REPLACE INTO business_locations (
   rating, review_count,
   price_level, categories,
   instagram_url, facebook_url,
-  is_primary, status, timezone
+  status, timezone
 ) VALUES
 ${locationRowsNoHero};
 
@@ -1379,7 +1366,6 @@ INSERT OR REPLACE INTO media_placements
 VALUES
 ${mediaPlacementRows};
 
-UPDATE sites SET primary_location_id = ${sqlValue(compiledDemoSeed.site.primaryLocationId)} WHERE id = ${sqlValue(compiledDemoSeed.identity.siteId)};
 -- END GENERATED: demo_media`
 }
 
@@ -1541,16 +1527,13 @@ export function renderCompiledDemoPostsBlock(): string {
       sqlValue(post.organizationId),
       sqlValue(post.siteId),
       sqlValue(post.locationId),
-      sqlValue(post.postType),
+      sqlValue(post.post_type),
       sqlValue(post.title),
       sqlValue(post.body),
-      sqlValue(post.ctaType),
-      sqlValue(post.ctaUrl),
-      sqlValue(post.eventTitle),
-      sqlValue(post.eventStartAt),
-      sqlValue(post.eventEndAt),
-      sqlValue(post.offerCoupon),
-      sqlValue(post.offerTerms),
+      sqlValue(post.call_to_action === null ? null : JSON.stringify(post.call_to_action)),
+      sqlValue(post.event === null ? null : JSON.stringify(post.event)),
+      sqlValue(post.offer === null ? null : JSON.stringify(post.offer)),
+      sqlValue(post.alert_type),
       sqlValue(post.status),
       sqlValue(post.publishedAt),
       sqlValue(post.createdBy),
@@ -1564,7 +1547,7 @@ export function renderCompiledDemoPostsBlock(): string {
   return `-- BEGIN GENERATED: demo_posts
 INSERT OR IGNORE INTO posts
   (id, organization_id, site_id, location_id,
-   post_type, title, body, cta_type, cta_url, event_title, event_start, event_end, offer_coupon, offer_terms,
+   post_type, title, body, call_to_action, event, offer, alert_type,
    status, published_at, created_by)
 VALUES
 ${postRows};
@@ -1630,8 +1613,8 @@ INSERT OR REPLACE INTO media_placements
 VALUES ('placement-blog-demo-wood-fired-guide-featured', 'org-demo', 'site-demo', 'blog_post', ${sqlValue(postId)}, 'featured', 'media-demo-hero', 0, 'active');
 
 INSERT OR REPLACE INTO content_documents
-  (id, owner_type, owner_id, created_at, updated_at)
-VALUES (${sqlValue(documentId)}, 'tenant_blog', ${sqlValue(postId)}, ${sqlValue(publishedAt)}, ${sqlValue(publishedAt)});
+  (id, site_id, owner_type, owner_id, created_at, updated_at)
+VALUES (${sqlValue(documentId)}, 'site-demo', 'tenant_blog', ${sqlValue(postId)}, ${sqlValue(publishedAt)}, ${sqlValue(publishedAt)});
 
 INSERT OR REPLACE INTO content_blocks
   (id, document_id, parent_block_id, type, position, level, data_json, created_at, updated_at)
@@ -1671,8 +1654,7 @@ export function renderDemoExperienceSeedBlock(): string {
       sqlValue(experience.priceAmount == null ? experience.price : null),
       sqlValue(experience.durationMinutes),
       sqlValue(experience.maxCapacity),
-      sqlJson(experience.timeSlots),
-      'NULL',
+      experience.recurringSlots === null ? 'NULL' : sqlJson(experience.recurringSlots),
       sqlValue(experience.includedItems?.length ? JSON.stringify(experience.includedItems) : null),
       sqlValue(experience.whatToBring?.length ? JSON.stringify(experience.whatToBring) : null),
       sqlValue(experience.meetingPoint ?? null),
@@ -1727,7 +1709,7 @@ ${experienceProductRows};
 
 INSERT OR REPLACE INTO experiences
   (id, organization_id, site_id, location_id, tagline, pricing_note, duration_minutes, max_capacity,
-   time_slots, recurring_slots, included_items, what_to_bring, meeting_point, cancellation_policy)
+   recurring_slots, included_items, what_to_bring, meeting_point, cancellation_policy)
 VALUES
 ${experienceRows};
 
@@ -1743,9 +1725,9 @@ export function renderCompiledDemoInboxBlock(): string {
   return `-- BEGIN GENERATED: demo_inbox
 -- Representative local inbox conversations for all supported guest-submission types.
 INSERT OR REPLACE INTO contact_submissions
-  (id, organization_id, site_id, location_id, name, email, subject, message, status, created_at)
+  (id, organization_id, site_id, location_id, name, email, subject, message, created_at)
 VALUES
-  ('contact-demo-private-event', 'org-demo', 'site-demo', 'loc-demo', 'Maya Chen', 'maya.chen@example.com', 'Private dinner inquiry', 'Hi! Could you host a birthday dinner for 18 people next month? We would love a family-style menu.', 'new', '2026-08-21T02:15:00.000Z');
+  ('contact-demo-private-event', 'org-demo', 'site-demo', 'loc-demo', 'Maya Chen', 'maya.chen@example.com', 'Private dinner inquiry', 'Hi! Could you host a birthday dinner for 18 people next month? We would love a family-style menu.', '2026-08-21T02:15:00.000Z');
 
 INSERT OR REPLACE INTO reservation_submissions
   (id, organization_id, site_id, location_id, name, email, phone, date, time, guests, requests, status, created_at, updated_at)

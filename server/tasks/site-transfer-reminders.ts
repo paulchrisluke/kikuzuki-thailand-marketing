@@ -11,7 +11,7 @@ export default defineScheduledTask({
     const env = taskContext?.cloudflare?.env ?? {}
     const db = env.DB
     if (!db && import.meta.dev) {
-      return { result: { reminded: 0, paused_domains: 0, checked: 0, skipped: 'DB unavailable in local scheduled task context' } }
+      return { result: { reminded: 0, checked: 0, skipped: 'DB unavailable in local scheduled task context' } }
     }
     if (!db) throw new Error('DB is required')
 

@@ -18,7 +18,7 @@ export async function seedNewSite(
     name: string;
     vertical: SiteVertical;
   },
-): Promise<void> {
+): Promise<string> {
   if (!db) throw new Error("Database not configured");
 
   const { organizationId, siteId, name, vertical } = params;
@@ -33,30 +33,15 @@ export async function seedNewSite(
 
   const statements: BatchQuery[] = [];
 
-  // ── Empty primary location ────────────────────────────────────────────────
   statements.push({
     query: `
     INSERT OR IGNORE INTO business_locations
-      (id, organization_id, site_id, slug, title, rating, review_count, is_primary, status)
-    VALUES (?, ?, ?, 'main', ?, 0, 0, 1, 'active')
+      (id, organization_id, site_id, slug, title, rating, review_count, status)
+    VALUES (?, ?, ?, 'main', ?, 0, 0, 'active')
   `,
     params: [locationId, organizationId, siteId, name],
   });
 
-  // createLocation() in location-management.ts normally syncs this when a
-  // location becomes primary — this raw seed insert bypasses that helper, so
-  // it must be kept in sync here or sites.primary_location_id stays NULL.
-  statements.push({
-    query: `
-    UPDATE sites
-    SET primary_location_id = ?
-    WHERE id = ? AND organization_id = ? AND primary_location_id IS NULL
-  `,
-    params: [locationId, siteId, organizationId],
-  });
-
-  // No customer-facing hero, menu, Q&A, post, or story content is seeded here.
-  // Public sections remain empty until the owner supplies canonical content.
 
   // ── Canonical tenant pages (structural records only) ──────────────────────
   const templatePageContent: Array<[string, string, string, string?]> = []
@@ -75,7 +60,7 @@ export async function seedNewSite(
     ['contact', { path: '/contact', pageType: 'system', recipe: 'contact' }],
     ['location', { path: '/locations/main', pageType: 'system', recipe: 'locations' }],
   ]);
-  if (vertical === 'professional_service') {
+  if (vertical === 'service') {
     for (const [page, path, pageType] of [
       ['services', '/services', 'system'],
       ['pricing', '/pricing', 'system'],
@@ -123,4 +108,5 @@ export async function seedNewSite(
     })
   }
   await createTenantPagesBatch(db, { organizationId, siteId, pages: pagesToCreate })
+  return locationId
 }

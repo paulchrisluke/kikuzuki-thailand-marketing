@@ -1,9 +1,7 @@
-// SEO 301 redirects for legacy legal URLs
 import { defineHandler, HTTPError, type H3Event } from 'nitro';
 import {    redirect, setResponseHeader } from 'nitro/h3';
-import { queryAll, queryFirst } from '~/server/db'
+import { queryFirst } from '~/server/db'
 import { cloudflareEnv } from '~/server/utils/api-response'
-import { isBlawbyTemplate } from '~/utils/template-registry'
 import { TENANT_TYPES } from '~/utils/tenant-routing'
 import { PLATFORM_SITE_ID } from '~/shared/platform-scope'
 import { resolveLocalizedRedirect } from '~/server/utils/localization'
@@ -171,35 +169,4 @@ export default defineHandler(async (event) => {
     }
   }
 
-  // Server-side redirect for single-location sites
-  // Only run if tenant data is available (set by tenant-resolution middleware)
-  // Use 302 (temporary) since the single-location condition can change over time
-  const isTenantRequest = normalizedPathname === '/' && event.context.tenantType === TENANT_TYPES.TENANT && event.context.siteId
-  const site = event.context.site as { theme?: string | null; vertical?: string | null } | undefined
-  const isBlawbyTenant = isTenantRequest && isBlawbyTemplate({
-    theme: site?.theme,
-    themeId: event.context.themeId as string | null | undefined,
-    vertical: site?.vertical,
-  })
-
-  if (isTenantRequest && !isBlawbyTenant) {
-    const env = cloudflareEnv(event)
-    const db = env.db
-    if (db) {
-      try {
-        const locations = await queryAll<{ slug: string }>(db, `
-          SELECT slug FROM business_locations
-          WHERE site_id = ? AND status = 'active'
-        `, [event.context.siteId])
-        if (locations.length === 1) {
-          const singleLoc = locations[0]
-          if (singleLoc && singleLoc.slug) {
-            return redirect(`/locations/${singleLoc.slug}`, 302)
-          }
-        }
-      } catch (err) {
-        console.error('Single location redirect check failed:', err)
-      }
-    }
-  }
 })

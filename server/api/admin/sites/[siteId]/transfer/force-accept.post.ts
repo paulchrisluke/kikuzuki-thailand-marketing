@@ -125,7 +125,7 @@ export default defineHandler(async (event) => {
           expectedCheckoutSessionId: claimSentinel, expectedClaimingUserId: recipientUserId, expectedClaimingOrganizationId: organizationId, }, )
     }
     if (transfer.requires_payment === 1) {
-      await completePaidSiteTransfer(env, db, transfer.id)
+      await completePaidSiteTransfer(db, transfer.id)
     }
   } catch (error) {
     console.error('force_accept_site_transfer_completion_failed', {

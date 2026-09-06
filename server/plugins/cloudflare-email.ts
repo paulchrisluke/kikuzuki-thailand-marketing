@@ -4,7 +4,7 @@ import PostalMime from 'postal-mime'
 import { receiveGuestEmail } from '~/server/domain/guest-threads/inbound-email'
 import type { CloudflareEnv } from '~/server/utils/auth'
 import { isDatabaseWriteFrozen } from '~/server/utils/database-write-freeze'
-import { isSubmissionType, parseReplyToAddress } from '~/server/utils/submission-messages'
+import { parseReplyToAddress } from '~/server/utils/submission-messages'
 
 function isCloudflareEnvironment(value: unknown): value is CloudflareEnv {
   if (typeof value !== 'object' || value === null) return false
@@ -61,8 +61,8 @@ async function processEmail(message: ForwardableEmailMessage, env: unknown): Pro
     : '')).trim()
   if (!body) return
 
-  const reply = parseReplyToAddress(message.to)
-  if (!reply || !isSubmissionType(reply.submissionType)) {
+  const reply = parseReplyToAddress(env, message.to)
+  if (!reply) {
     throw new Error('Unrecognized reply address')
   }
 

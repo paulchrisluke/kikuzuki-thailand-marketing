@@ -1,7 +1,7 @@
 export type SiteVertical =
   | "restaurant"
   | "experience"
-  | "professional_service";
+  | "service";
 
 // The single canonical list of app-level verticals a tenant can be created
 // or migrated with. This is the one place that enumerates every supported
@@ -9,7 +9,7 @@ export type SiteVertical =
 // rather than redeclaring its own array, and any UI vertical picker should
 // import this (or ALL_VERTICALS) instead of hand-writing a local
 // 'restaurant' | 'experience' union that silently omits new verticals.
-export const ALL_VERTICALS: SiteVertical[] = ["restaurant", "experience", "professional_service"];
+export const ALL_VERTICALS: SiteVertical[] = ["restaurant", "experience", "service"];
 
 type LocaleCode = "en" | "th";
 
@@ -592,7 +592,7 @@ const registry: Record<LocaleCode, Partial<Record<SiteVertical, VerticalCopy>>> 
   },
 }
 
-registry.en.professional_service = {
+registry.en.service = {
   ...(registry.en.experience ?? registry.en.restaurant!),
   poweredByTagline: "professional-service sites that stay current",
   aboutImageAlt: "About our organization",
@@ -688,11 +688,8 @@ registry.en.professional_service = {
   callUsLabel: (_phone: string) => `Call: ${_phone}`,
 }
 
-registry.th.professional_service = registry.en.professional_service!
+registry.th.service = registry.en.service!
 
-// `sites.vertical` stores 'service' for Blawby/professional-service tenants (see
-// sites_vertical_check + utils/template-registry.ts); 'professional_service' is the
-// copy-registry key, so callers passing either value must resolve to the same copy.
 export function normalizeVertical(vertical: string | null | undefined): string {
   // `sites.vertical` is NOT NULL (sites_vertical_check in server/db/schema.ts).
   // Every caller already gates on the site being loaded before calling this,
@@ -702,12 +699,12 @@ export function normalizeVertical(vertical: string | null | undefined): string {
   if (vertical == null || vertical === "") {
     throw new Error("normalizeVertical() received a missing vertical — the site data has not loaded correctly.")
   }
-  return vertical === "service" ? "professional_service" : vertical
+  return vertical
 }
 
 export function getVerticalLabel(vertical: string | null | undefined): string {
   const v = normalizeVertical(vertical)
-  if (v === "professional_service") return "Professional services"
+  if (v === "service") return "Professional services"
   if (v === "experience") return "Experience"
   if (v === "restaurant") return "Restaurant"
   return "Business"
@@ -733,6 +730,6 @@ export function getVerticalCopy(vertical: string | null | undefined, locale: str
 export function getBusinessSchemaTypes(vertical: string | null | undefined): string[] {
   const v = normalizeVertical(vertical)
   if (v === "restaurant") return ["Restaurant", "LocalBusiness"]
-  if (v === "professional_service") return ["ProfessionalService", "LocalBusiness"]
+  if (v === "service") return ["ProfessionalService", "LocalBusiness"]
   return ["LocalBusiness"]
 }

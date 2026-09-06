@@ -6,23 +6,19 @@ import Database from 'better-sqlite3'
 function baselineDatabase() {
   const database = new Database(':memory:')
   database.pragma('foreign_keys = ON')
-  database.exec(readFileSync('migrations/0000_epoch_4_baseline.sql', 'utf8'))
+  database.exec(readFileSync('migrations/0000_epoch_5_baseline.sql', 'utf8'))
   return database
 }
 
-test('epoch-4 baseline creates the complete schema from zero', () => {
+test('epoch-5 baseline creates the complete schema from zero', () => {
   const database = baselineDatabase()
   try {
-    const objectCounts = database.prepare(`
-      SELECT type, count(*) count
+    const tableCount = database.prepare(`
+      SELECT count(*) count
       FROM sqlite_schema
-      WHERE name NOT LIKE 'sqlite_%'
-      GROUP BY type
-    `).all() as Array<{ type: string; count: number }>
-    assert.deepEqual(Object.fromEntries(objectCounts.map(row => [row.type, row.count])), {
-      index: 232,
-      table: 96,
-    })
+      WHERE type = 'table' AND name NOT LIKE 'sqlite_%'
+    `).get() as { count: number }
+    assert.equal(tableCount.count, 94)
     const ledgerCount = database.prepare("SELECT count(*) count FROM sqlite_schema WHERE name = 'd1_migrations'").get() as { count: number }
     assert.equal(ledgerCount.count, 0)
     const splitAvailabilityTables = database.prepare("SELECT count(*) count FROM sqlite_schema WHERE type = 'table' AND name IN ('experience_slot_overrides', 'reservation_slot_overrides')").get() as { count: number }
@@ -37,10 +33,9 @@ test('epoch-4 baseline creates the complete schema from zero', () => {
   }
 })
 
-test('epoch-4 baseline enforces canonical cross-scope and value constraints', () => {
+test('epoch-5 baseline enforces canonical cross-scope and value constraints', () => {
   const database = baselineDatabase()
   try {
-    database.prepare("INSERT INTO themes (id, name, slug) VALUES ('saya-theme-v1', 'Saya', 'saya')").run()
     database.prepare("INSERT INTO organization (id, name, slug) VALUES ('org', 'Org', 'org')").run()
     database.prepare("INSERT INTO sites (id, organization_id, slug, subdomain) VALUES ('site', 'org', 'site', 'site')").run()
     database.prepare("INSERT INTO business_locations (id, organization_id, site_id, slug, title) VALUES ('location', 'org', 'site', 'location', 'Location')").run()
@@ -57,8 +52,6 @@ test('epoch-4 baseline enforces canonical cross-scope and value constraints', ()
       ) VALUES ('product', 'org', 'site', 'location', 'category', 'Product', 'product', 0, 'user', 'user')
     `).run()
 
-    // A Product may only reference a category at its own location: the composite
-    // foreign key is what stops a move or copy from crossing locations.
     database.prepare(`
       INSERT INTO product_categories (
         id, organization_id, site_id, location_id, name, slug, sort_order, created_by, updated_by
@@ -135,25 +128,29 @@ test('epoch-4 baseline enforces canonical cross-scope and value constraints', ()
   }
 })
 
-test('epoch-4 leaves extensible application registries out of database CHECK constraints', () => {
+test('epoch-5 rejects unknown content, localization, and media owners at the SQLite boundary', () => {
   const database = baselineDatabase()
   try {
-    const definitions = database.prepare(`
-      SELECT name, sql
-      FROM sqlite_schema
-      WHERE type = 'table'
-        AND name IN ('content_documents', 'content_blocks', 'resource_localizations', 'media_assets', 'media_placements')
-      ORDER BY name
-    `).all() as Array<{ name: string, sql: string }>
+    database.prepare("INSERT INTO organization (id, name, slug) VALUES ('org', 'Org', 'org')").run()
+    database.prepare("INSERT INTO sites (id, organization_id, slug) VALUES ('site', 'org', 'site')").run()
+    database.prepare("INSERT INTO site_locales (id, organization_id, site_id, locale, is_source, status) VALUES ('locale', 'org', 'site', 'th', 0, 'published')").run()
+    database.prepare("INSERT INTO content_documents (id, site_id, owner_type, owner_id) VALUES ('document', 'site', 'tenant_page', 'page')").run()
+    database.prepare("INSERT INTO content_blocks (id, document_id, type, position, data_json) VALUES ('block', 'document', 'markdown', 0, '{}')").run()
+    database.prepare("INSERT INTO resource_localizations (id, organization_id, site_id, resource_type, resource_id, locale, values_json, created_by_user_id, updated_by_user_id) VALUES ('localization', 'org', 'site', 'site', 'site', 'th', '{}', 'actor', 'actor')").run()
+    database.prepare("INSERT INTO media_assets (id, organization_id, site_id, kind, provider, source) VALUES ('image', 'org', 'site', 'image', 'cloudflare_r2', 'uploaded')").run()
+    database.prepare("INSERT INTO media_placements (id, organization_id, site_id, owner_type, owner_id, slot, asset_id) VALUES ('placement', 'org', 'site', 'site', 'site', 'logo', 'image')").run()
 
-    assert.equal(definitions.length, 5)
-    const sqlByTable = Object.fromEntries(definitions.map(row => [row.name, row.sql]))
-    assert.doesNotMatch(sqlByTable.content_documents, /owner_type[^,]*CHECK/i)
-    assert.doesNotMatch(sqlByTable.content_blocks, /type[^,]*CHECK/i)
-    assert.doesNotMatch(sqlByTable.resource_localizations, /resource_type[^,]*CHECK/i)
-    assert.doesNotMatch(sqlByTable.media_assets, /owner_type[^,]*CHECK/i)
-    assert.doesNotMatch(sqlByTable.media_placements, /owner_type[^,]*CHECK/i)
-    assert.doesNotMatch(sqlByTable.media_placements, /slot[^,]*CHECK/i)
+    for (const [query, constraint] of [
+      ["UPDATE content_documents SET owner_type = 'retired_owner' WHERE id = 'document'", /content_documents_owner_type_check/],
+      ["UPDATE content_blocks SET type = 'retired_block' WHERE id = 'block'", /content_blocks_type_check/],
+      ["UPDATE content_blocks SET data_json = '[]' WHERE id = 'block'", /content_blocks_data_json_check/],
+      ["UPDATE resource_localizations SET resource_type = 'retired_resource' WHERE id = 'localization'", /resource_localizations_resource_type_check/],
+      ["UPDATE media_assets SET kind = 'retired_media' WHERE id = 'image'", /media_assets_kind_check/],
+      ["UPDATE media_placements SET owner_type = 'retired_owner' WHERE id = 'placement'", /media_placements_owner_type_check/],
+    ] as const) {
+      assert.throws(() => database.prepare(query).run(), constraint)
+    }
+    assert.equal(database.pragma('foreign_key_check').length, 0)
   } finally {
     database.close()
   }

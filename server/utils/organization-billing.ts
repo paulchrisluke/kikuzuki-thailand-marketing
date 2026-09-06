@@ -3,8 +3,6 @@ import { getPlanEntitlements, type EntitlementsMap } from '~/server/utils/billin
 
 export interface OrganizationBillingProjectionRow {
   organization_id?: string | null
-  stripe_customer_id?: string | null
-  stripe_subscription_id?: string | null
   payment_status?: string | null
   paid_through?: string | null
   past_due_since?: string | null
@@ -18,16 +16,12 @@ export interface OrganizationBillingProjectionRow {
 
 export interface OrganizationBillingProjection {
   organizationId: string
-  stripeCustomerId: string | null
-  stripeSubscriptionId: string | null
-  plan: string
+  accessPlan: string
   effectivePlan: string
-  status: 'free' | 'active' | 'expired'
   paymentStatus: string
   paidThrough: string | null
   pastDueSince: string | null
-  currentPeriodEnd: string | null
-  cancelAtPeriodEnd: false
+  accessExpiresAt: string | null
   updatedAt: string | null
   entitlements: EntitlementsMap
 }
@@ -63,16 +57,12 @@ export function validateOrganizationBillingProjection(
   const effectivePlan = plan === 'free' || accessExpiresAt === null || Date.parse(accessExpiresAt) > now.getTime() ? plan : 'free'
   return {
     organizationId,
-    stripeCustomerId: optionalText(row?.stripe_customer_id, 'stripe_customer_id'),
-    stripeSubscriptionId: optionalText(row?.stripe_subscription_id, 'stripe_subscription_id'),
-    plan,
+    accessPlan: plan,
     effectivePlan,
-    status: plan === 'free' ? 'free' : effectivePlan === plan ? 'active' : 'expired',
     paymentStatus,
     paidThrough,
     pastDueSince,
-    currentPeriodEnd: accessExpiresAt,
-    cancelAtPeriodEnd: false,
+    accessExpiresAt,
     updatedAt: optionalInstant(row?.updated_at, 'updated_at'),
     entitlements: getPlanEntitlements(effectivePlan),
   }
@@ -80,7 +70,7 @@ export function validateOrganizationBillingProjection(
 
 export async function getOrganizationBillingProjection(db: DbClient, organizationId: string, now = new Date()) {
   const row = await queryFirst<OrganizationBillingProjectionRow>(db, `
-    SELECT organization_id, stripe_customer_id, stripe_subscription_id, payment_status,
+    SELECT organization_id, payment_status,
            paid_through, past_due_since, last_paid_invoice_id, last_payment_event_created,
            last_payment_event_id, access_plan, access_expires_at, updated_at
       FROM organization_billing WHERE organization_id = ? LIMIT 1

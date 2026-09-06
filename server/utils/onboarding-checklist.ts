@@ -40,7 +40,7 @@ interface ChecklistRow {
   brand_name: string | null
   city: string | null
   business_info: number
-  hero_source: string | null
+  has_hero: number
   products: number
   experiences: number
   offerings: number
@@ -72,11 +72,7 @@ export async function loadOnboardingChecklist(
     SELECT
       s.vertical,
       s.brand_name,
-      (
-        SELECT city FROM business_locations
-        WHERE site_id = s.id AND status = 'active'
-        ORDER BY is_primary DESC, created_at ASC LIMIT 1
-      ) AS city,
+      NULL AS city,
       EXISTS(
         SELECT 1 FROM business_locations
         WHERE site_id = s.id AND status = 'active' AND (
@@ -85,14 +81,11 @@ export async function loadOnboardingChecklist(
           OR (google_place_id IS NOT NULL AND google_place_id != '')
         )
       ) AS business_info,
-      (
-        SELECT ma.source
-        FROM business_locations bl
-        JOIN media_placements mp ON mp.owner_type = 'business_location' AND mp.owner_id = bl.id AND mp.slot = 'hero' AND mp.status = 'active'
-        JOIN media_assets ma ON ma.id = mp.asset_id
-        WHERE bl.site_id = s.id AND bl.status = 'active' AND ma.status = 'active'
-        ORDER BY bl.is_primary DESC, bl.created_at ASC LIMIT 1
-      ) AS hero_source,
+      EXISTS(
+        SELECT 1 FROM media_placements mp
+        JOIN media_assets ma ON ma.id = mp.asset_id AND ma.status = 'active'
+        WHERE mp.site_id = s.id AND mp.owner_type = 'business_location' AND mp.slot = 'hero' AND mp.status = 'active'
+      ) AS has_hero,
       (SELECT COUNT(*) FROM products WHERE site_id = s.id AND is_visible = 1) AS products,
       (SELECT COUNT(*) FROM experiences WHERE site_id = s.id) AS experiences,
       (SELECT COUNT(*) FROM offerings WHERE site_id = s.id) AS offerings,
@@ -115,7 +108,7 @@ export async function loadOnboardingChecklist(
 
   if (!row) throw new HTTPError({ statusCode: 404, statusMessage: 'Site not found' })
   const vertical = normalizeVertical(row.vertical)
-  const heroIsReal = row.hero_source !== null
+  const heroIsReal = Boolean(row.has_hero)
 
   return {
     success: true,
@@ -127,7 +120,7 @@ export async function loadOnboardingChecklist(
       hero_image: heroIsReal,
       core_offering: vertical === 'experience'
         ? row.experiences > 0
-        : vertical === 'professional_service'
+        : vertical === 'service'
           ? row.offerings > 0
           : row.products > 0,
       story: row.story > 0,

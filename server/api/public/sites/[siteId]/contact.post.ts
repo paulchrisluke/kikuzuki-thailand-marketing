@@ -1,3 +1,4 @@
+import { siteSupportsBlawbyTemplate } from '~/utils/template-registry'
 import { execute, queryFirst } from '~/server/db'
 import { cleanString, cloudflareEnv, jsonResponse } from '~/server/utils/api-response'
 import { notifyContactSubmitted } from '~/server/utils/notifications'
@@ -42,7 +43,7 @@ export default defineHandler(async (event) => {
   const site = await queryFirst<{ id: string; organization_id: string; brand_name?: string | null; vertical?: string | null; theme_id?: string | null }>(
     db, 'SELECT id, organization_id, brand_name, vertical, theme_id FROM sites WHERE id = ? AND status = ? LIMIT 1', [siteId, 'active'], )
   if (!site) return jsonResponse({ error: 'Site not found' }, { status: 404 })
-  const requiresConsent = site.theme_id === 'blawby-theme-v1' || site.vertical === 'professional_service' || site.vertical === 'service'
+  const requiresConsent = siteSupportsBlawbyTemplate({ themeId: site.theme_id, vertical: site.vertical })
   const consentAcknowledged = body.consent === true
   if (requiresConsent && !consentAcknowledged) {
     return jsonResponse({ error: 'Please acknowledge the contact and privacy notice.' }, { status: 400 })

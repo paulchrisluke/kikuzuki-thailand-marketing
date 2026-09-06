@@ -24,7 +24,7 @@ export interface OnboardingChecklistItem {
 // starter prompt, and quick actions can't drift per-callsite.
 function verticalNoun(vertical: string | null | undefined): 'experience' | 'professional-service' | 'restaurant' {
   if (vertical === 'experience') return 'experience'
-  if (vertical === 'professional_service') return 'professional-service'
+  if (vertical === 'service') return 'professional-service'
   return 'restaurant'
 }
 
@@ -34,7 +34,7 @@ export function buildOnboardingChecklistItems(
   const name = checklist?.brandName ?? 'your business'
   const city = checklist?.city ? ` in ${checklist.city}` : ''
   const isExperience = checklist?.vertical === 'experience'
-  const isProfessionalService = checklist?.vertical === 'professional_service'
+  const isProfessionalService = checklist?.vertical === 'service'
   const completed = checklist?.items
 
   return [
@@ -102,7 +102,7 @@ export function getQuickActionPrompts(vertical: string | null | undefined): stri
     ]
   }
 
-  if (vertical === 'professional_service') {
+  if (vertical === 'service') {
     return [
       'Make my homepage look more inviting',
       'Help me add my best photos to the site',

@@ -180,7 +180,6 @@
                   v-model:form="detailsForm"
                   :action-label="activeActionLabel(messages[index]!)"
                   :require-location-basics="messages[index]!.detailsCard!.requireLocationBasics"
-                  :show-primary-toggle="messages[index]!.detailsCard!.showPrimaryToggle"
                   :section="messages[index]!.detailsCard!.section"
                   :loading="importing"
                   :disabled="!isActiveStepMessage(messages[index]!)"
@@ -291,7 +290,8 @@
 </template>
 
 <script setup lang="ts">
-import { getLocalTimezone } from '~/utils/timezone'
+import { parseOpeningHours, parseSpecialHours, type OpeningHours } from '~/shared/reservation-hours'
+import type { HoursTimezoneForm } from './HoursTimezoneCard.vue'
 import { marked } from 'marked'
 import { DEFAULT_CURRENCY } from '~/shared/currencies'
 import ConversationShell from '~/components/conversation/ConversationShell.vue'
@@ -318,7 +318,6 @@ interface WizardMessage {
   detailsCard?: {
     actionLabel?: string
     requireLocationBasics: boolean
-    showPrimaryToggle: boolean
     section: 'location' | 'contact' | 'currency'
   }
 }
@@ -412,7 +411,7 @@ const pendingPreview = ref<{
   city?: string | null
   phone?: string | null
   mapsUrl?: string | null
-  openingHours?: string[] | null
+  timezone?: string | null; openingHours?: OpeningHours
 } | null>(null)
 const detailsSource = ref<DetailsSource>('imported')
 const selectedVertical = ref<SiteVertical>('restaurant')
@@ -426,13 +425,8 @@ const detailsForm = reactive({
   country: '',
   phone: '',
   currency: DEFAULT_CURRENCY,
-  isPrimary: true,
 })
-const hoursForm = reactive({
-  timezone: '',
-  hours: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
-    .map(day => ({ day, open: '09:00', close: '18:00', closed: false })),
-})
+const hoursForm = reactive<HoursTimezoneForm>({ timezone: '', hours: null, specialHours: null })
 const brandDraftForm = reactive({
   brandColor: '#3F3F46',
   logoNote: '',
@@ -529,7 +523,7 @@ onMounted(async () => {
       id: crypto.randomUUID(),
       from: 'bot',
       text: "Welcome back. Your workspace is live — the preview is on the right.",
-    })
+  })
     replies.value = [
       { label: 'Open my dashboard', icon: 'i-lucide-arrow-right', primary: true, action: 'dashboard' },
     ]
@@ -671,9 +665,9 @@ async function advance(target: WizardStep) {
         choices: [
           { label: 'Restaurant, café or bar', icon: 'i-lucide-flame', primary: true, action: 'set_vertical_restaurant' },
           { label: 'Experience, class or activity', icon: 'i-lucide-graduation-cap', action: 'set_vertical_experience' },
-          { label: 'Legal or professional services', sub: 'Law firms, consultancies, and similar practices', icon: 'i-lucide-briefcase', action: 'set_vertical_professional_service' },
+          { label: 'Legal or professional services', sub: 'Law firms, consultancies, and similar practices', icon: 'i-lucide-briefcase', action: 'set_vertical_service' },
         ],
-      },
+    },
     })
   }
 
@@ -703,7 +697,6 @@ async function advance(target: WizardStep) {
       detailsCard: {
         actionLabel: 'Save location',
         requireLocationBasics: detailsRequireBasics.value,
-        showPrimaryToggle: !!isAddingLocation.value,
         section: 'location',
       },
     })
@@ -714,7 +707,6 @@ async function advance(target: WizardStep) {
       detailsCard: {
         actionLabel: 'Save contact',
         requireLocationBasics: detailsRequireBasics.value,
-        showPrimaryToggle: false,
         section: 'contact',
       },
     })
@@ -725,7 +717,6 @@ async function advance(target: WizardStep) {
       detailsCard: {
         actionLabel: 'Use this currency',
         requireLocationBasics: false,
-        showPrimaryToggle: false,
         section: 'currency',
       },
     })
@@ -850,8 +841,8 @@ async function handleReply(reply: QuickReply) {
     return
   }
 
-  if (reply.action === 'set_vertical_professional_service') {
-    selectedVertical.value = 'professional_service'
+  if (reply.action === 'set_vertical_service') {
+    selectedVertical.value = 'service'
     pushUser(reply.label)
     await advance('source')
     return
@@ -983,10 +974,8 @@ async function submitHoursCard() {
     importError.value = 'Choose a timezone before continuing.'
     return
   }
-  if (!hoursForm.hours.every(day => day.closed || (day.open && day.close))) {
-    importError.value = 'Add opening and closing times, or mark the day closed.'
-    return
-  }
+  parseOpeningHours(hoursForm.hours)
+  parseSpecialHours(hoursForm.specialHours)
   if (await saveActiveDraft()) await advance('brand')
 }
 
@@ -1037,14 +1026,14 @@ async function runLookup(mapsUrl: string) {
   try {
     const res = await applicationFetch<{
       success: boolean
-      preview?: { placeId: string; name: string; address: string; city?: string | null; phone?: string | null; mapsUrl?: string | null; openingHours?: string[] | null }
+      preview?: { placeId: string; name: string; address: string; city?: string | null; phone?: string | null; mapsUrl?: string | null; openingHours?: OpeningHours }
       error?: string
     }>(lookupEndpoint.value, {
       method: 'POST',
       body: { mapsUrl, previewOnly: true },
       validate: (value): value is {
         success: boolean
-        preview?: { placeId: string; name: string; address: string; city?: string | null; phone?: string | null; mapsUrl?: string | null; openingHours?: string[] | null }
+        preview?: { placeId: string; name: string; address: string; city?: string | null; phone?: string | null; mapsUrl?: string | null; openingHours?: OpeningHours }
         error?: string
       } => isRecord(value)
         && typeof value.success === 'boolean'
@@ -1277,11 +1266,11 @@ function serializeDetails() {
     city: detailsForm.city.trim() || null,
     address: composeAddress() || null,
     phone: detailsForm.phone.trim() || null,
-    openingHours: serializeOpeningHours(),
+    openingHours: parseOpeningHours(hoursForm.hours),
+    specialHours: parseSpecialHours(hoursForm.specialHours),
     notificationPhone: detailsForm.phone.trim() || null,
     timezone: hoursForm.timezone.trim() || null,
     currency: detailsForm.currency,
-    isPrimary: isAddingLocation.value ? detailsForm.isPrimary : true,
   }
 }
 
@@ -1311,26 +1300,7 @@ function composeAddress() {
     .join('\n')
 }
 
-function serializeOpeningHours() {
-  const lines = hoursForm.hours.map((day) => {
-    if (day.closed) return `${day.day}: Closed`
-    return `${day.day}: ${formatTime(day.open)} - ${formatTime(day.close)}`
-  })
-  return lines.join('\n')
-}
 
-function formatTime(value: string) {
-  const [hourValue, minute = '00'] = value.split(':')
-  const hour = Number(hourValue)
-  if (!Number.isFinite(hour)) return value
-  const hour12 = hour % 12 || 12
-  const suffix = hour < 12 ? 'AM' : 'PM'
-  return `${hour12}:${minute} ${suffix}`
-}
-
-function guessLocalTimezone(): string {
-  return getLocalTimezone()
-}
 
 function seedDetailsFromPreview(preview: NonNullable<typeof pendingPreview.value>) {
   detailsForm.name = preview.name ?? ''
@@ -1343,7 +1313,7 @@ function seedDetailsFromPreview(preview: NonNullable<typeof pendingPreview.value
   detailsForm.phone = preview.phone ?? ''
   detailsForm.currency = DEFAULT_CURRENCY
   seedHoursFromPreview(preview.openingHours)
-  detailsForm.isPrimary = !isAddingLocation.value
+  hoursForm.timezone = preview.timezone ?? ''
 }
 
 function seedDetailsFromManual(name: string) {
@@ -1357,47 +1327,18 @@ function seedDetailsFromManual(name: string) {
   detailsForm.phone = ''
   detailsForm.currency = DEFAULT_CURRENCY
   seedHoursFromPreview(null)
-  detailsForm.isPrimary = !isAddingLocation.value
 }
 
-function seedHoursFromPreview(openingHours: string[] | null | undefined) {
-  hoursForm.timezone = guessLocalTimezone()
-  const byDay = new Map((openingHours ?? []).map((line) => {
-    const separatorIndex = line.indexOf(':')
-    const day = separatorIndex >= 0 ? line.slice(0, separatorIndex).trim() : line.trim()
-    const hours = separatorIndex >= 0 ? line.slice(separatorIndex + 1).trim() : ''
-    return [day, hours]
-  }))
-  for (const row of hoursForm.hours) {
-    const value = byDay.get(row.day)
-    if (!value) {
-      row.open = '09:00'
-      row.close = '18:00'
-      row.closed = false
-      continue
-    }
-    row.closed = /closed/i.test(value)
-    const range = value.match(/(\d{1,2})(?::(\d{2}))?\s*(AM|PM)?\s*[-–]\s*(\d{1,2})(?::(\d{2}))?\s*(AM|PM)?/i)
-    if (range) {
-      row.open = normalizeTime(range[1]!, range[2] ?? '00', range[3])
-      row.close = normalizeTime(range[4]!, range[5] ?? '00', range[6])
-    }
-  }
-}
-
-function normalizeTime(hourInput: string, minute: string, suffix?: string) {
-  let hour = Number(hourInput)
-  if (suffix?.toUpperCase() === 'PM' && hour < 12) hour += 12
-  if (suffix?.toUpperCase() === 'AM' && hour === 12) hour = 0
-  if (!Number.isFinite(hour)) hour = 9
-  return `${String(hour).padStart(2, '0')}:${minute}`
+function seedHoursFromPreview(openingHours: OpeningHours | undefined) {
+  hoursForm.timezone = ''
+  hoursForm.hours = parseOpeningHours(openingHours ?? null)
+  hoursForm.specialHours = null
 }
 
 async function finishCreation(orgSlug: string | null | undefined, siteSlug: string | null | undefined, locationSlug?: string | null) {
   emit('site-created', orgSlug ?? null, locationSlug ?? null)
   importedLocationSlug.value = locationSlug ?? null
-  
-  // Track site creation
+
   if (importedSiteId.value && !isAddingLocation.value) {
     trackSiteCreated(importedSiteId.value)
   }

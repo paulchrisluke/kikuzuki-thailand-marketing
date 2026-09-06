@@ -148,7 +148,7 @@ export async function copyLocationBatch(
   const cleanupOnFailure = async <T extends { success: false; error: string }>(result: T): Promise<T> => {
     if (createdNewLocation) {
       try {
-        const cleanupResult = await deleteLocation(env, rawClient(db), organizationId, siteId, targetLocationId, userId)
+        const cleanupResult = await deleteLocation(env, rawClient(db), organizationId, siteId, targetLocationId)
         if (cleanupResult.status !== 200) {
           throw new Error((cleanupResult.data as { error?: string }).error ?? 'Failed to remove the new location')
         }
@@ -566,8 +566,8 @@ async function copyExperiences(
     })
     statements.push({
       query: `
-        INSERT INTO experiences (id, organization_id, site_id, location_id, tagline, pricing_note, duration_minutes, max_capacity, time_slots, recurring_slots, created_at, updated_at, included_items, what_to_bring, meeting_point, cancellation_policy)
-        SELECT ?, organization_id, site_id, ?, tagline, pricing_note, duration_minutes, max_capacity, time_slots, recurring_slots, ?, updated_at, included_items, what_to_bring, meeting_point, cancellation_policy
+        INSERT INTO experiences (id, organization_id, site_id, location_id, tagline, pricing_note, duration_minutes, max_capacity, recurring_slots, created_at, updated_at, included_items, what_to_bring, meeting_point, cancellation_policy)
+        SELECT ?, organization_id, site_id, ?, tagline, pricing_note, duration_minutes, max_capacity, recurring_slots, ?, updated_at, included_items, what_to_bring, meeting_point, cancellation_policy
         FROM experiences WHERE id = ?
       `,
       params: [newId, targetLocationId, now, exp.id],

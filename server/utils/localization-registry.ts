@@ -1,28 +1,12 @@
 import { localizationError } from '~/server/utils/localization-errors'
-import { isBlawbyBlogTemplate } from '~/utils/tenant-blog-route'
+import { resolvePublicTemplate } from '~/utils/template-registry'
 
-export const LOCALIZED_RESOURCE_TYPES = [
-  'site',
-  'business_location',
-  'product',
-  'product_category',
-  'experience',
-  'offering',
-  'site_post',
-  'tenant_blog_post',
-  'location_qa',
-  'media_asset',
-  'booking_policy',
-  'site_link_page',
-  'site_link_item',
-  'tenant_compliance',
-  'site_consultation_settings',
-] as const
+import { LOCALIZED_RESOURCE_TYPES, type LocalizedResourceType } from '~/shared/content-registries'
+export { LOCALIZED_RESOURCE_TYPES, type LocalizedResourceType } from '~/shared/content-registries'
 
-export type LocalizedResourceType = typeof LOCALIZED_RESOURCE_TYPES[number]
 export type LocalizedValues = Record<string, unknown>
 
-type ValueShape = 'text' | 'string_array' | 'details' | 'features' | 'faqs'
+type ValueShape = 'text' | 'string_array' | 'details' | 'features' | 'faqs' | 'post_event' | 'post_offer'
 
 interface ResourceLocalizationDefinition {
   table: string
@@ -50,7 +34,6 @@ export const RESOURCE_LOCALIZATION_REGISTRY: Readonly<Record<LocalizedResourceTy
       neighborhood: 'text',
       description: 'text',
       short_description: 'text',
-      opening_hours: 'string_array',
       seo_title: 'text',
       seo_description: 'text',
     },
@@ -116,8 +99,8 @@ export const RESOURCE_LOCALIZATION_REGISTRY: Readonly<Record<LocalizedResourceTy
       body: 'text',
       seo_title: 'text',
       seo_description: 'text',
-      event_title: 'text',
-      offer_terms: 'text',
+      event: 'post_event',
+      offer: 'post_offer',
     },
     route: 'site_post',
   },
@@ -154,6 +137,10 @@ function isNonBlankText(value: unknown): value is string {
 
 function validateShape(field: string, value: unknown, shape: ValueShape): void {
   if (shape === 'text') return
+  if ((shape === 'post_event' || shape === 'post_offer') && isRecord(value)) {
+    const key = shape === 'post_event' ? 'title' : 'terms_conditions'
+    if (Object.keys(value).length === 1 && isNonBlankText(value[key])) return
+  }
   if (shape === 'string_array') {
     if (Array.isArray(value) && value.every(isNonBlankText)) return
   } else if (shape === 'details') {
@@ -232,7 +219,7 @@ export function validateLocalizedRoutePath(
   else if (definition.route === 'offering') pattern = new RegExp(`^/${escapedLocale}/services/${SEGMENT}$`)
   else if (definition.route === 'site_post') pattern = new RegExp(`^/${escapedLocale}/posts/${SEGMENT}$`)
   else if (definition.route === 'tenant_blog_post') {
-    pattern = new RegExp(`^/${escapedLocale}/${isBlawbyBlogTemplate({ vertical }) ? 'article' : 'blog'}/${SEGMENT}$`)
+    pattern = new RegExp(`^/${escapedLocale}/${resolvePublicTemplate({ vertical }).serviceRoutes.articleDetailPrefix.slice(1)}/${SEGMENT}$`)
   } else pattern = new RegExp(`^/${escapedLocale}/${SEGMENT}$`)
   if (!pattern.test(path) || path.includes('//')) {
     localizationError(422, 'LOCALIZATION_VALIDATION_FAILED', `route_path is invalid for ${resourceType}`, { route_path: path })

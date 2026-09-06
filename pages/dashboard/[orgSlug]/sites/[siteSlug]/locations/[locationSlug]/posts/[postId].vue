@@ -20,6 +20,8 @@
 
       <div v-else class="space-y-4">
         <PostEditor
+          v-model:topic="editor.form.topic"
+          show-topic
           v-model:title="editor.form.title"
           v-model:body="editor.form.body"
           v-model:media="editor.form.media"
@@ -62,10 +64,10 @@
               <UTextarea v-model="translationFields.seo_description" :rows="2" class="w-full" />
             </UFormField>
             <UFormField :label="`Event title (${translationLocale})`">
-              <UInput v-model="translationFields.event_title" class="w-full" />
+              <UInput v-model="translationFields.event.title" class="w-full" />
             </UFormField>
             <UFormField :label="`Offer terms (${translationLocale})`">
-              <UTextarea v-model="translationFields.offer_terms" :rows="2" class="w-full" />
+              <UTextarea v-model="translationFields.offer.terms_conditions" :rows="2" class="w-full" />
             </UFormField>
             <p v-if="translationError" class="text-sm text-error">{{ translationError }}</p>
             <UButton :loading="translationSaving" label="Save translation" @click="saveTranslation" />
@@ -229,7 +231,7 @@ async function copyPublicLink() {
 const translationLocale = ref('en')
 const translationLocales = ref<string[]>([])
 const localeItems = computed(() => ['en', ...translationLocales.value])
-const translationFields = reactive({ title: '', body: '', seo_title: '', seo_description: '', event_title: '', offer_terms: '' })
+const translationFields = reactive({ title: '', body: '', seo_title: '', seo_description: '', event: { title: '' }, offer: { terms_conditions: '' } })
 const translationError = ref<string | null>(null)
 const translationSaving = ref(false)
 
@@ -261,13 +263,17 @@ async function loadTranslationFields() {
       { validate: isPostTranslationResponse },
     )
     const values = response.localization.values
-    for (const field of ['title', 'body', 'seo_title', 'seo_description', 'event_title', 'offer_terms'] as const) {
+    translationFields.event.title = isRecord(values.event) && typeof values.event.title === 'string' ? values.event.title : ''
+    translationFields.offer.terms_conditions = isRecord(values.offer) && typeof values.offer.terms_conditions === 'string' ? values.offer.terms_conditions : ''
+    for (const field of ['title', 'body', 'seo_title', 'seo_description'] as const) {
       translationFields[field] = typeof values[field] === 'string' ? values[field] : ''
     }
   } catch (cause) {
     const statusCode = isRecord(cause) && typeof cause.statusCode === 'number' ? cause.statusCode : null
     if (statusCode !== 404) translationError.value = getErrorMessage(cause, 'Failed to load translation')
-    for (const field of ['title', 'body', 'seo_title', 'seo_description', 'event_title', 'offer_terms'] as const) {
+    translationFields.event.title = ''
+    translationFields.offer.terms_conditions = ''
+    for (const field of ['title', 'body', 'seo_title', 'seo_description'] as const) {
       translationFields[field] = ''
     }
   }
@@ -282,8 +288,10 @@ async function saveTranslation() {
   translationSaving.value = true
   translationError.value = null
   try {
-    const values: Record<string, string> = {}
-    for (const field of ['title', 'body', 'seo_title', 'seo_description', 'event_title', 'offer_terms'] as const) {
+    const values: Record<string, unknown> = {}
+    if (translationFields.event.title.trim()) values.event = { title: translationFields.event.title.trim() }
+    if (translationFields.offer.terms_conditions.trim()) values.offer = { terms_conditions: translationFields.offer.terms_conditions.trim() }
+    for (const field of ['title', 'body', 'seo_title', 'seo_description'] as const) {
       if (translationFields[field].trim()) values[field] = translationFields[field].trim()
     }
     await dashboardApi(`/api/editor/sites/${siteId}/localization/site_post/${postId.value}/${encodeURIComponent(translationLocale.value)}`, {

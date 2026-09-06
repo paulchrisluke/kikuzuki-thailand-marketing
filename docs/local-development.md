@@ -16,19 +16,28 @@ the demo, Kikuzuki, Pottery House, and NCLS fixtures, provisions local auth, and
 verifies the resulting D1 database. Do not replace its steps with direct
 Wrangler writes or a hand-edited local database.
 
-Fixtures are written as SQL, which never reaches the social card generator, so a
-freshly set-up database serves no `og:image`. Once the app is running:
+Fixtures are written before the Worker starts. Setup is not ready for a client
+handoff until the post-start social-card generation and public verification pass:
 
 ```sh
 corepack yarn local:cards
+corepack yarn client:verify --url http://localhost:3000 --site-id site-demo --tenant-slug ember-slice-demo
 ```
 
 It signs in as the developer account and regenerates every tenant's cards
 through the same endpoint the dashboard's own button uses. It needs `yarn dev`
 up, because rendering a card runs in the Worker, and it takes a while on the
-first run — a card is rendered and uploaded per product, post and page. A site
-that outruns the request timeout is reported and skipped; re-run to finish it,
-since cards that already match are reused rather than regenerated.
+first run — a card is rendered and uploaded per product, post and page. Requests
+process five owners at a time. Each generated or reused PNG is fetched and its
+1200×630 dimensions checked; every skipped or failed owner is reported. Re-running
+reuses matching cards. Use `--site-id` for one tenant and `--platform` with a
+platform administrator account for platform pages and documentation.
+
+Approved `client:import --apply` runs this same generator for the imported site
+and then `client:verify`; failed generation or verification prevents handoff.
+It requires the target Worker to be running and `E2E_TEST_PASSWORD` for the
+authorized account (`--email` selects it). Remote targets also require an explicit
+`--base-url`.
 
 Only production runs the `social-card-backfill` task: preview and staging set
 `crons = []`, and it is bounded to a small number of owners per night.

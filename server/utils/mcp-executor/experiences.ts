@@ -11,7 +11,7 @@ function attachExperienceViewUrl(experience: object, site: McpExecutorContext["s
   const slug = typeof experienceRecord.slug === "string" ? experienceRecord.slug.trim() : "";
   return attachViewUrlToRecord(experience, site, {
     publicPath: slug ? `/experiences/${slug}` : null,
-  }, site.env);
+  });
 }
 
 export async function handleExperiencesTools(ctx: McpExecutorContext): Promise<unknown> {

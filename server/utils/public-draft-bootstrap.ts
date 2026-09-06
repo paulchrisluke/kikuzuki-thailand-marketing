@@ -87,7 +87,6 @@ export function buildPublicDraftBlawbyDocument(
     throw new HTTPError({ statusCode: 404, statusMessage: 'Draft preview route not found' })
   }
 
-  const primaryLocation = payload.preview.locations[0] ?? null
   const heroContent = payload.preview.content.find(item => item.page === 'home' && item.field === 'hero') ?? null
   const heroTitle = heroContent?.hero_title?.trim() || payload.preview.brandName
   const heroDescription = heroContent?.hero_subtitle?.trim() || null
@@ -105,11 +104,9 @@ export function buildPublicDraftBlawbyDocument(
         brand_description: heroDescription,
         media: logoUrl ? [{ asset_id: logoMedia!.draftAssetId, slot: 'logo', public_url: logoUrl, thumbnail_url: logoMedia!.thumbnailUrl, kind: 'image' }] : [],
         social_image: logoUrl ? { url: logoUrl } : null,
-        phone: payload.source.details.phone ?? primaryLocation?.phone ?? null,
+        phone: payload.source.details.phone ?? null,
         banner_content: null,
         banner_dismissible: false,
-        primary_location_address_street: primaryLocation?.address ?? null,
-        primary_location_address_locality: primaryLocation?.city ?? null,
       },
 
       consultation: {
@@ -228,10 +225,9 @@ export async function loadPublicDraftPage(
     throw new HTTPError({ statusCode: 422, statusMessage: 'Draft preview does not contain blog records' })
   }
 
-  const primaryLocation = payload.preview.locations[0] ?? null
   const resolvedLocation = locationSlug
     ? payload.preview.locations.find(location => location.slug === locationSlug) ?? null
-    : primaryLocation
+    : null
   if (locationSlug && !resolvedLocation) {
     throw new HTTPError({ statusCode: 404, statusMessage: 'Draft location not found' })
   }

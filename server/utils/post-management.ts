@@ -1,7 +1,9 @@
+import { resourceLocalizationDeletionQueries } from '~/server/utils/localization'
+import { parsePostInput, parsePostTopic, PostValidationError, type PostTopic } from '~/shared/posts'
 import { execute, executeBatch, queryAll, queryFirst, type DbClient } from '~/server/db'
 import { fireOrganizationEventSafe } from '~/server/utils/organization-events'
 import { normalizePostSlug, postPublicPath } from '~/utils/post-slugs'
-import { platformHostname, type DomainEnv } from '~/server/utils/domains'
+import type { DomainEnv } from '~/server/utils/domains'
 import { buildDeleteOwnerPlacementsQuery, insertInitialMediaPlacements, hydrateMediaAssetRefs } from '~/server/utils/media-asset-manager'
 import type { MediaPlacementItem } from '~/server/utils/media-placement'
 import { refreshSocialCard } from '~/server/utils/social-card'
@@ -21,9 +23,7 @@ export { normalizePostSlug, postPublicPath }
 
 const MAX_SLUG_ATTEMPTS = 20
 
-export class PostValidationError extends Error {
-  statusCode = 400
-}
+export { PostValidationError }
 
 export interface PostMediaInput {
   asset_id: string
@@ -42,13 +42,12 @@ export interface PublicPostMedia {
   height: number | null
 }
 
-export interface Post {
+export type Post = PostTopic & {
   id: string
   organization_id: string
   site_id: string
   location_id: string | null
   slug: string | null
-  post_type: 'standard' | 'offer' | 'event' | 'update'
   title: string | null
   body: string
   seo_title: string | null
@@ -57,13 +56,7 @@ export interface Post {
   canonical_url?: string | null
   media?: PublicPostMedia[]
   social_image?: SocialImageSource | null
-  cta_type: string | null
-  cta_url: string | null
-  event_title: string | null
-  event_start: string | null
-  event_end: string | null
-  offer_coupon: string | null
-  offer_terms: string | null
+  location_phone: string | null
   status: 'published' | 'scheduled'
   scheduled_for: string | null
   published_at: string | null
@@ -83,7 +76,7 @@ export interface PostChannelJob {
   created_at: string
 }
 
-export interface PostWithChannels extends Post {
+export type PostWithChannels = Post & {
   channels: PostChannelJob[]
 }
 
@@ -95,12 +88,7 @@ export type PostSocialPublish =
 
 type SqlBindValue = string | number | boolean | null
 
-interface SiteUrlRow {
-  public_url: string | null
-  subdomain: string | null
-}
-
-interface PublishedPostSummary {
+export type PublishedPostSummary = PostTopic & {
   id: string
   slug: string
   title: string
@@ -110,13 +98,7 @@ interface PublishedPostSummary {
   canonical_url: string | null
   media: PublicPostMedia[]
   social_image: SocialImageSource | null
-  cta_type: string | null
-  cta_url: string | null
-  event_title: string | null
-  event_start: string | null
-  event_end: string | null
-  offer_coupon: string | null
-  offer_terms: string | null
+  location_phone: string | null
   location?: { id: string; title: string | null; slug: string | null } | null
 }
 
@@ -127,21 +109,29 @@ interface PublishedPostRow {
   location_title: string | null
   location_slug: string | null
   slug: string | null
-  post_type: 'standard' | 'offer' | 'event' | 'update'
   title: string | null
   body: string
   seo_title: string | null
   seo_description: string | null
-  cta_type: string | null
-  cta_url: string | null
-  event_title: string | null
-  event_start: string | null
-  event_end: string | null
-  offer_coupon: string | null
-  offer_terms: string | null
+  post_type: PostTopic['post_type']
+  event: string | null
+  offer: string | null
+  call_to_action: string | null
+  alert_type: string | null
+  location_phone: string | null
   published_at: string | null
   created_at: string
   updated_at: string
+}
+
+function jsonValue(value: unknown): string | null {
+  return value === null ? null : JSON.stringify(value)
+}
+
+async function validatePostLocation(db: DbClient, organizationId: string, siteId: string, locationId: string | null, post: PostTopic) {
+  const location = locationId ? await queryFirst<{ phone: string | null }>(db, 'SELECT phone FROM business_locations WHERE id = ? AND organization_id = ? AND site_id = ?', [locationId, organizationId, siteId]) : null
+  if (locationId && !location) throw new PostValidationError('location_id must belong to this site')
+  if (post.call_to_action?.action_type === 'call' && !location?.phone) throw new PostValidationError('CALL requires a location with a phone number')
 }
 
 function cleanString(value: unknown): string | null {
@@ -150,86 +140,15 @@ function cleanString(value: unknown): string | null {
   return trimmed ? trimmed : null
 }
 
-type PostWritableInput = {
-  body?: string
-  post_type?: string
-  event_start?: string | null
-  event_end?: string | null
-  offer_coupon?: string | null
-  offer_terms?: string | null
-  scheduled_for?: string | null
-}
-
-export function validatePostInput(data: PostWritableInput, existing?: PostWritableInput) {
-  const postType = data.post_type ?? existing?.post_type ?? 'standard'
-  if (!['standard', 'offer', 'event', 'update'].includes(postType)) {
-    throw new PostValidationError('post_type must be one of standard, offer, event, or update')
-  }
-
-  const eventStart = data.event_start !== undefined ? cleanString(data.event_start) : cleanString(existing?.event_start)
-  const eventEnd = data.event_end !== undefined ? cleanString(data.event_end) : cleanString(existing?.event_end)
-  if (postType === 'event') {
-    if (!eventStart) throw new PostValidationError('event_start is required when post_type is "event"')
-    const startTime = Date.parse(eventStart)
-    if (!Number.isFinite(startTime)) throw new PostValidationError('event_start must be a valid ISO 8601 datetime')
-    if (eventEnd) {
-      const endTime = Date.parse(eventEnd)
-      if (!Number.isFinite(endTime)) throw new PostValidationError('event_end must be a valid ISO 8601 datetime')
-      if (endTime <= startTime) throw new PostValidationError('event_end must be later than event_start')
-    }
-  }
-
-  if (postType === 'offer') {
-    const coupon = data.offer_coupon !== undefined ? cleanString(data.offer_coupon) : cleanString(existing?.offer_coupon)
-    const terms = data.offer_terms !== undefined ? cleanString(data.offer_terms) : cleanString(existing?.offer_terms)
-    if (!coupon && !terms) {
-      throw new PostValidationError('offer_coupon or offer_terms is required when post_type is "offer"')
-    }
-  }
-
-  if (data.scheduled_for) {
-    const scheduledTime = Date.parse(data.scheduled_for)
-    if (!Number.isFinite(scheduledTime) || scheduledTime <= Date.now()) {
-      throw new PostValidationError('scheduled_for must be a future ISO 8601 datetime')
-    }
-  }
-}
-
-function normalizeMediaInputs(value: unknown): PostMediaInput[] | undefined {
-  if (value === undefined) return undefined
-  if (!Array.isArray(value)) throw new PostValidationError('media must be an array')
-  const media = value.map((item): PostMediaInput => {
-    if (!item || typeof item !== 'object' || Array.isArray(item)) {
-      throw new PostValidationError('media items must contain asset_id and slot')
-    }
-    const record = item as Record<string, unknown>
-    const mediaAssetId = cleanString(record.asset_id)
-    if (!mediaAssetId) throw new PostValidationError('media items must contain asset_id')
-    const slot = record.slot === 'cover' ? 'cover' : record.slot === 'gallery' ? 'gallery' : null
-    if (!slot) throw new PostValidationError('media items must use cover or gallery slot')
-    return { asset_id: mediaAssetId, slot }
-  })
-  if (media.filter(item => item.slot === 'cover').length > 1) {
-    throw new PostValidationError('media accepts at most one cover asset')
-  }
-  return media
-}
-
 function absoluteUrl(origin: string | null, path: string) {
   if (!origin) return null
   return new URL(path, origin.endsWith('/') ? origin : `${origin}/`).toString()
 }
 
-async function resolveSitePublicOrigin(db: DbClient, siteId: string, env: DomainEnv) {
-  const site = await queryFirst<SiteUrlRow>(
-    db,
-    `SELECT public_url, subdomain FROM sites WHERE id = ? LIMIT 1`,
-    [siteId],
-  )
-  const publicUrl = site?.public_url?.trim().replace(/\/$/, '')
-  if (publicUrl) return publicUrl
-  const subdomain = site?.subdomain?.trim()
-  return subdomain ? `https://${subdomain}.${platformHostname(env)}` : null
+async function resolveSitePublicOrigin(db: DbClient, siteId: string) {
+  const domain = await queryFirst<{ domain: string }>(db,
+    "SELECT domain FROM site_domains WHERE site_id = ? AND role = 'canonical' AND status = 'active'", [siteId])
+  return domain ? `https://${domain.domain}` : null
 }
 
 async function allocatePostSlug(db: DbClient, siteId: string, source: string, excludePostId?: string) {
@@ -292,11 +211,23 @@ function publicMediaFromRows(rows: MediaPlacementItem[] | undefined): PublicPost
     }))
 }
 
-function attachPostPublicFields<T extends Post>(
-  post: T,
+type PostRow = Omit<Post, keyof PostTopic> & Pick<PublishedPostRow, keyof PostTopic>
+
+function topicFields(post: PostTopic): PostTopic {
+  return parsePostTopic({ post_type: post.post_type, event: post.event, offer: post.offer, call_to_action: post.call_to_action, alert_type: post.alert_type })
+}
+
+function parsePostRow<T extends Pick<PublishedPostRow, keyof PostTopic>>(row: T) {
+  const topic = parsePostTopic({ post_type: row.post_type, event: row.event === null ? null : JSON.parse(row.event), offer: row.offer === null ? null : JSON.parse(row.offer), call_to_action: row.call_to_action === null ? null : JSON.parse(row.call_to_action), alert_type: row.alert_type })
+  return { ...row, ...topic }
+}
+
+function attachPostPublicFields(
+  row: PostRow,
   socialMedia: PublicSocialMedia | undefined,
   origin: string | null,
-): T {
+): Post {
+  const post = parsePostRow(row)
   const slug = post.slug ?? post.id
   const publicPath = postPublicPath(slug)
   const media = publicMediaFromRows(socialMedia?.media)
@@ -324,13 +255,8 @@ function formatPublishedPost(row: PublishedPostRow, socialMedia: PublicSocialMed
     canonical_url: absoluteUrl(origin, publicPath),
     media,
     social_image: socialMedia?.social_image ?? null,
-    cta_type: row.cta_type,
-    cta_url: row.cta_url,
-    event_title: row.event_title,
-    event_start: row.event_start,
-    event_end: row.event_end,
-    offer_coupon: row.offer_coupon,
-    offer_terms: row.offer_terms,
+    ...topicFields(parsePostRow(row)),
+    location_phone: row.location_phone,
     location: row.location_id
       ? { id: row.location_id, title: row.location_title, slug: row.location_slug }
       : null,
@@ -341,7 +267,6 @@ export async function listPosts(
   db: DbClient,
   organizationId: string,
   siteId: string,
-  env: DomainEnv,
   status?: string,
   locationId?: string,
 ): Promise<Post[]> {
@@ -349,8 +274,8 @@ export async function listPosts(
     throw new PostValidationError('status must be published or scheduled')
   }
   let query = `
-    SELECT p.*
-    FROM posts p
+    SELECT p.*, bl.phone AS location_phone
+    FROM posts p LEFT JOIN business_locations bl ON bl.id = p.location_id AND bl.site_id = p.site_id
     WHERE p.organization_id = ? AND p.site_id = ?
   `
   const params: string[] = [organizationId, siteId]
@@ -363,8 +288,8 @@ export async function listPosts(
     params.push(locationId)
   }
   query += ` ORDER BY p.updated_at DESC LIMIT 100`
-  const results = await queryAll<Post>(db, query, params)
-  const origin = await resolveSitePublicOrigin(db, siteId, env)
+  const results = await queryAll<PostRow>(db, query, params)
+  const origin = await resolveSitePublicOrigin(db, siteId)
   const mediaByPost = await getPostMediaByPostIds(db, siteId, (results ?? []).map((post) => post.id))
   return (results ?? []).map((post) => attachPostPublicFields(post, mediaByPost.get(post.id), origin))
 }
@@ -374,13 +299,12 @@ export async function getPost(
   organizationId: string,
   siteId: string,
   postId: string,
-  env: DomainEnv,
 ): Promise<PostWithChannels | null> {
-  const post = await queryFirst<Post>(
+  const post = await queryFirst<PostRow>(
     db,
     `
-    SELECT p.*
-    FROM posts p
+    SELECT p.*, bl.phone AS location_phone
+    FROM posts p LEFT JOIN business_locations bl ON bl.id = p.location_id AND bl.site_id = p.site_id
     WHERE p.id = ? AND p.organization_id = ? AND p.site_id = ?
     LIMIT 1
   `,
@@ -390,7 +314,7 @@ export async function getPost(
 
   const [jobs, origin, mediaByPost] = await Promise.all([
     queryAll<PostChannelJob>(db, `SELECT * FROM post_channel_jobs WHERE post_id = ? ORDER BY channel`, [postId]),
-    resolveSitePublicOrigin(db, siteId, env),
+    resolveSitePublicOrigin(db, siteId),
     getPostMediaByPostIds(db, siteId, [postId]),
   ])
 
@@ -401,19 +325,12 @@ export async function createPost(
   db: DbClient,
   organizationId: string,
   siteId: string,
-  data: {
-    title?: string; body: string; scheduled_for?: string
-    location_id?: string; post_type?: string
-    slug?: string | null; seo_title?: string | null; seo_description?: string | null
-    cta_type?: string; cta_url?: string
-    event_title?: string; event_start?: string; event_end?: string
-    offer_coupon?: string; offer_terms?: string
-    media?: PostMediaInput[] | unknown
-  },
+  input: unknown,
   createdBy: string,
   env: DomainEnv,
 ): Promise<Post> {
-  validatePostInput(data)
+  const data = parsePostInput(input)
+  await validatePostLocation(db, organizationId, siteId, data.location_id ?? null, data)
   const id = crypto.randomUUID()
   const now = new Date().toISOString()
   const status = data.scheduled_for ? 'scheduled' : 'published'
@@ -421,7 +338,7 @@ export async function createPost(
   const title = cleanString(data.title)
   const body = data.body.trim()
   let slug = await allocatePostSlug(db, siteId, cleanString(data.slug) ?? title ?? body.slice(0, 80) ?? id)
-  const media = normalizeMediaInputs(data.media) ?? []
+  const media = data.media ?? []
   await hydrateMediaAssetRefs(db, {
     organizationId,
     siteId,
@@ -437,18 +354,16 @@ export async function createPost(
         query: `
         INSERT INTO posts (id, organization_id, site_id, location_id, slug, post_type, title, body,
           seo_title, seo_description,
-          cta_type, cta_url, event_title, event_start, event_end, offer_coupon, offer_terms,
+          call_to_action, event, offer, alert_type,
           status, scheduled_for, published_at, created_by, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `,
         params: [
           id, organizationId, siteId,
           data.location_id ?? null, slug, data.post_type ?? 'standard',
           title, body,
           cleanString(data.seo_title), cleanString(data.seo_description),
-          data.cta_type ?? null, data.cta_url ?? null,
-          data.event_title ?? null, data.event_start ?? null, data.event_end ?? null,
-          data.offer_coupon ?? null, data.offer_terms ?? null,
+          jsonValue(data.call_to_action), jsonValue(data.event), jsonValue(data.offer), data.alert_type,
           status, data.scheduled_for ?? null, publishedAt, createdBy, now, now,
         ],
       }, ...postMediaPlacementQueries(organizationId, siteId, id, media)])
@@ -463,7 +378,7 @@ export async function createPost(
     }
   }
 
-  const createdPost = await getPost(db, organizationId, siteId, id, env)
+  const createdPost = await getPost(db, organizationId, siteId, id)
   if (!createdPost) throw new Error('Post not found after creation')
   await fireOrganizationEventSafe({
     db,
@@ -504,25 +419,21 @@ export async function updatePost(
   organizationId: string,
   siteId: string,
   postId: string,
-  data: {
-    title?: string; body?: string; scheduled_for?: string | null
-    location_id?: string | null; post_type?: string
-    slug?: string | null; seo_title?: string | null; seo_description?: string | null
-    cta_type?: string | null; cta_url?: string | null
-    event_title?: string | null; event_start?: string | null; event_end?: string | null
-    offer_coupon?: string | null; offer_terms?: string | null
-  },
+  input: unknown,
   _updatedBy: string,
   env: DomainEnv,
 ): Promise<Post | null> {
-  const existing = await queryFirst<Post>(
+  const row = await queryFirst<PostRow>(
     db,
     `SELECT * FROM posts WHERE id = ? AND organization_id = ? AND site_id = ? LIMIT 1`,
     [postId, organizationId, siteId],
   )
-  if (!existing) return null
-
-  validatePostInput(data, existing)
+  if (!row) return null
+  const existing = parsePostRow(row)
+  const data = parsePostInput(input, existing)
+  if (data.media !== undefined) throw new PostValidationError('Update post media through media placements')
+  await validatePostLocation(db, organizationId, siteId, data.location_id === undefined ? existing.location_id : data.location_id, data)
+  if (data.post_type === 'alert' && (await getPostMediaByPostIds(db, siteId, [postId])).get(postId)?.media.length) throw new PostValidationError('Remove post media before changing the topic to alert')
 
   const now = new Date().toISOString()
   const sets: string[] = ['updated_at = ?']
@@ -543,14 +454,13 @@ export async function updatePost(
     ['title', data.title], ['body', data.body],
     ['scheduled_for', data.scheduled_for], ['location_id', data.location_id],
     ['post_type', data.post_type], ['seo_title', data.seo_title], ['seo_description', data.seo_description],
-    ['cta_type', data.cta_type], ['cta_url', data.cta_url],
-    ['event_title', data.event_title], ['event_start', data.event_start], ['event_end', data.event_end],
-    ['offer_coupon', data.offer_coupon], ['offer_terms', data.offer_terms],
+    ['call_to_action', jsonValue(data.call_to_action)], ['event', jsonValue(data.event)],
+    ['offer', jsonValue(data.offer)], ['alert_type', data.alert_type],
   ]
   for (const [col, val] of fields) {
     if (val !== undefined) { sets.push(`${col} = ?`); params.push(val ?? null) }
   }
-  if (data.scheduled_for !== undefined) {
+  if (data.scheduled_for !== undefined && data.scheduled_for !== existing.scheduled_for) {
     if (data.scheduled_for) {
       sets.push("status = 'scheduled'", 'published_at = NULL')
     } else if (existing.status === 'scheduled') {
@@ -561,23 +471,21 @@ export async function updatePost(
 
   const hasContentChange = data.title !== undefined || data.body !== undefined ||
     data.slug !== undefined || data.seo_title !== undefined || data.seo_description !== undefined ||
-    data.post_type !== undefined || data.cta_type !== undefined || data.cta_url !== undefined ||
-    data.event_title !== undefined || data.event_start !== undefined || data.event_end !== undefined ||
-    data.offer_coupon !== undefined || data.offer_terms !== undefined
+    data.post_type !== undefined
   if (hasContentChange) {
     sets.push('source = ?')
     params.push('manual')
   }
 
-  params.push(postId, organizationId, siteId)
+  params.push(postId, organizationId, siteId, row.updated_at, row.event, row.offer, row.call_to_action, row.post_type, row.body)
 
-  // Retry slug update on unique constraint conflict (race condition)
   for (let attempt = 0; attempt < 3; attempt++) {
     try {
-      await executeBatch(db, [{
-        query: `UPDATE posts SET ${sets.join(', ')} WHERE id = ? AND organization_id = ? AND site_id = ?`,
+      const [result] = await executeBatch(db, [{
+        query: `UPDATE posts SET ${sets.join(', ')} WHERE id = ? AND organization_id = ? AND site_id = ? AND updated_at IS ? AND event IS ? AND offer IS ? AND call_to_action IS ? AND post_type IS ? AND body IS ? ${data.post_type === 'alert' ? "AND NOT EXISTS (SELECT 1 FROM media_placements WHERE owner_type = 'post' AND owner_id = posts.id AND slot IN ('cover', 'gallery'))" : ''}`,
         params,
       }])
+      if (!result?.meta.changes) throw new PostValidationError('Post changed while you were editing; reload it before saving')
       break
     } catch (err) {
       const message = String((err as ApiValue)?.message || err || '')
@@ -598,7 +506,7 @@ export async function updatePost(
     }
   }
 
-  const updated = await getPost(db, organizationId, siteId, postId, env)
+  const updated = await getPost(db, organizationId, siteId, postId)
   await refreshSocialCard({ db, env, owner: { owner_type: 'post', owner_id: postId }, actorId: _updatedBy })
   return updated
 }
@@ -622,7 +530,7 @@ export async function publishPost(
     throw new Error('Social publish capability is required for external channels')
   }
 
-  const existing = await queryFirst<Post>(
+  const existing = await queryFirst<PostRow>(
     db,
     `SELECT * FROM posts WHERE id = ? AND organization_id = ? AND site_id = ? LIMIT 1`,
     [postId, organizationId, siteId],
@@ -646,7 +554,7 @@ export async function publishPost(
 
   const publishedChannels = channels.filter(channel => channel === 'site')
 
-  const post = await getPost(db, organizationId, siteId, postId, env)
+  const post = await getPost(db, organizationId, siteId, postId)
   if (post && channels.includes('site') && existing.status !== 'published') {
     await fireOrganizationEventSafe({
       db,
@@ -680,7 +588,7 @@ export async function publishPost(
     await publishPostChannel(db, postId, channel, post, socialCapability)
   }
 
-  return await getPost(db, organizationId, siteId, postId, env)
+  return await getPost(db, organizationId, siteId, postId)
 }
 
 async function claimPostChannelJob(
@@ -854,30 +762,29 @@ export async function deletePost(
   siteId: string,
   postId: string,
 ): Promise<boolean> {
-  const [, deleteResult] = await executeBatch(db, [
+  const results = await executeBatch(db, [
+    ...resourceLocalizationDeletionQueries('site_post', { query: 'SELECT id FROM posts WHERE id = ? AND organization_id = ? AND site_id = ?', params: [postId, organizationId, siteId] }),
     buildDeleteOwnerPlacementsQuery({ ownerType: 'post', ownerId: postId, organizationId, siteId }),
     {
       query: 'DELETE FROM posts WHERE id = ? AND organization_id = ? AND site_id = ?',
       params: [postId, organizationId, siteId],
     },
   ])
-  return Number(deleteResult?.meta.changes ?? 0) > 0
+  return Number(results.at(-1)?.meta.changes ?? 0) > 0
 }
 
 /** Public: published posts for the site, formatted for SayaPosts component. */
 export async function getPublishedPosts(
   db: DbClient,
   siteId: string,
-  env: DomainEnv,
   limit = 20,
   locationId?: string,
 ): Promise<PublishedPostSummary[]> {
   let query = `
-    SELECT p.id, p.site_id, p.location_id, bl.title AS location_title, bl.slug AS location_slug,
+    SELECT p.id, p.site_id, p.location_id, bl.title AS location_title, bl.slug AS location_slug, bl.phone AS location_phone,
            p.slug, p.post_type, p.title, p.body,
            p.seo_title, p.seo_description,
-           p.cta_type, p.cta_url, p.event_title, p.event_start, p.event_end,
-           p.offer_coupon, p.offer_terms, p.published_at, p.created_at, p.updated_at
+           p.call_to_action, p.event, p.offer, p.alert_type, p.published_at, p.created_at, p.updated_at
     FROM posts p
     LEFT JOIN business_locations bl ON p.location_id = bl.id
     WHERE p.site_id = ? AND p.status = 'published'
@@ -891,7 +798,7 @@ export async function getPublishedPosts(
   params.push(limit)
   const rows = await queryAll<PublishedPostRow>(db, query, params)
   const [origin, mediaByPost] = await Promise.all([
-    resolveSitePublicOrigin(db, siteId, env),
+    resolveSitePublicOrigin(db, siteId),
     getPostMediaByPostIds(db, siteId, (rows ?? []).map((post) => post.id)),
   ])
 
@@ -902,16 +809,14 @@ export async function getPublishedPostBySlug(
   db: DbClient,
   siteId: string,
   slugOrId: string,
-  env: DomainEnv,
 ) {
   const row = await queryFirst<PublishedPostRow>(
     db,
     `
-    SELECT p.id, p.site_id, p.location_id, bl.title AS location_title, bl.slug AS location_slug,
+    SELECT p.id, p.site_id, p.location_id, bl.title AS location_title, bl.slug AS location_slug, bl.phone AS location_phone,
            p.slug, p.post_type, p.title, p.body,
            p.seo_title, p.seo_description,
-           p.cta_type, p.cta_url, p.event_title, p.event_start, p.event_end,
-           p.offer_coupon, p.offer_terms, p.published_at, p.created_at, p.updated_at
+           p.call_to_action, p.event, p.offer, p.alert_type, p.published_at, p.created_at, p.updated_at
     FROM posts p
     LEFT JOIN business_locations bl ON p.location_id = bl.id
     WHERE p.site_id = ? AND p.status = 'published' AND (p.slug = ? OR p.id = ?)
@@ -921,7 +826,7 @@ export async function getPublishedPostBySlug(
   )
   if (!row) return null
   const [origin, mediaByPost] = await Promise.all([
-    resolveSitePublicOrigin(db, siteId, env),
+    resolveSitePublicOrigin(db, siteId),
     getPostMediaByPostIds(db, siteId, [row.id]),
   ])
   const summary = formatPublishedPost(row, mediaByPost.get(row.id), origin)
@@ -938,7 +843,6 @@ export async function getPublishedPostByPublicRoute(
   siteId: string,
   slug: string,
   locale: string,
-  env: DomainEnv,
 ) {
   const site = await queryFirst<{ organization_id: string }>(db, 'SELECT organization_id FROM sites WHERE id = ? AND status = \'active\' LIMIT 1', [siteId])
   if (!site) return null
@@ -952,7 +856,7 @@ export async function getPublishedPostByPublicRoute(
     resourceId = routeResourceId
   }
 
-  const sourcePost = await getPublishedPostBySlug(db, siteId, resourceId, env)
+  const sourcePost = await getPublishedPostBySlug(db, siteId, resourceId)
   if (!sourcePost) return null
   let post = sourcePost
   if (locale !== 'en') {

@@ -103,15 +103,15 @@ export async function resolveBlogRedirect(db: DbClient, siteId: string | null, s
 export async function createBlogRedirect(db: D1Database, postId: string, siteId: string | null, oldSlug: string) {
   const now = new Date().toISOString()
   const resolvedSiteId = siteId ?? PLATFORM_SITE_ID
-  const post = await queryFirst<{ id: string; organization_id: string; slug: string; category: string | null; theme: string | null; theme_id: string | null }>(db, `
-    SELECT p.id, p.organization_id, p.slug, p.category, s.theme, s.theme_id
+  const post = await queryFirst<{ id: string; organization_id: string; slug: string; category: string | null; theme_id: string | null }>(db, `
+    SELECT p.id, p.organization_id, p.slug, p.category, s.theme_id
       FROM blog_posts p JOIN sites s ON s.id = p.site_id
      WHERE p.id = ? AND p.site_id = ? LIMIT 1
   `, [postId, resolvedSiteId])
   if (!post) throw new HTTPError({ statusCode: 400, statusMessage: 'Blog redirect scope must match its post' })
   const platform = resolvedSiteId === PLATFORM_SITE_ID
-  const oldPath = platform ? resolveBlogPublicPath({ scope: 'platform', slug: oldSlug, category: post.category }) : tenantBlogPostPath(post, oldSlug)
-  const newPath = platform ? resolveBlogPublicPath({ scope: 'platform', slug: post.slug, category: post.category }) : tenantBlogPostPath(post, post.slug)
+  const oldPath = platform ? resolveBlogPublicPath({ scope: 'platform', slug: oldSlug, category: post.category }) : tenantBlogPostPath({ themeId: post.theme_id }, oldSlug)
+  const newPath = platform ? resolveBlogPublicPath({ scope: 'platform', slug: post.slug, category: post.category }) : tenantBlogPostPath({ themeId: post.theme_id }, post.slug)
   const result = await execute(db, `INSERT INTO site_redirects
     (id, organization_id, site_id, locale, owner_type, owner_id, from_path, to_path, status_code, behavior, reason, source, created_at, updated_at)
     VALUES (?, ?, ?, 'en', ?, ?, ?, ?, 301, 'redirect', ?, ?, ?, ?)

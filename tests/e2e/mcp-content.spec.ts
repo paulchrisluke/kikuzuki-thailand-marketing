@@ -28,7 +28,7 @@ test.describe('stateless MCP server', () => {
     expect(invalidEvent.status()).toBe(200)
     const invalidEventBody = await invalidEvent.json()
     expect(invalidEventBody.result?.isError).toBe(true)
-    expect(invalidEventBody.result?.content?.[0]?.text).toContain('event_start')
+    expect(invalidEventBody.result?.content?.[0]?.text).toContain('event')
 
     const invalidOffer = await mcpRequest(request, baseURL!, {
       method: 'tools/call', toolName: 'create_post',
@@ -37,7 +37,7 @@ test.describe('stateless MCP server', () => {
     expect(invalidOffer.status()).toBe(200)
     const invalidOfferBody = await invalidOffer.json()
     expect(invalidOfferBody.result?.isError).toBe(true)
-    expect(invalidOfferBody.result?.content?.[0]?.text).toMatch(/offer_coupon|offer_terms/)
+    expect(invalidOfferBody.result?.content?.[0]?.text).toContain('event')
   })
 
   test('a post publishes immediately, stays idempotent on repeat, and matches the public API', async ({ request, baseURL }) => {
@@ -140,29 +140,29 @@ test.describe('stateless MCP server', () => {
     const createdPostIds: string[] = []
 
     try {
-      const eventStart = new Date(Date.now() + 86_400_000).toISOString()
-      const eventEnd = new Date(Date.now() + 90_000_000).toISOString()
+      const eventDay = new Date(Date.now() + 86_400_000).toISOString().slice(0, 10)
+      const eventDetails = { title: 'MCP Event', schedule: { start_date: eventDay, start_time: '15:00:00.123456789', end_date: eventDay, end_time: '17:00:00' }, recurrence_info: { kind: 'weekly', days_of_week: [] } }
       const event = await mcpRequest(request, baseURL!, {
         method: 'tools/call', toolName: 'create_post',
-        args: { site_id: siteId, title: `Valid event ${now}`, body: 'Event details.', post_type: 'event', event_title: 'MCP Event', event_start: eventStart, event_end: eventEnd },
+        args: { site_id: siteId, title: `Valid event ${now}`, body: 'Event details.', post_type: 'event', event: eventDetails },
       })
       expect(event.status()).toBe(200)
       const eventId = mcpData<{ id: string }>(await event.json()).id
       createdPostIds.push(eventId)
       const eventRead = await mcpRequest(request, baseURL!, { method: 'tools/call', toolName: 'get_post', args: { site_id: siteId, post_id: eventId } })
-      const eventPost = mcpData<{ post: { post_type: string, event_start: string, event_end: string } }>(await eventRead.json()).post
-      expect(eventPost).toMatchObject({ post_type: 'event', event_start: eventStart, event_end: eventEnd })
+      const eventPost = mcpData<{ post: { post_type: string, event: typeof eventDetails } }>(await eventRead.json()).post
+      expect(eventPost).toMatchObject({ post_type: 'event', event: eventDetails })
 
       const offer = await mcpRequest(request, baseURL!, {
         method: 'tools/call', toolName: 'create_post',
-        args: { site_id: siteId, title: `Valid offer ${now}`, body: 'Offer details.', post_type: 'offer', offer_coupon: 'MCP20', offer_terms: 'Valid during the E2E window.' },
+        args: { site_id: siteId, title: `Valid offer ${now}`, body: 'Offer details.', post_type: 'offer', event: eventDetails, offer: { coupon_code: 'MCP20', terms_conditions: 'Valid during the E2E window.' } },
       })
       expect(offer.status()).toBe(200)
       const offerId = mcpData<{ id: string }>(await offer.json()).id
       createdPostIds.push(offerId)
       const offerRead = await mcpRequest(request, baseURL!, { method: 'tools/call', toolName: 'get_post', args: { site_id: siteId, post_id: offerId } })
-      const offerPost = mcpData<{ post: { post_type: string, offer_coupon: string, offer_terms: string } }>(await offerRead.json()).post
-      expect(offerPost).toMatchObject({ post_type: 'offer', offer_coupon: 'MCP20', offer_terms: 'Valid during the E2E window.' })
+      const offerPost = mcpData<{ post: { post_type: string, offer: { coupon_code: string, terms_conditions: string } } }>(await offerRead.json()).post
+      expect(offerPost).toMatchObject({ post_type: 'offer', offer: { coupon_code: 'MCP20', terms_conditions: 'Valid during the E2E window.' } })
     } finally {
       for (const postId of createdPostIds) {
         const cleanup = await mcpRequest(request, baseURL!, { method: 'tools/call', toolName: 'delete_post', args: { site_id: siteId, post_id: postId } })

@@ -32,3 +32,25 @@ This note exists so future sessions do not collapse three different systems into
 - The inbox renders server-authorized actions from the guest-thread source adapter registry. Dashboard UI must not infer confirm/cancel/complete policy from raw source status or call source-specific editor mutation endpoints.
 - Reuse the shared conversation shell where it helps the UX, but never back guest threads with assistant/tool-call history.
 - Keep public guest web-thread participation as a later phase; near-term guest participation is email reply ingestion.
+
+## Epoch 5 reply-address contract
+
+The current supported address is
+`r<type-code><32-hex-UUID><24-hex-HMAC>@reply.<platform-domain>`. Inbound email
+and the development ingress both validate this address and pass its signature
+through the canonical guest-thread receiver. The 32-hex token and
+`reply+<type>-<id>-<token>` address are retired with Epoch 5. Existing compact
+addresses retain their exact signature algorithm and continue to work; stored
+submissions, messages and delivery evidence are preserved.
+
+This implements the owner's explicit requirement that no backward compatibility
+is required. Retirement applies to the staging build now and to production only
+when the owner performs the later production cutover. Previously sent emails
+cannot be rewritten. Fresh production evidence includes four pre-compact
+reservations and one contact still marked new; their reservation service dates
+are past, but there is no evidence that every conversation was resolved. The
+retirement decision does not mark them complete or discard them. Retained Resend
+history contained seven delivered compact reply addresses and no old-format
+address; the provider's retention window does not prove that older addresses
+were never issued. After production cutover, replies to the retired format are
+rejected instead of appended to guest threads.

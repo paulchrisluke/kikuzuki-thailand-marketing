@@ -1,0 +1,329 @@
+table	source_index	columns	unique	partial	disposition	target_evidence
+account	account_userId_idx	userId	0	0	retain named index	CREATE INDEX `account_userId_idx` ON `account` (`userId`)
+account	sqlite_autoindex_account_1	id	1	0	retain named index	
+availability_overrides	availability_overrides_site_month_idx	site_id,override_date	0	0	retain named index	CREATE INDEX `availability_overrides_site_month_idx` ON `availability_overrides` (`site_id`,`override_date`)
+availability_overrides	availability_overrides_experience_slot_unique	experience_id,override_date,time_slot	1	1	retain named index	CREATE UNIQUE INDEX `availability_overrides_experience_slot_unique` ON `availability_overrides` (`experience_id`,`override_date`,`time_slot`) WHERE owner_type = 'experience'
+availability_overrides	availability_overrides_location_slot_unique	location_id,override_date,time_slot	1	1	retain named index	CREATE UNIQUE INDEX `availability_overrides_location_slot_unique` ON `availability_overrides` (`location_id`,`override_date`,`time_slot`) WHERE owner_type = 'location'
+availability_overrides	sqlite_autoindex_availability_overrides_1	id	1	0	retain named index	
+blog_posts	blog_posts_site_slug_unique	site_id,slug	1	0	retain named index	CREATE UNIQUE INDEX `blog_posts_site_slug_unique` ON `blog_posts` (`site_id`,`slug`)
+blog_posts	blog_posts_org_site_idx	organization_id,site_id	0	0	retain named index	CREATE INDEX `blog_posts_org_site_idx` ON `blog_posts` (`organization_id`,`site_id`)
+blog_posts	sqlite_autoindex_blog_posts_1	id	1	0	retain named index	
+booking_policies	booking_policies_organization_id_idx	organization_id	0	0	retain named index	CREATE INDEX `booking_policies_organization_id_idx` ON `booking_policies` (`organization_id`)
+booking_policies	booking_policies_experience_scope_unique	experience_id	1	1	retain named index	CREATE UNIQUE INDEX `booking_policies_experience_scope_unique` ON `booking_policies` (`experience_id`) WHERE policy_type = 'experience' AND scope_type = 'experience' AND experience_id IS NOT NULL
+booking_policies	booking_policies_experience_location_unique	location_id	1	1	retain named index	CREATE UNIQUE INDEX `booking_policies_experience_location_unique` ON `booking_policies` (`location_id`) WHERE policy_type = 'experience' AND scope_type = 'location' AND location_id IS NOT NULL
+booking_policies	booking_policies_experience_site_unique	site_id	1	1	retain named index	CREATE UNIQUE INDEX `booking_policies_experience_site_unique` ON `booking_policies` (`site_id`) WHERE policy_type = 'experience' AND scope_type = 'site'
+booking_policies	booking_policies_reservation_location_unique	location_id	1	1	retain named index	CREATE UNIQUE INDEX `booking_policies_reservation_location_unique` ON `booking_policies` (`location_id`) WHERE policy_type = 'reservation' AND scope_type = 'location' AND location_id IS NOT NULL
+booking_policies	booking_policies_site_type_idx	site_id,policy_type	0	0	retain named index	CREATE INDEX `booking_policies_site_type_idx` ON `booking_policies` (`site_id`,`policy_type`)
+booking_policies	sqlite_autoindex_booking_policies_1	id	1	0	retain named index	
+business_locations	business_locations_organization_id_site_id_id_unique	organization_id,site_id,id	1	0	retain named index	CREATE UNIQUE INDEX `business_locations_organization_id_site_id_id_unique` ON `business_locations` (`organization_id`,`site_id`,`id`)
+business_locations	business_locations_organization_id_site_id_slug_unique	organization_id,site_id,slug	1	0	retain named index	CREATE UNIQUE INDEX `business_locations_organization_id_site_id_slug_unique` ON `business_locations` (`organization_id`,`site_id`,`slug`)
+business_locations	sqlite_autoindex_business_locations_1	id	1	0	retain named index	
+canary_runs	idx_canary_runs_type_created	run_type,created_at	0	0	retain named index	CREATE INDEX `idx_canary_runs_type_created` ON `canary_runs` (`run_type`,`created_at`)
+canary_runs	idx_canary_runs_status_created	status,created_at	0	0	retain named index	CREATE INDEX `idx_canary_runs_status_created` ON `canary_runs` (`status`,`created_at`)
+canary_runs	sqlite_autoindex_canary_runs_1	id	1	0	retain named index	
+chowbot_channel_state	chowbot_channel_state_user_id_idx	user_id	0	0	remove redundant prefix index	
+chowbot_channel_state	sqlite_autoindex_chowbot_channel_state_1	user_id,channel	1	0	retain named index	
+chowbot_conversations	chowbot_conversations_id_org_site_unique	id,organization_id,site_id	1	0	retain named index	CREATE UNIQUE INDEX `chowbot_conversations_id_org_site_unique` ON `chowbot_conversations` (`id`,`organization_id`,`site_id`)
+chowbot_conversations	chowbot_conversations_id_site_user_unique	id,site_id,user_id	1	0	retain named index	CREATE UNIQUE INDEX `chowbot_conversations_id_site_user_unique` ON `chowbot_conversations` (`id`,`site_id`,`user_id`)
+chowbot_conversations	idx_chowbot_conversations_site	site_id,user_id,status,updated_at	0	0	retain named index	CREATE INDEX `idx_chowbot_conversations_site` ON `chowbot_conversations` (`site_id`,`user_id`,`status`,`updated_at`)
+chowbot_conversations	chowbot_conversations_user_id_idx	user_id	0	0	retain named index	CREATE INDEX `chowbot_conversations_user_id_idx` ON `chowbot_conversations` (`user_id`)
+chowbot_conversations	chowbot_conversations_org_site_idx	organization_id,site_id	0	0	retain named index	CREATE INDEX `chowbot_conversations_org_site_idx` ON `chowbot_conversations` (`organization_id`,`site_id`)
+chowbot_conversations	sqlite_autoindex_chowbot_conversations_1	id	1	0	retain named index	
+chowbot_messages	chowbot_messages_org_site_idx	organization_id,site_id	0	0	retain named index	CREATE INDEX `chowbot_messages_org_site_idx` ON `chowbot_messages` (`organization_id`,`site_id`)
+chowbot_messages	idx_chowbot_messages_conversation	conversation_id,created_at	0	0	retain named index	CREATE INDEX `idx_chowbot_messages_conversation` ON `chowbot_messages` (`conversation_id`,`created_at`)
+chowbot_messages	chowbot_messages_meta_message_id_unique	meta_message_id	1	0	retain named index	CREATE UNIQUE INDEX `chowbot_messages_meta_message_id_unique` ON `chowbot_messages` (`meta_message_id`)
+chowbot_messages	sqlite_autoindex_chowbot_messages_1	id	1	0	retain named index	
+contact_submissions	idx_contact_submissions_site	site_id,created_at	0	0	retain named index	CREATE INDEX `idx_contact_submissions_site` ON `contact_submissions` (`site_id`,`created_at`)
+contact_submissions	contact_submissions_location_idx	location_id,created_at	0	0	retain named index	CREATE INDEX `contact_submissions_location_idx` ON `contact_submissions` (`location_id`,`created_at`)
+contact_submissions	contact_submissions_org_site_idx	organization_id,site_id	0	0	retain named index	CREATE INDEX `contact_submissions_org_site_idx` ON `contact_submissions` (`organization_id`,`site_id`)
+contact_submissions	sqlite_autoindex_contact_submissions_1	id	1	0	retain named index	
+content_blocks	content_blocks_parent_idx	parent_block_id	0	0	retain named index	CREATE INDEX `content_blocks_parent_idx` ON `content_blocks` (`parent_block_id`)
+content_blocks	content_blocks_document_position_idx	document_id,position	0	0	retain named index	CREATE INDEX `content_blocks_document_position_idx` ON `content_blocks` (`document_id`,`position`)
+content_blocks	sqlite_autoindex_content_blocks_1	id	1	0	retain named index	
+content_documents	content_documents_owner_unique	owner_type,owner_id	1	0	retain named index	CREATE UNIQUE INDEX `content_documents_owner_unique` ON `content_documents` (`owner_type`,`owner_id`)
+content_documents	sqlite_autoindex_content_documents_1	id	1	0	retain named index	
+customers	idx_customers_user_id	user_id	0	0	retain named index	CREATE INDEX `idx_customers_user_id` ON `customers` (`user_id`)
+customers	idx_customers_org_site_email_hash	organization_id,site_id,email_hash	0	0	retain named index	CREATE INDEX `idx_customers_org_site_email_hash` ON `customers` (`organization_id`,`site_id`,`email_hash`)
+customers	idx_customers_site_id	site_id	0	0	retain named index	CREATE INDEX `idx_customers_site_id` ON `customers` (`site_id`)
+customers	idx_customers_organization_id	organization_id	0	0	remove redundant prefix index	CREATE INDEX `idx_customers_org_site_email_hash` ON `customers` (`organization_id`,`site_id`,`email_hash`)
+customers	idx_customers_stripe_customer_id_unique	stripe_customer_id	1	1	retain named index	CREATE UNIQUE INDEX `idx_customers_stripe_customer_id_unique` ON `customers` (`stripe_customer_id`) WHERE stripe_customer_id IS NOT NULL
+customers	idx_customers_site_email_normalized_unique	site_id,email_normalized	1	1	retain named index	CREATE UNIQUE INDEX `idx_customers_site_email_normalized_unique` ON `customers` (`site_id`,`email_normalized`) WHERE email_normalized IS NOT NULL
+customers	sqlite_autoindex_customers_1	id	1	0	retain named index	
+dashboard_preferences	dashboard_preferences_user_id_organization_id_unique	user_id,organization_id	1	0	remove with retired table	user_id,organization_id
+dashboard_preferences	sqlite_autoindex_dashboard_preferences_1	id	1	0	remove with retired table	id
+domain_reconciliation_jobs	idx_domain_reconciliation_jobs_due	status,run_after	0	0	retain named index	CREATE INDEX `idx_domain_reconciliation_jobs_due` ON `domain_reconciliation_jobs` (`status`,`run_after`)
+domain_reconciliation_jobs	domain_reconciliation_jobs_domain_id_unique	domain_id	1	0	retain named index	CREATE UNIQUE INDEX `domain_reconciliation_jobs_domain_id_unique` ON `domain_reconciliation_jobs` (`domain_id`)
+domain_reconciliation_jobs	sqlite_autoindex_domain_reconciliation_jobs_1	id	1	0	retain named index	
+experience_bookings	experience_bookings_organization_id_idx	organization_id	0	0	retain named index	CREATE INDEX `experience_bookings_organization_id_idx` ON `experience_bookings` (`organization_id`)
+experience_bookings	experience_bookings_site_date_owner_slot_idx	site_id,booking_date,experience_id,time_slot,status	0	0	retain named index	CREATE INDEX `experience_bookings_site_date_owner_slot_idx` ON `experience_bookings` (`site_id`,`booking_date`,`experience_id`,`time_slot`,`status`)
+experience_bookings	idx_experience_bookings_review_reminder_due	site_id,review_request_sent_at,review_reminder_sent_at,review_submitted_at	0	0	retain named index	CREATE INDEX `idx_experience_bookings_review_reminder_due` ON `experience_bookings` (`site_id`,`review_request_sent_at`,`review_reminder_sent_at`,`review_submitted_at`)
+experience_bookings	idx_experience_bookings_review_request_due	site_id,status,completed_at,review_request_sent_at	0	0	retain named index	CREATE INDEX `idx_experience_bookings_review_request_due` ON `experience_bookings` (`site_id`,`status`,`completed_at`,`review_request_sent_at`)
+experience_bookings	idx_experience_bookings_customer_id	customer_id	0	0	retain named index	CREATE INDEX `idx_experience_bookings_customer_id` ON `experience_bookings` (`customer_id`)
+experience_bookings	sqlite_autoindex_experience_bookings_1	id	1	0	retain named index	
+experiences	experiences_org_site_id_unique	organization_id,site_id,id	1	0	retain named index	CREATE UNIQUE INDEX `experiences_org_site_id_unique` ON `experiences` (`organization_id`,`site_id`,`id`)
+experiences	experiences_org_site_idx	organization_id,site_id	0	0	remove redundant prefix index	CREATE UNIQUE INDEX `experiences_org_site_id_unique` ON `experiences` (`organization_id`,`site_id`,`id`)
+experiences	sqlite_autoindex_experiences_1	id	1	0	retain named index	
+facebook_pages_connections	facebook_pages_connections_organization_id_site_id_unique	organization_id,site_id	1	0	retain named index	CREATE UNIQUE INDEX `facebook_pages_connections_organization_id_site_id_unique` ON `facebook_pages_connections` (`organization_id`,`site_id`)
+facebook_pages_connections	sqlite_autoindex_facebook_pages_connections_1	id	1	0	retain named index	
+google_analytics_connections	google_analytics_connections_organization_id_site_id_unique	organization_id,site_id	1	0	retain named index	CREATE UNIQUE INDEX `google_analytics_connections_organization_id_site_id_unique` ON `google_analytics_connections` (`organization_id`,`site_id`)
+google_analytics_connections	sqlite_autoindex_google_analytics_connections_1	id	1	0	retain named index	
+guest_thread_deliveries	guest_thread_deliveries_entry_status_idx	entry_id,status	0	0	retain named index	CREATE INDEX `guest_thread_deliveries_entry_status_idx` ON `guest_thread_deliveries` (`entry_id`,`status`)
+guest_thread_deliveries	guest_thread_deliveries_provider_message_unique	provider,provider_message_id	1	1	retain named index	CREATE UNIQUE INDEX `guest_thread_deliveries_provider_message_unique` ON `guest_thread_deliveries` (`provider`,`provider_message_id`) WHERE provider_message_id IS NOT NULL
+guest_thread_deliveries	sqlite_autoindex_guest_thread_deliveries_1	id	1	0	retain named index	
+guest_thread_entries	guest_thread_entries_thread_sequence_unique	thread_id,sequence	1	0	retain named index	CREATE UNIQUE INDEX `guest_thread_entries_thread_sequence_unique` ON `guest_thread_entries` (`thread_id`,`sequence`)
+guest_thread_entries	guest_thread_entries_dedupe_key_unique	dedupe_key	1	0	retain named index	CREATE UNIQUE INDEX `guest_thread_entries_dedupe_key_unique` ON `guest_thread_entries` (`dedupe_key`)
+guest_thread_entries	guest_thread_entries_thread_occurred_idx	thread_id,occurred_at	0	0	retain named index	CREATE INDEX `guest_thread_entries_thread_occurred_idx` ON `guest_thread_entries` (`thread_id`,`occurred_at`)
+guest_thread_entries	sqlite_autoindex_guest_thread_entries_1	id	1	0	retain named index	
+guest_threads	guest_threads_submission_unique	submission_type,submission_id	1	0	retain named index	CREATE UNIQUE INDEX `guest_threads_submission_unique` ON `guest_threads` (`submission_type`,`submission_id`)
+guest_threads	guest_threads_organization_id_idx	organization_id	0	0	retain named index	CREATE INDEX `guest_threads_organization_id_idx` ON `guest_threads` (`organization_id`)
+guest_threads	guest_threads_conversation_state_idx	site_id,conversation_state,updated_at	0	0	retain named index	CREATE INDEX `guest_threads_conversation_state_idx` ON `guest_threads` (`site_id`,`conversation_state`,`updated_at`)
+guest_threads	guest_threads_location_updated_idx	location_id,updated_at	0	0	retain named index	CREATE INDEX `guest_threads_location_updated_idx` ON `guest_threads` (`location_id`,`updated_at`)
+guest_threads	guest_threads_site_updated_idx	site_id,updated_at	0	0	retain named index	CREATE INDEX `guest_threads_site_updated_idx` ON `guest_threads` (`site_id`,`updated_at`)
+guest_threads	sqlite_autoindex_guest_threads_1	id	1	0	retain named index	
+invitation	idx_invitation_org_email_pending_unique	organizationId,	1	1	retain named index	CREATE UNIQUE INDEX `idx_invitation_org_email_pending_unique` ON `invitation` (`organizationId`,lower("email")) WHERE status = 'pending'
+invitation	idx_invitation_org_pending_owner	organizationId	1	1	retain named index	CREATE UNIQUE INDEX `idx_invitation_org_pending_owner` ON `invitation` (`organizationId`) WHERE role = 'owner' AND status = 'pending'
+invitation	invitation_organizationId_idx	organizationId	0	0	retain named index	CREATE INDEX `invitation_organizationId_idx` ON `invitation` (`organizationId`)
+invitation	sqlite_autoindex_invitation_1	id	1	0	retain named index	
+jwks	sqlite_autoindex_jwks_1	id	1	0	retain named index	
+location_qa	location_qa_organization_id_idx	organization_id	0	0	retain named index	CREATE INDEX `location_qa_organization_id_idx` ON `location_qa` (`organization_id`)
+location_qa	idx_location_qa_page	site_id,page_path,status,sort_order	0	1	retain named index	CREATE INDEX `idx_location_qa_page` ON `location_qa` (`site_id`,`page_path`,`status`,`sort_order`) WHERE location_id IS NULL AND page_path IS NOT NULL
+location_qa	idx_location_qa_site	site_id,status,sort_order	0	1	retain named index	CREATE INDEX `idx_location_qa_site` ON `location_qa` (`site_id`,`status`,`sort_order`) WHERE location_id IS NULL
+location_qa	idx_location_qa_location	location_id,status,sort_order	0	0	retain named index	CREATE INDEX `idx_location_qa_location` ON `location_qa` (`location_id`,`status`,`sort_order`)
+location_qa	sqlite_autoindex_location_qa_1	id	1	0	retain named index	
+mcp_tool_call_events	idx_mcp_tool_call_events_unknown	unknown_tool_name,created_at	0	0	retain named index	CREATE INDEX `idx_mcp_tool_call_events_unknown` ON `mcp_tool_call_events` (`unknown_tool_name`,`created_at`)
+mcp_tool_call_events	idx_mcp_tool_call_events_session	session_id_hash,created_at	0	0	retain named index	CREATE INDEX `idx_mcp_tool_call_events_session` ON `mcp_tool_call_events` (`session_id_hash`,`created_at`)
+mcp_tool_call_events	idx_mcp_tool_call_events_method_created	method,created_at	0	0	retain named index	CREATE INDEX `idx_mcp_tool_call_events_method_created` ON `mcp_tool_call_events` (`method`,`created_at`)
+mcp_tool_call_events	idx_mcp_tool_call_events_org	organization_id,created_at	0	0	retain named index	CREATE INDEX `idx_mcp_tool_call_events_org` ON `mcp_tool_call_events` (`organization_id`,`created_at`)
+mcp_tool_call_events	idx_mcp_tool_call_events_site	site_id,created_at	0	0	retain named index	CREATE INDEX `idx_mcp_tool_call_events_site` ON `mcp_tool_call_events` (`site_id`,`created_at`)
+mcp_tool_call_events	idx_mcp_tool_call_events_tool_status	tool_name,status	0	0	retain named index	CREATE INDEX `idx_mcp_tool_call_events_tool_status` ON `mcp_tool_call_events` (`tool_name`,`status`)
+mcp_tool_call_events	idx_mcp_tool_call_events_created_at	created_at	0	0	retain named index	CREATE INDEX `idx_mcp_tool_call_events_created_at` ON `mcp_tool_call_events` (`created_at`)
+mcp_tool_call_events	sqlite_autoindex_mcp_tool_call_events_1	id	1	0	retain named index	
+mcp_workspace_preferences	sqlite_autoindex_mcp_workspace_preferences_1	user_id	1	0	retain named index	
+media_assets	media_assets_org_site_id_unique	organization_id,site_id,id	1	0	retain named index	CREATE UNIQUE INDEX `media_assets_org_site_id_unique` ON `media_assets` (`organization_id`,`site_id`,`id`)
+media_assets	sqlite_autoindex_media_assets_1	id	1	0	retain named index	
+media_placements	media_placements_site_owner_slot_order_unique	site_id,owner_type,owner_id,slot,sort_order	1	0	retain named index	CREATE UNIQUE INDEX `media_placements_site_owner_slot_order_unique` ON `media_placements` (`site_id`,`owner_type`,`owner_id`,`slot`,`sort_order`)
+media_placements	media_placements_site_owner_slot_asset_unique	site_id,owner_type,owner_id,slot,asset_id	1	0	retain named index	CREATE UNIQUE INDEX `media_placements_site_owner_slot_asset_unique` ON `media_placements` (`site_id`,`owner_type`,`owner_id`,`slot`,`asset_id`)
+media_placements	media_placements_asset_idx	organization_id,site_id,asset_id	0	0	retain named index	CREATE INDEX `media_placements_asset_idx` ON `media_placements` (`organization_id`,`site_id`,`asset_id`)
+media_placements	sqlite_autoindex_media_placements_1	id	1	0	retain named index	
+member	member_organizationId_idx	organizationId	0	0	retain named index	CREATE INDEX `member_organizationId_idx` ON `member` (`organizationId`)
+member	member_userId_organizationId_idx	userId,organizationId	0	0	retain named index	CREATE INDEX `member_userId_organizationId_idx` ON `member` (`userId`,`organizationId`)
+member	sqlite_autoindex_member_1	id	1	0	retain named index	
+notification_reads	notification_reads_user_read_at_idx	user_id,read_at	0	0	retain named index	CREATE INDEX `notification_reads_user_read_at_idx` ON `notification_reads` (`user_id`,`read_at`)
+notification_reads	sqlite_autoindex_notification_reads_1	notification_id,user_id	1	0	retain named index	
+notifications	notifications_source_entry_unique	source_entry_id	1	1	retain named index	CREATE UNIQUE INDEX `notifications_source_entry_unique` ON `notifications` (`source_entry_id`) WHERE source_entry_id IS NOT NULL
+notifications	notifications_target_user_created_at_idx	target_user_id,created_at	0	0	retain named index	CREATE INDEX `notifications_target_user_created_at_idx` ON `notifications` (`target_user_id`,`created_at`)
+notifications	notifications_site_created_at_idx	site_id,created_at	0	0	retain named index	CREATE INDEX `notifications_site_created_at_idx` ON `notifications` (`site_id`,`created_at`)
+notifications	notifications_organization_created_at_idx	organization_id,created_at	0	0	retain named index	CREATE INDEX `notifications_organization_created_at_idx` ON `notifications` (`organization_id`,`created_at`)
+notifications	notifications_scope_created_at_idx	scope,created_at	0	0	retain named index	CREATE INDEX `notifications_scope_created_at_idx` ON `notifications` (`scope`,`created_at`)
+notifications	sqlite_autoindex_notifications_1	id	1	0	retain named index	
+oauthAccessToken	oauthAccessToken_token_unique	token	1	0	retain named index	CREATE UNIQUE INDEX `oauthAccessToken_token_unique` ON `oauthAccessToken` (`token`)
+oauthAccessToken	sqlite_autoindex_oauthAccessToken_1	id	1	0	retain named index	
+oauthClient	oauthClient_clientId_unique	clientId	1	0	retain named index	CREATE UNIQUE INDEX `oauthClient_clientId_unique` ON `oauthClient` (`clientId`)
+oauthClient	sqlite_autoindex_oauthClient_1	id	1	0	retain named index	
+oauthClientAssertion	sqlite_autoindex_oauthClientAssertion_1	id	1	0	retain named index	
+oauthClientResource	sqlite_autoindex_oauthClientResource_1	id	1	0	retain named index	
+oauthConsent	oauthConsent_clientId_userId_unique	clientId,userId	1	0	retain named index	CREATE UNIQUE INDEX `oauthConsent_clientId_userId_unique` ON `oauthConsent` (`clientId`,`userId`)
+oauthConsent	sqlite_autoindex_oauthConsent_1	id	1	0	retain named index	
+oauthRefreshToken	oauthRefreshToken_token_unique	token	1	0	retain named index	CREATE UNIQUE INDEX `oauthRefreshToken_token_unique` ON `oauthRefreshToken` (`token`)
+oauthRefreshToken	sqlite_autoindex_oauthRefreshToken_1	id	1	0	retain named index	
+oauthResource	oauthResource_identifier_unique	identifier	1	0	retain named index	CREATE UNIQUE INDEX `oauthResource_identifier_unique` ON `oauthResource` (`identifier`)
+oauthResource	sqlite_autoindex_oauthResource_1	id	1	0	retain named index	
+offerings	offerings_organization_id_site_id_slug_unique	organization_id,site_id,slug	1	0	retain named index	CREATE UNIQUE INDEX `offerings_organization_id_site_id_slug_unique` ON `offerings` (`organization_id`,`site_id`,`slug`)
+offerings	offerings_site_sort_idx	site_id,sort_order	0	0	retain named index	CREATE INDEX `offerings_site_sort_idx` ON `offerings` (`site_id`,`sort_order`)
+offerings	sqlite_autoindex_offerings_1	id	1	0	retain named index	
+onboarding_drafts	onboarding_drafts_user_id_idx	user_id	0	0	retain named index	CREATE INDEX `onboarding_drafts_user_id_idx` ON `onboarding_drafts` (`user_id`)
+onboarding_drafts	idx_onboarding_drafts_active_user_unique	user_id	1	1	retain named index	CREATE UNIQUE INDEX `idx_onboarding_drafts_active_user_unique` ON `onboarding_drafts` (`user_id`) WHERE status = 'active'
+onboarding_drafts	sqlite_autoindex_onboarding_drafts_1	id	1	0	retain named index	
+organization	organization_stripeCustomerId_unique	stripeCustomerId	1	0	retain named index	CREATE UNIQUE INDEX `organization_stripeCustomerId_unique` ON `organization` (`stripeCustomerId`)
+organization	organization_slug_unique	slug	1	0	retain named index	CREATE UNIQUE INDEX `organization_slug_unique` ON `organization` (`slug`)
+organization	sqlite_autoindex_organization_1	id	1	0	retain named index	
+organization_billing	organization_billing_stripe_subscription_id_unique	stripe_subscription_id	1	0	remove retired-field index	stripe_subscription_id
+organization_billing	organization_billing_stripe_customer_id_unique	stripe_customer_id	1	0	remove retired-field index	stripe_customer_id
+organization_billing	sqlite_autoindex_organization_billing_1	organization_id	1	0	retain named index	
+organization_events	organization_events_site_created_idx	site_id,created_at	0	1	retain named index	CREATE INDEX `organization_events_site_created_idx` ON `organization_events` (`site_id`,`created_at`) WHERE site_id IS NOT NULL
+organization_events	organization_events_location_created_idx	location_id,created_at	0	1	retain named index	CREATE INDEX `organization_events_location_created_idx` ON `organization_events` (`location_id`,`created_at`) WHERE location_id IS NOT NULL
+organization_events	organization_events_org_created_idx	organization_id,created_at	0	0	retain named index	CREATE INDEX `organization_events_org_created_idx` ON `organization_events` (`organization_id`,`created_at`)
+organization_events	sqlite_autoindex_organization_events_1	id	1	0	retain named index	
+platform_contact_submissions	idx_platform_contact_submissions_status_created	status,created_at	0	0	remove retired-field index	status
+platform_contact_submissions	sqlite_autoindex_platform_contact_submissions_1	id	1	0	retain named index	
+platform_docs	platform_docs_slug_unique	slug	1	0	retain named index	CREATE UNIQUE INDEX `platform_docs_slug_unique` ON `platform_docs` (`slug`)
+platform_docs	sqlite_autoindex_platform_docs_1	id	1	0	retain named index	
+platform_locale_catalogs	sqlite_autoindex_platform_locale_catalogs_1	locale	1	0	retain named index	
+platform_locale_messages	sqlite_autoindex_platform_locale_messages_1	locale,message_key	1	0	retain named index	
+post_channel_jobs	post_channel_jobs_provider_post_idx	channel,provider_post_id	0	0	retain named index	CREATE INDEX `post_channel_jobs_provider_post_idx` ON `post_channel_jobs` (`channel`,`provider_post_id`)
+post_channel_jobs	post_channel_jobs_post_channel_unique	post_id,channel	1	0	retain named index	CREATE UNIQUE INDEX `post_channel_jobs_post_channel_unique` ON `post_channel_jobs` (`post_id`,`channel`)
+post_channel_jobs	sqlite_autoindex_post_channel_jobs_1	id	1	0	retain named index	
+posts	posts_org_site_idx	organization_id,site_id	0	0	retain named index	CREATE INDEX `posts_org_site_idx` ON `posts` (`organization_id`,`site_id`)
+posts	posts_site_slug_idx	site_id,slug	1	0	retain named index	CREATE UNIQUE INDEX `posts_site_slug_idx` ON `posts` (`site_id`,`slug`)
+posts	sqlite_autoindex_posts_1	id	1	0	retain named index	
+prices	prices_site_location_validity_idx	site_id,location_id,valid_from,valid_until	0	0	retain named index	CREATE INDEX `prices_site_location_validity_idx` ON `prices` (`site_id`,`location_id`,`valid_from`,`valid_until`)
+prices	prices_product_validity_idx	organization_id,site_id,product_id,valid_from,valid_until	0	0	retain named index	CREATE INDEX `prices_product_validity_idx` ON `prices` (`organization_id`,`site_id`,`product_id`,`valid_from`,`valid_until`)
+prices	sqlite_autoindex_prices_1	id	1	0	retain named index	
+product_categories	product_categories_location_type_name_unique	site_id,location_id,product_type,name	1	0	retain named index	CREATE UNIQUE INDEX `product_categories_location_type_name_unique` ON `product_categories` (`site_id`,`location_id`,`product_type`,`name`)
+product_categories	product_categories_location_type_slug_unique	site_id,location_id,product_type,slug	1	0	retain named index	CREATE UNIQUE INDEX `product_categories_location_type_slug_unique` ON `product_categories` (`site_id`,`location_id`,`product_type`,`slug`)
+product_categories	product_categories_scope_id_unique	organization_id,site_id,location_id,product_type,id	1	0	retain named index	CREATE UNIQUE INDEX `product_categories_scope_id_unique` ON `product_categories` (`organization_id`,`site_id`,`location_id`,`product_type`,`id`)
+product_categories	product_categories_location_type_sort_idx	site_id,location_id,product_type,sort_order	0	0	retain named index	CREATE INDEX `product_categories_location_type_sort_idx` ON `product_categories` (`site_id`,`location_id`,`product_type`,`sort_order`)
+product_categories	sqlite_autoindex_product_categories_1	id	1	0	retain named index	
+products	products_site_location_slug_unique	site_id,location_id,slug	1	0	retain named index	CREATE UNIQUE INDEX `products_site_location_slug_unique` ON `products` (`site_id`,`location_id`,`slug`)
+products	products_scope_id_unique	organization_id,site_id,location_id,id	1	0	retain named index	CREATE UNIQUE INDEX `products_scope_id_unique` ON `products` (`organization_id`,`site_id`,`location_id`,`id`)
+products	products_organization_site_idx	organization_id,site_id	0	0	remove redundant prefix index	CREATE UNIQUE INDEX `products_scope_id_unique` ON `products` (`organization_id`,`site_id`,`location_id`,`id`)
+products	products_site_location_featured_sort_idx	site_id,location_id,featured,featured_sort_order	0	0	retain named index	CREATE INDEX `products_site_location_featured_sort_idx` ON `products` (`site_id`,`location_id`,`featured`,`featured_sort_order`)
+products	products_site_location_visible_sort_idx	site_id,location_id,is_visible,sort_order	0	0	retain named index	CREATE INDEX `products_site_location_visible_sort_idx` ON `products` (`site_id`,`location_id`,`is_visible`,`sort_order`)
+products	products_site_location_type_sort_order_idx	site_id,location_id,product_type,sort_order	0	0	retain named index	CREATE INDEX `products_site_location_type_sort_order_idx` ON `products` (`site_id`,`location_id`,`product_type`,`sort_order`)
+products	products_category_sort_order_idx	category_id,sort_order	0	0	retain named index	CREATE INDEX `products_category_sort_order_idx` ON `products` (`category_id`,`sort_order`)
+products	sqlite_autoindex_products_1	id	1	0	retain named index	
+public_resource_cache_invalidations	public_resource_cache_invalidations_site_idx	site_id,status	0	0	retain named index	CREATE INDEX `public_resource_cache_invalidations_site_idx` ON `public_resource_cache_invalidations` (`site_id`,`status`)
+public_resource_cache_invalidations	public_resource_cache_invalidations_status_idx	status,created_at	0	0	retain named index	CREATE INDEX `public_resource_cache_invalidations_status_idx` ON `public_resource_cache_invalidations` (`status`,`created_at`)
+public_resource_cache_invalidations	sqlite_autoindex_public_resource_cache_invalidations_1	id	1	0	retain named index	
+rate_limits	idx_rate_limits_expires	expires_at	0	0	retain named index	CREATE INDEX `idx_rate_limits_expires` ON `rate_limits` (`expires_at`)
+rate_limits	sqlite_autoindex_rate_limits_1	key	1	0	retain named index	
+reservation_submissions	reservation_submissions_organization_id_idx	organization_id	0	0	retain named index	CREATE INDEX `reservation_submissions_organization_id_idx` ON `reservation_submissions` (`organization_id`)
+reservation_submissions	reservation_submissions_site_date_owner_slot_idx	site_id,date,location_id,time,status	0	0	retain named index	CREATE INDEX `reservation_submissions_site_date_owner_slot_idx` ON `reservation_submissions` (`site_id`,`date`,`location_id`,`time`,`status`)
+reservation_submissions	idx_reservation_submissions_review_reminder_due	site_id,review_request_sent_at,review_reminder_sent_at,review_submitted_at	0	0	retain named index	CREATE INDEX `idx_reservation_submissions_review_reminder_due` ON `reservation_submissions` (`site_id`,`review_request_sent_at`,`review_reminder_sent_at`,`review_submitted_at`)
+reservation_submissions	idx_reservation_submissions_review_request_due	site_id,status,completed_at,review_request_sent_at	0	0	retain named index	CREATE INDEX `idx_reservation_submissions_review_request_due` ON `reservation_submissions` (`site_id`,`status`,`completed_at`,`review_request_sent_at`)
+reservation_submissions	idx_reservation_submissions_customer_id	customer_id	0	0	retain named index	CREATE INDEX `idx_reservation_submissions_customer_id` ON `reservation_submissions` (`customer_id`)
+reservation_submissions	sqlite_autoindex_reservation_submissions_1	id	1	0	retain named index	
+resource_localizations	resource_localizations_org_site_resource_locale_unique	organization_id,site_id,resource_type,resource_id,locale	1	0	retain named index	CREATE UNIQUE INDEX `resource_localizations_org_site_resource_locale_unique` ON `resource_localizations` (`organization_id`,`site_id`,`resource_type`,`resource_id`,`locale`)
+resource_localizations	resource_localizations_resource_idx	resource_type,resource_id	0	0	retain named index	CREATE INDEX `resource_localizations_resource_idx` ON `resource_localizations` (`resource_type`,`resource_id`)
+resource_localizations	resource_localizations_site_locale_type_idx	site_id,locale,resource_type	0	0	retain named index	CREATE INDEX `resource_localizations_site_locale_type_idx` ON `resource_localizations` (`site_id`,`locale`,`resource_type`)
+resource_localizations	resource_localizations_site_locale_route_unique	site_id,locale,route_path	1	1	retain named index	CREATE UNIQUE INDEX `resource_localizations_site_locale_route_unique` ON `resource_localizations` (`site_id`,`locale`,`route_path`) WHERE route_path IS NOT NULL
+resource_localizations	sqlite_autoindex_resource_localizations_1	id	1	0	retain named index	
+review_requests	review_requests_organization_id_idx	organization_id	0	0	retain named index	CREATE INDEX `review_requests_organization_id_idx` ON `review_requests` (`organization_id`)
+review_requests	idx_review_requests_send_due	site_id,first_sent_at,reminder_sent_at,submitted_at,expires_at	0	0	retain named index	CREATE INDEX `idx_review_requests_send_due` ON `review_requests` (`site_id`,`first_sent_at`,`reminder_sent_at`,`submitted_at`,`expires_at`)
+review_requests	idx_review_requests_active_booking_unique	site_id,booking_type,booking_id	1	1	retain named index	CREATE UNIQUE INDEX `idx_review_requests_active_booking_unique` ON `review_requests` (`site_id`,`booking_type`,`booking_id`) WHERE revoked_at IS NULL AND submitted_at IS NULL
+review_requests	review_requests_token_hash_unique	token_hash	1	0	retain named index	CREATE UNIQUE INDEX `review_requests_token_hash_unique` ON `review_requests` (`token_hash`)
+review_requests	sqlite_autoindex_review_requests_1	id	1	0	retain named index	
+reviews	reviews_organization_id_idx	organization_id	0	0	retain named index	CREATE INDEX `reviews_organization_id_idx` ON `reviews` (`organization_id`)
+reviews	idx_reviews_product_status_created	product_id,status,created_at	0	0	retain named index	CREATE INDEX `idx_reviews_product_status_created` ON `reviews` (`product_id`,`status`,`created_at`)
+reviews	idx_reviews_site_status	site_id,status,created_at	0	1	retain named index	CREATE INDEX `idx_reviews_site_status` ON `reviews` (`site_id`,`status`,`created_at`) WHERE location_id IS NULL
+reviews	idx_reviews_location_status	location_id,status,created_at	0	0	retain named index	CREATE INDEX `idx_reviews_location_status` ON `reviews` (`location_id`,`status`,`created_at`)
+reviews	idx_reviews_customer_id	customer_id	0	0	retain named index	CREATE INDEX `idx_reviews_customer_id` ON `reviews` (`customer_id`)
+reviews	idx_reviews_request_id	review_request_id	0	0	retain named index	CREATE INDEX `idx_reviews_request_id` ON `reviews` (`review_request_id`)
+reviews	sqlite_autoindex_reviews_1	id	1	0	retain named index	
+session	session_userId_idx	userId	0	0	retain named index	CREATE INDEX `session_userId_idx` ON `session` (`userId`)
+session	session_token_unique	token	1	0	retain named index	CREATE UNIQUE INDEX `session_token_unique` ON `session` (`token`)
+session	sqlite_autoindex_session_1	id	1	0	retain named index	
+site_analytics_daily	site_analytics_daily_site_id_date_unique	site_id,date	1	0	retain named index	CREATE UNIQUE INDEX `site_analytics_daily_site_id_date_unique` ON `site_analytics_daily` (`site_id`,`date`)
+site_analytics_daily	site_analytics_daily_organization_id_idx	organization_id	0	0	retain named index	CREATE INDEX `site_analytics_daily_organization_id_idx` ON `site_analytics_daily` (`organization_id`)
+site_analytics_daily	sqlite_autoindex_site_analytics_daily_1	id	1	0	retain named index	
+site_analytics_dimension_daily	site_analytics_dimension_daily_site_date_value_unique	site_id,date,dimension,value,subvalue	1	0	retain named index	CREATE UNIQUE INDEX `site_analytics_dimension_daily_site_date_value_unique` ON `site_analytics_dimension_daily` (`site_id`,`date`,`dimension`,`value`,`subvalue`)
+site_analytics_dimension_daily	site_analytics_dimension_daily_site_date_idx	site_id,date	0	0	remove redundant prefix index	CREATE UNIQUE INDEX `site_analytics_dimension_daily_site_date_value_unique` ON `site_analytics_dimension_daily` (`site_id`,`date`,`dimension`,`value`,`subvalue`)
+site_analytics_dimension_daily	site_analytics_dimension_daily_organization_id_idx	organization_id	0	0	retain named index	CREATE INDEX `site_analytics_dimension_daily_organization_id_idx` ON `site_analytics_dimension_daily` (`organization_id`)
+site_analytics_dimension_daily	sqlite_autoindex_site_analytics_dimension_daily_1	id	1	0	retain named index	
+site_analytics_page_daily	site_analytics_page_daily_site_date_path_unique	site_id,date,page_path	1	0	retain named index	CREATE UNIQUE INDEX `site_analytics_page_daily_site_date_path_unique` ON `site_analytics_page_daily` (`site_id`,`date`,`page_path`)
+site_analytics_page_daily	site_analytics_page_daily_site_date_idx	site_id,date	0	0	remove redundant prefix index	CREATE UNIQUE INDEX `site_analytics_page_daily_site_date_path_unique` ON `site_analytics_page_daily` (`site_id`,`date`,`page_path`)
+site_analytics_page_daily	site_analytics_page_daily_organization_id_idx	organization_id	0	0	retain named index	CREATE INDEX `site_analytics_page_daily_organization_id_idx` ON `site_analytics_page_daily` (`organization_id`)
+site_analytics_page_daily	sqlite_autoindex_site_analytics_page_daily_1	id	1	0	retain named index	
+site_analytics_sessions	site_analytics_sessions_site_session_unique	site_id,session_id	1	0	retain named index	CREATE UNIQUE INDEX `site_analytics_sessions_site_session_unique` ON `site_analytics_sessions` (`site_id`,`session_id`)
+site_analytics_sessions	site_analytics_sessions_site_touch_started_idx	site_id,last_touch_source,last_touch_medium,started_at	0	0	retain named index	CREATE INDEX `site_analytics_sessions_site_touch_started_idx` ON `site_analytics_sessions` (`site_id`,`last_touch_source`,`last_touch_medium`,`started_at`)
+site_analytics_sessions	site_analytics_sessions_site_visitor_started_idx	site_id,visitor_id,started_at	0	0	retain named index	CREATE INDEX `site_analytics_sessions_site_visitor_started_idx` ON `site_analytics_sessions` (`site_id`,`visitor_id`,`started_at`)
+site_analytics_sessions	site_analytics_sessions_site_last_seen_idx	site_id,last_seen_at	0	0	retain named index	CREATE INDEX `site_analytics_sessions_site_last_seen_idx` ON `site_analytics_sessions` (`site_id`,`last_seen_at`)
+site_analytics_sessions	site_analytics_sessions_site_started_idx	site_id,started_at	0	0	retain named index	CREATE INDEX `site_analytics_sessions_site_started_idx` ON `site_analytics_sessions` (`site_id`,`started_at`)
+site_analytics_sessions	site_analytics_sessions_organization_id_idx	organization_id	0	0	retain named index	CREATE INDEX `site_analytics_sessions_organization_id_idx` ON `site_analytics_sessions` (`organization_id`)
+site_analytics_sessions	sqlite_autoindex_site_analytics_sessions_1	id	1	0	retain named index	
+site_config	site_config_org_site_idx	organization_id,site_id	0	0	remove redundant prefix index	
+site_config	sqlite_autoindex_site_config_1	organization_id,site_id,key	1	0	retain named index	
+site_consultation_settings	site_consultation_settings_organization_id_idx	organization_id	0	0	retain named index	CREATE INDEX `site_consultation_settings_organization_id_idx` ON `site_consultation_settings` (`organization_id`)
+site_consultation_settings	site_consultation_settings_site_id_unique	site_id	1	0	retain named index	CREATE UNIQUE INDEX `site_consultation_settings_site_id_unique` ON `site_consultation_settings` (`site_id`)
+site_consultation_settings	sqlite_autoindex_site_consultation_settings_1	id	1	0	retain named index	
+site_conversion_events	site_conversion_events_organization_id_idx	organization_id	0	0	retain named index	CREATE INDEX `site_conversion_events_organization_id_idx` ON `site_conversion_events` (`organization_id`)
+site_conversion_events	site_conversion_events_entity_unique	site_id,event_name,entity_type,entity_id	1	1	retain named index	CREATE UNIQUE INDEX `site_conversion_events_entity_unique` ON `site_conversion_events` (`site_id`,`event_name`,`entity_type`,`entity_id`) WHERE "site_conversion_events"."entity_type" IS NOT NULL AND "site_conversion_events"."entity_id" IS NOT NULL AND "site_conversion_events"."event_name" IN ('contact_submit', 'reservation_submit', 'experience_booking_submit')
+site_conversion_events	site_conversion_events_source_medium_created_idx	site_id,source,medium,created_at	0	0	retain named index	CREATE INDEX `site_conversion_events_source_medium_created_idx` ON `site_conversion_events` (`site_id`,`source`,`medium`,`created_at`)
+site_conversion_events	site_conversion_events_entity_idx	site_id,entity_type,entity_id	0	0	retain named index	CREATE INDEX `site_conversion_events_entity_idx` ON `site_conversion_events` (`site_id`,`entity_type`,`entity_id`)
+site_conversion_events	site_conversion_events_session_idx	site_id,session_id	0	0	retain named index	CREATE INDEX `site_conversion_events_session_idx` ON `site_conversion_events` (`site_id`,`session_id`)
+site_conversion_events	site_conversion_events_name_created_idx	event_name,created_at	0	0	retain named index	CREATE INDEX `site_conversion_events_name_created_idx` ON `site_conversion_events` (`event_name`,`created_at`)
+site_conversion_events	site_conversion_events_site_created_idx	site_id,created_at	0	0	retain named index	CREATE INDEX `site_conversion_events_site_created_idx` ON `site_conversion_events` (`site_id`,`created_at`)
+site_conversion_events	sqlite_autoindex_site_conversion_events_1	id	1	0	retain named index	
+site_domain_events	idx_site_domain_events_site	site_id,created_at	0	0	retain named index	CREATE INDEX `idx_site_domain_events_site` ON `site_domain_events` (`site_id`,`created_at`)
+site_domain_events	idx_site_domain_events_domain	domain_id,created_at	0	0	retain named index	CREATE INDEX `idx_site_domain_events_domain` ON `site_domain_events` (`domain_id`,`created_at`)
+site_domain_events	sqlite_autoindex_site_domain_events_1	id	1	0	retain named index	
+site_domains	idx_site_domains_reconcile	status,next_check_at	0	0	retain named index	CREATE INDEX `idx_site_domains_reconcile` ON `site_domains` (`status`,`next_check_at`)
+site_domains	idx_site_domains_one_canonical	site_id	1	1	retain named index	CREATE UNIQUE INDEX `idx_site_domains_one_canonical` ON `site_domains` (`site_id`) WHERE role = 'canonical' AND status = 'active'
+site_domains	site_domains_org_site_idx	organization_id,site_id	0	0	retain named index	CREATE INDEX `site_domains_org_site_idx` ON `site_domains` (`organization_id`,`site_id`)
+site_domains	site_domains_cloudflare_hostname_id_unique	cloudflare_hostname_id	1	0	retain named index	CREATE UNIQUE INDEX `site_domains_cloudflare_hostname_id_unique` ON `site_domains` (`cloudflare_hostname_id`)
+site_domains	site_domains_domain_unique	domain	1	0	retain named index	CREATE UNIQUE INDEX `site_domains_domain_unique` ON `site_domains` (`domain`)
+site_domains	sqlite_autoindex_site_domains_1	id	1	0	retain named index	
+site_language_licenses	site_language_licenses_org_site_locale_unique	organization_id,site_id,locale	1	0	retain named index	CREATE UNIQUE INDEX `site_language_licenses_org_site_locale_unique` ON `site_language_licenses` (`organization_id`,`site_id`,`locale`)
+site_language_licenses	site_language_licenses_subscription_item_idx	stripe_subscription_item_id	0	0	retain named index	CREATE INDEX `site_language_licenses_subscription_item_idx` ON `site_language_licenses` (`stripe_subscription_item_id`)
+site_language_licenses	site_language_licenses_organization_status_idx	organization_id,status	0	0	retain named index	CREATE INDEX `site_language_licenses_organization_status_idx` ON `site_language_licenses` (`organization_id`,`status`)
+site_language_licenses	sqlite_autoindex_site_language_licenses_1	id	1	0	retain named index	
+site_link_items	site_link_items_site_idx	site_id	0	0	retain named index	CREATE INDEX `site_link_items_site_idx` ON `site_link_items` (`site_id`)
+site_link_items	site_link_items_page_status_sort_idx	link_page_id,status,sort_order	0	0	retain named index	CREATE INDEX `site_link_items_page_status_sort_idx` ON `site_link_items` (`link_page_id`,`status`,`sort_order`)
+site_link_items	sqlite_autoindex_site_link_items_1	id	1	0	retain named index	
+site_link_pages	site_link_pages_organization_id_site_id_path_unique	organization_id,site_id,path	1	0	retain named index	CREATE UNIQUE INDEX `site_link_pages_organization_id_site_id_path_unique` ON `site_link_pages` (`organization_id`,`site_id`,`path`)
+site_link_pages	site_link_pages_site_id_unique	site_id	1	0	retain named index	CREATE UNIQUE INDEX `site_link_pages_site_id_unique` ON `site_link_pages` (`site_id`)
+site_link_pages	sqlite_autoindex_site_link_pages_1	id	1	0	retain named index	
+site_locales	site_locales_organization_id_site_id_locale_unique	organization_id,site_id,locale	1	0	retain named index	CREATE UNIQUE INDEX `site_locales_organization_id_site_id_locale_unique` ON `site_locales` (`organization_id`,`site_id`,`locale`)
+site_locales	idx_site_locales_one_source_per_site	organization_id,site_id	1	1	retain named index	CREATE UNIQUE INDEX `idx_site_locales_one_source_per_site` ON `site_locales` (`organization_id`,`site_id`) WHERE is_source = 1
+site_locales	sqlite_autoindex_site_locales_1	id	1	0	retain named index	
+site_pageview_events	idx_pageview_events_site_visitor	site_id,visitor_id	0	0	retain named index	CREATE INDEX `idx_pageview_events_site_visitor` ON `site_pageview_events` (`site_id`,`visitor_id`)
+site_pageview_events	idx_pageview_events_session	site_id,session_id	0	0	retain named index	CREATE INDEX `idx_pageview_events_session` ON `site_pageview_events` (`site_id`,`session_id`)
+site_pageview_events	site_pageview_events_site_created_idx	site_id,created_at	0	0	retain named index	CREATE INDEX `site_pageview_events_site_created_idx` ON `site_pageview_events` (`site_id`,`created_at`)
+site_pageview_events	sqlite_autoindex_site_pageview_events_1	id	1	0	retain named index	
+site_redirects	site_redirects_site_locale_from_path_unique	site_id,locale,from_path	1	0	retain named index	CREATE UNIQUE INDEX `site_redirects_site_locale_from_path_unique` ON `site_redirects` (`site_id`,`locale`,`from_path`)
+site_redirects	site_redirects_owner_idx	owner_type,owner_id	0	0	retain named index	CREATE INDEX `site_redirects_owner_idx` ON `site_redirects` (`owner_type`,`owner_id`)
+site_redirects	site_redirects_organization_id_idx	organization_id	0	0	retain named index	CREATE INDEX `site_redirects_organization_id_idx` ON `site_redirects` (`organization_id`)
+site_redirects	sqlite_autoindex_site_redirects_1	id	1	0	retain named index	
+site_theme_tokens	site_theme_tokens_site_template_unique	site_id,template_slug	1	0	retain named index	CREATE UNIQUE INDEX `site_theme_tokens_site_template_unique` ON `site_theme_tokens` (`site_id`,`template_slug`)
+site_theme_tokens	site_theme_tokens_organization_id_idx	organization_id	0	0	retain named index	CREATE INDEX `site_theme_tokens_organization_id_idx` ON `site_theme_tokens` (`organization_id`)
+site_theme_tokens	sqlite_autoindex_site_theme_tokens_1	id	1	0	retain named index	
+site_transfer_requests	idx_site_transfer_token	token	1	0	retain named index	CREATE UNIQUE INDEX `idx_site_transfer_token` ON `site_transfer_requests` (`token`)
+site_transfer_requests	idx_site_transfer_site	site_id,status	0	0	retain named index	CREATE INDEX `idx_site_transfer_site` ON `site_transfer_requests` (`site_id`,`status`)
+site_transfer_requests	idx_site_transfer_reminders	status,requires_payment,created_at	0	0	retain named index	CREATE INDEX `idx_site_transfer_reminders` ON `site_transfer_requests` (`status`,`requires_payment`,`created_at`)
+site_transfer_requests	idx_site_transfer_pending	site_id	1	1	retain named index	CREATE UNIQUE INDEX `idx_site_transfer_pending` ON `site_transfer_requests` (`site_id`) WHERE status = 'pending'
+site_transfer_requests	sqlite_autoindex_site_transfer_requests_1	id	1	0	retain named index	
+sites	sites_created_at_idx	created_at	0	0	retain named index	CREATE INDEX `sites_created_at_idx` ON `sites` (`created_at`)
+sites	sites_organization_id_idx	organization_id	0	0	remove redundant prefix index	CREATE UNIQUE INDEX `sites_organization_id_id_unique` ON `sites` (`organization_id`,`id`)
+sites	idx_sites_custom_domain_unique	custom_domain	1	1	remove retired-field index	custom_domain
+sites	sites_subdomain_unique	subdomain	1	0	retain named index	CREATE UNIQUE INDEX `sites_subdomain_unique` ON `sites` (`subdomain`)
+sites	sites_slug_unique	slug	1	0	retain named index	CREATE UNIQUE INDEX `sites_slug_unique` ON `sites` (`slug`)
+sites	sqlite_autoindex_sites_1	id	1	0	retain named index	
+spent_subdomains	spent_subdomains_site_idx	site_id	0	0	retain named index	CREATE INDEX `spent_subdomains_site_idx` ON `spent_subdomains` (`site_id`)
+spent_subdomains	sqlite_autoindex_spent_subdomains_1	domain	1	0	retain named index	
+stripe_ga4_subscription_intents	stripe_ga4_subscription_intents_expiry_idx	status,expires_at	0	0	retain named index	CREATE INDEX `stripe_ga4_subscription_intents_expiry_idx` ON `stripe_ga4_subscription_intents` (`status`,`expires_at`)
+stripe_ga4_subscription_intents	stripe_ga4_subscription_intents_organization_idx	organization_id,status,created_at	0	0	retain named index	CREATE INDEX `stripe_ga4_subscription_intents_organization_idx` ON `stripe_ga4_subscription_intents` (`organization_id`,`status`,`created_at`)
+stripe_ga4_subscription_intents	stripe_ga4_subscription_intents_subscription_idx	stripe_subscription_id,status,created_at	0	0	retain named index	CREATE INDEX `stripe_ga4_subscription_intents_subscription_idx` ON `stripe_ga4_subscription_intents` (`stripe_subscription_id`,`status`,`created_at`)
+stripe_ga4_subscription_intents	sqlite_autoindex_stripe_ga4_subscription_intents_1	id	1	0	retain named index	
+stripe_invoice_payments	stripe_invoice_payments_subscription_idx	stripe_subscription_id,period_end	0	0	retain named index	CREATE INDEX `stripe_invoice_payments_subscription_idx` ON `stripe_invoice_payments` (`stripe_subscription_id`,`period_end`)
+stripe_invoice_payments	stripe_invoice_payments_organization_idx	organization_id,period_end	0	0	retain named index	CREATE INDEX `stripe_invoice_payments_organization_idx` ON `stripe_invoice_payments` (`organization_id`,`period_end`)
+stripe_invoice_payments	sqlite_autoindex_stripe_invoice_payments_1	stripe_invoice_id	1	0	retain named index	
+stripe_subscription_versions	sqlite_autoindex_stripe_subscription_versions_1	stripe_subscription_id	1	0	retain named index	
+stripe_webhook_events	stripe_webhook_events_retry_idx	status,next_attempt_at	0	0	retain named index	CREATE INDEX `stripe_webhook_events_retry_idx` ON `stripe_webhook_events` (`status`,`next_attempt_at`)
+stripe_webhook_events	stripe_webhook_events_stripe_event_id_unique	stripe_event_id	1	0	retain named index	CREATE UNIQUE INDEX `stripe_webhook_events_stripe_event_id_unique` ON `stripe_webhook_events` (`stripe_event_id`)
+stripe_webhook_events	sqlite_autoindex_stripe_webhook_events_1	id	1	0	retain named index	
+subscription	subscription_status_idx	status	0	0	retain named index	CREATE INDEX `subscription_status_idx` ON `subscription` (`status`)
+subscription	subscription_referenceId_idx	referenceId	0	0	retain named index	CREATE INDEX `subscription_referenceId_idx` ON `subscription` (`referenceId`)
+subscription	subscription_stripeSubscriptionId_unique	stripeSubscriptionId	1	0	retain named index	CREATE UNIQUE INDEX `subscription_stripeSubscriptionId_unique` ON `subscription` (`stripeSubscriptionId`)
+subscription	sqlite_autoindex_subscription_1	id	1	0	retain named index	
+team	team_organizationId_idx	organizationId	0	0	retain named index	CREATE INDEX `team_organizationId_idx` ON `team` (`organizationId`)
+team	sqlite_autoindex_team_1	id	1	0	retain named index	
+teamMember	teamMember_userId_idx	userId	0	0	retain named index	CREATE INDEX `teamMember_userId_idx` ON `teamMember` (`userId`)
+teamMember	teamMember_teamId_idx	teamId	0	0	retain named index	CREATE INDEX `teamMember_teamId_idx` ON `teamMember` (`teamId`)
+teamMember	teamMember_membershipKey_unique	membershipKey	1	0	retain named index	CREATE UNIQUE INDEX `teamMember_membershipKey_unique` ON `teamMember` (`membershipKey`)
+teamMember	sqlite_autoindex_teamMember_1	id	1	0	retain named index	
+tenant_compliance	tenant_compliance_site_id_unique	site_id	1	0	retain named index	CREATE UNIQUE INDEX `tenant_compliance_site_id_unique` ON `tenant_compliance` (`site_id`)
+tenant_compliance	sqlite_autoindex_tenant_compliance_1	id	1	0	retain named index	
+tenant_page_variants	tenant_page_variants_site_locale_path_unique	site_id,locale,path	1	0	retain named index	CREATE UNIQUE INDEX `tenant_page_variants_site_locale_path_unique` ON `tenant_page_variants` (`site_id`,`locale`,`path`)
+tenant_page_variants	tenant_page_variants_page_locale_unique	page_id,locale	1	0	retain named index	CREATE UNIQUE INDEX `tenant_page_variants_page_locale_unique` ON `tenant_page_variants` (`page_id`,`locale`)
+tenant_page_variants	tenant_page_variants_page_idx	page_id	0	0	remove redundant prefix index	CREATE UNIQUE INDEX `tenant_page_variants_page_locale_unique` ON `tenant_page_variants` (`page_id`,`locale`)
+tenant_page_variants	tenant_page_variants_site_path_idx	site_id,path	0	0	retain named index	CREATE INDEX `tenant_page_variants_site_path_idx` ON `tenant_page_variants` (`site_id`,`path`)
+tenant_page_variants	sqlite_autoindex_tenant_page_variants_1	id	1	0	retain named index	
+tenant_pages	tenant_pages_site_sort_idx	site_id,sort_order	0	0	retain named index	CREATE INDEX `tenant_pages_site_sort_idx` ON `tenant_pages` (`site_id`,`sort_order`)
+tenant_pages	sqlite_autoindex_tenant_pages_1	id	1	0	retain named index	
+themes	themes_slug_unique	slug	1	0	remove with retired table	slug
+themes	sqlite_autoindex_themes_1	id	1	0	remove with retired table	id
+usage_events	usage_events_organization_id_idempotency_key_unique	organization_id,idempotency_key	1	0	retain named index	CREATE UNIQUE INDEX `usage_events_organization_id_idempotency_key_unique` ON `usage_events` (`organization_id`,`idempotency_key`)
+usage_events	usage_events_site_created_idx	site_id,created_at	0	0	retain named index	CREATE INDEX `usage_events_site_created_idx` ON `usage_events` (`site_id`,`created_at`)
+usage_events	usage_events_organization_resource_created_idx	organization_id,resource,created_at	0	0	retain named index	CREATE INDEX `usage_events_organization_resource_created_idx` ON `usage_events` (`organization_id`,`resource`,`created_at`)
+usage_events	sqlite_autoindex_usage_events_1	id	1	0	retain named index	
+usage_quota_grants	usage_quota_grants_organization_id_idempotency_key_unique	organization_id,idempotency_key	1	0	retain named index	CREATE UNIQUE INDEX `usage_quota_grants_organization_id_idempotency_key_unique` ON `usage_quota_grants` (`organization_id`,`idempotency_key`)
+usage_quota_grants	usage_quota_grants_active_idx	organization_id,resource,period_start,period_end	0	0	retain named index	CREATE INDEX `usage_quota_grants_active_idx` ON `usage_quota_grants` (`organization_id`,`resource`,`period_start`,`period_end`)
+usage_quota_grants	sqlite_autoindex_usage_quota_grants_1	id	1	0	retain named index	
+user	user_phoneNumber_unique	phoneNumber	1	0	retain named index	CREATE UNIQUE INDEX `user_phoneNumber_unique` ON `user` (`phoneNumber`)
+user	user_email_unique	email	1	0	retain named index	CREATE UNIQUE INDEX `user_email_unique` ON `user` (`email`)
+user	sqlite_autoindex_user_1	id	1	0	retain named index	
+verification	sqlite_autoindex_verification_1	id	1	0	retain named index	
+work_requests	idx_work_requests_status	status,priority,created_at	0	0	retain named index	CREATE INDEX `idx_work_requests_status` ON `work_requests` (`status`,`priority`,`created_at`)
+work_requests	idx_work_requests_org	organization_id,status,created_at	0	0	retain named index	CREATE INDEX `idx_work_requests_org` ON `work_requests` (`organization_id`,`status`,`created_at`)
+work_requests	sqlite_autoindex_work_requests_1	id	1	0	retain named index	
+zaraz_sync_lock	sqlite_autoindex_zaraz_sync_lock_1	id	1	0	retain named index	

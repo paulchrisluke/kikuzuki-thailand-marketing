@@ -86,7 +86,7 @@ const selectorItems = computed(() => sites.value.map(site => ({
 function verticalLabel(vertical: (typeof sites.value)[number]['vertical']) {
   if (vertical === 'restaurant') return 'Restaurant'
   if (vertical === 'experience') return 'Experiences'
-  if (vertical === 'professional_service' || vertical === 'service') return 'Professional services'
+  if (vertical === 'service') return 'Professional services'
   return 'Website'
 }
 

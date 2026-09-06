@@ -1,3 +1,4 @@
+import { parseRecurringSlots } from '~/shared/reservation-hours'
 import { jsonResponse, readRequiredBody } from '~/server/utils/api-response'
 import { updateExperience } from '~/server/utils/experiences'
 import { InvalidFieldError, stringArrayOrNull } from '~/server/utils/validation-helpers'
@@ -50,11 +51,10 @@ export default defineHandler(async (event) => {
   if ('price' in body) updates.price = body.price === null ? null : body.price as PriceInput
   if ('duration_minutes' in body) updates.duration_minutes = optionalInteger(body.duration_minutes)
   if ('max_capacity' in body) updates.max_capacity = optionalInteger(body.max_capacity)
-  if ('time_slots' in body) updates.time_slots = Array.isArray(body.time_slots) ? body.time_slots.map(String) : null
-  if ('recurring_slots' in body) {
-    updates.recurring_slots = body.recurring_slots && typeof body.recurring_slots === 'object' && !Array.isArray(body.recurring_slots)
-      ? (body.recurring_slots as Record<string, string[]>)
-      : null
+  try {
+    if ('recurring_slots' in body) updates.recurring_slots = parseRecurringSlots(body.recurring_slots)
+  } catch (error) {
+    return jsonResponse({ error: error instanceof Error ? error.message : 'Invalid recurring_slots' }, { status: 400 })
   }
   if ('tags' in body) updates.tags = body.tags
   if ('details' in body) updates.details = body.details

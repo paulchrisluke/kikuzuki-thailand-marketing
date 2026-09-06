@@ -1,5 +1,6 @@
+import { parseOpeningHours, parseSpecialHours, type OpeningHours, type SpecialHours } from '~/shared/reservation-hours'
 import { fireOrganizationEventSafe } from "~/server/utils/organization-events";
-import { execute, executeBatch, queryFirst } from "~/server/db";
+import { executeBatch, queryFirst } from "~/server/db";
 import { isValidTimezone, normalizeTimezone } from "~/utils/timezone";
 import { parsePhone } from "~/utils/phone";
 import type { CmsCapabilityOverrideDelta, ProductFeature } from "~/config/cms-registry";
@@ -8,13 +9,8 @@ import { checkModuleHasLiveData } from "~/server/utils/module-content-guard";
 import { ensureLocationTeam } from "~/server/utils/member-access";
 import type { CloudflareEnv } from "~/server/utils/auth";
 import { refreshSocialCard } from '~/server/utils/social-card'
+import { resourceLocalizationDeletionQueries } from '~/server/utils/localization'
 
-// Require format-valid E.164 at the shared location write boundary (issue
-// #293 Section D/I) — this is the one place createLocation/updateLocation
-// both funnel through, so it also covers callers that don't go through the
-// dashboard HTTP routes (e.g. MCP's update_location
-// tools in server/utils/mcp-executor/locations.ts), which previously wrote
-// input.notification_phone straight to the column with no validation at all.
 export function normalizeLocationNotificationPhone(raw: string | null | undefined): string | null {
   if (raw === undefined || raw === null || !raw.trim()) return null;
   const parsed = parsePhone(raw, { defaultCountry: "TH" });
@@ -28,12 +24,7 @@ type SetupEnv = CloudflareEnv;
 
 const MAX_SLUG_ATTEMPTS = 10;
 
-export interface SpecialHoursInput {
-  closed: boolean;
-  starts_on?: string | null;
-  ends_on?: string | null;
-  note?: string | null;
-}
+
 
 export interface CreateLocationInput {
   title: string;
@@ -49,8 +40,8 @@ export interface CreateLocationInput {
   description?: string | null;
   short_description?: string | null;
   address?: string | Record<string, unknown> | null;
-  opening_hours?: string | unknown[] | Record<string, unknown> | null;
-  special_hours?: SpecialHoursInput | null;
+  opening_hours?: OpeningHours;
+  special_hours?: SpecialHours;
   price_level?: string | null;
   rating?: number | null;
   review_count?: number | null;
@@ -63,7 +54,6 @@ export interface CreateLocationInput {
   notification_phone?: string | null;
   timezone?: string | null;
   max_capacity?: number | null;
-  is_primary?: boolean;
   seo_title?: string | null;
   seo_description?: string | null;
   canonical_url?: string | null;
@@ -95,7 +85,6 @@ export interface LocationRecord {
   description: string | null;
   short_description: string | null;
   status: string;
-  is_primary: number | boolean;
   address?: string | null;
   opening_hours?: string | null;
   special_hours?: string | null;
@@ -189,107 +178,13 @@ function serializeAddress(value: unknown) {
 }
 
 export function serializeOpeningHours(value: unknown): string | null {
-  if (value === undefined || value === null) return null;
-  if (typeof value !== "string") {
-    // Google Places returns a bare weekdayDescriptions string[] — normalize to the
-    // same { weekdayDescriptions } shape consumers (dashboard hours editor, public
-    // site hours rendering) expect regardless of input source.
-    if (Array.isArray(value)) {
-      if (!value.every((item) => typeof item === "string")) {
-        throw new Error(
-          "opening_hours array must contain only strings (one per line, e.g. \"Monday: 9:00 AM – 5:00 PM\"). " +
-            "To pass structured hours, use { weekdayDescriptions: string[] } instead.",
-        );
-      }
-      return value.length ? JSON.stringify({ weekdayDescriptions: value }) : null;
-    }
-    if (!isPlainObject(value)) {
-      throw new Error(
-        "opening_hours must be a string, a string[], or an object like { weekdayDescriptions: string[] }.",
-      );
-    }
-    const weekdayDescriptions = (value as { weekdayDescriptions?: unknown }).weekdayDescriptions;
-    if (!Array.isArray(weekdayDescriptions) || !weekdayDescriptions.every((item) => typeof item === "string")) {
-      throw new Error("opening_hours.weekdayDescriptions must be an array of strings.");
-    }
-    if (weekdayDescriptions.length === 1) {
-      const [onlyDescription] = weekdayDescriptions;
-      const normalized: string | null = serializeOpeningHours(onlyDescription);
-      if (normalized) return normalized;
-    }
-    return weekdayDescriptions.length ? JSON.stringify({ weekdayDescriptions }) : null;
-  }
-  const trimmed = value.trim();
-  if (trimmed.startsWith("{") || trimmed.startsWith("[")) {
-    let parsed: unknown;
-    try {
-      parsed = JSON.parse(trimmed);
-    } catch {
-      // Not valid JSON — fall through and treat as one line per day.
-      parsed = undefined;
-    }
-    if (parsed !== undefined) return serializeOpeningHours(parsed);
-  }
-  const weekdayDescriptions = value
-    .split(/\r?\n/)
-    .map((line) => line.trim())
-    .filter(Boolean);
-  return weekdayDescriptions.length
-    ? JSON.stringify({ weekdayDescriptions })
-    : null;
+  const hours = parseOpeningHours(value ?? null)
+  return hours === null ? null : JSON.stringify(hours)
 }
 
-function parseYmd(value: string, field: string): { year: number; month: number; day: number } {
-  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value.trim());
-  if (!match) {
-    throw new Error(`${field} must be a date in YYYY-MM-DD format.`);
-  }
-  const year = Number(match[1]);
-  const month = Number(match[2]);
-  const day = Number(match[3]);
-  const asDate = new Date(Date.UTC(year, month - 1, day));
-  if (
-    asDate.getUTCFullYear() !== year ||
-    asDate.getUTCMonth() !== month - 1 ||
-    asDate.getUTCDate() !== day
-  ) {
-    throw new Error(`${field} is not a valid calendar date.`);
-  }
-  return { year, month, day };
-}
-
-function serializeSpecialHours(value: SpecialHoursInput | null | undefined) {
-  if (value === undefined || value === null) return null;
-
-  const startsOn = value.starts_on ? parseYmd(value.starts_on, "special_hours.starts_on") : null;
-  const endsOn = value.ends_on ? parseYmd(value.ends_on, "special_hours.ends_on") : null;
-  const today = new Date();
-  const startDate = startsOn ?? {
-    year: today.getFullYear(),
-    month: today.getMonth() + 1,
-    day: today.getDate(),
-  };
-
-  if (endsOn) {
-    const startMs = Date.UTC(startDate.year, startDate.month - 1, startDate.day);
-    const endMs = Date.UTC(endsOn.year, endsOn.month - 1, endsOn.day);
-    if (endMs < startMs) {
-      throw new Error("special_hours.ends_on must not be before starts_on.");
-    }
-  }
-
-  const note = typeof value.note === "string" ? value.note.trim() || undefined : undefined;
-
-  return JSON.stringify({
-    specialHourPeriods: [
-      {
-        startDate,
-        ...(endsOn ? { endDate: endsOn } : {}),
-        isClosed: Boolean(value.closed),
-        ...(note ? { note } : {}),
-      },
-    ],
-  });
+function serializeSpecialHours(value: unknown): string | null {
+  const hours = parseSpecialHours(value ?? null)
+  return hours === null ? null : JSON.stringify(hours)
 }
 
 interface LocationFeaturesValidationError {
@@ -415,7 +310,7 @@ async function loadLocation(
   locationIdOrSlug: string,
 ) {
   const columns = `id, slug, title, city, neighborhood, phone, email, website_url, maps_url, google_review_url, google_place_id,
-           rating, review_count, description, short_description, status, is_primary,
+           rating, review_count, description, short_description, status,
            address, opening_hours, special_hours, price_level,
            facebook_url, instagram_url, tiktok_url, grab_url, uber_eats_url, foodpanda_url,
            notification_phone, timezone, max_capacity, seo_title, seo_description, canonical_url, robots,
@@ -504,7 +399,11 @@ export async function createLocation(
   }
 
   let normalizedNotificationPhone: string | null;
+  let openingHours: string | null;
+  let specialHours: string | null;
   try {
+    openingHours = serializeOpeningHours(input.opening_hours);
+    specialHours = serializeSpecialHours(input.special_hours);
     normalizedNotificationPhone = normalizeLocationNotificationPhone(input.notification_phone);
   } catch (error) {
     return {
@@ -513,67 +412,25 @@ export async function createLocation(
     };
   }
 
-  const activeCountRow = await queryFirst<{ count: number | string }>(
-    db,
-    `
-    SELECT COUNT(*) AS count
-    FROM business_locations
-    WHERE organization_id = ? AND site_id = ? AND status = 'active'
-  `,
-    [organizationId, siteId],
-  );
-
-  const activeCount = Number(activeCountRow?.count ?? 0);
-  if (!Number.isFinite(activeCount)) {
-    return {
-      status: 500,
-      data: { error: "Unable to verify active locations." },
-    };
-  }
-
   const baseSlug = toSlug((input.slug ?? title).trim());
-  const isPrimary = input.is_primary === true || activeCount === 0;
   const id = crypto.randomUUID();
   const now = new Date().toISOString();
-
-  // Captured up front so a team-provisioning failure after the location is
-  // already committed (see the ensureLocationTeam catch below) can restore
-  // the prior primary pointer instead of leaving sites.primary_location_id
-  // dangling at a location we're about to delete.
-  const previousPrimaryLocationId = isPrimary
-    ? (await queryFirst<{ primary_location_id: string | null }>(
-        db,
-        `SELECT primary_location_id FROM sites WHERE id = ? AND organization_id = ? LIMIT 1`,
-        [siteId, organizationId],
-      ))?.primary_location_id ?? null
-    : null;
 
   for (let attempt = 0; attempt < MAX_SLUG_ATTEMPTS; attempt += 1) {
     const slug = attempt === 0 ? baseSlug : `${baseSlug}-${attempt + 1}`;
 
     try {
       const statements: { query: string; params: unknown[] }[] = [];
-      if (isPrimary) {
-        statements.push({
-          query: `
-            UPDATE business_locations
-            SET is_primary = 0, updated_at = ?
-            WHERE organization_id = ? AND site_id = ?
-          `,
-          params: [now, organizationId, siteId],
-        });
-      }
-
       statements.push({
         query: `
           INSERT INTO business_locations (
             id, organization_id, site_id, title, slug, city, neighborhood, phone, email, website_url, maps_url,
             google_review_url, google_place_id, description, short_description, address, opening_hours, special_hours, rating, review_count,
             price_level, facebook_url, instagram_url, tiktok_url, grab_url, uber_eats_url, foodpanda_url,
-            notification_phone, timezone, max_capacity, is_primary, status,
+            notification_phone, timezone, max_capacity, status,
             seo_title, seo_description, canonical_url, robots, feature_overrides, created_at, updated_at
           )
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, ?, ?, ?, ?, ?, ?)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, ?, ?, ?, ?, ?, ?)
         `,
         params: [
           id,
@@ -592,8 +449,8 @@ export async function createLocation(
           input.description ?? null,
           input.short_description ?? null,
           serializeAddress(input.address),
-          serializeOpeningHours(input.opening_hours),
-          serializeSpecialHours(input.special_hours),
+          openingHours,
+          specialHours,
           input.rating ?? null,
           input.review_count ?? null,
           input.price_level ?? null,
@@ -606,7 +463,6 @@ export async function createLocation(
           normalizedNotificationPhone,
           normalizedTimezone ?? null,
           input.max_capacity ?? null,
-          isPrimary ? 1 : 0,
           input.seo_title ?? null,
           input.seo_description ?? null,
           input.canonical_url ?? null,
@@ -616,17 +472,6 @@ export async function createLocation(
           now,
         ],
       });
-
-      if (isPrimary) {
-        statements.push({
-          query: `
-            UPDATE sites
-            SET primary_location_id = ?, updated_at = ?, updated_by = ?
-            WHERE id = ? AND organization_id = ?
-          `,
-          params: [id, now, userId, siteId, organizationId],
-        });
-      }
 
       await executeBatch(db, statements);
       try {
@@ -638,30 +483,10 @@ export async function createLocation(
           name: title,
         });
       } catch (teamError) {
-        // D1 has no cross-statement transactions, so the
-        // location row above is already committed. Team provisioning is not
-        // optional — a location with no team can never be granted editor
-        // access — so compensate by removing the orphaned row (and
-        // restoring the primary pointer this attempt just moved) rather
-        // than leaving a stray row that would keep colliding with this
-        // slug on every retry.
-        const compensating: { query: string; params: unknown[] }[] = [];
-        if (isPrimary) {
-          compensating.push({
-            query: `UPDATE sites SET primary_location_id = ?, updated_at = ? WHERE id = ? AND organization_id = ?`,
-            params: [previousPrimaryLocationId, new Date().toISOString(), siteId, organizationId],
-          });
-          if (previousPrimaryLocationId) {
-            compensating.push({
-              query: `UPDATE business_locations SET is_primary = 1, updated_at = ? WHERE id = ? AND organization_id = ? AND site_id = ?`,
-              params: [new Date().toISOString(), previousPrimaryLocationId, organizationId, siteId],
-            });
-          }
-        }
-        compensating.push({
+        const compensating = [{
           query: `DELETE FROM business_locations WHERE id = ? AND organization_id = ? AND site_id = ?`,
           params: [id, organizationId, siteId],
-        });
+        }];
         await executeBatch(db, compensating).catch((cleanupError) => {
           console.error("Failed to roll back orphaned location after team provisioning failure:", cleanupError);
         });
@@ -679,7 +504,6 @@ export async function createLocation(
         entityId: id,
         metadata: {
           title,
-          is_primary: isPrimary,
         },
       })
       if (options.refreshSocialCardAfterCreate !== false) {
@@ -716,9 +540,6 @@ export async function updateLocation(
   if (!existing) {
     return { status: 404, data: { error: "Location not found." } };
   }
-  // Every other reference to locationId below must use the canonical row id,
-  // never the raw locationIdOrSlug — site_id/sites.primary_location_id and the
-  // final UPDATE's WHERE clause are matched against the real id.
   const locationId = existing.id;
 
   if (Object.keys(input).length === 0) {
@@ -926,10 +747,6 @@ export async function updateLocation(
       };
     }
   }
-  if (input.is_primary !== undefined) {
-    sets.push("is_primary = ?");
-    params.push(input.is_primary ? 1 : 0);
-  }
   if (input.feature_overrides !== undefined) {
     sets.push("feature_overrides = ?");
     params.push(normalizedEnabledFeatures ?? null);
@@ -937,34 +754,6 @@ export async function updateLocation(
 
   const runUpdate = async (boundParams: Array<string | number | null>) => {
     const statements: { query: string; params: unknown[] }[] = [];
-    if (input.is_primary === true) {
-      statements.push({
-        query: `
-          UPDATE business_locations
-          SET is_primary = 0, updated_at = ?
-          WHERE organization_id = ? AND site_id = ?
-        `,
-        params: [now, organizationId, siteId],
-      });
-      statements.push({
-        query: `
-          UPDATE sites
-          SET primary_location_id = ?, updated_at = ?, updated_by = ?
-          WHERE id = ? AND organization_id = ?
-        `,
-        params: [locationId, now, userId, siteId, organizationId],
-      });
-    } else if (input.is_primary === false) {
-      statements.push({
-        query: `
-          UPDATE sites
-          SET primary_location_id = NULL, updated_at = ?, updated_by = ?
-          WHERE id = ? AND organization_id = ? AND primary_location_id = ?
-        `,
-        params: [now, userId, siteId, organizationId, locationId],
-      });
-    }
-
     statements.push({
       query: `
         UPDATE business_locations
@@ -1049,7 +838,6 @@ export async function deleteLocation(
   organizationId: string,
   siteId: string,
   locationIdOrSlug: string,
-  userId: string,
 ) {
   const existing = await loadLocation(db, organizationId, siteId, locationIdOrSlug);
   if (!existing) {
@@ -1058,6 +846,24 @@ export async function deleteLocation(
   const locationId = existing.id;
   const now = new Date().toISOString();
   const statements = [
+    ...resourceLocalizationDeletionQueries('business_location', { query: 'SELECT id FROM business_locations WHERE id = ? AND site_id = ?', params: [locationId, siteId] }),
+    ...([
+      ['product', 'products'], ['product_category', 'product_categories'], ['experience', 'experiences'],
+      ['site_post', 'posts'], ['location_qa', 'location_qa'], ['booking_policy', 'booking_policies'],
+    ] as const).flatMap(([type, table]) => resourceLocalizationDeletionQueries(type, {
+      query: `SELECT id FROM ${table} WHERE location_id = ? AND site_id = ?`, params: [locationId, siteId],
+    })),
+    { query: `DELETE FROM media_placements WHERE site_id = ? AND (
+        (owner_type = 'product' AND owner_id IN (SELECT id FROM products WHERE location_id = ?)) OR
+        (owner_type = 'experience' AND owner_id IN (SELECT id FROM experiences WHERE location_id = ?)) OR
+        (owner_type = 'post' AND owner_id IN (SELECT id FROM posts WHERE location_id = ?)) OR
+        (owner_type = 'review' AND owner_id IN (SELECT id FROM reviews WHERE location_id = ?))
+      )`, params: [siteId, locationId, locationId, locationId, locationId] },
+    { query: `UPDATE review_requests SET revoked_at = ?, updated_at = ? WHERE site_id = ? AND revoked_at IS NULL AND (
+        (booking_type = 'reservation' AND booking_id IN (SELECT id FROM reservation_submissions WHERE location_id = ?)) OR
+        (booking_type = 'experience_booking' AND booking_id IN (SELECT id FROM experience_bookings WHERE location_id = ?))
+      )`, params: [now, now, siteId, locationId, locationId] },
+    { query: 'DELETE FROM reviews WHERE location_id = ? AND site_id = ?', params: [locationId, siteId] },
     {
       query: `
       DELETE FROM media_placements
@@ -1071,15 +877,6 @@ export async function deleteLocation(
       SET location_id = NULL,
           updated_at = ?
       WHERE organization_id = ? AND site_id = ? AND location_id = ?
-    `,
-      params: [now, organizationId, siteId, locationId],
-    },
-    {
-      query: `
-      UPDATE chowbot_conversations
-      SET selected_location_id = NULL,
-          updated_at = ?
-      WHERE organization_id = ? AND site_id = ? AND selected_location_id = ?
     `,
       params: [now, organizationId, siteId, locationId],
     },
@@ -1108,21 +905,11 @@ export async function deleteLocation(
   ];
 
   const batchResults = await executeBatch(db, statements);
-  const deleteResult = batchResults[4];
+  const deleteResult = batchResults.at(-1);
 
   if (!deleteResult?.meta.changes) {
     return { status: 404, data: { error: "Location not found." } };
   }
-
-  await execute(
-    db,
-    `
-    UPDATE sites
-    SET primary_location_id = NULL, updated_at = ?, updated_by = ?
-    WHERE id = ? AND organization_id = ? AND primary_location_id = ?
-  `,
-    [now, userId, siteId, organizationId, locationId],
-  );
 
   return {
     status: 200,

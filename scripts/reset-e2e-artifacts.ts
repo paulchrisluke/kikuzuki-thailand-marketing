@@ -229,11 +229,10 @@ ${e2eFixtureSiteRetainedDeletes}
 -- chowbot_channel_state and mcp_workspace_preferences are user/org-scoped preferences rather
 -- than disposable rows; clear only their references to the throwaway sites before deletion.
 UPDATE chowbot_channel_state
-SET selected_site_id = NULL,
-    active_conversation_id = NULL,
-    pending_message_id = NULL,
-    pending_confirmation = NULL
-WHERE selected_site_id IN (${eligibleE2eFixtureSiteIds});
+SET pending_confirmation = NULL, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+WHERE json_extract(pending_confirmation, '$.siteId') IN (${eligibleE2eFixtureSiteIds})
+   OR EXISTS (SELECT 1 FROM json_each(pending_confirmation, '$.candidates') candidate
+              WHERE json_extract(candidate.value, '$.siteId') IN (${eligibleE2eFixtureSiteIds}));
 
 UPDATE mcp_workspace_preferences
 SET site_id = NULL,

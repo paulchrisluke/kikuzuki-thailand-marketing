@@ -1,0 +1,63 @@
+{
+  "foreign_keys": [],
+  "invariants": [
+    {
+      "name": "media_owner_scope",
+      "violations": 0,
+      "sql_sha256": "7cb13a19320e099aefce5bb7fd15736fcf073b5f7fa9dce753f3d6893faf214c"
+    },
+    {
+      "name": "document_owner_scope",
+      "violations": 0,
+      "sql_sha256": "f87de88e56dc47fc765c19b8c392e8c449cfeafc464c3758e42aac328f433429"
+    },
+    {
+      "name": "english_source_page",
+      "violations": 0,
+      "sql_sha256": "23ac5f54e02746eaf391fa943fd1985c6ce85261fe74542de2511d64249124ff"
+    },
+    {
+      "name": "english_source_locale",
+      "violations": 0,
+      "sql_sha256": "1beee1c8ce6d96de5af9ff5bce837c325ae2ae7520e8d7c9d149fefdebf1ab34"
+    },
+    {
+      "name": "block_parent_scope",
+      "violations": 0,
+      "sql_sha256": "611c53bda2d2a527238db849faa05599ce5f5874340a7402d16588a97fc9a597"
+    },
+    {
+      "name": "block_cycles",
+      "violations": 0,
+      "sql_sha256": "64531edb82cf8088c00752ec942adea2a6e95c9d5c7fc0f3039b2bfe4bf6d0fd"
+    },
+    {
+      "name": "localized_resource_owner_scope",
+      "violations": 0,
+      "sql_sha256": "163238666eb21a7d3a2249c5f91396cdd69c1bc73353de12d6496f2923828264"
+    },
+    {
+      "name": "localized_document_link",
+      "violations": 0,
+      "sql_sha256": "d8364ec1f56536c61dd84f4bb9717456cb8fba3ee008b1b66f5527ff36a3fa7b"
+    },
+    {
+      "name": "publication_document_completeness",
+      "violations": 0,
+      "sql_sha256": "a483a6065d9882b89aadfc2e69f2ab24fbf1af42ae0ccfeaf1cea77033fa41d7"
+    }
+  ],
+  "fixture_counts": {
+    "media_assets": 141,
+    "content_blocks": 520,
+    "media_placements": 205
+  },
+  "synthetic_named_placement_review": {
+    "count": 30,
+    "actual_content_block_owners": 30,
+    "owner_type": "cta",
+    "missing_owners": 0,
+    "qualifying_obsolete_relationships": 0,
+    "disposition": "Preserve valid fixture relationships; production-only missing-owner cleanup does not apply"
+  }
+}

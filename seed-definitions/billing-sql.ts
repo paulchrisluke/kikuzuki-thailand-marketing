@@ -77,19 +77,18 @@ export function renderOrganizationBillingSql(
   if (isPaid) {
     statements.push(`INSERT OR REPLACE INTO subscription
   (id, plan, referenceId, stripeCustomerId, stripeSubscriptionId, status,
-   periodStart, periodEnd, cancelAtPeriodEnd, seats, billingInterval, createdAt, updatedAt)
+   periodStart, periodEnd, cancelAtPeriodEnd, seats, billingInterval)
 VALUES
   (${sqlValue(`sub-${organizationId}`)}, ${sqlValue(billing.plan)}, ${sqlValue(organizationId)},
    ${sqlValue(customerId)}, ${sqlValue(subscriptionId)}, ${sqlValue(billing.status)},
-   ${periodStart}, ${periodEnd}, 0, 1, 'month', unixepoch(), unixepoch());`)
+   ${periodStart}, ${periodEnd}, 0, 1, 'month');`)
   }
   statements.push(`INSERT OR REPLACE INTO organization_billing
-  (organization_id, stripe_customer_id, stripe_subscription_id, payment_status,
+  (organization_id, payment_status,
    paid_through, past_due_since, last_paid_invoice_id, last_payment_event_created,
    last_payment_event_id, access_plan, access_expires_at, updated_at)
 VALUES
-  (${sqlValue(organizationId)}, ${sqlValue(customerId)},
-   ${sqlValue(subscriptionId)}, ${sqlValue(isPaid ? 'paid' : 'unknown')},
+  (${sqlValue(organizationId)}, ${sqlValue(isPaid ? 'paid' : 'unknown')},
    ${isPaid ? periodEndIso : 'NULL'}, NULL, ${isPaid ? sqlValue(`in-${organizationId}`) : 'NULL'},
    ${isPaid ? `CAST(strftime('%s', 'now') AS INTEGER)` : 'NULL'}, ${isPaid ? sqlValue(`evt-${organizationId}`) : 'NULL'},
    ${sqlValue(isPaid ? billing.plan : 'free')}, ${isPaid ? periodEndIso : 'NULL'}, ${now});`)
@@ -104,9 +103,6 @@ VALUES
   }
   return statements.join('\n\n')
 }
-
-export function renderSiteEntitlementsSql() { return '' }
-export function renderSiteBillingSql() { return '' }
 
 export function renderCanonicalBillingSql(
   _siteId: string,

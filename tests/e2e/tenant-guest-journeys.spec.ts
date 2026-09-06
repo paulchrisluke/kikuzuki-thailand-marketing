@@ -40,7 +40,7 @@ function expectOwnerDispatch(state: NotificationState) {
 }
 
 async function chooseFirstAvailableTime(page: Page) {
-  const slot = page.getByRole('button').filter({ hasText: 'Available' }).first()
+  const slot = page.getByRole('button', { name: /\bAvailable$/ }).first()
   await expect(slot).toBeVisible()
   await slot.click()
   await page.getByRole('button', { name: /continue/i }).click()

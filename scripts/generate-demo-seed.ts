@@ -78,8 +78,10 @@ function renderMcpFixtureOrg(orgId: string, userId: string, name: string, slug: 
     sqlJson,
   })
   const selectionSite = includeSelectionSite ? `
-INSERT OR REPLACE INTO sites (id, organization_id, theme_id, theme, slug, subdomain, brand_name, public_url, status, onboarding_status, default_currency, vertical, created_at, updated_at)
-VALUES ('site-mcp-growth-service-selection', ${sqlValue(orgId)}, 'saya-theme-v1', 'saya', 'mcp-growth-service-selection', 'mcp-growth-service-selection', 'MCP Selection Fixture', 'https://mcp-growth-service-selection.krabiclaw.com', 'active', 'active', 'USD', 'restaurant', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP);
+INSERT OR REPLACE INTO sites (id, organization_id, theme_id, slug, subdomain, brand_name, status, onboarding_status, default_currency, vertical, created_at, updated_at)
+VALUES ('site-mcp-growth-service-selection', ${sqlValue(orgId)}, 'saya-theme-v1', 'mcp-growth-service-selection', 'mcp-growth-service-selection', 'MCP Selection Fixture', 'active', 'active', 'USD', 'restaurant', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP);
+INSERT OR REPLACE INTO site_domains (id, organization_id, site_id, domain, type, role, status, dns_status)
+VALUES ('domain-mcp-growth-service-selection', ${sqlValue(orgId)}, 'site-mcp-growth-service-selection', 'mcp-growth-service-selection.krabiclaw.com', 'subdomain', 'canonical', 'active', 'valid');
 
 INSERT OR REPLACE INTO site_locales
   (id, organization_id, site_id, locale, label, is_source, status)
@@ -95,26 +97,19 @@ VALUES (${sqlValue(orgId)}, ${sqlValue(name)}, ${sqlValue(slug)}, unixepoch());
 INSERT INTO member (id, organizationId, userId, role, createdAt)
 VALUES (${sqlValue(`member-${orgId}`)}, ${sqlValue(orgId)}, ${sqlValue(userId)}, 'owner', unixepoch());
 
-INSERT OR REPLACE INTO sites (id, organization_id, theme_id, theme, slug, subdomain, brand_name, public_url, status, onboarding_status, default_currency, vertical, created_at, updated_at)
-VALUES (${sqlValue(siteId)}, ${sqlValue(orgId)}, 'saya-theme-v1', 'saya', ${sqlValue(slug)}, ${sqlValue(slug)}, ${sqlValue(name)}, ${sqlValue(`https://${slug}.krabiclaw.com`)}, 'active', 'active', 'USD', 'restaurant', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP);
+INSERT OR REPLACE INTO sites (id, organization_id, theme_id, slug, subdomain, brand_name, status, onboarding_status, default_currency, vertical, created_at, updated_at)
+VALUES (${sqlValue(siteId)}, ${sqlValue(orgId)}, 'saya-theme-v1', ${sqlValue(slug)}, ${sqlValue(slug)}, ${sqlValue(name)}, 'active', 'active', 'USD', 'restaurant', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP);
+INSERT OR REPLACE INTO site_domains (id, organization_id, site_id, domain, type, role, status, dns_status)
+VALUES (${sqlValue('domain-' + siteId)}, ${sqlValue(orgId)}, ${sqlValue(siteId)}, ${sqlValue(slug + '.krabiclaw.com')}, 'subdomain', 'canonical', 'active', 'valid');
 
 INSERT OR REPLACE INTO site_locales
   (id, organization_id, site_id, locale, label, is_source, status)
 VALUES
   (${sqlValue(`locale::${orgId}::${siteId}::en`)}, ${sqlValue(orgId)}, ${sqlValue(siteId)}, 'en', 'English', 1, 'published');
 
-INSERT OR IGNORE INTO business_locations (id, organization_id, site_id, slug, title, city, address, phone, email, maps_url, opening_hours, status, is_primary, created_at, updated_at)
-VALUES (${sqlValue(locationId)}, ${sqlValue(orgId)}, ${sqlValue(siteId)}, 'main', ${sqlValue(name)}, 'Krabi', ${sqlJson({ addressLines: [] })}, NULL, NULL, NULL, ${sqlJson([
-    { openDay: 'MONDAY', openTime: '11:00', closeTime: '22:00' },
-    { openDay: 'TUESDAY', openTime: '11:00', closeTime: '22:00' },
-    { openDay: 'WEDNESDAY', openTime: '11:00', closeTime: '22:00' },
-    { openDay: 'THURSDAY', openTime: '11:00', closeTime: '22:00' },
-    { openDay: 'FRIDAY', openTime: '11:00', closeTime: '22:00' },
-    { openDay: 'SATURDAY', openTime: '11:00', closeTime: '22:00' },
-    { openDay: 'SUNDAY', openTime: '11:00', closeTime: '22:00' },
-  ])}, 'active', 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP);
+INSERT OR IGNORE INTO business_locations (id, organization_id, site_id, slug, title, city, address, phone, email, maps_url, opening_hours, timezone, status, created_at, updated_at)
+VALUES (${sqlValue(locationId)}, ${sqlValue(orgId)}, ${sqlValue(siteId)}, 'main', ${sqlValue(name)}, 'Krabi', ${sqlJson({ addressLines: [] })}, NULL, NULL, NULL, ${sqlJson({ periods: Array.from({ length: 7 }, (_, day) => ({ open: { day, hour: 11, minute: 0 }, close: { day, hour: 22, minute: 0 } })) })}, 'Asia/Bangkok', 'active', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP);
 
-UPDATE sites SET primary_location_id = ${sqlValue(locationId)} WHERE id = ${sqlValue(siteId)};
 
 INSERT OR REPLACE INTO media_assets
   (id, organization_id, site_id, kind, provider, source,
@@ -294,8 +289,6 @@ const sql = `-- Demo seed for local development - Saya theme showcase
 PRAGMA foreign_keys = ON;
 
 -- Theme is shared platform data, not demo-owned data.
-INSERT OR IGNORE INTO themes (id, name, slug, version, description, status)
-VALUES ('saya-theme-v1', 'Saya', 'saya', '1.0.0', 'Restaurant website theme', 'active');
 
 -- Cleanly replace the protected demo tenant and MCP fixture orgs.
 -- Every org-scoped table declares ON DELETE CASCADE back to organization(id),

@@ -1,7 +1,9 @@
 import type Stripe from 'stripe'
 import { HTTPError } from 'nitro'
 import { execute, executeBatch, queryAll, queryFirst, type BatchQuery, type DbClient } from '~/server/db'
-import { getOrganizationBillingProjection } from '~/server/utils/organization-billing'
+import { getOrganizationBillingStatus } from '~/server/utils/billing'
+import type { CloudflareEnv } from '~/server/utils/auth'
+import type { BetterAuthSubscriptionAdapter } from '~/server/utils/better-auth-stripe'
 import { createStripeClient } from '~/server/utils/stripe-client'
 import { canonicalizeLocale, englishManifestHash, LANGUAGE_LICENSE_CHARGES_ENABLED } from '~/server/utils/localization'
 import { localizationError } from '~/server/utils/localization-errors'
@@ -23,9 +25,7 @@ interface LanguageLicenseRow {
   last_provider_quantity: number | null
 }
 
-export interface SiteLanguageBillingEnv {
-  STRIPE_SECRET_KEY?: string
-}
+export type SiteLanguageBillingEnv = CloudflareEnv
 
 function stripeProduct(value: Stripe.Price['product']): Stripe.Product | null {
   return value && typeof value !== 'string' && !('deleted' in value) ? value : null
@@ -89,9 +89,9 @@ function languageItem(subscription: Stripe.Subscription): Stripe.SubscriptionIte
   return matches[0] ?? null
 }
 
-async function requireGrowthBilling(db: DbClient, organizationId: string): Promise<string> {
-  const projection = await getOrganizationBillingProjection(db, organizationId)
-  if (projection.effectivePlan !== 'growth' || !projection.stripeSubscriptionId) {
+async function requireGrowthBilling(db: DbClient, env: SiteLanguageBillingEnv, organizationId: string): Promise<string> {
+  const projection = await getOrganizationBillingStatus(env, db, organizationId)
+  if (projection.plan !== 'growth' || !projection.stripeSubscriptionId) {
     localizationError(402, 'LANGUAGE_LICENSE_REQUIRED', 'An active Growth subscription is required to enable a language')
   }
   return projection.stripeSubscriptionId
@@ -158,7 +158,7 @@ export async function enableSiteLanguageLicense(
   if (license?.status === 'disabling') localizationError(409, 'LANGUAGE_LICENSE_SYNCING', 'Language disable is still synchronizing', { locale })
 
   if (!LANGUAGE_LICENSE_CHARGES_ENABLED) {
-    await requireGrowthBilling(db, input.organizationId)
+    await requireGrowthBilling(db, env, input.organizationId)
     await assertSiteSecondaryLanguageCapacity(db, input.organizationId, input.siteId, license?.id)
     const id = license?.id ?? crypto.randomUUID()
     const now = Math.floor(Date.now() / 1000)
@@ -184,7 +184,7 @@ export async function enableSiteLanguageLicense(
     return license
   }
 
-  const subscriptionId = await requireGrowthBilling(db, input.organizationId)
+  const subscriptionId = await requireGrowthBilling(db, env, input.organizationId)
   await assertSiteSecondaryLanguageCapacity(db, input.organizationId, input.siteId, license?.id)
   if (!env.STRIPE_SECRET_KEY) throw new HTTPError({ statusCode: 503, statusMessage: 'Stripe not configured' })
   const id = license?.id ?? crypto.randomUUID()
@@ -270,7 +270,7 @@ export async function disableSiteLanguageLicense(
     return await loadLicense(db, input.organizationId, input.siteId, locale)
   }
 
-  const subscriptionId = license.stripe_subscription_id ?? await requireGrowthBilling(db, input.organizationId)
+  const subscriptionId = license.stripe_subscription_id ?? await requireGrowthBilling(db, env, input.organizationId)
   const operationId = license.status === 'disabling' && license.operation_id ? license.operation_id : crypto.randomUUID()
   const idempotencyKey = license.status === 'disabling' && license.provider_idempotency_key
     ? license.provider_idempotency_key
@@ -311,17 +311,16 @@ export async function reconcileSiteLanguageSubscription(
   db: DbClient,
   stripe: Stripe,
   event: Stripe.Event,
+  adapter: BetterAuthSubscriptionAdapter,
 ): Promise<void> {
-  // Licenses granted while billing is disabled were never backed by a Stripe
-  // item, so reconciling against Stripe's (now absent) language quantity
-  // would incorrectly disable them on the next subscription webhook.
   if (!LANGUAGE_LICENSE_CHARGES_ENABLED) return
   if (!event.type.startsWith('customer.subscription.')) return
   const eventSubscription = event.data.object as Stripe.Subscription
-  const billing = await queryFirst<{ organization_id: string }>(db, `
-    SELECT organization_id FROM organization_billing WHERE stripe_subscription_id = ? LIMIT 1
-  `, [eventSubscription.id])
-  if (!billing) return
+  const billing = await adapter.findOne<{ referenceId: string }>({
+    model: 'subscription',
+    where: [{ field: 'stripeSubscriptionId', value: eventSubscription.id }],
+  })
+  if (!billing) throw new Error('Language subscription has no Better Auth owner')
 
   let subscription: Stripe.Subscription | null = null
   if (event.type !== 'customer.subscription.deleted') {
@@ -334,7 +333,7 @@ export async function reconcileSiteLanguageSubscription(
      WHERE organization_id = ?
      ORDER BY CASE status WHEN 'active' THEN 0 WHEN 'enabling' THEN 1 WHEN 'disabling' THEN 2 ELSE 3 END,
               created_at, site_id, locale
-  `, [billing.organization_id])
+  `, [billing.referenceId])
   if (!rows.length) return
 
   const item = subscription ? languageItem(subscription) : null
@@ -344,8 +343,8 @@ export async function reconcileSiteLanguageSubscription(
       UPDATE site_language_licenses
          SET last_error_code = 'provider_quantity_unmapped', last_provider_quantity = ?, updated_at = ?
        WHERE organization_id = ?
-    `, [quantity, Math.floor(Date.now() / 1000), billing.organization_id])
-    throw new Error(`Stripe language quantity ${quantity} exceeds the ${rows.length} mapped site-language licenses for organization ${billing.organization_id}`)
+    `, [quantity, Math.floor(Date.now() / 1000), billing.referenceId])
+    throw new Error(`Stripe language quantity ${quantity} exceeds the ${rows.length} mapped site-language licenses for organization ${billing.referenceId}`)
   }
 
   const now = Math.floor(Date.now() / 1000)
@@ -367,7 +366,7 @@ export async function reconcileSiteLanguageSubscription(
     statements.push({
       query: `UPDATE site_locales SET status = ?, updated_at = ?
                WHERE organization_id = ? AND site_id = ? AND locale = ? AND is_source = 0`,
-      params: [active ? 'published' : 'disabled', nowIso, billing.organization_id, row.site_id, row.locale],
+      params: [active ? 'published' : 'disabled', nowIso, billing.referenceId, row.site_id, row.locale],
     })
   })
   await executeBatch(db, statements, { operation: 'reconcile site language subscription quantity' })
@@ -394,6 +393,8 @@ export async function deleteDisabledSiteLanguageContent(
   const documentIds = documents?.ids ? JSON.parse(documents.ids) as string[] : []
   const statements = [
     { query: `DELETE FROM site_redirects WHERE organization_id = ? AND site_id = ? AND locale = ?`, params: [input.organizationId, input.siteId, locale] },
+    { query: `DELETE FROM media_placements WHERE owner_type = 'tenant_page' AND owner_id IN (SELECT id FROM tenant_page_variants WHERE organization_id = ? AND site_id = ? AND locale = ?)`, params: [input.organizationId, input.siteId, locale] },
+    { query: `DELETE FROM media_placements WHERE owner_type = 'content_block' AND owner_id IN (SELECT id FROM content_blocks WHERE document_id IN (SELECT value FROM json_each(?)))`, params: [JSON.stringify(documentIds)] },
     { query: `DELETE FROM resource_localizations WHERE organization_id = ? AND site_id = ? AND locale = ?`, params: [input.organizationId, input.siteId, locale] },
     { query: `DELETE FROM tenant_page_variants WHERE organization_id = ? AND site_id = ? AND locale = ?`, params: [input.organizationId, input.siteId, locale] },
     ...documentIds.map(documentId => ({ query: `DELETE FROM content_documents WHERE id = ?`, params: [documentId] })),
@@ -409,8 +410,8 @@ export async function getSiteLanguageSettings(
   env: SiteLanguageBillingEnv,
   input: { organizationId: string; siteId: string },
 ) {
-  const projection = await getOrganizationBillingProjection(db, input.organizationId)
-  const effectivePlan = projection.effectivePlan
+  const projection = await getOrganizationBillingStatus(env, db, input.organizationId)
+  const effectivePlan = projection.plan
   let interval: BillingInterval | null = null
   if (LANGUAGE_LICENSE_CHARGES_ENABLED && effectivePlan === 'growth' && projection.stripeSubscriptionId && env.STRIPE_SECRET_KEY) {
     try {

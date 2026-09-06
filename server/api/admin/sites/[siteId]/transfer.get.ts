@@ -39,9 +39,8 @@ export default defineHandler(async (event) => {
     requires_payment: number
     reminder_count: number | null
     last_reminder_at: string | null
-    custom_domains_removed_at: string | null
   }>(
-    db, `SELECT id, to_email, status, created_at, completed_at, requires_payment, reminder_count, last_reminder_at, custom_domains_removed_at
+    db, `SELECT id, to_email, status, created_at, completed_at, requires_payment, reminder_count, last_reminder_at
      FROM site_transfer_requests
      WHERE site_id = ? AND status = 'pending'
      ORDER BY created_at DESC LIMIT 1`, [siteId], )

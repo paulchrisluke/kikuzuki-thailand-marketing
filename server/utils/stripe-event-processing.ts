@@ -23,9 +23,6 @@ export async function processStripeEvent(
     await reconcileBetterAuthSubscriptionEvent(db, event, stripe, adapter, loadStripePlans)
     await handleApplicationStripeEvent(env, db as D1Database, event, adapter, stripe, loadStripePlans)
     await handleStripeGa4Event(env, db, stripe, event)
-    // Runs last: a site-language quantity mismatch can persistently fail
-    // (see reconcileSiteLanguageSubscription) and must not block the core
-    // subscription/GA4 handling above from completing on this delivery.
-    await reconcileSiteLanguageSubscription(db, stripe, event)
+    await reconcileSiteLanguageSubscription(db, stripe, event, adapter)
   })
 }

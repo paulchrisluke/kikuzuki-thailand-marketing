@@ -1,0 +1,303 @@
+[
+  {
+    "table": "blog_posts",
+    "column": "tags_json",
+    "total": 26,
+    "present": 20,
+    "invalid": 0
+  },
+  {
+    "table": "business_locations",
+    "column": "address",
+    "total": 13,
+    "present": 10,
+    "invalid": 0
+  },
+  {
+    "table": "business_locations",
+    "column": "opening_hours",
+    "total": 13,
+    "present": 9,
+    "invalid": 0
+  },
+  {
+    "table": "business_locations",
+    "column": "categories",
+    "total": 13,
+    "present": 7,
+    "invalid": 0
+  },
+  {
+    "table": "business_locations",
+    "column": "special_hours",
+    "total": 13,
+    "present": 0,
+    "invalid": 0
+  },
+  {
+    "table": "business_locations",
+    "column": "attributes",
+    "total": 13,
+    "present": 0,
+    "invalid": 0
+  },
+  {
+    "table": "business_locations",
+    "column": "feature_overrides",
+    "total": 13,
+    "present": 0,
+    "invalid": 0
+  },
+  {
+    "table": "canary_runs",
+    "column": "details_json",
+    "total": 188,
+    "present": 188,
+    "invalid": 13
+  },
+  {
+    "table": "chowbot_channel_state",
+    "column": "pending_confirmation",
+    "total": 3,
+    "present": 1,
+    "invalid": 0
+  },
+  {
+    "table": "chowbot_messages",
+    "column": "tool_calls",
+    "total": 42,
+    "present": 12,
+    "invalid": 0
+  },
+  {
+    "table": "content_blocks",
+    "column": "data_json",
+    "total": 679,
+    "present": 679,
+    "invalid": 0
+  },
+  {
+    "table": "experiences",
+    "column": "time_slots",
+    "total": 12,
+    "present": 9,
+    "invalid": 0
+  },
+  {
+    "table": "experiences",
+    "column": "recurring_slots",
+    "total": 12,
+    "present": 2,
+    "invalid": 0
+  },
+  {
+    "table": "experiences",
+    "column": "included_items",
+    "total": 12,
+    "present": 8,
+    "invalid": 0
+  },
+  {
+    "table": "experiences",
+    "column": "what_to_bring",
+    "total": 12,
+    "present": 8,
+    "invalid": 0
+  },
+  {
+    "table": "guest_thread_entries",
+    "column": "payload_json",
+    "total": 0,
+    "present": null,
+    "invalid": null
+  },
+  {
+    "table": "mcp_tool_call_events",
+    "column": "arguments_summary_json",
+    "total": 1501,
+    "present": 1231,
+    "invalid": 0
+  },
+  {
+    "table": "mcp_tool_call_events",
+    "column": "result_summary_json",
+    "total": 1501,
+    "present": 975,
+    "invalid": 118
+  },
+  {
+    "table": "oauthClient",
+    "column": "metadata",
+    "total": 31,
+    "present": 0,
+    "invalid": 0
+  },
+  {
+    "table": "oauthClientResource",
+    "column": "metadata",
+    "total": 0,
+    "present": null,
+    "invalid": null
+  },
+  {
+    "table": "oauthResource",
+    "column": "metadata",
+    "total": 2,
+    "present": 2,
+    "invalid": 0
+  },
+  {
+    "table": "offerings",
+    "column": "features",
+    "total": 6,
+    "present": 6,
+    "invalid": 0
+  },
+  {
+    "table": "offerings",
+    "column": "faqs",
+    "total": 6,
+    "present": 6,
+    "invalid": 0
+  },
+  {
+    "table": "onboarding_drafts",
+    "column": "payload_json",
+    "total": 1,
+    "present": 1,
+    "invalid": 0
+  },
+  {
+    "table": "organization",
+    "column": "metadata",
+    "total": 14,
+    "present": 0,
+    "invalid": 0
+  },
+  {
+    "table": "organization_events",
+    "column": "metadata",
+    "total": 390,
+    "present": 347,
+    "invalid": 0
+  },
+  {
+    "table": "platform_contact_submissions",
+    "column": "agent_metadata_json",
+    "total": 0,
+    "present": null,
+    "invalid": null
+  },
+  {
+    "table": "products",
+    "column": "tags_json",
+    "total": 492,
+    "present": 492,
+    "invalid": 0
+  },
+  {
+    "table": "products",
+    "column": "details_json",
+    "total": 492,
+    "present": 492,
+    "invalid": 0
+  },
+  {
+    "table": "resource_localizations",
+    "column": "values_json",
+    "total": 597,
+    "present": 597,
+    "invalid": 0
+  },
+  {
+    "table": "site_consultation_settings",
+    "column": "metadata_json",
+    "total": 1,
+    "present": 1,
+    "invalid": 0
+  },
+  {
+    "table": "site_conversion_events",
+    "column": "metadata_json",
+    "total": 129,
+    "present": 46,
+    "invalid": 0
+  },
+  {
+    "table": "site_domain_events",
+    "column": "before_state",
+    "total": 21,
+    "present": 11,
+    "invalid": 0
+  },
+  {
+    "table": "site_domain_events",
+    "column": "after_state",
+    "total": 21,
+    "present": 11,
+    "invalid": 0
+  },
+  {
+    "table": "site_domain_events",
+    "column": "metadata",
+    "total": 21,
+    "present": 2,
+    "invalid": 0
+  },
+  {
+    "table": "site_domains",
+    "column": "metadata",
+    "total": 16,
+    "present": 4,
+    "invalid": 0
+  },
+  {
+    "table": "site_theme_tokens",
+    "column": "tokens_json",
+    "total": 1,
+    "present": 1,
+    "invalid": 0
+  },
+  {
+    "table": "site_transfer_requests",
+    "column": "custom_domains_snapshot",
+    "total": 2,
+    "present": 0,
+    "invalid": 0
+  },
+  {
+    "table": "sites",
+    "column": "feature_overrides",
+    "total": 11,
+    "present": 0,
+    "invalid": 0
+  },
+  {
+    "table": "stripe_webhook_events",
+    "column": "payload",
+    "total": 29,
+    "present": 12,
+    "invalid": 0
+  },
+  {
+    "table": "tenant_compliance",
+    "column": "service_area",
+    "total": 1,
+    "present": 1,
+    "invalid": 1
+  },
+  {
+    "table": "tenant_compliance",
+    "column": "metadata_json",
+    "total": 1,
+    "present": 1,
+    "invalid": 0
+  },
+  {
+    "table": "usage_events",
+    "column": "metadata_json",
+    "total": 85,
+    "present": 85,
+    "invalid": 0
+  }
+]

@@ -182,11 +182,7 @@ async function assertTenantPageSupport(db: DbClient, organizationId: string, sit
     if (!['http:', 'https:'].includes(parsed.protocol) || parsed.username || parsed.password) badRequest('canonicalUrl must be an absolute HTTP(S) URL')
     const allowedHosts = await queryAll<{ domain: string }>(db, `
       SELECT domain FROM site_domains WHERE site_id = ? AND status = 'active'
-      UNION
-      SELECT subdomain AS domain FROM sites WHERE id = ? AND subdomain IS NOT NULL
-      UNION
-      SELECT custom_domain AS domain FROM sites WHERE id = ? AND custom_domain IS NOT NULL
-    `, [siteId, siteId, siteId])
+    `, [siteId])
     if (!allowedHosts.some(row => normalizeDomain(row.domain) === normalizeDomain(parsed.hostname))) {
       badRequest('canonicalUrl must use an approved domain for this site')
     }
@@ -624,6 +620,7 @@ export async function createTenantPagesBatch(
       params: [variantId, input.organizationId, input.siteId, pageId, locale, documentId, path, metadata.title, metadata.summary, metadata.seoTitle, metadata.seoDescription, metadata.canonicalUrl, metadata.robots, now, now, input.userId ?? null],
     }
     const prepared = prepareContentDocumentWithBlocks('tenant_page', variantId, blocksAsInputs(blocks), {
+      siteId: input.siteId,
       documentId,
       additionalQueriesBefore: [pageQuery, variantQuery],
       additionalQueriesAfter: [...placementQueries, {
@@ -744,6 +741,7 @@ export async function applyOnboardingTenantPages(
 
     const document = {
       id: row.document_id,
+      site_id: input.siteId,
       owner_type: 'tenant_page' as const,
       owner_id: row.variant_id,
       created_at: row.document_created_at,
@@ -883,6 +881,7 @@ export async function createTenantPage(db: DbClient, input: { organizationId: st
     params: [variantId, input.organizationId, input.siteId, pageId, locale, documentId, path, metadata.title, metadata.summary, metadata.seoTitle, metadata.seoDescription, metadata.canonicalUrl, metadata.robots, now, now, input.userId],
   }
   await createContentDocumentWithBlocks(db, 'tenant_page', variantId, blocksAsInputs(blocks), {
+    siteId: input.siteId,
     documentId,
     additionalQueriesBefore: [
       ...(existingPage ? [] : [pageQuery]),

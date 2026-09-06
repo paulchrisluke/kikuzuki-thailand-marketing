@@ -148,3 +148,45 @@ test('a canonical ChIJ URL needs no redirect or text-search fallback', async () 
   assert.equal(result.placeId, 'ChIJCanonicalPlaceId')
   assert.equal(result.usedTextSearch, false)
 })
+
+import { normalizeGoogleReview, parseGoogleReviewMetadata } from '../../shared/google-review.ts'
+
+const providerReview = {
+  name: 'places/place-id/reviews/review-id',
+  authorAttribution: { displayName: 'สมชาย', uri: 'https://maps.google.com/profile/author', photoUri: 'https://example.com/avatar.jpg' },
+  rating: 4,
+  text: { text: 'อาหารดี', languageCode: 'th' },
+  originalText: { text: 'อาหารดี', languageCode: 'th' },
+  publishTime: '2026-07-06T05:00:33.994123456Z',
+  googleMapsUri: 'https://maps.google.com/review/review-id',
+  flagContentUri: 'https://maps.google.com/report/review-id',
+  visitDate: { year: 2026, month: 7 },
+}
+
+test('Google review import preserves author, text, timestamp precision and attribution', () => {
+  const result = normalizeGoogleReview(providerReview)
+  assert.equal(result.author_name, providerReview.authorAttribution.displayName)
+  assert.equal(result.content, providerReview.text.text)
+  assert.equal(result.original_review_date, providerReview.publishTime)
+  assert.equal(result.original_reference, providerReview.googleMapsUri)
+  assert.deepEqual(parseGoogleReviewMetadata(JSON.stringify(result.google_review_metadata)), result.google_review_metadata)
+  assert.equal(result.google_review_metadata.author_photo_uri, providerReview.authorAttribution.photoUri)
+  assert.deepEqual(result.google_review_metadata.visit_date, providerReview.visitDate)
+})
+
+test('rating-only reviews keep absent provider facts null', () => {
+  const result = normalizeGoogleReview({ name: providerReview.name, authorAttribution: { displayName: 'Author' }, rating: 5, publishTime: providerReview.publishTime })
+  assert.equal(result.content, null)
+  assert.equal(result.original_reference, null)
+  assert.equal(result.google_review_metadata.original_text, null)
+})
+
+test('invalid provider identity, rating and attribution fail at import', () => {
+  for (const value of [
+    { ...providerReview, name: 'places/other' },
+    { ...providerReview, rating: Number.NaN },
+    { ...providerReview, rating: 6 },
+    { ...providerReview, publishTime: 'yesterday' },
+    { ...providerReview, googleMapsUri: 'javascript:alert(1)' },
+  ]) assert.throws(() => normalizeGoogleReview(value))
+})

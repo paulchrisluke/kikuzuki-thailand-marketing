@@ -1,6 +1,6 @@
 # Database epoch 4 cutover
 
-**Status: Release candidate runbook**
+**Status: Historical record ? superseded by [Epoch 5](epoch-5-cutover.md)**
 **Issues:** #788 (Products), #820 (messaging and CMS schema correction)
 
 Epoch 4 provisions a new production D1 resource, rebuilds the standalone
@@ -81,10 +81,10 @@ A correct cutover therefore changes nothing a customer sees: the same sections
 in the same order, containing the same items in the same order. The verifier
 asserts this directly by rendering both databases and comparing.
 
-## Repeatable local proof
+## Historical local proof
 
-The frozen Epoch 3 export is authoritative. Operator exports and transformed
-databases stay outside Git.
+The frozen Epoch 3 export was authoritative for this cutover. Operator exports and transformed
+databases stay outside Git. The obsolete Epoch 3?4 executable, category planner, and planner unit tests have been retired from the current checkout. Historical inspection and reproduction use the released [Epoch 4 source snapshot](https://github.com/paulchrisluke/krabiclaw/tree/075944e127298d25d8c6ba8cbaaabf806662cc76): [converter](https://github.com/paulchrisluke/krabiclaw/blob/075944e127298d25d8c6ba8cbaaabf806662cc76/scripts/epoch4-data.mjs), [category planner](https://github.com/paulchrisluke/krabiclaw/blob/075944e127298d25d8c6ba8cbaaabf806662cc76/scripts/product-category-plan.mjs), and [baseline](https://github.com/paulchrisluke/krabiclaw/blob/075944e127298d25d8c6ba8cbaaabf806662cc76/migrations/0000_epoch_4_baseline.sql). The commands below describe that immutable historical checkout; they are not current release commands. The archived baseline and rollback resource contracts remain intact.
 
 ```sh
 yarn lint:migrations

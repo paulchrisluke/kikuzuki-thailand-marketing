@@ -8,41 +8,39 @@ export default defineHandler(async (event) => {
   const slug = getRouterParam(event, 'slug')
   const runtimeConfig = useRuntimeConfig()
   const DEFAULT_CURRENCY = runtimeConfig.defaultCurrency
-  
+
   if (!siteId || !slug) {
-    return jsonResponse({ 
-      error: 'Site ID and slug are required' 
+    return jsonResponse({
+      error: 'Site ID and slug are required'
     }, { status: 400 })
   }
-  
+
   const env = cloudflareEnv(event)
   const db = env.db
-  
+
   if (!db) {
-    return jsonResponse({ 
-      error: 'Database not available' 
+    return jsonResponse({
+      error: 'Database not available'
     }, { status: 500 })
   }
 
   try {
-    // Get site and verify it's active
     const site = await queryFirst<{ id: string; organization_id: string; status: string; default_currency: string | null }>(
       db, `
-      SELECT id, organization_id, status, default_currency FROM sites 
+      SELECT id, organization_id, status, default_currency FROM sites
       WHERE id = ? AND status = 'active'
       LIMIT 1
     `, [siteId], )
-    
+
     if (!site) {
-      return jsonResponse({ 
-        error: 'Site not found or inactive' 
+      return jsonResponse({
+        error: 'Site not found or inactive'
       }, { status: 404 })
     }
 
-    // Get location by slug for this site (email excluded from public API)
     const location = await queryFirst<ApiRecord>(
       db, `
-      SELECT bl.id, bl.slug, bl.title, bl.address, bl.phone, bl.website_url, bl.maps_url, bl.latitude, bl.longitude, bl.opening_hours, bl.rating, bl.review_count, bl.is_primary, bl.status, bl.last_synced_at, bl.google_place_id, bl.city, ma.id AS asset_id, ma.public_url AS media_public_url, ma.kind AS media_kind, ma.thumbnail_url AS media_thumbnail_url
+      SELECT bl.id, bl.slug, bl.title, bl.address, bl.phone, bl.website_url, bl.maps_url, bl.latitude, bl.longitude, bl.opening_hours, bl.rating, bl.review_count, bl.status, bl.last_synced_at, bl.google_place_id, bl.city, ma.id AS asset_id, ma.public_url AS media_public_url, ma.kind AS media_kind, ma.thumbnail_url AS media_thumbnail_url
       FROM business_locations bl
       LEFT JOIN media_placements mp ON mp.site_id = bl.site_id AND mp.owner_type = 'business_location' AND mp.owner_id = bl.id AND mp.slot = 'hero' AND mp.sort_order = 0 AND mp.status = 'active'
       LEFT JOIN media_assets ma ON mp.asset_id = ma.id AND ma.status = 'active'
@@ -75,17 +73,17 @@ export default defineHandler(async (event) => {
     const parsedLocation = {
       id: location.id, slug: location.slug, title: location.title, address: location.address ? JSON.parse(location.address) : null, phone: location.phone, website_url: location.website_url, maps_url: location.maps_url, map_embed_url: calculateMapEmbedUrl({
         title: location.title, maps_url: location.maps_url, latitude: location.latitude as number | null, longitude: location.longitude as number | null, address: location.address as string | null, city: location.city as string | null
-      }), latitude: location.latitude, longitude: location.longitude, opening_hours: location.opening_hours ? JSON.parse(location.opening_hours) : null, rating: location.rating, review_count: location.review_count, photo_count: photoCount?.n ?? 0, qa_count: qaCount?.n ?? 0, is_primary: location.is_primary, status: location.status, media: location.media_public_url ? [{ asset_id: location.asset_id, slot: 'hero', public_url: location.media_public_url, thumbnail_url: location.media_thumbnail_url ?? null, kind: location.media_kind }] : [], city: location.city, currency: site.default_currency || DEFAULT_CURRENCY, google_place_id: location.google_place_id, google_review_url
+      }), latitude: location.latitude, longitude: location.longitude, opening_hours: location.opening_hours ? JSON.parse(location.opening_hours) : null, rating: location.rating, review_count: location.review_count, photo_count: photoCount?.n ?? 0, qa_count: qaCount?.n ?? 0, status: location.status, media: location.media_public_url ? [{ asset_id: location.asset_id, slot: 'hero', public_url: location.media_public_url, thumbnail_url: location.media_thumbnail_url ?? null, kind: location.media_kind }] : [], city: location.city, currency: site.default_currency || DEFAULT_CURRENCY, google_place_id: location.google_place_id, google_review_url
     }
-    
+
     return jsonResponse({
       success: true, location: parsedLocation
     })
-    
+
   } catch (error) {
     console.error('Failed to get public business location:', error)
-    return jsonResponse({ 
-      error: 'Failed to get business location' 
+    return jsonResponse({
+      error: 'Failed to get business location'
     }, { status: 500 })
   }
 })

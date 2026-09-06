@@ -93,17 +93,6 @@ export default defineHandler(async (event) => {
               SET role = 'canonical', updated_at = ?
               WHERE id = ?
             `, [now, promotedDomain.id])
-            await execute(db, `
-              UPDATE sites
-              SET public_url = ?, custom_domain = ?, custom_domain_status = 'active', updated_at = ?
-              WHERE id = ? AND organization_id = ?
-            `, [`https://${promotedDomain.domain}`, promotedDomain.domain, now, siteId, site.organization_id])
-          } else {
-            await execute(db, `
-              UPDATE sites
-              SET public_url = NULL, custom_domain = NULL, custom_domain_status = 'none', updated_at = ?
-              WHERE id = ? AND organization_id = ?
-            `, [now, siteId, site.organization_id])
           }
         }
       } catch (error) {

@@ -11,7 +11,6 @@ export const MEDIA_PLACEMENT_SLOTS = {
   review: ['portrait', 'gallery', 'social_card'],
   review_request: ['gallery'],
   tenant_compliance: ['document'],
-  chowbot_message: ['attachment'],
   tenant_page: ['social_card'],
 } as const
 

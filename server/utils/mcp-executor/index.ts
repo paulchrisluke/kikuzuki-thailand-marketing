@@ -111,9 +111,7 @@ export async function executeMcpToolCall(
       orgSlug: s.slug,
       publicUrl: resolveSitePublicOrigin({
         public_url: typeof s.public_url === 'string' ? s.public_url : null,
-        custom_domain: typeof s.custom_domain === 'string' ? s.custom_domain : null,
-        subdomain: typeof s.subdomain === 'string' ? s.subdomain : null,
-      }, user.env),
+      }),
       status: s.status ?? "inactive",
       active: s.id === workspace.site?.id,
     }));
@@ -137,11 +135,10 @@ export async function executeMcpToolCall(
       user.env,
       user.userId,
     );
-    const env = cloudflareEnv(event) as { NUXT_PUBLIC_FREE_SITE_DOMAIN?: string };
     return {
-      context: workspaceContextPayload(workspace.organization, workspace.site, workspace.location, env),
+      context: workspaceContextPayload(workspace.organization, workspace.site, workspace.location),
       organizations: workspaceOrganizationsPayload(workspace),
-      sites: workspaceSitesPayload(workspace, env),
+      sites: workspaceSitesPayload(workspace),
       locations: workspaceLocationsPayload(workspace),
     };
   }
@@ -189,13 +186,12 @@ export async function executeMcpToolCall(
         locationId: workspace.location?.id ?? null,
       },
     );
-    const env = cloudflareEnv(event) as { NUXT_PUBLIC_FREE_SITE_DOMAIN?: string };
 
     return {
       success: true,
-      context: workspaceContextPayload(refreshed.organization, refreshed.site, refreshed.location, env),
+      context: workspaceContextPayload(refreshed.organization, refreshed.site, refreshed.location),
       organizations: workspaceOrganizationsPayload(refreshed),
-      sites: workspaceSitesPayload(refreshed, env),
+      sites: workspaceSitesPayload(refreshed),
       locations: workspaceLocationsPayload(refreshed),
     };
   }

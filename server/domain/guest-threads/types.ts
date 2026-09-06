@@ -80,14 +80,14 @@ export interface ThreadSummaryProjection {
   locationTitle: string | null
   contextLabel: string
   createdAt: string
-  operationalStatus: string
+  operationalStatus: string | null
 }
 
 export interface ThreadDetailSourceModel {
   submissionType: GuestThreadSubmissionType
   submissionId: string
-  operationalStatus: string
-  operationalStatusLabel: string
+  operationalStatus: string | null
+  operationalStatusLabel: string | null
   fields: Record<string, unknown>
 }
 
@@ -95,8 +95,8 @@ export interface GuestThreadSourceAdapter<TSource, TAction extends string> {
   type: GuestThreadSubmissionType
   loadSource(_ctx: AdapterLoadContext, _submissionId: string): Promise<TSource | null>
   summarize(_source: TSource): ThreadSummaryProjection
-  getOperationalStatus(_source: TSource): string
-  getOperationalStatusLabel(_status: string): string
+  getOperationalStatus(_source: TSource): string | null
+  getOperationalStatusLabel(_status: string): string | null
   listAvailableActions(_source: TSource): TAction[]
   buildCurrentDetail(_source: TSource): ThreadDetailSourceModel
 }

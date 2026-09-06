@@ -1,3 +1,4 @@
+import { parseGoogleReviewMetadata } from '~/shared/google-review'
 import { queryAll, queryFirst, type DbClient } from '~/server/db'
 import { HTTPError } from 'nitro';
 import type { CloudflareEnv } from '~/server/utils/auth'
@@ -126,11 +127,6 @@ function mapOfferingRow(row: OfferingRow, socialMedia: PublicSocialMedia): Publi
     canonical_path: typeof row.canonical_path === 'string' ? row.canonical_path : null,
     sort_order: Number(row.sort_order ?? 0),
     featured: asBoolean(row.featured),
-    // Real business_locations data for the offering's own location, when one
-    // is associated (offerings.location_id) — used to populate a
-    // schema.org PostalAddress on the offering's own graph node rather than
-    // always falling back to the site's primary location. Null when the
-    // offering is site-wide (no location_id) or the location has no address.
     location_address_street: typeof row.location_address === 'string' ? row.location_address : null,
     location_address_locality: typeof row.location_city === 'string' ? row.location_city : null,
   }
@@ -334,16 +330,6 @@ export async function getPublicCompliance(db: DbClient, siteId: string): Promise
      LIMIT 1
   `, [siteId])
   if (!row) return null
-  const visibleAddress = row.address_visibility === 'visible'
-    ? await queryFirst<ApiRecord>(db, `
-        SELECT address, city
-          FROM business_locations
-         WHERE site_id = ? AND status = 'active'
-           AND address IS NOT NULL AND trim(address) <> ''
-         ORDER BY is_primary DESC, title ASC, id ASC
-         LIMIT 1
-      `, [siteId])
-    : null
   const mediaRows = await queryAll<ApiRecord>(db, `
     SELECT ma.id, ma.public_url, ma.kind, ma.alt_text, ma.file_name,
            mp.slot
@@ -376,15 +362,6 @@ export async function getPublicCompliance(db: DbClient, siteId: string): Promise
     same_as: row.same_as ? JSON.parse(row.same_as) as string[] : [],
     contact_points: row.contact_points ? JSON.parse(row.contact_points) as PublicComplianceContactPoint[] : [],
     address_visibility: row.address_visibility === 'visible' ? 'visible' : 'hidden',
-    address: visibleAddress
-      ? {
-          street_address: typeof visibleAddress.address === 'string' ? visibleAddress.address : null,
-          locality: typeof visibleAddress.city === 'string' ? visibleAddress.city : null,
-          region: null,
-          postal_code: null,
-          country: null,
-        }
-      : null,
     metadata: row.metadata_json ? JSON.parse(row.metadata_json) as ApiRecord : {},
   }
 }
@@ -403,11 +380,8 @@ export async function getPublicThemeTokens(db: DbClient, siteId: string, templat
 
 export async function getPublicBlawbyIdentity(db: DbClient, siteId: string): Promise<PublicBlawbyIdentity> {
   const row = await queryFirst<ApiRecord>(db, `
-    SELECT s.brand_name, s.brand_description, s.contact_phone,
-           primary_loc.address AS primary_location_address,
-           primary_loc.city AS primary_location_city
+    SELECT s.brand_name, s.brand_description, s.contact_phone
       FROM sites s
-      LEFT JOIN business_locations primary_loc ON s.primary_location_id = primary_loc.id AND primary_loc.status = 'active'
      WHERE s.id = ?
      LIMIT 1
   `, [siteId])
@@ -421,11 +395,6 @@ export async function getPublicBlawbyIdentity(db: DbClient, siteId: string): Pro
     phone: typeof row?.contact_phone === 'string' ? row.contact_phone : null,
     banner_content: null,
     banner_dismissible: false,
-    // The site's primary business_locations row, if any — the seam for
-    // threading a real PostalAddress into the org-level schema.org graph
-    // node (see utils/professional-service-schema.ts / useBlawbyOrgIdentity).
-    primary_location_address_street: typeof row?.primary_location_address === 'string' ? row.primary_location_address : null,
-    primary_location_address_locality: typeof row?.primary_location_city === 'string' ? row.primary_location_city : null,
   }
 }
 
@@ -437,28 +406,20 @@ export async function getPublicBlawbyShellData(
   const locale = options.locale?.trim() || 'en'
   const localizations = options.localizations ?? []
   const siteLocalization = localizations.find(item => item.resourceType === 'site' && item.resourceId === siteId) ?? null
-  const [sourceIdentity, sourceConsultation, sourceCompliance, themeTokens, sourceOfferingLinks, pageLinks, primaryLocation] = await Promise.all([
+  const [sourceIdentity, sourceConsultation, sourceCompliance, themeTokens, sourceOfferingLinks, pageLinks] = await Promise.all([
     getPublicBlawbyIdentity(db, siteId),
     getPublicConsultationSettings(db, siteId),
     getPublicCompliance(db, siteId),
     getPublicThemeTokens(db, siteId),
     listPublicOfferingLinks(db, siteId),
     listPublishedTenantPagePaths(db, siteId, locale),
-    locale === 'en'
-      ? Promise.resolve(null)
-      : queryFirst<{ primary_location_id: string | null }>(db, 'SELECT primary_location_id FROM sites WHERE id = ? LIMIT 1', [siteId]),
   ])
-  const primaryLocationLocalization = primaryLocation?.primary_location_id
-    ? localizations.find(item => item.resourceType === 'business_location' && item.resourceId === primaryLocation.primary_location_id)
-    : null
   const localizedRepresentation = locale !== 'en'
   const identity = localizedRepresentation
     ? {
         ...sourceIdentity,
         brand_name: typeof siteLocalization?.values.brand_name === 'string' ? siteLocalization.values.brand_name : '',
         brand_description: typeof siteLocalization?.values.brand_description === 'string' ? siteLocalization.values.brand_description : null,
-        primary_location_address_street: typeof primaryLocationLocalization?.values.address === 'string' ? primaryLocationLocalization.values.address : null,
-        primary_location_address_locality: typeof primaryLocationLocalization?.values.city === 'string' ? primaryLocationLocalization.values.city : null,
       }
     : sourceIdentity
   let consultation = sourceConsultation
@@ -624,6 +585,9 @@ function mapPublicReviews(rows: SiteReviewRow[]): PublicSiteReview[] {
     content: requiredText(row.content, `review ${row.id}.content`),
     original_review_date: typeof row.original_review_date === 'string' ? row.original_review_date : null,
     verified: row.verified === true,
+    source: typeof row.source === 'string' ? row.source : null,
+    original_reference: typeof row.original_reference === 'string' ? row.original_reference : null,
+    google_review_metadata: parseGoogleReviewMetadata(row.google_review_metadata),
   }))
 }
 

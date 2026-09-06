@@ -90,7 +90,7 @@ export async function loadPublicProductCollection(
       FROM business_locations
      WHERE organization_id = ? AND site_id = ? AND status = 'active'
        ${locationSlug ? 'AND slug = ?' : ''}
-     ORDER BY is_primary DESC, title, id
+     ORDER BY title, id
   `, [resolved.site.organization_id, siteId, ...(locationSlug ? [locationSlug] : [])])
   if (locationSlug && locationRows.length !== 1) return null
   const locations = locationRows.filter(location => locationHasProducts(resolved.site, location))

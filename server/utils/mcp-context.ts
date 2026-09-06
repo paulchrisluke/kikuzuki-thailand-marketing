@@ -24,7 +24,6 @@ export interface McpSiteSummary {
   status: string
   onboarding_status: string
   role: string
-  primary_location_id: string | null
 }
 
 export interface McpOrganizationSummary {
@@ -39,7 +38,6 @@ export interface McpLocationSummary {
   title: string
   city: string | null
   status: string
-  is_primary: boolean
 }
 
 export interface ResolvedMcpWorkspace {
@@ -92,8 +90,8 @@ export async function listAccessibleSitesForMcp(
     ? [[organizations[index]!.id, membership.role] as const]
     : []))
   const rows = await queryAll<Omit<McpSiteSummary, 'organization_name' | 'organization_slug' | 'role'>>(db, `
-    SELECT id, organization_id, brand_name, subdomain, custom_domain, public_url, status,
-           onboarding_status, primary_location_id
+    SELECT id, organization_id, brand_name, subdomain, (SELECT domain FROM site_domains WHERE site_id = sites.id AND role = 'canonical' AND status = 'active' AND type = 'custom') AS custom_domain, (SELECT 'https://' || domain FROM site_domains WHERE site_id = sites.id AND role = 'canonical' AND status = 'active') AS public_url, status,
+           onboarding_status
     FROM sites
     WHERE organization_id IN (SELECT value FROM json_each(?))
     ORDER BY updated_at DESC, created_at DESC
@@ -118,18 +116,14 @@ export async function listLocationsForMcp(
     title: string
     city: string | null
     status: string
-    is_primary: number | boolean
   }>(db, `
-    SELECT id, slug, title, city, status, is_primary
+    SELECT id, slug, title, city, status
     FROM business_locations
     WHERE organization_id = ? AND site_id = ?
-    ORDER BY is_primary DESC, title ASC
+    ORDER BY title ASC
   `, [organizationId, siteId])
 
-  return results.map((location) => ({
-    ...location,
-    is_primary: Boolean(location.is_primary),
-  }))
+  return results
 }
 
 export async function resolveMcpWorkspace(
@@ -178,6 +172,11 @@ export async function resolveMcpWorkspace(
       null
     : null
 
+  if (requestedSiteId && !site) {
+    const domain = await queryFirst<{ site_id: string }>(db, "SELECT site_id FROM site_domains WHERE domain = ? AND status = 'active' LIMIT 1", [requestedSiteId])
+    site = scopedSites.find(entry => entry.id === domain?.site_id) ?? null
+  }
+
   if (!requestedSiteId) {
     if (!site && preferredSiteId) {
       site = scopedSites.find((entry) => entry.id === preferredSiteId) ?? null
@@ -209,30 +208,13 @@ export async function resolveMcpWorkspace(
     : []
 
   const requestedLocationId = normalizeId(options.locationId)
-  const preferredLocationId = normalizeId(preference?.location_id)
-  let location = requestedLocationId
+  const location = requestedLocationId
     ? locations.find((entry) => entry.id === requestedLocationId) ??
       locations.find((entry) => entry.slug === requestedLocationId) ??
       null
     : null
 
-  if (!requestedLocationId) {
-    if (!location && preferredLocationId) {
-      location = locations.find((entry) => entry.id === preferredLocationId) ?? null
-    }
-    if (!location && site?.primary_location_id) {
-      location = locations.find((entry) => entry.id === site.primary_location_id) ?? null
-    }
-    if (!location && locations.length === 1) {
-      location = locations[0] ?? null
-    }
-  }
-
   if (options.requireLocation && !location) {
-    // A caller who named a location and a caller who named none have failed for
-    // different reasons, and telling the first to "pass location_id explicitly"
-    // sends them looking for a mistake they did not make. Name the id that did
-    // not resolve instead, so a wrong or out-of-site id reads as what it is.
     if (requestedLocationId) {
       throw new Error(
         `Location "${requestedLocationId}" was not found on the active site.`,

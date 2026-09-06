@@ -25,6 +25,10 @@ async function putLocalization(
 }
 
 async function expectLocalizedMenu(page: Page) {
+  await page.waitForFunction(() => {
+    const root = document.querySelector('#__nuxt')
+    return root && '__vue_app__' in root && Boolean(root.__vue_app__)
+  })
   await expect(page.locator('html')).toHaveAttribute('lang', locale)
   await expect(page.getByRole('navigation', { name: 'การนำทางหลัก' })).toBeVisible()
   await expect(page.getByRole('navigation', { name: 'การนำทางหลัก' }).getByRole('link', { name: 'เมนู', exact: true })).toBeVisible()
@@ -66,6 +70,17 @@ test('Kikuzuki keeps its Thai shell and category translations on a hard load', a
         brand_description: 'อาหารญี่ปุ่นต้นตำรับในกระบี่',
       },
     })
+    const locationResponse = await owner.get('/api/sites/site-kikuzuki/locations/loc-kikuzuki')
+    await expectStatus(locationResponse, 200)
+    expect(await locationResponse.json()).toMatchObject({
+      location: {
+        opening_hours: {
+          periods: expect.arrayContaining([1, 2].map(day => ({
+            open: { day, hour: 14, minute: 0 }, close: { day, hour: 23, minute: 0 },
+          }))),
+        },
+      },
+    })
     await putLocalization(owner, 'business_location', 'loc-kikuzuki', {
       route_path: '/th/locations/kikuzuki-japanese-robatayaki-izakaya',
       values: {
@@ -74,7 +89,6 @@ test('Kikuzuki keeps its Thai shell and category translations on a hard load', a
         city: 'ตำบลอ่าวนาง',
         description: 'ร้านอาหารญี่ปุ่นใจกลางกระบี่',
         short_description: 'โรบาตายากิและซูชิในอ่าวนาง',
-        opening_hours: ['วันจันทร์ ปิด', 'วันอังคาร 14:00–23:00 น.'],
       },
     })
     await putLocalization(owner, 'product_category', 'category-loc-kikuzuki-sushi', {
@@ -118,6 +132,18 @@ test('Kikuzuki keeps its Thai shell and category translations on a hard load', a
     await expect(page.getByText('ติดต่อเรา', { exact: true }).first()).toBeVisible()
     await expect(page.getByRole('button', { name: /🇹🇭 th/ })).toBeVisible()
     expect(errors.filter(message => message.includes('Localized route representation was not found'))).toEqual([])
+
+    const locationPageResponse = await openTenantPage(
+      page,
+      `${kikuzukiTestBaseUrl()}/th/locations/kikuzuki-japanese-robatayaki-izakaya`,
+      kikuzukiTestExtraHeaders(),
+    )
+    expect(locationPageResponse?.status()).toBeLessThan(400)
+    for (const day of ['วันจันทร์', 'วันอังคาร']) {
+      const hoursRow = page.getByText(day, { exact: true }).locator('..')
+      await expect(hoursRow).toContainText('14:00')
+      await expect(hoursRow).toContainText('23:00')
+    }
 
     for (const path of ['/th/reservations', '/th/experiences']) {
       const builtInResponse = await openTenantPage(page, `${kikuzukiTestBaseUrl()}${path}`, kikuzukiTestExtraHeaders())

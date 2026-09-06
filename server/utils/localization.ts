@@ -52,9 +52,9 @@ export interface ResourceLocalizationRecord {
   values: LocalizedValues
   route_path: string | null
   document_id: string | null
-  created_at: number
+  created_at: string
   created_by_user_id: string
-  updated_at: number
+  updated_at: string
   updated_by_user_id: string
 }
 
@@ -242,7 +242,7 @@ export async function registerPlatformLocaleCatalog(
   if (locale === 'en') localizationError(422, 'LOCALIZATION_VALIDATION_FAILED', 'English is the immutable source catalog')
   if (typeof input.label !== 'string' || !input.label.trim()) localizationError(422, 'LOCALIZATION_VALIDATION_FAILED', 'label is required')
   if (input.direction !== 'ltr' && input.direction !== 'rtl') localizationError(422, 'LOCALIZATION_VALIDATION_FAILED', 'direction must be ltr or rtl')
-  const now = Math.floor(Date.now() / 1000)
+  const now = new Date().toISOString()
   await execute(db, `
     INSERT INTO platform_locale_catalogs
       (locale, label, direction, status, created_at, created_by_user_id, updated_at, updated_by_user_id)
@@ -261,7 +261,7 @@ export async function replacePlatformLocaleMessages(
   const catalog = await queryFirst<{ status: PlatformLocaleStatus }>(db, `SELECT status FROM platform_locale_catalogs WHERE locale = ? LIMIT 1`, [locale])
   if (!catalog) localizationError(404, 'PLATFORM_LOCALE_UNAVAILABLE', 'Platform locale catalog was not found', { locale })
   const normalized = validateCatalogMessages(messages, catalog.status === 'available')
-  const now = Math.floor(Date.now() / 1000)
+  const now = new Date().toISOString()
   const statements: BatchQuery[] = [{ query: 'DELETE FROM platform_locale_messages WHERE locale = ?', params: [locale] }]
   for (const [messageKey, messageValue] of Object.entries(normalized)) {
     statements.push({
@@ -285,7 +285,7 @@ export async function publishPlatformLocaleCatalog(
   if (!catalog) localizationError(404, 'PLATFORM_LOCALE_UNAVAILABLE', 'Platform locale catalog was not found', { locale })
   const normalized = validateCatalogMessages(messages, true)
   const hash = await englishManifestHash()
-  const now = Math.floor(Date.now() / 1000)
+  const now = new Date().toISOString()
   const statements: BatchQuery[] = [{ query: 'DELETE FROM platform_locale_messages WHERE locale = ?', params: [locale] }]
   for (const [messageKey, messageValue] of Object.entries(normalized)) {
     statements.push({
@@ -313,7 +313,7 @@ async function assertCatalogHasNoActiveLicenses(db: DbClient, locale: string): P
 export async function makePlatformLocaleUnavailable(db: DbClient, localeInput: unknown, userId: string) {
   const locale = assertExactCanonicalLocale(localeInput)
   await assertCatalogHasNoActiveLicenses(db, locale)
-  await execute(db, `UPDATE platform_locale_catalogs SET status = 'unavailable', available_at = NULL, available_by_user_id = NULL, updated_at = ?, updated_by_user_id = ? WHERE locale = ?`, [Math.floor(Date.now() / 1000), userId, locale])
+  await execute(db, `UPDATE platform_locale_catalogs SET status = 'unavailable', available_at = NULL, available_by_user_id = NULL, updated_at = ?, updated_by_user_id = ? WHERE locale = ?`, [new Date().toISOString(), userId, locale])
   return await getPlatformLocaleCatalog(db, locale)
 }
 
@@ -427,13 +427,20 @@ async function assertCanonicalResourceExists(
   siteId: string,
   resourceType: LocalizedResourceType,
   resourceId: string,
-): Promise<void> {
+): Promise<BatchQuery> {
   const table = RESOURCE_LOCALIZATION_REGISTRY[resourceType].table
-  const row = resourceType === 'site'
-    ? await queryFirst<{ id: string }>(db, `SELECT id FROM ${table} WHERE organization_id = ? AND id = ? LIMIT 1`, [organizationId, resourceId])
-    : await queryFirst<{ id: string }>(db, `SELECT id FROM ${table} WHERE organization_id = ? AND site_id = ? AND id = ? LIMIT 1`, [organizationId, siteId, resourceId])
+  const query = resourceType === 'site'
+    ? `SELECT id FROM ${table} WHERE organization_id = ? AND id = ?`
+    : `SELECT id FROM ${table} WHERE organization_id = ? AND site_id = ? AND id = ?`
+  const params = resourceType === 'site' ? [organizationId, resourceId] : [organizationId, siteId, resourceId]
+  const row = await queryFirst<{ id: string }>(db, query, params)
   if (!row || (resourceType === 'site' && resourceId !== siteId)) {
     localizationError(404, 'LOCALIZATION_NOT_FOUND', 'Canonical resource was not found', { resource_type: resourceType, resource_id: resourceId })
+  }
+  return {
+    query: `UPDATE resource_localizations SET resource_id = NULL
+      WHERE organization_id = ? AND site_id = ? AND resource_type = ? AND resource_id = ? AND NOT EXISTS (${query})`,
+    params: [organizationId, siteId, resourceType, resourceId, ...params],
   }
 }
 
@@ -606,18 +613,18 @@ export async function putResourceLocalization(
   const resourceType = parseLocalizedResourceType(input.resourceType)
   const { locale, source } = await assertSiteLanguageEntitlement(db, input.organizationId, input.siteId, input.locale)
   if (source) localizationError(422, 'LOCALIZATION_VALIDATION_FAILED', 'English source content must be edited through its canonical resource')
-  await assertCanonicalResourceExists(db, input.organizationId, input.siteId, resourceType, input.resourceId)
+  const ownerGuard = await assertCanonicalResourceExists(db, input.organizationId, input.siteId, resourceType, input.resourceId)
   const values = validateLocalizedValues(resourceType, input.values)
   const vertical = await getSiteVertical(db, input.organizationId, input.siteId)
   const routePath = validateLocalizedRoutePath(resourceType, locale, input.routePath, vertical)
-  const existing = await queryFirst<{ id: string; route_path: string | null; created_at: number; created_by_user_id: string }>(db, `
+  const existing = await queryFirst<{ id: string; route_path: string | null; created_at: string; created_by_user_id: string }>(db, `
     SELECT id, route_path, created_at, created_by_user_id
       FROM resource_localizations
      WHERE organization_id = ? AND site_id = ? AND resource_type = ? AND resource_id = ? AND locale = ?
      LIMIT 1
   `, [input.organizationId, input.siteId, resourceType, input.resourceId, locale])
   const id = existing?.id ?? crypto.randomUUID()
-  const now = Math.floor(Date.now() / 1000)
+  const now = new Date().toISOString()
   const statements: BatchQuery[] = []
   if (existing?.route_path && existing.route_path !== routePath && routePath) {
     statements.push({
@@ -640,7 +647,7 @@ export async function putResourceLocalization(
     params: [id, input.organizationId, input.siteId, resourceType, input.resourceId, locale, JSON.stringify(values), routePath,
       existing?.created_at ?? now, existing?.created_by_user_id ?? input.userId, now, input.userId],
   })
-  statements.push(publicResourceCacheInvalidationQuery(input.siteId, 'resource-localization-put'))
+  statements.push(ownerGuard, publicResourceCacheInvalidationQuery(input.siteId, 'resource-localization-put'))
   try {
     await executeBatch(db, statements, { operation: 'replace resource localization' })
   } catch (error) {
@@ -684,7 +691,7 @@ export async function putResourceLocalizationForAuthoring(
 
   const { locale, source } = await assertSiteLanguageEntitlement(db, input.organizationId, input.siteId, input.locale)
   if (source) localizationError(422, 'LOCALIZATION_VALIDATION_FAILED', 'English source content must be edited through its canonical resource')
-  await assertCanonicalResourceExists(db, input.organizationId, input.siteId, resourceType, input.resourceId)
+  const ownerGuard = await assertCanonicalResourceExists(db, input.organizationId, input.siteId, resourceType, input.resourceId)
   const values = validateLocalizedValues(resourceType, input.values)
   const vertical = await getSiteVertical(db, input.organizationId, input.siteId)
   const routePath = validateLocalizedRoutePath(resourceType, locale, input.routePath, vertical)
@@ -692,7 +699,7 @@ export async function putResourceLocalizationForAuthoring(
     id: string
     route_path: string | null
     document_id: string | null
-    created_at: number
+    created_at: string
     created_by_user_id: string
   }>(db, `
     SELECT id, route_path, document_id, created_at, created_by_user_id
@@ -701,12 +708,11 @@ export async function putResourceLocalizationForAuthoring(
      LIMIT 1
   `, [input.organizationId, input.siteId, resourceType, input.resourceId, locale])
   const id = existing?.id ?? crypto.randomUUID()
-  const now = Math.floor(Date.now() / 1000)
-  const nowIso = new Date().toISOString()
+  const now = new Date().toISOString()
   const rawBlocks = input.contentBlocks as ContentBlockInput[]
   const requestedBlocks = existing?.document_id ? rawBlocks : remapNewLocalizedBlockIds(rawBlocks)
   const { prepareTenantBlogContentBlocks } = await import('~/server/utils/platform-content')
-  const prepared = await prepareTenantBlogContentBlocks(db, requestedBlocks, input.siteId, input.organizationId, nowIso)
+  const prepared = await prepareTenantBlogContentBlocks(db, requestedBlocks, input.siteId, input.organizationId, now)
   const documentId = existing?.document_id ?? crypto.randomUUID()
   const statements: BatchQuery[] = []
   if (existing?.route_path && existing.route_path !== routePath && routePath) {
@@ -716,7 +722,7 @@ export async function putResourceLocalizationForAuthoring(
         VALUES (?, ?, ?, ?, 'resource_localization', ?, ?, ?, 301, 'redirect', 'localized_route_change', 'localization', ?, ?)
         ON CONFLICT(site_id, locale, from_path) DO UPDATE SET owner_type = excluded.owner_type, owner_id = excluded.owner_id,
           to_path = excluded.to_path, status_code = 301, behavior = 'redirect', reason = excluded.reason, source = excluded.source, updated_at = excluded.updated_at`,
-      params: [crypto.randomUUID(), input.organizationId, input.siteId, locale, id, existing.route_path, routePath, nowIso, nowIso],
+      params: [crypto.randomUUID(), input.organizationId, input.siteId, locale, id, existing.route_path, routePath, now, now],
     })
   }
   statements.push({
@@ -741,13 +747,14 @@ export async function putResourceLocalizationForAuthoring(
       await replaceContentDocumentBlocks(db, document.owner_type, document.owner_id, prepared.blocks, {
         expected_document_updated_at: input.expectedDocumentUpdatedAt,
         additionalQueriesBefore: statements,
-        additionalQueriesAfter: [...prepared.placementQueries, publicResourceCacheInvalidationQuery(input.siteId, 'resource-localization-blog-put')],
+        additionalQueriesAfter: [ownerGuard, ...prepared.placementQueries, publicResourceCacheInvalidationQuery(input.siteId, 'resource-localization-blog-put')],
       })
     } else {
-      await createContentDocumentWithBlocks(db, 'tenant_blog', id, prepared.blocks, {
+      await createContentDocumentWithBlocks(db, 'resource_localization', id, prepared.blocks, {
+        siteId: input.siteId,
         documentId,
         additionalQueriesBefore: statements,
-        additionalQueriesAfter: [...prepared.placementQueries, publicResourceCacheInvalidationQuery(input.siteId, 'resource-localization-blog-put')],
+        additionalQueriesAfter: [ownerGuard, ...prepared.placementQueries, publicResourceCacheInvalidationQuery(input.siteId, 'resource-localization-blog-put')],
       })
     }
   } catch (error) {
@@ -757,6 +764,21 @@ export async function putResourceLocalizationForAuthoring(
     throw error
   }
   return await getResourceLocalizationForAuthoring(db, input.organizationId, input.siteId, resourceType, input.resourceId, locale)
+}
+
+export function resourceLocalizationDeletionQueries(resourceType: LocalizedResourceType, resourceIds: BatchQuery, locale?: string): BatchQuery[] {
+  const owners = `SELECT id FROM resource_localizations WHERE resource_type = ? AND resource_id IN (${resourceIds.query})${locale === undefined ? '' : ' AND locale = ?'}`
+  const params = [resourceType, ...(resourceIds.params ?? []), ...(locale === undefined ? [] : [locale])]
+  return [
+    { query: `DELETE FROM site_redirects WHERE owner_type = 'resource_localization' AND owner_id IN (${owners})`, params },
+    { query: `DELETE FROM media_placements WHERE owner_type = 'content_block' AND owner_id IN (
+        SELECT b.id FROM content_blocks b JOIN content_documents d ON d.id = b.document_id
+         WHERE d.owner_type = 'resource_localization' AND d.owner_id IN (${owners})
+      )`, params },
+    { query: `UPDATE resource_localizations SET document_id = NULL WHERE id IN (${owners})`, params },
+    { query: `DELETE FROM content_documents WHERE owner_type = 'resource_localization' AND owner_id IN (${owners})`, params },
+    { query: `DELETE FROM resource_localizations WHERE id IN (${owners})`, params },
+  ]
 }
 
 export async function deleteResourceLocalization(
@@ -771,19 +793,9 @@ export async function deleteResourceLocalization(
      WHERE organization_id = ? AND site_id = ? AND resource_type = ? AND resource_id = ? AND locale = ? LIMIT 1
   `, [input.organizationId, input.siteId, resourceType, input.resourceId, locale])
   if (!row) localizationError(404, 'LOCALIZATION_NOT_FOUND', 'Localized representation was not found', { resource_type: resourceType, resource_id: input.resourceId, locale })
-  const statements: BatchQuery[] = [
-    { query: `DELETE FROM site_redirects WHERE owner_type = 'resource_localization' AND owner_id = ?`, params: [row.id] },
-    { query: 'DELETE FROM resource_localizations WHERE id = ?', params: [row.id] },
-  ]
-  if (row.document_id) {
-    statements.push({
-      query: `DELETE FROM media_placements
-        WHERE owner_type = 'content_block'
-          AND owner_id IN (SELECT id FROM content_blocks WHERE document_id = ?)`,
-      params: [row.document_id],
-    })
-    statements.push({ query: 'DELETE FROM content_documents WHERE id = ?', params: [row.document_id] })
-  }
+  const statements = resourceLocalizationDeletionQueries(resourceType, {
+    query: 'SELECT resource_id FROM resource_localizations WHERE id = ?', params: [row.id],
+  }, locale)
   statements.push(publicResourceCacheInvalidationQuery(input.siteId, 'resource-localization-delete'))
   await executeBatch(db, statements, { operation: 'delete resource localization' })
   return { deleted: true, resource_type: resourceType, resource_id: input.resourceId, locale }
@@ -889,7 +901,7 @@ export async function syncProductCatalogLocalization(
     id: string
     resource_id: string
     route_path: string | null
-    created_at: number
+    created_at: string
     created_by_user_id: string
   }>(db, `
     SELECT id, resource_id, route_path, created_at, created_by_user_id
@@ -900,8 +912,7 @@ export async function syncProductCatalogLocalization(
   const submittedIds = new Set(ids)
   const conflicts = existing.filter(row => !submittedIds.has(row.resource_id) && row.route_path && routePaths.includes(row.route_path))
   if (conflicts.length) localizationError(409, 'LOCALIZED_ROUTE_CONFLICT', 'A submitted Product route is already owned', { route_paths: conflicts.map(row => row.route_path) })
-  const now = Math.floor(Date.now() / 1000)
-  const isoNow = new Date().toISOString()
+  const now = new Date().toISOString()
   const statements: BatchQuery[] = []
   for (const item of planned) {
     const prior = byProduct.get(item.productId)
@@ -913,7 +924,7 @@ export async function syncProductCatalogLocalization(
           VALUES (?, ?, ?, ?, 'resource_localization', ?, ?, ?, 301, 'redirect', 'localized_route_change', 'localization', ?, ?)
           ON CONFLICT(site_id, locale, from_path) DO UPDATE SET owner_type = excluded.owner_type, owner_id = excluded.owner_id,
             to_path = excluded.to_path, behavior = 'redirect', reason = excluded.reason, source = excluded.source, updated_at = excluded.updated_at`,
-        params: [crypto.randomUUID(), input.organizationId, input.siteId, locale, id, prior.route_path, item.routePath, isoNow, isoNow],
+        params: [crypto.randomUUID(), input.organizationId, input.siteId, locale, id, prior.route_path, item.routePath, now, now],
       })
     }
     statements.push({
@@ -928,6 +939,13 @@ export async function syncProductCatalogLocalization(
         prior?.created_at ?? now, prior?.created_by_user_id ?? input.userId, now, input.userId],
     })
   }
+  statements.push({
+    query: `UPDATE resource_localizations SET resource_id = NULL
+      WHERE organization_id = ? AND site_id = ? AND resource_type = 'product' AND locale = ?
+        AND resource_id IN (SELECT value FROM json_each(?))
+        AND NOT EXISTS (SELECT 1 FROM products p WHERE p.id = resource_localizations.resource_id AND p.organization_id = resource_localizations.organization_id AND p.site_id = resource_localizations.site_id)`,
+    params: [input.organizationId, input.siteId, locale, JSON.stringify(ids)],
+  })
   try {
     await executeBatch(db, statements, { operation: 'sync product catalog localization' })
   } catch (error) {

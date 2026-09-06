@@ -53,7 +53,7 @@ const BOOKING: BookingPresentation = {
 export function resolveBookingPresentation(kind: BookingKind, vertical: string | null | undefined): BookingPresentation {
 	if (kind === 'experience_booking') return BOOKING
 	if (!vertical?.trim()) throw new Error('Cannot resolve booking vocabulary: missing vertical')
-	return normalizeVertical(vertical) === 'professional_service' ? CONSULTATION : RESERVATION
+	return normalizeVertical(vertical) === 'service' ? CONSULTATION : RESERVATION
 }
 
 /**

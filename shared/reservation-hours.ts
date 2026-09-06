@@ -1,262 +1,211 @@
-// Shared opening-hours normalization, open-now display, and reservation slots.
-// Accept the CMS/Google hours contract without inventing availability.
+export const WEEKDAYS = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'] as const
+export type Weekday = (typeof WEEKDAYS)[number]
+export type WeekPoint = { day: number; hour: number; minute: number }
+export type WeeklyPeriod = { open: WeekPoint; close: WeekPoint } | { open: { day: 0; hour: 0; minute: 0 }; close?: never }
+export type OpeningHours = { periods: WeeklyPeriod[] } | null
+export type DatePeriod = { open_time: string; close_time: string; close_day_offset: 0 | 1 }
+export type Closure = { kind: 'closure'; starts_on: string; ends_on: string | null; note: string | null }
+export type SpecialHours = Array<Closure | { kind: 'hours'; date: string; periods: DatePeriod[]; note: string | null }> | null
+export type RecurringSlots = Partial<Record<Weekday, string[]>> | null
+export type HoursInterval = { start: number; end: number }
+const DAY = 1440
+const WEEK = DAY * 7
+export const TIME_PATTERN = /^([01]\d|2[0-3]):[0-5]\d$/
 
-export interface StructuredOpeningHoursEntry {
-  openDay: string
-  openTime: string
-  closeTime: string
+const pointSchema = { type: 'object', additionalProperties: false, required: ['day', 'hour', 'minute'], properties: {
+  day: { type: 'integer', minimum: 0, maximum: 6 }, hour: { type: 'integer', minimum: 0, maximum: 23 }, minute: { type: 'integer', minimum: 0, maximum: 59 },
+} }
+export const openingHoursSchema = { anyOf: [{ type: 'null' }, { type: 'object', additionalProperties: false, required: ['periods'], properties: {
+  periods: { type: 'array', items: { anyOf: [
+    { type: 'object', additionalProperties: false, required: ['open', 'close'], properties: { open: pointSchema, close: pointSchema } },
+    { type: 'object', additionalProperties: false, required: ['open'], properties: { open: { type: 'object', additionalProperties: false, required: ['day', 'hour', 'minute'], properties: { day: { const: 0 }, hour: { const: 0 }, minute: { const: 0 } } } } },
+  ] } },
+} }] }
+const dateSchema = { type: 'string', pattern: '^\\d{4}-\\d{2}-\\d{2}$' }
+const noteSchema = { type: ['string', 'null'], maxLength: 1000 }
+const timeSchema = { type: 'string', pattern: '^([01]\\d|2[0-3]):[0-5]\\d$' }
+export const specialHoursSchema = { anyOf: [{ type: 'null' }, { type: 'array', items: { anyOf: [
+  { type: 'object', additionalProperties: false, required: ['kind', 'starts_on', 'ends_on', 'note'], properties: { kind: { const: 'closure' }, starts_on: dateSchema, ends_on: { anyOf: [dateSchema, { type: 'null' }] }, note: noteSchema } },
+  { type: 'object', additionalProperties: false, required: ['kind', 'date', 'periods', 'note'], properties: { kind: { const: 'hours' }, date: dateSchema, note: noteSchema, periods: { type: 'array', items: { type: 'object', additionalProperties: false, required: ['open_time', 'close_time', 'close_day_offset'], properties: { open_time: timeSchema, close_time: timeSchema, close_day_offset: { enum: [0, 1] } } } } } },
+] } }] }
+export const recurringSlotsSchema = { anyOf: [{ type: 'null' }, { type: 'object', additionalProperties: false, properties: Object.fromEntries(WEEKDAYS.map(day => [day, { type: 'array', uniqueItems: true, items: timeSchema }])) }] }
+
+function record(value: unknown, keys: string[]): Record<string, unknown> {
+  if (!value || typeof value !== 'object' || Array.isArray(value) || Object.keys(value).some(key => !keys.includes(key))) throw new Error('Invalid hours object or unsupported field')
+  return value as Record<string, unknown>
 }
-
-const WEEKDAY_BY_INDEX = ['SUNDAY', 'MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY']
-
-const TIME_PATTERN = /^([01]\d|2[0-3]):[0-5]\d$/
-
-export function isStructuredOpeningHours(value: unknown): value is StructuredOpeningHoursEntry[] {
-  return Array.isArray(value) && value.every(entry =>
-    entry && typeof entry === 'object'
-    && typeof (entry as StructuredOpeningHoursEntry).openDay === 'string'
-    && TIME_PATTERN.test((entry as StructuredOpeningHoursEntry).openTime)
-    && TIME_PATTERN.test((entry as StructuredOpeningHoursEntry).closeTime)
-  )
+export function assertCalendarDate(value: unknown): asserts value is string {
+  if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value)) throw new Error('Date must be YYYY-MM-DD')
+  const date = new Date(`${value}T00:00:00Z`)
+  if (!Number.isFinite(date.getTime()) || date.toISOString().slice(0, 10) !== value) throw new Error('Invalid calendar date')
 }
-
-// Normalize the hours contract accepted by the CMS and Google Places once for
-// public display and reservation availability. No invented default time slots.
-export function normalizeOpeningHours(value: unknown): StructuredOpeningHoursEntry[] {
-  if (isStructuredOpeningHours(value)) return value
-  if (!value || typeof value !== 'object') return []
-  const record = value as { weekdayDescriptions?: unknown; periods?: unknown }
-  const periods = Array.isArray(value) ? value : record.periods
-  if (Array.isArray(periods) && periods.length) {
-    return periods.flatMap((period) => {
-      const time = (v: unknown): string | null => {
-        if (typeof v === 'string') return TIME_PATTERN.test(v) ? v : null
-        if (!v || typeof v !== 'object' || !('hours' in v)) return null
-        const hours = v.hours
-        const minutes = 'minutes' in v ? v.minutes : 0
-        if (typeof hours !== 'number' || typeof minutes !== 'number') return null
-        const result = `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`
-        return TIME_PATTERN.test(result) ? result : null
-      }
-      const openTime = time(period?.openTime)
-      const closeTime = time(period?.closeTime)
-      return typeof period?.openDay === 'string' && openTime && closeTime
-        ? [{ openDay: period.openDay, openTime, closeTime }] : []
-    })
-  }
-  if (!Array.isArray(record.weekdayDescriptions)) return []
-  const normalized: StructuredOpeningHoursEntry[] = []
-  for (const line of record.weekdayDescriptions) {
-    if (typeof line !== 'string') continue
-    const day = line.split(':', 1)[0]?.trim().toUpperCase() ?? ''
-    if (!WEEKDAY_BY_INDEX.includes(day)) continue
-    const range = line.replace(/^[^:]+:\s*/, '').trim()
-    if (/^closed$/i.test(range)) continue
-    if (/^open 24 hours$/i.test(range)) {
-      normalized.push({ openDay: day, openTime: '00:00', closeTime: '00:00' })
-      continue
+function point(value: unknown): WeekPoint {
+  const p = record(value, ['day', 'hour', 'minute'])
+  if (typeof p.day !== 'number' || !Number.isInteger(p.day) || p.day < 0 || p.day > 6
+    || typeof p.hour !== 'number' || !Number.isInteger(p.hour) || p.hour < 0 || p.hour > 23
+    || typeof p.minute !== 'number' || !Number.isInteger(p.minute) || p.minute < 0 || p.minute > 59) throw new Error('Invalid weekly hours endpoint')
+  return { day: p.day, hour: p.hour, minute: p.minute }
+}
+const weekMinute = (p: WeekPoint) => p.day * DAY + p.hour * 60 + p.minute
+export const toMinutes = (time: string): number => Number(time.slice(0, 2)) * 60 + Number(time.slice(3))
+export const toTimeString = (minute: number): string => `${String(Math.floor(((minute % DAY) + DAY) % DAY / 60)).padStart(2, '0')}:${String(((minute % 60) + 60) % 60).padStart(2, '0')}`
+function rejectOverlap(intervals: HoursInterval[]): void {
+  const sorted = intervals.toSorted((a, b) => a.start - b.start)
+  if (sorted.some((p, i) => i > 0 && p.start < sorted[i - 1]!.end)) throw new Error('Hours periods must not overlap')
+}
+export function parseOpeningHours(value: unknown): OpeningHours {
+  if (value === null) return null
+  const hours = record(value, ['periods'])
+  if (!Array.isArray(hours.periods)) throw new Error('opening_hours.periods must be an array')
+  const periods = hours.periods.map((value): WeeklyPeriod => {
+    const p = record(value, ['open', 'close'])
+    const open = point(p.open)
+    if (p.close === undefined) {
+      if (open.day !== 0 || open.hour !== 0 || open.minute !== 0) throw new Error('Always-open hours require Sunday 00:00 with no close')
+      return { open: { day: 0, hour: 0, minute: 0 } }
     }
-    for (const singleRangeStr of range.split(',')) {
-      const parts = singleRangeStr.trim().split(/\s*[–—-]\s*/)
-      if (parts.length !== 2) continue
-      const parseAmPm = (s: string): { hour: number; minute: number; ampm: string | null } | null => {
-        const m = s.trim().match(/^(\d{1,2})(?::(\d{2}))?\s*(AM|PM)?$/i)
-        if (!m) return null
-        const h = parseInt(m[1] ?? '0', 10)
-        const min = parseInt(m[2] ?? '0', 10)
-        const ampm = m[3]?.toUpperCase() || null
-        if (h > 23 || min > 59 || (ampm && (h < 1 || h > 12))) return null
-        return { hour: h, minute: min, ampm }
-      }
-
-      const openParsed = parseAmPm(parts[0] ?? '')
-      const closeParsed = parseAmPm(parts[1] ?? '')
-      if (!openParsed || !closeParsed) continue
-
-
-      const toMins = (h: number, min: number, ampm: string | null): number => {
-        let hour = h
-        if (ampm === 'PM' && hour < 12) hour += 12
-        else if (ampm === 'AM' && hour === 12) hour = 0
-        return hour * 60 + min
-      }
-
-      // Infer AM/PM using hour-based inference
-      let openAmpm = openParsed.ampm
-      let closeAmpm = closeParsed.ampm
-
-      if (!openAmpm && !closeAmpm) {
-        // Try both AM, start AM end PM, start PM end AM
-        const assignments = [
-          { open: 'AM', close: 'AM' },
-          { open: 'AM', close: 'PM' },
-          { open: 'PM', close: 'AM' },
-          { open: 'PM', close: 'PM' },
-        ]
-        let bestAssignment: typeof assignments[0] | null = null
-        let bestDuration = -1
-
-        for (const assignment of assignments) {
-          const openMins = toMins(openParsed.hour, openParsed.minute, assignment.open)
-          const closeMins = toMins(closeParsed.hour, closeParsed.minute, assignment.close)
-          let duration = closeMins - openMins
-          if (duration < 0) duration += 24 * 60 // Handle midnight crossing
-
-          // Prefer positive duration <= 12h, with preference for same-day daytime spans (AM→PM)
-          if (duration > 0 && duration <= 12 * 60) {
-            if (bestDuration < 0 || duration < bestDuration || (assignment.open === 'AM' && assignment.close === 'PM')) {
-              bestAssignment = assignment
-              bestDuration = duration
-            }
-          }
-        }
-
-        if (bestAssignment) {
-          openAmpm = bestAssignment.open
-          closeAmpm = bestAssignment.close
-        }
-      } else if (!openAmpm && closeAmpm) {
-        // Try assigning open the same marker as close
-        openAmpm = closeAmpm
-        const openMins = toMins(openParsed.hour, openParsed.minute, openAmpm)
-        const closeMins = toMins(closeParsed.hour, closeParsed.minute, closeAmpm)
-        let duration = closeMins - openMins
-        if (duration < 0) duration += 24 * 60
-
-        // If duration is negative or implausibly long (>12h), flip the inferred marker
-        if (duration <= 0 || duration > 12 * 60) {
-          openAmpm = closeAmpm === 'AM' ? 'PM' : 'AM'
-        }
-      } else if (!closeAmpm && openAmpm) {
-        // Try assigning close the same marker as open
-        closeAmpm = openAmpm
-        const openMins = toMins(openParsed.hour, openParsed.minute, openAmpm)
-        const closeMins = toMins(closeParsed.hour, closeParsed.minute, closeAmpm)
-        let duration = closeMins - openMins
-        if (duration < 0) duration += 24 * 60
-
-        // If duration is negative or implausibly long (>12h), flip the inferred marker
-        if (duration <= 0 || duration > 12 * 60) {
-          closeAmpm = openAmpm === 'AM' ? 'PM' : 'AM'
-        }
-      }
-
-      const openMins = toMins(openParsed.hour, openParsed.minute, openAmpm)
-      const closeMins = toMins(closeParsed.hour, closeParsed.minute, closeAmpm)
-
-      normalized.push({ openDay: day, openTime: toTimeString(openMins), closeTime: toTimeString(closeMins) })
-    }
-  }
-  return normalized
-}
-
-const toMinutes = (t: string) => {
-  const [h, m] = t.split(':').map(Number) as [number, number]
-  return h * 60 + m
-}
-
-const toTimeString = (minutes: number) => {
-  const h = Math.floor(minutes / 60).toString().padStart(2, '0')
-  const m = (minutes % 60).toString().padStart(2, '0')
-  return `${h}:${m}`
-}
-
-// Resolves the current weekday and minutes-since-midnight in the location's own timezone.
-// The server (Cloudflare Workers) runs in UTC, so comparing UTC wall-clock time against a
-// location's local opening_hours produces wrong open/closed results.
-function nowInTimezone(timezone: string | null | undefined, now: Date): { weekdayName: string; nowMinutes: number } {
-  if (!timezone) return { weekdayName: WEEKDAY_BY_INDEX[now.getDay()]!, nowMinutes: now.getHours() * 60 + now.getMinutes() }
-  try {
-    const parts = new Intl.DateTimeFormat('en-US', {
-      timeZone: timezone,
-      weekday: 'long',
-      hour: '2-digit',
-      minute: '2-digit',
-      hourCycle: 'h23',
-    }).formatToParts(now)
-    const weekday = parts.find(p => p.type === 'weekday')?.value?.toUpperCase()
-    const hour = Number(parts.find(p => p.type === 'hour')?.value)
-    const minute = Number(parts.find(p => p.type === 'minute')?.value)
-    if (!weekday || Number.isNaN(hour) || Number.isNaN(minute)) throw new Error('invalid parts')
-    return { weekdayName: weekday, nowMinutes: hour * 60 + minute }
-  } catch {
-    return { weekdayName: WEEKDAY_BY_INDEX[now.getDay()]!, nowMinutes: now.getHours() * 60 + now.getMinutes() }
-  }
-}
-
-/**
- * Generates reservation time options for a given calendar date from a location's structured
- * opening hours, at a fixed interval, stopping `lastSeatingBufferMinutes` before closing so the
- * last slot still allows a full seating. Returns [] if the location is closed that day.
- */
-export function generateReservationTimes(
-  openingHours: StructuredOpeningHoursEntry[],
-  dateStr: string,
-  { intervalMinutes = 30, lastSeatingBufferMinutes = 60 } = {},
-): string[] {
-  const weekdayIndex = new Date(`${dateStr}T00:00:00Z`).getUTCDay()
-  const weekdayName = WEEKDAY_BY_INDEX[weekdayIndex]!
-  const todaysHours = openingHours.filter(entry => entry.openDay.toUpperCase() === weekdayName)
-  if (todaysHours.length === 0) return []
-
-  const slots: string[] = []
-  for (const { openTime, closeTime } of todaysHours) {
-    const open = toMinutes(openTime)
-    const close = toMinutes(closeTime) <= open ? toMinutes(closeTime) + 1440 : toMinutes(closeTime)
-    const lastSeating = close - lastSeatingBufferMinutes
-    for (let t = open; t <= lastSeating; t += intervalMinutes) {
-      if (t < 1440) slots.push(toTimeString(t))
-    }
-  }
-  return [...new Set(slots)].sort()
-}
-
-/** "HH:MM" (24h) → "3:00 PM" / "3:30 PM" (12h, no leading hour zero, always show minutes). */
-export const fmt12Hour = (timeStr: string): string => {
-  const [hStr, mStr] = timeStr.split(':')
-  const h = Number(hStr)
-  const m = Number(mStr)
-  const ampm = h >= 12 ? 'PM' : 'AM'
-  const h12 = h % 12 || 12
-  return `${h12}:${String(m).padStart(2, '0')} ${ampm}`
-}
-
-/**
- * Today's opening hours as a display label (e.g. "11:30 AM – 10:30 PM"), or the provided
- * closedLabel when the location has structured hours but isn't open today. Returns null when
- * the location has no structured opening_hours to read (e.g. Google Places free-text hours).
- */
-export function getTodayHoursLabel(openingHours: unknown, closedLabel: string, timezone?: string | null, now = new Date()): string | null {
-  if (!isStructuredOpeningHours(openingHours)) return null
-  const { weekdayName } = nowInTimezone(timezone, now)
-  const todaysEntry = openingHours.find(entry => entry.openDay.toUpperCase() === weekdayName)
-  if (!todaysEntry) return closedLabel
-  return `${fmt12Hour(todaysEntry.openTime)} – ${fmt12Hour(todaysEntry.closeTime)}`
-}
-
-/**
- * Whether the location is open right now, based on structured opening_hours. Returns false
- * (rather than throwing) when hours aren't structured — callers should treat that as "unknown"
- * and avoid rendering an open/closed badge at all rather than trusting a false negative.
- * Handles overnight hours by treating ranges where closeTime <= openTime as spanning midnight.
- */
-export function isOpenNow(openingHours: unknown, timezone?: string | null, now = new Date()): boolean {
-  if (!isStructuredOpeningHours(openingHours)) return false
-  const { weekdayName, nowMinutes } = nowInTimezone(timezone, now)
-  const weekdayIndex = WEEKDAY_BY_INDEX.indexOf(weekdayName)
-  const previousWeekdayName = WEEKDAY_BY_INDEX[(weekdayIndex + 6) % 7]!
-  return openingHours.some(entry => {
-    const open = toMinutes(entry.openTime)
-    const close = toMinutes(entry.closeTime)
-    const entryDay = entry.openDay.toUpperCase()
-    // Overnight hours: close time is earlier than or equal to open time. An entry opening
-    // yesterday (e.g. Monday 22:00-02:00) is still active after midnight into today.
-    if (close <= open) {
-      if (entryDay === weekdayName && nowMinutes >= open) return true
-      if (entryDay === previousWeekdayName && nowMinutes < close) return true
-      return false
-    }
-    if (entryDay !== weekdayName) return false
-    return nowMinutes >= open && nowMinutes < close
+    const close = point(p.close)
+    if (weekMinute(open) === weekMinute(close)) throw new Error('Opening and closing endpoints must differ')
+    return { open, close }
   })
+  rejectOverlap(periods.flatMap(p => {
+    if (!p.close) return [{ start: 0, end: WEEK }]
+    const start = weekMinute(p.open)
+    const end = weekMinute(p.close)
+    return end > start ? [{ start, end }] : [{ start, end: WEEK }, { start: 0, end }]
+  }))
+  return { periods }
+}
+export function parseSpecialHours(value: unknown): SpecialHours {
+  if (value === null) return null
+  if (!Array.isArray(value)) throw new Error('special_hours must be an array or null')
+  const dates = new Set<string>()
+  return value.map((value): NonNullable<SpecialHours>[number] => {
+    const item = record(value, ['kind', 'starts_on', 'ends_on', 'date', 'periods', 'note'])
+    if (item.note !== null && (typeof item.note !== 'string' || item.note.length > 1000)) throw new Error('Hours note must be text or null')
+    if (item.kind === 'closure') {
+      record(value, ['kind', 'starts_on', 'ends_on', 'note'])
+      assertCalendarDate(item.starts_on)
+      if (item.ends_on !== null) {
+        assertCalendarDate(item.ends_on)
+        if (item.ends_on < item.starts_on) throw new Error('Closure ends_on must not precede starts_on')
+      }
+      return { kind: 'closure', starts_on: item.starts_on, ends_on: item.ends_on, note: item.note }
+    }
+    if (item.kind !== 'hours') throw new Error('Special hours kind must be closure or hours')
+    record(value, ['kind', 'date', 'periods', 'note'])
+    assertCalendarDate(item.date)
+    if (dates.has(item.date)) throw new Error('Only one hours override is allowed per date')
+    dates.add(item.date)
+    if (!Array.isArray(item.periods)) throw new Error('Dated hours periods must be an array')
+    const periods = item.periods.map((value): DatePeriod => {
+      const p = record(value, ['open_time', 'close_time', 'close_day_offset'])
+      if (typeof p.open_time !== 'string' || !TIME_PATTERN.test(p.open_time) || typeof p.close_time !== 'string' || !TIME_PATTERN.test(p.close_time) || (p.close_day_offset !== 0 && p.close_day_offset !== 1)) throw new Error('Invalid dated hours endpoint')
+      if (toMinutes(p.close_time) + p.close_day_offset * DAY <= toMinutes(p.open_time)) throw new Error('Dated closing endpoint must follow opening')
+      return { open_time: p.open_time, close_time: p.close_time, close_day_offset: p.close_day_offset }
+    })
+    rejectOverlap(periods.map(p => ({ start: toMinutes(p.open_time), end: toMinutes(p.close_time) + p.close_day_offset * DAY })))
+    return { kind: 'hours', date: item.date, periods, note: item.note }
+  })
+}
+export function parseRecurringSlots(value: unknown): RecurringSlots {
+  if (value === null) return null
+  const input = record(value, [...WEEKDAYS])
+  const result: NonNullable<RecurringSlots> = {}
+  for (const day of WEEKDAYS) {
+    if (!(day in input)) continue
+    const slots = input[day]
+    if (!Array.isArray(slots) || !slots.every((slot): slot is string => typeof slot === 'string' && TIME_PATTERN.test(slot)) || new Set(slots).size !== slots.length) throw new Error('Recurring slots must contain unique HH:MM times')
+    result[day] = slots.toSorted()
+  }
+  return result
+}
+export function shiftDate(date: string, days: number): string {
+  const value = new Date(`${date}T00:00:00Z`)
+  value.setUTCDate(value.getUTCDate() + days)
+  return value.toISOString().slice(0, 10)
+}
+export function closureOnDate(special: SpecialHours, date: string): Closure | undefined {
+  return special?.find((p): p is Closure => p.kind === 'closure' && p.starts_on <= date && (p.ends_on === null || p.ends_on >= date))
+}
+export function datedHours(special: SpecialHours, date: string) {
+  return special?.find(p => p.kind === 'hours' && p.date === date)
+}
+export function getDateIntervals(hours: OpeningHours, special: SpecialHours, date: string): HoursInterval[] | null {
+  if (closureOnDate(special, date)) return []
+  const dated = datedHours(special, date)
+  const previousDate = shiftDate(date, -1)
+  const previous = datedHours(special, previousDate)
+  const nextDate = shiftDate(date, 1)
+  const nextReplacesSpill = Boolean(datedHours(special, nextDate) || closureOnDate(special, nextDate))
+  const bounds = new Date(`${date}T00:00:00Z`).getUTCDay() * DAY
+  let periods: HoursInterval[]
+  if (dated?.kind === 'hours') {
+    periods = dated.periods.map(p => ({ start: toMinutes(p.open_time), end: toMinutes(p.close_time) + p.close_day_offset * DAY }))
+  } else {
+    periods = hours?.periods.flatMap((p): HoursInterval[] => {
+      if (!p.close) return [{ start: 0, end: DAY * 2 }]
+      const start = weekMinute(p.open)
+      const close = weekMinute(p.close)
+      const end = close > start ? close : close + WEEK
+      return [-WEEK, 0, WEEK].flatMap(offset => {
+        if (start + offset >= bounds + DAY || end + offset <= bounds) return []
+        if (start + offset < bounds && start + offset >= bounds - DAY && (previous || closureOnDate(special, previousDate))) return []
+        return [{ start: start + offset - bounds, end: end + offset - bounds }]
+      })
+    }) ?? []
+    if (previous?.kind === 'hours' && !closureOnDate(special, previousDate)) periods.push(...previous.periods.filter(p => p.close_day_offset === 1 && toMinutes(p.close_time) > 0).map(p => ({ start: toMinutes(p.open_time) - DAY, end: toMinutes(p.close_time) })))
+    if (!hours && !previous) return null
+  }
+  const merged: HoursInterval[] = []
+  for (const period of periods.toSorted((a, b) => a.start - b.start)) {
+    const end = nextReplacesSpill ? Math.min(DAY, period.end) : period.end
+    const previous = merged.at(-1)
+    if (previous && previous.end >= period.start) previous.end = Math.max(previous.end, end)
+    else merged.push({ start: period.start, end })
+  }
+  return merged
+}
+export function generateReservationTimes(hours: OpeningHours, date: string, { intervalMinutes = 30, lastSeatingBufferMinutes = 60, specialHours = null as SpecialHours } = {}): string[] {
+  if (!Number.isInteger(intervalMinutes) || intervalMinutes <= 0 || !Number.isInteger(lastSeatingBufferMinutes) || lastSeatingBufferMinutes < 0) throw new Error('Invalid reservation interval or last seating buffer')
+  const slots = new Set<string>()
+  for (const { start, end } of getDateIntervals(hours, specialHours, date) ?? []) {
+    for (let minute = start < 0 ? start + Math.ceil(-start / intervalMinutes) * intervalMinutes : start; minute < DAY && minute <= end - lastSeatingBufferMinutes; minute += intervalMinutes) slots.add(toTimeString(minute))
+  }
+  return [...slots].sort()
+}
+export function resolveExperienceScheduleSlots(experience: { recurring_slots: RecurringSlots }, date: string): string[] {
+  return experience.recurring_slots?.[WEEKDAYS[new Date(`${date}T00:00:00Z`).getUTCDay()]!] ?? []
+}
+export function localNow(timezone: string, now = new Date()): { date: string; time: string } {
+  const parts = new Intl.DateTimeFormat('en-CA', { timeZone: timezone, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).formatToParts(now)
+  const get = (type: string) => parts.find(p => p.type === type)!.value
+  return { date: `${get('year')}-${get('month')}-${get('day')}`, time: `${get('hour')}:${get('minute')}` }
+}
+export const fmt12Hour = (time: string, locale = 'en'): string => new Intl.DateTimeFormat(locale, { hour: 'numeric', minute: '2-digit', timeZone: 'UTC' }).format(new Date(`2024-01-01T${time}:00Z`))
+export function getTodayHoursLabel(hours: OpeningHours, closedLabel: string, timezone?: string | null, now = new Date(), special: SpecialHours = null, locale = 'en'): string | null {
+  if (!timezone) return null
+  const intervals = getDateIntervals(hours, special, localNow(timezone, now).date)
+  if (intervals === null) return null
+  return intervals.length ? intervals.map(p => `${fmt12Hour(toTimeString(Math.max(0, p.start)), locale)} – ${fmt12Hour(toTimeString(p.end), locale)}`).join(', ') : closedLabel
+}
+export function isOpenNow(hours: OpeningHours, timezone?: string | null, now = new Date(), special: SpecialHours = null): boolean | undefined {
+  if (!timezone) return undefined
+  const local = localNow(timezone, now)
+  const periods = getDateIntervals(hours, special, local.date)
+  return periods === null ? undefined : periods.some(p => p.start <= toMinutes(local.time) && p.end > toMinutes(local.time))
+}
+export function normalizeGoogleOpeningHours(periods: unknown): OpeningHours {
+  if (periods === null || periods === undefined) return null
+  if (!Array.isArray(periods)) throw new Error('Google opening periods must be an array')
+  const endpoint = (value: unknown) => {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('Invalid Google hours endpoint')
+    const p = value as Record<string, unknown>
+    return { day: p.day, hour: p.hour ?? 0, minute: p.minute ?? 0 }
+  }
+  return parseOpeningHours({ periods: periods.map(value => {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('Invalid Google hours period')
+    const p = value as Record<string, unknown>
+    return { open: endpoint(p.open), ...(p.close === undefined ? {} : { close: endpoint(p.close) }) }
+  }) })
 }

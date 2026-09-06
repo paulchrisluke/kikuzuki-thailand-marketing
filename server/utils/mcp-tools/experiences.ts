@@ -47,7 +47,7 @@ export const EXPERIENCES_TOOLS: McpToolDefinition[] = [
       inputSchema: {
         experience_id: { type: 'string', description: 'Experience id or slug.' },
         ...experienceUpdateWriteSchema,
-        location_id: { type: 'string', description: 'Move this experience to a different location. Omit to leave its current location unchanged — unlike create_experience, omitting this does not fall back to the site primary location.' },
+        location_id: { type: 'string', description: 'Move this experience to the explicitly selected location. Omit to retain its current owning location.' },
       },
       required: ['experience_id'],
       outputSchema: experienceMutationResultObject,

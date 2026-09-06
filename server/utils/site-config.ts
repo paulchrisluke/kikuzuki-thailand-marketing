@@ -1,3 +1,4 @@
+import { HTTPError } from 'nitro'
 import { execute, queryAll, queryFirst, type DbClient } from '~/server/db'
 
 export interface SiteConfig {
@@ -52,26 +53,17 @@ export const getConfig = async (
   return config
 }
 
-/**
- * Resolves the IANA timezone that a location-scoped date/time (reservation, booking, etc.)
- * should be interpreted in: the location's own timezone, else the site's default_timezone, else UTC.
- */
 export const resolveLocationTimezone = async (
   db: DbClient,
   organizationId: string,
   siteId: string,
   locationId: string | null,
 ): Promise<string> => {
-  if (locationId) {
-    const loc = await queryFirst<{ timezone: string | null }>(
-      db,
-      `SELECT timezone FROM business_locations WHERE id = ? AND site_id = ? LIMIT 1`,
-      [locationId, siteId],
-    )
-    if (loc?.timezone) return loc.timezone
-  }
-  const config = await getConfig(db, organizationId, siteId)
-  return config.default_timezone || 'UTC'
+  const location = await queryFirst<{ timezone: string | null }>(db,
+    'SELECT timezone FROM business_locations WHERE id = ? AND organization_id = ? AND site_id = ?',
+    [locationId, organizationId, siteId])
+  if (!location?.timezone) throw new HTTPError({ statusCode: 409, statusMessage: 'Set the location timezone before offering bookings' })
+  return location.timezone
 }
 
 /**

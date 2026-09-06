@@ -38,7 +38,6 @@
           <div v-if="editorKey === 'profile'" class="space-y-6">
             <p class="text-base text-muted">The public identity and contact details for this location.</p>
             <div class="flex flex-wrap gap-6">
-              <UCheckbox v-model="detailsForm.is_primary" label="Primary location" />
               <UCheckbox :model-value="detailsForm.status === 'active'" label="Active" @update:model-value="setDetailsActive" />
             </div>
             <UFormField label="Name"><UInput v-model="detailsForm.title" size="xl" autofocus class="w-full" /></UFormField>
@@ -69,7 +68,6 @@
               <UFormField :label="`City (${translationLocale})`"><UInput v-model="translationFields.city" size="xl" class="w-full" /></UFormField>
               <UFormField :label="`Neighbourhood (${translationLocale})`"><UInput v-model="translationFields.neighborhood" size="xl" class="w-full" /></UFormField>
               <UFormField :label="`Address (${translationLocale})`"><UTextarea v-model="translationFields.address" :rows="4" class="w-full" /></UFormField>
-              <UFormField :label="`Opening hours (${translationLocale}, one per line)`"><UTextarea v-model="translationFields.opening_hours_text" :rows="4" class="w-full" /></UFormField>
               <UFormField :label="`SEO title (${translationLocale})`"><UInput v-model="translationFields.seo_title" size="xl" class="w-full" /></UFormField>
               <UFormField :label="`SEO description (${translationLocale})`"><UTextarea v-model="translationFields.seo_description" :rows="3" class="w-full" /></UFormField>
               <p v-if="translationError" class="text-sm text-error">{{ translationError }}</p>
@@ -79,18 +77,7 @@
 
           <div v-else-if="editorKey === 'hours'" class="space-y-6">
             <p class="text-base text-muted">Set the regular hours shown to guests. A Google Places sync replaces these hours with Google's current record.</p>
-            <div class="divide-y divide-default rounded-xl border border-default">
-              <div v-for="day in openingHours" :key="day.day" class="space-y-3 p-4">
-                <div class="flex items-center justify-between gap-4">
-                  <p class="font-medium text-highlighted">{{ day.day }}</p>
-                  <UCheckbox :model-value="!day.isOpen" label="Closed" @update:model-value="setDayClosed(day.day, $event)" />
-                </div>
-                <div v-if="day.isOpen" class="grid grid-cols-2 gap-3">
-                  <UFormField label="Open"><UInput :model-value="day.openTime" type="time" class="w-full" @update:model-value="updateDayTime(day.day, 'openTime', $event)" /></UFormField>
-                  <UFormField label="Close"><UInput :model-value="day.closeTime" type="time" class="w-full" @update:model-value="updateDayTime(day.day, 'closeTime', $event)" /></UFormField>
-                </div>
-              </div>
-            </div>
+            <HoursTimezoneCard v-model:form="hoursForm" />
           </div>
 
           <div v-else-if="editorKey === 'content'" class="space-y-6">
@@ -149,6 +136,8 @@
   </UDashboardPanel>
 </template>
 <script setup lang="ts">
+import HoursTimezoneCard, { type HoursTimezoneForm } from '~/lib/components/workspace/onboarding/HoursTimezoneCard.vue'
+import { parseOpeningHours, parseSpecialHours, type OpeningHours, type SpecialHours } from '~/shared/reservation-hours'
 import EditorPaneShell from '~/components/dashboard/EditorPaneShell.vue'
 import EditorNavigationList from '~/components/dashboard/EditorNavigationList.vue'
 const dashboardApi = useDashboardApi()
@@ -186,21 +175,14 @@ interface BusinessLocation {
   short_description: string | null
   price_level: string | null
   google_place_id: string | null
-  opening_hours: { weekdayDescriptions?: string[] } | null
+  opening_hours: OpeningHours
+  special_hours: SpecialHours
   rating: number | null
   review_count: number | null
-  is_primary: boolean
   status: string
   last_synced_at: string | null
   notification_phone?: string | null
   timezone?: string | null
-}
-
-interface DayHours {
-  day: string
-  isOpen: boolean
-  openTime: string
-  closeTime: string
 }
 
 const route = useRoute()
@@ -266,7 +248,6 @@ const isBusinessLocation = (value: unknown): value is BusinessLocation => {
   return typeof value.id === 'string'
     && typeof value.slug === 'string'
     && typeof value.title === 'string'
-    && typeof value.is_primary === 'boolean'
     && typeof value.status === 'string'
     && isNullableString(value.city)
     && isNullableString(value.phone)
@@ -338,7 +319,6 @@ const detailsForm = reactive({
   address: '',
   short_description: '',
   description: '',
-  is_primary: false,
   status: 'active',
   notification_phone: '',
   timezone: '',
@@ -346,14 +326,7 @@ const detailsForm = reactive({
 
 const timezoneOptions = TIMEZONE_OPTIONS
 
-const WEEKDAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'] as const
-
-const openingHours = ref<DayHours[]>(WEEKDAYS.map(day => ({
-  day,
-  isOpen: true,
-  openTime: '09:00',
-  closeTime: '22:00'
-})))
+const hoursForm = ref<HoursTimezoneForm>({ timezone: '', hours: null, specialHours: null })
 
 function fillDetailsForm(loc: BusinessLocation) {
   detailsForm.title = loc.title
@@ -370,110 +343,10 @@ function fillDetailsForm(loc: BusinessLocation) {
   detailsForm.address = loc.address?.addressLines?.join('\n') ?? ''
   detailsForm.short_description = loc.short_description ?? ''
   detailsForm.description = loc.description ?? ''
-  openingHours.value = parseOpeningHours(loc.opening_hours?.weekdayDescriptions)
-  detailsForm.is_primary = loc.is_primary
+  hoursForm.value = { timezone: loc.timezone ?? '', hours: parseOpeningHours(loc.opening_hours), specialHours: parseSpecialHours(loc.special_hours) }
   detailsForm.status = loc.status
   detailsForm.notification_phone = loc.notification_phone ?? ''
   detailsForm.timezone = loc.timezone ?? ''
-}
-
-const twelveHourToTwentyFourHour = (value: string): string | null => {
-  const match = value.trim().match(/^(\d{1,2}):(\d{2})\s*([AP]M)$/i)
-  if (!match) return null
-  const rawHour = Number(match[1])
-  const minute = match[2]
-  const period = match[3]!.toUpperCase()
-  if (rawHour < 1 || rawHour > 12) return null
-  let hour = rawHour % 12
-  if (period === 'PM') hour += 12
-  return `${String(hour).padStart(2, '0')}:${minute}`
-}
-
-const twentyFourHourToTwelveHour = (value: string): string => {
-  const match = value.match(/^(\d{2}):(\d{2})$/)
-  if (!match) return '9:00 AM'
-  const hour24 = Number(match[1])
-  const minute = match[2]
-  const period = hour24 >= 12 ? 'PM' : 'AM'
-  const hour12 = hour24 % 12 || 12
-  return `${hour12}:${minute} ${period}`
-}
-
-const parseOpeningHours = (weekdayDescriptions?: string[]): DayHours[] => {
-  const defaults = WEEKDAYS.map(day => ({
-    day,
-    isOpen: true,
-    openTime: '09:00',
-    closeTime: '22:00'
-  }))
-
-  if (!weekdayDescriptions?.length) return defaults
-
-  const byDay = new Map(defaults.map(item => [item.day, { ...item }]))
-
-  for (const line of weekdayDescriptions) {
-    const separatorIndex = String(line).indexOf(':')
-    if (separatorIndex === -1) continue
-    const rawDay = String(line).slice(0, separatorIndex)
-    const rawValue = String(line).slice(separatorIndex + 1)
-    const day = rawDay?.trim() as typeof WEEKDAYS[number] | undefined
-    const value = rawValue?.trim() ?? ''
-    if (!day || !byDay.has(day)) continue
-
-    const current = byDay.get(day)
-    if (!current) continue
-
-    if (/^closed$/i.test(value)) {
-      current.isOpen = false
-      continue
-    }
-
-    if (/^open\s*24\s*hours$/i.test(value)) {
-      current.isOpen = true
-      current.openTime = '00:00'
-      current.closeTime = '23:59'
-      continue
-    }
-
-    const rangeMatch = value.match(/^(\d{1,2}:\d{2}\s*[AP]M)\s*[\-–]\s*(\d{1,2}:\d{2}\s*[AP]M)$/i)
-    if (!rangeMatch) continue
-
-    const openTime = twelveHourToTwentyFourHour(rangeMatch[1]!)
-    const closeTime = twelveHourToTwentyFourHour(rangeMatch[2]!)
-    if (!openTime || !closeTime) continue
-
-    current.isOpen = true
-    current.openTime = openTime
-    current.closeTime = closeTime
-  }
-
-  return WEEKDAYS.map(day => byDay.get(day) || {
-    day,
-    isOpen: true,
-    openTime: '09:00',
-    closeTime: '22:00'
-  })
-}
-
-const buildWeekdayDescriptions = (hours: DayHours[]): string[] => {
-  return hours.map((day) => {
-    if (!day.isOpen) return `${day.day}: Closed`
-    if (day.openTime === '00:00' && day.closeTime === '23:59') return `${day.day}: Open 24 hours`
-    return `${day.day}: ${twentyFourHourToTwelveHour(day.openTime)} - ${twentyFourHourToTwelveHour(day.closeTime)}`
-  })
-}
-
-const setDayClosed = (dayName: string, value: boolean | 'indeterminate') => {
-  if (value === 'indeterminate') return
-  const day = openingHours.value.find(item => item.day === dayName)
-  if (!day) return
-  day.isOpen = !value
-}
-
-const updateDayTime = (dayName: string, field: 'openTime' | 'closeTime', value: string | number) => {
-  const day = openingHours.value.find(item => item.day === dayName)
-  if (!day) return
-  day[field] = typeof value === 'string' ? value : String(value)
 }
 
 const setDetailsActive = (v: boolean | 'indeterminate') => {
@@ -482,11 +355,7 @@ const setDetailsActive = (v: boolean | 'indeterminate') => {
 }
 
 const addressSummary = computed(() => location.value?.address?.addressLines?.join(', ') || location.value?.city || 'Not set')
-const hoursSummary = computed(() => {
-  const descriptions = location.value?.opening_hours?.weekdayDescriptions ?? []
-  const openDays = descriptions.filter(line => !/closed/i.test(line)).length
-  return descriptions.length ? `${openDays} days open each week` : 'Not set'
-})
+const hoursSummary = computed(() => location.value?.opening_hours === null ? 'Not set' : `${location.value?.opening_hours?.periods.length ?? 0} opening periods`)
 const contentSummary = computed(() => location.value?.short_description?.trim() || location.value?.description?.trim() || 'Not set')
 const discoverySummary = computed(() => location.value?.google_place_id ? 'Google Places connected' : 'Not connected')
 const notificationSummary = computed(() => location.value?.notification_phone || location.value?.timezone || 'Not configured')
@@ -528,9 +397,9 @@ function editorSignature(key: string | null): string {
     case 'profile': return JSON.stringify([
       detailsForm.title, detailsForm.slug, detailsForm.city, detailsForm.neighborhood,
       detailsForm.phone, detailsForm.email, detailsForm.website_url, detailsForm.address,
-      detailsForm.is_primary, detailsForm.status,
+      detailsForm.status,
     ])
-    case 'hours': return JSON.stringify(openingHours.value)
+    case 'hours': return JSON.stringify(hoursForm.value)
     case 'content': return JSON.stringify([detailsForm.short_description, detailsForm.description, detailsForm.price_level])
     case 'discovery': return JSON.stringify([detailsForm.google_place_id, detailsForm.maps_url, detailsForm.google_review_url])
     case 'notifications': return JSON.stringify([detailsForm.notification_phone, detailsForm.timezone])
@@ -554,6 +423,13 @@ const validationMessage = computed(() => {
     if (detailsForm.email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(detailsForm.email)) return 'Enter a valid email address.'
     if (!isValidUrl(detailsForm.website_url)) return 'Enter a complete website URL.'
   }
+  if (editorKey.value === 'hours') {
+    if (!hoursForm.value.timezone) return 'Choose the location timezone.'
+    try {
+      parseOpeningHours(hoursForm.value.hours)
+      parseSpecialHours(hoursForm.value.specialHours)
+    } catch (error) { return error instanceof Error ? error.message : 'Invalid hours' }
+  }
   if (editorKey.value === 'discovery' && ![detailsForm.maps_url, detailsForm.google_review_url].every(isValidUrl)) {
     return 'Enter complete Google Maps and review URLs.'
   }
@@ -574,7 +450,7 @@ const translationLocales = ref<string[]>([])
 const translationLocaleOptions = computed(() => translationLocales.value)
 const translationError = ref<string | null>(null)
 const translationSaving = ref(false)
-const translationFields = reactive({ title: '', short_description: '', description: '', city: '', neighborhood: '', address: '', opening_hours_text: '', seo_title: '', seo_description: '' })
+const translationFields = reactive({ title: '', short_description: '', description: '', city: '', neighborhood: '', address: '', seo_title: '', seo_description: '' })
 function isTranslationLocalesResponse(value: unknown): value is { languages: Array<{ locale: string; locale_status: string; is_source: boolean | number }> } {
   return isRecord(value) && Array.isArray(value.languages)
 }
@@ -611,7 +487,6 @@ async function loadTranslationFields() {
     translationFields.city = typeof values.city === 'string' ? values.city : ''
     translationFields.neighborhood = typeof values.neighborhood === 'string' ? values.neighborhood : ''
     translationFields.address = typeof values.address === 'string' ? values.address : ''
-    translationFields.opening_hours_text = Array.isArray(values.opening_hours) ? values.opening_hours.join('\n') : ''
     translationFields.seo_title = typeof values.seo_title === 'string' ? values.seo_title : ''
     translationFields.seo_description = typeof values.seo_description === 'string' ? values.seo_description : ''
   } catch (cause) {
@@ -619,7 +494,7 @@ async function loadTranslationFields() {
     if (statusCode !== 404) translationError.value = getErrorMessage(cause, 'Failed to load translation')
     translationFields.title = ''; translationFields.short_description = ''; translationFields.description = ''
     translationFields.city = ''; translationFields.neighborhood = ''; translationFields.address = ''
-    translationFields.opening_hours_text = ''; translationFields.seo_title = ''; translationFields.seo_description = ''
+    translationFields.seo_title = ''; translationFields.seo_description = ''
   }
 }
 watch(translationLocale, () => { void loadTranslationFields() })
@@ -636,12 +511,9 @@ async function saveTranslation() {
     if (translationFields.address.trim()) values.address = translationFields.address.trim()
     if (translationFields.seo_title.trim()) values.seo_title = translationFields.seo_title.trim()
     if (translationFields.seo_description.trim()) values.seo_description = translationFields.seo_description.trim()
-    const openingHoursValues: Record<string, unknown> = {}
-    const openingHoursLines = translationFields.opening_hours_text.split('\n').map(line => line.trim()).filter(Boolean)
-    if (openingHoursLines.length) openingHoursValues.opening_hours = openingHoursLines
     await dashboardApi(`/api/editor/sites/${siteId}/localization/business_location/${locationId.value}/${encodeURIComponent(translationLocale.value)}`, {
       method: 'PUT',
-      body: { values: { ...values, ...openingHoursValues }, route_path: `/${translationLocale.value}/locations/${detailsForm.slug || String(route.params.locationSlug)}` },
+      body: { values, route_path: `/${translationLocale.value}/locations/${detailsForm.slug || String(route.params.locationSlug)}` },
       validate: isRecord,
     })
     toast.add({ description: 'Translation saved', color: 'success' })
@@ -721,13 +593,12 @@ async function saveCurrentEditor() {
       address: detailsForm.address.trim()
         ? { addressLines: detailsForm.address.split('\n').map(line => line.trim()).filter(Boolean) }
         : null,
-      is_primary: detailsForm.is_primary,
       status: detailsForm.status,
     }, 'Profile saved')
     return
   }
   if (editorKey.value === 'hours') {
-    await patchLocation({ opening_hours: { weekdayDescriptions: buildWeekdayDescriptions(openingHours.value) } }, 'Hours saved')
+    await patchLocation({ opening_hours: parseOpeningHours(hoursForm.value.hours), special_hours: parseSpecialHours(hoursForm.value.specialHours), timezone: hoursForm.value.timezone }, 'Hours saved')
     return
   }
   if (editorKey.value === 'content') {
@@ -751,7 +622,6 @@ async function saveCurrentEditor() {
     timezone: detailsForm.timezone || null,
   }, 'Notifications saved')
 }
-
 
 async function syncGooglePlace() {
   if (!location.value?.google_place_id) return

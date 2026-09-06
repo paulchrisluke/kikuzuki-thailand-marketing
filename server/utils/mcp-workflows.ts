@@ -1,3 +1,4 @@
+import { parseOpeningHours, parseSpecialHours } from '~/shared/reservation-hours'
 
 import {
   getOrgWhatsAppPhone,
@@ -20,7 +21,7 @@ export async function listSitesForUser(
 
   return await queryAll<Record<string, unknown>>(db, `
     SELECT s.id, s.organization_id, s.theme_id, s.brand_name, s.slug, s.subdomain,
-           s.custom_domain, s.status, s.created_at, s.updated_at, s.onboarding_status
+           (SELECT domain FROM site_domains WHERE site_id = s.id AND role = 'canonical' AND status = 'active' AND type = 'custom') AS custom_domain, (SELECT 'https://' || domain FROM site_domains WHERE site_id = s.id AND role = 'canonical' AND status = 'active') AS public_url, s.status, s.created_at, s.updated_at, s.onboarding_status
     FROM sites s
     WHERE s.organization_id IN (SELECT value FROM json_each(?))
     ORDER BY s.created_at DESC
@@ -35,7 +36,7 @@ export async function getSiteForMcp(
 ) {
   const site = await queryFirst<Record<string, unknown>>(db, `
       SELECT s.id, s.organization_id, s.theme_id, s.brand_name, s.slug, s.subdomain,
-             s.custom_domain, s.status, s.created_at, s.updated_at, s.onboarding_status
+             (SELECT domain FROM site_domains WHERE site_id = s.id AND role = 'canonical' AND status = 'active' AND type = 'custom') AS custom_domain, (SELECT 'https://' || domain FROM site_domains WHERE site_id = s.id AND role = 'canonical' AND status = 'active') AS public_url, s.status, s.created_at, s.updated_at, s.onboarding_status
       FROM sites s
       WHERE s.id = ?
       LIMIT 1
@@ -74,9 +75,9 @@ export async function getLocationForMcp(
   return {
     ...row,
     address: safeJson(row.address),
-    opening_hours: safeJson(row.opening_hours),
+    opening_hours: parseOpeningHours(row.opening_hours ? JSON.parse(String(row.opening_hours)) : null),
+    special_hours: parseSpecialHours(row.special_hours ? JSON.parse(String(row.special_hours)) : null),
     categories: safeJson(row.categories),
-    is_primary: Boolean(row.is_primary),
     media: (placements.get(String(row.id)) ?? []).map(item => ({ asset_id: item.asset_id, slot: item.slot, public_url: item.public_url, thumbnail_url: item.thumbnail_url, kind: item.kind, sort_order: item.sort_order })),
   };
 }
@@ -165,30 +166,6 @@ export async function listContactSubmissions(
     ORDER BY created_at DESC
     LIMIT 200
   `, params);
-}
-
-export async function updateContactSubmissionStatus(
-  db: D1Database,
-  siteId: string,
-  submissionId: string,
-  status: string,
-) {
-  if (!["new", "read", "replied"].includes(status)) {
-    throw new Error("Invalid contact submission status");
-  }
-
-  const result = await execute(db, `
-    UPDATE contact_submissions
-    SET status = ?
-    WHERE id = ? AND site_id = ?
-  `, [status, submissionId, siteId]);
-
-  if (!result.meta.changes) throw new Error("Submission not found");
-  return {
-    updated: true,
-    submission_id: submissionId,
-    status,
-  };
 }
 
 export async function listReservationSubmissions(

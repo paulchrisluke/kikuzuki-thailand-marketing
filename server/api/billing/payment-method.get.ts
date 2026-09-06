@@ -4,9 +4,8 @@ import { HTTPError, defineHandler  } from 'nitro';
 // Returns the org's default saved payment method (card brand, last4, expiry) or null.
 import { cloudflareEnv, jsonResponse } from '~/server/utils/api-response'
 import { getAuthSession } from '~/server/utils/auth'
-import { getStripe, requireBillingAccess } from '~/server/utils/billing'
+import { getOrganizationBillingStatus, getStripe, requireBillingAccess } from '~/server/utils/billing'
 import { resolveRequestedOrganization } from '~/server/utils/dashboard-context'
-import { queryFirst } from '~/server/db'
 import type Stripe from 'stripe'
 
 export default defineHandler(async (event) => {
@@ -22,14 +21,13 @@ export default defineHandler(async (event) => {
 
   await requireBillingAccess(env, db, organization.id, session.user.id)
 
-  const billing = await queryFirst<{ stripe_customer_id: string | null }>(
-    db, 'SELECT stripe_customer_id FROM organization_billing WHERE organization_id = ? LIMIT 1', [organization.id], )
+  const billing = await getOrganizationBillingStatus(env, db, organization.id)
 
-  if (!billing?.stripe_customer_id) return jsonResponse({ card: null })
+  if (!billing.stripeCustomerId) return jsonResponse({ card: null })
 
   try {
     const stripe = getStripe(env)
-    const customer = await stripe.customers.retrieve(billing.stripe_customer_id, {
+    const customer = await stripe.customers.retrieve(billing.stripeCustomerId, {
       expand: ['invoice_settings.default_payment_method'], }) as Stripe.Customer
 
     const pm = customer.invoice_settings?.default_payment_method

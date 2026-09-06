@@ -633,7 +633,7 @@ test.describe('stateless MCP server', () => {
       const experience = await mcpRequest(request, baseURL!, {
         method: 'tools/call',
         toolName: 'create_experience',
-        args: { site_id: siteId, location_id: locationId, title: 'MCP Kayak Tour', body: 'Half-day tour', status: 'active', time_slots: ['14:00'], max_capacity: 6 },
+        args: { site_id: siteId, location_id: locationId, title: 'MCP Kayak Tour', body: 'Half-day tour', status: 'active', recurring_slots: { monday: ['14:00'], tuesday: ['14:00'], wednesday: ['14:00'], thursday: ['14:00'], friday: ['14:00'], saturday: ['14:00'], sunday: ['14:00'] }, max_capacity: 6 },
       })
       expect(experience.status()).toBe(200)
       const experienceBody = await experience.json()

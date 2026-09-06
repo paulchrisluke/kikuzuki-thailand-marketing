@@ -1,3 +1,4 @@
+import { resourceLocalizationDeletionQueries } from '~/server/utils/localization'
 import { HTTPError } from 'nitro';
 
 import { executeBatch, queryAll, queryFirst, type BatchQuery, type DbClient } from '~/server/db'
@@ -567,12 +568,12 @@ function platformDocReviewUrls(record: ApiRecord) {
 
 async function resolveTenantBlogPostPath(db: DbClient, siteId: string | null, slug: string) {
   if (!siteId || isPlatformSite(siteId)) return null
-  const site = await queryFirst<{ theme: string | null; theme_id: string | null }>(
+  const site = await queryFirst<{ theme_id: string | null }>(
     db,
-    'SELECT theme, theme_id FROM sites WHERE id = ? LIMIT 1',
+    'SELECT theme_id FROM sites WHERE id = ? LIMIT 1',
     [siteId],
   )
-  return tenantBlogPostPath(site, slug)
+  return tenantBlogPostPath({ themeId: site?.theme_id }, slug)
 }
 
 async function resolveTenantContext(db: DbClient, siteId: string | null, env?: CloudflareEnv): Promise<ContentReviewContext | undefined> {
@@ -786,11 +787,11 @@ export async function listPlatformBlogPosts(db: DbClient, status?: string | null
   const results = await queryAll<ApiRecord>(db, sql, params)
   const context = isPlatformSite(resolvedSiteId) ? undefined : await resolveTenantContext(db, resolvedSiteId, env)
   const site = !isPlatformSite(resolvedSiteId)
-    ? await queryFirst<{ theme: string | null; theme_id: string | null }>(db, 'SELECT theme, theme_id FROM sites WHERE id = ? LIMIT 1', [siteId])
+    ? await queryFirst<{ theme_id: string | null }>(db, 'SELECT theme_id FROM sites WHERE id = ? LIMIT 1', [siteId])
     : null
   return (results ?? []).map((record) => {
     const slug = typeof record.slug === 'string' ? record.slug : ''
-    const publicPath = !isPlatformSite(resolvedSiteId) && slug ? tenantBlogPostPath(site, slug) : null
+    const publicPath = !isPlatformSite(resolvedSiteId) && slug ? tenantBlogPostPath({ themeId: site?.theme_id }, slug) : null
     return contentReviewUrls(attachFeaturedMedia(attachPublished(record, Boolean(record.published_at))), 'blog', resolvedSiteId, publicPath, context)
   })
 }
@@ -821,13 +822,13 @@ export async function getPlatformBlogPost(db: DbClient, postIdOrSlug: string, si
   const slug = typeof post.slug === 'string' ? post.slug : ''
   const publicPath = !isPlatformSite(resolvedSiteId) && slug ? await resolveTenantBlogPostPath(db, resolvedSiteId, slug) : null
   const context = await resolveTenantContext(db, resolvedSiteId, env)
-  const editorTheme = !isPlatformSite(resolvedSiteId) ? await queryFirst<{ theme: string | null; theme_id: string | null; vertical: string | null; brand_name: string | null; brand_color: string | null } | null>(db, `
-    SELECT s.theme, s.theme_id, s.vertical, s.brand_name,
+  const editorTheme = !isPlatformSite(resolvedSiteId) ? await queryFirst<{ theme_id: string | null; vertical: string | null; brand_name: string | null; brand_color: string | null } | null>(db, `
+    SELECT s.theme_id, s.vertical, s.brand_name,
            (SELECT sc.value FROM site_config sc WHERE sc.site_id = s.id AND sc.key = 'brand_color' LIMIT 1) AS brand_color
       FROM sites s
      WHERE s.id = ? LIMIT 1
   `, [resolvedSiteId]) : null
-  const editorTemplate = !isPlatformSite(resolvedSiteId) ? resolvePublicTemplate({ theme: editorTheme?.theme, themeId: editorTheme?.theme_id, vertical: editorTheme?.vertical }) : null
+  const editorTemplate = !isPlatformSite(resolvedSiteId) ? resolvePublicTemplate({ themeId: editorTheme?.theme_id, vertical: editorTheme?.vertical }) : null
   const editorThemeTokenRow = editorTemplate ? await queryFirst<{ tokens_json: string | null } | null>(db, `
     SELECT tokens_json FROM site_theme_tokens
      WHERE site_id = ? AND template_slug = ? AND status = 'active'
@@ -898,7 +899,7 @@ export async function getPublishedLocalizedSiteBlogPost(
     SELECT organization_id, vertical FROM sites WHERE id = ? AND status = 'active' LIMIT 1
   `, [siteId])
   if (!site) return null
-  const prefix = normalizeVertical(site.vertical) === 'professional_service' ? 'article' : 'blog'
+  const prefix = normalizeVertical(site.vertical) === 'service' ? 'article' : 'blog'
   if (locale === 'en') {
     const post = await getPublishedSiteBlogPost(db, siteId, slug, env)
     if (!post || typeof post.id !== 'string') return post
@@ -1044,6 +1045,7 @@ export async function createPlatformBlogPost(
 
       const ownerType = blogContentOwnerType(siteId)
       await createContentDocumentWithBlocks(db, ownerType, id, canonicalBlocks, {
+        siteId: placementScope.siteId,
         bodyMarkdown: canonicalBody,
         additionalQueriesBefore: [blogPostInsert],
         additionalQueriesAfter: [
@@ -1387,10 +1389,8 @@ export async function deletePlatformBlogPost(db: D1Database, postIdOrSlug: strin
   const postId = await resolvePlatformContentId(db, 'blog_posts', postIdOrSlug, 'Post not found', resolvedSiteId)
   const ownerType = blogContentOwnerType(resolvedSiteId)
   await executeBatch(db, [
+    ...resourceLocalizationDeletionQueries('tenant_blog_post', { query: 'SELECT id FROM blog_posts WHERE id = ? AND site_id = ?', params: [postId, resolvedSiteId] }),
     { query: "DELETE FROM media_placements WHERE owner_type = 'blog_post' AND owner_id = ?", params: [postId] },
-    // The content_documents delete below cascades to content_blocks (FK ON DELETE
-    // CASCADE), but media_placements for those blocks (owner_type = 'content_block')
-    // has no owner FK, so it must be cleared explicitly while the blocks still exist.
     {
       query: `
         DELETE FROM media_placements
@@ -1561,6 +1561,7 @@ export async function createPlatformDoc(
         now,
       ] }
       await createContentDocumentWithBlocks(db, 'platform_doc', id, normalizedBlocks, {
+        siteId: placementScope.siteId,
         bodyMarkdown: canonicalBody,
         additionalQueriesBefore: [docInsert],
         additionalQueriesAfter: [

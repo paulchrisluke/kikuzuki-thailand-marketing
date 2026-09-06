@@ -1,3 +1,4 @@
+import { resolvePublicTemplate } from '~/utils/template-registry'
 import { deleteConfig, getConfig, setConfig } from '~/server/utils/site-config'
 import { createSystemSubdomain, isSystemSubdomainSpent } from '~/server/utils/domains'
 import { reconcileZarazAnalytics } from '~/server/utils/zaraz-analytics'
@@ -9,7 +10,7 @@ import { resolveSiteCmsCapabilities } from '~/server/utils/cms-capabilities'
 import { checkModuleHasLiveData } from '~/server/utils/module-content-guard'
 import type { SiteVertical } from '~/utils/vertical-copy'
 import { buildSingleMediaPlacementQueries, hydrateMediaAssetRefs } from '~/server/utils/media-asset-manager'
-import { refreshSocialCard } from '~/server/utils/social-card'
+import { refreshSocialCard, refreshSiteBrandSocialCards } from '~/server/utils/social-card'
 
 type SetupEnv = Parameters<typeof createSystemSubdomain>[0]
 
@@ -32,9 +33,7 @@ interface SiteSettingsRow {
 }
 
 interface FullSiteRow extends SiteSettingsRow {
-  theme: string | null
   status: string
-  primary_location_id: string | null
   public_url: string | null
   custom_domain_status: string | null
   default_currency: string | null
@@ -85,8 +84,8 @@ export async function loadSettingsPayload(
   siteId: string
 ) {
   const updatedSite = await queryFirst<FullSiteRow & { vertical: string; theme_id: string }>(db, `
-    SELECT sites.id, sites.organization_id, subdomain, theme, sites.status,
-           primary_location_id, sites.public_url, custom_domain_status, default_currency,
+    SELECT sites.id, sites.organization_id, subdomain, sites.status,
+           (SELECT 'https://' || domain FROM site_domains WHERE site_id = sites.id AND role = 'canonical' AND status = 'active') AS public_url, COALESCE((SELECT status FROM site_domains WHERE site_id = sites.id AND type = 'custom' AND status NOT IN ('deleted', 'disabled') ORDER BY role = 'canonical' DESC, created_at, id LIMIT 1), 'none') AS custom_domain_status, default_currency,
            brand_name, brand_description,
            mp.asset_id AS logo_media_id, ma.public_url AS logo_public_url,
            ma.thumbnail_url AS logo_thumbnail_url, ma.kind AS logo_kind,
@@ -139,11 +138,11 @@ export async function loadSettingsPayload(
     organization_id: updatedSite.organization_id,
     site_id: updatedSite.id,
     subdomain: updatedSite.subdomain,
-    theme: updatedSite.theme || 'saya',
+    theme: resolvePublicTemplate({ themeId: updatedSite.theme_id }).slug,
     status: updatedSite.status,
-    primary_location_id: updatedSite.primary_location_id,
+
     public_url: updatedSite.public_url,
-    custom_domain_status: updatedSite.custom_domain_status || 'none',
+    custom_domain_status: updatedSite.custom_domain_status,
     brand_name: updatedSite.brand_name,
     brand_description: updatedSite.brand_description,
     media: [
@@ -303,25 +302,6 @@ async function attemptSiteUpdate(
     setParts.push('default_currency = ?')
     params.push(currency)
   }
-  if (updates.primary_location_id !== undefined) {
-    if (updates.primary_location_id !== null && updates.primary_location_id !== '') {
-      const location = await queryFirst(db, `
-        SELECT id
-        FROM business_locations
-        WHERE id = ? AND organization_id = ? AND site_id = ? AND status = 'active'
-        LIMIT 1
-      `, [updates.primary_location_id, organizationId, siteId])
-
-      if (!location) {
-        return {
-          status: 400,
-          data: { error: 'Primary location not found' },
-        }
-      }
-    }
-    setParts.push('primary_location_id = ?')
-    params.push(updates.primary_location_id || null)
-  }
   if (updates.last_published_at !== undefined) {
     setParts.push('last_published_at = ?')
     params.push(updates.last_published_at ?? null)
@@ -474,7 +454,11 @@ async function attemptSiteUpdate(
     || updates.seo_description !== undefined
     || siteMedia?.some(item => item.slot === 'logo' || item.slot === 'social_share') === true
   if (cardInputChanged) {
-    await refreshSocialCard({ db, env, owner: { owner_type: 'site', owner_id: siteId }, actorId: userId })
+    if (updates.brand_name !== undefined || siteMedia?.some(item => item.slot === 'logo' || item.slot === 'social_share')) {
+      await refreshSiteBrandSocialCards({ db, env, siteId, actorId: userId })
+    } else {
+      await refreshSocialCard({ db, env, owner: { owner_type: 'site', owner_id: siteId }, actorId: userId })
+    }
   }
 
   const settings = await loadSettingsPayload(db, organizationId, siteId)

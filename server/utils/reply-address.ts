@@ -1,7 +1,6 @@
 export type ReplySubmissionType = 'contact' | 'reservation' | 'experience_booking'
 
-const CURRENT_TOKEN_BYTES = 12
-const LEGACY_TOKEN_BYTES = 16
+const TOKEN_BYTES = 12
 
 const TYPE_TO_CODE: Record<ReplySubmissionType, 'c' | 'r' | 'e'> = {
   contact: 'c',
@@ -50,17 +49,13 @@ function timingSafeEqual(leftValue: string, rightValue: string): boolean {
 }
 
 export async function buildReplyToken(secret: string, submissionType: ReplySubmissionType, submissionId: string): Promise<string> {
-  return hmacHex(secret, `${submissionType}:${submissionId.toLowerCase()}`, CURRENT_TOKEN_BYTES)
+  return hmacHex(secret, `${submissionType}:${submissionId.toLowerCase()}`, TOKEN_BYTES)
 }
 
 export async function verifyReplyTokenValue(secret: string, submissionType: string, submissionId: string, token: string): Promise<boolean> {
   const message = `${submissionType}:${submissionId.toLowerCase()}`
-  const expectedCurrent = await hmacHex(secret, message, CURRENT_TOKEN_BYTES)
-  if (timingSafeEqual(expectedCurrent, token)) return true
-
-  // Backward compatibility for any previously-issued reply addresses.
-  const expectedLegacy = await hmacHex(secret, message, LEGACY_TOKEN_BYTES)
-  return timingSafeEqual(expectedLegacy, token)
+  const expected = await hmacHex(secret, message, TOKEN_BYTES)
+  return timingSafeEqual(expected, token)
 }
 
 // Compact format keeps the local part under the 64-character SMTP limit:
@@ -68,7 +63,7 @@ export async function verifyReplyTokenValue(secret: string, submissionType: stri
 export function buildReplyLocalPart(submissionType: ReplySubmissionType, submissionId: string, token: string): string | null {
   const typeCode = TYPE_TO_CODE[submissionType]
   const compactId = compactUuid(submissionId)
-  if (!compactId) return null
+  if (!compactId || !/^[0-9a-f]{24}$/i.test(token)) return null
   return `r${typeCode}${compactId}${token}`
 }
 
@@ -83,17 +78,5 @@ export function parseReplyLocalPart(local: string): { submissionType: ReplySubmi
     }
   }
 
-  const legacyMatch = /^reply\+([a-z_]+)-(.+)-([0-9a-f]{32})$/i.exec(local)
-  if (!legacyMatch) return null
-
-  const submissionType = legacyMatch[1]!.toLowerCase()
-  if (submissionType !== 'contact' && submissionType !== 'reservation' && submissionType !== 'experience_booking') {
-    return null
-  }
-
-  return {
-    submissionType,
-    submissionId: legacyMatch[2]!,
-    token: legacyMatch[3]!.toLowerCase(),
-  }
+  return null
 }

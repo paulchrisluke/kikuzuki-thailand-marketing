@@ -1,3 +1,4 @@
+import { parseOpeningHours, parseSpecialHours } from '~/shared/reservation-hours'
 import { cloudflareEnv, jsonResponse } from '~/server/utils/api-response'
 import { getAuthSession } from '~/server/utils/auth'
 import { getDashboardContext } from '~/server/utils/dashboard-context'
@@ -24,9 +25,9 @@ function parseCurrency(value: unknown, fallback = DEFAULT_CURRENCY) {
 }
 
 function detailsFromBody(
-  raw: Record<string, unknown> | null, existing: DraftDetailsInput | null, name: string, ): DraftDetailsInput {
+  raw: Record<string, unknown> | null, existing: DraftDetailsInput | null, name: string, place: PlaceDetailsSnapshot | Awaited<ReturnType<typeof getPlaceDetails>> | null, ): DraftDetailsInput {
   return {
-    name, city: stringOrNull(raw?.city) ?? existing?.city ?? null, address: stringOrNull(raw?.address) ?? existing?.address ?? null, phone: stringOrNull(raw?.phone) ?? existing?.phone ?? null, websiteUrl: stringOrNull(raw?.websiteUrl) ?? existing?.websiteUrl ?? null, openingHours: stringOrNull(raw?.openingHours) ?? existing?.openingHours ?? null, notificationPhone: stringOrNull(raw?.notificationPhone) ?? existing?.notificationPhone ?? null, timezone: stringOrNull(raw?.timezone) ?? existing?.timezone ?? null, currency: parseCurrency(raw?.currency, existing?.currency ?? DEFAULT_CURRENCY), isPrimary: typeof raw?.isPrimary === 'boolean' ? raw.isPrimary : existing?.isPrimary ?? true, }
+    name, city: stringOrNull(raw?.city) ?? existing?.city ?? null, address: stringOrNull(raw?.address) ?? existing?.address ?? null, phone: stringOrNull(raw?.phone) ?? existing?.phone ?? null, websiteUrl: stringOrNull(raw?.websiteUrl) ?? existing?.websiteUrl ?? null, openingHours: parseOpeningHours(raw?.openingHours === undefined ? (existing ? existing.openingHours : place?.openingHours ?? null) : raw.openingHours), specialHours: parseSpecialHours(raw?.specialHours === undefined ? existing?.specialHours ?? null : raw.specialHours), notificationPhone: stringOrNull(raw?.notificationPhone) ?? existing?.notificationPhone ?? null, timezone: stringOrNull(raw?.timezone) ?? (existing ? existing.timezone : place?.timezone ?? null), currency: parseCurrency(raw?.currency, existing?.currency ?? DEFAULT_CURRENCY), }
 }
 
 function imageFromBody(raw: unknown, existing: DraftUploadedImage | null): DraftUploadedImage | null {
@@ -142,7 +143,7 @@ export default defineHandler(async (event) => {
     ?? ''
   if (!name) return jsonResponse({ error: 'name is required' }, { status: 400 })
 
-  const details = detailsFromBody(rawDetails, existingPayload?.source.details ?? null, name)
+  const details = detailsFromBody(rawDetails, existingPayload?.source.details ?? null, name, place)
   const brandDraft = brandFromBody(body.brandDraft && typeof body.brandDraft === 'object' ? body.brandDraft : null, existingPayload)
   const payload = buildOnboardingDraftPayload({
     name, vertical, place, details, brandDraft, })

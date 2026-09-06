@@ -5,7 +5,6 @@ import type {
   ThreadDetailSourceModel,
   ThreadSummaryProjection,
 } from '../types'
-import { formatOperationalStatusLabel } from '../status-labels'
 
 export interface ContactSource {
   id: string
@@ -16,7 +15,6 @@ export interface ContactSource {
   email: string
   subject: string | null
   message: string
-  status: string
   created_at: string
   location_title: string | null
   experience_title: string | null
@@ -44,7 +42,6 @@ export const contactAdapter: GuestThreadSourceAdapter<ContactSource, ContactActi
         ct.email,
         ct.subject,
         ct.message,
-        ct.status,
         ct.created_at,
         bl.title AS location_title,
         p.name AS experience_title
@@ -68,16 +65,16 @@ export const contactAdapter: GuestThreadSourceAdapter<ContactSource, ContactActi
       locationTitle: source.location_title,
       contextLabel: normalizePreview(source.experience_title ? `Re: ${source.experience_title} · ${source.message}` : source.message),
       createdAt: source.created_at,
-      operationalStatus: source.status,
+      operationalStatus: null,
     }
   },
 
-  getOperationalStatus(source: ContactSource): string {
-    return source.status
+  getOperationalStatus(): null {
+    return null
   },
 
-  getOperationalStatusLabel(status: string): string {
-    return formatOperationalStatusLabel('contact', status)
+  getOperationalStatusLabel(): null {
+    return null
   },
 
   listAvailableActions(): ContactAction[] {
@@ -88,8 +85,8 @@ export const contactAdapter: GuestThreadSourceAdapter<ContactSource, ContactActi
     return {
       submissionType: 'contact',
       submissionId: source.id,
-      operationalStatus: source.status,
-      operationalStatusLabel: this.getOperationalStatusLabel(source.status),
+      operationalStatus: null,
+      operationalStatusLabel: null,
       fields: {
         subject: source.subject,
         message: source.message,
