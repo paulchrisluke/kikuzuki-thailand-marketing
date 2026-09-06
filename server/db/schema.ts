@@ -1,6 +1,6 @@
 import type { SiteSettings, SiteIntegrations } from '../../shared/site-settings'
 import { sql } from "drizzle-orm"
-import { sqliteTable, integer, text, real, unique, primaryKey, uniqueIndex, index, check, foreignKey } from "drizzle-orm/sqlite-core"
+import { sqliteTable, integer, text, real, unique, uniqueIndex, index, check, foreignKey } from "drizzle-orm/sqlite-core"
 import type { AnySQLiteColumn } from "drizzle-orm/sqlite-core"
 import { CONTENT_BLOCK_TYPES, CONTENT_DOCUMENT_KINDS, LOCALIZED_RESOURCE_TYPES } from "../../shared/content-registries"
 import { MEDIA_PLACEMENT_SLOTS } from "../../shared/media-placement-contract"
@@ -1021,7 +1021,7 @@ export const site_transfer_requests = sqliteTable("site_transfer_requests", {
 
 export const sites = sqliteTable("sites", {
 	id: text().primaryKey(),
-	settings_json: text({ mode: "json" }).$type<SiteSettings>().default({}).notNull(),
+	settings_json: text({ mode: "json" }).$type<SiteSettings>().default({ config: { default_timezone: 'UTC' } }).notNull(),
 	integrations_json: text({ mode: "json" }).$type<SiteIntegrations>().default({}).notNull(),
 	organization_id: text().notNull().references(() => organization.id, { onDelete: "cascade" } ),
 	theme_id: text().default("saya-theme-v1").notNull(),
@@ -1069,7 +1069,7 @@ export const sites = sqliteTable("sites", {
 	check("sites_config_catering_email_check", sql`json_type(settings_json, '$.config.catering_email') IS NULL OR json_type(settings_json, '$.config.catering_email') IS 'text'`),
 	check("sites_config_careers_email_check", sql`json_type(settings_json, '$.config.careers_email') IS NULL OR json_type(settings_json, '$.config.careers_email') IS 'text'`),
 	check("sites_config_google_site_verification_check", sql`json_type(settings_json, '$.config.google_site_verification') IS NULL OR json_type(settings_json, '$.config.google_site_verification') IS 'text'`),
-	check("sites_config_default_timezone_check", sql`json_type(settings_json, '$.config.default_timezone') IS NULL OR json_type(settings_json, '$.config.default_timezone') IS 'text'`),
+	check("sites_config_default_timezone_check", sql`json_type(settings_json, '$.config.default_timezone') IS 'text' AND length(json_extract(settings_json, '$.config.default_timezone')) > 0`),
 	check("sites_config_whatsapp_phone_check", sql`json_type(settings_json, '$.config.whatsapp_phone') IS NULL OR json_type(settings_json, '$.config.whatsapp_phone') IS 'text'`),
 	check("sites_config_notifications_check", sql`json_type(settings_json, '$.config.owner_notification_channels') IS NULL OR json_type(settings_json, '$.config.owner_notification_channels') IS 'array'`),
 	check("sites_config_resource_generation_check", sql`json_type(settings_json, '$.config.resource_team_generation') IS NULL OR (json_type(settings_json, '$.config.resource_team_generation') IS 'object' AND json_type(settings_json, '$.config.resource_team_generation.transfer_id') IS 'text' AND json_type(settings_json, '$.config.resource_team_generation.generation') IS 'text')`),
