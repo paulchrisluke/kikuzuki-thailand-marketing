@@ -1,7 +1,11 @@
 <template>
   <!-- Kept as a utility class, not scoped CSS, so the loading skeleton in
-       SitesPage can reserve exactly this layout. -->
-  <div class="grid grid-cols-[repeat(auto-fit,minmax(min(100%,34rem),1fr))] gap-6">
+       SitesPage can reserve exactly this layout.
+
+       auto-fill, not auto-fit: auto-fit collapses the tracks it has no items
+       for, so an organization with one site rendered that site across the whole
+       row instead of in a card the size of every other card. -->
+  <div class="grid grid-cols-[repeat(auto-fill,minmax(min(100%,26rem),1fr))] gap-6">
     <NuxtLink
       v-for="item in items"
       :key="item.id"

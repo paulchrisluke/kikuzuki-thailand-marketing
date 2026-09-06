@@ -25,7 +25,7 @@
       -->
       <div v-if="pending" class="space-y-6">
         <USkeleton class="h-9 w-40 rounded-lg" />
-        <div class="grid grid-cols-[repeat(auto-fit,minmax(min(100%,34rem),1fr))] gap-6">
+        <div class="grid grid-cols-[repeat(auto-fill,minmax(min(100%,26rem),1fr))] gap-6">
           <USkeleton v-for="i in 2" :key="i" class="aspect-[4/3] rounded-2xl sm:aspect-[16/10]" />
         </div>
       </div>
