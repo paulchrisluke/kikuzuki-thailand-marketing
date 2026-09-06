@@ -499,12 +499,22 @@ export async function resolveLocalizedPublicRoute(
   if (entitlement.source) {
     localizationError(404, 'LOCALIZATION_NOT_FOUND', 'English source routes are unprefixed', { locale, route_path: routePath })
   }
+  if (!entitlement.platform_messages) {
+    localizationError(500, 'PLATFORM_LOCALE_UNAVAILABLE', 'Published platform locale messages are unavailable', { locale })
+  }
   const sourceLocale = await queryFirst<{ label: string | null }>(db, `
     SELECT label FROM site_locales
      WHERE organization_id = ? AND site_id = ? AND is_source = 1
      LIMIT 1
   `, [organizationId, siteId])
-  const sourceLabel = sourceLocale?.label ?? 'English'
+  if (!sourceLocale?.label) {
+    throw new HTTPError({
+      statusCode: 500,
+      statusMessage: 'Site source locale label is missing',
+      data: { code: 'SITE_SOURCE_LOCALE_INTEGRITY', site_id: siteId },
+    })
+  }
+  const sourceLabel = sourceLocale.label
   const { listPublicLocaleRepresentations, listPublicResourceLocaleRepresentations } = await import('~/server/utils/public-locale-representations')
   const resource = await queryFirst<ResourceLocalizationRow>(db, `
     SELECT id, organization_id, site_id, resource_type, resource_id, locale, values_json, route_path,
@@ -519,7 +529,7 @@ export async function resolveLocalizedPublicRoute(
     return {
       locale,
       route_path: routePath,
-      platform_messages: entitlement.platform_messages ?? {},
+      platform_messages: entitlement.platform_messages,
       locale_representations: await listPublicResourceLocaleRepresentations(db, {
         organizationId,
         siteId,
@@ -550,7 +560,7 @@ export async function resolveLocalizedPublicRoute(
   return {
     locale,
     route_path: routePath,
-    platform_messages: entitlement.platform_messages ?? {},
+    platform_messages: entitlement.platform_messages,
     locale_representations: await listPublicLocaleRepresentations(db, {
       organizationId,
       siteId,

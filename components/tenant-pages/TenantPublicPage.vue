@@ -68,7 +68,10 @@ if (error.value) throw error.value
 if (!data.value?.page) throw createError({ statusCode: 500, statusMessage: 'Tenant page data was not returned' })
 
 const page = computed(() => data.value!.page)
-useState<PublicLocaleRepresentation[]>('public-locale-representations', () => []).value = page.value.localeRepresentations ?? []
+if (!page.value.localeRepresentations) {
+  throw createError({ statusCode: 500, statusMessage: 'Tenant page locale representations were not returned' })
+}
+useState<PublicLocaleRepresentation[]>('public-locale-representations', () => []).value = page.value.localeRepresentations
 const template = computed<'saya' | 'blawby'>(() => isBlawby.value ? 'blawby' : 'saya')
 const schemaContext = inject<{ identity: ComputedRef<PublicBlawbyIdentity>; compliance: ComputedRef<PublicCompliance | null> } | null>('blawby-schema-context', null)
 const schemaOrg = useBlawbyOrgIdentity(() => schemaContext?.identity.value, () => schemaContext?.compliance.value)

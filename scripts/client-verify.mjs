@@ -612,6 +612,37 @@ if (OUT_DIR) {
 
 // ── Phase 9: Client handoff document ─────────────────────────────────────────
 
+function formatHandoffAddress(value) {
+  if (typeof value === "string") return value.trim();
+  if (!value || typeof value !== "object" || Array.isArray(value)) return "";
+
+  const parts = [];
+  if (Array.isArray(value.addressLines)) {
+    parts.push(...value.addressLines.filter((part) => typeof part === "string" && part.trim()));
+  }
+  for (const key of ["locality", "administrativeArea", "postalCode", "countryCode"]) {
+    const part = value[key];
+    if (typeof part === "string" && part.trim()) parts.push(part.trim());
+  }
+  return [...new Set(parts)].join(", ");
+}
+
+function formatHandoffHours(value) {
+  let schedule = value;
+  if (typeof value === "string") {
+    try {
+      schedule = JSON.parse(value);
+    } catch {
+      return value.trim();
+    }
+  }
+  if (!schedule || typeof schedule !== "object" || Array.isArray(schedule)) return "";
+  if (!Array.isArray(schedule.weekdayDescriptions)) return "";
+  return schedule.weekdayDescriptions
+    .filter((entry) => typeof entry === "string" && entry.trim())
+    .join("; ");
+}
+
 if (OUT_DIR && failures === 0) {
   const clientManifestPath = join(OUT_DIR, "client-manifest.json");
   const data = await getBootstrap();
@@ -632,21 +663,21 @@ if (OUT_DIR && failures === 0) {
   if (data?.locations?.length) {
     handoffLines.push("## Locations", "");
     for (const loc of data.locations) {
-      handoffLines.push(`### ${loc.title ?? loc.slug}`);
+      if (typeof loc.title !== "string" || !loc.title.trim()) {
+        throw new Error("Cannot generate client handoff: location title is missing");
+      }
+      handoffLines.push(`### ${loc.title.trim()}`);
       if (loc.phone) handoffLines.push(`- Phone: ${loc.phone}`);
-      if (loc.address) handoffLines.push(`- Address: ${loc.address}`);
+      if (loc.address) {
+        const address = formatHandoffAddress(loc.address);
+        if (!address) throw new Error(`Cannot generate client handoff: address is malformed for ${loc.title}`);
+        handoffLines.push(`- Address: ${address}`);
+      }
       if (loc.maps_url) handoffLines.push(`- Maps: ${loc.maps_url}`);
       if (loc.opening_hours) {
-        let hours = loc.opening_hours;
-        try {
-          hours =
-            JSON.parse(loc.opening_hours)?.weekday_text?.join(", ") ?? hours;
-        } catch {
-          // Ignore parse errors
-        }
-        handoffLines.push(
-          `- Hours: ${typeof hours === "string" ? hours.slice(0, 120) : JSON.stringify(hours).slice(0, 120)}`,
-        );
+        const hours = formatHandoffHours(loc.opening_hours);
+        if (!hours) throw new Error(`Cannot generate client handoff: opening hours are malformed for ${loc.title}`);
+        handoffLines.push(`- Hours: ${hours}`);
       }
       handoffLines.push("");
     }

@@ -101,7 +101,7 @@
       <div v-if="bookingStep === 1" class="flex-1 overflow-y-auto">
         <BookingLocationStep
           v-model="reservationForm.location_id"
-          :locations="locations"
+          :locations="bookingLocations"
           @next="nextStep"
         />
 
@@ -171,7 +171,7 @@ definePageMeta({ layout: 'saya' })
 
 const { site, siteId } = useTenantSite()
 const route = useRoute()
-const { locale } = useI18n()
+const { locale, t } = useI18n()
 const resCopy = computed(() => getVerticalCopy((site as ApiValue)?.vertical, locale.value))
 const { locations, config, getField, reservationPolicyByLocation } = await usePublicPageData()
 const isExperienceSite = computed(() => (site as { vertical?: string | null } | null)?.vertical === 'experience')
@@ -209,11 +209,33 @@ const reservationForm = ref({ name: '', email: '', phone: '', location_id: '', d
 // ── Contact & Locations ───────────────────────────────────────────────────
 const hasMultipleLocations = computed(() => locations.value.length > 1)
 const selectedLocation = computed(() =>
-  locations.value.find(location => String(location.id ?? '') === reservationForm.value.location_id)
-  ?? locations.value.find(location => Boolean(location.is_primary))
-  ?? locations.value[0]
-  ?? null,
+  locations.value.find(location => typeof location.id === 'string' && location.id === reservationForm.value.location_id),
 )
+
+function localizedHoursToday(location: ApiRecord): string | null {
+  if (!Array.isArray(location.opening_hours_translated)) return null
+  const weekday = new Intl.DateTimeFormat('en-US', {
+    weekday: 'long',
+    timeZone: typeof location.timezone === 'string' ? location.timezone : undefined,
+  }).format(new Date()).toUpperCase()
+  const index = ['MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY', 'SUNDAY'].indexOf(weekday)
+  if (index < 0) return null
+  const value = location.opening_hours_translated[index]
+  return typeof value === 'string' ? value : null
+}
+
+function bookingLocationAddress(location: ApiRecord): unknown {
+  if (locale.value === 'en') return location.address
+  return typeof location.address_translated === 'string' ? location.address_translated : null
+}
+
+const bookingLocations = computed(() => locations.value.map(location => ({
+  ...location,
+  address: bookingLocationAddress(location),
+  todayHours: locale.value === 'en'
+    ? getTodayHoursLabel(location.opening_hours, resCopy.value.closedLabel, location.timezone)
+    : localizedHoursToday(location),
+})))
 
 function formatLocationAddress(address: unknown): string | null {
   if (!address) return null
@@ -224,11 +246,7 @@ function formatLocationAddress(address: unknown): string | null {
 }
 
 function getLocationLabel(location: ApiRecord): string | null {
-  return String(
-    location.neighborhood
-    ?? location.city
-    ?? '',
-  ) || null
+  return typeof location.city === 'string' && location.city.trim() ? location.city : null
 }
 
 function getLocationMediaKind(location: ApiRecord): 'image' | 'video' | null {
@@ -254,16 +272,6 @@ function getLocationMedia(location: ApiRecord): ApiRecord | null {
 
 const heroTitle = computed(() => String(getField('hero.title') ?? '').trim())
 const heroSubtitle = computed(() => String(getField('hero.subtitle') ?? '').trim())
-
-watch(
-  locations,
-  (nextLocations) => {
-    if (reservationForm.value.location_id || nextLocations.length === 0) return
-    const primary = nextLocations.find(location => Boolean(location.is_primary)) ?? nextLocations[0]
-    reservationForm.value.location_id = String(primary?.id ?? '')
-  },
-  { immediate: true },
-)
 
 const contactPhone = computed(() =>
   String(
@@ -292,7 +300,7 @@ const bookingStep = ref(startStep.value)
 const modalTitle = computed(() => {
   if (bookingStep.value === 1) return resCopy.value.selectLocationLabel
   if (bookingStep.value === 2) return resCopy.value.selectTimeLabel
-  return 'Your details'
+  return t('saya.experience_detail.your_details')
 })
 
 function openBookingModal(loc?: ApiRecord) {
@@ -399,7 +407,7 @@ async function handleReservation() {
       policySummary: res.policy_summary ?? null,
       locationId: selectedLocation.value?.id ? String(selectedLocation.value.id) : null,
       locationName: selectedLocation.value?.title ?? null,
-      locationAddress: formatLocationAddress(selectedLocation.value?.address),
+      locationAddress: selectedLocation.value ? formatLocationAddress(bookingLocationAddress(selectedLocation.value)) : null,
       locationSlug: typeof selectedLocation.value?.slug === 'string' ? selectedLocation.value.slug : null,
     })
     mirrorSubmission('reservation_submit', selectedLocation.value?.id ? String(selectedLocation.value.id) : null)

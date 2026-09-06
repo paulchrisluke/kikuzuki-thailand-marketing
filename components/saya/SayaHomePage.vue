@@ -6,11 +6,10 @@
       <SayaHomeHero
         :data="{
           hero: hero,
-          eyebrow: getField('hero.eyebrow', businessCity),
+          eyebrow: getField('hero.eyebrow'),
           locations: pageLocations,
           businessTitle: businessTitle,
           businessSubtitle: businessSubtitle,
-          businessCity: businessCity,
           hasOrderLinks: hasOrderLinks,
           ctaRoute: homePrimaryCtaRoute,
           reserveCta: homeCopy.reserveCta,
@@ -27,19 +26,21 @@
         v-if="isExperienceTenant"
         :data="{
           items: featuredExperienceCards,
-          kicker: 'Experiences',
-          heading: brandName ? `What we offer at ${brandName}.` : 'Experiences',
+          kicker: t('saya.header.experiences'),
+          heading: t('saya.header.experiences'),
           linkTarget: homeExperienceHref
         }"
       />
       <LazySayaFeaturedContent
         :data="{
           items: featuredProductCards,
-          kicker: productPresentation?.collectionLabel || 'Products',
+          kicker: productPresentation?.locationCollectionSegment === 'menu'
+            ? t('saya.footer.menu')
+            : t('saya.footer.products'),
           heading: productPresentation?.locationCollectionSegment === 'menu'
-            ? (brandName ? `What we're cooking at ${brandName}.` : 'Menu')
-            : (brandName ? `Products from ${brandName}.` : 'Products'),
-          linkTarget: productPresentation?.collectionPath || null
+            ? t('saya.footer.menu')
+            : t('saya.products.collection_title', { site: brandName }),
+          linkTarget: productPresentation ? productPresentation.collectionPath : null
         }"
       />
 
@@ -148,8 +149,8 @@
                   class="size-8"
                 />
               </span>
-              {{ googleReviewSummary.average }}
-              <span v-if="googleReviewSummary.count" class="text-muted">· {{ googleReviewSummary.count?.toLocaleString() }} reviews</span>
+              <span v-if="googleReviewSummary.count" class="text-muted">{{ t('saya.reviews.rating_summary', { average: googleReviewSummary.average, count: googleReviewSummary.count.toLocaleString() }) }}</span>
+              <span v-else>{{ googleReviewSummary.average }}</span>
             </h2>
             <p class="mt-6 text-sm text-muted">{{ homeCopy.guestReviewsLabel }}</p>
           </template>
@@ -253,16 +254,9 @@
         class="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8"
         data-testid="saya-home-supplemental-status"
       >
-        <p v-if="supplementalPending" class="text-sm text-muted">Loading homepage updates…</p>
+        <p v-if="supplementalPending" class="text-sm text-muted">{{ t('saya.search.searching', { surface: t('saya.posts.title') }) }}</p>
         <div v-else role="alert" class="border border-default bg-elevated p-5 text-sm text-default">
           <p>{{ supplementalErrorMessage }}</p>
-          <button
-            type="button"
-            class="mt-4 border border-default px-4 py-2 font-medium"
-            @click="refreshSupplemental"
-          >
-            Try again
-          </button>
         </div>
       </section>
 
@@ -278,7 +272,7 @@
       </template>
       </template>
       <section v-else-if="pageError" class="mx-auto max-w-xl px-4 py-16 text-center sm:px-6" data-testid="saya-home-content-error">
-        <p role="alert" class="text-sm text-muted">Homepage content could not be loaded.</p>
+        <p role="alert" class="text-sm text-muted">{{ t('saya.common.temporarily_unavailable') }}</p>
       </section>
     </div>
 
@@ -290,7 +284,6 @@ import { resolveProductPresentation } from '~/utils/product-presentation'
 import { useDynamicComponent } from '~/composables/useDynamicComponent'
 import { getActiveSpecialClosure } from '~/utils/formatters'
 import { resolveSiteExperienceHref } from '~/utils/experience-navigation'
-import { ApiClientError } from '~/utils/api-clients'
 
 const { siteId, draftId, site } = useTenantSite()
 const { locale, localePath, t } = useI18n()
@@ -330,7 +323,6 @@ const {
   blogList,
   error: supplementalError,
   pending: supplementalPending,
-  refresh: refreshSupplemental,
 } = await usePublicPageData({
   datasets: ['reviews', 'posts', 'blog'],
   server: false,
@@ -375,7 +367,6 @@ const googleBusiness = computed(() => {
 const starRatingMap = { ONE: 1, TWO: 2, THREE: 3, FOUR: 4, FIVE: 5 }
 const businessTitle = computed(() => googleBusiness.value?.business?.title ?? null)
 const businessSubtitle = computed(() => googleBusiness.value?.business?.profile?.description ?? null)
-const businessCity = computed(() => googleBusiness.value?.business?.city ?? null)
 const googlePosts = computed(() => googleBusiness.value?.posts || [])
 const googleReviews = computed(() => googleBusiness.value?.reviews ?? [])
 const googleReviewRating = review => starRatingMap[review.starRating] ?? Number(review.starRating ?? review.rating ?? 0)
@@ -542,13 +533,13 @@ const recentBlogPosts = computed(() =>
 )
 
 const supplementalErrorMessage = computed(() => {
-  if (!(supplementalError.value instanceof ApiClientError)) {
-    return 'Homepage updates could not be loaded.'
-  }
-  const request = supplementalError.value.requestId
-    ? ` Request ID: ${supplementalError.value.requestId}.`
+  const details = supplementalError.value && typeof supplementalError.value === 'object' && 'requestId' in supplementalError.value
+    && typeof supplementalError.value.requestId === 'string'
+    ? supplementalError.value.requestId
     : ''
-  return `${supplementalError.value.message} (${supplementalError.value.code}).${request}`
+  return details
+    ? `${t('saya.common.temporarily_unavailable')} (${details})`
+    : t('saya.common.temporarily_unavailable')
 })
 
 const locationSlugById = computed(() => new Map(locations.value.map(location => [location.id, location.slug])))
