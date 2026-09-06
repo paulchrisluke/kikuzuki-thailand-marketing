@@ -1,6 +1,7 @@
 import { HTTPError } from 'nitro'
 import { queryAll, type DbClient } from '~/server/db'
-import { assertSiteLanguageEntitlement } from '~/server/utils/localization'
+import { assertSiteLanguageEntitlement, getPersistedSourceLocale } from '~/server/utils/localization'
+import { platformLocale } from '~/shared/platform-locales'
 import type { LocalizedResourceType } from '~/server/utils/localization-registry'
 import { tenantBlogPostPath } from '~/utils/tenant-blog-route'
 import { postPublicPath } from '~/utils/post-slugs'
@@ -10,7 +11,6 @@ interface RepresentationInput {
   organizationId: string
   siteId: string
   sourcePath: string
-  sourceLabel: string
   resource?: { type: LocalizedResourceType; id: string; routeSuffix?: string }
   pageId?: string
   publishedLocaleRoute?: boolean
@@ -86,15 +86,18 @@ export async function listPublicLocaleRepresentations(
   db: DbClient,
   input: RepresentationInput,
 ): Promise<PublicLocaleRepresentation[]> {
+  const sourceLocale = await getPersistedSourceLocale(db, input.organizationId, input.siteId)
+  const sourceCatalog = platformLocale(sourceLocale.locale)
+  if (!sourceCatalog) throw new HTTPError({ statusCode: 500, statusMessage: 'Site primary language catalog is unavailable' })
   const representations: PublicLocaleRepresentation[] = [{
-    locale: 'en',
-    label: input.sourceLabel,
+    locale: sourceLocale.locale,
+    label: sourceCatalog.label,
     route_path: input.sourcePath,
     source: 'source',
   }]
   const candidates = input.resource
-    ? await queryAll<{ locale: string; label: string; route_path: string }>(db, `
-        SELECT rl.locale, COALESCE(sl.label, rl.locale) AS label, rl.route_path
+    ? await queryAll<{ locale: string; route_path: string }>(db, `
+        SELECT rl.locale, rl.route_path
           FROM resource_localizations rl
           JOIN site_locales sl
             ON sl.organization_id = rl.organization_id AND sl.site_id = rl.site_id AND sl.locale = rl.locale
@@ -104,25 +107,25 @@ export async function listPublicLocaleRepresentations(
          ORDER BY rl.locale
       `, [input.organizationId, input.siteId, input.resource.type, input.resource.id])
     : input.pageId
-      ? await queryAll<{ locale: string; label: string; route_path: string }>(db, `
-          SELECT v.locale, COALESCE(sl.label, v.locale) AS label,
+      ? await queryAll<{ locale: string; route_path: string }>(db, `
+          SELECT v.locale,
                  CASE WHEN v.path = '/' THEN '/' || v.locale ELSE '/' || v.locale || v.path END AS route_path
             FROM tenant_page_variants v
             JOIN site_locales sl
               ON sl.organization_id = v.organization_id AND sl.site_id = v.site_id AND sl.locale = v.locale
-           WHERE v.organization_id = ? AND v.site_id = ? AND v.page_id = ? AND v.locale <> 'en'
+           WHERE v.organization_id = ? AND v.site_id = ? AND v.page_id = ? AND v.locale <> ?
              AND sl.status = 'published'
            ORDER BY v.locale
-        `, [input.organizationId, input.siteId, input.pageId])
+        `, [input.organizationId, input.siteId, input.pageId, sourceLocale.locale])
       : input.publishedLocaleRoute
-        ? await queryAll<{ locale: string; label: string; route_path: string }>(db, `
-            SELECT sl.locale, COALESCE(sl.label, sl.locale) AS label,
+        ? await queryAll<{ locale: string; route_path: string }>(db, `
+            SELECT sl.locale,
                    CASE WHEN ? = '/' THEN '/' || sl.locale ELSE '/' || sl.locale || ? END AS route_path
               FROM site_locales sl
-             WHERE sl.organization_id = ? AND sl.site_id = ? AND sl.locale <> 'en'
+             WHERE sl.organization_id = ? AND sl.site_id = ? AND sl.locale <> ?
                AND sl.status = 'published'
              ORDER BY sl.locale
-          `, [input.sourcePath, input.sourcePath, input.organizationId, input.siteId])
+          `, [input.sourcePath, input.sourcePath, input.organizationId, input.siteId, sourceLocale.locale])
         : []
 
   for (const candidate of candidates) {
@@ -132,9 +135,11 @@ export async function listPublicLocaleRepresentations(
       if (isUnavailableRepresentation(error)) continue
       throw error
     }
+    const catalog = platformLocale(candidate.locale)
+    if (!catalog) throw new HTTPError({ statusCode: 500, statusMessage: 'Published language catalog is unavailable' })
     representations.push({
       locale: candidate.locale,
-      label: candidate.label,
+      label: catalog.label,
       route_path: `${candidate.route_path}${input.resource?.routeSuffix ?? ''}`,
       source: 'localized',
     })

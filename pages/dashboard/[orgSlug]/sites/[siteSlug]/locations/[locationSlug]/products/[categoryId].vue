@@ -1,7 +1,7 @@
 <template>
   <UDashboardPanel id="location-product-category">
     <template #header>
-      <UDashboardNavbar :title="category?.name ?? presentation.collectionLabel" :toggle="false">
+      <UDashboardNavbar :title="categoryTitle" :toggle="false">
         <template #leading>
           <DashboardNavbarLeading :to="productsPath" :label="presentation.collectionLabel" />
         </template>
@@ -12,7 +12,7 @@
       <DashboardListEditor
         v-model:editing="editing"
         v-model:selected="selected"
-        :title="category?.name ?? presentation.collectionLabel"
+        :title="categoryTitle"
         :description="`Customers see ${presentation.itemLabelPlural.toLowerCase()} in this order.`"
         :items="listItems"
         :pending="pending"
@@ -20,8 +20,10 @@
         :empty-title="`No ${presentation.itemLabelPlural.toLowerCase()} here yet`"
         empty-icon="i-lucide-utensils"
         :add-label="`Add a ${presentation.itemLabel.toLowerCase()}`"
-        reorderable
-        selectable
+        :addable="locale === sourceLocale"
+        :removable="locale === sourceLocale"
+        :reorderable="locale === sourceLocale"
+        :selectable="locale === sourceLocale"
         @add="openNew"
         @open="openExisting"
         @move="moveProduct"
@@ -34,7 +36,8 @@
           <button type="button" class="flex w-full items-center gap-4 text-left" :data-testid="`product-${item.id}`" @click="openExisting(item)">
             <DashboardMediaThumb :asset="item.row.image" :label="item.row.name" fallback-icon="i-lucide-image" />
             <span class="min-w-0 flex-1">
-              <span class="block truncate text-sm font-semibold text-highlighted">{{ item.row.name }}</span>
+            <span class="block truncate text-sm font-semibold text-highlighted">{{ productName(item.row) }}</span>
+            <span v-if="locale !== sourceLocale" class="mt-1 block truncate text-xs text-muted">Source: {{ item.row.name }}</span>
               <span class="mt-1 block text-sm tabular-nums" :class="priceLabel(item.row) ? 'text-muted' : 'italic text-muted'">
                 {{ priceLabel(item.row) || 'No price set' }}
               </span>
@@ -63,7 +66,7 @@
               :class="moveTargetId === option.id ? 'border-primary' : ''"
             >
               <input v-model="moveTargetId" type="radio" :value="option.id" :name="`move-target`">
-              <span class="text-sm text-highlighted">{{ option.name }}</span>
+              <span class="text-sm text-highlighted">{{ categoryName(option) }}</span>
             </label>
             <p v-if="!moveTargets.length" class="text-sm text-muted">
               There is nowhere else to move these yet. Add another {{ presentation.categoryLabel.toLowerCase() }} first.
@@ -75,18 +78,14 @@
       <DashboardListItemDialog
         v-model:open="dialogOpen"
         :title="editingId ? `Edit ${presentation.itemLabel.toLowerCase()}` : `Add a ${presentation.itemLabel.toLowerCase()}`"
-        :removable="Boolean(editingId)"
+        :removable="Boolean(editingId) && locale === sourceLocale"
         :saving="saving"
         :removing="removing"
-        :save-disabled="!form.name.trim() || (form.price_mode === 'amount' && !form.price_major.trim()) || incompleteDetail"
-        @save="locale === 'en' ? save() : saveLocalized()"
+        :save-disabled="locale === sourceLocale ? !form.name.trim() || (form.price_mode === 'amount' && !form.price_major.trim()) || incompleteDetail : false"
+        @save="locale === sourceLocale ? save() : saveLocalized()"
         @remove="removeEditing"
       >
-        <UFormField v-if="editingId && translationLocales.length" label="Language">
-          <USelect v-model="locale" :items="localeItems" class="w-full" aria-label="Field language" />
-        </UFormField>
-
-        <template v-if="locale === 'en'">
+        <template v-if="locale === sourceLocale">
           <!--
             The photo leads the sheet the way it leads the row and the way it
             leads Airbnb's own photo detail: it is the thing you recognise the
@@ -232,18 +231,12 @@
         </template>
 
         <template v-else>
-          <p class="text-xs text-muted">Source (English): {{ form.name }}</p>
-          <UFormField :label="`Name (${locale})`">
+          <p class="text-xs text-muted">Primary ({{ sourceLocale }}): {{ form.name }}</p>
+          <UFormField label="Name">
             <UInput v-model="localizedFields.name" class="w-full" />
           </UFormField>
-          <UFormField :label="`Description (${locale})`">
+          <UFormField label="Description">
             <UTextarea v-model="localizedFields.description" :rows="4" class="w-full" />
-          </UFormField>
-          <UFormField :label="`SEO title (${locale})`">
-            <UInput v-model="localizedFields.seo_title" class="w-full" />
-          </UFormField>
-          <UFormField :label="`SEO description (${locale})`">
-            <UTextarea v-model="localizedFields.seo_description" :rows="2" class="w-full" />
           </UFormField>
         </template>
       </DashboardListItemDialog>
@@ -275,6 +268,10 @@ const { locationPaths } = useDashboardSiteLinks()
 const siteId = await useDashboardSiteId()
 const dashboard = useDashboardSite()
 const dashboardLocation = useDashboardLocation()
+const contentLanguage = useDashboardContentLanguage()
+await contentLanguage.load(siteId)
+const locale = contentLanguage.locale
+const sourceLocale = contentLanguage.sourceLocale
 
 const vertical = dashboard.site.value?.vertical
 if (!vertical) throw createError({ statusCode: 500, statusMessage: 'Site vertical is not configured' })
@@ -289,6 +286,8 @@ const productsPath = computed(() => locationPaths.value?.products ?? '')
 
 const categories = ref<ProductCategory[]>([])
 const products = ref<Product[]>([])
+const productLocalizations = ref(new Map<string, Record<string, unknown>>())
+const categoryLocalizations = ref(new Map<string, Record<string, unknown>>())
 const pending = ref(true)
 const loadError = ref<string | null>(null)
 const editing = ref(false)
@@ -296,13 +295,26 @@ const selected = ref<string[]>([])
 const orderDirty = ref(false)
 
 const category = computed(() => categories.value.find(row => row.id === categoryId.value) ?? null)
-const listItems = computed(() => products.value.map(row => ({ id: row.id, title: row.name, row })))
+const categoryTitle = computed(() => category.value ? categoryName(category.value) : presentation.collectionLabel)
+const listItems = computed(() => products.value.map(row => ({ id: row.id, title: productName(row), row })))
 const moveTargets = computed(() => categories.value.filter(row => row.id !== categoryId.value))
 // The picker's own trigger is a small row; the open dish shows its photo large,
 // so the preview reads from the loaded Product rather than the picker's state.
 const editingImage = computed(() => products.value.find(row => row.id === editingId.value)?.image ?? null)
 
-useSeoMeta({ title: () => `${category.value?.name ?? presentation.collectionLabel} | KrabiClaw Dashboard`, robots: 'noindex, nofollow' })
+useSeoMeta({ title: () => `${categoryTitle.value} | KrabiClaw Dashboard`, robots: 'noindex, nofollow' })
+
+function exactLocalizedName(values: Record<string, unknown> | undefined): string {
+  const value = values?.name
+  if (typeof value === 'string' && value.trim()) return value.trim()
+  return 'Not translated'
+}
+function categoryName(row: ProductCategory): string {
+  return locale.value === sourceLocale.value ? row.name : exactLocalizedName(categoryLocalizations.value.get(row.id))
+}
+function productName(row: Product): string {
+  return locale.value === sourceLocale.value ? row.name : exactLocalizedName(productLocalizations.value.get(row.id))
+}
 
 function priceLabel(product: Product) {
   return formatProductPriceLabel(product)
@@ -317,6 +329,14 @@ function isProductList(value: unknown): value is { success: true; products: Prod
 function isOne(value: unknown): value is { success: true; product: Product } {
   return isRecord(value) && isRecord(value.product)
 }
+interface ProductCatalogLocalizationResponse {
+  locale: string
+  categories: Array<{ id: string; location_id: string; localization: { values: Record<string, unknown> } | null }>
+  products: Array<{ id: string; location_id: string; localization: { values: Record<string, unknown> } | null }>
+}
+function isProductCatalogLocalization(value: unknown): value is ProductCatalogLocalizationResponse {
+  return isRecord(value) && typeof value.locale === 'string' && Array.isArray(value.categories) && Array.isArray(value.products)
+}
 
 async function load() {
   const id = locationId.value
@@ -324,12 +344,31 @@ async function load() {
   pending.value = true
   loadError.value = null
   try {
-    const [categoryResponse, productResponse] = await Promise.all([
+    const localizationRequest = locale.value === sourceLocale.value
+      ? Promise.resolve(null)
+      : dashboardApi<ProductCatalogLocalizationResponse>(`/api/editor/sites/${siteId}/locales/${encodeURIComponent(locale.value!)}/product-catalog`, { validate: isProductCatalogLocalization })
+    const [categoryResponse, productResponse, localizationResponse] = await Promise.all([
       dashboardApi(`/api/editor/sites/${siteId}/locations/${id}/products/categories`, { validate: isCategoryList }),
       dashboardApi(`/api/editor/sites/${siteId}/locations/${id}/products`, { validate: isProductList }),
+      localizationRequest,
     ])
     categories.value = categoryResponse.categories
     products.value = productResponse.products.filter(product => product.category_id === categoryId.value)
+    if (localizationResponse) {
+      productLocalizations.value = new Map(
+        localizationResponse.products
+        .filter(row => row.location_id === id && row.localization)
+        .map(row => [row.id, row.localization!.values]),
+      )
+      categoryLocalizations.value = new Map(
+        localizationResponse.categories
+        .filter(row => row.location_id === id && row.localization)
+        .map(row => [row.id, row.localization!.values]),
+      )
+    } else {
+      productLocalizations.value = new Map()
+      categoryLocalizations.value = new Map()
+    }
     if (!categoryResponse.categories.some(row => row.id === categoryId.value)) {
       throw createError({ statusCode: 404, statusMessage: 'Product category not found' })
     }
@@ -417,10 +456,7 @@ const dialogOpen = ref(false)
 const editingId = ref<string | null>(null)
 const saving = ref(false)
 const removing = ref(false)
-const locale = ref('en')
-const translationLocales = ref<string[]>([])
-const localeItems = computed(() => ['en', ...translationLocales.value])
-const localizedFields = ref({ name: '', description: '', seo_title: '', seo_description: '' })
+const localizedFields = ref({ name: '', description: '' })
 /** The three states the server accepts; nothing else is representable. */
 type PriceMode = 'amount' | 'wording' | 'none'
 const priceModes = [
@@ -460,14 +496,16 @@ function resetForm() {
 }
 
 function openNew() {
-  locale.value = 'en'
+  if (locale.value !== sourceLocale.value) {
+    toast.add({ description: `Switch to ${sourceLocale.value} to add a new ${presentation.itemLabel.toLowerCase()}`, color: 'warning' })
+    return
+  }
   editingId.value = null
   resetForm()
   dialogOpen.value = true
 }
 
 function openExisting(item: { row: Product }) {
-  locale.value = 'en'
   const product = item.row
   editingId.value = product.id
   form.name = product.name
@@ -483,6 +521,7 @@ function openExisting(item: { row: Product }) {
   form.featured = product.featured
   form.image_asset_id = product.image?.asset_id ?? null
   dialogOpen.value = true
+  if (locale.value && locale.value !== sourceLocale.value) void loadLocalizedFields(locale.value)
 }
 
 // A half-filled group cannot be saved, and is not silently dropped either: the
@@ -562,25 +601,13 @@ async function setPrimaryImage(assetId: string | null) {
   }
 }
 
-function isLocalesResponse(value: unknown): value is { languages: Array<{ locale: string; locale_status: string; is_source: boolean | number }> } {
-  return isRecord(value) && Array.isArray(value.languages)
-}
-
-async function loadLocales() {
-  try {
-    const response = await dashboardApi(`/api/editor/sites/${siteId}/locales`, { validate: isLocalesResponse })
-    translationLocales.value = response.languages.filter(item => item.locale_status === 'published' && !item.is_source).map(item => item.locale)
-  } catch {
-    translationLocales.value = []
-  }
-}
-
 function isLocalizationResponse(value: unknown): value is { localization: { values: Record<string, unknown> } } {
   return isRecord(value) && isRecord(value.localization) && isRecord(value.localization.values)
 }
 
-watch(locale, async (value) => {
-  if (!editingId.value || value === 'en') return
+async function loadLocalizedFields(value: string) {
+  if (!editingId.value || !value || value === sourceLocale.value) return
+  localizedFields.value = { name: '', description: '' }
   try {
     const response = await dashboardApi(
       `/api/editor/sites/${siteId}/localization/product/${editingId.value}/${encodeURIComponent(value)}`,
@@ -590,25 +617,31 @@ watch(locale, async (value) => {
     localizedFields.value = {
       name: typeof values.name === 'string' ? values.name : '',
       description: typeof values.description === 'string' ? values.description : '',
-      seo_title: typeof values.seo_title === 'string' ? values.seo_title : '',
-      seo_description: typeof values.seo_description === 'string' ? values.seo_description : '',
     }
-  } catch {
-    // No translation saved for this locale yet — start blank.
-    localizedFields.value = { name: '', description: '', seo_title: '', seo_description: '' }
+  } catch (cause) {
+    const statusCode = isRecord(cause) && typeof cause.statusCode === 'number' ? cause.statusCode : null
+    if (statusCode !== 404) toast.add({ description: getErrorMessage(cause, 'Failed to load translation'), color: 'error' })
   }
+}
+
+watch(locale, (value) => {
+  if (value) void loadLocalizedFields(value)
 })
 
 async function saveLocalized() {
-  if (!editingId.value) return
+  if (!editingId.value || !locale.value || locale.value === sourceLocale.value) return
   saving.value = true
   try {
+    const values: Record<string, string> = {}
+    if (localizedFields.value.name.trim()) values.name = localizedFields.value.name.trim()
+    if (localizedFields.value.description.trim()) values.description = localizedFields.value.description.trim()
     await dashboardApi(`/api/editor/sites/${siteId}/localization/product/${editingId.value}/${encodeURIComponent(locale.value)}`, {
       method: 'PUT',
-      body: { values: { ...localizedFields.value } },
+      body: { values },
       validate: isRecord,
     })
     dialogOpen.value = false
+    await load()
   } catch (error) {
     toast.add({ description: getErrorMessage(error, 'Failed to save translation'), color: 'error' })
   } finally {
@@ -616,7 +649,7 @@ async function saveLocalized() {
   }
 }
 
-watch([locationId, categoryId], () => {
+watch([locationId, categoryId, locale], () => {
   editing.value = false
   dialogOpen.value = false
   moveDialogOpen.value = false
@@ -624,5 +657,4 @@ watch([locationId, categoryId], () => {
   void load()
 }, { immediate: true })
 
-await loadLocales()
 </script>

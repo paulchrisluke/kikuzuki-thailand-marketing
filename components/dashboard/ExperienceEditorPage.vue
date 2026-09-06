@@ -1,7 +1,7 @@
 <template>
   <UDashboardPanel id="location-experience-detail">
     <template #header>
-      <UDashboardNavbar :title="editor.form.title || 'Experience'" :toggle="false">
+      <UDashboardNavbar :title="experienceTitle" :toggle="false">
         <template #leading>
           <DashboardNavbarLeading :to="experiencesPath" label="Experiences" />
         </template>
@@ -38,26 +38,21 @@
           <!-- Details -->
           <div v-if="editorKey === 'details'" class="space-y-6">
             <p class="text-base text-muted">How this experience introduces itself on your site.</p>
-            <UFormField label="Title" required>
-              <UInput v-model="editor.form.title" size="xl" autofocus class="w-full" />
-            </UFormField>
-            <UFormField label="Tagline" help="One-line hook shown on the listing card.">
-              <UInput v-model="editor.form.tagline" size="xl" class="w-full" />
-            </UFormField>
-            <UFormField label="Description">
-              <UTextarea v-model="editor.form.body" :rows="8" class="w-full" />
-            </UFormField>
-            <UFormField label="Status">
-              <USelect v-model="editor.form.status" :items="statusOptions" class="w-full" />
-            </UFormField>
-            <UCheckbox
-              v-model="editor.form.featured"
-              label="Featured"
-              description="Show on homepage and location pages when no menu exists"
-            />
-            <UFormField v-if="editor.form.featured" label="Featured sort order" help="Lower numbers appear first">
-              <UInputNumber v-model="editor.form.featured_sort_order" :min="0" class="w-full" />
-            </UFormField>
+            <template v-if="editingTranslation">
+              <p class="text-xs text-muted">Primary ({{ sourceLocale }}): {{ editor.form.title }}</p>
+              <UFormField label="Title"><UInput v-model="translationFields.title" size="xl" autofocus class="w-full" /></UFormField>
+              <UFormField label="Tagline"><UInput v-model="translationFields.tagline" size="xl" class="w-full" /></UFormField>
+              <UFormField label="Description"><UTextarea v-model="translationFields.body" :rows="8" class="w-full" /></UFormField>
+              <p v-if="translationError" class="text-sm text-error">{{ translationError }}</p>
+            </template>
+            <template v-else>
+              <UFormField label="Title" required><UInput v-model="editor.form.title" size="xl" autofocus class="w-full" /></UFormField>
+              <UFormField label="Tagline" help="One-line hook shown on the listing card."><UInput v-model="editor.form.tagline" size="xl" class="w-full" /></UFormField>
+              <UFormField label="Description"><UTextarea v-model="editor.form.body" :rows="8" class="w-full" /></UFormField>
+              <UFormField label="Status"><USelect v-model="editor.form.status" :items="statusOptions" class="w-full" /></UFormField>
+              <UCheckbox v-model="editor.form.featured" label="Featured" description="Show on homepage and location pages when no menu exists" />
+              <UFormField v-if="editor.form.featured" label="Featured sort order" help="Lower numbers appear first"><UInputNumber v-model="editor.form.featured_sort_order" :min="0" class="w-full" /></UFormField>
+            </template>
           </div>
 
           <!-- Location -->
@@ -65,12 +60,20 @@
             <p class="text-base text-muted">Where a guest goes when they arrive.</p>
             <UFormField label="Meeting point" help="Short arrival or check-in instruction.">
               <UTextarea
+                v-if="editingTranslation"
+                v-model="translationFields.meeting_point"
+                :rows="3"
+                class="w-full"
+              />
+              <UTextarea
+                v-else
                 v-model="editor.form.meeting_point"
                 :rows="3"
                 placeholder="Meet at the main studio reception 10 minutes before your start time."
                 class="w-full"
               />
             </UFormField>
+            <p v-if="editingTranslation && translationError" class="text-sm text-error">{{ translationError }}</p>
           </div>
 
           <!-- Photos -->
@@ -93,12 +96,14 @@
           <!-- Pricing -->
           <div v-else-if="editorKey === 'pricing'" class="space-y-6">
             <p class="text-base text-muted">What a guest pays, and what they see when there is no fixed price.</p>
-            <UFormField label="Price amount" :help="`Numeric amount in ${currency}. Leave empty for free or contact-only pricing.`">
+            <UFormField v-if="!editingTranslation" label="Price amount" :help="`Numeric amount in ${currency}. Leave empty for free or contact-only pricing.`">
               <UInputNumber v-model="editor.form.price_major" :min="0" :step="0.01" placeholder="1500" class="w-full" />
             </UFormField>
             <UFormField label="Inquiry pricing note" help='Used only when no active Price exists, e.g. "Ask us about monthly pricing".'>
-              <UInput v-model="editor.form.pricing_note" placeholder="Ask us about pricing" class="w-full" />
+              <UInput v-if="editingTranslation" v-model="translationFields.pricing_note" class="w-full" />
+              <UInput v-else v-model="editor.form.pricing_note" placeholder="Ask us about pricing" class="w-full" />
             </UFormField>
+            <p v-if="editingTranslation && translationError" class="text-sm text-error">{{ translationError }}</p>
           </div>
 
           <!-- Discounts -->
@@ -214,6 +219,14 @@
             <p class="text-base text-muted">What you provide, and what a guest should bring themselves.</p>
             <UFormField label="What's included">
               <UInputTags
+                v-if="editingTranslation"
+                v-model="translationFields.included_items"
+                add-on-blur
+                add-on-paste
+                class="w-full"
+              />
+              <UInputTags
+                v-else
                 v-model="editor.form.included_items"
                 placeholder="Materials and tools"
                 add-on-blur
@@ -223,6 +236,14 @@
             </UFormField>
             <UFormField label="What to bring">
               <UInputTags
+                v-if="editingTranslation"
+                v-model="translationFields.what_to_bring"
+                add-on-blur
+                add-on-paste
+                class="w-full"
+              />
+              <UInputTags
+                v-else
                 v-model="editor.form.what_to_bring"
                 placeholder="Comfortable clothes"
                 add-on-blur
@@ -230,17 +251,25 @@
                 class="w-full"
               />
             </UFormField>
+            <p v-if="editingTranslation && translationError" class="text-sm text-error">{{ translationError }}</p>
           </div>
 
           <!-- Booking policy -->
           <div v-else-if="editorKey === 'policies'" class="space-y-6">
             <p class="text-base text-muted">What happens when a guest needs to cancel or move their booking.</p>
 
+            <template v-if="editingTranslation">
+              <UFormField label="Cancellation policy">
+                <UTextarea v-model="translationFields.cancellation_policy" :rows="5" class="w-full" />
+              </UFormField>
+              <p v-if="translationError" class="text-sm text-error">{{ translationError }}</p>
+            </template>
+
             <!--
               Named terms, not a minutes field: the tenant picks a position a
               guest can understand, and each card states its own consequences.
             -->
-            <div class="space-y-3">
+            <div v-else class="space-y-3">
               <button
                 v-for="preset in policyPresets"
                 :key="preset.id"
@@ -268,50 +297,6 @@
             </div>
 
 
-          </div>
-
-          <!-- Translations -->
-          <div v-else-if="editorKey === 'translations'" class="space-y-6">
-            <UFormField label="Language">
-              <USelect v-model="translationLocale" :items="localeItems" class="w-40" aria-label="Field language" />
-            </UFormField>
-            <p v-if="translationLocale === 'en'" class="text-sm text-muted">
-              English is the source language. Choose another language to translate this experience.
-            </p>
-            <template v-else>
-              <p class="text-xs text-muted">Source (English): {{ editor.form.title }}</p>
-              <UFormField :label="`Title (${translationLocale})`">
-                <UInput v-model="translationFields.title" class="w-full" />
-              </UFormField>
-              <UFormField :label="`Tagline (${translationLocale})`">
-                <UInput v-model="translationFields.tagline" class="w-full" />
-              </UFormField>
-              <UFormField :label="`Description (${translationLocale})`">
-                <UTextarea v-model="translationFields.body" :rows="5" class="w-full" />
-              </UFormField>
-              <UFormField :label="`Price note (${translationLocale})`">
-                <UInput v-model="translationFields.price" class="w-full" />
-              </UFormField>
-              <UFormField :label="`Included items (${translationLocale})`">
-                <UInputTags v-model="translationFields.included_items" add-on-blur add-on-paste class="w-full" />
-              </UFormField>
-              <UFormField :label="`What to bring (${translationLocale})`">
-                <UInputTags v-model="translationFields.what_to_bring" add-on-blur add-on-paste class="w-full" />
-              </UFormField>
-              <UFormField :label="`Meeting point (${translationLocale})`">
-                <UTextarea v-model="translationFields.meeting_point" :rows="3" class="w-full" />
-              </UFormField>
-              <UFormField :label="`Cancellation policy (${translationLocale})`">
-                <UTextarea v-model="translationFields.cancellation_policy" :rows="3" class="w-full" />
-              </UFormField>
-              <UFormField :label="`SEO title (${translationLocale})`">
-                <UInput v-model="translationFields.seo_title" class="w-full" />
-              </UFormField>
-              <UFormField :label="`SEO description (${translationLocale})`">
-                <UTextarea v-model="translationFields.seo_description" :rows="2" class="w-full" />
-              </UFormField>
-              <p v-if="translationError" class="text-sm text-error">{{ translationError }}</p>
-            </template>
           </div>
 
         </template>
@@ -376,7 +361,6 @@ const sectionLabels: Record<string, string> = {
   discounts: 'Discounts',
   included: "What's included",
   policies: 'Policies',
-  translations: 'Translations',
 }
 const validSectionKeys = new Set(Object.keys(sectionLabels))
 
@@ -396,7 +380,13 @@ if (routeSegments.value.length > 1 || (detailKey.value && !validSectionKeys.has(
 
 // Photos commit as you act, so there is no pending draft for a footer to save.
 const showActions = computed(() => hasDetail.value && editorKey.value !== 'photos')
-const saveDisabled = computed(() => editorKey.value === 'details' && !editor.form.title.trim())
+const translatableSectionKeys = new Set(['details', 'location', 'pricing', 'included', 'policies'])
+const isSecondaryLanguage = computed(() => Boolean(translationLocale.value && sourceLocale.value && translationLocale.value !== sourceLocale.value))
+const editingTranslation = computed(() => Boolean(
+  isSecondaryLanguage.value
+  && translatableSectionKeys.has(editorKey.value),
+))
+const saveDisabled = computed(() => !editingTranslation.value && editorKey.value === 'details' && !editor.form.title.trim())
 const saving = computed(() => editor.saving.value || translationSaving.value)
 
 // ── Load ────────────────────────────────────────────────
@@ -447,6 +437,23 @@ const policySummary = computed(() => {
   if (preset) return preset.label
   return editor.bookingPolicyId.value ? 'Custom' : 'Using the location default'
 })
+
+function translationSummary(value: string): string {
+  const text = value.trim()
+  return text ? text : 'Not translated'
+}
+function sourceSummary(value: string, empty: string): string {
+  const text = value.trim()
+  return text ? text : empty
+}
+const experienceTitle = computed(() => translationLocale.value === sourceLocale.value
+  ? sourceSummary(editor.form.title, 'Experience')
+  : translationSummary(translationFields.title))
+const detailsSummary = computed(() => isSecondaryLanguage.value ? translationSummary(translationFields.title) : sourceSummary(editor.form.title, 'Not set'))
+const meetingPointSummary = computed(() => isSecondaryLanguage.value ? translationSummary(translationFields.meeting_point) : sourceSummary(editor.form.meeting_point, 'No meeting point set'))
+const includedSummary = computed(() => isSecondaryLanguage.value ? listSummary(translationFields.included_items, 'Not translated') : listSummary(editor.form.included_items, 'Nothing listed yet'))
+const pricingSummary = computed(() => isSecondaryLanguage.value && editor.form.price_major === null ? translationSummary(translationFields.pricing_note) : priceSummary.value)
+const localizedPolicySummary = computed(() => isSecondaryLanguage.value ? translationSummary(translationFields.cancellation_policy) : policySummary.value)
 
 function selectPreset(preset: BookingPolicyPreset) {
   editor.bookingPolicyDraft.value = {
@@ -559,11 +566,11 @@ const navigationGroups = computed<EditorNavigationGroup[]>(() => [
     id: 'content',
     label: 'Content',
     items: [
-      { id: 'details', label: 'Details', summary: editor.form.tagline || editor.form.title, icon: 'i-lucide-align-left', to: `${experiencePath.value}/details` },
+      { id: 'details', label: 'Details', summary: detailsSummary.value, icon: 'i-lucide-align-left', to: `${experiencePath.value}/details` },
       { id: 'photos', label: 'Photos', summary: editor.form.media.length ? `${editor.form.media.length} photos` : 'No photos yet', icon: 'i-lucide-images', to: `${experiencePath.value}/photos` },
-      { id: 'location', label: 'Location', summary: editor.form.meeting_point || 'No meeting point set', icon: 'i-lucide-map-pin', to: `${experiencePath.value}/location` },
+      { id: 'location', label: 'Location', summary: meetingPointSummary.value, icon: 'i-lucide-map-pin', to: `${experiencePath.value}/location` },
       { id: 'itinerary', label: 'Itinerary', summary: itinerarySummary.value, icon: 'i-lucide-clock-3', to: `${experiencePath.value}/itinerary` },
-      { id: 'included', label: "What's included", summary: listSummary(editor.form.included_items, 'Nothing listed yet'), icon: 'i-lucide-list-checks', to: `${experiencePath.value}/included` },
+      { id: 'included', label: "What's included", summary: includedSummary.value, icon: 'i-lucide-list-checks', to: `${experiencePath.value}/included` },
     ],
   },
   {
@@ -571,26 +578,19 @@ const navigationGroups = computed<EditorNavigationGroup[]>(() => [
     label: 'Booking',
     items: [
       { id: 'guests', label: 'Guests', summary: guestsSummary.value, icon: 'i-lucide-users', to: `${experiencePath.value}/guests` },
-      { id: 'pricing', label: 'Pricing', summary: priceSummary.value, icon: 'i-lucide-tag', to: `${experiencePath.value}/pricing` },
+      { id: 'pricing', label: 'Pricing', summary: pricingSummary.value, icon: 'i-lucide-tag', to: `${experiencePath.value}/pricing` },
       { id: 'discounts', label: 'Discounts', summary: discountSummary.value, icon: 'i-lucide-percent', to: `${experiencePath.value}/discounts` },
-      { id: 'policies', label: 'Policies', summary: policySummary.value, icon: 'i-lucide-shield-check', to: `${experiencePath.value}/policies` },
+      { id: 'policies', label: 'Policies', summary: localizedPolicySummary.value, icon: 'i-lucide-shield-check', to: `${experiencePath.value}/policies` },
       // Closing a time on a date is calendar work, not configuration, so this
       // row leaves the editor rather than duplicating the calendar inside it.
       { id: 'calendar', label: 'Dates and availability', summary: 'Close times or change capacity on the calendar', icon: 'i-lucide-calendar-days', to: calendarPath.value },
-    ],
-  },
-  {
-    id: 'manage',
-    label: 'Manage',
-    items: [
-      { id: 'translations', label: 'Translations', summary: translationLocales.value.length ? `${translationLocales.value.length} languages` : 'No other languages', icon: 'i-lucide-languages', to: `${experiencePath.value}/translations` },
     ],
   },
 ])
 
 // ── Save / cancel ───────────────────────────────────────
 async function saveCurrentEditor() {
-  if (editorKey.value === 'translations') {
+  if (editingTranslation.value) {
     await saveTranslation()
     return
   }
@@ -656,47 +656,36 @@ function copyRecurring(mode: 'all' | 'weekdays' | 'weekend') {
 }
 
 // ── Translations ────────────────────────────────────────
-const translationLocale = ref('en')
-const translationLocales = ref<string[]>([])
-const localeItems = computed(() => ['en', ...translationLocales.value])
+const contentLanguage = useDashboardContentLanguage()
+await contentLanguage.load(siteId)
+const translationLocale = contentLanguage.locale
+const sourceLocale = contentLanguage.sourceLocale
 const translationFields = reactive({
-  title: '', tagline: '', body: '', price: '',
+  title: '', tagline: '', body: '', pricing_note: '',
   included_items: [] as string[], what_to_bring: [] as string[],
-  meeting_point: '', cancellation_policy: '', seo_title: '', seo_description: '',
+  meeting_point: '', cancellation_policy: '',
 })
 const translationError = ref<string | null>(null)
 const translationSaving = ref(false)
 
-const isLocalesResponse = (value: unknown): value is { languages: Array<{ locale: string; locale_status: string; is_source: boolean | number }> } =>
-  isRecord(value) && Array.isArray(value.languages)
 const isTranslationResponse = (value: unknown): value is { localization: { values: Record<string, unknown> } } =>
   isRecord(value) && isRecord(value.localization) && isRecord(value.localization.values)
 
-async function loadTranslationLocales() {
-  try {
-    const response = await dashboardApi(`/api/editor/sites/${siteId}/locales`, { validate: isLocalesResponse })
-    translationLocales.value = response.languages
-      .filter(item => item.locale_status === 'published' && !item.is_source)
-      .map(item => item.locale)
-  } catch (cause) {
-    translationLocales.value = []
-    translationError.value = getErrorMessage(cause, 'Failed to load site languages')
-  }
-}
-
 function resetTranslationFields() {
   Object.assign(translationFields, {
-    title: '', tagline: '', body: '', price: '',
+    title: '', tagline: '', body: '', pricing_note: '',
     included_items: [], what_to_bring: [],
-    meeting_point: '', cancellation_policy: '', seo_title: '', seo_description: '',
+    meeting_point: '', cancellation_policy: '',
   })
 }
 
 async function loadTranslationFields() {
   translationError.value = null
+  const locale = translationLocale.value
+  if (!locale || locale === sourceLocale.value) return
   try {
     const response = await dashboardApi(
-      `/api/editor/sites/${siteId}/localization/experience/${experienceId.value}/${encodeURIComponent(translationLocale.value)}`,
+      `/api/editor/sites/${siteId}/localization/experience/${experienceId.value}/${encodeURIComponent(locale)}`,
       { validate: isTranslationResponse },
     )
     const values = response.localization.values
@@ -706,13 +695,11 @@ async function loadTranslationFields() {
       title: text('title'),
       tagline: text('tagline'),
       body: text('body'),
-      price: text('price'),
+      pricing_note: text('pricing_note'),
       included_items: list('included_items_json'),
       what_to_bring: list('what_to_bring'),
       meeting_point: text('meeting_point'),
       cancellation_policy: text('cancellation_policy'),
-      seo_title: text('seo_title'),
-      seo_description: text('seo_description'),
     })
   } catch (cause) {
     const statusCode = isRecord(cause) && typeof cause.statusCode === 'number' ? cause.statusCode : null
@@ -722,15 +709,15 @@ async function loadTranslationFields() {
 }
 
 watch(translationLocale, () => {
-  if (translationLocale.value === 'en') {
+  if (!translationLocale.value || translationLocale.value === sourceLocale.value) {
     resetTranslationFields()
     return
   }
   void loadTranslationFields()
-})
+}, { immediate: true })
 
 async function saveTranslation() {
-  if (translationLocale.value === 'en') return
+  if (!translationLocale.value || translationLocale.value === sourceLocale.value) return
   if (!experienceSlug.value) {
     translationError.value = 'This experience has no slug yet, so its translated page has no address. Save it once in English first.'
     return
@@ -739,7 +726,7 @@ async function saveTranslation() {
   translationError.value = null
   try {
     const values: Record<string, unknown> = {}
-    for (const field of ['title', 'tagline', 'body', 'price', 'meeting_point', 'cancellation_policy', 'seo_title', 'seo_description'] as const) {
+    for (const field of ['title', 'tagline', 'body', 'pricing_note', 'meeting_point', 'cancellation_policy'] as const) {
       if (translationFields[field].trim()) values[field] = translationFields[field].trim()
     }
     if (translationFields.included_items.length) values.included_items_json = translationFields.included_items
@@ -757,8 +744,6 @@ async function saveTranslation() {
     translationSaving.value = false
   }
 }
-
-void loadTranslationLocales()
 
 // A save rewrites the record the hub summaries and the slug read from.
 watch(() => editor.saving.value, (isSaving, wasSaving) => {

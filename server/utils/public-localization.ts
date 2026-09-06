@@ -34,7 +34,7 @@ export async function loadExactPublicLocalizations(
   locale: string,
 ): Promise<ExactPublicLocalization[]> {
   const entitlement = await assertPublicSiteLanguageEntitlement(db, organizationId, siteId, locale)
-  if (entitlement.source) throw new HTTPError({ statusCode: 404, statusMessage: 'English source routes are unprefixed' })
+  if (entitlement.source) throw new HTTPError({ statusCode: 404, statusMessage: 'Primary-language routes are unprefixed' })
   const rows = await queryAll<StoredPublicLocalizationRow>(db, `
     SELECT resource_type, resource_id, locale, values_json, route_path, document_id
       FROM resource_localizations
@@ -105,6 +105,29 @@ export function projectExactLocalizedResource<T extends { id: string }>(
     fieldNames[field] ?? field,
     value,
   ]))
+  const titleField: Partial<Record<LocalizedResourceType, string>> = {
+    site: 'brand_name',
+    business_location: 'title',
+    product: 'name',
+    experience: 'title',
+    offering: 'name',
+    site_post: 'title',
+    tenant_blog_post: 'title',
+    site_link_page: 'title',
+  }
+  const descriptionField: Partial<Record<LocalizedResourceType, string>> = {
+    site: 'brand_description',
+    business_location: 'description',
+    product: 'description',
+    experience: 'body',
+    offering: 'summary',
+    site_post: 'body',
+    tenant_blog_post: 'excerpt',
+  }
+  const localizedTitle = titleField[resourceType] ? localization.values[titleField[resourceType]] : undefined
+  const localizedDescription = descriptionField[resourceType] ? localization.values[descriptionField[resourceType]] : undefined
+  if ('seo_title' in canonical) projectedValues.seo_title = typeof localizedTitle === 'string' ? localizedTitle : undefined
+  if ('seo_description' in canonical) projectedValues.seo_description = typeof localizedDescription === 'string' ? localizedDescription : undefined
   if (resourceType === 'site_post' && typeof localization.values.body === 'string') {
     projectedValues.body = localization.values.body
     projectedValues.summary = localization.values.body

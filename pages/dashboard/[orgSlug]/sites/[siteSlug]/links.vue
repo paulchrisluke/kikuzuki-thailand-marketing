@@ -6,7 +6,7 @@
     <div class="flex items-center gap-2">
       <UButton color="neutral" variant="ghost" icon="i-lucide-copy" :disabled="!publicLinksUrl" @click="copyPublicUrl">Copy URL</UButton>
       <UButton color="neutral" variant="soft" icon="i-lucide-external-link" :to="publicLinksUrl || undefined" target="_blank" :disabled="!publicLinksUrl">Open</UButton>
-      <UButton icon="i-lucide-save" :loading="saving" :disabled="!dirty" @click="save">Save</UButton>
+      <UButton v-if="isPrimaryLanguage" icon="i-lucide-save" :loading="saving" :disabled="!dirty" @click="save">Save</UButton>
     </div>
     </div>
 
@@ -20,7 +20,7 @@
         :description="errorMessage"
       />
 
-      <UCard>
+      <UCard v-if="isPrimaryLanguage">
         <template #header>
           <div>
             <div>
@@ -50,42 +50,31 @@
         </div>
       </UCard>
 
-      <UCard v-if="translationLocales.length || translationLocaleError">
+      <UCard v-else-if="translationLocale">
         <template #header>
-          <div class="flex items-center justify-between gap-4">
-            <h2 class="text-base font-semibold text-highlighted">Translations</h2>
-            <select v-model="translationLocale" data-testid="links-translation-locale" aria-label="Field language" class="rounded-lg border border-default bg-default px-2 py-1 text-sm">
-              <option v-for="option in translationLocales" :key="option" :value="option">{{ option }}</option>
-            </select>
-          </div>
+          <h2 class="text-base font-semibold text-highlighted">Page details</h2>
         </template>
-        <div class="grid gap-4 md:grid-cols-2">
-          <UFormField :label="`Title (${translationLocale})`">
+        <div>
+          <UFormField label="Title">
             <UInput v-model="translationFields.title" data-testid="links-translation-title" />
           </UFormField>
-          <UFormField :label="`SEO title (${translationLocale})`">
-            <UInput v-model="translationFields.seo_title" data-testid="links-translation-seo-title" />
-          </UFormField>
-          <UFormField class="md:col-span-2" :label="`SEO description (${translationLocale})`">
-            <UInput v-model="translationFields.seo_description" data-testid="links-translation-seo-description" />
-          </UFormField>
         </div>
-        <p v-if="translationLocaleError || translationError" class="mt-2 text-sm text-error">{{ translationLocaleError || translationError }}</p>
-        <UButton data-testid="links-save-page-translation" class="mt-3" size="sm" :loading="translationSaving" :disabled="translationUnavailable || !translationLocale" @click="saveTranslation">Save translation</UButton>
+        <p v-if="translationError" class="mt-2 text-sm text-error">{{ translationError }}</p>
+        <UButton data-testid="links-save-page-translation" class="mt-3" size="sm" :loading="translationSaving" :disabled="translationUnavailable || !translationLocale" @click="saveTranslation">Save</UButton>
 
         <div v-if="items.length" class="mt-6 space-y-4 border-t border-default pt-4">
           <div v-for="item in items" :key="item.id" :data-testid="`links-item-translation-${item.id}`">
-            <p class="text-sm text-muted">{{ item.label || 'Untitled link' }}</p>
-            <UFormField :label="`Label (${translationLocale})`" class="mt-2">
+            <p class="text-sm text-muted">Source: {{ sourceLabel(item.label, 'Untitled link') }}</p>
+            <UFormField label="Label" class="mt-2">
               <UInput v-model="itemTranslationLabels[item.id]" data-testid="links-item-translation-label" />
             </UFormField>
-            <UButton data-testid="links-save-item-translation" class="mt-3" size="sm" variant="soft" :loading="itemTranslationSavingId === item.id" :disabled="translationUnavailable" @click="saveItemTranslation(item)">Save translation</UButton>
+            <UButton data-testid="links-save-item-translation" class="mt-3" size="sm" variant="soft" :loading="itemTranslationSavingId === item.id" :disabled="translationUnavailable" @click="saveItemTranslation(item)">Save</UButton>
           </div>
           <p v-if="itemTranslationError" class="text-sm text-error">{{ itemTranslationError }}</p>
         </div>
       </UCard>
 
-      <DashboardListEditor
+      <DashboardListEditor v-if="isPrimaryLanguage"
         v-model:editing="editing"
         title="Links"
         description="Add, hide, and reorder the buttons shown on /links."
@@ -135,7 +124,7 @@
         </div>
         <div class="px-4 py-6">
           <div class="mx-auto max-w-xs text-center">
-            <h3 class="mt-4 truncate text-xl font-semibold text-highlighted">{{ form.title || 'Links' }}</h3>
+            <h3 class="mt-4 truncate text-xl font-semibold text-highlighted">{{ previewTitle }}</h3>
             <div class="mt-5 space-y-2 text-left">
               <div
                 v-for="item in activePreviewItems"
@@ -313,10 +302,24 @@ watch(data, (value) => {
 
 const dirty = computed(() => savedSnapshot.value !== serializeState())
 const editorReady = computed(() => mounted.value && !pending.value)
-const activePreviewItems = computed(() => items.value.filter(item => item.status === 'active'))
+const activePreviewItems = computed(() => items.value
+  .filter(item => item.status === 'active')
+  .map(item => ({
+    ...item,
+    label: isPrimaryLanguage.value ? item.label : (itemTranslationLabels[item.id]?.trim() ? itemTranslationLabels[item.id]!.trim() : 'Not translated'),
+  })))
+function sourceLabel(value: string, empty: string): string {
+  const text = value.trim()
+  return text ? text : empty
+}
+const previewTitle = computed(() => isPrimaryLanguage.value
+  ? sourceLabel(form.title, 'Links')
+  : (translationFields.title.trim() ? translationFields.title.trim() : 'Not translated'))
 const publicLinksUrl = computed(() => {
   const base = dashboard.site.value?.public_url || ''
-  return base ? `${base.replace(/\/+$/, '')}/links` : ''
+  if (!base) return ''
+  const root = base.replace(/\/+$/, '')
+  return isPrimaryLanguage.value ? `${root}/links` : `${root}/${translationLocale.value}/links`
 })
 
 function serializeState() {
@@ -407,42 +410,26 @@ onBeforeRouteLeave(() => {
 })
 
 // ── Translations (resource_localizations, same API as the editor CRUD) ──
-const translationLocale = ref('')
-const translationLocales = ref<string[]>([])
-const translationLocaleError = ref<string | null>(null)
-const translationFields = reactive({ title: '', seo_title: '', seo_description: '' })
+const contentLanguage = useDashboardContentLanguage()
+await contentLanguage.load(siteId)
+const translationLocale = contentLanguage.locale
+const sourceLocale = contentLanguage.sourceLocale
+const isPrimaryLanguage = computed(() => translationLocale.value === sourceLocale.value)
+const translationFields = reactive({ title: '' })
 const translationError = ref<string | null>(null)
 const translationSaving = ref(false)
 const itemTranslationLabels = reactive<Record<string, string>>({})
 const itemTranslationError = ref<string | null>(null)
 const itemTranslationSavingId = ref<string | null>(null)
-const translationUnavailable = computed(() => Boolean(translationLocaleError.value || translationError.value || itemTranslationError.value))
+const translationUnavailable = computed(() => Boolean(translationError.value || itemTranslationError.value))
 
-function isLocalesResponse(value: unknown): value is { languages: Array<{ locale: string; locale_status: string; is_source: boolean | number }> } {
-  return isRecord(value) && Array.isArray(value.languages)
-}
-async function loadTranslationLocales() {
-  translationLocaleError.value = null
-  try {
-    const response = await dashboardApi<{ languages: Array<{ locale: string; locale_status: string; is_source: boolean | number }> }>(
-      `/api/editor/sites/${siteId}/locales`,
-      { validate: isLocalesResponse },
-    )
-    translationLocales.value = response.languages.filter(item => item.locale_status === 'published' && !item.is_source).map(item => item.locale)
-    translationLocale.value = translationLocales.value[0] ?? ''
-  } catch (cause) {
-    translationLocales.value = []
-    translationLocale.value = ''
-    translationLocaleError.value = cause instanceof Error ? cause.message : 'Failed to load site languages'
-  }
-}
 function isTranslationResponse(value: unknown): value is { localization: { values: Record<string, unknown> } } {
   return isRecord(value) && isRecord(value.localization) && isRecord(value.localization.values)
 }
 async function loadTranslationFields() {
   translationError.value = null
-  translationFields.title = ''; translationFields.seo_title = ''; translationFields.seo_description = ''
-  if (!form.id || !translationLocale.value) return
+  translationFields.title = ''
+  if (!form.id || !translationLocale.value || isPrimaryLanguage.value) return
   try {
     const response = await dashboardApi<{ localization: { values: Record<string, unknown> } }>(
       `/api/editor/sites/${siteId}/localization/site_link_page/${form.id}/${encodeURIComponent(translationLocale.value)}`,
@@ -450,8 +437,6 @@ async function loadTranslationFields() {
     )
     const values = response.localization.values
     translationFields.title = typeof values.title === 'string' ? values.title : ''
-    translationFields.seo_title = typeof values.seo_title === 'string' ? values.seo_title : ''
-    translationFields.seo_description = typeof values.seo_description === 'string' ? values.seo_description : ''
   } catch (cause) {
     const statusCode = isRecord(cause) && typeof cause.statusCode === 'number' ? cause.statusCode : null
     if (statusCode !== 404) translationError.value = cause instanceof Error ? cause.message : 'Failed to load translation'
@@ -460,7 +445,7 @@ async function loadTranslationFields() {
 async function loadItemTranslations() {
   itemTranslationError.value = null
   for (const key of Object.keys(itemTranslationLabels)) itemTranslationLabels[key] = ''
-  if (!translationLocale.value) return
+  if (!translationLocale.value || isPrimaryLanguage.value) return
   for (const item of items.value) {
     itemTranslationLabels[item.id] = ''
     try {
@@ -479,14 +464,12 @@ async function loadItemTranslations() {
     }
   }
 }
-watch(translationLocale, () => { void loadTranslationFields(); void loadItemTranslations() })
+watch(translationLocale, () => { void loadTranslationFields(); void loadItemTranslations() }, { immediate: true })
 watch(() => form.id, () => {
   if (!form.id) return
-  void loadTranslationLocales().then(() => {
-    if (!translationLocale.value) return
-    void loadTranslationFields()
-    void loadItemTranslations()
-  })
+  if (!translationLocale.value || isPrimaryLanguage.value) return
+  void loadTranslationFields()
+  void loadItemTranslations()
 })
 watch(() => items.value.map(item => item.id).join(','), () => { if (translationLocale.value) void loadItemTranslations() })
 
@@ -497,8 +480,6 @@ async function saveTranslation() {
   try {
     const values: Record<string, string> = {}
     if (translationFields.title.trim()) values.title = translationFields.title.trim()
-    if (translationFields.seo_title.trim()) values.seo_title = translationFields.seo_title.trim()
-    if (translationFields.seo_description.trim()) values.seo_description = translationFields.seo_description.trim()
     await dashboardApi(`/api/editor/sites/${siteId}/localization/site_link_page/${form.id}/${encodeURIComponent(translationLocale.value)}`, {
       method: 'PUT',
       body: { values, route_path: `/${translationLocale.value}/links` },

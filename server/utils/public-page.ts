@@ -683,10 +683,14 @@ async function loadPublicPageSource(
       seo_description: _sourceSeoDescription,
       ...config
     } = sourceShell.config
-    if (localizedSite.brand_name) config.brand_name = localizedSite.brand_name
-    if (localizedSite.brand_description) config.brand_description = localizedSite.brand_description
-    if (localizedSite.seo_title) config.seo_title = localizedSite.seo_title
-    if (localizedSite.seo_description) config.seo_description = localizedSite.seo_description
+    if (localizedSite.brand_name) {
+      config.brand_name = localizedSite.brand_name
+      config.seo_title = localizedSite.brand_name
+    }
+    if (localizedSite.brand_description) {
+      config.brand_description = localizedSite.brand_description
+      config.seo_description = localizedSite.brand_description
+    }
     return {
       ...sourceShell,
       site: {
@@ -1077,11 +1081,6 @@ async function loadPublicPageSource(
     ? projectExactLocalizedCollection('location_qa', sourceQaList, publicLocalizations)
     : sourceQaList
 
-  const sourceLocaleRepresentation = shell.locales.find(item => item.code === 'en')
-  if (!sourceLocaleRepresentation?.label) {
-    throw new HTTPError({ statusCode: 500, statusMessage: 'Site source locale label is missing' })
-  }
-  const sourceLabel = sourceLocaleRepresentation.label
   const sourceLocationRow = locationId
     ? (locRows.results ?? []).find(row => row.id === locationId)
     : null
@@ -1106,7 +1105,6 @@ async function loadPublicPageSource(
         organizationId: orgId,
         siteId,
         sourcePath: representationSourcePath,
-        sourceLabel,
         resource: representationResource,
         publishedLocaleRoute: !representationResource && Boolean(routePagePath),
       })

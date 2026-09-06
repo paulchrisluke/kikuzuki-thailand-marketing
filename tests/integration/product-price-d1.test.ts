@@ -4,7 +4,7 @@ import test from 'node:test'
 import { Miniflare } from 'miniflare'
 
 import type { CloudflareEnv } from '../../server/utils/auth.ts'
-import { englishManifestHash, getProductCatalogLocalization } from '../../server/utils/localization.ts'
+import { getProductCatalogLocalization } from '../../server/utils/localization.ts'
 import {
   createProduct,
   createProductsBatch,
@@ -355,9 +355,12 @@ test('Product catalog localization reads category records from the current schem
     await seedProduct(db, 'localized-product')
     await db.prepare("INSERT INTO organization_billing (organization_id, access_plan) VALUES ('org', 'growth')").run()
     await db.prepare("INSERT INTO site_locales (id, organization_id, site_id, locale, is_source, status) VALUES ('en', 'org', 'site', 'en', 1, 'published'), ('th', 'org', 'site', 'th', 0, 'published')").run()
-    await db.prepare("INSERT INTO platform_locale_catalogs (locale, label, direction, status, source_manifest_hash, created_by_user_id, updated_by_user_id) VALUES ('th', 'Thai', 'ltr', 'available', ?, 'actor', 'actor')").bind(await englishManifestHash()).run()
     await db.prepare("INSERT INTO site_language_licenses (id, organization_id, site_id, locale, status) VALUES ('license', 'org', 'site', 'th', 'active')").run()
     const catalog = await getProductCatalogLocalization(db, 'org', 'site', 'th')
+    assert.deepEqual(catalog.categories, [
+      { id: 'cat-primary', location_id: 'primary', source: { name: 'Food' }, localization: null },
+      { id: 'cat-secondary', location_id: 'secondary', source: { name: 'Food' }, localization: null },
+    ])
     assert.deepEqual(catalog.products, [{
       id: 'localized-product', location_id: 'secondary', category_id: 'cat-secondary',
       category: { id: 'cat-secondary', name: 'Food', slug: 'food', sort_order: 0 },

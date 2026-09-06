@@ -32,6 +32,7 @@
     </nav>
 
     <div class="flex items-center justify-end gap-3">
+      <DashboardContentLanguageSelect />
       <DashboardAccountMenu />
       <UButton
         color="neutral"
@@ -48,6 +49,7 @@
 
 <script setup lang="ts">
 import DashboardAccountMenu from './DashboardAccountMenu.vue'
+import DashboardContentLanguageSelect from './DashboardContentLanguageSelect.vue'
 
 export interface DashboardTopNavItem {
   key: string

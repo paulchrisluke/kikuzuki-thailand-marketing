@@ -10,7 +10,9 @@
     empty-title="No Q&A yet"
     empty-icon="i-lucide-circle-help"
     add-label="Add a question"
-    reorderable
+    :addable="translationLocale === sourceLocale"
+    :removable="translationLocale === sourceLocale"
+    :reorderable="translationLocale === sourceLocale"
     :removing-id="removingId"
     @add="openNew"
     @open="openExisting"
@@ -22,29 +24,26 @@
         <UBadge :color="item.row.status === 'published' ? 'success' : 'neutral'" variant="soft">{{ item.row.status }}</UBadge>
         <span class="text-xs text-muted">{{ item.row.upvote_count }} upvotes</span>
       </div>
-      <p class="mt-2 text-sm font-semibold text-highlighted">{{ item.row.question }}</p>
-      <p class="mt-1 line-clamp-2 text-sm text-muted" :class="item.row.answer ? '' : 'italic'">{{ item.row.answer || 'No answer yet.' }}</p>
+      <p class="mt-2 text-sm font-semibold text-highlighted">
+        {{ translationLocale === sourceLocale ? item.row.question : `Source: ${item.row.question}` }}
+      </p>
+      <p class="mt-1 line-clamp-2 text-sm text-muted" :class="item.row.answer ? '' : 'italic'">
+        {{ translationLocale === sourceLocale ? (item.row.answer || 'No answer yet.') : 'Open to translate' }}
+      </p>
     </template>
   </DashboardListEditor>
 
   <DashboardListItemDialog
     v-model:open="dialogOpen"
     :title="editingId ? 'Edit question' : 'Add a question'"
-    :removable="Boolean(editingId)"
-    :saving="translationLocale === 'en' ? saving : translationSaving"
+    :removable="Boolean(editingId) && translationLocale === sourceLocale"
+    :saving="translationLocale === sourceLocale ? saving : translationSaving"
     :removing="removingId === editingId"
-    :save-disabled="!locationId || (translationLocale === 'en' ? !form.question.trim() : translationSaving)"
-    @save="translationLocale === 'en' ? saveQa() : saveTranslation()"
+    :save-disabled="!locationId || (translationLocale === sourceLocale ? !form.question.trim() : translationSaving)"
+    @save="translationLocale === sourceLocale ? saveQa() : saveTranslation()"
     @remove="removeEditing"
   >
-    <UFormField v-if="editingId && translationLocales.length" label="Language">
-      <select v-model="translationLocale" aria-label="Field language" class="rounded-lg border border-default bg-default px-2 py-1 text-sm">
-        <option value="en">en</option>
-        <option v-for="option in translationLocales" :key="option" :value="option">{{ option }}</option>
-      </select>
-    </UFormField>
-
-    <template v-if="translationLocale === 'en'">
+    <template v-if="translationLocale === sourceLocale">
       <UFormField label="Question">
         <UTextarea v-model="form.question" :rows="3" placeholder="Do you accept walk-ins?" autofocus class="w-full" />
       </UFormField>
@@ -54,11 +53,11 @@
       <UCheckbox v-if="editingId" v-model="form.published" label="Published" />
     </template>
     <template v-else>
-      <p class="text-xs text-muted">Source (English): {{ form.question }}</p>
-      <UFormField :label="`Question (${translationLocale})`">
+      <p class="text-xs text-muted">Primary ({{ sourceLocale }}): {{ form.question }}</p>
+      <UFormField label="Question">
         <UTextarea v-model="translationFields.question" :rows="3" class="w-full" />
       </UFormField>
-      <UFormField :label="`Answer (${translationLocale})`">
+      <UFormField label="Answer">
         <UTextarea v-model="translationFields.answer" :rows="4" class="w-full" />
       </UFormField>
       <p v-if="translationError" class="text-sm text-error">{{ translationError }}</p>
@@ -86,6 +85,8 @@ interface QaRow {
 }
 
 const siteId = await useDashboardSiteId()
+const contentLanguage = useDashboardContentLanguage()
+await contentLanguage.load(siteId)
 const dashboardLocation = useDashboardLocation()
 const toast = useToast()
 const locationId = computed(() => dashboardLocation.currentLocationId.value)
@@ -97,16 +98,14 @@ const form = reactive({ question: '', answer: '', published: true })
 
 const listItems = computed(() => qaRows.value.map(row => ({ id: row.id, title: row.question, row })))
 
-const { editing, dialogOpen, editingId, removingId, openNew, openExisting, close, removeItem, removeEditing } = useListEditor<QaRow>({
+const { editing, dialogOpen, editingId, removingId, openNew: openPrimaryQuestion, openExisting, close, removeItem, removeEditing } = useListEditor<QaRow>({
   find: id => qaRows.value.find(row => row.id === id) ?? null,
   fill: (row) => {
-    translationLocale.value = 'en'
     form.question = row.question
     form.answer = row.answer ?? ''
     form.published = row.status === 'published'
   },
   clear: () => {
-    translationLocale.value = 'en'
     form.question = ''
     form.answer = ''
     form.published = true
@@ -128,6 +127,14 @@ const { editing, dialogOpen, editingId, removingId, openNew, openExisting, close
     }
   },
 })
+
+function openNew() {
+  if (translationLocale.value !== sourceLocale.value) {
+    toast.add({ description: `Switch to ${sourceLocale.value} to add a new question`, color: 'warning' })
+    return
+  }
+  openPrimaryQuestion()
+}
 const requestEvent = useRequestEvent()
 const {
   data: qaResource,
@@ -184,34 +191,21 @@ async function loadQa() {
 
 
 // ── Translations (resource_localizations, same API as the editor CRUD) ──
-const translationLocale = ref('en')
-const translationLocales = ref<string[]>([])
+const translationLocale = contentLanguage.locale
+const sourceLocale = contentLanguage.sourceLocale
 const translationFields = reactive({ question: '', answer: '' })
 const translationError = ref<string | null>(null)
 const translationSaving = ref(false)
-function isQaLocalesResponse(value: unknown): value is { languages: Array<{ locale: string; locale_status: string; is_source: boolean | number }> } {
-  return isRecord(value) && Array.isArray(value.languages)
-}
-async function loadTranslationLocales() {
-  try {
-    const response = await dashboardApi<{ languages: Array<{ locale: string; locale_status: string; is_source: boolean | number }> }>(
-      `/api/editor/sites/${siteId}/locales`,
-      { validate: isQaLocalesResponse },
-    )
-    translationLocales.value = response.languages.filter(item => item.locale_status === 'published' && !item.is_source).map(item => item.locale)
-  } catch (cause) {
-    translationLocales.value = []
-    translationError.value = cause instanceof Error ? cause.message : 'Failed to load site languages'
-  }
-}
 function isQaTranslationResponse(value: unknown): value is { localization: { values: Record<string, unknown> } } {
   return isRecord(value) && isRecord(value.localization) && isRecord(value.localization.values)
 }
 async function loadTranslationFields(qaId: string) {
   translationError.value = null
+  const locale = translationLocale.value
+  if (!locale || locale === sourceLocale.value) return
   try {
     const response = await dashboardApi<{ localization: { values: Record<string, unknown> } }>(
-      `/api/editor/sites/${siteId}/localization/location_qa/${qaId}/${encodeURIComponent(translationLocale.value)}`,
+      `/api/editor/sites/${siteId}/localization/location_qa/${qaId}/${encodeURIComponent(locale)}`,
       { validate: isQaTranslationResponse },
     )
     const values = response.localization.values
@@ -224,10 +218,13 @@ async function loadTranslationFields(qaId: string) {
   }
 }
 watch(translationLocale, () => {
-  if (editingId.value && translationLocale.value !== 'en') void loadTranslationFields(editingId.value)
+  if (editingId.value && translationLocale.value && translationLocale.value !== sourceLocale.value) void loadTranslationFields(editingId.value)
+})
+watch(editingId, (id) => {
+  if (id && translationLocale.value && translationLocale.value !== sourceLocale.value) void loadTranslationFields(id)
 })
 async function saveTranslation() {
-  if (!editingId.value || translationLocale.value === 'en') return
+  if (!editingId.value || !translationLocale.value || translationLocale.value === sourceLocale.value) return
   translationSaving.value = true; translationError.value = null
   try {
     const values: Record<string, string> = {}
@@ -245,8 +242,6 @@ async function saveTranslation() {
     translationSaving.value = false
   }
 }
-void loadTranslationLocales()
-
 
 async function saveQa() {
   if (!locationId.value) return

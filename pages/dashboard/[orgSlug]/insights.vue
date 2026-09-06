@@ -278,6 +278,30 @@
         </div>
 
         <div v-else class="space-y-6">
+          <div v-if="localization.length" class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            <UCard v-for="language in localization" :key="`${language.siteId}-${language.locale}`" variant="soft">
+              <template #header>
+                <div class="flex items-baseline justify-between gap-3">
+                  <div>
+                    <h2 class="font-semibold text-highlighted">{{ language.siteLabel }} · {{ language.locale }}</h2>
+                    <p class="mt-1 text-sm text-muted">Translation opportunities</p>
+                  </div>
+                  <span class="shrink-0 text-sm tabular-nums text-muted">{{ language.completed }}/{{ language.total }}</span>
+                </div>
+              </template>
+              <div class="divide-y divide-default">
+                <NuxtLink
+                  v-for="item in language.opportunities"
+                  :key="item.id"
+                  :to="`/dashboard/${encodeURIComponent(String(route.params.orgSlug))}/sites/${encodeURIComponent(language.siteSlug)}/${item.path}`"
+                  class="flex items-center justify-between gap-3 py-2 first:pt-0 last:pb-0"
+                >
+                  <span class="text-sm font-medium text-highlighted">{{ item.label }}</span>
+                  <span class="flex items-center gap-1 text-xs text-muted">{{ item.total - item.completed }} left <UIcon name="i-lucide-chevron-right" class="size-3.5" /></span>
+                </NuxtLink>
+              </div>
+            </UCard>
+          </div>
           <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             <UCard v-for="site in setup" :key="site.siteId" variant="soft">
               <template #header>
@@ -358,12 +382,22 @@ interface InsightsSetup {
   total: number
   items: Array<{ id: string; label: string; done: boolean }>
 }
+interface InsightsLocalization {
+  siteId: string
+  siteLabel: string
+  siteSlug: string
+  locale: string
+  completed: number
+  total: number
+  opportunities: Array<{ id: string; label: string; completed: number; total: number; path: string }>
+}
 interface InsightsResponse {
   sites: InsightsSite[]
   siteId: string | null
   report: AnalyticsResponse
   reviews: InsightsReviews
   setup: InsightsSetup[]
+  localization: InsightsLocalization[]
 }
 
 type InsightsTab = 'views' | 'reviews' | 'opportunities'
@@ -381,6 +415,7 @@ const tabItems = [
 const sites = ref<InsightsSite[]>([])
 const reviews = ref<InsightsResponse['reviews']>({ total: 0, average: null, distribution: [], recent: [] })
 const setup = ref<InsightsResponse['setup']>([])
+const localization = ref<InsightsResponse['localization']>([])
 // Deep-linked from a site's own overview; null means every site in the org.
 const selectedSiteId = ref<string | null>(typeof route.query.siteId === 'string' && route.query.siteId ? route.query.siteId : null)
 
@@ -447,6 +482,8 @@ const isInsightsResponse = (value: unknown): value is InsightsResponse =>
   && Array.isArray(value.reviews.recent)
   && Array.isArray(value.setup)
   && value.setup.every(entry => isRecord(entry) && typeof entry.siteId === 'string' && Array.isArray(entry.items))
+  && Array.isArray(value.localization)
+  && value.localization.every(entry => isRecord(entry) && typeof entry.siteId === 'string' && typeof entry.locale === 'string' && Array.isArray(entry.opportunities))
 
 const initialRange = { ...range }
 let latestManualRequestId = 0
@@ -479,6 +516,7 @@ watch([insightsResource, analyticsPending, analyticsResourceError], ([resource, 
     analytics.value = resource.report
     reviews.value = resource.reviews
     setup.value = resource.setup
+    localization.value = resource.localization
     loadError.value = null
   }
 }, { immediate: true })
@@ -559,6 +597,7 @@ async function loadAnalytics() {
     analytics.value = response.report
     reviews.value = response.reviews
     setup.value = response.setup
+    localization.value = response.localization
   } catch (error) {
     if (requestId !== latestManualRequestId) return
     loadError.value = error instanceof Error ? error.message : 'Failed to load insights'

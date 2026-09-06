@@ -122,7 +122,6 @@ export async function loadPublicShellSource(
     const localizations = indexStoredPublicLocalizations(localizedRows)
     const siteLocalization = localizations.find(item => item.resourceType === 'site' && item.resourceId === siteId)
     payload.locations = projectExactLocalizedCollection('business_location', payload.locations, localizations)
-    const siteValues = siteLocalization?.values ?? {}
     const localizedSite = siteLocalization
       ? projectExactLocalizedResource('site', { ...payload.site, id: siteId }, siteLocalization)
       : { ...payload.site, id: siteId, brand_name: null, brand_description: null }
@@ -137,10 +136,14 @@ export async function loadPublicShellSource(
     } = payload.config
     payload.config = {
       ...nonLocalizedConfig,
-      ...(typeof siteValues.brand_name === 'string' ? { brand_name: siteValues.brand_name } : {}),
-      ...(typeof siteValues.brand_description === 'string' ? { brand_description: siteValues.brand_description } : {}),
-      ...(typeof siteValues.seo_title === 'string' ? { seo_title: siteValues.seo_title } : {}),
-      ...(typeof siteValues.seo_description === 'string' ? { seo_description: siteValues.seo_description } : {}),
+      ...(typeof localizedSite.brand_name === 'string' ? {
+        brand_name: localizedSite.brand_name,
+        seo_title: localizedSite.brand_name,
+      } : {}),
+      ...(typeof localizedSite.brand_description === 'string' ? {
+        brand_description: localizedSite.brand_description,
+        seo_description: localizedSite.brand_description,
+      } : {}),
     }
     payload.count = payload.locations.length
   }

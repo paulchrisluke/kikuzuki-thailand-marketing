@@ -236,12 +236,6 @@ export async function getPublicLinksPage(db: DbClient, siteId: string, locale = 
   const sourceItems = items.filter(item => item.status === 'active')
   if (!sourcePage || sourcePage.path !== '/links' || sourceItems.length === 0) return null
   const organizationId = String(site.organization_id)
-  const sourceLanguage = await queryFirst<{ label: string | null }>(db, `
-    SELECT label
-      FROM site_locales
-     WHERE site_id = ? AND is_source = 1
-     LIMIT 1
-  `, [siteId])
   const localizations = locale === 'en'
     ? []
     : await loadExactPublicLocalizations(db, organizationId, siteId, locale)
@@ -282,7 +276,6 @@ export async function getPublicLinksPage(db: DbClient, siteId: string, locale = 
       organizationId,
       siteId,
       sourcePath: '/links',
-      sourceLabel: sourceLanguage?.label || 'English',
       resource: { type: 'site_link_page', id: sourcePage.id },
     }),
   }

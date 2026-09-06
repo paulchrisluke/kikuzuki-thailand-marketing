@@ -1,6 +1,5 @@
 import { randomUUID } from 'node:crypto'
 import { expect, test, type APIRequestContext, type APIResponse, type BrowserContext, type Page } from '@playwright/test'
-import thaiPlatformMessages from '../../i18n/catalogs/th.json' with { type: 'json' }
 import { loginAs } from './helpers/auth'
 import { blawbyBaseURL, blawbyExtraHeaders, openTenantPage } from './helpers'
 import { testBaseUrl } from './test-env'
@@ -12,17 +11,6 @@ async function expectStatus(response: APIResponse, expected: number | readonly n
   const statuses = Array.isArray(expected) ? expected : [expected]
   const body = statuses.includes(response.status()) ? '' : await response.text()
   expect(statuses, body).toContain(response.status())
-}
-
-function includesLocaleCatalog(value: unknown, expectedLocale: string): boolean {
-  if (!value || typeof value !== 'object' || !('catalogs' in value)) return false
-  const catalogs = value.catalogs
-  return Array.isArray(catalogs) && catalogs.some((catalog) => (
-    catalog !== null
-    && typeof catalog === 'object'
-    && 'locale' in catalog
-    && catalog.locale === expectedLocale
-  ))
 }
 
 async function putLocalization(
@@ -95,7 +83,6 @@ async function expectThaiRepresentation(
 
 test.describe.serial('published Thai content saves through the CMS and renders without English fallback', () => {
   let baseURL: string
-  let admin: APIRequestContext
   let owner: APIRequestContext
   let links: { page: { id: string }; items: Array<{ id: string; label: string }> }
   let dashboardContext: BrowserContext
@@ -104,25 +91,10 @@ test.describe.serial('published Thai content saves through the CMS and renders w
   test.beforeAll(async ({ playwright }, testInfo) => {
     testInfo.setTimeout(120_000)
     baseURL = testBaseUrl()
-    admin = await playwright.request.newContext({ baseURL })
     owner = await playwright.request.newContext({ baseURL })
-    await loginAs(admin, baseURL, 'user-e2e-platform-admin')
     await loginAs(owner, baseURL, 'user-e2e-ncls-owner')
 
-    const catalogsResponse = await admin.get('/api/admin/localization')
-    await expectStatus(catalogsResponse, 200)
-    if (!includesLocaleCatalog(await catalogsResponse.json(), locale)) {
-      await expectStatus(await admin.post('/api/admin/localization', {
-        data: { locale, label: 'ไทย', direction: 'ltr' },
-      }), 200)
-    }
-    await expectStatus(await admin.post(`/api/admin/localization/${locale}/publish`, {
-      data: { messages: thaiPlatformMessages },
-    }), 200)
-
-    await expectStatus(await owner.post(`/api/editor/sites/${siteId}/locales/${locale}/enable`, {
-      data: { label: 'ไทย' },
-    }), 200)
+    await expectStatus(await owner.post(`/api/editor/sites/${siteId}/locales/${locale}/enable`), 200)
 
     const linksResponse = await owner.patch(`/api/editor/sites/${siteId}/links-page`, {
       data: {
@@ -218,7 +190,6 @@ test.describe.serial('published Thai content saves through the CMS and renders w
 
   test.afterAll(async () => {
     await dashboardContext?.close()
-    await admin.dispose()
     await owner.dispose()
   })
 
@@ -235,7 +206,11 @@ test.describe.serial('published Thai content saves through the CMS and renders w
       dashboardContext = await browser.newContext({ baseURL, storageState: await owner.storageState() })
       cms = await dashboardContext.newPage()
       await openTenantPage(cms, `${baseURL}/dashboard/north-carolina-legal-services/sites/ncls/links`, {})
-      await expect(cms.getByTestId('links-translation-locale')).toHaveValue(locale, { timeout: 30_000 })
+      const languageSelect = cms.locator('[aria-label="Site content language"]:visible')
+      await expect(languageSelect).toBeVisible({ timeout: 30_000 })
+      await languageSelect.click()
+      await cms.getByRole('option', { name: 'ไทย', exact: true }).click()
+      await expect(cms.getByTestId('links-translation-title')).toBeVisible({ timeout: 30_000 })
     })
 
     test('loads and saves one representative Thai link translation', async () => {
@@ -267,9 +242,7 @@ test.describe.serial('published Thai content saves through the CMS and renders w
     await expect(cms.locator('p.text-error')).toBeVisible()
     await expect(cms.getByTestId('links-translation-title')).toHaveValue(unsavedTitle)
 
-    await expectStatus(await owner.post(`/api/editor/sites/${siteId}/locales/${locale}/enable`, {
-      data: { label: 'ไทย' },
-    }), 200)
+    await expectStatus(await owner.post(`/api/editor/sites/${siteId}/locales/${locale}/enable`), 200)
   })
 
   async function verifyThaiLinksAndHome(page: Page) {

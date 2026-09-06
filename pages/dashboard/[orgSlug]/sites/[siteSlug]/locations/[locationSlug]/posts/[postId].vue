@@ -1,7 +1,7 @@
 <template>
   <UDashboardPanel id="location-post-detail">
     <template #header>
-      <UDashboardNavbar :title="editor.form.title || 'Post'" :toggle="false">
+      <UDashboardNavbar :title="postTitle" :toggle="false">
         <template #leading>
           <DashboardNavbarLeading :to="postsPath" label="Posts" />
         </template>
@@ -19,7 +19,7 @@
       />
 
       <div v-else class="space-y-4">
-        <PostEditor
+        <PostEditor v-if="isPrimaryLanguage"
           v-model:title="editor.form.title"
           v-model:body="editor.form.body"
           v-model:media="editor.form.media"
@@ -42,34 +42,22 @@
           @delete="onDelete"
         />
 
-        <div v-if="translationLocales.length" class="space-y-3 rounded-lg border border-default p-4">
-          <div class="flex items-center justify-between gap-4">
-            <h2 class="text-sm font-semibold">Translations</h2>
-            <USelect v-model="translationLocale" :items="localeItems" class="w-32" aria-label="Field language" />
-          </div>
-          <template v-if="translationLocale !== 'en'">
-            <p class="text-xs text-muted">Source (English): {{ editor.form.title }}</p>
-            <UFormField :label="`Title (${translationLocale})`">
+        <div v-else class="space-y-3 rounded-lg border border-default p-4">
+          <p class="text-xs text-muted">Primary ({{ sourceLocale }}): {{ editor.form.title }}</p>
+            <UFormField label="Title">
               <UInput v-model="translationFields.title" class="w-full" />
             </UFormField>
-            <UFormField :label="`Body (${translationLocale})`">
+            <UFormField label="Body">
               <UTextarea v-model="translationFields.body" :rows="5" class="w-full" />
             </UFormField>
-            <UFormField :label="`SEO title (${translationLocale})`">
-              <UInput v-model="translationFields.seo_title" class="w-full" />
-            </UFormField>
-            <UFormField :label="`SEO description (${translationLocale})`">
-              <UTextarea v-model="translationFields.seo_description" :rows="2" class="w-full" />
-            </UFormField>
-            <UFormField :label="`Event title (${translationLocale})`">
+            <UFormField label="Event title">
               <UInput v-model="translationFields.event_title" class="w-full" />
             </UFormField>
-            <UFormField :label="`Offer terms (${translationLocale})`">
+            <UFormField label="Offer terms">
               <UTextarea v-model="translationFields.offer_terms" :rows="2" class="w-full" />
             </UFormField>
-            <p v-if="translationError" class="text-sm text-error">{{ translationError }}</p>
-            <UButton :loading="translationSaving" label="Save translation" @click="saveTranslation" />
-          </template>
+          <p v-if="translationError" class="text-sm text-error">{{ translationError }}</p>
+          <UButton :loading="translationSaving" label="Save" @click="saveTranslation" />
         </div>
 
         <div v-if="publicPath" class="flex flex-wrap items-center gap-2">
@@ -226,64 +214,57 @@ async function copyPublicLink() {
 }
 
 // ── Translations (resource_localizations, same API as the editor CRUD) ──
-const translationLocale = ref('en')
-const translationLocales = ref<string[]>([])
-const localeItems = computed(() => ['en', ...translationLocales.value])
-const translationFields = reactive({ title: '', body: '', seo_title: '', seo_description: '', event_title: '', offer_terms: '' })
+const contentLanguage = useDashboardContentLanguage()
+await contentLanguage.load(siteId)
+const translationLocale = contentLanguage.locale
+const sourceLocale = contentLanguage.sourceLocale
+const isPrimaryLanguage = computed(() => translationLocale.value === sourceLocale.value)
+const translationFields = reactive({ title: '', body: '', event_title: '', offer_terms: '' })
+const postTitle = computed(() => {
+  const title = isPrimaryLanguage.value ? editor.form.title : translationFields.title
+  const text = title.trim()
+  return text ? text : (isPrimaryLanguage.value ? 'Post' : 'Not translated')
+})
 const translationError = ref<string | null>(null)
 const translationSaving = ref(false)
 
-function isPostLocalesResponse(value: unknown): value is { languages: Array<{ locale: string; locale_status: string; is_source: boolean | number }> } {
-  return isRecord(value) && Array.isArray(value.languages)
-}
 function isPostTranslationResponse(value: unknown): value is { localization: { values: Record<string, unknown> } } {
   return isRecord(value) && isRecord(value.localization) && isRecord(value.localization.values)
 }
 
-async function loadTranslationLocales() {
-  try {
-    const response = await dashboardApi<{ languages: Array<{ locale: string; locale_status: string; is_source: boolean | number }> }>(
-      `/api/editor/sites/${siteId}/locales`,
-      { validate: isPostLocalesResponse },
-    )
-    translationLocales.value = response.languages.filter(item => item.locale_status === 'published' && !item.is_source).map(item => item.locale)
-  } catch (cause) {
-    translationLocales.value = []
-    translationError.value = getErrorMessage(cause, 'Failed to load site languages')
-  }
-}
-
 async function loadTranslationFields() {
   translationError.value = null
+  const locale = translationLocale.value
+  if (!locale || locale === sourceLocale.value) return
   try {
     const response = await dashboardApi<{ localization: { values: Record<string, unknown> } }>(
-      `/api/editor/sites/${siteId}/localization/site_post/${postId.value}/${encodeURIComponent(translationLocale.value)}`,
+      `/api/editor/sites/${siteId}/localization/site_post/${postId.value}/${encodeURIComponent(locale)}`,
       { validate: isPostTranslationResponse },
     )
     const values = response.localization.values
-    for (const field of ['title', 'body', 'seo_title', 'seo_description', 'event_title', 'offer_terms'] as const) {
+    for (const field of ['title', 'body', 'event_title', 'offer_terms'] as const) {
       translationFields[field] = typeof values[field] === 'string' ? values[field] : ''
     }
   } catch (cause) {
     const statusCode = isRecord(cause) && typeof cause.statusCode === 'number' ? cause.statusCode : null
     if (statusCode !== 404) translationError.value = getErrorMessage(cause, 'Failed to load translation')
-    for (const field of ['title', 'body', 'seo_title', 'seo_description', 'event_title', 'offer_terms'] as const) {
+    for (const field of ['title', 'body', 'event_title', 'offer_terms'] as const) {
       translationFields[field] = ''
     }
   }
 }
 
 watch(translationLocale, () => {
-  if (translationLocale.value !== 'en') void loadTranslationFields()
-})
+  if (translationLocale.value && translationLocale.value !== sourceLocale.value) void loadTranslationFields()
+}, { immediate: true })
 
 async function saveTranslation() {
-  if (translationLocale.value === 'en') return
+  if (!translationLocale.value || translationLocale.value === sourceLocale.value) return
   translationSaving.value = true
   translationError.value = null
   try {
     const values: Record<string, string> = {}
-    for (const field of ['title', 'body', 'seo_title', 'seo_description', 'event_title', 'offer_terms'] as const) {
+    for (const field of ['title', 'body', 'event_title', 'offer_terms'] as const) {
       if (translationFields[field].trim()) values[field] = translationFields[field].trim()
     }
     await dashboardApi(`/api/editor/sites/${siteId}/localization/site_post/${postId.value}/${encodeURIComponent(translationLocale.value)}`, {
@@ -298,8 +279,6 @@ async function saveTranslation() {
     translationSaving.value = false
   }
 }
-
-void loadTranslationLocales()
 
 useSeoMeta({ title: () => `${editor.form.title || 'Post'} | KrabiClaw Dashboard`, robots: 'noindex, nofollow' })
 </script>

@@ -90,25 +90,19 @@
           :alt="editAltText || editingAsset.file_name || ''"
           class="mx-auto h-32 w-32 rounded-lg object-cover"
         >
-        <label class="block text-sm">Alt text (English)
+        <label v-if="isPrimaryLanguage" class="block text-sm">Alt text
           <input v-model="editAltText" class="mt-1 w-full rounded-lg border border-default bg-default px-3 py-2" placeholder="Describe this image">
         </label>
-        <p v-if="editError" class="text-sm text-error">{{ editError }}</p>
-        <UButton size="sm" :loading="editSaving" @click="saveAltText">Save</UButton>
+        <p v-if="isPrimaryLanguage && editError" class="text-sm text-error">{{ editError }}</p>
+        <UButton v-if="isPrimaryLanguage" size="sm" :loading="editSaving" @click="saveAltText">Save</UButton>
 
-        <div v-if="translationLocales.length" class="space-y-3 rounded-lg border border-default p-4">
-          <div class="flex items-center justify-between gap-4">
-            <h3 class="text-sm font-semibold">Translations</h3>
-            <select v-model="translationLocale" aria-label="Field language" class="rounded-lg border border-default bg-default px-2 py-1 text-sm">
-              <option v-for="option in translationLocales" :key="option" :value="option">{{ option }}</option>
-            </select>
-          </div>
-          <label class="block text-sm">Alt text ({{ translationLocale }})
+        <div v-else class="space-y-3">
+          <label class="block text-sm">Alt text
             <input v-model="translationAltText" class="mt-1 w-full rounded-lg border border-default bg-default px-3 py-2">
           </label>
           <p v-if="translationError" class="text-sm text-error">{{ translationError }}</p>
-          <UButton size="sm" variant="soft" :loading="translationSaving" :disabled="!translationAltText.trim()" @click="saveTranslation">
-            Save translation
+          <UButton size="sm" variant="soft" :loading="translationSaving" @click="saveTranslation">
+            Save
           </UButton>
         </div>
       </div>
@@ -402,36 +396,22 @@ const editingAsset = ref<MediaAsset | null>(null)
 const editAltText = ref('')
 const editSaving = ref(false)
 const editError = ref<string | null>(null)
-const translationLocale = ref('')
-const translationLocales = ref<string[]>([])
+const contentLanguage = useDashboardContentLanguage()
+await contentLanguage.load(siteId)
+const translationLocale = contentLanguage.locale
+const sourceLocale = contentLanguage.sourceLocale
+const isPrimaryLanguage = computed(() => translationLocale.value === sourceLocale.value)
 const translationAltText = ref('')
 const translationSaving = ref(false)
 const translationError = ref<string | null>(null)
 
-function isLocalesResponse(value: unknown): value is { languages: Array<{ locale: string; locale_status: string; is_source: boolean | number }> } {
-  return isRecord(value) && Array.isArray(value.languages)
-}
-async function loadTranslationLocales() {
-  try {
-    const response = await dashboardApi<{ languages: Array<{ locale: string; locale_status: string; is_source: boolean | number }> }>(
-      `${siteApiBase}/locales`,
-      { validate: isLocalesResponse },
-    )
-    translationLocales.value = response.languages.filter(item => item.locale_status === 'published' && !item.is_source).map(item => item.locale)
-    translationLocale.value = translationLocales.value[0] ?? ''
-  } catch (cause) {
-    translationLocales.value = []
-    translationLocale.value = ''
-    translationError.value = cause instanceof Error ? cause.message : 'Failed to load site languages'
-  }
-}
 function isTranslationResponse(value: unknown): value is { localization: { values: Record<string, unknown> } } {
   return isRecord(value) && isRecord(value.localization) && isRecord(value.localization.values)
 }
 async function loadTranslationAltText() {
   translationError.value = null
   translationAltText.value = ''
-  if (!editingAsset.value || !translationLocale.value) return
+  if (!editingAsset.value || !translationLocale.value || isPrimaryLanguage.value) return
   try {
     const response = await dashboardApi<{ localization: { values: Record<string, unknown> } }>(
       `${siteApiBase}/localization/media_asset/${editingAsset.value.id}/${encodeURIComponent(translationLocale.value)}`,
@@ -451,7 +431,7 @@ function openEdit(asset: MediaAsset) {
   editAltText.value = asset.alt_text ?? ''
   editError.value = null
   editOpen.value = true
-  void loadTranslationLocales().then(() => loadTranslationAltText())
+  void loadTranslationAltText()
 }
 
 async function saveAltText() {
@@ -477,13 +457,13 @@ async function saveAltText() {
 }
 
 async function saveTranslation() {
-  if (!editingAsset.value || !translationLocale.value || !translationAltText.value.trim()) return
+  if (!editingAsset.value || !translationLocale.value) return
   translationSaving.value = true
   translationError.value = null
   try {
     await dashboardApi(`${siteApiBase}/localization/media_asset/${editingAsset.value.id}/${encodeURIComponent(translationLocale.value)}`, {
       method: 'PUT',
-      body: { values: { alt_text: translationAltText.value.trim() } },
+      body: { values: translationAltText.value.trim() ? { alt_text: translationAltText.value.trim() } : {} },
       validate: isRecord,
     })
     toast.add({ description: 'Translation saved', color: 'success' })

@@ -33,9 +33,6 @@
 
           <UCard>
             <div class="space-y-5">
-              <div v-if="!isNew && localeOptions.length > 1" class="flex justify-end">
-                <USelect v-model="locale" :items="localeOptions" class="w-28" aria-label="Page language" :disabled="busy !== null" />
-              </div>
               <UFormField label="Page title">
                 <UInput v-model="selected.title" size="xl" :disabled="busy !== null" />
               </UFormField>
@@ -138,8 +135,8 @@ const platformOrigin = useRequestURL().origin
 const pagesPath = computed(() => `/dashboard/${route.params.orgSlug}/sites/${route.params.siteSlug}/pages`)
 const isNew = computed(() => !props.pageId)
 const selected = ref<PageDetail | null>(null)
-const locale = ref('en')
-const locales = ref<string[]>([locale.value])
+const contentLanguage = useDashboardContentLanguage()
+const locale = ref('')
 const loading = ref(true)
 const pageLoadError = ref<string | null>(null)
 const editorError = ref<string | null>(null)
@@ -160,7 +157,6 @@ const newBlockType = ref<TenantPageBlockType>('markdown')
 const savedBlockIds = ref<Set<string>>(new Set())
 
 const editorTitle = computed(() => isNew.value ? 'New page' : selected.value?.title || 'Page')
-const localeOptions = computed(() => locales.value.map(value => ({ label: value, value })))
 const blockTypeOptions = computed(() => Object.values(TENANT_PAGE_BLOCK_REGISTRY)
   .filter(definition => !selected.value || isTenantPageBlockAllowed(definition, selected.value.recipe, selected.value.page_type))
   .map(definition => ({ label: definition.label, value: definition.type })))
@@ -188,10 +184,6 @@ function validateContext(value: unknown): value is { context: { previewToken: st
   return isRecord(value) && isRecord(value.context) && typeof value.context.previewToken === 'string'
 }
 
-function validateLocales(value: unknown): value is { languages: Array<{ locale: string, locale_status: string }> } {
-  return isRecord(value) && Array.isArray(value.languages)
-}
-
 function toEditorPage(page: PageDetailResponse): PageDetail {
   return {
     ...page,
@@ -201,6 +193,21 @@ function toEditorPage(page: PageDetailResponse): PageDetail {
     seo_description: page.seo_description ?? '',
     canonical_url: page.canonical_url ?? '',
     robots: page.robots ?? '',
+  }
+}
+
+function toNewTranslationPage(page: PageDetail, targetLocale: string): PageDetail {
+  return {
+    ...page,
+    id: '',
+    document: { updated_at: '' },
+    locale: targetLocale,
+    title: '',
+    summary: '',
+    seo_title: '',
+    seo_description: '',
+    canonical_url: '',
+    blocks: createTenantPageTranslationBlocks(toRaw(page.blocks)),
   }
 }
 
@@ -214,21 +221,36 @@ async function loadEditor() {
   loading.value = true
   pageLoadError.value = null
   try {
-    const [contextResponse, localeResponse, pageResponse, pagesResponse] = await Promise.all([
+    await contentLanguage.load(resolvedSiteId)
+    const requestedTranslationLocale = typeof route.query.translate === 'string' ? route.query.translate : null
+    if (requestedTranslationLocale) contentLanguage.select(resolvedSiteId, requestedTranslationLocale)
+    const selectedLocale = contentLanguage.locale.value
+    const sourceLocale = contentLanguage.sourceLocale.value
+    if (!selectedLocale || !sourceLocale) throw new Error('Choose a site content language')
+    if (isNew.value && selectedLocale !== sourceLocale) throw new Error(`Switch to ${sourceLocale} before creating a page`)
+    locale.value = selectedLocale
+    const [contextResponse, pageResponse, pagesResponse] = await Promise.all([
       dashboardApi<{ context: { previewToken: string } }>(`/api/editor/sites/${siteId}/context`, { validate: validateContext }),
-      dashboardApi<{ languages: Array<{ locale: string, locale_status: string }> }>(`/api/editor/sites/${siteId}/locales`, { validate: validateLocales }),
       props.pageId ? dashboardApi<{ page: PageDetailResponse }>(`/api/editor/sites/${siteId}/pages/${props.pageId}`, { validate: validatePage }) : Promise.resolve(null),
-      props.pageId ? Promise.resolve(null) : dashboardApi<{ pages: PageSummary[] }>(`/api/editor/sites/${siteId}/pages?locale=${encodeURIComponent(locale.value)}`, { validate: validateList }),
+      props.pageId ? Promise.resolve(null) : dashboardApi<{ pages: PageSummary[] }>(`/api/editor/sites/${siteId}/pages?locale=${encodeURIComponent(selectedLocale)}`, { validate: validateList }),
     ])
     if (!requestGate.isCurrent(requestToken)) return
     previewToken.value = contextResponse.context.previewToken
-    locales.value = localeResponse.languages.filter(item => item.locale_status === 'published').map(item => item.locale)
     if (pageResponse) {
-      selected.value = toEditorPage(pageResponse.page)
-      locale.value = pageResponse.page.locale
-      savedBlockIds.value = new Set(pageResponse.page.blocks.map(block => block.id))
+      const loadedPage = toEditorPage(pageResponse.page)
+      if (pageResponse.page.locale === selectedLocale) {
+        selected.value = loadedPage
+        locale.value = selectedLocale
+        savedBlockIds.value = new Set(pageResponse.page.blocks.map(block => block.id))
+      } else if (pageResponse.page.locale === sourceLocale && selectedLocale !== sourceLocale) {
+        newVariantLocale.value = selectedLocale
+        locale.value = selectedLocale
+        selected.value = toNewTranslationPage(loadedPage, selectedLocale)
+        savedBlockIds.value = new Set()
+      } else {
+        throw new Error(`This page does not have a ${selectedLocale} version`)
+      }
     } else {
-      locale.value = 'en'
       savedBlockIds.value = new Set()
       selected.value = {
         id: '', page_id: '', site_id: resolvedSiteId, organization_id: '', locale: locale.value, path: '', title: '', page_type: 'custom', recipe: '', sort_order: pagesResponse?.pages.length ?? 0, updated_at: '',
@@ -384,11 +406,12 @@ watch(selected, () => {
   requestGate.invalidate()
 }, { deep: true, flush: 'sync' })
 
-watch(locale, async (nextLocale, previousLocale) => {
+watch(contentLanguage.locale, async (nextLocale, previousLocale) => {
+  if (!nextLocale || !previousLocale) return
   if (localeRevertGuard.consume(nextLocale) || loading.value || isNew.value || nextLocale === previousLocale || !selected.value) return
   if (!canDiscardUnsavedChanges('Discard unsaved page changes and switch language?')) {
     localeRevertGuard.arm(previousLocale)
-    locale.value = previousLocale
+    contentLanguage.select(resolvedSiteId, previousLocale)
     return
   }
   try {
@@ -396,32 +419,23 @@ watch(locale, async (nextLocale, previousLocale) => {
     const translatedPage = response.pages.find(page => page.page_id === selected.value?.page_id)
     if (translatedPage) {
       dirty.value = false
+      locale.value = nextLocale
       await navigateTo(`${pagesPath.value}/${translatedPage.id}`)
       return
     }
     if (!window.confirm(`No ${nextLocale} version exists. Create it with the same layout and media?`)) {
       localeRevertGuard.arm(previousLocale)
-      locale.value = previousLocale
+      contentLanguage.select(resolvedSiteId, previousLocale)
       return
     }
     newVariantLocale.value = nextLocale
-    selected.value = {
-      ...selected.value,
-      id: '',
-      document: { updated_at: '' },
-      locale: nextLocale,
-      title: '',
-      summary: '',
-      seo_title: '',
-      seo_description: '',
-      canonical_url: '',
-      blocks: createTenantPageTranslationBlocks(toRaw(selected.value.blocks)),
-    }
+    locale.value = nextLocale
+    selected.value = toNewTranslationPage(selected.value, nextLocale)
     savedBlockIds.value = new Set()
     dirty.value = true
   } catch (error) {
     localeRevertGuard.arm(previousLocale)
-    locale.value = previousLocale
+    contentLanguage.select(resolvedSiteId, previousLocale)
     editorError.value = error instanceof Error ? error.message : 'Unable to switch language'
   }
 })

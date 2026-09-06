@@ -1,5 +1,4 @@
 import { expect, test, type APIRequestContext, type APIResponse, type Page } from '@playwright/test'
-import thaiPlatformMessages from '../../i18n/catalogs/th.json' with { type: 'json' }
 import { openTenantPage } from './helpers'
 import { loginAs } from './helpers/auth'
 import { kikuzukiTestBaseUrl, kikuzukiTestExtraHeaders, testBaseUrl } from './test-env'
@@ -39,26 +38,11 @@ async function expectLocalizedMenu(page: Page) {
 test('Kikuzuki keeps its Thai shell and category translations on a hard load', async ({ page, playwright }, testInfo) => {
   testInfo.setTimeout(120_000)
   const baseURL = testBaseUrl()
-  const admin = await playwright.request.newContext({ baseURL })
   const owner = await playwright.request.newContext({ baseURL })
-  await loginAs(admin, baseURL, 'user-e2e-platform-admin')
   await loginAs(owner, baseURL, 'user-e2e-kikuzuki-owner')
 
   try {
-    const catalogsResponse = await admin.get('/api/admin/localization')
-    await expectStatus(catalogsResponse, 200)
-    const catalogs = await catalogsResponse.json() as { catalogs: Array<{ locale: string }> }
-    if (!catalogs.catalogs.some(catalog => catalog.locale === locale)) {
-      await expectStatus(await admin.post('/api/admin/localization', {
-        data: { locale, label: 'ไทย', direction: 'ltr' },
-      }), 200)
-    }
-    await expectStatus(await admin.post(`/api/admin/localization/${locale}/publish`, {
-      data: { messages: thaiPlatformMessages },
-    }), 200)
-    await expectStatus(await owner.post(`/api/editor/sites/${siteId}/locales/${locale}/enable`, {
-      data: { label: 'ไทย' },
-    }), 200)
+    await expectStatus(await owner.post(`/api/editor/sites/${siteId}/locales/${locale}/enable`), 200)
 
     await putLocalization(owner, 'site', siteId, {
       values: {
@@ -126,7 +110,6 @@ test('Kikuzuki keeps its Thai shell and category translations on a hard load', a
       await expect(page.getByRole('navigation', { name: 'การนำทางหลัก' }).getByRole('link', { name: 'เมนู', exact: true })).toBeVisible()
     }
   } finally {
-    await admin.dispose()
     await owner.dispose()
   }
 })

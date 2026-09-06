@@ -27,6 +27,7 @@
             @click="editing = !editing"
           />
           <UButton
+            v-if="addable !== false"
             icon="i-lucide-plus"
             :aria-label="addLabel"
             color="neutral"
@@ -85,7 +86,7 @@
         />
 
         <UButton
-          v-if="editing && !selectable"
+          v-if="editing && !selectable && removable !== false"
           icon="i-lucide-circle-minus"
           :aria-label="`Remove ${item.title}`"
           color="neutral"
@@ -153,12 +154,16 @@ defineProps<{
   emptyIcon: string
   /** Names the add control for screen readers, e.g. "Add a question". */
   addLabel: string
+  /** Existing records can still be edited when this list cannot create source records. */
+  addable?: boolean
   pending?: boolean
   error?: string | null
   /** Lists with a persisted order gain move controls in the edit state. */
   reorderable?: boolean
   /** Marks the row whose removal is in flight. */
   removingId?: string | null
+  /** Existing records can still be edited when this list cannot delete source records. */
+  removable?: boolean
   /** Swaps the per-row remove control for a checkbox so several rows act at once. */
   selectable?: boolean
 }>()

@@ -37,49 +37,38 @@
         <template #detail>
           <div v-if="editorKey === 'profile'" class="space-y-6">
             <p class="text-base text-muted">The public identity and contact details for this location.</p>
-            <div class="flex flex-wrap gap-6">
-              <UCheckbox v-model="detailsForm.is_primary" label="Primary location" />
-              <UCheckbox :model-value="detailsForm.status === 'active'" label="Active" @update:model-value="setDetailsActive" />
-            </div>
-            <UFormField label="Name"><UInput v-model="detailsForm.title" size="xl" autofocus class="w-full" /></UFormField>
-            <UFormField label="Slug"><UInput v-model="detailsForm.slug" size="xl" class="w-full" /></UFormField>
-            <div class="grid gap-5 sm:grid-cols-2">
-              <UFormField label="City"><UInput v-model="detailsForm.city" size="xl" class="w-full" /></UFormField>
-              <UFormField label="Neighbourhood"><UInput v-model="detailsForm.neighborhood" size="xl" class="w-full" /></UFormField>
-              <UFormField label="Phone"><UInput v-model="detailsForm.phone" type="tel" size="xl" class="w-full" /></UFormField>
-              <UFormField label="Email"><UInput v-model="detailsForm.email" type="email" size="xl" class="w-full" /></UFormField>
-            </div>
-            <UFormField label="Website URL"><UInput v-model="detailsForm.website_url" type="url" size="xl" class="w-full" /></UFormField>
-            <UFormField label="Address"><UTextarea v-model="detailsForm.address" :rows="4" class="w-full" /></UFormField>
-          </div>
-
-          <div v-else-if="editorKey === 'translations'" class="space-y-6">
-            <p class="text-base text-muted">Edit this location's public content in another published language. The default-language values above are unaffected.</p>
-            <UFormField label="Language">
-              <select v-model="translationLocale" aria-label="Translation language" class="rounded-lg border border-default bg-default px-3 py-2">
-                <option v-for="option in translationLocaleOptions" :key="option" :value="option">{{ option }}</option>
-              </select>
-            </UFormField>
-            <p v-if="translationLocaleOptions.length === 0" class="text-sm text-muted">No additional languages are enabled for this site yet.</p>
-            <template v-else>
-              <p class="text-xs text-muted">Source (English): {{ detailsForm.title }}</p>
-              <UFormField :label="`Name (${translationLocale})`"><UInput v-model="translationFields.title" size="xl" class="w-full" /></UFormField>
-              <UFormField :label="`Short description (${translationLocale})`"><UInput v-model="translationFields.short_description" size="xl" class="w-full" /></UFormField>
-              <UFormField :label="`Description (${translationLocale})`"><UTextarea v-model="translationFields.description" :rows="6" class="w-full" /></UFormField>
-              <UFormField :label="`City (${translationLocale})`"><UInput v-model="translationFields.city" size="xl" class="w-full" /></UFormField>
-              <UFormField :label="`Neighbourhood (${translationLocale})`"><UInput v-model="translationFields.neighborhood" size="xl" class="w-full" /></UFormField>
-              <UFormField :label="`Address (${translationLocale})`"><UTextarea v-model="translationFields.address" :rows="4" class="w-full" /></UFormField>
-              <UFormField :label="`Opening hours (${translationLocale}, one per line)`"><UTextarea v-model="translationFields.opening_hours_text" :rows="4" class="w-full" /></UFormField>
-              <UFormField :label="`SEO title (${translationLocale})`"><UInput v-model="translationFields.seo_title" size="xl" class="w-full" /></UFormField>
-              <UFormField :label="`SEO description (${translationLocale})`"><UTextarea v-model="translationFields.seo_description" :rows="3" class="w-full" /></UFormField>
+            <template v-if="isSecondaryLanguage">
+              <p class="text-xs text-muted">Primary ({{ sourceLocale }}): {{ detailsForm.title }}</p>
+              <UFormField label="Name"><UInput v-model="translationFields.title" size="xl" class="w-full" /></UFormField>
+              <UFormField label="City"><UInput v-model="translationFields.city" size="xl" class="w-full" /></UFormField>
+              <UFormField label="Neighbourhood"><UInput v-model="translationFields.neighborhood" size="xl" class="w-full" /></UFormField>
+              <UFormField label="Address"><UTextarea v-model="translationFields.address" :rows="4" class="w-full" /></UFormField>
               <p v-if="translationError" class="text-sm text-error">{{ translationError }}</p>
-              <UButton :loading="translationSaving" label="Save translation" @click="saveTranslation" />
+            </template>
+            <template v-else>
+              <div class="flex flex-wrap gap-6">
+                <UCheckbox v-model="detailsForm.is_primary" label="Primary location" />
+                <UCheckbox :model-value="detailsForm.status === 'active'" label="Active" @update:model-value="setDetailsActive" />
+              </div>
+              <UFormField label="Name"><UInput v-model="detailsForm.title" size="xl" autofocus class="w-full" /></UFormField>
+              <UFormField label="Slug"><UInput v-model="detailsForm.slug" size="xl" class="w-full" /></UFormField>
+              <div class="grid gap-5 sm:grid-cols-2">
+                <UFormField label="City"><UInput v-model="detailsForm.city" size="xl" class="w-full" /></UFormField>
+                <UFormField label="Neighbourhood"><UInput v-model="detailsForm.neighborhood" size="xl" class="w-full" /></UFormField>
+                <UFormField label="Phone"><UInput v-model="detailsForm.phone" type="tel" size="xl" class="w-full" /></UFormField>
+                <UFormField label="Email"><UInput v-model="detailsForm.email" type="email" size="xl" class="w-full" /></UFormField>
+              </div>
+              <UFormField label="Website URL"><UInput v-model="detailsForm.website_url" type="url" size="xl" class="w-full" /></UFormField>
+              <UFormField label="Address"><UTextarea v-model="detailsForm.address" :rows="4" class="w-full" /></UFormField>
             </template>
           </div>
 
           <div v-else-if="editorKey === 'hours'" class="space-y-6">
             <p class="text-base text-muted">Set the regular hours shown to guests. A Google Places sync replaces these hours with Google's current record.</p>
-            <div class="divide-y divide-default rounded-xl border border-default">
+            <UFormField v-if="isSecondaryLanguage" label="Opening hours, one per line">
+              <UTextarea v-model="translationFields.opening_hours_text" :rows="8" class="w-full" />
+            </UFormField>
+            <div v-else class="divide-y divide-default rounded-xl border border-default">
               <div v-for="day in openingHours" :key="day.day" class="space-y-3 p-4">
                 <div class="flex items-center justify-between gap-4">
                   <p class="font-medium text-highlighted">{{ day.day }}</p>
@@ -95,9 +84,16 @@
 
           <div v-else-if="editorKey === 'content'" class="space-y-6">
             <p class="text-base text-muted">Location-specific copy used on the published site.</p>
-            <UFormField label="Short description"><UInput v-model="detailsForm.short_description" size="xl" class="w-full" /></UFormField>
-            <UFormField label="Description"><UTextarea v-model="detailsForm.description" :rows="10" class="w-full" /></UFormField>
-            <UFormField label="Price level"><UInput v-model="detailsForm.price_level" size="xl" class="w-full" /></UFormField>
+            <template v-if="isSecondaryLanguage">
+              <UFormField label="Short description"><UInput v-model="translationFields.short_description" size="xl" class="w-full" /></UFormField>
+              <UFormField label="Description"><UTextarea v-model="translationFields.description" :rows="10" class="w-full" /></UFormField>
+              <p v-if="translationError" class="text-sm text-error">{{ translationError }}</p>
+            </template>
+            <template v-else>
+              <UFormField label="Short description"><UInput v-model="detailsForm.short_description" size="xl" class="w-full" /></UFormField>
+              <UFormField label="Description"><UTextarea v-model="detailsForm.description" :rows="10" class="w-full" /></UFormField>
+              <UFormField label="Price level"><UInput v-model="detailsForm.price_level" size="xl" class="w-full" /></UFormField>
+            </template>
           </div>
 
           <div v-else-if="editorKey === 'discovery'" class="space-y-6">
@@ -209,6 +205,11 @@ const toast = useToast()
 const dashboard = useDashboardSite()
 const dashboardLocation = useDashboardLocation()
 const siteId = await useDashboardSiteId()
+const contentLanguage = useDashboardContentLanguage()
+await contentLanguage.load(siteId)
+const translationLocale = contentLanguage.locale
+const sourceLocale = contentLanguage.sourceLocale
+const isSecondaryLanguage = computed(() => Boolean(translationLocale.value && sourceLocale.value && translationLocale.value !== sourceLocale.value))
 const locationId = computed(() => dashboardLocation.currentLocationId.value ?? '')
 const sitePath = computed(() => `/dashboard/${String(route.params.orgSlug)}/sites/${String(route.params.siteSlug)}`)
 const locationPath = computed(() => `${sitePath.value}/locations/${String(route.params.locationSlug)}`)
@@ -227,7 +228,7 @@ const routeSegments = computed(() => {
 })
 const detailKey = computed(() => routeSegments.value[0] ?? null)
 const editorKey = computed(() => detailKey.value ?? 'profile')
-const validDetailKeys = new Set(['profile', 'hours', 'content', 'discovery', 'notifications', 'features', 'translations'])
+const validDetailKeys = new Set(['profile', 'hours', 'content', 'discovery', 'notifications', 'features'])
 if (routeSegments.value.length > 1 || (detailKey.value && !validDetailKeys.has(detailKey.value))) {
   throw createError({ statusCode: 404, statusMessage: 'Location setting not found' })
 }
@@ -488,6 +489,13 @@ const hoursSummary = computed(() => {
   return descriptions.length ? `${openDays} days open each week` : 'Not set'
 })
 const contentSummary = computed(() => location.value?.short_description?.trim() || location.value?.description?.trim() || 'Not set')
+function translationSummary(value: string): string {
+  const text = value.trim()
+  return text ? text : 'Not translated'
+}
+const profileSummary = computed(() => isSecondaryLanguage.value ? translationSummary(translationFields.address) : addressSummary.value)
+const localizedHoursSummary = computed(() => isSecondaryLanguage.value ? translationSummary(translationFields.opening_hours_text) : hoursSummary.value)
+const localizedContentSummary = computed(() => isSecondaryLanguage.value ? translationSummary(translationFields.short_description) : contentSummary.value)
 const discoverySummary = computed(() => location.value?.google_place_id ? 'Google Places connected' : 'Not connected')
 const notificationSummary = computed(() => location.value?.notification_phone || location.value?.timezone || 'Not configured')
 const featureSummary = computed(() => {
@@ -495,13 +503,12 @@ const featureSummary = computed(() => {
   return count ? `${count} ${count === 1 ? 'module' : 'modules'} available` : 'No location modules'
 })
 const navigationItems = computed(() => [
-  { id: 'profile', label: 'Profile', summary: addressSummary.value, icon: 'i-lucide-map-pin', to: `${settingsPath.value}/profile` },
-  { id: 'hours', label: 'Hours', summary: hoursSummary.value, icon: 'i-lucide-clock-3', to: `${settingsPath.value}/hours` },
-  { id: 'content', label: 'Public content', summary: contentSummary.value, icon: 'i-lucide-align-left', to: `${settingsPath.value}/content` },
+  { id: 'profile', label: 'Profile', summary: profileSummary.value, icon: 'i-lucide-map-pin', to: `${settingsPath.value}/profile` },
+  { id: 'hours', label: 'Hours', summary: localizedHoursSummary.value, icon: 'i-lucide-clock-3', to: `${settingsPath.value}/hours` },
+  { id: 'content', label: 'Public content', summary: localizedContentSummary.value, icon: 'i-lucide-align-left', to: `${settingsPath.value}/content` },
   { id: 'discovery', label: 'Discovery', summary: discoverySummary.value, icon: 'i-simple-icons-googlemaps', to: `${settingsPath.value}/discovery` },
   { id: 'notifications', label: 'Notifications', summary: notificationSummary.value, icon: 'i-lucide-bell', to: `${settingsPath.value}/notifications` },
   { id: 'features', label: 'Available features', summary: featureSummary.value, icon: 'i-lucide-layout-grid', to: `${settingsPath.value}/features` },
-  { id: 'translations', label: 'Translations', summary: '', icon: 'i-lucide-languages', to: `${settingsPath.value}/translations` },
 ])
 const navigationGroups = computed(() => [
   { id: 'location', label: 'Location', items: navigationItems.value.slice(0, 2) },
@@ -515,13 +522,16 @@ const detailTitles: Record<string, string> = {
   discovery: 'Discovery',
   notifications: 'Notifications',
   features: 'Available features',
-  translations: 'Translations',
 }
 const hasDetail = computed(() => detailKey.value !== null)
 // Names the level, not the open section: at `lg` the section's title is a
 // heading on its own pane with the index still beside it.
-const navbarTitle = computed(() => location.value?.title || 'Location')
-const saving = computed(() => detailsSaving.value || savingLocationFeatures.value)
+const navbarTitle = computed(() => {
+  if (isSecondaryLanguage.value) return translationSummary(translationFields.title)
+  const title = location.value?.title?.trim()
+  return title ? title : 'Location'
+})
+const saving = computed(() => detailsSaving.value || savingLocationFeatures.value || translationSaving.value)
 
 function editorSignature(key: string | null): string {
   switch (key) {
@@ -560,44 +570,32 @@ const validationMessage = computed(() => {
   return null
 })
 const dirty = computed(() => editorSignature(editorKey.value) !== originalSignature.value)
+const translatableSectionKeys = new Set(['profile', 'hours', 'content'])
 const saveDisabled = computed(() => {
-  if (editorKey.value === 'translations') return translationLocaleOptions.value.length === 0
+  if (isSecondaryLanguage.value && translatableSectionKeys.has(editorKey.value)) return false
   return !dirty.value || validationMessage.value !== null
 })
 
-// Translations panel: a separate localization layer over the same
-// business_location resource, edited through the canonical per-resource
-// localization API (server/utils/localization.ts) rather than the
-// English-only PATCH endpoint used by the panels above.
-const translationLocale = ref('')
-const translationLocales = ref<string[]>([])
-const translationLocaleOptions = computed(() => translationLocales.value)
+// The selected site content language changes the fields in the existing
+// Profile, Hours, and Public content sections. Their localized values use the
+// canonical per-resource localization API.
 const translationError = ref<string | null>(null)
 const translationSaving = ref(false)
-const translationFields = reactive({ title: '', short_description: '', description: '', city: '', neighborhood: '', address: '', opening_hours_text: '', seo_title: '', seo_description: '' })
-function isTranslationLocalesResponse(value: unknown): value is { languages: Array<{ locale: string; locale_status: string; is_source: boolean | number }> } {
-  return isRecord(value) && Array.isArray(value.languages)
-}
-async function loadTranslationLocales() {
-  try {
-    const response = await dashboardApi<{ languages: Array<{ locale: string; locale_status: string; is_source: boolean | number }> }>(
-      `/api/editor/sites/${siteId}/locales`,
-      { validate: isTranslationLocalesResponse },
-    )
-    translationLocales.value = response.languages
-      .filter(item => item.locale_status === 'published' && !item.is_source)
-      .map(item => item.locale)
-    if (translationLocales.value.length && !translationLocale.value) translationLocale.value = translationLocales.value[0]!
-  } catch (cause) {
-    translationLocales.value = []
-    translationError.value = getErrorMessage(cause, 'Failed to load site languages')
-  }
+const translationFields = reactive({ title: '', short_description: '', description: '', city: '', neighborhood: '', address: '', opening_hours_text: '' })
+function resetTranslationFields() {
+  translationFields.title = ''; translationFields.short_description = ''; translationFields.description = ''
+  translationFields.city = ''; translationFields.neighborhood = ''; translationFields.address = ''
+  translationFields.opening_hours_text = ''
 }
 function isTranslationResponse(value: unknown): value is { localization: { values: Record<string, unknown> } } {
   return isRecord(value) && isRecord(value.localization) && isRecord(value.localization.values)
 }
 async function loadTranslationFields() {
   if (!translationLocale.value || !locationId.value) return
+  if (translationLocale.value === sourceLocale.value) {
+    resetTranslationFields()
+    return
+  }
   translationError.value = null
   try {
     const response = await dashboardApi<{ localization: { values: Record<string, unknown> } }>(
@@ -612,19 +610,15 @@ async function loadTranslationFields() {
     translationFields.neighborhood = typeof values.neighborhood === 'string' ? values.neighborhood : ''
     translationFields.address = typeof values.address === 'string' ? values.address : ''
     translationFields.opening_hours_text = Array.isArray(values.opening_hours) ? values.opening_hours.join('\n') : ''
-    translationFields.seo_title = typeof values.seo_title === 'string' ? values.seo_title : ''
-    translationFields.seo_description = typeof values.seo_description === 'string' ? values.seo_description : ''
   } catch (cause) {
     const statusCode = isRecord(cause) && typeof cause.statusCode === 'number' ? cause.statusCode : null
     if (statusCode !== 404) translationError.value = getErrorMessage(cause, 'Failed to load translation')
-    translationFields.title = ''; translationFields.short_description = ''; translationFields.description = ''
-    translationFields.city = ''; translationFields.neighborhood = ''; translationFields.address = ''
-    translationFields.opening_hours_text = ''; translationFields.seo_title = ''; translationFields.seo_description = ''
+    resetTranslationFields()
   }
 }
-watch(translationLocale, () => { void loadTranslationFields() })
+watch(translationLocale, () => { void loadTranslationFields() }, { immediate: true })
 async function saveTranslation() {
-  if (!locationId.value || !translationLocale.value) return
+  if (!locationId.value || !translationLocale.value || translationLocale.value === sourceLocale.value) return
   translationSaving.value = true; translationError.value = null
   try {
     const values: Record<string, string> = {}
@@ -634,14 +628,12 @@ async function saveTranslation() {
     if (translationFields.city.trim()) values.city = translationFields.city.trim()
     if (translationFields.neighborhood.trim()) values.neighborhood = translationFields.neighborhood.trim()
     if (translationFields.address.trim()) values.address = translationFields.address.trim()
-    if (translationFields.seo_title.trim()) values.seo_title = translationFields.seo_title.trim()
-    if (translationFields.seo_description.trim()) values.seo_description = translationFields.seo_description.trim()
     const openingHoursValues: Record<string, unknown> = {}
     const openingHoursLines = translationFields.opening_hours_text.split('\n').map(line => line.trim()).filter(Boolean)
     if (openingHoursLines.length) openingHoursValues.opening_hours = openingHoursLines
     await dashboardApi(`/api/editor/sites/${siteId}/localization/business_location/${locationId.value}/${encodeURIComponent(translationLocale.value)}`, {
       method: 'PUT',
-      body: { values: { ...values, ...openingHoursValues }, route_path: `/${translationLocale.value}/locations/${detailsForm.slug || String(route.params.locationSlug)}` },
+      body: { values: { ...values, ...openingHoursValues }, route_path: `/${translationLocale.value}/locations/${detailsForm.slug}` },
       validate: isRecord,
     })
     toast.add({ description: 'Translation saved', color: 'success' })
@@ -651,8 +643,6 @@ async function saveTranslation() {
     translationSaving.value = false
   }
 }
-void loadTranslationLocales()
-
 function resetDraft() {
   if (!location.value) return
   fillDetailsForm(location.value)
@@ -701,7 +691,7 @@ async function patchLocation(body: Record<string, unknown>, successMessage: stri
 
 async function saveCurrentEditor() {
   if (saveDisabled.value) return
-  if (editorKey.value === 'translations') {
+  if (isSecondaryLanguage.value && translatableSectionKeys.has(editorKey.value)) {
     await saveTranslation()
     return
   }
