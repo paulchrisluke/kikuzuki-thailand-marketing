@@ -237,7 +237,7 @@ button {
   }
 }
 
-@media (width >= 1600px) {
+@media (width >= 1024px) {
   [data-blawby-critical-header] nav > div:last-child > div:first-child {
     display: flex;
     align-items: center;

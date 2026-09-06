@@ -40,7 +40,6 @@ test('Kikuzuki home → menu → menu item', async ({ page }) => {
 })
 
 test('NCLS home → services → service detail', async ({ page }) => {
-  await page.setViewportSize({ width: 1920, height: 1080 })
   await clientJourney(page, {
     baseURL: blawbyBaseURL, headers: blawbyExtraHeaders,
     listPath: '/services', detailPath: '/services/family', detailText: /Family Law/i,

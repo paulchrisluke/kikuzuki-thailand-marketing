@@ -26,7 +26,7 @@
         </div>
 
         <div class="flex min-w-0 items-center gap-x-3 font-semibold uppercase">
-          <div class="hidden items-center whitespace-nowrap text-[var(--blawby-primary)] min-[1600px]:flex">
+          <div class="hidden items-center whitespace-nowrap text-[var(--blawby-primary)] lg:flex">
             <NuxtLink
               v-for="item in headerItems"
               :key="item.id"
@@ -48,7 +48,7 @@
             <span>{{ headerCtaLabel }}</span>
           </BlawbyButton>
 
-          <details ref="mobileNavDetails" class="relative -mr-1 shrink-0 min-[1600px]:hidden" @toggle="syncMobileNavState">
+          <details ref="mobileNavDetails" class="relative -mr-1 shrink-0 lg:hidden" @toggle="syncMobileNavState">
             <summary
               class="relative z-10 flex size-8 list-none items-center justify-center text-[var(--blawby-primary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--blawby-primary)] [&::-webkit-details-marker]:hidden"
               :aria-label="t('blawby.navigation.toggle')"
