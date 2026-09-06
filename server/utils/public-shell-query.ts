@@ -69,7 +69,11 @@ export function appendPublicShellQueries(
                  AND setting.key IN ('brand_color', 'press_email', 'partnerships_email', 'catering_email', 'careers_email', 'google_site_verification', 'default_timezone')
               UNION ALL
               SELECT '__experience_count',
+<<<<<<< HEAD
                      CAST((SELECT COUNT(*) FROM products p WHERE p.product_type = \'experience\' AND p.site_id = ? AND p.is_visible = 1) AS TEXT)
+=======
+                     CAST((SELECT COUNT(*) FROM products p JOIN business_locations bl ON bl.id = p.location_id AND bl.site_id = p.site_id AND bl.organization_id = p.organization_id WHERE p.site_id = ? AND p.product_type = 'experience' AND p.is_visible = 1 AND bl.status = 'active') AS TEXT)
+>>>>>>> 9a9195df (Use canonical documents in public discovery readers)
               `, [organizationId, siteId, siteId]),
     locales: push(`SELECT locale, label, is_source, status
                 FROM site_locales
