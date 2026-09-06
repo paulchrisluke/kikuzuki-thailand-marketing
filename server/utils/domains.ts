@@ -4,7 +4,7 @@ import { execute, queryAll, queryFirst } from '~/server/db'
 import { d1JsonStringSet } from '~/server/db/d1-limits'
 import { hasSiteEntitlement } from '~/server/utils/billing'
 import { canonicalDomainForPair, domainPair, normalizeDomain } from '~/server/utils/domain-shared'
-import { fireOrganizationEventSafe } from '~/server/utils/organization-events'
+import { fireOrganizationEvent, fireOrganizationEventSafe, type OrganizationEventType } from '~/server/utils/organization-events'
 
 export interface DomainEnv {
   GA4_MEASUREMENT_ID?: string
@@ -51,6 +51,9 @@ export interface DomainRecord {
   last_synced_at?: string | null
   next_check_at?: string | null
   retry_count?: number
+  reconciliation_token?: string | null
+  reconciliation_expires_at?: string | null
+  desired_state: 'active' | 'deleted'
   activated_at?: string | null
   certificate_last_active_at?: string | null
   renewal_issue_started_at?: string | null
@@ -188,7 +191,7 @@ export async function hasCustomDomainsEntitlement(db: D1Database, siteId: string
 
 export async function ensureDomainAvailable(db: D1Database, domains: string[], excludeSiteId?: string): Promise<void> {
   const params = excludeSiteId ? [d1JsonStringSet(domains), excludeSiteId] : [d1JsonStringSet(domains)]
-  const exclusion = excludeSiteId ? 'AND site_id != ?' : ''
+  const exclusion = excludeSiteId ? 'AND (site_id IS NULL OR site_id != ?)' : ''
 
   const existing = await queryFirst<{ domain?: string }>(db, `
     SELECT domain
@@ -208,7 +211,7 @@ export async function isSystemSubdomainSpent(
   const domain = `${subdomain}.${platformHostname(env)}`
   const spent = await queryFirst<{ domain: string }>(
     db,
-    'SELECT domain FROM spent_subdomains WHERE domain = ? LIMIT 1',
+    "SELECT domain FROM site_domains WHERE domain = ? AND status = 'retired' LIMIT 1",
     [domain],
   )
   return Boolean(spent)
@@ -254,14 +257,11 @@ export async function createSystemSubdomain(
   if (existing) {
     stmts.push(
       {
-        sql: 'INSERT INTO spent_subdomains (domain, site_id, successor_domain, spent_at) VALUES (?, ?, ?, ?)',
-        values: [existing.domain, siteId, domain, now],
-      },
-      {
         sql: `UPDATE site_domains
-                SET role = 'secondary', status = 'disabled', updated_at = ?
+                SET role = 'secondary', status = 'retired', former_site_id = site_id, successor_domain = ?, retired_at = ?,
+                    organization_id = NULL, site_id = NULL, updated_at = ?
               WHERE id = ? AND site_id = ? AND organization_id = ? AND status = 'active'`,
-        values: [now, existing.id, siteId, organizationId],
+        values: [domain, now, now, existing.id, siteId, organizationId],
       },
     )
   }
@@ -301,7 +301,7 @@ async function cloudflareRequest<T>(
 
   const response = await fetch(`${CF_API_BASE}${path}`, {
     ...init,
-    signal,
+    signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(15_000)]) : AbortSignal.timeout(15_000),
     headers: {
       Authorization: `Bearer ${env.CF_CUSTOM_HOSTNAMES_API_TOKEN}`,
       'Content-Type': 'application/json',
@@ -390,7 +390,7 @@ async function logDomainEvent(
     organizationId: string
     siteId: string
     domainId?: string | null
-    eventType: string
+    eventType: OrganizationEventType
     actorType?: DomainActorType
     actorId?: string | null
     message?: string
@@ -399,33 +399,14 @@ async function logDomainEvent(
     metadata?: ApiValue
   }
 ) {
-  await execute(db, `
-    INSERT INTO site_domain_events
-    (id, organization_id, site_id, domain_id, event_type, actor_type, actor_id, message, before_state, after_state, metadata, created_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `, [
-    crypto.randomUUID(),
-    opts.organizationId,
-    opts.siteId,
-    opts.domainId ?? null,
-    opts.eventType,
-    opts.actorType ?? 'system',
-    opts.actorId ?? null,
-    opts.message ?? null,
-    opts.beforeState ? JSON.stringify(opts.beforeState) : null,
-    opts.afterState ? JSON.stringify(opts.afterState) : null,
-    opts.metadata ? JSON.stringify(opts.metadata) : null,
-    new Date().toISOString()
-  ])
+  await fireOrganizationEvent({ db, ...opts, entityType: 'domain', entityId: opts.domainId ?? undefined })
 }
 
 async function queueReconciliation(db: D1Database, domainId: string, runAfter?: string) {
-  const now = new Date().toISOString()
   await execute(db, `
-    INSERT INTO domain_reconciliation_jobs (id, domain_id, status, run_after, attempts, created_at, updated_at)
-    VALUES (?, ?, 'queued', ?, 0, ?, ?)
-    ON CONFLICT(domain_id) DO UPDATE SET status = 'queued', run_after = excluded.run_after, updated_at = excluded.updated_at
-  `, [`domain-job-${domainId}`, domainId, runAfter ?? now, now, now])
+    UPDATE site_domains SET next_check_at = ?, reconciliation_token = NULL, reconciliation_expires_at = NULL,
+      updated_at = ? WHERE id = ? AND status NOT IN ('deleted', 'retired', 'disabled')
+  `, [runAfter ?? new Date().toISOString(), new Date().toISOString(), domainId])
 }
 
 function normalizeDnsValue(value: string | null | undefined): string {
@@ -531,6 +512,7 @@ async function persistCloudflareState(
   domainId: string,
   hostname: CloudflareCustomHostname,
   options: {
+    leaseToken?: string | null
     incrementRetry?: boolean
     actorType?: DomainActorType
     actorId?: string | null
@@ -541,6 +523,7 @@ async function persistCloudflareState(
 ): Promise<DomainRecord> {
   const before = await queryFirst<DomainRecord>(db, `SELECT * FROM site_domains WHERE id = ?`, [domainId])
   if (!before) throw new Error('Domain not found')
+  if ((before.reconciliation_token ?? null) !== (options.leaseToken ?? null)) throw new Error('Domain reconciliation was superseded')
 
   const sslValidation = firstSslValidation(hostname)
   const sslValidation2 = secondSslValidation(hostname)
@@ -567,8 +550,9 @@ async function persistCloudflareState(
       : before.renewal_issue_started_at ?? null
   const errors = hostname.verification_errors?.join('; ') || null
 
+  const updates: D1PreparedStatement[] = []
   if (status === 'active' && before.role === 'canonical') {
-    await execute(db, `
+    updates.push(db.prepare(`
       UPDATE site_domains
       SET role = 'secondary', updated_at = ?
       WHERE site_id = ?
@@ -577,12 +561,12 @@ async function persistCloudflareState(
         AND EXISTS (
           SELECT 1
           FROM site_domains expected
-          WHERE expected.id = ? AND expected.role = 'canonical'
+          WHERE expected.id = ? AND expected.role = 'canonical' AND expected.reconciliation_token IS ?
         )
-    `, [now, before.site_id, domainId, domainId])
+    `).bind(now, before.site_id, domainId, domainId, options.leaseToken ?? null))
   }
 
-  await execute(db, `
+  updates.push(db.prepare(`
     UPDATE site_domains
     SET cloudflare_hostname_id = ?,
         cloudflare_hostname_status = ?,
@@ -614,9 +598,9 @@ async function persistCloudflareState(
         certificate_expires_at = ?,
         error_message = ?,
         metadata = ?,
-        updated_at = ?
-    WHERE id = ?
-  `, [
+        updated_at = ?, reconciliation_token = NULL, reconciliation_expires_at = NULL
+    WHERE id = ? AND reconciliation_token IS ? AND desired_state = 'active' AND status NOT IN ('disabled', 'deleted')
+  `).bind(
     hostname.id,
     hostname.status ?? null,
     hostname.ssl?.status ?? null,
@@ -653,8 +637,10 @@ async function persistCloudflareState(
       ssl_validation_value2: null,
     }),
     now,
-    domainId
-  ])
+    domainId, options.leaseToken ?? null
+  ))
+  const updated = (await db.batch(updates)).at(-1)
+  if (updated?.meta?.changes !== 1) throw new Error('Domain reconciliation was superseded')
 
   const after = await queryFirst<DomainRecord>(db, `SELECT * FROM site_domains WHERE id = ?`, [domainId]) as DomainRecord
 
@@ -821,7 +807,7 @@ export async function createCustomDomainPair(
       // entry.id has either never been inserted or was just deleted by the cleanup
       // above, and domain_id is a foreign key — referencing a nonexistent row here
       // throws inside the catch block itself, silently swallowing the real error
-      // and leaving zero rows in site_domain_events.
+      // and leaving no audit event.
       await logDomainEvent(db, {
         organizationId: opts.organizationId,
         siteId: opts.siteId,
@@ -845,18 +831,25 @@ export async function syncDomainWithCloudflare(
   actorType: DomainActorType = 'system',
   actorId?: string | null,
   signal?: AbortSignal,
-  options: { forceRevalidation?: boolean } = {}
+  options: { forceRevalidation?: boolean; leaseToken?: string } = {}
 ): Promise<DomainRecord> {
   try {
     signal?.throwIfAborted()
 
-    const domain = await queryFirst<DomainRecord>(db, `SELECT * FROM site_domains WHERE id = ? AND type = 'custom'`, [domainId])
-    if (!domain) throw new Error('Domain not found')
+    const leaseToken = options.leaseToken ?? crypto.randomUUID()
+    const now = new Date().toISOString()
+    const domain = await queryFirst<DomainRecord>(db, `
+      UPDATE site_domains SET reconciliation_token = ?, reconciliation_expires_at = ?
+      WHERE id = ? AND type = 'custom' AND desired_state = 'active' AND status NOT IN ('deleted', 'disabled')
+        AND (reconciliation_token = ? OR reconciliation_expires_at IS NULL OR reconciliation_expires_at <= ?)
+      RETURNING *
+    `, [leaseToken, new Date(Date.now() + 120_000).toISOString(), domainId, options.leaseToken ?? null, now])
+    if (!domain) throw new Error('Domain is unavailable or another reconciliation is running')
 
     if (!domain.cloudflare_hostname_id) {
       const hostname = await createCloudflareHostname(env, domain.domain, signal)
       signal?.throwIfAborted()
-      return persistCloudflareState(env, db, domainId, hostname, { incrementRetry: true, actorType, actorId })
+      return persistCloudflareState(env, db, domainId, hostname, { leaseToken, incrementRetry: true, actorType, actorId })
     }
 
     const dnsInspection = await inspectDomainResolution(env, domain.domain, signal).catch(() => null)
@@ -874,6 +867,7 @@ export async function syncDomainWithCloudflare(
       signal?.throwIfAborted()
     }
     return persistCloudflareState(env, db, domainId, hostname, {
+      leaseToken,
       incrementRetry: true,
       actorType,
       actorId,
@@ -896,9 +890,16 @@ export async function deleteCustomDomain(
   db: D1Database,
   domainId: string,
   actorType: DomainActorType,
-  actorId?: string | null
+  actorId?: string | null,
+  leaseToken?: string,
 ): Promise<void> {
-  const domain = await queryFirst<DomainRecord>(db, `SELECT * FROM site_domains WHERE id = ? AND type = 'custom'`, [domainId])
+  const token = leaseToken ?? crypto.randomUUID()
+  const domain = await queryFirst<DomainRecord>(db, `
+    UPDATE site_domains SET desired_state = 'deleted', reconciliation_token = ?, reconciliation_expires_at = ?
+    WHERE id = ? AND type = 'custom' AND status <> 'deleted'
+      AND (reconciliation_token = ? OR reconciliation_expires_at IS NULL OR reconciliation_expires_at <= ?)
+    RETURNING *
+  `, [token, new Date(Date.now() + 120_000).toISOString(), domainId, leaseToken ?? null, new Date().toISOString()])
   if (!domain) throw new Error('Domain not found')
 
   let cloudflareDeleteError: string | null = null
@@ -926,10 +927,10 @@ export async function deleteCustomDomain(
   if (cloudflareDeleteError) {
     await execute(db, `
       UPDATE site_domains
-      SET error_message = ?, updated_at = ?
-      WHERE id = ?
-    `, [`Cloudflare delete failed: ${cloudflareDeleteError}`, now, domainId])
-    await queueReconciliation(db, domainId)
+      SET error_message = ?, updated_at = ?, retry_count = MIN(12, retry_count + 1), next_check_at = ?,
+          reconciliation_token = NULL, reconciliation_expires_at = NULL
+      WHERE id = ? AND reconciliation_token = ?
+    `, [`Cloudflare delete failed: ${cloudflareDeleteError}`, now, nextCheckAt(Number(domain.retry_count ?? 0) + 1), domainId, token])
     await logDomainEvent(db, {
       organizationId: domain.organization_id,
       siteId: domain.site_id,
@@ -945,16 +946,17 @@ export async function deleteCustomDomain(
     throw new Error(`Failed to delete domain: ${cloudflareDeleteError}`)
   }
 
-  await execute(db, `
+  const deleted = await execute(db, `
     UPDATE site_domains
-    SET status = 'deleted', role = 'secondary', updated_at = ?
-    WHERE id = ?
-  `, [now, domainId])
+    SET status = 'deleted', role = 'secondary', updated_at = ?, next_check_at = NULL,
+        reconciliation_token = NULL, reconciliation_expires_at = NULL
+    WHERE id = ? AND reconciliation_token = ?
+  `, [now, domainId, token])
+  if (deleted.meta?.changes !== 1) throw new Error('Domain deletion was superseded')
 
   if (domain.status === 'active') {
     await reconcileZarazForDomainChange(env, db, domain.site_id)
   }
-  await execute(db, `DELETE FROM domain_reconciliation_jobs WHERE domain_id = ?`, [domainId])
   await logDomainEvent(db, {
     organizationId: domain.organization_id,
     siteId: domain.site_id,
@@ -1077,56 +1079,41 @@ async function promoteCanonicalIfReady(db: D1Database, siteId: string): Promise<
 }
 
 export async function reconcileDueDomains(env: DomainEnv, db: D1Database, limit = 25): Promise<{ checked: number; failed: number }> {
+  const now = new Date().toISOString()
   const rows = await queryAll<{ id: string }>(db, `
-    SELECT sd.id
-    FROM site_domains sd
-    LEFT JOIN domain_reconciliation_jobs j ON j.domain_id = sd.id
-    WHERE sd.type = 'custom'
-      AND sd.status IN ('pending', 'verifying', 'failed', 'blocked')
-      AND (sd.next_check_at IS NULL OR sd.next_check_at <= ? OR j.run_after <= ?)
-    ORDER BY COALESCE(j.run_after, sd.next_check_at, sd.created_at) ASC
-    LIMIT ?
-  `, [new Date().toISOString(), new Date().toISOString(), limit])
-
+    SELECT id FROM site_domains WHERE type = 'custom' AND status <> 'deleted'
+      AND (status IN ('pending', 'verifying', 'failed', 'blocked') OR desired_state = 'deleted')
+      AND (next_check_at IS NULL OR next_check_at <= ?)
+      AND (reconciliation_expires_at IS NULL OR reconciliation_expires_at <= ?)
+    ORDER BY COALESCE(next_check_at, created_at) LIMIT ?
+  `, [now, now, limit])
   let checked = 0
   let failed = 0
-
-  for (const row of rows || []) {
+  for (const row of rows) {
+    const token = crypto.randomUUID()
+    const currentTime = new Date().toISOString()
+    const claim = await queryFirst<{ desired_state: 'active' | 'deleted'; retry_count: number }>(db, `
+      UPDATE site_domains SET reconciliation_token = ?, reconciliation_expires_at = ?
+      WHERE id = ? AND status <> 'deleted'
+        AND (status IN ('pending', 'verifying', 'failed', 'blocked') OR desired_state = 'deleted')
+        AND (next_check_at IS NULL OR next_check_at <= ?)
+        AND (reconciliation_expires_at IS NULL OR reconciliation_expires_at <= ?)
+      RETURNING desired_state, retry_count
+    `, [token, new Date(Date.now() + 120_000).toISOString(), row.id, currentTime, currentTime])
+    if (!claim) continue
     checked += 1
-    const domainId = row.id
-    const now = new Date().toISOString()
-    await execute(db, `
-      UPDATE domain_reconciliation_jobs
-      SET status = 'running', attempts = attempts + 1, updated_at = ?
-      WHERE domain_id = ?
-    `, [now, domainId])
-
     try {
-      const domain = await syncDomainWithCloudflare(env, db, domainId, 'system')
-      await execute(db, `
-        UPDATE domain_reconciliation_jobs
-        SET status = ?, run_after = ?, last_error = NULL, updated_at = ?
-        WHERE domain_id = ?
-      `, [domain.status === 'active' ? 'succeeded' : 'queued', domain.next_check_at || now, now, domainId])
+      if (claim.desired_state === 'deleted') await deleteCustomDomain(env, db, row.id, 'system', null, token)
+      else await syncDomainWithCloudflare(env, db, row.id, 'system', null, undefined, { leaseToken: token })
     } catch (error) {
       failed += 1
-      const normalizedError = error instanceof Error ? error : new Error('Domain reconciliation failed')
-      const message = normalizedError.message || 'Domain reconciliation failed'
-      const current = await queryFirst<{ retry_count?: number }>(db, `SELECT retry_count FROM site_domains WHERE id = ?`, [domainId])
-      const retryCount = Math.min(MAX_RETRY_COUNT, Number(current?.retry_count || 0) + 1)
-      const runAfter = nextCheckAt(retryCount)
+      const retryCount = Math.min(MAX_RETRY_COUNT, claim.retry_count + 1)
       await execute(db, `
-        UPDATE site_domains
-        SET retry_count = ?, next_check_at = ?, error_message = ?, updated_at = ?
-        WHERE id = ?
-      `, [retryCount, runAfter, message, now, domainId])
-      await execute(db, `
-        UPDATE domain_reconciliation_jobs
-        SET status = 'failed', run_after = ?, last_error = ?, updated_at = ?
-        WHERE domain_id = ?
-      `, [runAfter, message, now, domainId])
+        UPDATE site_domains SET retry_count = ?, next_check_at = ?, error_message = ?, updated_at = ?,
+          reconciliation_token = NULL, reconciliation_expires_at = NULL
+        WHERE id = ? AND reconciliation_token = ?
+      `, [retryCount, nextCheckAt(retryCount), error instanceof Error ? error.message : 'Domain reconciliation failed', new Date().toISOString(), row.id, token])
     }
   }
-
   return { checked, failed }
 }

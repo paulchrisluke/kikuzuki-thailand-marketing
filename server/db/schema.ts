@@ -208,19 +208,6 @@ export const guest_thread_deliveries = sqliteTable("guest_thread_deliveries", {
 	check("guest_thread_deliveries_status_check", sql`status IN ('pending', 'accepted', 'sent', 'delivered', 'read', 'failed', 'unknown')`),
 ]);
 
-export const domain_reconciliation_jobs = sqliteTable("domain_reconciliation_jobs", {
-	id: text().primaryKey(),
-	domain_id: text().notNull().references(() => site_domains.id, { onDelete: "cascade" } ).unique(),
-	status: text().default("queued").notNull(),
-	run_after: text().notNull(),
-	attempts: integer().default(0).notNull(),
-	last_error: text(),
-	created_at: text().default(sql`(strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))`).notNull(),
-	updated_at: text().default(sql`(strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))`).notNull(),
-}, (table) => [
-	check("domain_reconciliation_jobs_status_check", sql`status IN ('queued', 'running', 'succeeded', 'failed')`),
-	index("idx_domain_reconciliation_jobs_due").on(table.status, table.run_after),
-]);
 
 export const experience_bookings = sqliteTable("experience_bookings", {
 	id: text().primaryKey(),
@@ -1204,32 +1191,17 @@ export const site_redirects = sqliteTable("site_redirects", {
 	index("site_redirects_owner_idx").on(table.owner_type, table.owner_id),
 ]);
 
-export const site_domain_events = sqliteTable("site_domain_events", {
-	id: text().primaryKey(),
-	organization_id: text().notNull().references(() => organization.id, { onDelete: "cascade" } ),
-	site_id: text().notNull().references(() => sites.id, { onDelete: "cascade" } ),
-	domain_id: text().references(() => site_domains.id, { onDelete: "set null" } ),
-	event_type: text().notNull(),
-	actor_type: text().default("system").notNull(),
-	actor_id: text(),
-	message: text(),
-	before_state: text(),
-	after_state: text(),
-	metadata: text(),
-	created_at: text().default(sql`(strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))`).notNull(),
-}, (table) => [
-	foreignKey({ columns: [table.organization_id, table.site_id], foreignColumns: [sites.organization_id, sites.id], name: "site_domain_events_site_scope_fk" }).onDelete("cascade"),
-	check("site_domain_events_before_state_check", sql`before_state IS NULL OR (json_valid(before_state))`),
-	check("site_domain_events_after_state_check", sql`after_state IS NULL OR (json_valid(after_state))`),
-	check("site_domain_events_metadata_check", sql`metadata IS NULL OR (json_valid(metadata))`),
-	index("idx_site_domain_events_domain").on(table.domain_id, table.created_at),
-	index("idx_site_domain_events_site").on(table.site_id, table.created_at),
-]);
 
 export const site_domains = sqliteTable("site_domains", {
 	id: text().primaryKey(),
-	organization_id: text().notNull().references(() => organization.id, { onDelete: "cascade" } ),
-	site_id: text().notNull().references(() => sites.id, { onDelete: "cascade" } ),
+	organization_id: text().references(() => organization.id, { onDelete: "cascade" } ),
+	site_id: text().references(() => sites.id, { onDelete: "cascade" } ),
+	former_site_id: text(),
+	successor_domain: text(),
+	retired_at: text(),
+	reconciliation_token: text(),
+	reconciliation_expires_at: text(),
+	desired_state: text({ enum: ["active", "deleted"] }).default("active").notNull(),
 	domain: text().notNull().unique(),
 	type: text().notNull(),
 	role: text().default("secondary").notNull(),
@@ -1267,45 +1239,23 @@ export const site_domains = sqliteTable("site_domains", {
 	created_at: text().default(sql`(strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))`).notNull(),
 	updated_at: text().default(sql`(strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))`).notNull(),
 }, (table) => [
+	check("site_domains_owner_check", sql`(status = 'retired' AND type = 'subdomain' AND role = 'secondary' AND organization_id IS NULL AND site_id IS NULL AND former_site_id IS NOT NULL AND retired_at IS NOT NULL) OR (status <> 'retired' AND organization_id IS NOT NULL AND site_id IS NOT NULL AND former_site_id IS NULL AND retired_at IS NULL AND successor_domain IS NULL)`),
+	check("site_domains_desired_state_check", sql`desired_state IN ('active', 'deleted') AND (desired_state <> 'deleted' OR type = 'custom')`),
+	check("site_domains_lease_check", sql`(reconciliation_token IS NULL) = (reconciliation_expires_at IS NULL)`),
 	foreignKey({ columns: [table.organization_id, table.site_id], foreignColumns: [sites.organization_id, sites.id], name: "site_domains_site_scope_fk" }).onDelete("cascade"),
 	check("site_domains_metadata_check", sql`metadata IS NULL OR (json_valid(metadata))`),
 	check("site_domains_type_check", sql`type IN ('subdomain', 'custom')`),
 	check("site_domains_role_check", sql`role IN ('canonical', 'secondary')`),
-	check("site_domains_status_check", sql`status IN ('pending', 'verifying', 'active', 'blocked', 'failed', 'disabled', 'deleted')`),
+	check("site_domains_status_check", sql`status IN ('pending', 'verifying', 'active', 'blocked', 'failed', 'disabled', 'deleted', 'retired')`),
 	check("site_domains_validation_strategy_check", sql`validation_strategy IN ('http_auto', 'txt_manual', 'delegated_dcv')`),
 	check("site_domains_dns_status_check", sql`dns_status IN ('pending', 'valid', 'invalid', 'unknown')`),
 	index("site_domains_org_site_idx").on(table.organization_id, table.site_id),
 	uniqueIndex("idx_site_domains_one_canonical").on(table.site_id).where(sql`role = 'canonical' AND status = 'active'`),
+	uniqueIndex("site_domains_one_active_subdomain").on(table.site_id).where(sql`type = 'subdomain' AND status = 'active'`),
 	index("idx_site_domains_reconcile").on(table.status, table.next_check_at),
 ]);
 
-export const spent_subdomains = sqliteTable("spent_subdomains", {
-	domain: text().primaryKey(),
-	site_id: text().notNull(),
-	successor_domain: text(),
-	spent_at: text().default(sql`(strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))`).notNull(),
-}, (table) => [
-	index("spent_subdomains_site_idx").on(table.site_id),
-]);
 
-export const organization_events = sqliteTable("organization_events", {
-	id: text().primaryKey(),
-	organization_id: text().notNull().references(() => organization.id, { onDelete: "cascade" } ),
-	site_id: text().references(() => sites.id, { onDelete: "set null" } ),
-	location_id: text().references(() => business_locations.id, { onDelete: "set null" } ),
-	actor_id: text().references(() => user.id, { onDelete: "set null" } ),
-	event_type: text().notNull(),
-	entity_type: text(),
-	entity_id: text(),
-	metadata: text(),
-	created_at: text().default(sql`(strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))`).notNull(),
-}, (table) => [
-	foreignKey({ columns: [table.organization_id, table.site_id], foreignColumns: [sites.organization_id, sites.id], name: "organization_events_site_scope_fk" }),
-	check("organization_events_metadata_check", sql`metadata IS NULL OR (json_valid(metadata))`),
-	index("organization_events_org_created_idx").on(table.organization_id, table.created_at),
-	index("organization_events_location_created_idx").on(table.location_id, table.created_at).where(sql`location_id IS NOT NULL`),
-	index("organization_events_site_created_idx").on(table.site_id, table.created_at).where(sql`site_id IS NOT NULL`),
-]);
 
 export const site_locales = sqliteTable("site_locales", {
 	id: text().primaryKey(),
@@ -1329,32 +1279,7 @@ export const site_locales = sqliteTable("site_locales", {
 	check("site_locales_english_source_check", sql`locale <> 'en' OR (is_source = 1 AND status = 'published')`),
 ]);
 
-export const platform_locale_catalogs = sqliteTable("platform_locale_catalogs", {
-	locale: text().primaryKey(),
-	label: text().notNull(),
-	direction: text().notNull(),
-	status: text().default("unavailable").notNull(),
-	source_manifest_hash: text(),
-	available_at: text(),
-	available_by_user_id: text(),
-	created_at: text().default(sql`(strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))`).notNull(),
-	created_by_user_id: text().notNull(),
-	updated_at: text().default(sql`(strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))`).notNull(),
-	updated_by_user_id: text().notNull(),
-}, (table) => [
-	check("platform_locale_catalogs_direction_check", sql`${table.direction} IN ('ltr', 'rtl')`),
-	check("platform_locale_catalogs_status_check", sql`${table.status} IN ('unavailable', 'available')`),
-]);
 
-export const platform_locale_messages = sqliteTable("platform_locale_messages", {
-	locale: text().notNull().references(() => platform_locale_catalogs.locale, { onDelete: "cascade" }),
-	message_key: text().notNull(),
-	message_value: text().notNull(),
-	updated_at: text().default(sql`(strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))`).notNull(),
-	updated_by_user_id: text().notNull(),
-}, (table) => [
-	primaryKey({ columns: [table.locale, table.message_key] }),
-]);
 
 
 export const mcp_tool_call_events = sqliteTable("mcp_tool_call_events", {
@@ -1479,6 +1404,20 @@ export const sites = sqliteTable("sites", {
 }, (table) => [
 	check("sites_settings_json_check", sql`json_valid(settings_json) AND json_type(settings_json) IS 'object'`),
 	check("sites_integrations_json_check", sql`json_valid(integrations_json) AND json_type(integrations_json) IS 'object'`),
+	check("sites_config_brand_color_check", sql`json_type(settings_json, '$.config.brand_color') IS NULL OR json_type(settings_json, '$.config.brand_color') IS 'text'`),
+	check("sites_config_press_email_check", sql`json_type(settings_json, '$.config.press_email') IS NULL OR json_type(settings_json, '$.config.press_email') IS 'text'`),
+	check("sites_config_partnerships_email_check", sql`json_type(settings_json, '$.config.partnerships_email') IS NULL OR json_type(settings_json, '$.config.partnerships_email') IS 'text'`),
+	check("sites_config_catering_email_check", sql`json_type(settings_json, '$.config.catering_email') IS NULL OR json_type(settings_json, '$.config.catering_email') IS 'text'`),
+	check("sites_config_careers_email_check", sql`json_type(settings_json, '$.config.careers_email') IS NULL OR json_type(settings_json, '$.config.careers_email') IS 'text'`),
+	check("sites_config_google_site_verification_check", sql`json_type(settings_json, '$.config.google_site_verification') IS NULL OR json_type(settings_json, '$.config.google_site_verification') IS 'text'`),
+	check("sites_config_default_timezone_check", sql`json_type(settings_json, '$.config.default_timezone') IS NULL OR json_type(settings_json, '$.config.default_timezone') IS 'text'`),
+	check("sites_config_whatsapp_phone_check", sql`json_type(settings_json, '$.config.whatsapp_phone') IS NULL OR json_type(settings_json, '$.config.whatsapp_phone') IS 'text'`),
+	check("sites_config_notifications_check", sql`json_type(settings_json, '$.config.owner_notification_channels') IS NULL OR json_type(settings_json, '$.config.owner_notification_channels') IS 'array'`),
+	check("sites_config_resource_generation_check", sql`json_type(settings_json, '$.config.resource_team_generation') IS NULL OR (json_type(settings_json, '$.config.resource_team_generation') IS 'object' AND json_type(settings_json, '$.config.resource_team_generation.transfer_id') IS 'text' AND json_type(settings_json, '$.config.resource_team_generation.generation') IS 'text')`),
+	check("sites_consultation_metadata_check", sql`json_type(settings_json, '$.consultation.metadata_json') IS NULL OR json_type(settings_json, '$.consultation.metadata_json') IN ('null', 'object')`),
+	check("sites_compliance_metadata_check", sql`json_type(settings_json, '$.compliance.metadata_json') IS NULL OR json_type(settings_json, '$.compliance.metadata_json') IN ('null', 'object')`),
+	check("sites_theme_saya_check", sql`json_type(settings_json, '$.theme_by_template.saya') IS NULL OR (json_type(settings_json, '$.theme_by_template.saya') IS 'object' AND json_type(settings_json, '$.theme_by_template.saya.tokens') IS 'object' AND json_extract(settings_json, '$.theme_by_template.saya.status') IN ('active', 'disabled')) IS TRUE`),
+	check("sites_theme_blawby_check", sql`json_type(settings_json, '$.theme_by_template.blawby') IS NULL OR (json_type(settings_json, '$.theme_by_template.blawby') IS 'object' AND json_type(settings_json, '$.theme_by_template.blawby.tokens') IS 'object' AND json_extract(settings_json, '$.theme_by_template.blawby.status') IN ('active', 'disabled')) IS TRUE`),
 	check("sites_config_object_check", sql`json_type(settings_json, '$.config') IS NULL OR json_type(settings_json, '$.config') IS 'object'`),
 	check("sites_theme_by_template_object_check", sql`json_type(settings_json, '$.theme_by_template') IS NULL OR json_type(settings_json, '$.theme_by_template') IS 'object'`),
 	check("sites_consultation_object_check", sql`json_type(settings_json, '$.consultation') IS NULL OR json_type(settings_json, '$.consultation') IS 'object'`),

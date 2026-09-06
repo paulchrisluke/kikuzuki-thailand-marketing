@@ -10,6 +10,8 @@ export type OrganizationEventType =
   | 'experience.created'
   | 'work_request.created' | 'work_request.status_changed'
   | 'domain.connected' | 'domain.verified' | 'domain.failed'
+  | 'canonical_domain_changed' | 'cloudflare_create_failed' | 'cloudflare_delete_failed'
+  | 'domain_added' | 'domain_deleted' | 'domain_state_changed'
   | 'member.invited' | 'member.role_changed' | 'member.removed' | 'member.access_scope_revoked'
 
 export interface FireOrganizationEventParams {
@@ -21,17 +23,27 @@ export interface FireOrganizationEventParams {
   eventType: OrganizationEventType
   entityType?: string
   entityId?: string
-  metadata?: Record<string, unknown>
+  metadata?: unknown
+  actorType?: 'owner' | 'admin' | 'editor' | 'member' | 'system' | 'cloudflare'
+  message?: string
+  beforeState?: unknown
+  afterState?: unknown
 }
 
 export async function fireOrganizationEvent(params: FireOrganizationEventParams): Promise<void> {
-  const { db, organizationId, siteId, locationId, actorId, eventType, entityType, entityId, metadata } = params
+  const { db, organizationId, siteId, locationId, actorId, eventType, entityType, entityId, metadata, actorType, message, beforeState, afterState } = params
+  const id = crypto.randomUUID()
+  const actorKind = actorType === 'cloudflare' ? 'cloudflare' : actorId ? 'member' : 'system'
   await execute(db, `
-    INSERT INTO organization_events
-      (id, organization_id, site_id, location_id, actor_id, event_type, entity_type, entity_id, metadata)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `, [crypto.randomUUID(), organizationId, siteId ?? null, locationId ?? null, actorId ?? null,
-    eventType, entityType ?? null, entityId ?? null, metadata ? JSON.stringify(metadata) : null])
+    INSERT INTO activity_entries
+      (id, kind, scope_kind, organization_id, site_id, location_id, actor_kind, actor_user_id,
+       event_name, body, payload_json, occurred_at, created_at, dedupe_key)
+    VALUES (?, 'audit', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `, [id, siteId ? 'site' : 'organization', siteId ? null : organizationId, siteId ?? null, locationId ?? null,
+    actorKind, actorId ?? null, eventType, message ?? null,
+    JSON.stringify({ sourceOrganizationId: organizationId, entityType: entityType ?? null, entityId: entityId ?? null, actorType: actorType ?? actorKind,
+      beforeState: beforeState ?? null, afterState: afterState ?? null, metadata: metadata ?? null }),
+    new Date().toISOString(), new Date().toISOString(), 'audit:' + id])
 }
 
 export async function fireOrganizationEventSafe(params: FireOrganizationEventParams): Promise<void> {

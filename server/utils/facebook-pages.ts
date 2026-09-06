@@ -254,8 +254,7 @@ export const storeFacebookPagesConnection = async (
   })
   const result = await execute(env.DB, `
     UPDATE sites SET integrations_json = json_set(integrations_json, '$.facebook',
-      json_set(json_patch(CASE WHEN json_extract(integrations_json, '$.facebook.kind') = 'oauth'
-                             THEN json_extract(integrations_json, '$.facebook') ELSE '{}' END, json(?)),
+      json_set(json(?),
         '$.created_at', COALESCE(json_extract(integrations_json, '$.facebook.created_at'), ?)))
     WHERE id = ? AND organization_id = ?
       AND json_extract(integrations_json, '$.facebook.revision') IS ?

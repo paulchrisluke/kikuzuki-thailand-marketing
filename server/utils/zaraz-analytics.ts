@@ -67,7 +67,7 @@ type CloudflareEnvelope<T> = {
 }
 
 const CF_API_BASE = 'https://api.cloudflare.com/client/v4'
-const LOCK_STALE_MS = 30_000
+const LOCK_STALE_MS = 60_000
 const LOCK_RETRY_DELAYS_MS = [100, 250, 500, 1_000, 2_000]
 const ANALYTICS_KEY_PREFIX = 'ga-'
 const TENANT_KEY_PREFIX = 'ga-tenant-'
@@ -84,6 +84,7 @@ async function zarazRequest<T>(env: ZarazEnv, init: RequestInit = {}): Promise<T
   requireZarazEnv(env)
   const response = await fetch(`${CF_API_BASE}/zones/${env.CF_ZONE_ID}/settings/zaraz/config`, {
     ...init,
+    signal: AbortSignal.timeout(15_000),
     headers: {
       Authorization: `Bearer ${env.CLOUDFLARE_API_TOKEN}`,
       'Content-Type': 'application/json',

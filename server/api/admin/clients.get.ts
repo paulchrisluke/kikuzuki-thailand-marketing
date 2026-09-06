@@ -135,7 +135,7 @@ export default defineHandler(async (event) => {
 
   const clients = await queryAll<ClientRow>(db, `
     WITH single_site AS (
-      SELECT *, ROW_NUMBER() OVER (PARTITION BY organization_id ORDER BY created_at DESC) as rn
+      SELECT id, organization_id, brand_name, subdomain, ROW_NUMBER() OVER (PARTITION BY organization_id ORDER BY created_at DESC) as rn
       FROM sites
     ), pending_transfer AS (
       SELECT from_organization_id, to_email, ROW_NUMBER() OVER (PARTITION BY from_organization_id ORDER BY created_at DESC) as rn

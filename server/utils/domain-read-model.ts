@@ -182,9 +182,14 @@ export function groupCustomDomains(domains: DomainRecord[]): DomainGroup[] {
 
 export async function getDomainEvents(db: D1Database, domainId: string) {
   const events = await queryAll(db, `
-    SELECT *
-    FROM site_domain_events
-    WHERE domain_id = ?
+    SELECT id, organization_id, site_id, event_name AS event_type, body AS message,
+           actor_user_id AS actor_id, payload_json ->> '$.actorType' AS actor_type,
+           payload_json ->> '$.entityId' AS domain_id,
+           payload_json ->> '$.beforeState' AS before_state,
+           payload_json ->> '$.afterState' AS after_state,
+           payload_json ->> '$.metadata' AS metadata, created_at
+    FROM activity_entries
+    WHERE kind = 'audit' AND payload_json ->> '$.entityType' = 'domain' AND payload_json ->> '$.entityId' = ?
     ORDER BY created_at DESC
     LIMIT 100
   `, [domainId])

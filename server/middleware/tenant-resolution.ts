@@ -405,7 +405,7 @@ export async function resolveTenantSite(
 
   const spent = await queryFirst<{ successor_domain: string | null }>(
     db,
-    'SELECT successor_domain FROM spent_subdomains WHERE domain = ? LIMIT 1',
+    "SELECT successor_domain FROM site_domains WHERE domain = ? AND status = 'retired' LIMIT 1",
     [hostname],
   )
   return spent

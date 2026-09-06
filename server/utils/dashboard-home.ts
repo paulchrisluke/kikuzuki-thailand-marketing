@@ -127,12 +127,13 @@ export async function getDashboardHomeData(
       metadata: string | null; created_at: string
       location_title: string | null
     }>(db, `
-      SELECT e.id, e.event_type, e.entity_type, e.entity_id,
-             e.location_id, e.metadata, e.created_at,
+      SELECT e.id, e.event_name AS event_type, json_extract(e.payload_json, '$.entityType') AS entity_type, json_extract(e.payload_json, '$.entityId') AS entity_id,
+             e.location_id, json_extract(e.payload_json, '$.metadata') AS metadata, e.created_at,
              l.title as location_title
-      FROM organization_events e
+      FROM activity_entries e
+    LEFT JOIN sites event_site ON event_site.id = e.site_id
       LEFT JOIN business_locations l ON l.id = e.location_id
-      WHERE e.organization_id = ? AND e.site_id = ?
+      WHERE e.kind = 'audit' AND event_site.organization_id = ? AND e.site_id = ?
       ${eventScopeClause}
       ORDER BY e.created_at DESC
       LIMIT 15

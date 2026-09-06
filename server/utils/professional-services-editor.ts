@@ -406,7 +406,7 @@ export async function upsertProfessionalServiceContent(
     if (existingCompliance && Object.hasOwn(item, 'media')) {
       validationError('compliance.media cannot replace an existing placement; use attach/remove/reorder media operations')
     }
-    const complianceMedia = existingCompliance ? [] : strictMediaRefs(item.media, 'compliance.media', ['document'])
+    const complianceMedia = existingCompliance ? [] : strictMediaRefs(item.media, 'compliance.media', ['compliance_document'])
     await hydrateMediaAssetRefs(db, {
       organizationId,
       siteId,

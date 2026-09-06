@@ -105,6 +105,11 @@ export const setConfig = async (
   key: keyof SiteConfig,
   value: string
 ) => {
+  if (key === 'social_facebook' || key === 'social_instagram' || key === 'social_tiktok') {
+    const result = await execute(db, `UPDATE sites SET ${key}_url = ?, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE organization_id = ? AND id = ?`, [value || null, organizationId, siteId])
+    if (result.meta?.changes !== 1) throw new HTTPError({ statusCode: 409, statusMessage: 'Site ownership changed. Reload before saving.' })
+    return
+  }
   if (key === 'google_analytics_measurement_id') {
     const current = await queryFirst<{ kind: string | null; measurement_id: string | null; revision: string | null }>(db, `
       SELECT json_extract(integrations_json, '$.google.kind') AS kind,
@@ -142,7 +147,7 @@ export const deleteConfig = async (
   siteId: string,
   key: keyof SiteConfig
 ) => {
-  if (key === 'google_analytics_measurement_id') return setConfig(db, organizationId, siteId, key, '')
+  if (key === 'google_analytics_measurement_id' || key === 'social_facebook' || key === 'social_instagram' || key === 'social_tiktok') return setConfig(db, organizationId, siteId, key, '')
   const result = await execute(
     db,
     `UPDATE sites SET settings_json = json_remove(settings_json, ?),

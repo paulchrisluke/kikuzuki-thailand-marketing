@@ -48,14 +48,14 @@ export default defineHandler(async (event) => {
   const [, activation] = await executeBatch(db, [
     {
       query: `
-        INSERT INTO organization_events (
-          id, organization_id, site_id, location_id, actor_id, event_type, entity_type, entity_id, metadata, created_at
+        INSERT INTO activity_entries (
+          id, organization_id, site_id, location_id, actor_user_id, kind, scope_kind, actor_kind, event_name, payload_json, occurred_at, created_at, dedupe_key
         )
-        SELECT ?, ?, ?, ?, ?, 'media.uploaded', 'media_asset', ?, ?, ?
+        SELECT ?, NULL, ?, ?, ?, 'audit', 'site', 'member', 'media.uploaded', json_object('sourceOrganizationId', ?, 'entityType', 'media_asset', 'entityId', ?, 'metadata', json(?)), ?, ?, ?
         FROM media_assets
         WHERE id = ? AND site_id = ? AND status = 'pending'
       `, params: [
-        eventId, result.context.organization_id, result.context.site_id, result.context.location_id, sessionUser.id, assetId, JSON.stringify({ kind: 'image', provider: 'cloudflare_images', source: 'uploaded', status: 'active' }), now, assetId, result.context.site_id, ], }, {
+        eventId, result.context.site_id, result.context.location_id, sessionUser.id, result.context.organization_id, assetId, JSON.stringify({ kind: 'image', provider: 'cloudflare_images', source: 'uploaded', status: 'active' }), now, now, 'media.uploaded:' + assetId, assetId, result.context.site_id, ], }, {
       query: `
         UPDATE media_assets
         SET status = 'active', public_url = ?, thumbnail_url = ?, updated_at = ?

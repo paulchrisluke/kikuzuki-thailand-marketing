@@ -3,7 +3,8 @@ import test from 'node:test'
 import { Miniflare } from 'miniflare'
 import { generateSQLiteDrizzleJson, generateSQLiteMigration } from 'drizzle-kit/api'
 import * as schema from '../../server/db/schema.ts'
-import { getConfig, setConfig } from '../../server/utils/site-config.ts'
+import { deleteConfig, getConfig, setConfig } from '../../server/utils/site-config.ts'
+import { storeGoogleAnalyticsConnection, getGoogleAnalyticsConnection } from '../../server/utils/google-analytics.ts'
 import { getWhatsAppWorkspaceState, patchWhatsAppWorkspaceState, getMcpWorkspacePreference, upsertMcpWorkspacePreference } from '../../server/utils/mcp-context.ts'
 
 test('site settings and workspace patches preserve independent owners and exclude provider secrets', async () => {
@@ -23,6 +24,11 @@ test('site settings and workspace patches preserve independent owners and exclud
     await Promise.all([setConfig(db, 'org', 'site', 'brand_color', '#123456'), setConfig(db, 'org', 'site', 'default_timezone', 'Asia/Bangkok')])
     assert.equal((await getConfig(db, 'org', 'site')).brand_color, '#123456')
     assert.equal((await getConfig(db, 'org', 'site')).default_timezone, 'Asia/Bangkok')
+    await setConfig(db, 'org', 'site', 'social_facebook', 'https://facebook.com/example')
+    assert.equal((await getConfig(db, 'org', 'site')).social_facebook, 'https://facebook.com/example')
+    assert.equal((await db.prepare("SELECT settings_json FROM sites WHERE id='site'").first<{ settings_json: string }>())?.settings_json.includes('social_facebook'), false)
+    await deleteConfig(db, 'org', 'site', 'social_facebook')
+    assert.equal((await getConfig(db, 'org', 'site')).social_facebook, undefined)
     await setConfig(db, 'org', 'site', 'google_analytics_measurement_id', 'G-TEST')
     assert.equal((await getConfig(db, 'org', 'site')).google_analytics_measurement_id, 'G-TEST')
     await db.prepare("UPDATE sites SET integrations_json=json_set(integrations_json,'$.google',json(?)) WHERE id='site'").bind(JSON.stringify({ kind: 'oauth', status: 'active', revision: 'v1', encrypted_access_token: 'private-canary', encrypted_refresh_token: 'private-canary-refresh', ga4_measurement_id: 'G-OAUTH' })).run()
@@ -32,6 +38,21 @@ test('site settings and workspace patches preserve independent owners and exclud
     await assert.rejects(db.prepare("UPDATE sites SET integrations_json=json_set(integrations_json,'$.google',json('{}')) WHERE id='site'").run())
     await assert.rejects(db.prepare("UPDATE sites SET settings_json=json_set(settings_json,'$.consultation',json('{}')) WHERE id='site'").run())
     await assert.rejects(setConfig(db, 'other', 'site', 'brand_color', '#000000'))
+    await db.prepare("UPDATE sites SET integrations_json='{}' WHERE id='site'").run()
+    const providerEnv = { DB: db, CONNECTOR_TOKEN_ENCRYPTION_KEY: Buffer.alloc(32, 7).toString('base64') }
+    const connection = { organization_id: 'org', site_id: 'site', connected_by_user_id: 'user', provider_account_email: 'owner@example.test', encrypted_access_token: 'access-token', encrypted_refresh_token: 'refresh-token', scopes: 'analytics.readonly', status: 'active' as const }
+    const attempts = await Promise.allSettled([storeGoogleAnalyticsConnection(providerEnv, connection, { revision: null, transfer_generation: null }), storeGoogleAnalyticsConnection(providerEnv, connection, { revision: null, transfer_generation: null })])
+    assert.equal(attempts.filter(result => result.status === 'fulfilled').length, 1)
+    const connected = await getGoogleAnalyticsConnection(providerEnv, 'org', 'site')
+    assert.ok(connected)
+    assert.equal(connected.encrypted_access_token, 'access-token')
+    await setConfig(db, 'org', 'site', 'brand_color', '#abcdef')
+    await storeGoogleAnalyticsConnection(providerEnv, connection, connected)
+    const currentConnection = await getGoogleAnalyticsConnection(providerEnv, 'org', 'site')
+    assert.ok(currentConnection)
+    await db.prepare("UPDATE sites SET settings_json=json_set(settings_json,'$.config.resource_team_generation',json(?)) WHERE id='site'").bind(JSON.stringify({ transfer_id: 'transfer', generation: 'new-generation' })).run()
+    await assert.rejects(storeGoogleAnalyticsConnection(providerEnv, connection, currentConnection))
+
     await patchWhatsAppWorkspaceState(db, { userId: 'user', pendingConfirmation: { intent: 'one' } })
     await Promise.all([patchWhatsAppWorkspaceState(db, { userId: 'user', lastInboundId: 'inbound' }), upsertMcpWorkspacePreference(db, { userId: 'user', organizationId: 'org', siteId: 'site', locationId: null })])
     assert.equal((await getWhatsAppWorkspaceState(db, 'user'))?.pending_confirmation, '{"intent":"one"}')

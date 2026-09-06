@@ -156,13 +156,13 @@ export const storeGoogleAnalyticsConnection = async (
   })
   const result = await execute(env.DB, `
     UPDATE sites SET integrations_json = json_set(integrations_json, '$.google',
-      json_set(json_patch(CASE WHEN json_extract(integrations_json, '$.google.kind') = 'oauth'
+      json_set(json_patch(CASE WHEN json_extract(integrations_json, '$.google.kind') = 'oauth' AND json_extract(integrations_json, '$.google.provider_account_email') = ?
                              THEN json_extract(integrations_json, '$.google') ELSE '{}' END, json(?)),
         '$.created_at', COALESCE(json_extract(integrations_json, '$.google.created_at'), ?)))
     WHERE id = ? AND organization_id = ?
       AND json_extract(integrations_json, '$.google.revision') IS ?
       AND json_extract(settings_json, '$.config.resource_team_generation') IS ?
-  `, [payload, now, siteId, organizationId, expected.revision, expected.transfer_generation])
+  `, [connection.provider_account_email, payload, now, siteId, organizationId, expected.revision, expected.transfer_generation])
   if (result.meta?.changes !== 1) throw new Error('Site ownership or google connection changed during authorization')
 
   return connectionId
