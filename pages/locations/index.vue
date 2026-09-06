@@ -64,7 +64,7 @@
             <div class="saya-eyebrow mb-5 flex items-center gap-2 text-muted">
               <span class="size-1.5 rounded-full" :class="loc.open_now ? 'bg-green-400' : 'bg-zinc-300'" />
               {{ loc.open_now ? locationsCopy.openNowLabel : locationsCopy.closedLabel }}
-              <template v-if="loc.hours_today">· {{ loc.hours_today }}</template>
+              <template v-if="todayHours(loc)">· {{ todayHours(loc) }}</template>
             </div>
 
             <!-- Location name -->
@@ -72,7 +72,7 @@
             <p v-if="loc.city" class="mt-1.5 text-sm text-muted">{{ loc.city }}</p>
 
             <!-- Address -->
-            <p class="mt-5 text-sm leading-relaxed text-muted">{{ formatAddress(loc.address) }}</p>
+            <p class="mt-5 text-sm leading-relaxed text-muted">{{ locationAddress(loc) }}</p>
 
             <!-- CTA -->
             <div class="mt-6 border-t border-default pt-5">
@@ -118,6 +118,23 @@ function formatAddress(address: AddressInput) {
   if (!address) return ''
   if (typeof address === 'string') return address
   return [address.addressLines?.[0], address.locality, address.administrativeArea, address.postalCode].filter(Boolean).join(', ')
+}
+
+function locationAddress(location: ApiRecord): string {
+  if (locale.value === 'en') return formatAddress(location.address as AddressInput)
+  return typeof location.address_translated === 'string' ? location.address_translated : ''
+}
+
+function todayHours(location: ApiRecord): string {
+  if (locale.value === 'en') return typeof location.hours_today === 'string' ? location.hours_today : ''
+  if (!Array.isArray(location.opening_hours_translated)) return ''
+  const weekday = new Intl.DateTimeFormat('en-US', {
+    weekday: 'long',
+    timeZone: typeof location.timezone === 'string' ? location.timezone : undefined,
+  }).format(new Date()).toUpperCase()
+  const index = ['MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY', 'SUNDAY'].indexOf(weekday)
+  const value = index >= 0 ? location.opening_hours_translated[index] : undefined
+  return typeof value === 'string' ? value : ''
 }
 
 const siteName = computed(() => unref(site)?.brand_name || '')

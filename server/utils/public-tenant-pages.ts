@@ -312,11 +312,14 @@ export async function getPublicTenantPageForPath(
       )
     }
   }
+  if (!sourceLocale?.label) {
+    throw new HTTPError({ statusCode: 500, statusMessage: 'Site source locale label is missing' })
+  }
   const localeRepresentations = await listPublicLocaleRepresentations(db, {
     organizationId: page.organization_id,
     siteId,
     sourcePath: page.path,
-    sourceLabel: sourceLocale?.label ?? 'English',
+    sourceLabel: sourceLocale.label,
     pageId: page.page_id,
   })
   return mapPage(page, blocks, localizedMedia, localeRepresentations)

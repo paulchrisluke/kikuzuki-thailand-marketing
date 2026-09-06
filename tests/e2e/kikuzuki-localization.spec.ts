@@ -27,6 +27,7 @@ async function putLocalization(
 async function expectLocalizedMenu(page: Page) {
   await expect(page.locator('html')).toHaveAttribute('lang', locale)
   await expect(page.getByRole('navigation', { name: 'การนำทางหลัก' })).toBeVisible()
+  await expect(page.getByRole('navigation', { name: 'การนำทางหลัก' }).getByRole('link', { name: 'เมนู', exact: true })).toBeVisible()
   await expect(page.getByRole('link', { name: 'จองโต๊ะ' }).first()).toBeVisible()
   await expect(page.getByRole('heading', { name: 'Kikuzuki กระบี่ ประเทศไทย' })).toBeVisible()
   await expect(page.getByRole('button', { name: 'ซูชิ' })).toBeVisible()
@@ -117,6 +118,13 @@ test('Kikuzuki keeps its Thai shell and category translations on a hard load', a
     await expect(page.getByText('ติดต่อเรา', { exact: true }).first()).toBeVisible()
     await expect(page.getByRole('button', { name: /🇹🇭 th/ })).toBeVisible()
     expect(errors.filter(message => message.includes('Localized route representation was not found'))).toEqual([])
+
+    for (const path of ['/th/reservations', '/th/experiences']) {
+      const builtInResponse = await openTenantPage(page, `${kikuzukiTestBaseUrl()}${path}`, kikuzukiTestExtraHeaders())
+      expect(builtInResponse?.status()).toBeLessThan(400)
+      await expect(page.locator('html')).toHaveAttribute('lang', locale)
+      await expect(page.getByRole('navigation', { name: 'การนำทางหลัก' }).getByRole('link', { name: 'เมนู', exact: true })).toBeVisible()
+    }
   } finally {
     await admin.dispose()
     await owner.dispose()
