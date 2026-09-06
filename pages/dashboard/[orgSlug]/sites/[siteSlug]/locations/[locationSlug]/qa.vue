@@ -39,7 +39,7 @@
     :removable="Boolean(editingId) && translationLocale === sourceLocale"
     :saving="translationLocale === sourceLocale ? saving : translationSaving"
     :removing="removingId === editingId"
-    :save-disabled="!locationId || (translationLocale === sourceLocale ? !form.question.trim() : translationSaving)"
+    :save-disabled="!locationId || (translationLocale === sourceLocale ? !form.question.trim() : translationSaving || !translationReady)"
     @save="translationLocale === sourceLocale ? saveQa() : saveTranslation()"
     @remove="removeEditing"
   >
@@ -196,41 +196,72 @@ const sourceLocale = contentLanguage.sourceLocale
 const translationFields = reactive({ question: '', answer: '' })
 const translationError = ref<string | null>(null)
 const translationSaving = ref(false)
+const translationLoading = ref(false)
+const loadedTranslationQaId = ref('')
+const loadedTranslationLocale = ref('')
+let translationLoadGeneration = 0
+const translationReady = computed(() => !translationLoading.value
+  && loadedTranslationQaId.value === editingId.value
+  && loadedTranslationLocale.value === translationLocale.value)
 function isQaTranslationResponse(value: unknown): value is { localization: { values: Record<string, unknown> } } {
   return isRecord(value) && isRecord(value.localization) && isRecord(value.localization.values)
 }
-async function loadTranslationFields(qaId: string) {
+async function loadTranslationFields() {
+  const requestedQaId = editingId.value
+  const requestedLocale = translationLocale.value
+  const generation = ++translationLoadGeneration
+  translationFields.question = ''
+  translationFields.answer = ''
+  loadedTranslationQaId.value = ''
+  loadedTranslationLocale.value = ''
   translationError.value = null
-  const locale = translationLocale.value
-  if (!locale || locale === sourceLocale.value) return
+  if (!requestedQaId || !requestedLocale || requestedLocale === sourceLocale.value) {
+    translationLoading.value = false
+    return
+  }
+  translationLoading.value = true
   try {
     const response = await dashboardApi<{ localization: { values: Record<string, unknown> } }>(
-      `/api/editor/sites/${siteId}/localization/location_qa/${qaId}/${encodeURIComponent(locale)}`,
+      `/api/editor/sites/${siteId}/localization/location_qa/${requestedQaId}/${encodeURIComponent(requestedLocale)}`,
       { validate: isQaTranslationResponse },
     )
+    if (generation !== translationLoadGeneration
+      || editingId.value !== requestedQaId
+      || translationLocale.value !== requestedLocale) return
     const values = response.localization.values
     translationFields.question = typeof values.question === 'string' ? values.question : ''
     translationFields.answer = typeof values.answer === 'string' ? values.answer : ''
+    loadedTranslationQaId.value = requestedQaId
+    loadedTranslationLocale.value = requestedLocale
   } catch (cause) {
+    if (generation !== translationLoadGeneration
+      || editingId.value !== requestedQaId
+      || translationLocale.value !== requestedLocale) return
     const statusCode = isRecord(cause) && typeof cause.statusCode === 'number' ? cause.statusCode : null
     if (statusCode !== 404) translationError.value = cause instanceof Error ? cause.message : 'Failed to load translation'
     translationFields.question = ''; translationFields.answer = ''
+    if (statusCode === 404) {
+      loadedTranslationQaId.value = requestedQaId
+      loadedTranslationLocale.value = requestedLocale
+    }
+  } finally {
+    if (generation === translationLoadGeneration) translationLoading.value = false
   }
 }
-watch(translationLocale, () => {
-  if (editingId.value && translationLocale.value && translationLocale.value !== sourceLocale.value) void loadTranslationFields(editingId.value)
-})
-watch(editingId, (id) => {
-  if (id && translationLocale.value && translationLocale.value !== sourceLocale.value) void loadTranslationFields(id)
-})
+watch([editingId, translationLocale], () => { void loadTranslationFields() }, { flush: 'sync' })
 async function saveTranslation() {
-  if (!editingId.value || !translationLocale.value || translationLocale.value === sourceLocale.value) return
+  const requestedQaId = editingId.value
+  const requestedLocale = translationLocale.value
+  if (!requestedQaId || !requestedLocale || requestedLocale === sourceLocale.value
+    || !translationReady.value
+    || loadedTranslationQaId.value !== requestedQaId
+    || loadedTranslationLocale.value !== requestedLocale) return
   translationSaving.value = true; translationError.value = null
   try {
     const values: Record<string, string> = {}
     if (translationFields.question.trim()) values.question = translationFields.question.trim()
     if (translationFields.answer.trim()) values.answer = translationFields.answer.trim()
-    await dashboardApi(`/api/editor/sites/${siteId}/localization/location_qa/${editingId.value}/${encodeURIComponent(translationLocale.value)}`, {
+    await dashboardApi(`/api/editor/sites/${siteId}/localization/location_qa/${requestedQaId}/${encodeURIComponent(requestedLocale)}`, {
       method: 'PUT',
       body: { values },
       validate: isRecord,

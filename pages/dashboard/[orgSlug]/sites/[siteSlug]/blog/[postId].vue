@@ -39,7 +39,7 @@
         </div>
       </div>
       <p v-if="translationError" class="text-sm text-error">{{ translationError }}</p>
-    <button type="button" class="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-white disabled:opacity-50" :disabled="translationSaving" @click="saveTranslation">
+    <button type="button" class="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-white disabled:opacity-50" :disabled="translationSaving || !translationReady" @click="saveTranslation">
       {{ translationSaving ? 'Saving…' : 'Save' }}
     </button>
   </div>
@@ -104,6 +104,10 @@ const translationBlocks = ref<BlogEditorBlock[]>([])
 const translationDocumentUpdatedAt = ref<string | null>(null)
 const translationError = ref<string | null>(null)
 const translationSaving = ref(false)
+const translationLoading = ref(false)
+const loadedTranslationLocale = ref('')
+let translationLoadGeneration = 0
+const translationReady = computed(() => !translationLoading.value && loadedTranslationLocale.value === translationLocale.value)
 type BlogTranslationResponse = { localization: { values: Record<string, unknown>; content_document?: { document: { updated_at: string }; blocks: BlogEditorBlock[] } } }
 function isBlogTranslationResponse(value: unknown): value is BlogTranslationResponse {
   if (!isRecord(value) || !isRecord(value.localization) || !isRecord(value.localization.values)) return false
@@ -122,15 +126,30 @@ function blankTranslationBlocks(): BlogEditorBlock[] {
   const sourceBlocks = (postResource.value?.post.content_document?.blocks ?? []) as BlogEditorBlock[]
   return sourceBlocks.map(blankBlogLocalizedText)
 }
+function resetTranslationFields() {
+  translationBlocks.value = []
+  translationDocumentUpdatedAt.value = null
+  translationFields.title = ''; translationFields.excerpt = ''
+  translationFields.category = ''; translationFields.tags_text = ''; translationFields.nav_title = ''
+  translationFields.seo_keywords = ''
+}
 async function loadTranslationFields() {
+  const requestedLocale = translationLocale.value
+  const generation = ++translationLoadGeneration
+  resetTranslationFields()
+  loadedTranslationLocale.value = ''
   translationError.value = null
-  const locale = translationLocale.value
-  if (!locale || locale === sourceLocale.value) return
+  if (!requestedLocale || requestedLocale === sourceLocale.value) {
+    translationLoading.value = false
+    return
+  }
+  translationLoading.value = true
   try {
     const response = await dashboardApi<BlogTranslationResponse>(
-      `/api/editor/sites/${siteId}/localization/tenant_blog_post/${postId}/${encodeURIComponent(locale)}`,
+      `/api/editor/sites/${siteId}/localization/tenant_blog_post/${postId}/${encodeURIComponent(requestedLocale)}`,
       { validate: isBlogTranslationResponse },
     )
+    if (generation !== translationLoadGeneration || translationLocale.value !== requestedLocale) return
     const values = response.localization.values
     translationBlocks.value = structuredClone(response.localization.content_document?.blocks ?? [])
     translationDocumentUpdatedAt.value = response.localization.content_document?.document.updated_at ?? null
@@ -140,19 +159,21 @@ async function loadTranslationFields() {
     translationFields.tags_text = Array.isArray(values.tags_json) ? values.tags_json.join(', ') : ''
     translationFields.nav_title = typeof values.nav_title === 'string' ? values.nav_title : ''
     translationFields.seo_keywords = typeof values.seo_keywords === 'string' ? values.seo_keywords : ''
+    loadedTranslationLocale.value = requestedLocale
   } catch (cause) {
+    if (generation !== translationLoadGeneration || translationLocale.value !== requestedLocale) return
     const statusCode = isRecord(cause) && typeof cause.statusCode === 'number' ? cause.statusCode : null
     if (statusCode !== 404) translationError.value = cause instanceof Error ? cause.message : 'Failed to load translation'
     translationBlocks.value = statusCode === 404 ? blankTranslationBlocks() : []
-    translationDocumentUpdatedAt.value = null
-    translationFields.title = ''; translationFields.excerpt = ''
-    translationFields.category = ''; translationFields.tags_text = ''; translationFields.nav_title = ''
-    translationFields.seo_keywords = ''
+    if (statusCode === 404) loadedTranslationLocale.value = requestedLocale
+  } finally {
+    if (generation === translationLoadGeneration) translationLoading.value = false
   }
 }
-watch(translationLocale, () => { if (translationLocale.value && translationLocale.value !== sourceLocale.value) void loadTranslationFields() }, { immediate: true })
+watch(translationLocale, () => { void loadTranslationFields() }, { immediate: true })
 async function saveTranslation() {
-  if (!translationLocale.value || translationLocale.value === sourceLocale.value) return
+  const requestedLocale = translationLocale.value
+  if (!requestedLocale || requestedLocale === sourceLocale.value || !translationReady.value) return
   translationSaving.value = true; translationError.value = null
   try {
     if (!translationBlocks.value.length) throw new Error('Add translated article content before saving.')
@@ -165,19 +186,21 @@ async function saveTranslation() {
     const slug = String(postResource.value?.post.slug ?? '')
     const sourcePath = tenantBlogPostPath({ theme: postResource.value?.post.editor_template }, slug)
     const tags_json = translationFields.tags_text.split(',').map(tag => tag.trim()).filter(Boolean)
-    const response = await dashboardApi<BlogTranslationResponse>(`/api/editor/sites/${siteId}/localization/tenant_blog_post/${postId}/${encodeURIComponent(translationLocale.value)}`, {
+    const response = await dashboardApi<BlogTranslationResponse>(`/api/editor/sites/${siteId}/localization/tenant_blog_post/${postId}/${encodeURIComponent(requestedLocale)}`, {
       method: 'PUT',
       body: {
         values: { ...values, ...(tags_json.length ? { tags_json } : {}) },
-        route_path: `/${translationLocale.value}${sourcePath}`,
+        route_path: `/${requestedLocale}${sourcePath}`,
         content_blocks: translationBlocks.value,
         ...(translationDocumentUpdatedAt.value ? { expected_document_updated_at: translationDocumentUpdatedAt.value } : {}),
       },
       validate: isBlogTranslationResponse,
     })
-    translationBlocks.value = structuredClone(response.localization.content_document?.blocks ?? [])
-    translationDocumentUpdatedAt.value = response.localization.content_document?.document.updated_at ?? null
-    toast.add({ description: 'Translation saved', color: 'success' })
+    if (translationLocale.value === requestedLocale) {
+      translationBlocks.value = structuredClone(response.localization.content_document?.blocks ?? [])
+      translationDocumentUpdatedAt.value = response.localization.content_document?.document.updated_at ?? null
+      toast.add({ description: 'Translation saved', color: 'success' })
+    }
   } catch (cause) {
     translationError.value = cause instanceof Error ? cause.message : 'Failed to save translation'
   } finally {

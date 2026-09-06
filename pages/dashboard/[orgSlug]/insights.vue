@@ -483,7 +483,24 @@ const isInsightsResponse = (value: unknown): value is InsightsResponse =>
   && Array.isArray(value.setup)
   && value.setup.every(entry => isRecord(entry) && typeof entry.siteId === 'string' && Array.isArray(entry.items))
   && Array.isArray(value.localization)
-  && value.localization.every(entry => isRecord(entry) && typeof entry.siteId === 'string' && typeof entry.locale === 'string' && Array.isArray(entry.opportunities))
+  && value.localization.every(entry => isRecord(entry)
+    && typeof entry.siteId === 'string'
+    && typeof entry.siteLabel === 'string'
+    && typeof entry.siteSlug === 'string'
+    && typeof entry.locale === 'string'
+    && typeof entry.completed === 'number'
+    && Number.isFinite(entry.completed)
+    && typeof entry.total === 'number'
+    && Number.isFinite(entry.total)
+    && Array.isArray(entry.opportunities)
+    && entry.opportunities.every(item => isRecord(item)
+      && typeof item.id === 'string'
+      && typeof item.label === 'string'
+      && typeof item.path === 'string'
+      && typeof item.completed === 'number'
+      && Number.isFinite(item.completed)
+      && typeof item.total === 'number'
+      && Number.isFinite(item.total)))
 
 const initialRange = { ...range }
 let latestManualRequestId = 0

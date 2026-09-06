@@ -572,7 +572,7 @@ const validationMessage = computed(() => {
 const dirty = computed(() => editorSignature(editorKey.value) !== originalSignature.value)
 const translatableSectionKeys = new Set(['profile', 'hours', 'content'])
 const saveDisabled = computed(() => {
-  if (isSecondaryLanguage.value && translatableSectionKeys.has(editorKey.value)) return false
+  if (isSecondaryLanguage.value && translatableSectionKeys.has(editorKey.value)) return !translationReady.value
   return !dirty.value || validationMessage.value !== null
 })
 
@@ -581,7 +581,14 @@ const saveDisabled = computed(() => {
 // canonical per-resource localization API.
 const translationError = ref<string | null>(null)
 const translationSaving = ref(false)
+const translationLoading = ref(false)
+const loadedTranslationLocationId = ref('')
+const loadedTranslationLocale = ref('')
+let translationLoadGeneration = 0
 const translationFields = reactive({ title: '', short_description: '', description: '', city: '', neighborhood: '', address: '', opening_hours_text: '' })
+const translationReady = computed(() => !translationLoading.value
+  && loadedTranslationLocationId.value === locationId.value
+  && loadedTranslationLocale.value === translationLocale.value)
 function resetTranslationFields() {
   translationFields.title = ''; translationFields.short_description = ''; translationFields.description = ''
   translationFields.city = ''; translationFields.neighborhood = ''; translationFields.address = ''
@@ -591,17 +598,26 @@ function isTranslationResponse(value: unknown): value is { localization: { value
   return isRecord(value) && isRecord(value.localization) && isRecord(value.localization.values)
 }
 async function loadTranslationFields() {
-  if (!translationLocale.value || !locationId.value) return
-  if (translationLocale.value === sourceLocale.value) {
-    resetTranslationFields()
+  const requestedLocationId = locationId.value
+  const requestedLocale = translationLocale.value
+  const generation = ++translationLoadGeneration
+  resetTranslationFields()
+  loadedTranslationLocationId.value = ''
+  loadedTranslationLocale.value = ''
+  translationError.value = null
+  if (!requestedLocale || !requestedLocationId || requestedLocale === sourceLocale.value) {
+    translationLoading.value = false
     return
   }
-  translationError.value = null
+  translationLoading.value = true
   try {
     const response = await dashboardApi<{ localization: { values: Record<string, unknown> } }>(
-      `/api/editor/sites/${siteId}/localization/business_location/${locationId.value}/${encodeURIComponent(translationLocale.value)}`,
+      `/api/editor/sites/${siteId}/localization/business_location/${requestedLocationId}/${encodeURIComponent(requestedLocale)}`,
       { validate: isTranslationResponse },
     )
+    if (generation !== translationLoadGeneration
+      || locationId.value !== requestedLocationId
+      || translationLocale.value !== requestedLocale) return
     const values = response.localization.values
     translationFields.title = typeof values.title === 'string' ? values.title : ''
     translationFields.short_description = typeof values.short_description === 'string' ? values.short_description : ''
@@ -610,15 +626,31 @@ async function loadTranslationFields() {
     translationFields.neighborhood = typeof values.neighborhood === 'string' ? values.neighborhood : ''
     translationFields.address = typeof values.address === 'string' ? values.address : ''
     translationFields.opening_hours_text = Array.isArray(values.opening_hours) ? values.opening_hours.join('\n') : ''
+    loadedTranslationLocationId.value = requestedLocationId
+    loadedTranslationLocale.value = requestedLocale
   } catch (cause) {
+    if (generation !== translationLoadGeneration
+      || locationId.value !== requestedLocationId
+      || translationLocale.value !== requestedLocale) return
     const statusCode = isRecord(cause) && typeof cause.statusCode === 'number' ? cause.statusCode : null
     if (statusCode !== 404) translationError.value = getErrorMessage(cause, 'Failed to load translation')
     resetTranslationFields()
+    if (statusCode === 404) {
+      loadedTranslationLocationId.value = requestedLocationId
+      loadedTranslationLocale.value = requestedLocale
+    }
+  } finally {
+    if (generation === translationLoadGeneration) translationLoading.value = false
   }
 }
-watch(translationLocale, () => { void loadTranslationFields() }, { immediate: true })
+watch([locationId, translationLocale], () => { void loadTranslationFields() }, { immediate: true })
 async function saveTranslation() {
-  if (!locationId.value || !translationLocale.value || translationLocale.value === sourceLocale.value) return
+  const requestedLocationId = locationId.value
+  const requestedLocale = translationLocale.value
+  if (!requestedLocationId || !requestedLocale || requestedLocale === sourceLocale.value
+    || !translationReady.value
+    || loadedTranslationLocationId.value !== requestedLocationId
+    || loadedTranslationLocale.value !== requestedLocale) return
   translationSaving.value = true; translationError.value = null
   try {
     const values: Record<string, string> = {}
@@ -631,9 +663,9 @@ async function saveTranslation() {
     const openingHoursValues: Record<string, unknown> = {}
     const openingHoursLines = translationFields.opening_hours_text.split('\n').map(line => line.trim()).filter(Boolean)
     if (openingHoursLines.length) openingHoursValues.opening_hours = openingHoursLines
-    await dashboardApi(`/api/editor/sites/${siteId}/localization/business_location/${locationId.value}/${encodeURIComponent(translationLocale.value)}`, {
+    await dashboardApi(`/api/editor/sites/${siteId}/localization/business_location/${requestedLocationId}/${encodeURIComponent(requestedLocale)}`, {
       method: 'PUT',
-      body: { values: { ...values, ...openingHoursValues }, route_path: `/${translationLocale.value}/locations/${detailsForm.slug}` },
+      body: { values: { ...values, ...openingHoursValues }, route_path: `/${requestedLocale}/locations/${detailsForm.slug}` },
       validate: isRecord,
     })
     toast.add({ description: 'Translation saved', color: 'success' })

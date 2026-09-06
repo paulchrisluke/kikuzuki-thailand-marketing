@@ -146,6 +146,7 @@ const dirty = ref(false)
 const hydrating = ref(false)
 const requestGate = createTenantPageRequestGate()
 const localeRevertGuard = createTenantPageLocaleRevertGuard()
+let localeTransitionGeneration = 0
 const newVariantLocale = ref<string | null>(null)
 const selectedBlockIndex = ref(0)
 const draggedBlockIndex = ref<number | null>(null)
@@ -414,8 +415,10 @@ watch(contentLanguage.locale, async (nextLocale, previousLocale) => {
     contentLanguage.select(resolvedSiteId, previousLocale)
     return
   }
+  const generation = ++localeTransitionGeneration
   try {
     const response = await dashboardApi<{ pages: PageSummary[] }>(`/api/editor/sites/${siteId}/pages?locale=${encodeURIComponent(nextLocale)}`, { validate: validateList })
+    if (generation !== localeTransitionGeneration || contentLanguage.locale.value !== nextLocale) return
     const translatedPage = response.pages.find(page => page.page_id === selected.value?.page_id)
     if (translatedPage) {
       dirty.value = false
@@ -424,16 +427,19 @@ watch(contentLanguage.locale, async (nextLocale, previousLocale) => {
       return
     }
     if (!window.confirm(`No ${nextLocale} version exists. Create it with the same layout and media?`)) {
+      if (generation !== localeTransitionGeneration || contentLanguage.locale.value !== nextLocale) return
       localeRevertGuard.arm(previousLocale)
       contentLanguage.select(resolvedSiteId, previousLocale)
       return
     }
+    if (generation !== localeTransitionGeneration || contentLanguage.locale.value !== nextLocale || !selected.value) return
     newVariantLocale.value = nextLocale
     locale.value = nextLocale
     selected.value = toNewTranslationPage(selected.value, nextLocale)
     savedBlockIds.value = new Set()
     dirty.value = true
   } catch (error) {
+    if (generation !== localeTransitionGeneration || contentLanguage.locale.value !== nextLocale) return
     localeRevertGuard.arm(previousLocale)
     contentLanguage.select(resolvedSiteId, previousLocale)
     editorError.value = error instanceof Error ? error.message : 'Unable to switch language'

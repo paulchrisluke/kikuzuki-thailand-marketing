@@ -386,7 +386,10 @@ const editingTranslation = computed(() => Boolean(
   isSecondaryLanguage.value
   && translatableSectionKeys.has(editorKey.value),
 ))
-const saveDisabled = computed(() => !editingTranslation.value && editorKey.value === 'details' && !editor.form.title.trim())
+const saveDisabled = computed(() => {
+  if (editingTranslation.value) return !translationReady.value
+  return editorKey.value === 'details' && !editor.form.title.trim()
+})
 const saving = computed(() => editor.saving.value || translationSaving.value)
 
 // ── Load ────────────────────────────────────────────────
@@ -667,6 +670,13 @@ const translationFields = reactive({
 })
 const translationError = ref<string | null>(null)
 const translationSaving = ref(false)
+const translationLoading = ref(false)
+const loadedTranslationExperienceId = ref('')
+const loadedTranslationLocale = ref('')
+let translationLoadGeneration = 0
+const translationReady = computed(() => !translationLoading.value
+  && loadedTranslationExperienceId.value === experienceId.value
+  && loadedTranslationLocale.value === translationLocale.value)
 
 const isTranslationResponse = (value: unknown): value is { localization: { values: Record<string, unknown> } } =>
   isRecord(value) && isRecord(value.localization) && isRecord(value.localization.values)
@@ -680,14 +690,26 @@ function resetTranslationFields() {
 }
 
 async function loadTranslationFields() {
+  const requestedExperienceId = experienceId.value
+  const requestedLocale = translationLocale.value
+  const generation = ++translationLoadGeneration
+  resetTranslationFields()
+  loadedTranslationExperienceId.value = ''
+  loadedTranslationLocale.value = ''
   translationError.value = null
-  const locale = translationLocale.value
-  if (!locale || locale === sourceLocale.value) return
+  if (!requestedExperienceId || !requestedLocale || requestedLocale === sourceLocale.value) {
+    translationLoading.value = false
+    return
+  }
+  translationLoading.value = true
   try {
     const response = await dashboardApi(
-      `/api/editor/sites/${siteId}/localization/experience/${experienceId.value}/${encodeURIComponent(locale)}`,
+      `/api/editor/sites/${siteId}/localization/experience/${requestedExperienceId}/${encodeURIComponent(requestedLocale)}`,
       { validate: isTranslationResponse },
     )
+    if (generation !== translationLoadGeneration
+      || experienceId.value !== requestedExperienceId
+      || translationLocale.value !== requestedLocale) return
     const values = response.localization.values
     const text = (key: string) => (typeof values[key] === 'string' ? values[key] : '')
     const list = (key: string) => (Array.isArray(values[key]) ? (values[key] as unknown[]).filter((item): item is string => typeof item === 'string') : [])
@@ -701,23 +723,33 @@ async function loadTranslationFields() {
       meeting_point: text('meeting_point'),
       cancellation_policy: text('cancellation_policy'),
     })
+    loadedTranslationExperienceId.value = requestedExperienceId
+    loadedTranslationLocale.value = requestedLocale
   } catch (cause) {
+    if (generation !== translationLoadGeneration
+      || experienceId.value !== requestedExperienceId
+      || translationLocale.value !== requestedLocale) return
     const statusCode = isRecord(cause) && typeof cause.statusCode === 'number' ? cause.statusCode : null
     if (statusCode !== 404) translationError.value = getErrorMessage(cause, 'Failed to load translation')
     resetTranslationFields()
+    if (statusCode === 404) {
+      loadedTranslationExperienceId.value = requestedExperienceId
+      loadedTranslationLocale.value = requestedLocale
+    }
+  } finally {
+    if (generation === translationLoadGeneration) translationLoading.value = false
   }
 }
 
-watch(translationLocale, () => {
-  if (!translationLocale.value || translationLocale.value === sourceLocale.value) {
-    resetTranslationFields()
-    return
-  }
-  void loadTranslationFields()
-}, { immediate: true })
+watch([experienceId, translationLocale], () => { void loadTranslationFields() }, { immediate: true })
 
 async function saveTranslation() {
-  if (!translationLocale.value || translationLocale.value === sourceLocale.value) return
+  const requestedExperienceId = experienceId.value
+  const requestedLocale = translationLocale.value
+  if (!requestedLocale || requestedLocale === sourceLocale.value
+    || !translationReady.value
+    || loadedTranslationExperienceId.value !== requestedExperienceId
+    || loadedTranslationLocale.value !== requestedLocale) return
   if (!experienceSlug.value) {
     translationError.value = 'This experience has no slug yet, so its translated page has no address. Save it once in English first.'
     return
@@ -732,9 +764,9 @@ async function saveTranslation() {
     if (translationFields.included_items.length) values.included_items_json = translationFields.included_items
     if (translationFields.what_to_bring.length) values.what_to_bring = translationFields.what_to_bring
 
-    await dashboardApi(`/api/editor/sites/${siteId}/localization/experience/${experienceId.value}/${encodeURIComponent(translationLocale.value)}`, {
+    await dashboardApi(`/api/editor/sites/${siteId}/localization/experience/${requestedExperienceId}/${encodeURIComponent(requestedLocale)}`, {
       method: 'PUT',
-      body: { values, route_path: `/${translationLocale.value}/experiences/${experienceSlug.value}` },
+      body: { values, route_path: `/${requestedLocale}/experiences/${experienceSlug.value}` },
       validate: isRecord,
     })
     toast.add({ description: 'Translation saved', color: 'success' })

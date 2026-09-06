@@ -451,6 +451,9 @@ function isValidUrl(value: string) {
   try { const url = new URL(value); return url.protocol === 'http:' || url.protocol === 'https:' } catch { return false }
 }
 const dirty = computed(() => editorSignature(detailKey.value) !== originalSignature.value)
+const siteTranslationLoading = ref(false)
+const siteTranslationLoadedLocale = ref('')
+let siteTranslationLoadGeneration = 0
 const validationMessage = computed(() => {
   if (!dirty.value) return null
   switch (detailKey.value) {
@@ -465,6 +468,9 @@ const validationMessage = computed(() => {
   }
 })
 const saveDisabled = computed(() => {
+  if (!editingPrimaryLanguage.value
+    && (detailKey.value === 'name' || detailKey.value === 'description')
+    && (siteTranslationLoading.value || siteTranslationLoadedLocale.value !== selectedContentLocale.value)) return true
   return !dirty.value || validationMessage.value !== null
 })
 
@@ -483,33 +489,55 @@ const brandDescriptionModel = computed({
 function isSiteTranslationResponse(value: unknown): value is { localization: { values: Record<string, unknown> } } {
   return isRecord(value) && isRecord(value.localization) && isRecord(value.localization.values)
 }
+function resetSiteTranslationFields() {
+  siteTranslationFields.brand_name = ''
+  siteTranslationFields.brand_description = ''
+}
 async function loadSiteTranslationFields() {
-  if (!selectedContentLocale.value || editingPrimaryLanguage.value) return
+  const requestedLocale = selectedContentLocale.value
+  const generation = ++siteTranslationLoadGeneration
+  resetSiteTranslationFields()
+  siteTranslationLoadedLocale.value = ''
   siteTranslationError.value = null
+  originalSignature.value = editorSignature(detailKey.value)
+  if (!requestedLocale || requestedLocale === sourceLocale.value) {
+    siteTranslationLoading.value = false
+    return
+  }
+  siteTranslationLoading.value = true
   try {
     const response = await dashboardApi<{ localization: { values: Record<string, unknown> } }>(
-      `/api/editor/sites/${siteId}/localization/site/${siteId}/${encodeURIComponent(selectedContentLocale.value)}`,
+      `/api/editor/sites/${siteId}/localization/site/${siteId}/${encodeURIComponent(requestedLocale)}`,
       { validate: isSiteTranslationResponse },
     )
+    if (generation !== siteTranslationLoadGeneration || selectedContentLocale.value !== requestedLocale) return
     const values = response.localization.values
     siteTranslationFields.brand_name = typeof values.brand_name === 'string' ? values.brand_name : ''
     siteTranslationFields.brand_description = typeof values.brand_description === 'string' ? values.brand_description : ''
+    siteTranslationLoadedLocale.value = requestedLocale
   } catch (cause) {
+    if (generation !== siteTranslationLoadGeneration || selectedContentLocale.value !== requestedLocale) return
     const statusCode = isRecord(cause) && typeof cause.statusCode === 'number' ? cause.statusCode : null
     if (statusCode !== 404) siteTranslationError.value = cause instanceof Error ? cause.message : 'Failed to load translation'
-    siteTranslationFields.brand_name = ''; siteTranslationFields.brand_description = ''
+    resetSiteTranslationFields()
+    if (statusCode === 404) siteTranslationLoadedLocale.value = requestedLocale
+  } finally {
+    if (generation === siteTranslationLoadGeneration) siteTranslationLoading.value = false
   }
-  originalSignature.value = editorSignature(detailKey.value)
+  if (generation === siteTranslationLoadGeneration) originalSignature.value = editorSignature(detailKey.value)
 }
 watch(selectedContentLocale, () => { void loadSiteTranslationFields() }, { immediate: true })
 async function saveSiteTranslation() {
-  if (!selectedContentLocale.value || editingPrimaryLanguage.value) return
+  const requestedLocale = selectedContentLocale.value
+  if (!requestedLocale || editingPrimaryLanguage.value
+    || siteTranslationLoading.value
+    || siteTranslationLoadedLocale.value !== requestedLocale) return
   siteTranslationSaving.value = true; siteTranslationError.value = null
   try {
     const values: Record<string, string> = {}
     if (siteTranslationFields.brand_name.trim()) values.brand_name = siteTranslationFields.brand_name.trim()
     if (siteTranslationFields.brand_description.trim()) values.brand_description = siteTranslationFields.brand_description.trim()
-    await dashboardApi(`/api/editor/sites/${siteId}/localization/site/${siteId}/${encodeURIComponent(selectedContentLocale.value)}`, {
+    await dashboardApi(`/api/editor/sites/${siteId}/localization/site/${siteId}/${encodeURIComponent(requestedLocale)}`, {
       method: 'PUT',
       body: { values },
       validate: isRecord,
@@ -718,6 +746,10 @@ async function enableLanguage(): Promise<boolean> {
 }
 async function disableLanguage(locale: string) { await mutateLocalization(`/api/editor/sites/${siteId}/locales/${encodeURIComponent(locale)}/disable`, 'POST') }
 async function deleteLanguage(locale: string) { if (window.confirm(`Permanently delete all ${locale} content for this site?`)) await mutateLocalization(`/api/editor/sites/${siteId}/locales/${encodeURIComponent(locale)}`, 'DELETE') }
-watch(detailKey, key => { if (key === 'localization' && !localizationSettings.value) loadLocalizationSettings() }, { immediate: true })
-watch(selectedContentLocale, () => { if (detailKey.value === 'localization') void loadLocalizationProgress() }, { immediate: true })
+watch(detailKey, (key) => {
+  if (key !== 'localization') return
+  if (!localizationSettings.value) void loadLocalizationSettings()
+  void loadLocalizationProgress()
+}, { immediate: true })
+watch(selectedContentLocale, () => { if (detailKey.value === 'localization') void loadLocalizationProgress() })
 </script>

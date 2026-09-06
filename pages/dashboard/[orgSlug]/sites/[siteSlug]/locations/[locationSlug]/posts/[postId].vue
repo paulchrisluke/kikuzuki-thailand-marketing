@@ -57,7 +57,7 @@
               <UTextarea v-model="translationFields.offer_terms" :rows="2" class="w-full" />
             </UFormField>
           <p v-if="translationError" class="text-sm text-error">{{ translationError }}</p>
-          <UButton :loading="translationSaving" label="Save" @click="saveTranslation" />
+          <UButton :loading="translationSaving" :disabled="!translationReady" label="Save" @click="saveTranslation" />
         </div>
 
         <div v-if="publicPath" class="flex flex-wrap items-center gap-2">
@@ -227,39 +227,74 @@ const postTitle = computed(() => {
 })
 const translationError = ref<string | null>(null)
 const translationSaving = ref(false)
+const translationLoading = ref(false)
+const loadedTranslationPostId = ref('')
+const loadedTranslationLocale = ref('')
+let translationLoadGeneration = 0
+const translationReady = computed(() => !translationLoading.value
+  && loadedTranslationPostId.value === postId.value
+  && loadedTranslationLocale.value === translationLocale.value)
 
 function isPostTranslationResponse(value: unknown): value is { localization: { values: Record<string, unknown> } } {
   return isRecord(value) && isRecord(value.localization) && isRecord(value.localization.values)
 }
 
 async function loadTranslationFields() {
+  const requestedPostId = postId.value
+  const requestedLocale = translationLocale.value
+  const generation = ++translationLoadGeneration
+  for (const field of ['title', 'body', 'event_title', 'offer_terms'] as const) {
+    translationFields[field] = ''
+  }
+  loadedTranslationPostId.value = ''
+  loadedTranslationLocale.value = ''
   translationError.value = null
-  const locale = translationLocale.value
-  if (!locale || locale === sourceLocale.value) return
+  if (!requestedPostId || !requestedLocale || requestedLocale === sourceLocale.value) {
+    translationLoading.value = false
+    return
+  }
+  translationLoading.value = true
   try {
     const response = await dashboardApi<{ localization: { values: Record<string, unknown> } }>(
-      `/api/editor/sites/${siteId}/localization/site_post/${postId.value}/${encodeURIComponent(locale)}`,
+      `/api/editor/sites/${siteId}/localization/site_post/${requestedPostId}/${encodeURIComponent(requestedLocale)}`,
       { validate: isPostTranslationResponse },
     )
+    if (generation !== translationLoadGeneration
+      || postId.value !== requestedPostId
+      || translationLocale.value !== requestedLocale) return
     const values = response.localization.values
     for (const field of ['title', 'body', 'event_title', 'offer_terms'] as const) {
       translationFields[field] = typeof values[field] === 'string' ? values[field] : ''
     }
+    loadedTranslationPostId.value = requestedPostId
+    loadedTranslationLocale.value = requestedLocale
   } catch (cause) {
+    if (generation !== translationLoadGeneration
+      || postId.value !== requestedPostId
+      || translationLocale.value !== requestedLocale) return
     const statusCode = isRecord(cause) && typeof cause.statusCode === 'number' ? cause.statusCode : null
     if (statusCode !== 404) translationError.value = getErrorMessage(cause, 'Failed to load translation')
     for (const field of ['title', 'body', 'event_title', 'offer_terms'] as const) {
       translationFields[field] = ''
     }
+    if (statusCode === 404) {
+      loadedTranslationPostId.value = requestedPostId
+      loadedTranslationLocale.value = requestedLocale
+    }
+  } finally {
+    if (generation === translationLoadGeneration) translationLoading.value = false
   }
 }
 
-watch(translationLocale, () => {
-  if (translationLocale.value && translationLocale.value !== sourceLocale.value) void loadTranslationFields()
-}, { immediate: true })
+watch([postId, translationLocale], () => { void loadTranslationFields() }, { immediate: true })
 
 async function saveTranslation() {
-  if (!translationLocale.value || translationLocale.value === sourceLocale.value) return
+  const requestedPostId = postId.value
+  const requestedLocale = translationLocale.value
+  if (!requestedPostId || !requestedLocale || requestedLocale === sourceLocale.value
+    || !translationReady.value
+    || loadedTranslationPostId.value !== requestedPostId
+    || loadedTranslationLocale.value !== requestedLocale) return
   translationSaving.value = true
   translationError.value = null
   try {
@@ -267,9 +302,9 @@ async function saveTranslation() {
     for (const field of ['title', 'body', 'event_title', 'offer_terms'] as const) {
       if (translationFields[field].trim()) values[field] = translationFields[field].trim()
     }
-    await dashboardApi(`/api/editor/sites/${siteId}/localization/site_post/${postId.value}/${encodeURIComponent(translationLocale.value)}`, {
+    await dashboardApi(`/api/editor/sites/${siteId}/localization/site_post/${requestedPostId}/${encodeURIComponent(requestedLocale)}`, {
       method: 'PUT',
-      body: { values, route_path: `/${translationLocale.value}/posts/${editor.form.slug}` },
+      body: { values, route_path: `/${requestedLocale}/posts/${editor.form.slug}` },
       validate: isRecord,
     })
     toast.add({ description: 'Translation saved', color: 'success' })
