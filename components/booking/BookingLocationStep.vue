@@ -74,8 +74,8 @@
           </p>
 
           <!-- Today's hours -->
-          <p v-if="getTodayHoursLabel(loc.opening_hours, t('saya.location.closed'), loc.timezone)" class="text-sm text-muted">
-            <span class="text-default font-medium">{{ t('saya.location.today') }}: </span>{{ getTodayHoursLabel(loc.opening_hours, t('saya.location.closed'), loc.timezone) }}
+          <p v-if="loc.todayHours" class="text-sm text-muted">
+            <span class="text-default font-medium">{{ t('saya.location.today') }}: </span>{{ loc.todayHours }}
           </p>
 
           <!-- Phone -->
@@ -94,8 +94,6 @@
 </template>
 
 <script setup lang="ts">
-import { getTodayHoursLabel } from '@/shared/reservation-hours'
-
 const { t } = useI18n()
 
 export interface BookingLocation {
@@ -106,6 +104,7 @@ export interface BookingLocation {
   media?: Array<{ slot: string; public_url?: string | null; thumbnail_url?: string | null; kind?: 'image' | 'video' | null }>
   opening_hours?: unknown
   timezone?: string | null
+  todayHours?: string | null
 }
 
 defineProps<{
