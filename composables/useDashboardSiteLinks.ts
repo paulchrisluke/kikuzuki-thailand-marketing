@@ -1,25 +1,5 @@
 import { computed } from 'vue'
 
-/**
- * Where a site-level page row goes when opened.
- *
- * Menu, reservations and experiences are edited per location, and a site row
- * cannot know which location the user means, so it opens the locations list and
- * they choose. It previously resolved a "primary" location and opened that one
- * directly, which silently picked for multi-location tenants.
- */
-export function resolveDashboardSitePageDestination(
-  path: string,
-  sitePath: string,
-  locationsPath: string,
-): string {
-  if (path === '/blog') return `${sitePath}/blog`
-  if (path === '/order') return `${sitePath}/orders`
-  if (['/services', '/pricing', '/donate', '/schedule'].includes(path)) return `${sitePath}/professional-services`
-  if (['/menu', '/products', '/reservations', '/experiences'].includes(path)) return locationsPath
-  return `${sitePath}/pages`
-}
-
 export function useDashboardSiteLinks() {
   const dashboard = useDashboardSite()
   const dashboardLocation = useDashboardLocation()
@@ -51,10 +31,6 @@ export function useDashboardSiteLinks() {
       site,
       pages: `${site}/pages`,
       qa: `${site}/qa`,
-      testimonials: `${site}/testimonials`,
-      analytics: `${site}/analytics`,
-      blog: `${site}/blog`,
-      links: `${site}/links`,
       inbox: `${site}/inbox`,
       order: `${site}/orders`,
       media: `${site}/media`,
