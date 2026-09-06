@@ -195,11 +195,10 @@ const vertical = computed(() => {
   return normalizeVertical(raw) as SiteVertical
 })
 const capabilities = computed(() => resolveCmsCapabilities(vertical.value, template.value, { site: parseCmsFeatureOverrideDelta(dashboard.site.value?.feature_overrides) }))
-const locationMediaUrl = (location: DashboardHomeData['locations'][number]) => {
-  const media = location.media.find(item => item.slot === 'hero')
-  if (media?.kind === 'video') return media?.thumbnail_url || null
-  return media?.public_url || null
-}
+// The location's own generated social card, the same image its public page and
+// the locations list use, so all three agree on how a location looks.
+const locationMediaUrl = (location: DashboardHomeData['locations'][number]) =>
+  location.media.find(item => item.slot === 'social_card')?.public_url ?? null
 
 const { data: overviewData, pending } = await useAsyncData(`dashboard-home-${siteId}`, async (_nuxtApp, { signal }) => {
   if (import.meta.server) {

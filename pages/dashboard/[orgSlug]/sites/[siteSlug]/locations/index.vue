@@ -48,8 +48,8 @@
       <DashboardSiteLocationSelector
         v-else
         :items="selectorItems"
-        missing-image-label="No photo"
-        missing-image-hint="Add a hero photo under Photos."
+        missing-image-label="No social image"
+        missing-image-hint="Its social card has not been generated yet."
       />
     </template>
   </UDashboardPanel>
@@ -107,26 +107,19 @@ const locationNoun = computed(() => (usesServiceAreaVocabulary.value ? 'office' 
  * substituting the city would make this line mean two different things
  * depending on data the reader cannot see.
  *
- * The image is the location's own hero, not `social_image`. That field resolves
- * through the site's social card, share image and finally its logo, so on a site
- * whose locations have no social card every card renders the same site logo and
- * the list cannot be read at all.
+ * The image is the location's own generated social card — the same picture the
+ * location presents publicly, with its name and logo composed in. That field no
+ * longer resolves through the site's card, so a location without one says so
+ * rather than borrowing the site logo.
  */
 const selectorItems = computed(() => locations.value.map(location => ({
   id: location.id,
   label: location.title,
-  imageUrl: heroUrl(location),
+  imageUrl: location.social_image?.url ?? null,
   eyebrow: '',
   summary: addressSummary(location),
   to: `${locationsPath.value}/${location.slug}`,
 })))
-
-function heroUrl(location: (typeof locations.value)[number]): string | null {
-  const hero = location.media.find(item => item.slot === 'hero')
-  if (!hero) return null
-  // A video hero has no frame to show without playing it; its poster does.
-  return hero.kind === 'video' ? hero.thumbnail_url : hero.public_url
-}
 
 function addressSummary(location: (typeof locations.value)[number]): string {
   const lines = location.address?.addressLines?.filter(line => line.trim()) ?? []
