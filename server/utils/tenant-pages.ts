@@ -643,19 +643,9 @@ export interface OnboardingTenantPageInput {
 }
 
 interface OnboardingPageRepresentationRow extends PageRepresentationRow {
-  document_created_at: string | null
-  document_updated_at: string | null
+  created_at: string
 }
 
-/**
- * Apply onboarding's generated page snapshots as one canonical domain write.
- *
- * Site creation seeds the default pages first, so the common path is a bulk
- * replacement of existing documents. A single variant/document prefetch and
- * one D1 batch replace the old per-page editor lifecycle. Missing pages still
- * flow through createTenantPagesBatch so the template remains the source of
- * truth for new page rows.
- */
 export async function applyOnboardingTenantPages(
   db: DbClient,
   input: {
@@ -679,7 +669,7 @@ export async function applyOnboardingTenantPages(
            v.path, v.title, v.summary, v.seo_title,
            v.seo_description, v.canonical_url, v.robots, json_extract(p.metadata_json, '$.page_type') AS page_type, json_extract(p.metadata_json, '$.recipe') AS recipe,
            p.sort_order, v.updated_at,
-           v.created_at AS document_created_at, v.updated_at AS document_updated_at
+           v.created_at
       FROM content_documents v
       JOIN content_documents p ON p.id = COALESCE(v.root_id, v.id) AND p.row_role = 'root' AND p.kind = 'page'
      WHERE v.row_role IN ('root','representation') AND v.kind = 'page' AND v.site_id = ? AND v.organization_id = ? AND v.locale = ?
@@ -699,10 +689,6 @@ export async function applyOnboardingTenantPages(
       missingPages.push(page)
       continue
     }
-    if (!row.id || !row.document_created_at || !row.document_updated_at) {
-      throw new HTTPError({ statusCode: 500, statusMessage: 'Tenant page content document not found' })
-    }
-
     const effectiveData: TenantPageEditorInput = {
       ...page,
       locale,
@@ -729,27 +715,18 @@ export async function applyOnboardingTenantPages(
       row_role: row.locale === 'en' ? 'root' as const : 'representation' as const,
       root_id: row.locale === 'en' ? null : row.page_id,
       locale: row.locale,
-      created_at: row.document_created_at,
-      updated_at: row.document_updated_at,
+      created_at: row.created_at,
+      updated_at: row.updated_at,
     }
     const now = new Date().toISOString()
     const placementQueries = await tenantPagePlacementQueries(db, input.organizationId, input.siteId, blocks, now)
     const prepared = prepareContentDocumentUpdate(document, {
-      blocks: blocksAsInputs(blocks), expected_updated_at: row.document_updated_at,
-      additionalQueriesAfter: [
-        ...placementQueries,
-        {
-          query: 'UPDATE content_documents SET path = ?, title = ?, summary = ?, seo_title = ?, seo_description = ?, canonical_url = ?, robots = ?, updated_by = ? WHERE id = ? AND site_id = ? AND organization_id = ?',
-          params: [page.path, metadata.title, metadata.summary, metadata.seoTitle, metadata.seoDescription, metadata.canonicalUrl, metadata.robots, input.userId, row.id, input.siteId, input.organizationId],
-        },
-        {
-          query: `UPDATE content_documents SET metadata_json = json_set(metadata_json, '$.page_type', ?, '$.recipe', ?),
-            sort_order = COALESCE(?, sort_order), updated_by = ?
-            WHERE row_role = 'root' AND kind = 'page' AND id = ? AND site_id = ? AND organization_id = ? AND ? = 'en'`,
-          params: [metadata.pageType, metadata.recipe, effectiveData.sortOrder ?? null, input.userId,
-            row.page_id, input.siteId, input.organizationId, locale],
-        },
-      ],
+      blocks: blocksAsInputs(blocks), expected_updated_at: row.updated_at,
+      changes: { path: page.path, title: metadata.title, summary: metadata.summary,
+        seo_title: metadata.seoTitle, seo_description: metadata.seoDescription, canonical_url: metadata.canonicalUrl,
+        robots: metadata.robots, updated_by: input.userId, sort_order: effectiveData.sortOrder ?? row.sort_order,
+        metadata: { page_type: metadata.pageType, recipe: metadata.recipe } },
+      additionalQueriesAfter: placementQueries,
     })
     replacementQueries.push(...prepared.queries)
     updated += 1

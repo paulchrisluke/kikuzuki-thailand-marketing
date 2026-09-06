@@ -1,5 +1,5 @@
 import { getPersistedSourceLocale } from '~/server/utils/localization'
-import { createContentDocumentWithBlocks } from '~/server/utils/content-documents'
+import { createContentDocumentWithBlocks, prepareContentDocumentDeletion } from '~/server/utils/content-documents'
 import { execute, executeBatch, queryAll, queryFirst, type DbClient } from '../db/index.ts'
 import { d1JsonStringSet } from '../db/d1-limits.ts'
 
@@ -198,9 +198,9 @@ export async function deleteQa(db: DbClient, scope: QaScope, qaId: string) {
   const scoped = scopeSql(scope.locationId, scope.pagePath)
   const params = [qaId, scope.organizationId, scope.siteId, ...scoped.params]
   const where = `row_role = 'root' AND kind = 'qa' AND id = ? AND organization_id = ? AND site_id = ? AND ${scoped.clause}`
-  const results = await executeBatch(db, [
-    { query: `DELETE FROM content_documents WHERE ${where}`, params },
-  ])
+  const document = await queryFirst<{ id: string }>(db, `SELECT id FROM content_documents WHERE ${where}`, params)
+  if (!document) return { status: 404, data: { error: 'Q&A not found' } }
+  const results = await executeBatch(db, prepareContentDocumentDeletion({ documentId: qaId, organizationId: scope.organizationId, siteId: scope.siteId }))
   if (!Number(results.at(-1)?.meta.changes ?? 0)) return { status: 404, data: { error: 'Q&A not found' } }
   return { status: 200, data: { qa_id: qaId, deleted: true } }
 }
