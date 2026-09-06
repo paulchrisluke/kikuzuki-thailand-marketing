@@ -19,21 +19,27 @@
           decoding="async"
         >
         <!-- Not a placeholder standing in for the image: the image is genuinely
-             absent, and this says so. A social card is generated from the
-             tenant's own title and logo, so a missing one is a data problem to
-             fix rather than something to decorate over. -->
+             absent, and this says so. The caller supplies the reason because a
+             site and a location are missing different things — a generated
+             social card versus a photo the tenant uploads. -->
         <div
           v-else
           class="flex aspect-[4/3] w-full flex-col items-center justify-center gap-1 rounded-2xl bg-elevated px-4 text-center shadow-sm sm:aspect-[16/10]"
           data-testid="selector-missing-social-image"
         >
           <UIcon name="i-lucide-image-off" class="size-6 text-error" />
-          <p class="text-sm font-medium text-highlighted">No social image for {{ item.label }}</p>
-          <p class="text-xs text-muted">Its social card has not been generated.</p>
+          <p class="text-sm font-medium text-highlighted">{{ missingImageLabel }} for {{ item.label }}</p>
+          <p class="text-xs text-muted">{{ missingImageHint }}</p>
         </div>
         <div class="px-1 pt-4">
           <h2 class="text-base font-semibold text-highlighted">{{ item.label }}</h2>
-          <p class="mt-1 text-sm text-muted">{{ item.eyebrow }}<span aria-hidden="true"> · </span>{{ item.summary }}</p>
+          <!-- Sites are identified by vertical and domain, locations by address
+               alone. The separator belongs to the eyebrow rather than sitting
+               between the two unconditionally, so a card with one line does not
+               render a leading dot. -->
+          <p class="mt-1 text-sm text-muted">
+            <template v-if="item.eyebrow">{{ item.eyebrow }}<span aria-hidden="true"> · </span></template>{{ item.summary }}
+          </p>
         </div>
       </div>
     </NuxtLink>
@@ -50,7 +56,14 @@ export interface SiteLocationSelectorItem {
   to: string
 }
 
-defineProps<{
+withDefaults(defineProps<{
   items: SiteLocationSelectorItem[]
-}>()
+  /** Names what is missing, e.g. "No social image" or "No photo". */
+  missingImageLabel?: string
+  /** Says why it is missing and what fixes it. */
+  missingImageHint?: string
+}>(), {
+  missingImageLabel: 'No social image',
+  missingImageHint: 'Its social card has not been generated.',
+})
 </script>

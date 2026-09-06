@@ -183,7 +183,9 @@ const locationImage = computed(() => {
   const media = dashboardLocationRow.value?.media.find(item => item.slot === 'hero')
   return media?.thumbnail_url || media?.public_url || ''
 })
-const addressSummary = computed(() => location.value?.address?.addressLines?.join(', ') || location.value?.city || 'Address not set')
+// Reads `address` and only `address`. Falling through to `city` made this line
+// mean two different things depending on data the reader cannot see.
+const addressSummary = computed(() => location.value?.address?.addressLines?.join(', ') || 'Address not set')
 
 const capabilities = computed(() => {
   const vertical = dashboard.site.value?.vertical

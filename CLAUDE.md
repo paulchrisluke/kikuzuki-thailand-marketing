@@ -39,14 +39,24 @@ the day a second row appears, and it changes it in production, for a customer.
 If a surface needs a record and has none, the answer is a selector, an explicit
 error, or a named owner column. Never a guess.
 
-**The one construct that is not this:** walking a declared ownership hierarchy to
-a *named* owner — a location's contact email falling back to its site's
-`contact_email`, where both levels are documented owners of that field. The test
-is whether the second operand names a specific source or picks an arbitrary one.
-`?? site.contact_email` names one. `?? locations[0]` does not.
+There is no exception, including a "named" second source. A surface that shows a
+location's email shows the location's email; if it is missing, that is an empty
+state. A surface that shows the site's contact email — the Blawby contact form —
+reads `sites.contact_email` and nothing else. `location.email ?? site.contact_email`
+is banned too: it makes one field mean two different things depending on data the
+reader cannot see, and it hides a missing location email instead of surfacing it.
+
+Each field has exactly one owner, and each surface declares which owner it reads.
+Resolution belongs in the schema and the API, not in a chain of `??` in a
+composable or a component. If two surfaces need different sources, that is two
+explicit reads, not one function that decides at runtime.
 
 Sorting for stable presentation is not selection. `ORDER BY title ASC` is fine.
 `ORDER BY is_primary DESC` existing to give a `LIMIT 1` its meaning is not.
+
+Breaking a surface that currently relies on one of these chains is the intended
+outcome, not a reason to keep it. Leaving them in place across successive epochs
+is how the schema drifted in the first place.
 
 ## Complexity control
 
