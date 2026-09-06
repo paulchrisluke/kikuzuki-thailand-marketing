@@ -5,6 +5,7 @@ export default {
   },
   "legal": {
     "cookie_preferences": "Cookie preferences",
+    "cookie_preferences_unavailable": "Cookie preferences unavailable",
     "privacy": "Privacy",
     "terms": "Terms"
   },

@@ -69,11 +69,10 @@ const scopeItems = computed<DropdownMenuItem[][]>(() => {
   if (!model || model.peers.length === 0) return []
   const peers = model.peers.map(peer => ({
     label: peer.label,
-    avatar: peer.avatar ? { src: peer.avatar } : undefined,
-    icon: peer.avatar ? undefined : peer.icon,
+    avatar: !peer.active && peer.avatar ? { src: peer.avatar } : undefined,
+    icon: peer.active ? 'i-lucide-check' : peer.avatar ? undefined : peer.icon,
     to: peer.to,
-    checked: peer.active,
-    type: 'checkbox' as const,
+    onSelect: peer.onSelect,
   }))
   const create = model.createAction
     ? [{ label: model.createAction.label, icon: 'i-lucide-plus', to: model.createAction.to }]

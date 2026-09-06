@@ -8,6 +8,7 @@ declare global {
       set: (_key: string, _value: string | undefined | Record<string, string>, _options?: { scope?: 'page' | 'session' | 'persist' }) => void
       consent?: {
         APIReady?: boolean
+        modal: boolean
         set: (_preferences: Record<string, boolean>) => void
         sendQueuedEvents?: () => void
       }
