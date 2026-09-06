@@ -14,6 +14,18 @@
             target="_blank"
             :disabled="busy !== null || !navigablePreviewUrl"
           />
+          <DashboardResourceLocalization
+            v-if="selected?.id"
+            :site-id="resolvedSiteId"
+            resource-type="tenant_page"
+            :resource-id="selected.page_id"
+            resource-label="page"
+            :fields="pageLocalizationFields"
+            :load-values="loadPageLocalization"
+            :save-values="savePageLocalization"
+            :language-settings-path="siteLocalizationSettingsPath"
+            :disabled="busy !== null || dirty"
+          />
           <UButton icon="i-lucide-check" label="Save" :loading="busy === 'save'" :disabled="busy !== null || !selected" @click="save" />
         </template>
       </UDashboardNavbar>
@@ -111,10 +123,11 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, toRaw, watch } from 'vue'
 import { onBeforeRouteLeave } from 'vue-router'
+import DashboardResourceLocalization from '~/components/dashboard/DashboardResourceLocalization.vue'
 import { slugifyTitle } from '~/utils/post-slugs'
-import { TENANT_PAGE_BLOCK_REGISTRY, createTenantPageBlock, createTenantPageTranslationBlocks, isTenantPageBlockAllowed, type TenantPageBlock, type TenantPageBlockType, type TenantPageType } from '~/utils/tenant-page-blocks'
+import { TENANT_PAGE_BLOCK_REGISTRY, createTenantPageBlock, createTenantPageTranslationBlocks, isTenantPageBlockAllowed, tenantPageLocalizedTextFields, writeTenantPageLocalizedText, type TenantPageBlock, type TenantPageBlockType, type TenantPageType } from '~/utils/tenant-page-blocks'
 import { createTenantPageEditorData, tenantPageBlockSummary, validateTenantPageBlock } from '~/utils/tenant-page-editor'
-import { canProceedWithTenantPageTransition, createTenantPageLocaleRevertGuard, createTenantPageRequestGate, previewHrefForTenantPage } from '~/utils/tenant-page-editor-safety'
+import { canProceedWithTenantPageTransition, createTenantPageRequestGate, previewHrefForTenantPage } from '~/utils/tenant-page-editor-safety'
 
 const props = defineProps<{ pageId?: string }>()
 
@@ -135,8 +148,6 @@ const platformOrigin = useRequestURL().origin
 const pagesPath = computed(() => `/dashboard/${route.params.orgSlug}/sites/${route.params.siteSlug}/pages`)
 const isNew = computed(() => !props.pageId)
 const selected = ref<PageDetail | null>(null)
-const contentLanguage = useDashboardContentLanguage()
-const locale = ref('')
 const loading = ref(true)
 const pageLoadError = ref<string | null>(null)
 const editorError = ref<string | null>(null)
@@ -145,9 +156,6 @@ const previewToken = ref('')
 const dirty = ref(false)
 const hydrating = ref(false)
 const requestGate = createTenantPageRequestGate()
-const localeRevertGuard = createTenantPageLocaleRevertGuard()
-let localeTransitionGeneration = 0
-const newVariantLocale = ref<string | null>(null)
 const selectedBlockIndex = ref(0)
 const draggedBlockIndex = ref<number | null>(null)
 const newBlockType = ref<TenantPageBlockType>('markdown')
@@ -165,7 +173,7 @@ const blockErrors = computed(() => selected.value?.blocks.map(block => validateT
 const previewUrl = computed(() => {
   if (!selected.value?.id || !previewToken.value) return ''
   const path = selected.value.path === '/' ? '' : selected.value.path
-  return `${platformOrigin}/preview/site/${siteId}${path}?preview=true&token=${encodeURIComponent(previewToken.value)}&locale=${encodeURIComponent(locale.value)}`
+  return `${platformOrigin}/preview/site/${siteId}${path}?preview=true&token=${encodeURIComponent(previewToken.value)}&locale=${encodeURIComponent(selected.value.locale)}`
 })
 const navigablePreviewUrl = computed(() => previewHrefForTenantPage(dirty.value, previewUrl.value))
 
@@ -197,21 +205,6 @@ function toEditorPage(page: PageDetailResponse): PageDetail {
   }
 }
 
-function toNewTranslationPage(page: PageDetail, targetLocale: string): PageDetail {
-  return {
-    ...page,
-    id: '',
-    document: { updated_at: '' },
-    locale: targetLocale,
-    title: '',
-    summary: '',
-    seo_title: '',
-    seo_description: '',
-    canonical_url: '',
-    blocks: createTenantPageTranslationBlocks(toRaw(page.blocks)),
-  }
-}
-
 function canDiscardUnsavedChanges(message = 'Discard unsaved page changes?') {
   return canProceedWithTenantPageTransition(dirty.value, () => window.confirm(message))
 }
@@ -222,39 +215,20 @@ async function loadEditor() {
   loading.value = true
   pageLoadError.value = null
   try {
-    await contentLanguage.load(resolvedSiteId)
-    const requestedTranslationLocale = typeof route.query.translate === 'string' ? route.query.translate : null
-    if (requestedTranslationLocale) contentLanguage.select(resolvedSiteId, requestedTranslationLocale)
-    const selectedLocale = contentLanguage.locale.value
-    const sourceLocale = contentLanguage.sourceLocale.value
-    if (!selectedLocale || !sourceLocale) throw new Error('Choose a site content language')
-    if (isNew.value && selectedLocale !== sourceLocale) throw new Error(`Switch to ${sourceLocale} before creating a page`)
-    locale.value = selectedLocale
     const [contextResponse, pageResponse, pagesResponse] = await Promise.all([
       dashboardApi<{ context: { previewToken: string } }>(`/api/editor/sites/${siteId}/context`, { validate: validateContext }),
       props.pageId ? dashboardApi<{ page: PageDetailResponse }>(`/api/editor/sites/${siteId}/pages/${props.pageId}`, { validate: validatePage }) : Promise.resolve(null),
-      props.pageId ? Promise.resolve(null) : dashboardApi<{ pages: PageSummary[] }>(`/api/editor/sites/${siteId}/pages?locale=${encodeURIComponent(selectedLocale)}`, { validate: validateList }),
+      props.pageId ? Promise.resolve(null) : dashboardApi<{ pages: PageSummary[] }>(`/api/editor/sites/${siteId}/pages`, { validate: validateList }),
     ])
     if (!requestGate.isCurrent(requestToken)) return
     previewToken.value = contextResponse.context.previewToken
     if (pageResponse) {
-      const loadedPage = toEditorPage(pageResponse.page)
-      if (pageResponse.page.locale === selectedLocale) {
-        selected.value = loadedPage
-        locale.value = selectedLocale
-        savedBlockIds.value = new Set(pageResponse.page.blocks.map(block => block.id))
-      } else if (pageResponse.page.locale === sourceLocale && selectedLocale !== sourceLocale) {
-        newVariantLocale.value = selectedLocale
-        locale.value = selectedLocale
-        selected.value = toNewTranslationPage(loadedPage, selectedLocale)
-        savedBlockIds.value = new Set()
-      } else {
-        throw new Error(`This page does not have a ${selectedLocale} version`)
-      }
+      selected.value = toEditorPage(pageResponse.page)
+      savedBlockIds.value = new Set(pageResponse.page.blocks.map(block => block.id))
     } else {
       savedBlockIds.value = new Set()
       selected.value = {
-        id: '', page_id: '', site_id: resolvedSiteId, organization_id: '', locale: locale.value, path: '', title: '', page_type: 'custom', recipe: '', sort_order: pagesResponse?.pages.length ?? 0, updated_at: '',
+        id: '', page_id: '', site_id: resolvedSiteId, organization_id: '', locale: 'en', path: '', title: '', page_type: 'custom', recipe: '', sort_order: pagesResponse?.pages.length ?? 0, updated_at: '',
         summary: '', seo_title: '', seo_description: '', canonical_url: '', robots: '', blocks: [], document: { updated_at: '' },
       }
     }
@@ -358,8 +332,8 @@ async function save() {
       throw new Error(`Resolve the highlighted fields in section ${invalidIndex + 1} before saving.`)
     }
     selected.value.blocks.forEach((block, index) => { block.position = index })
-    const path = selected.value.id || newVariantLocale.value ? selected.value.path : `/${slugifyTitle(title)}`
-    if (!selected.value.id && !newVariantLocale.value && path === '/') throw new Error('Choose a more specific page title.')
+    const path = selected.value.id ? selected.value.path : `/${slugifyTitle(title)}`
+    if (!selected.value.id && path === '/') throw new Error('Choose a more specific page title.')
     const body = {
       id: selected.value.id || undefined,
       pageId: selected.value.page_id || undefined,
@@ -380,15 +354,13 @@ async function save() {
     const response = selected.value.id
       ? await dashboardApi<{ page: PageDetailResponse }>(`/api/editor/sites/${siteId}/pages/${selected.value.id}`, { method: 'PATCH', body, validate: validatePage })
       : await dashboardApi<{ page: PageDetailResponse }>(`/api/editor/sites/${siteId}/pages`, { method: 'POST', body, validate: validatePage })
-    const createdVariant = !selected.value.id && Boolean(newVariantLocale.value)
     hydrating.value = true
     selected.value = toEditorPage(response.page)
     savedBlockIds.value = new Set(response.page.blocks.map(block => block.id))
     dirty.value = false
     hydrating.value = false
     toast.add({ title: 'Saved', description: 'Page saved.', color: 'success' })
-    if (isNew.value || createdVariant) {
-      newVariantLocale.value = null
+    if (isNew.value) {
       await navigateTo(`${pagesPath.value}/${response.page.id}`)
     }
   } catch (error) {
@@ -398,6 +370,104 @@ async function save() {
   }
 }
 
+let localizedPageVariant: PageDetail | null = null
+let localizedPageBlocks: TenantPageBlock[] = []
+let localizedPageLocale = ''
+
+function pageBlockFieldKey(blockIndex: number, path: readonly (string | number)[]): string {
+  return `content:${blockIndex}:${path.join('.')}`
+}
+
+const pageLocalizationFields = computed(() => {
+  const page = selected.value
+  if (!page) return []
+  const fields: Array<{ key: string; label: string; source: string | null; multiline?: boolean; rows?: number }> = [
+    { key: 'title', label: 'Page title', source: page.title },
+    { key: 'summary', label: 'Short description', source: page.summary, multiline: true, rows: 3 },
+  ]
+  page.blocks.forEach((block, blockIndex) => {
+    tenantPageLocalizedTextFields(block).forEach((field) => {
+      fields.push({
+        key: pageBlockFieldKey(blockIndex, field.path),
+        label: `${blockTypeLabel(block.type)} ${blockIndex + 1} · ${field.label}`,
+        source: field.value,
+        multiline: true,
+        rows: 3,
+      })
+    })
+  })
+  return fields
+})
+
+async function loadPageLocalization(locale: string): Promise<Record<string, unknown>> {
+  const source = selected.value
+  if (!source) throw new Error('The source page is unavailable.')
+  localizedPageLocale = locale
+  localizedPageVariant = null
+  localizedPageBlocks = createTenantPageTranslationBlocks(toRaw(source.blocks))
+  const list = await dashboardApi<{ pages: PageSummary[] }>(
+    `/api/editor/sites/${siteId}/pages?locale=${encodeURIComponent(locale)}`,
+    { validate: validateList },
+  )
+  const summary = list.pages.find(page => page.page_id === source.page_id)
+  const values: Record<string, unknown> = {}
+  if (summary) {
+    const response = await dashboardApi<{ page: PageDetailResponse }>(
+      `/api/editor/sites/${siteId}/pages/${summary.id}`,
+      { validate: validatePage },
+    )
+    localizedPageVariant = toEditorPage(response.page)
+    localizedPageBlocks = structuredClone(response.page.blocks)
+    values.title = response.page.title
+    if (response.page.summary) values.summary = response.page.summary
+  }
+  localizedPageBlocks.forEach((block, blockIndex) => {
+    tenantPageLocalizedTextFields(block).forEach((field) => {
+      values[pageBlockFieldKey(blockIndex, field.path)] = field.value
+    })
+  })
+  return values
+}
+
+async function savePageLocalization(locale: string, submitted: Record<string, unknown>): Promise<void> {
+  const source = selected.value
+  if (!source || localizedPageLocale !== locale) throw new Error('Choose the language again before saving.')
+  const title = submitted.title
+  if (typeof title !== 'string' || !title.trim()) throw new Error('Add the translated page title before saving.')
+  const blocks = structuredClone(localizedPageBlocks)
+  blocks.forEach((block, blockIndex) => {
+    tenantPageLocalizedTextFields(block).forEach((field) => {
+      const value = submitted[pageBlockFieldKey(blockIndex, field.path)]
+      if (typeof value === 'string') writeTenantPageLocalizedText(block, field.path, value)
+    })
+  })
+  const summary = typeof submitted.summary === 'string' ? submitted.summary : ''
+  const body = {
+    id: localizedPageVariant?.id,
+    pageId: source.page_id,
+    locale,
+    path: source.path,
+    title: title.trim(),
+    summary,
+    seoTitle: null,
+    seoDescription: null,
+    canonicalUrl: null,
+    robots: source.robots || null,
+    pageType: source.page_type,
+    recipe: source.recipe || null,
+    sortOrder: source.sort_order,
+    blocks,
+    expectedDocumentUpdatedAt: localizedPageVariant?.document.updated_at,
+  }
+  const response = localizedPageVariant
+    ? await dashboardApi<{ page: PageDetailResponse }>(`/api/editor/sites/${siteId}/pages/${localizedPageVariant.id}`, { method: 'PATCH', body, validate: validatePage })
+    : await dashboardApi<{ page: PageDetailResponse }>(`/api/editor/sites/${siteId}/pages`, { method: 'POST', body, validate: validatePage })
+  localizedPageVariant = toEditorPage(response.page)
+  localizedPageBlocks = structuredClone(response.page.blocks)
+}
+
+const siteLocalizationSettingsPath = computed(() => `/dashboard/${route.params.orgSlug}/sites/${route.params.siteSlug}/settings/localization`)
+
 watch(selected, () => {
   if (hydrating.value) {
     dirty.value = false
@@ -406,45 +476,6 @@ watch(selected, () => {
   dirty.value = true
   requestGate.invalidate()
 }, { deep: true, flush: 'sync' })
-
-watch(contentLanguage.locale, async (nextLocale, previousLocale) => {
-  if (!nextLocale || !previousLocale) return
-  if (localeRevertGuard.consume(nextLocale) || loading.value || isNew.value || nextLocale === previousLocale || !selected.value) return
-  if (!canDiscardUnsavedChanges('Discard unsaved page changes and switch language?')) {
-    localeRevertGuard.arm(previousLocale)
-    contentLanguage.select(resolvedSiteId, previousLocale)
-    return
-  }
-  const generation = ++localeTransitionGeneration
-  try {
-    const response = await dashboardApi<{ pages: PageSummary[] }>(`/api/editor/sites/${siteId}/pages?locale=${encodeURIComponent(nextLocale)}`, { validate: validateList })
-    if (generation !== localeTransitionGeneration || contentLanguage.locale.value !== nextLocale) return
-    const translatedPage = response.pages.find(page => page.page_id === selected.value?.page_id)
-    if (translatedPage) {
-      dirty.value = false
-      locale.value = nextLocale
-      await navigateTo(`${pagesPath.value}/${translatedPage.id}`)
-      return
-    }
-    if (!window.confirm(`No ${nextLocale} version exists. Create it with the same layout and media?`)) {
-      if (generation !== localeTransitionGeneration || contentLanguage.locale.value !== nextLocale) return
-      localeRevertGuard.arm(previousLocale)
-      contentLanguage.select(resolvedSiteId, previousLocale)
-      return
-    }
-    if (generation !== localeTransitionGeneration || contentLanguage.locale.value !== nextLocale || !selected.value) return
-    newVariantLocale.value = nextLocale
-    locale.value = nextLocale
-    selected.value = toNewTranslationPage(selected.value, nextLocale)
-    savedBlockIds.value = new Set()
-    dirty.value = true
-  } catch (error) {
-    if (generation !== localeTransitionGeneration || contentLanguage.locale.value !== nextLocale) return
-    localeRevertGuard.arm(previousLocale)
-    contentLanguage.select(resolvedSiteId, previousLocale)
-    editorError.value = error instanceof Error ? error.message : 'Unable to switch language'
-  }
-})
 
 function handleBeforeUnload(event: BeforeUnloadEvent) {
   if (!dirty.value) return

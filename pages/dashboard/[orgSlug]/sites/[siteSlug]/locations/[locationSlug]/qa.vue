@@ -10,9 +10,7 @@
     empty-title="No Q&A yet"
     empty-icon="i-lucide-circle-help"
     add-label="Add a question"
-    :addable="translationLocale === sourceLocale"
-    :removable="translationLocale === sourceLocale"
-    :reorderable="translationLocale === sourceLocale"
+    reorderable
     :removing-id="removingId"
     @add="openNew"
     @open="openExisting"
@@ -24,53 +22,50 @@
         <UBadge :color="item.row.status === 'published' ? 'success' : 'neutral'" variant="soft">{{ item.row.status }}</UBadge>
         <span class="text-xs text-muted">{{ item.row.upvote_count }} upvotes</span>
       </div>
-      <p class="mt-2 text-sm font-semibold text-highlighted">
-        {{ translationLocale === sourceLocale ? item.row.question : `Source: ${item.row.question}` }}
-      </p>
-      <p class="mt-1 line-clamp-2 text-sm text-muted" :class="item.row.answer ? '' : 'italic'">
-        {{ translationLocale === sourceLocale ? (item.row.answer || 'No answer yet.') : 'Open to translate' }}
-      </p>
+      <p class="mt-2 text-sm font-semibold text-highlighted">{{ item.row.question }}</p>
+      <p class="mt-1 line-clamp-2 text-sm text-muted" :class="item.row.answer ? '' : 'italic'">{{ item.row.answer || 'No answer yet.' }}</p>
     </template>
   </DashboardListEditor>
 
   <DashboardListItemDialog
     v-model:open="dialogOpen"
     :title="editingId ? 'Edit question' : 'Add a question'"
-    :removable="Boolean(editingId) && translationLocale === sourceLocale"
-    :saving="translationLocale === sourceLocale ? saving : translationSaving"
+    :removable="Boolean(editingId)"
+    :saving="saving"
     :removing="removingId === editingId"
-    :save-disabled="!locationId || (translationLocale === sourceLocale ? !form.question.trim() : translationSaving || !translationReady)"
-    @save="translationLocale === sourceLocale ? saveQa() : saveTranslation()"
+    :save-disabled="!locationId || !form.question.trim()"
+    @save="saveQa"
     @remove="removeEditing"
   >
-    <template v-if="translationLocale === sourceLocale">
-      <UFormField label="Question">
-        <UTextarea v-model="form.question" :rows="3" placeholder="Do you accept walk-ins?" autofocus class="w-full" />
-      </UFormField>
-      <UFormField label="Answer">
-        <UTextarea v-model="form.answer" :rows="4" placeholder="Yes, walk-ins are welcome when seats are available." class="w-full" />
-      </UFormField>
-      <UCheckbox v-if="editingId" v-model="form.published" label="Published" />
-    </template>
-    <template v-else>
-      <p class="text-xs text-muted">Primary ({{ sourceLocale }}): {{ form.question }}</p>
-      <UFormField label="Question">
-        <UTextarea v-model="translationFields.question" :rows="3" class="w-full" />
-      </UFormField>
-      <UFormField label="Answer">
-        <UTextarea v-model="translationFields.answer" :rows="4" class="w-full" />
-      </UFormField>
-      <p v-if="translationError" class="text-sm text-error">{{ translationError }}</p>
+    <UFormField label="Question">
+      <UTextarea v-model="form.question" :rows="3" placeholder="Do you accept walk-ins?" autofocus class="w-full" />
+    </UFormField>
+    <UFormField label="Answer">
+      <UTextarea v-model="form.answer" :rows="4" placeholder="Yes, walk-ins are welcome when seats are available." class="w-full" />
+    </UFormField>
+    <UCheckbox v-if="editingId" v-model="form.published" label="Published" />
+
+    <template v-if="editingId" #actions>
+      <DashboardResourceLocalization
+        :site-id="siteId"
+        resource-type="location_qa"
+        :resource-id="editingId"
+        resource-label="question"
+        :fields="qaLocalizationFields"
+        :language-settings-path="siteLocalizationSettingsPath"
+      />
     </template>
   </DashboardListItemDialog>
   </div>
 </template>
 
 <script setup lang="ts">
+import DashboardResourceLocalization from '~/components/dashboard/DashboardResourceLocalization.vue'
 import DashboardListEditor from '~/components/dashboard/DashboardListEditor.vue'
 import DashboardListItemDialog from '~/components/dashboard/DashboardListItemDialog.vue'
 
 const dashboardApi = useDashboardApi()
+const route = useRoute()
 definePageMeta({ layout: 'dashboard', cmsCapabilityKey: 'location.qa' })
 
 
@@ -85,8 +80,6 @@ interface QaRow {
 }
 
 const siteId = await useDashboardSiteId()
-const contentLanguage = useDashboardContentLanguage()
-await contentLanguage.load(siteId)
 const dashboardLocation = useDashboardLocation()
 const toast = useToast()
 const locationId = computed(() => dashboardLocation.currentLocationId.value)
@@ -98,7 +91,7 @@ const form = reactive({ question: '', answer: '', published: true })
 
 const listItems = computed(() => qaRows.value.map(row => ({ id: row.id, title: row.question, row })))
 
-const { editing, dialogOpen, editingId, removingId, openNew: openPrimaryQuestion, openExisting, close, removeItem, removeEditing } = useListEditor<QaRow>({
+const { editing, dialogOpen, editingId, removingId, openNew, openExisting, close, removeItem, removeEditing } = useListEditor<QaRow>({
   find: id => qaRows.value.find(row => row.id === id) ?? null,
   fill: (row) => {
     form.question = row.question
@@ -127,14 +120,6 @@ const { editing, dialogOpen, editingId, removingId, openNew: openPrimaryQuestion
     }
   },
 })
-
-function openNew() {
-  if (translationLocale.value !== sourceLocale.value) {
-    toast.add({ description: `Switch to ${sourceLocale.value} to add a new question`, color: 'warning' })
-    return
-  }
-  openPrimaryQuestion()
-}
 const requestEvent = useRequestEvent()
 const {
   data: qaResource,
@@ -164,6 +149,15 @@ const {
 watch(qaResource, value => {
   if (value) qaRows.value = value.qa
 }, { immediate: true })
+let openedLocalizationTarget = ''
+watch(qaRows, (rows) => {
+  const target = typeof route.query.localize === 'string' ? route.query.localize : ''
+  if (!target.startsWith('location_qa:') || target === openedLocalizationTarget) return
+  const row = rows.find(item => target === `location_qa:${item.id}`)
+  if (!row) return
+  openedLocalizationTarget = target
+  openExisting({ id: row.id })
+}, { immediate: true })
 watch([qaPending, qaResourceError], () => {
   loading.value = qaPending.value
   loadError.value = qaResourceError.value?.message ?? null
@@ -190,89 +184,12 @@ async function loadQa() {
 }
 
 
-// ── Translations (resource_localizations, same API as the editor CRUD) ──
-const translationLocale = contentLanguage.locale
-const sourceLocale = contentLanguage.sourceLocale
-const translationFields = reactive({ question: '', answer: '' })
-const translationError = ref<string | null>(null)
-const translationSaving = ref(false)
-const translationLoading = ref(false)
-const loadedTranslationQaId = ref('')
-const loadedTranslationLocale = ref('')
-let translationLoadGeneration = 0
-const translationReady = computed(() => !translationLoading.value
-  && loadedTranslationQaId.value === editingId.value
-  && loadedTranslationLocale.value === translationLocale.value)
-function isQaTranslationResponse(value: unknown): value is { localization: { values: Record<string, unknown> } } {
-  return isRecord(value) && isRecord(value.localization) && isRecord(value.localization.values)
-}
-async function loadTranslationFields() {
-  const requestedQaId = editingId.value
-  const requestedLocale = translationLocale.value
-  const generation = ++translationLoadGeneration
-  translationFields.question = ''
-  translationFields.answer = ''
-  loadedTranslationQaId.value = ''
-  loadedTranslationLocale.value = ''
-  translationError.value = null
-  if (!requestedQaId || !requestedLocale || requestedLocale === sourceLocale.value) {
-    translationLoading.value = false
-    return
-  }
-  translationLoading.value = true
-  try {
-    const response = await dashboardApi<{ localization: { values: Record<string, unknown> } }>(
-      `/api/editor/sites/${siteId}/localization/location_qa/${requestedQaId}/${encodeURIComponent(requestedLocale)}`,
-      { validate: isQaTranslationResponse },
-    )
-    if (generation !== translationLoadGeneration
-      || editingId.value !== requestedQaId
-      || translationLocale.value !== requestedLocale) return
-    const values = response.localization.values
-    translationFields.question = typeof values.question === 'string' ? values.question : ''
-    translationFields.answer = typeof values.answer === 'string' ? values.answer : ''
-    loadedTranslationQaId.value = requestedQaId
-    loadedTranslationLocale.value = requestedLocale
-  } catch (cause) {
-    if (generation !== translationLoadGeneration
-      || editingId.value !== requestedQaId
-      || translationLocale.value !== requestedLocale) return
-    const statusCode = isRecord(cause) && typeof cause.statusCode === 'number' ? cause.statusCode : null
-    if (statusCode !== 404) translationError.value = cause instanceof Error ? cause.message : 'Failed to load translation'
-    translationFields.question = ''; translationFields.answer = ''
-    if (statusCode === 404) {
-      loadedTranslationQaId.value = requestedQaId
-      loadedTranslationLocale.value = requestedLocale
-    }
-  } finally {
-    if (generation === translationLoadGeneration) translationLoading.value = false
-  }
-}
-watch([editingId, translationLocale], () => { void loadTranslationFields() }, { flush: 'sync' })
-async function saveTranslation() {
-  const requestedQaId = editingId.value
-  const requestedLocale = translationLocale.value
-  if (!requestedQaId || !requestedLocale || requestedLocale === sourceLocale.value
-    || !translationReady.value
-    || loadedTranslationQaId.value !== requestedQaId
-    || loadedTranslationLocale.value !== requestedLocale) return
-  translationSaving.value = true; translationError.value = null
-  try {
-    const values: Record<string, string> = {}
-    if (translationFields.question.trim()) values.question = translationFields.question.trim()
-    if (translationFields.answer.trim()) values.answer = translationFields.answer.trim()
-    await dashboardApi(`/api/editor/sites/${siteId}/localization/location_qa/${requestedQaId}/${encodeURIComponent(requestedLocale)}`, {
-      method: 'PUT',
-      body: { values },
-      validate: isRecord,
-    })
-    toast.add({ description: 'Translation saved', color: 'success' })
-  } catch (cause) {
-    translationError.value = cause instanceof Error ? cause.message : 'Failed to save translation'
-  } finally {
-    translationSaving.value = false
-  }
-}
+const editingQa = computed(() => qaRows.value.find(row => row.id === editingId.value) ?? null)
+const qaLocalizationFields = computed(() => [
+  { key: 'question', label: 'Question', source: editingQa.value?.question },
+  { key: 'answer', label: 'Answer', source: editingQa.value?.answer, multiline: true, rows: 4 },
+])
+const siteLocalizationSettingsPath = computed(() => `/dashboard/${route.params.orgSlug}/sites/${route.params.siteSlug}/settings/localization`)
 
 async function saveQa() {
   if (!locationId.value) return

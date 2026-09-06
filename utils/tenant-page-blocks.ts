@@ -221,6 +221,45 @@ const TRANSLATABLE_DATA_FIELDS = new Set([
   'subtitle', 'summary', 'text', 'title', 'cta_label',
 ])
 
+export interface TenantPageLocalizedTextField {
+  path: Array<string | number>
+  label: string
+  value: string
+}
+
+function localizedFieldLabel(key: string): string {
+  return key.replace(/_/g, ' ').replace(/^\w/, character => character.toUpperCase())
+}
+
+function collectTenantPageLocalizedText(value: unknown, path: Array<string | number>, key = ''): TenantPageLocalizedTextField[] {
+  if (typeof value === 'string') {
+    return TRANSLATABLE_DATA_FIELDS.has(key)
+      ? [{ path, label: localizedFieldLabel(key), value }]
+      : []
+  }
+  if (Array.isArray(value)) {
+    return value.flatMap((item, index) => collectTenantPageLocalizedText(item, [...path, index], key))
+  }
+  if (!value || typeof value !== 'object') return []
+  return Object.entries(value as Record<string, unknown>).flatMap(([childKey, childValue]) =>
+    collectTenantPageLocalizedText(childValue, [...path, childKey], childKey))
+}
+
+export function tenantPageLocalizedTextFields(block: TenantPageBlock): TenantPageLocalizedTextField[] {
+  return collectTenantPageLocalizedText(block.data, [])
+}
+
+export function writeTenantPageLocalizedText(block: TenantPageBlock, path: readonly (string | number)[], value: string): void {
+  if (path.length === 0) throw new Error('Localized page field path is empty.')
+  let target: unknown = block.data
+  for (const segment of path.slice(0, -1)) {
+    if (!target || typeof target !== 'object') throw new Error('Localized page field path is invalid.')
+    target = (target as Record<string | number, unknown>)[segment]
+  }
+  if (!target || typeof target !== 'object') throw new Error('Localized page field path is invalid.')
+  ;(target as Record<string | number, unknown>)[path[path.length - 1]!] = value
+}
+
 function clearTenantPageTranslationText(value: unknown, key = ''): unknown {
   if (typeof value === 'string') return TRANSLATABLE_DATA_FIELDS.has(key) ? '' : value
   if (Array.isArray(value)) return value.map(item => clearTenantPageTranslationText(item))

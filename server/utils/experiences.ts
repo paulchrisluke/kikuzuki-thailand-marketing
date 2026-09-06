@@ -61,6 +61,7 @@ export interface Experience {
   included_items: string[]
   what_to_bring: string[]
   meeting_point: string | null
+  cancellation_policy: string | null
   status: 'active' | 'inactive' | 'sold_out'
   sort_order: number
   featured: boolean
@@ -111,6 +112,7 @@ interface ExperienceRow {
   included_items: string | null
   what_to_bring: string | null
   meeting_point: string | null
+  cancellation_policy: string | null
   status: string
   sort_order: number
   featured: number
@@ -182,7 +184,7 @@ const SELECT = `
          pr.tax_behavior, pr.compare_at_amount_minor, pr.valid_from, pr.valid_until,
          pr.provenance, pr.created_by AS price_created_by, pr.created_at AS price_created_at,
          e.duration_minutes, e.max_capacity, e.time_slots, e.recurring_slots,
-         p.tags_json, p.details_json, e.included_items, e.what_to_bring, e.meeting_point,
+         p.tags_json, p.details_json, e.included_items, e.what_to_bring, e.meeting_point, e.cancellation_policy,
          CASE WHEN p.is_visible = 0 THEN 'inactive' WHEN p.available = 0 THEN 'sold_out' ELSE 'active' END AS status,
          p.sort_order, p.featured, p.featured_sort_order,
          p.seo_title, p.seo_description, p.canonical_url, p.robots, p.created_at, p.updated_at

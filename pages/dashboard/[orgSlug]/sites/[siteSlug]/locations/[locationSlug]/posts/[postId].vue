@@ -1,9 +1,20 @@
 <template>
   <UDashboardPanel id="location-post-detail">
     <template #header>
-      <UDashboardNavbar :title="postTitle" :toggle="false">
+      <UDashboardNavbar :title="editor.form.title || 'Post'" :toggle="false">
         <template #leading>
           <DashboardNavbarLeading :to="postsPath" label="Posts" />
+        </template>
+        <template #right>
+          <DashboardResourceLocalization
+            :site-id="siteId"
+            resource-type="site_post"
+            :resource-id="postId"
+            resource-label="post"
+            :fields="postLocalizationFields"
+            :route-path="localizedPostPath"
+            :language-settings-path="siteLocalizationSettingsPath"
+          />
         </template>
       </UDashboardNavbar>
     </template>
@@ -19,7 +30,7 @@
       />
 
       <div v-else class="space-y-4">
-        <PostEditor v-if="isPrimaryLanguage"
+        <PostEditor
           v-model:title="editor.form.title"
           v-model:body="editor.form.body"
           v-model:media="editor.form.media"
@@ -41,24 +52,6 @@
           @publish="openPublish"
           @delete="onDelete"
         />
-
-        <div v-else class="space-y-3 rounded-lg border border-default p-4">
-          <p class="text-xs text-muted">Primary ({{ sourceLocale }}): {{ editor.form.title }}</p>
-            <UFormField label="Title">
-              <UInput v-model="translationFields.title" class="w-full" />
-            </UFormField>
-            <UFormField label="Body">
-              <UTextarea v-model="translationFields.body" :rows="5" class="w-full" />
-            </UFormField>
-            <UFormField label="Event title">
-              <UInput v-model="translationFields.event_title" class="w-full" />
-            </UFormField>
-            <UFormField label="Offer terms">
-              <UTextarea v-model="translationFields.offer_terms" :rows="2" class="w-full" />
-            </UFormField>
-          <p v-if="translationError" class="text-sm text-error">{{ translationError }}</p>
-          <UButton :loading="translationSaving" :disabled="!translationReady" label="Save" @click="saveTranslation" />
-        </div>
 
         <div v-if="publicPath" class="flex flex-wrap items-center gap-2">
           <UButton :to="publicPath" target="_blank" size="sm" color="neutral" variant="soft" icon="i-lucide-external-link">
@@ -112,6 +105,7 @@
 
 <script setup lang="ts">
 import PostEditor from '~/lib/components/workspace/editor/PostEditor.vue'
+import DashboardResourceLocalization from '~/components/dashboard/DashboardResourceLocalization.vue'
 import { useLocationPostEditor } from '~/composables/useLocationPostEditor'
 import { getErrorMessage } from '~/utils/errors'
 
@@ -213,106 +207,17 @@ async function copyPublicLink() {
   }
 }
 
-// ── Translations (resource_localizations, same API as the editor CRUD) ──
-const contentLanguage = useDashboardContentLanguage()
-await contentLanguage.load(siteId)
-const translationLocale = contentLanguage.locale
-const sourceLocale = contentLanguage.sourceLocale
-const isPrimaryLanguage = computed(() => translationLocale.value === sourceLocale.value)
-const translationFields = reactive({ title: '', body: '', event_title: '', offer_terms: '' })
-const postTitle = computed(() => {
-  const title = isPrimaryLanguage.value ? editor.form.title : translationFields.title
-  const text = title.trim()
-  return text ? text : (isPrimaryLanguage.value ? 'Post' : 'Not translated')
-})
-const translationError = ref<string | null>(null)
-const translationSaving = ref(false)
-const translationLoading = ref(false)
-const loadedTranslationPostId = ref('')
-const loadedTranslationLocale = ref('')
-let translationLoadGeneration = 0
-const translationReady = computed(() => !translationLoading.value
-  && loadedTranslationPostId.value === postId.value
-  && loadedTranslationLocale.value === translationLocale.value)
-
-function isPostTranslationResponse(value: unknown): value is { localization: { values: Record<string, unknown> } } {
-  return isRecord(value) && isRecord(value.localization) && isRecord(value.localization.values)
-}
-
-async function loadTranslationFields() {
-  const requestedPostId = postId.value
-  const requestedLocale = translationLocale.value
-  const generation = ++translationLoadGeneration
-  for (const field of ['title', 'body', 'event_title', 'offer_terms'] as const) {
-    translationFields[field] = ''
-  }
-  loadedTranslationPostId.value = ''
-  loadedTranslationLocale.value = ''
-  translationError.value = null
-  if (!requestedPostId || !requestedLocale || requestedLocale === sourceLocale.value) {
-    translationLoading.value = false
-    return
-  }
-  translationLoading.value = true
-  try {
-    const response = await dashboardApi<{ localization: { values: Record<string, unknown> } }>(
-      `/api/editor/sites/${siteId}/localization/site_post/${requestedPostId}/${encodeURIComponent(requestedLocale)}`,
-      { validate: isPostTranslationResponse },
-    )
-    if (generation !== translationLoadGeneration
-      || postId.value !== requestedPostId
-      || translationLocale.value !== requestedLocale) return
-    const values = response.localization.values
-    for (const field of ['title', 'body', 'event_title', 'offer_terms'] as const) {
-      translationFields[field] = typeof values[field] === 'string' ? values[field] : ''
-    }
-    loadedTranslationPostId.value = requestedPostId
-    loadedTranslationLocale.value = requestedLocale
-  } catch (cause) {
-    if (generation !== translationLoadGeneration
-      || postId.value !== requestedPostId
-      || translationLocale.value !== requestedLocale) return
-    const statusCode = isRecord(cause) && typeof cause.statusCode === 'number' ? cause.statusCode : null
-    if (statusCode !== 404) translationError.value = getErrorMessage(cause, 'Failed to load translation')
-    for (const field of ['title', 'body', 'event_title', 'offer_terms'] as const) {
-      translationFields[field] = ''
-    }
-    if (statusCode === 404) {
-      loadedTranslationPostId.value = requestedPostId
-      loadedTranslationLocale.value = requestedLocale
-    }
-  } finally {
-    if (generation === translationLoadGeneration) translationLoading.value = false
-  }
-}
-
-watch([postId, translationLocale], () => { void loadTranslationFields() }, { immediate: true })
-
-async function saveTranslation() {
-  const requestedPostId = postId.value
-  const requestedLocale = translationLocale.value
-  if (!requestedPostId || !requestedLocale || requestedLocale === sourceLocale.value
-    || !translationReady.value
-    || loadedTranslationPostId.value !== requestedPostId
-    || loadedTranslationLocale.value !== requestedLocale) return
-  translationSaving.value = true
-  translationError.value = null
-  try {
-    const values: Record<string, string> = {}
-    for (const field of ['title', 'body', 'event_title', 'offer_terms'] as const) {
-      if (translationFields[field].trim()) values[field] = translationFields[field].trim()
-    }
-    await dashboardApi(`/api/editor/sites/${siteId}/localization/site_post/${requestedPostId}/${encodeURIComponent(requestedLocale)}`, {
-      method: 'PUT',
-      body: { values, route_path: `/${requestedLocale}/posts/${editor.form.slug}` },
-      validate: isRecord,
-    })
-    toast.add({ description: 'Translation saved', color: 'success' })
-  } catch (cause) {
-    translationError.value = getErrorMessage(cause, 'Failed to save translation')
-  } finally {
-    translationSaving.value = false
-  }
+const siteLocalizationSettingsPath = computed(() => `/dashboard/${route.params.orgSlug}/sites/${route.params.siteSlug}/settings/localization`)
+const postLocalizationFields = computed(() => [
+  { key: 'title', label: 'Title', source: post.value?.title },
+  { key: 'body', label: 'Body', source: post.value?.body, multiline: true, rows: 6 },
+  { key: 'event_title', label: 'Event title', source: post.value?.event_title },
+  { key: 'offer_terms', label: 'Offer terms', source: post.value?.offer_terms, multiline: true },
+])
+function localizedPostPath(locale: string): string {
+  const slug = post.value?.slug
+  if (typeof slug !== 'string' || !slug) throw new Error('The post slug is unavailable.')
+  return `/${locale}/posts/${slug}`
 }
 
 useSeoMeta({ title: () => `${editor.form.title || 'Post'} | KrabiClaw Dashboard`, robots: 'noindex, nofollow' })

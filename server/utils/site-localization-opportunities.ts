@@ -6,6 +6,8 @@ interface LocalizableRow {
   values_json: string | null
   location_slug?: string | null
   category_id?: string | null
+  resource_type?: string
+  resource_id?: string
   [field: string]: unknown
 }
 
@@ -66,9 +68,20 @@ function opportunity(
   label: string,
   result: ReturnType<typeof progress>,
   path: (first: LocalizableRow) => string,
+  resourceType: string | ((first: LocalizableRow) => string),
+  resourceId: (first: LocalizableRow) => string,
+  locale: string,
 ): SiteLocalizationOpportunity | null {
   if (!result.first || result.completed === result.total) return null
-  return { id, label, completed: result.completed, total: result.total, path: path(result.first) }
+  const type = typeof resourceType === 'string' ? resourceType : resourceType(result.first)
+  const query = new URLSearchParams({ localize: `${type}:${resourceId(result.first)}`, locale })
+  return { id, label, completed: result.completed, total: result.total, path: `${path(result.first)}?${query}` }
+}
+
+function requiredRowString(row: LocalizableRow, field: 'resource_type' | 'resource_id'): string {
+  const value = row[field]
+  if (typeof value !== 'string' || !value) throw new Error(`Localization opportunity is missing ${field}.`)
+  return value
 }
 
 export async function getSiteLocalizationProgress(
@@ -88,13 +101,13 @@ export async function getSiteLocalizationProgress(
         AND rl.organization_id = l.organization_id AND rl.site_id = l.site_id
       WHERE l.organization_id = ? AND l.site_id = ? AND l.status = 'active' ORDER BY l.id`, params),
     queryAll<LocalizableRow>(db, `
-      SELECT p.id, l.slug AS location_slug, p.category_id, p.name, p.description, p.tags_json, p.details_json, rl.values_json
+      SELECT p.id, 'product' AS resource_type, l.slug AS location_slug, p.category_id, p.name, p.description, p.tags_json, p.details_json, rl.values_json
         FROM products p JOIN business_locations l ON l.id = p.location_id
         LEFT JOIN resource_localizations rl ON rl.resource_type = 'product' AND rl.resource_id = p.id AND rl.locale = ?
           AND rl.organization_id = p.organization_id AND rl.site_id = p.site_id
        WHERE p.organization_id = ? AND p.site_id = ? AND p.product_type = 'standard' AND p.is_visible = 1
       UNION ALL
-      SELECT c.id, l.slug AS location_slug, c.id AS category_id, c.name, NULL, NULL, NULL, rl.values_json
+      SELECT c.id, 'product_category' AS resource_type, l.slug AS location_slug, c.id AS category_id, c.name, NULL, NULL, NULL, rl.values_json
         FROM product_categories c JOIN business_locations l ON l.id = c.location_id
         LEFT JOIN resource_localizations rl ON rl.resource_type = 'product_category' AND rl.resource_id = c.id AND rl.locale = ?
           AND rl.organization_id = c.organization_id AND rl.site_id = c.site_id
@@ -124,16 +137,16 @@ export async function getSiteLocalizationProgress(
         AND rl.organization_id = m.organization_id AND rl.site_id = m.site_id
       WHERE m.organization_id = ? AND m.site_id = ? AND m.status = 'active' ORDER BY m.id`, params),
     queryAll<LocalizableRow>(db, `
-      SELECT p.id, p.title, NULL AS label, rl.values_json FROM site_link_pages p
+      SELECT p.id, 'site_link_page' AS resource_type, p.title, NULL AS label, rl.values_json FROM site_link_pages p
       LEFT JOIN resource_localizations rl ON rl.resource_type = 'site_link_page' AND rl.resource_id = p.id AND rl.locale = ?
         AND rl.organization_id = p.organization_id AND rl.site_id = p.site_id
       WHERE p.organization_id = ? AND p.site_id = ?
       UNION ALL
-      SELECT i.id, NULL AS title, i.label, rl.values_json FROM site_link_items i
+      SELECT i.id, 'site_link_item' AS resource_type, NULL AS title, i.label, rl.values_json FROM site_link_items i
       LEFT JOIN resource_localizations rl ON rl.resource_type = 'site_link_item' AND rl.resource_id = i.id AND rl.locale = ?
         AND rl.organization_id = i.organization_id AND rl.site_id = i.site_id
       WHERE i.organization_id = ? AND i.site_id = ? AND i.status = 'active'`, [...params, ...params]),
-    queryAll<LocalizableRow>(db, `SELECT source.page_id AS id, source.title, source.summary,
+    queryAll<LocalizableRow>(db, `SELECT source.id, source.page_id AS resource_id, source.title, source.summary,
         CASE WHEN translated.id IS NULL THEN NULL ELSE json_object(
           'title', translated.title,
           'summary', translated.summary,
@@ -147,19 +160,19 @@ export async function getSiteLocalizationProgress(
   ])
 
   const groups = [
-    { id: 'brand', label: 'Brand', result: progress(site, ['brand_name', 'brand_description']), path: () => 'brand/name' },
-    { id: 'locations', label: 'Locations', result: progress(locations, ['title', 'address', 'city', 'neighborhood', 'description', 'short_description', 'opening_hours']), path: (row: LocalizableRow) => `locations/${row.location_slug}/settings/profile` },
-    { id: 'menu', label: 'Menu', result: progress(menu, ['name', 'description', 'tags_json', 'details_json']), path: (row: LocalizableRow) => `locations/${row.location_slug}/products/${row.category_id}` },
-    { id: 'experiences', label: 'Experiences', result: progress(experiences, ['title', 'body', 'tagline', 'pricing_note', 'included_items_json', 'what_to_bring', 'meeting_point', 'cancellation_policy']), path: (row: LocalizableRow) => `locations/${row.location_slug}/experiences/${row.id}/details` },
-    { id: 'pages', label: 'Pages', result: progress(pages, ['title', 'summary', 'content']), path: () => 'pages' },
-    { id: 'posts', label: 'Posts', result: progress(posts, ['title', 'body', 'event_title', 'offer_terms']), path: (row: LocalizableRow) => `locations/${row.location_slug}/posts/${row.id}` },
-    { id: 'blog', label: 'Blog', result: progress(blog, ['title', 'excerpt', 'category', 'tags_json', 'nav_title', 'seo_keywords']), path: (row: LocalizableRow) => `blog/${row.id}` },
-    { id: 'qa', label: 'Q&A', result: progress(qa, ['question', 'answer']), path: (row: LocalizableRow) => `locations/${row.location_slug}/qa` },
-    { id: 'media', label: 'Media', result: progress(media, ['alt_text']), path: () => 'media' },
-    { id: 'links', label: 'Links', result: progress(links, ['title', 'label']), path: () => 'links' },
+    { id: 'brand', label: 'Brand', result: progress(site, ['brand_name', 'brand_description']), path: () => 'brand/name', resourceType: 'site', resourceId: (row: LocalizableRow) => row.id },
+    { id: 'locations', label: 'Locations', result: progress(locations, ['title', 'address', 'city', 'neighborhood', 'description', 'short_description', 'opening_hours']), path: (row: LocalizableRow) => `locations/${row.location_slug}/settings/profile`, resourceType: 'business_location', resourceId: (row: LocalizableRow) => row.id },
+    { id: 'menu', label: 'Menu', result: progress(menu, ['name', 'description', 'tags_json', 'details_json']), path: (row: LocalizableRow) => row.resource_type === 'product_category' ? `locations/${row.location_slug}/products` : `locations/${row.location_slug}/products/${row.category_id}`, resourceType: (row: LocalizableRow) => requiredRowString(row, 'resource_type'), resourceId: (row: LocalizableRow) => row.id },
+    { id: 'experiences', label: 'Experiences', result: progress(experiences, ['title', 'body', 'tagline', 'pricing_note', 'included_items_json', 'what_to_bring', 'meeting_point', 'cancellation_policy']), path: (row: LocalizableRow) => `locations/${row.location_slug}/experiences/${row.id}/details`, resourceType: 'experience', resourceId: (row: LocalizableRow) => row.id },
+    { id: 'pages', label: 'Pages', result: progress(pages, ['title', 'summary', 'content']), path: (row: LocalizableRow) => `pages/${row.id}`, resourceType: 'tenant_page', resourceId: (row: LocalizableRow) => requiredRowString(row, 'resource_id') },
+    { id: 'posts', label: 'Posts', result: progress(posts, ['title', 'body', 'event_title', 'offer_terms']), path: (row: LocalizableRow) => `locations/${row.location_slug}/posts/${row.id}`, resourceType: 'site_post', resourceId: (row: LocalizableRow) => row.id },
+    { id: 'blog', label: 'Blog', result: progress(blog, ['title', 'excerpt', 'category', 'tags_json', 'nav_title', 'seo_keywords']), path: (row: LocalizableRow) => `blog/${row.id}`, resourceType: 'tenant_blog_post', resourceId: (row: LocalizableRow) => row.id },
+    { id: 'qa', label: 'Q&A', result: progress(qa, ['question', 'answer']), path: (row: LocalizableRow) => `locations/${row.location_slug}/qa`, resourceType: 'location_qa', resourceId: (row: LocalizableRow) => row.id },
+    { id: 'media', label: 'Media', result: progress(media, ['alt_text']), path: () => 'media', resourceType: 'media_asset', resourceId: (row: LocalizableRow) => row.id },
+    { id: 'links', label: 'Links', result: progress(links, ['title', 'label']), path: () => 'links', resourceType: (row: LocalizableRow) => requiredRowString(row, 'resource_type'), resourceId: (row: LocalizableRow) => row.id },
   ]
   const results = groups
-    .map(group => opportunity(group.id, group.label, group.result, group.path))
+    .map(group => opportunity(group.id, group.label, group.result, group.path, group.resourceType, group.resourceId, input.locale))
     .filter((item): item is SiteLocalizationOpportunity => item !== null)
   return {
     locale: input.locale,

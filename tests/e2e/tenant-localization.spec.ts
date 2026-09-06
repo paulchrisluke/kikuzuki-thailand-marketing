@@ -206,43 +206,52 @@ test.describe.serial('published Thai content saves through the CMS and renders w
       dashboardContext = await browser.newContext({ baseURL, storageState: await owner.storageState() })
       cms = await dashboardContext.newPage()
       await openTenantPage(cms, `${baseURL}/dashboard/north-carolina-legal-services/sites/ncls/links`, {})
-      const languageSelect = cms.locator('[aria-label="Site content language"]:visible')
-      await expect(languageSelect).toBeVisible({ timeout: 30_000 })
-      await languageSelect.click()
-      await cms.getByRole('option', { name: 'ไทย', exact: true }).click()
-      await expect(cms.getByTestId('links-translation-title')).toBeVisible({ timeout: 30_000 })
     })
 
-    test('loads and saves one representative Thai link translation', async () => {
-      await expect(cms.getByTestId('links-translation-title')).toHaveValue('ลิงก์กฎหมายภาษาไทย')
+    test('loads and saves one representative Thai link translation through Localize', async () => {
+      await cms.getByTestId('localize-resource').first().click()
+      await cms.getByTestId('localize-language').click()
+      await cms.getByRole('option', { name: /ไทย \(th\)/ }).click()
+      await expect(cms.getByTestId('localize-field-title')).toHaveValue('ลิงก์กฎหมายภาษาไทย')
+      await cms.getByRole('button', { name: 'Cancel' }).click()
+
       const item = links.items[0]!
-      const editor = cms.getByTestId(`links-item-translation-${item.id}`)
-      await expect(editor.getByTestId('links-item-translation-label')).toHaveValue('บริการกฎหมายครอบครัวเก่า')
-      await editor.getByTestId('links-item-translation-label').fill('บริการกฎหมายครอบครัว')
+      await cms.getByTestId('list-editor-toggle').click()
+      await cms.getByRole('button', { name: 'Edit Family law services' }).click()
+      await cms.getByRole('button', { name: 'Localize' }).last().click()
+      await cms.getByTestId('localize-language').click()
+      await cms.getByRole('option', { name: /ไทย \(th\)/ }).click()
+      await expect(cms.getByTestId('localize-field-label')).toHaveValue('บริการกฎหมายครอบครัวเก่า')
+      await cms.getByTestId('localize-field-label').fill('บริการกฎหมายครอบครัว')
       const itemTranslationSave = await Promise.all([
         cms.waitForResponse(response => response.request().method() === 'PUT' && response.url().includes(`/localization/site_link_item/${item.id}/th`)),
-        editor.getByTestId('links-save-item-translation').click(),
+        cms.getByTestId('localize-save').click(),
       ]).then(([response]) => response)
       expect(itemTranslationSave.status()).toBe(200)
     })
   })
 
-  test('keeps dirty Thai form state after a rejected save', async () => {
-    await expect(cms.getByTestId('links-translation-title')).toHaveValue('ลิงก์กฎหมายภาษาไทย')
+  test('keeps dirty Thai Localize state after a rejected save', async () => {
+    await cms.getByRole('button', { name: 'Close Edit link' }).click()
+    await cms.getByTestId('localize-resource').first().click()
+    await cms.getByTestId('localize-language').click()
+    await cms.getByRole('option', { name: /ไทย \(th\)/ }).click()
+    await expect(cms.getByTestId('localize-field-title')).toHaveValue('ลิงก์กฎหมายภาษาไทย')
     await expectStatus(await owner.post(`/api/editor/sites/${siteId}/locales/${locale}/disable`), 200)
     await expectStatus(await owner.get(`/api/editor/sites/${siteId}/localization/site_link_page/${links.page.id}/${locale}`), 402)
 
     const unsavedTitle = 'ฉบับร่างที่ยังไม่ได้บันทึก'
-    await cms.getByTestId('links-translation-title').fill(unsavedTitle)
+    await cms.getByTestId('localize-field-title').fill(unsavedTitle)
     const failedSave = await Promise.all([
       cms.waitForResponse(response => response.request().method() === 'PUT' && response.url().includes(`/localization/site_link_page/${links.page.id}/th`)),
-      cms.getByTestId('links-save-page-translation').click(),
+      cms.getByTestId('localize-save').click(),
     ]).then(([response]) => response)
     expect(failedSave.status()).toBe(402)
-    await expect(cms.locator('p.text-error')).toBeVisible()
-    await expect(cms.getByTestId('links-translation-title')).toHaveValue(unsavedTitle)
+    await expect(cms.getByText(/active Growth language license is required/i)).toBeVisible()
+    await expect(cms.getByTestId('localize-field-title')).toHaveValue(unsavedTitle)
 
     await expectStatus(await owner.post(`/api/editor/sites/${siteId}/locales/${locale}/enable`), 200)
+    await cms.getByRole('button', { name: 'Cancel' }).click()
   })
 
   async function verifyThaiLinksAndHome(page: Page) {

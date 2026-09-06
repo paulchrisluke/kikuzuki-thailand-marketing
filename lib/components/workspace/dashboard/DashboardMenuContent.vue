@@ -30,8 +30,6 @@
       @click="$emit('search')"
     />
 
-    <DashboardContentLanguageSelect />
-
     <!--
       Insights is organization-wide with its own site filter, so it belongs to
       the organization-scoped menu rather than to any one site.
@@ -56,7 +54,6 @@
 <script setup lang="ts">
 import type { DropdownMenuItem } from '@nuxt/ui'
 import EditorNavigationList from '~/components/dashboard/EditorNavigationList.vue'
-import DashboardContentLanguageSelect from './DashboardContentLanguageSelect.vue'
 
 // Rendered by both the desktop slideover and the mobile menu page, off one
 // model, so the two surfaces cannot show different menus.
