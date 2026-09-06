@@ -45,19 +45,14 @@
               </NuxtLink>
             </div>
 
-            <!-- Social proof -->
-            <div class="flex items-center gap-3 mt-2">
-              <div class="flex">
-                <div
-                  v-for="(av, i) in avatars"
-                  :key="i"
-                  class="w-8 h-8 rounded-full border-2 border-default flex items-center justify-center text-white text-xs font-bold -ml-2 first:ml-0"
-                  :style="{ background: av.color }"
-                >{{ av.letter }}</div>
+            <!-- Real Client Proof -->
+            <div class="flex flex-wrap items-center gap-3 mt-2 pt-3 border-t border-default/40">
+              <span class="text-xs font-semibold text-muted uppercase tracking-wider">Trusted in production by:</span>
+              <div class="flex items-center gap-2 text-xs font-bold text-default">
+                <span class="px-2.5 py-1 rounded-md bg-elevated border border-default">Kikuzuki</span>
+                <span class="px-2.5 py-1 rounded-md bg-elevated border border-default">Pottery House Krabi</span>
+                <span class="px-2.5 py-1 rounded-md bg-elevated border border-default">NCLS</span>
               </div>
-              <p class="text-[13px] text-muted m-0">
-                Trusted by <strong class="text-default">1,200+ businesses</strong> across SE Asia
-              </p>
             </div>
           </div>
 
@@ -82,6 +77,77 @@
                 </picture>
               </div>
             </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Solutions By Industry Section -->
+      <section id="solutions" class="py-20 border-t border-default bg-elevated/20">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div class="text-center max-w-2xl mx-auto mb-14 flex flex-col items-center gap-3">
+            <span class="kc-eyebrow text-primary">Tailored Operating Layers</span>
+            <h2 class="text-3xl sm:text-4xl font-extrabold tracking-tight text-default m-0">
+              Built for your specific industry
+            </h2>
+            <p class="text-base text-muted m-0">
+              Every vertical gets the exact schema, customer journey, and conversational tools it needs.
+            </p>
+          </div>
+
+          <div class="grid md:grid-cols-3 gap-6">
+            <NuxtLink
+              to="/restaurants"
+              class="group rounded-3xl p-8 border border-default bg-elevated/40 hover:bg-elevated/70 hover:border-primary/40 transition-all duration-300 no-underline flex flex-col justify-between shadow-sm hover:shadow-md"
+            >
+              <div>
+                <div class="size-12 rounded-2xl bg-primary/10 text-primary flex items-center justify-center mb-6 border border-primary/20">
+                  <PlatformIcon name="utensils" class="size-6" />
+                </div>
+                <h3 class="text-xl font-bold text-default mb-2 group-hover:text-primary transition-colors">Restaurants</h3>
+                <p class="text-sm text-muted leading-relaxed mb-6">
+                  Crawlable HTML menus, Google Places sync, and direct table reservations with zero per-cover commissions.
+                </p>
+              </div>
+              <div class="inline-flex items-center gap-1 text-sm font-semibold text-primary">
+                Learn about Restaurants on Tap →
+              </div>
+            </NuxtLink>
+
+            <NuxtLink
+              to="/experiences"
+              class="group rounded-3xl p-8 border border-default bg-elevated/40 hover:bg-elevated/70 hover:border-(--kc-teal)/50 transition-all duration-300 no-underline flex flex-col justify-between shadow-sm hover:shadow-md"
+            >
+              <div>
+                <div class="size-12 rounded-2xl bg-(--kc-teal)/10 text-(--kc-teal-600) flex items-center justify-center mb-6 border border-(--kc-teal)/20">
+                  <PlatformIcon name="calendar" class="size-6" />
+                </div>
+                <h3 class="text-xl font-bold text-default mb-2 group-hover:text-(--kc-teal-600) transition-colors">Experiences & Studios</h3>
+                <p class="text-sm text-muted leading-relaxed mb-6">
+                  Time-slot scheduling, capacity safeguards, and direct booking for workshops, classes, and tours without marketplace cuts.
+                </p>
+              </div>
+              <div class="inline-flex items-center gap-1 text-sm font-semibold text-(--kc-teal-600)">
+                Explore Experience Solutions →
+              </div>
+            </NuxtLink>
+
+            <NuxtLink
+              to="/legal"
+              class="group rounded-3xl p-8 border border-default bg-elevated/40 hover:bg-elevated/70 hover:border-(--kc-navy-700)/50 transition-all duration-300 no-underline flex flex-col justify-between shadow-sm hover:shadow-md"
+            >
+              <div>
+                <div class="size-12 rounded-2xl bg-(--kc-navy)/10 text-default flex items-center justify-center mb-6 border border-default">
+                  <PlatformIcon name="briefcase" class="size-6 text-primary" />
+                </div>
+                <h3 class="text-xl font-bold text-default mb-2 group-hover:text-primary transition-colors">Legal & Professional</h3>
+                <p class="text-sm text-muted leading-relaxed mb-6">
+                  Practice area architecture, consultation intake, compliance notices, and schema.org LegalService graphs powered by Blawby.
+                </p>
+              </div>
+              <div class="inline-flex items-center gap-1 text-sm font-semibold text-primary">
+                Explore Blawby for Practices →
+              </div>
+            </NuxtLink>
           </div>
         </div>
       </section>
@@ -154,19 +220,13 @@
 </template>
 
 <script setup lang="ts">
-const avatars = [
-  { color: '#FB7461', letter: 'S' },
-  { color: '#2BB5B5', letter: 'K' },
-  { color: '#F8C546', letter: 'M' },
-  { color: '#1F2547', letter: 'A' },
-]
 const features = [
-  { icon: 'message-circle', title: 'Edit through ChatGPT', body: 'Update menus, content, and photos by talking to ChatGPT. No CMS to learn.' },
-  { icon: 'sparkles', title: 'Beautiful themes', body: 'Conversion-optimized themes for local businesses. Pick one, swap a color, you\'re live.' },
-  { icon: 'globe', title: 'Google Places imports', body: 'Import hours, address, ratings, and reviews so your website reflects the place guests already know.' },
-  { icon: 'calendar', title: 'Bookings + waitlist', body: 'Take bookings 24/7 with WhatsApp confirmations. Walk-ins go on the waitlist automatically.' },
-  { icon: 'inbox', title: 'Full Inbox', body: 'Manage all your reservations, bookings, and contact inquiries from a single, unified inbox.' },
-  { icon: 'bar-chart', title: 'Real-time insights', body: 'See visits, top pages, and busy hours — ask ChatGPT or check the analytics tab.' },
+  { icon: 'message-circle', title: 'Edit through ChatGPT', body: 'Update menus, offerings, photos, and news by talking to ChatGPT. No complex CMS to learn.' },
+  { icon: 'bar-chart', title: 'Conversational Analytics', body: 'Ask ChatGPT about your traffic, most viewed offerings, and busiest days. Turn data into marketing moves.' },
+  { icon: 'globe', title: 'Google Places Sync', body: 'Automatically import and refresh hours, address, ratings, and reviews so your site matches Google Maps.' },
+  { icon: 'calendar', title: 'Bookings & Reservations', body: 'Accept table reservations and ticketed experience bookings with automated confirmations and zero per-cover fees.' },
+  { icon: 'sparkles', title: 'Social & Blog Publishing', body: 'Publish thought leadership, news, and seasonal specials to your website and social channels simultaneously.' },
+  { icon: 'inbox', title: 'Unified Inbox', body: 'Manage all your reservations, bookings, and contact inquiries from a single, unified inbox.' },
 ]
 
 const { plans } = usePlans()

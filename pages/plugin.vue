@@ -19,8 +19,8 @@
             <p class="text-sm leading-relaxed text-muted">Inspect pages, posts, articles, menus, services, locations, media, reviews, and analytics. ChatGPT may request confirmation based on the action, permissions, and impact.</p>
           </UCard>
           <UCard>
-            <template #header><h2 class="text-lg font-bold">Use native attachments</h2></template>
-            <p class="text-sm leading-relaxed text-muted">Attach a photo in ChatGPT, or attach a video together with its poster image, then ask KrabiClaw to upload and place it. Every video requires a poster; if it is missing, the assistant asks you to attach one before uploading. There is no separate upload widget.</p>
+            <template #header><h2 class="text-lg font-bold">Conversational marketing & analytics</h2></template>
+            <p class="text-sm leading-relaxed text-muted">Ask ChatGPT to summarize weekly visitor traffic, identify top-performing offerings, turn reviews into social posts, or attach photos directly in chat for instant placement and optimization.</p>
           </UCard>
           <UCard>
             <template #header><h2 class="text-lg font-bold">Keep control</h2></template>
@@ -42,7 +42,7 @@
           <li class="rounded-2xl border border-default bg-elevated p-6">
             <span class="flex size-10 items-center justify-center rounded-xl bg-(--kc-teal) text-lg font-bold text-white">2</span>
             <h3 class="mt-4 font-bold text-default">Add the connection</h3>
-            <p class="mt-2 text-sm leading-relaxed text-muted">Open <strong>ChatGPT Plugins</strong>, select the plus button, name the connection <strong>KrabiClaw</strong>, describe it as “Manage your KrabiClaw website,” and enter this HTTPS MCP endpoint. Create it and review the discovered tools.</p>
+            <p class="mt-2 text-sm leading-relaxed text-muted">Open your ChatGPT <strong>Connectors / Plugins</strong> menu, select the plus button, name the connection <strong>KrabiClaw</strong>, and enter this HTTPS MCP endpoint. Create it and review the discovered tools.</p>
             <div class="mt-4 flex items-center gap-2 rounded-xl border border-default bg-muted/50 px-3 py-2 font-mono text-xs">
               <span class="truncate">https://krabiclaw.com/api/mcp</span>
               <button class="ml-auto cursor-pointer" aria-label="Copy MCP server URL" @click="copyUrl"><PlatformIcon :name="copied ? 'check' : 'clipboard'" class="size-4" /></button>
@@ -62,8 +62,13 @@
         </div>
 
         <div class="mt-6 rounded-2xl border border-default bg-elevated p-6">
-          <h3 class="font-bold text-default">Publishing the public plugin</h3>
-          <p class="mt-2 text-sm text-muted">Public listing is a separate publisher workflow. Authorized publishers submit KrabiClaw through the OpenAI plugin submission portal; approved releases appear in the Plugins Directory.</p>
+          <div class="flex items-center gap-2 mb-2">
+            <span class="size-2 rounded-full bg-(--kc-teal) animate-pulse"></span>
+            <h3 class="font-bold text-default m-0">OpenAI Directory Submission Status</h3>
+          </div>
+          <p class="text-sm text-muted m-0">
+            KrabiClaw has officially been submitted to the OpenAI ChatGPT Directory and is currently under review. In the meantime, any user can connect immediately using Developer Mode above.
+          </p>
         </div>
       </section>
     </main>
