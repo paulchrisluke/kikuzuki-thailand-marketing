@@ -17,7 +17,7 @@
   -->
   <div v-if="pending" class="space-y-6">
     <div class="grid grid-cols-[repeat(auto-fill,minmax(min(100%,26rem),1fr))] gap-6">
-      <USkeleton v-for="index in 2" :key="index" class="aspect-[4/3] rounded-2xl sm:aspect-[16/10]" />
+      <USkeleton v-for="index in 2" :key="index" class="aspect-[20/19] rounded-2xl" />
     </div>
   </div>
 
@@ -94,19 +94,26 @@ const locationNoun = computed(() => (usesServiceAreaVocabulary.value ? 'office' 
  * substituting the city would make this line mean two different things
  * depending on data the reader cannot see.
  *
- * The image is the location's own generated social card — the same picture the
- * location presents publicly, with its name and logo composed in. That field no
- * longer resolves through the site's card, so a location without one says so
- * rather than borrowing the site logo.
+ * The tile shows the location's own hero photograph, not its generated social
+ * card. The card has the name, description and logo composed into the pixels
+ * for a 1200x630 frame, so cropping it to the tile's near-square shape cut the
+ * words off at both edges. The name belongs under the tile, in text.
  */
 const selectorItems = computed(() => locations.value.map(location => ({
   id: location.id,
   label: location.title,
-  imageUrl: location.social_image?.url ?? null,
+  imageUrl: heroUrl(location),
   eyebrow: '',
   summary: addressSummary(location),
   to: `${locationsPath.value}/${location.slug}`,
 })))
+
+function heroUrl(location: (typeof locations.value)[number]): string | null {
+  const hero = location.media.find(item => item.slot === 'hero')
+  if (!hero) return null
+  // A video hero has no frame to show without playing it; its poster does.
+  return hero.kind === 'video' ? hero.thumbnail_url : hero.public_url
+}
 
 function addressSummary(location: (typeof locations.value)[number]): string {
   const lines = location.address?.addressLines?.filter(line => line.trim()) ?? []
