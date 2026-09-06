@@ -1175,43 +1175,43 @@
   },
   "test_cases": [
     {
-      "description": "List the sites and locations available to the signed-in business owner.",
-      "user_prompt": "Show me my business sites, ask which site I want to work on, and list its locations after I choose.",
+      "description": "Add a menu item at the explicitly selected demo location.",
+      "user_prompt": "Use Ember & Slice, West Village. In Submission Drinks, add Submission Iced Coffee at 90 THB per item, tax-inclusive, with description “Coffee served over ice.” If that exact item already exists, show it and ask before creating a duplicate.",
       "file_attachment_urls": null,
-      "tools_triggered": "get_workspace_context, list_sites, set_workspace_context, list_locations",
-      "expected_output": "Returns only the authenticated owner's sites and the locations for the selected site.",
+      "tools_triggered": "list_sites, list_locations, list_product_categories, list_location_products, create_product",
+      "expected_output": "Creates one item only in the selected category and location with amount_minor 9000, currency THB, unit item, tax_behavior inclusive, and the supplied description.",
       "expected_output_url": null
     },
     {
-      "description": "Using a disposable reviewer site and location explicitly selected through the app, create a product with a customer-facing price note.",
-      "user_prompt": "At the site and location I selected, create a category named Submission Sushi and add a product named Chef's Choice with no numeric price and the exact wording “Market Price.”",
+      "description": "Update an existing menu item without changing other items.",
+      "user_prompt": "At Ember & Slice, West Village, update Espresso in Submission Drinks to 85 THB per item, tax-inclusive, and description “Freshly brewed espresso.” Keep its name and availability unchanged.",
       "file_attachment_urls": null,
-      "tools_triggered": "create_product_category, create_product",
-      "expected_output": "Creates the product in the explicitly selected location and new category with no fixed price and preserves “Market Price” as the customer-facing price wording.",
+      "tools_triggered": "list_location_products, get_product, update_product",
+      "expected_output": "Updates the explicitly identified Espresso to amount_minor 8500 and the supplied description; other fields and products remain unchanged.",
       "expected_output_url": null
     },
     {
-      "description": "On an explicitly selected disposable reviewer location, reconcile the complete catalog after reading every existing page.",
-      "user_prompt": "At the site and location I selected, create a category named Submission Drinks. Make the complete intended product list: Espresso at 80 THB, Tea at 60 THB, and Water at 20 THB, all per item and tax-inclusive in that category. Show me the proposed reconciliation and which existing products will become unavailable. Apply it only after I confirm.",
+      "description": "Mark a menu item unavailable without deleting it.",
+      "user_prompt": "At Ember & Slice, West Village, mark Tea in Submission Drinks unavailable because it is sold out. Keep the item, price, and description so I can make it available again later.",
       "file_attachment_urls": null,
-      "tools_triggered": "list_location_products, list_product_categories, create_product_category, sync_products",
-      "expected_output": "After explicit approval, atomically reconciles the selected location using the new category, marks omitted products unavailable, and reports all three prices accurately; no write happens while confirmation is pending.",
+      "tools_triggered": "list_location_products, get_product, update_product",
+      "expected_output": "Sets available to false on the explicitly identified Tea product. The product remains stored with its price and description unchanged; no product is deleted.",
       "expected_output_url": null
     },
     {
-      "description": "Preview announcement copy in chat, then publish it to the explicitly selected disposable reviewer site after approval.",
-      "user_prompt": "For the site I selected, propose a post titled Submission test with the body “This is a demonstration announcement.” Show the copy here without saving it, then publish it to the website only after I confirm.",
+      "description": "Change an existing experience description.",
+      "user_prompt": "At Ember & Slice, West Village, update Submission cooking class with tagline “Cook, taste, and learn together” and description “A hands-on cooking class with guided preparation and a shared meal.” Keep its price and duration unchanged.",
       "file_attachment_urls": null,
-      "tools_triggered": "create_post",
-      "expected_output": "Shows proposed copy in chat with no mutation; after approval, create_post publishes immediately and returns the created post ID and public URL.",
+      "tools_triggered": "list_experiences, get_experience, update_experience",
+      "expected_output": "Updates only the selected experience tagline and description, preserving price, duration, and scheduling.",
       "expected_output_url": null
     },
     {
-      "description": "Create a bookable experience at an explicitly selected disposable reviewer site and location.",
-      "user_prompt": "At the site and location I selected, create an experience titled Submission cooking class lasting two hours, priced at 1,500 THB per person excluding tax.",
+      "description": "Change experience pricing and duration.",
+      "user_prompt": "At Ember & Slice, West Village, change Submission cooking class to 90 minutes and 1,200 THB per person excluding tax. Keep its description and booking schedule unchanged.",
       "file_attachment_urls": null,
-      "tools_triggered": "create_experience",
-      "expected_output": "Creates the experience only at the explicitly selected location with the supplied duration and fixed Price semantics.",
+      "tools_triggered": "list_experiences, get_experience, update_experience",
+      "expected_output": "Updates the selected experience to duration_minutes 90 and price amount_minor 120000, currency THB, unit person, tax_behavior exclusive; preserves content and booking schedule.",
       "expected_output_url": null
     }
   ],
