@@ -8,14 +8,14 @@
       :ui="{ base: 'mt-0! space-y-0! pb-0!' }"
     >
       <div
-        class="flex h-full min-h-0 flex-col lg:grid"
+        class="flex h-full min-h-0 flex-col xl:grid"
         :class="wideDetail
-          ? 'lg:grid-cols-[minmax(18rem,0.7fr)_minmax(0,1.5fr)]'
-          : 'lg:grid-cols-[minmax(20rem,0.9fr)_minmax(0,1.1fr)]'"
+          ? 'xl:grid-cols-[minmax(18rem,0.7fr)_minmax(0,1.5fr)]'
+          : 'xl:grid-cols-[minmax(20rem,0.9fr)_minmax(0,1.1fr)]'"
       >
         <section
-          class="h-full min-h-0 flex-1 flex-col overflow-hidden border-default lg:flex lg:border-r"
-          :class="hasDetail || showDesktopDetail ? 'flex' : 'flex lg:col-span-2 lg:border-r-0'"
+          class="h-full min-h-0 flex-1 flex-col overflow-hidden border-default xl:flex xl:border-r"
+          :class="hasDetail || showDesktopDetail ? 'flex' : 'flex xl:col-span-2 xl:border-r-0'"
         >
           <div class="min-h-0 flex-1 overflow-y-auto px-5 pb-24 pt-6 sm:px-8 sm:pt-8">
             <div class="mx-auto w-full" :class="hasDetail || showDesktopDetail ? 'max-w-xl' : 'max-w-3xl'">
@@ -30,27 +30,27 @@
         </section>
 
         <!--
-          One element, two renderings. Below `lg` this is the sheet: fixed over the
+          One element, two renderings. Below `xl` this is the sheet: fixed over the
           index it was opened from, covering the bottom nav, dismissed by the close
-          button. At `lg` the same element is the detail column of the pair.
+          button. At `xl` the same element is the detail column of the pair.
 
           Rendering it twice — a slideover for narrow and a pane for wide — is what
           let the menu's two surfaces drift apart. The content has one home.
         -->
         <section
           v-if="hasDetail || showDesktopDetail"
-          class="min-h-0 flex-col overflow-hidden bg-default lg:static lg:z-auto lg:h-full lg:flex-1"
-          :class="hasDetail ? 'fixed inset-0 z-50 flex' : 'hidden lg:flex'"
+          class="min-h-0 flex-col overflow-hidden bg-default xl:static xl:z-auto xl:h-full xl:flex-1"
+          :class="hasDetail ? 'fixed inset-0 z-50 flex' : 'hidden xl:flex'"
         >
           <!--
-            The close control belongs to the sheet, not to the pane: at `lg` the
+            The close control belongs to the sheet, not to the pane: at `xl` the
             index is still on screen beside the detail, so there is nothing to
             dismiss back to. Dismiss discards the draft without warning, matching
             the sheets this is modelled on.
           -->
           <header
             v-if="detailTitle"
-            class="grid shrink-0 grid-cols-[auto_1fr_auto] items-center gap-2 border-b border-default px-4 py-3 lg:hidden"
+            class="grid shrink-0 grid-cols-[auto_1fr_auto] items-center gap-2 border-b border-default px-4 py-3 xl:hidden"
           >
             <UButton
               icon="i-lucide-x"
@@ -67,11 +67,11 @@
             <span class="size-8" />
           </header>
 
-          <div class="min-h-0 flex-1 overflow-y-auto px-5 py-8 sm:px-8 lg:px-10 lg:py-10">
+          <div class="min-h-0 flex-1 overflow-y-auto px-5 py-8 sm:px-8 xl:px-10 xl:py-10">
             <div class="mx-auto w-full" :class="wideDetail ? 'max-w-5xl' : 'max-w-2xl'">
               <h2
                 v-if="detailTitle && !hideDetailHeading"
-                class="mb-6 hidden text-2xl font-semibold text-highlighted lg:block"
+                class="mb-6 hidden text-2xl font-semibold text-highlighted xl:block"
               >
                 {{ detailTitle }}
               </h2>
@@ -81,7 +81,7 @@
 
           <footer
             v-if="showActions"
-            class="shrink-0 border-t border-default bg-default px-5 pb-4 pt-4 sm:px-8 lg:px-10"
+            class="shrink-0 border-t border-default bg-default px-5 pb-4 pt-4 sm:px-8 xl:px-10"
           >
             <div class="mx-auto flex w-full items-center justify-between gap-4" :class="wideDetail ? 'max-w-5xl' : 'max-w-2xl'">
               <UButton color="neutral" variant="ghost" label="Cancel" @click="$emit('cancel')" />
@@ -108,8 +108,8 @@ defineProps<{
   /** Where the sheet's close control goes: one level up, never back to itself. */
   dismissTo?: string
   /**
-   * Drops the pane's own heading at `lg` for details that already title
-   * themselves. The sheet's bar still uses `detailTitle`, because below `lg`
+   * Drops the pane's own heading at `xl` for details that already title
+   * themselves. The sheet's bar still uses `detailTitle`, because below `xl`
    * the detail covers the index and nothing else names what is open.
    */
   hideDetailHeading?: boolean

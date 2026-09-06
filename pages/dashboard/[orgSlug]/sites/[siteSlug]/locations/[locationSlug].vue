@@ -28,6 +28,7 @@
     <template #body>
       <EditorPaneShell
         :has-detail="hasDetail"
+        :show-desktop-detail="hasDetail"
         :detail-title="detailTitle"
         :dismiss-to="locationPath"
         wide-detail
@@ -255,6 +256,55 @@ watch([overview, overviewPending, overviewError], ([resource, pending, cause]) =
   counts.value = resource.counts
   error.value = null
 }, { immediate: true })
+
+/**
+ * At `lg` the hub opens on its first section rather than a rail beside an empty
+ * half, matching the listing editor, which never shows a bare list on a wide
+ * screen. Below `lg` the rail is the whole screen and nothing is chosen for the
+ * tenant, so this runs only once the width is known — after mount, on the
+ * client, replacing the entry so Back still leaves the location.
+ */
+const DESKTOP = '(min-width: 1024px)'
+onMounted(() => {
+  const stop = watch([loading, hasDetail], ([isLoading, detailOpen]) => {
+    if (isLoading || detailOpen) return
+    stop()
+    if (!window.matchMedia(DESKTOP).matches) return
+    const first = contentGroups.value[0]?.items[0]
+    if (first) void navigateTo(first.to, { replace: true })
+  }, { immediate: true })
+})
+
+/**
+ * Where there is a pane, it opens on the first section rather than sitting
+ * empty beside the rail — the listing editor does the same, sending /details to
+ * /details/photo-tour, but only at the width where the pane exists. Below it
+ * the rail is the whole screen and nothing is chosen for the tenant.
+ *
+ * Gated on the shell's own breakpoint, so the redirect and the pane can never
+ * disagree about whether there is somewhere to put a section. Client-only,
+ * because the server cannot know the viewport, and `replace` so Back still
+ * leaves the location instead of bouncing through the hub.
+ */
+const PANE_BREAKPOINT = '(min-width: 1280px)'
+let sectionChosen = false
+
+function openFirstSectionBesideTheRail() {
+  if (sectionChosen || loading.value || hasDetail.value) return
+  if (!window.matchMedia(PANE_BREAKPOINT).matches) return
+  const first = contentGroups.value[0]?.items[0]
+  if (!first) return
+  sectionChosen = true
+  void navigateTo(first.to, { replace: true })
+}
+
+onMounted(() => {
+  // Runs once now for data that arrived with the page, and again when a later
+  // load settles. A `watch` with `immediate` could not do both: its first call
+  // happens before its own stop handle exists.
+  openFirstSectionBesideTheRail()
+  watch([loading, hasDetail], openFirstSectionBesideTheRail)
+})
 
 useSeoMeta({ title: () => `${location.value?.title || 'Location'} | KrabiClaw`, robots: 'noindex, nofollow' })
 </script>
