@@ -3,47 +3,18 @@
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { PLATFORM_ORGANIZATION_ID } from '../shared/platform-scope.ts'
 import { spawnYarn } from './utils/spawn-yarn.mjs'
 
-// Sweeps rows that Playwright E2E specs leave behind on local/preview disposable data.
-//
-// 1. Every non-fixture organization. Preview never holds legitimate customer data -
-//    everything in `organization` is either one of the fixed, named seed fixtures below (reset
-//    on every run by generate-*-seed.ts) or E2E-test-created throwaway state, so "not a known
-//    fixture" is sufficient to mark an org disposable - no naming-convention/pattern matching on
-//    `sites.subdomain` needed. That matters operationally, not just for simplicity: an earlier
-//    version matched orgs via a `sites.subdomain LIKE 'e2e-%'` GROUP BY/HAVING check, which -
-//    against preview's actual accumulated backlog - exceeded D1's per-call CPU budget and reset
-//    the DB before the sweep could run at all ("D1 DB exceeded its CPU time limit and was
-//    reset"). A plain `id NOT IN (<9 fixed ids>)` filter on `organization` is a single cheap
-//    linear scan of a small table, regardless of how large the disposable backlog has grown.
-//    sites.organization_id cascades from organization (ON DELETE CASCADE), and every org-scoped
-//    table cascades from organization in turn (same pattern already relied on by
-//    generate-demo-seed.ts's org reset), so deleting the organization row is sufficient for most
-//    child tables.
-//
-// Age-guarded (default 2 hours) as a practical safety margin, not a hard guarantee: rows created
-// by an in-flight run are always fresher than the cutoff, so a run has to be stuck for the full
-// window before its own data becomes sweepable by a concurrent run against the same shared
-// preview DB (CI serializes the shared preview deployment, but cancelled runs still leave data).
-// If runtime changes materially,
-// raise --older-than-hours to match rather than treating 2h as untouchable. For category 1, the
-// guard is "does this org own any site created after the cutoff" rather than checking every
-// site's age individually - an org that's still actively being built by an in-flight test run
-// gets skipped entirely, everything else disposable goes.
-
-// Every org a seed script creates under a fixed ID, kept in sync with each
-// `DELETE FROM organization WHERE id ...` in generate-demo-seed.ts,
-// generate-pottery-house-seed.ts, generate-kikuzuki-seed.ts, and
-// Curated Blawby fixtures are provisioned outside the disposable E2E artifact sweep.
+// Sweeps only local/preview disposable data. Fixed seed organizations and users are protected;
+// other organizations must predate the cutoff and own no newer sites. Fixture guest requests
+// additionally require the explicit @playwright.example email marker. Every selection is bounded.
 const FIXTURE_ORG_IDS = [
+  PLATFORM_ORGANIZATION_ID,
   'org-demo',
-  'org_demo',
   'org-mcp-free',
   'org-mcp-growth',
   'org-mcp-growth-service',
-  // Removed by the next demo seed; protect an old fixture until that cleanup runs.
-  'org-mcp-managed',
   'org-transfer-recipient',
   'org-pottery-house',
   'org-kikuzuki',
@@ -60,37 +31,22 @@ const GUEST_BOOKING_SITE_IDS = ['site-pottery-house', 'site-kikuzuki', 'site-ncl
 // Retained/audit tables are explicit because their site foreign keys are often
 // SET NULL (or intentionally polymorphic), so deleting the site alone would
 // leave rows behind in the shared preview database.
-const E2E_FIXTURE_SITE_RETAINED_TABLES = [
+const RETAINED_SITE_TABLES = [
   'usage_events',
   'stripe_ga4_subscription_intents',
   'mcp_tool_call_events',
-  'notifications',
-  'organization_events',
-  'site_domain_events',
+  'activity_entries',
   'analytics_events',
   'analytics_summaries',
-  'work_requests',
+  'requests',
 ] as const
 
-// Every fixture user a seed script creates under a fixed ID or that also happens to use
-// '@example.test' must be excluded by ID, not just by domain: user-mcp-free/growth/growth-service
-// (scripts/generate-demo-seed.ts's
-// Growth service fixture) and the site-transfer recipient both use @example.test. user-ncls-blawby
-// The curated Blawby fixture uses 'ncls-blawby@example.test' and does match the domain — it
-// must stay excluded by ID: it's entered_by_user_id on NCLS's owner-entered reviews, and deleting
-// it cascades entered_by_user_id to NULL (ON DELETE SET NULL), which violates
-// reviews_owner_entered_provenance_check (requires entered_by_user_id IS NOT NULL for
-// source='owner_entered'). user-demo, user-pottery-house, and user-kikuzuki use other domains and
-// would never match anyway, but are listed for clarity/future-proofing. Keep in sync with
-// FIXTURE_ORG_IDS' seed scripts.
+// Protect every user provisioned by the canonical demo/client fixtures, including review actors.
 const FIXTURE_USER_IDS = [
   'user-demo',
-  'user_demo',
   'user-mcp-free',
   'user-mcp-growth',
   'user-mcp-growth-service',
-  // Removed by the next demo seed; protect an old fixture until that cleanup runs.
-  'user-mcp-managed',
   'Nfqw39lwLZ1vejIfYJv24xvD4UKJh8re',
   'user-pottery-house',
   'user-kikuzuki',
@@ -149,25 +105,12 @@ const eligibleE2eFixtureSiteIds = `
   LIMIT ${batchSize}
 `
 
-const e2eFixtureSiteRetainedDeletes = E2E_FIXTURE_SITE_RETAINED_TABLES.map(table => `
-DELETE FROM ${table}
-WHERE site_id IN (${eligibleE2eFixtureSiteIds});
-`).join('\n')
 
-// Category 1's "is this org eligible" check, capped with LIMIT so a single run can never be
-// asked to filter the entire backlog in one CPU-budgeted call - it makes bounded incremental
-// progress every run instead, draining a large existing backlog over several runs rather than
-// needing to clear it all at once. Every throwaway site creates exactly one throwaway org 1:1
-// (runSiteCreation only reuses an org while it still owns zero sites), so organization has grown
-// to roughly sites' scale. Intentionally interpolated twice below rather than factored into a
-// TEMP TABLE - D1's remote execute endpoint rejects CREATE TEMP TABLE/DROP TABLE with
-// "not authorized: SQLITE_AUTH" (its HTTP API restricts DDL beyond a plain wrangler d1 execute
-// --file), so each DELETE re-evaluates its own copy instead of sharing one materialized result -
-// more total scan work than a temp table would need, but each copy still terminates after
-// finding batchSize matches, so it stays cheap regardless of backlog size.
+// Repeat the bounded selector in each statement; D1 remote execution does not allow temporary tables.
 const eligibleOrgIds = `
   SELECT id FROM organization
   WHERE id NOT IN (${fixtureOrgIdList})
+    AND createdAt < ${cutoffUnixSeconds}
     AND id NOT IN (SELECT organization_id FROM sites WHERE created_at >= '${cutoff}')
   LIMIT ${batchSize}
 `
@@ -191,6 +134,15 @@ const eligibleUserIds = `
   LIMIT ${batchSize}
 `
 
+const eligibleSiteIds = `
+  SELECT id FROM sites WHERE organization_id IN (${eligibleOrgIds})
+  UNION SELECT id FROM (${eligibleE2eFixtureSiteIds})
+`
+
+const retainedSiteDeletes = RETAINED_SITE_TABLES.map(table => `
+DELETE FROM ${table} WHERE site_id IN (${eligibleSiteIds});
+`).join('\n')
+
 const sql = `-- Sweeps E2E-generated rows from local/preview so they don't accumulate forever.
 -- Safe to re-run: only ever targets organizations outside the fixed fixture allowlist and the
 -- '@playwright.example' guest-email marker that tests/e2e specs already use. Curated fixtures
@@ -209,63 +161,35 @@ WHERE stripe_subscription_id IN (${eligibleSubscriptionIds});
 
 DELETE FROM subscription WHERE referenceId IN (${eligibleOrgIds});
 
--- Category 1: throwaway sites/orgs.
--- Cascades through sites, content, experiences, locations, guest_threads
--- (and, via guest_threads' own cascading FKs, guest_thread_entries/
--- guest_thread_deliveries), etc. via organization_id -> organization(id) ON DELETE CASCADE.
+-- Remove disposable retained rows before owner cascades can clear their scope.
+${retainedSiteDeletes}
+
+-- Workspace rows belong to users. Clear only references to disposable sites.
+UPDATE user_workspace_state
+SET whatsapp_pending_confirmation = NULL, whatsapp_updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+WHERE json_extract(whatsapp_pending_confirmation, '$.siteId') IN (${eligibleSiteIds})
+   OR EXISTS (SELECT 1 FROM json_each(whatsapp_pending_confirmation, '$.candidates') candidate
+              WHERE json_extract(candidate.value, '$.siteId') IN (${eligibleSiteIds}));
+
+UPDATE user_workspace_state
+SET site_id = NULL, location_id = NULL, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+WHERE site_id IN (${eligibleSiteIds})
+   OR location_id IN (SELECT id FROM business_locations WHERE site_id IN (${eligibleSiteIds}));
+
+DELETE FROM site_transfer_requests WHERE site_id IN (${eligibleSiteIds});
+DELETE FROM sites WHERE id IN (${eligibleE2eFixtureSiteIds});
 DELETE FROM organization WHERE id IN (${eligibleOrgIds});
 
--- Category 1b: throwaway E2E sites created under protected fixture organizations.
--- Site-transfer E2E deliberately moves these sites between allowlisted fixture orgs, so the
--- organization sweep above must not delete either the fixture org or its users. The same
--- age/prefix/batch guard is applied to every statement; retained/audit rows are deleted first,
--- then the site row removes the remaining cascade-owned content.
-${e2eFixtureSiteRetainedDeletes}
-
--- chowbot_channel_state and mcp_workspace_preferences are user/org-scoped preferences rather
--- than disposable rows; clear only their references to the throwaway sites before deletion.
-UPDATE chowbot_channel_state
-SET pending_confirmation = NULL, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
-WHERE json_extract(pending_confirmation, '$.siteId') IN (${eligibleE2eFixtureSiteIds})
-   OR EXISTS (SELECT 1 FROM json_each(pending_confirmation, '$.candidates') candidate
-              WHERE json_extract(candidate.value, '$.siteId') IN (${eligibleE2eFixtureSiteIds}));
-
-UPDATE mcp_workspace_preferences
-SET site_id = NULL,
-    location_id = NULL,
-    updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
-WHERE site_id IN (${eligibleE2eFixtureSiteIds});
-
-DELETE FROM site_transfer_requests
-WHERE site_id IN (${eligibleE2eFixtureSiteIds});
-
-DELETE FROM sites
-WHERE id IN (${eligibleE2eFixtureSiteIds});
-
-DELETE FROM guest_threads
-WHERE (submission_type = 'contact' AND submission_id IN (
-  SELECT id FROM contact_submissions WHERE site_id IN (${guestBookingSiteIdList}) AND email LIKE '%@playwright.example' AND created_at < '${cutoff}' LIMIT ${batchSize}
-)) OR (submission_type = 'reservation' AND submission_id IN (
-  SELECT id FROM reservation_submissions WHERE site_id IN (${guestBookingSiteIdList}) AND email LIKE '%@playwright.example' AND created_at < '${cutoff}' LIMIT ${batchSize}
-)) OR (submission_type = 'experience_booking' AND submission_id IN (
-  SELECT id FROM experience_bookings WHERE site_id IN (${guestBookingSiteIdList}) AND guest_email LIKE '%@playwright.example' AND created_at < '${cutoff}' LIMIT ${batchSize}
-));
-
-DELETE FROM contact_submissions WHERE id IN (
-  SELECT id FROM contact_submissions WHERE site_id IN (${guestBookingSiteIdList}) AND email LIKE '%@playwright.example' AND created_at < '${cutoff}' LIMIT ${batchSize}
+-- Guest journeys mark their submissions explicitly, including those on protected fixtures.
+-- Their timeline, notification, acknowledgement, and delivery facts cascade from request_id.
+DELETE FROM requests WHERE id IN (
+  SELECT id FROM requests
+  WHERE site_id IN (${guestBookingSiteIdList})
+    AND kind IN ('contact', 'reservation', 'experience_booking')
+    AND payload_json ->> '$.guest.email' LIKE '%@playwright.example'
+    AND created_at < '${cutoff}'
+  ORDER BY id LIMIT ${batchSize}
 );
-DELETE FROM reservation_submissions WHERE id IN (
-  SELECT id FROM reservation_submissions WHERE site_id IN (${guestBookingSiteIdList}) AND email LIKE '%@playwright.example' AND created_at < '${cutoff}' LIMIT ${batchSize}
-);
-DELETE FROM experience_bookings WHERE id IN (
-  SELECT id FROM experience_bookings WHERE site_id IN (${guestBookingSiteIdList}) AND guest_email LIKE '%@playwright.example' AND created_at < '${cutoff}' LIMIT ${batchSize}
-);
--- Category 3: historical test users created by the removed dev-login bypass. Keep sweeping these
--- legacy '<userId>@example.test' rows until every shared environment has aged them out.
--- member/session/invitation(as inviter) all cascade from user.id
--- (ON DELETE CASCADE), so deleting the user row is sufficient - it does NOT cascade up to
--- organization/sites (organization isn't a child of user), but those are independently covered by
--- category 1 above regardless of whether their owning user was already swept.
 -- site_transfer_requests deliberately restrict deletion of their initiating user. E2E transfer
 -- specs create both records, so remove the stale request before its stale test user. Requests
 -- tied to fixture users are untouched because the same protected-user selection is reused.
