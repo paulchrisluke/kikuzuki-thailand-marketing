@@ -45,7 +45,7 @@
                 />
               </div>
 
-              <div v-if="activeTab === 'location'" class="space-y-4">
+              <div v-if="activeTab === 'overview'" class="space-y-4">
                 <NuxtLink :to="`${settingsPath}/profile`" class="group block rounded-2xl focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary">
                   <UCard
                     variant="subtle"
@@ -172,9 +172,10 @@ const products = ref<ApiRecord[]>([])
 const inboxSummary = ref<InboxSummary>({ openThreads: 0, unreadThreads: 0 })
 const loading = ref(true)
 const error = ref<string | null>(null)
-const activeTab = ref('location')
+// Same two tabs, same names, as the site overview.
+const activeTab = ref('overview')
 const tabs = [
-  { label: 'My location', value: 'location' },
+  { label: 'Overview', value: 'overview' },
   { label: 'Content', value: 'content' },
 ]
 

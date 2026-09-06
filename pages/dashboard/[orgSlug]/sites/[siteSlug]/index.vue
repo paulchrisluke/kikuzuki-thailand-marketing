@@ -35,7 +35,7 @@
           <USkeleton v-for="index in 6" :key="index" class="h-36 rounded-2xl" />
         </div>
 
-        <div v-else-if="activeTab === 'site'" class="space-y-3">
+        <div v-else-if="activeTab === 'overview'" class="space-y-3">
           <section>
             <h2 class="mb-4 text-[15px] font-semibold text-highlighted">Locations</h2>
             <div v-if="locations.length" class="grid grid-cols-1 gap-y-5">
@@ -113,11 +113,35 @@
             </div>
             <p class="mt-3 text-[15px] text-muted">Traffic, sources and conversions for this site.</p>
           </NuxtLink>
+        </div>
+
+        <div v-else class="space-y-6">
+          <section>
+            <h2 class="mb-3 text-[15px] font-semibold text-highlighted">Pages</h2>
+            <div class="overflow-hidden rounded-2xl border border-default bg-default">
+              <template v-for="page in pageRows" :key="page.id">
+                <button
+                  v-if="page.module && !page.enabled"
+                  type="button"
+                  class="flex min-h-[66px] w-full items-center gap-4 border-b border-default px-4 text-left last:border-0 hover:bg-elevated"
+                  :disabled="togglingModule !== null"
+                  @click="enableModule(page.module)"
+                >
+                  <UIcon :name="page.icon" class="size-5 text-dimmed" /><span class="min-w-0 flex-1 font-medium text-dimmed">{{ page.label }}</span>
+                </button>
+                <NuxtLink v-else-if="page.to" :to="page.to" class="flex min-h-[66px] items-center gap-4 border-b border-default px-4 last:border-0 hover:bg-elevated">
+                  <UIcon :name="page.icon" class="size-5 text-muted" /><span class="min-w-0 flex-1 font-medium text-highlighted">{{ page.label }}</span><UIcon name="i-lucide-chevron-right" class="size-4 text-muted" />
+                </NuxtLink>
+              </template>
+              <NuxtLink :to="`${siteDashboardPath}/pages`" class="flex min-h-[66px] items-center gap-4 border-2 border-dashed border-default px-4 text-muted hover:text-highlighted"><UIcon name="i-lucide-plus" class="size-5" /><span class="flex-1 font-medium">Add a page</span></NuxtLink>
+            </div>
+          </section>
 
           <!--
-            Every site-scoped collection the registry declares, rendered off the
-            registry itself. Hand-listing them here is how Testimonials, Q&A and
-            Orders ended up with pages that nothing in the dashboard linked to.
+            Collections sit beside pages because a tenant does not separate "the
+            menu page" from "the menu". Rendered off the registry, so a manager
+            declared there cannot be left unreachable — which is how Testimonials,
+            Q&A and Orders ended up with pages nothing linked to.
           -->
           <section v-if="collectionRows.length">
             <h2 class="mb-3 text-[15px] font-semibold text-highlighted">Collections</h2>
@@ -134,24 +158,6 @@
               </NuxtLink>
             </div>
           </section>
-        </div>
-
-        <div v-else class="overflow-hidden rounded-2xl border border-default bg-default">
-          <template v-for="page in pageRows" :key="page.id">
-            <button
-              v-if="page.module && !page.enabled"
-              type="button"
-              class="flex min-h-[66px] w-full items-center gap-4 border-b border-default px-4 text-left last:border-0 hover:bg-elevated"
-              :disabled="togglingModule !== null"
-              @click="enableModule(page.module)"
-            >
-              <UIcon :name="page.icon" class="size-5 text-dimmed" /><span class="min-w-0 flex-1 font-medium text-dimmed">{{ page.label }}</span>
-            </button>
-            <NuxtLink v-else-if="page.to" :to="page.to" class="flex min-h-[66px] items-center gap-4 border-b border-default px-4 last:border-0 hover:bg-elevated">
-              <UIcon :name="page.icon" class="size-5 text-muted" /><span class="min-w-0 flex-1 font-medium text-highlighted">{{ page.label }}</span><UIcon name="i-lucide-chevron-right" class="size-4 text-muted" />
-            </NuxtLink>
-          </template>
-          <NuxtLink :to="`${siteDashboardPath}/pages`" class="flex min-h-[66px] items-center gap-4 border-2 border-dashed border-default px-4 text-muted hover:text-highlighted"><UIcon name="i-lucide-plus" class="size-5" /><span class="flex-1 font-medium">Add a page</span></NuxtLink>
         </div>
       </div>
 
@@ -180,8 +186,11 @@ const requestEvent = useRequestEvent()
 if (!dashboard.state.value) await dashboard.refresh()
 const siteId = dashboard.siteId.value
 if (!siteId) throw createError({ statusCode: 404, statusMessage: 'Site not found' })
-const activeTab = ref<'site' | 'pages'>('site')
-const tabs = [{ label: 'My site', value: 'site' as const }, { label: 'Pages', value: 'pages' as const }]
+// Overview is the site itself; Content is everything a guest reads. The same two
+// tabs, with the same names, appear on a location — a tenant should not have to
+// learn "Pages" at one level and "Content" at the other for the same idea.
+const activeTab = ref<'overview' | 'content'>('overview')
+const tabs = [{ label: 'Overview', value: 'overview' as const }, { label: 'Content', value: 'content' as const }]
 const siteDashboardPath = computed(() => {
   if (!sitePaths.value) throw createError({ statusCode: 400, statusMessage: 'Dashboard site scope is required' })
   return sitePaths.value.site
