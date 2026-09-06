@@ -238,11 +238,7 @@ export default definePlugin((nitroApp) => {
           AND bl.organization_id = p.organization_id
           AND bl.site_id = p.site_id
           AND bl.status = 'active'
-<<<<<<< HEAD
-         WHERE p.product_type = \'experience\' AND p.site_id = ?
-=======
          WHERE p.site_id = ? AND p.product_type = 'standard'
->>>>>>> 9a9195df (Use canonical documents in public discovery readers)
            AND p.is_visible = 1
            AND (p.robots IS NULL OR p.robots NOT LIKE '%noindex%')
          ORDER BY p.location_id, p.sort_order, p.id`,
@@ -262,12 +258,8 @@ export default definePlugin((nitroApp) => {
         db,
         `SELECT p.slug, p.location_id, p.updated_at
          FROM products p
-<<<<<<< HEAD
-         WHERE p.product_type = \'experience\' AND p.site_id = ?
-=======
          JOIN business_locations bl ON bl.id = p.location_id AND bl.site_id = p.site_id AND bl.organization_id = p.organization_id
          WHERE p.site_id = ? AND p.product_type = 'experience' AND bl.status = 'active'
->>>>>>> 9a9195df (Use canonical documents in public discovery readers)
            AND p.is_visible = 1
            AND (p.robots IS NULL OR p.robots NOT LIKE '%noindex%')`,
         [siteId],
