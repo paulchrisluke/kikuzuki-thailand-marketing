@@ -2,7 +2,7 @@ import { defineHandler } from 'nitro'
 import { getRouterParam } from 'nitro/h3'
 
 import { requireSiteAccess } from '~/server/utils/location-access'
-import { enableSiteLanguageLicense } from '~/server/utils/site-language-billing'
+import { enableSiteLanguage } from '~/server/utils/site-languages'
 import { readRequiredBody } from '~/server/utils/api-response'
 import { isDemoOrg } from '~/server/utils/demo'
 import { hasPlatformEventPermission } from '~/server/utils/platform-admin-users'
@@ -17,5 +17,5 @@ export default defineHandler(async (event) => {
   }
   const body = await readRequiredBody<{ label?: unknown }>(event)
   if (typeof body.label !== 'string' || !body.label.trim()) throw createError({ statusCode: 422, statusMessage: 'label is required' })
-  return { license: await enableSiteLanguageLicense(db, env, { organizationId: site.organization_id, siteId, locale, label: body.label }) }
+  return { language: await enableSiteLanguage(db, env, { organizationId: site.organization_id, siteId, locale, label: body.label }) }
 })

@@ -66,12 +66,7 @@ export function loadPublicBase(
                   WHERE mp.site_id = s.id AND mp.owner_type = 'site' AND mp.owner_id = s.id AND mp.status = 'active') AS media_json,
                 s.seo_title, s.seo_description, s.canonical_url, s.robots,
                 s.social_facebook_url, s.social_instagram_url, s.social_tiktok_url,
-                (SELECT sc.value
-                   FROM site_config sc
-                  WHERE sc.organization_id = s.organization_id
-                    AND sc.site_id = s.id
-                    AND sc.key = 'default_timezone'
-                  LIMIT 1) AS default_timezone
+                json_extract(s.settings_json, '$.config.default_timezone') AS default_timezone
            FROM sites s
           WHERE s.id = ? AND s.status = 'active'${options.previewAuthorized ? '' : " AND s.onboarding_status = 'active'"}
           LIMIT 1`,

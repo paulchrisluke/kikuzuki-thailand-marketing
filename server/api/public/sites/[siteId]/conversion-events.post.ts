@@ -60,7 +60,7 @@ export default defineHandler(async (event) => {
       entityType = 'tenant_page'; entityId = page.id
     }
     if (stage === 'external_booking_handoff') {
-      const consultation = await queryFirst<{ external_url: string | null }>(db, `SELECT external_url FROM site_consultation_settings WHERE site_id = ? AND mode = 'external_url' LIMIT 1`, [siteId])
+      const consultation = await queryFirst<{ external_url: string | null }>(db, `SELECT json_extract(settings_json, '$.consultation.external_url') AS external_url FROM sites WHERE id = ? AND json_extract(settings_json, '$.consultation.mode') = 'external_url' LIMIT 1`, [siteId])
       const host = consultation?.external_url ? destinationHost(consultation.external_url) : null
       if (!host) return jsonResponse({ error: 'Consultation destination is unavailable' }, { status: 404 })
       ctaDestination = host

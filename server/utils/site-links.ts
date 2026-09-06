@@ -224,9 +224,9 @@ export async function getPublicLinksPage(db: DbClient, siteId: string, locale = 
   const site = await queryFirst<ApiRecord>(db, `
     SELECT s.id, s.organization_id, s.brand_name, s.brand_description,
            s.theme_id, s.vertical,
-           cfg.value AS brand_color
+           json_extract(s.settings_json, '$.config.brand_color') AS brand_color
       FROM sites s
-      LEFT JOIN site_config cfg ON cfg.site_id = s.id AND cfg.key = 'brand_color'
+
      WHERE s.id = ? AND s.status = 'active' AND s.onboarding_status = 'active'
      LIMIT 1
   `, [siteId])

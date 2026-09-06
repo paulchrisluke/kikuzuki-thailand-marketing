@@ -295,9 +295,15 @@ export async function getPublicTenantPageByPath(
 
 export async function getPublicConsultationSettings(db: DbClient, siteId: string): Promise<PublicConsultationSettings> {
   const row = await queryFirst<ApiRecord>(db, `
-    SELECT mode, cta_label, external_url, schedule_path, confirmation_path, tracking_enabled, metadata_json
-      FROM site_consultation_settings
-     WHERE site_id = ?
+    SELECT json_extract(settings_json, '$.consultation.mode') AS mode,
+           json_extract(settings_json, '$.consultation.cta_label') AS cta_label,
+           json_extract(settings_json, '$.consultation.external_url') AS external_url,
+           json_extract(settings_json, '$.consultation.schedule_path') AS schedule_path,
+           json_extract(settings_json, '$.consultation.confirmation_path') AS confirmation_path,
+           json_extract(settings_json, '$.consultation.tracking_enabled') AS tracking_enabled,
+           json_extract(settings_json, '$.consultation.metadata_json') AS metadata_json
+      FROM sites
+     WHERE id = ? AND json_type(settings_json, '$.consultation') = 'object'
      LIMIT 1
   `, [siteId])
 
@@ -324,9 +330,23 @@ export async function getPublicConsultationSettings(db: DbClient, siteId: string
 
 export async function getPublicCompliance(db: DbClient, siteId: string): Promise<PublicCompliance | null> {
   const row = await queryFirst<ApiRecord>(db, `
-    SELECT *
-      FROM tenant_compliance
-     WHERE site_id = ?
+    SELECT json_extract(settings_json, '$.compliance.entity_name') AS entity_name,
+           json_extract(settings_json, '$.compliance.dba_name') AS dba_name,
+           json_extract(settings_json, '$.compliance.entity_type') AS entity_type,
+           json_extract(settings_json, '$.compliance.nonprofit_status') AS nonprofit_status,
+           json_extract(settings_json, '$.compliance.registration_number') AS registration_number,
+           json_extract(settings_json, '$.compliance.service_area') AS service_area,
+           json_extract(settings_json, '$.compliance.service_area_type') AS service_area_type,
+           json_extract(settings_json, '$.compliance.disclaimer') AS disclaimer,
+           json_extract(settings_json, '$.compliance.footer_disclaimer') AS footer_disclaimer,
+           json_extract(settings_json, '$.compliance.founder_name') AS founder_name,
+           json_extract(settings_json, '$.compliance.founding_date') AS founding_date,
+           json_extract(settings_json, '$.compliance.same_as') AS same_as,
+           json_extract(settings_json, '$.compliance.contact_points') AS contact_points,
+           json_extract(settings_json, '$.compliance.address_visibility') AS address_visibility,
+           json_extract(settings_json, '$.compliance.metadata_json') AS metadata_json
+      FROM sites
+     WHERE id = ? AND json_type(settings_json, '$.compliance') = 'object'
      LIMIT 1
   `, [siteId])
   if (!row) return null
@@ -335,10 +355,10 @@ export async function getPublicCompliance(db: DbClient, siteId: string): Promise
            mp.slot
       FROM media_placements mp
       JOIN media_assets ma ON ma.id = mp.asset_id AND ma.status = 'active'
-     WHERE mp.site_id = ? AND mp.owner_type = 'tenant_compliance' AND mp.owner_id = ?
-       AND mp.slot = 'document' AND mp.status = 'active'
+     WHERE mp.site_id = ? AND mp.owner_type = 'site' AND mp.owner_id = ?
+       AND mp.slot = 'compliance_document' AND mp.status = 'active'
      ORDER BY mp.sort_order
-  `, [siteId, String(row.id)])
+  `, [siteId, siteId])
   return {
     entity_name: typeof row.entity_name === 'string' ? row.entity_name : null,
     dba_name: typeof row.dba_name === 'string' ? row.dba_name : null,
@@ -370,11 +390,11 @@ export async function getPublicCompliance(db: DbClient, siteId: string): Promise
 
 export async function getPublicThemeTokens(db: DbClient, siteId: string, templateSlug = 'blawby'): Promise<ApiRecord> {
   const row = await queryFirst<{ tokens_json: string | null }>(db, `
-    SELECT tokens_json
-      FROM site_theme_tokens
-     WHERE site_id = ? AND template_slug = ? AND status = 'active'
+    SELECT json_extract(settings_json, ? || '.tokens') AS tokens_json
+      FROM sites
+     WHERE id = ? AND json_extract(settings_json, ? || '.status') = 'active'
      LIMIT 1
-  `, [siteId, templateSlug])
+  `, ['$.theme_by_template.' + templateSlug, siteId, '$.theme_by_template.' + templateSlug])
   return row?.tokens_json ? JSON.parse(row.tokens_json) as ApiRecord : {}
 }
 

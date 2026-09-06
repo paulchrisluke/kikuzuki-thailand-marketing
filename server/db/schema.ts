@@ -1,3 +1,4 @@
+import type { SiteSettings, SiteIntegrations } from '../../shared/site-settings'
 import { sql } from "drizzle-orm"
 import { sqliteTable, integer, text, real, unique, primaryKey, uniqueIndex, index, check, foreignKey } from "drizzle-orm/sqlite-core"
 import type { AnySQLiteColumn } from "drizzle-orm/sqlite-core"
@@ -117,16 +118,6 @@ export const business_locations = sqliteTable("business_locations", {
 	check("business_locations_special_hours_check", sql`special_hours IS NULL OR (json_valid(special_hours) AND json_type(special_hours) IS 'array')`),
 ]);
 
-export const chowbot_channel_state = sqliteTable("chowbot_channel_state", {
-	user_id: text().notNull().references(() => user.id, { onDelete: "cascade" } ),
-	channel: text().notNull(),
-	pending_confirmation: text(),
-	last_inbound_id: text(),
-	updated_at: text().default(sql`(strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))`).notNull(),
-}, (table) => [
-	check("chowbot_channel_state_pending_confirmation_check", sql`pending_confirmation IS NULL OR (json_valid(pending_confirmation) AND json_type(pending_confirmation) IS 'object')`),
-	primaryKey({ columns: [table.user_id, table.channel] }),
-]);
 
 export const contact_submissions = sqliteTable("contact_submissions", {
 	id: text().primaryKey(),
@@ -269,26 +260,6 @@ export const experience_bookings = sqliteTable("experience_bookings", {
 	index("experience_bookings_organization_id_idx").on(table.organization_id),
 ]);
 
-export const facebook_pages_connections = sqliteTable("facebook_pages_connections", {
-	id: text().primaryKey(),
-	organization_id: text().notNull().references(() => organization.id, { onDelete: "cascade" } ),
-	site_id: text().notNull().references(() => sites.id, { onDelete: "cascade" } ),
-	connected_by_user_id: text().references(() => user.id, { onDelete: "set null" } ),
-	facebook_user_id: text().notNull(),
-	facebook_page_id: text(),
-	facebook_page_name: text(),
-	encrypted_user_token: text().notNull(),
-	encrypted_page_token: text(),
-	user_token_expires_at: text(),
-	scopes: text(),
-	status: text().default("active").notNull(),
-	created_at: text().default(sql`(strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))`).notNull(),
-	updated_at: text().default(sql`(strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))`).notNull(),
-}, (table) => [
-	foreignKey({ columns: [table.organization_id, table.site_id], foreignColumns: [sites.organization_id, sites.id], name: "facebook_pages_connections_site_scope_fk" }).onDelete("cascade"),
-	check("facebook_pages_connections_status_check", sql`status IN ('active', 'disabled', 'error')`),
-	unique("facebook_pages_connections_organization_id_site_id_unique").on(table.organization_id, table.site_id),
-]);
 
 export const invitation = sqliteTable("invitation", {
 	id: text().primaryKey(),
@@ -1112,16 +1083,6 @@ export const session = sqliteTable("session", {
 	index("session_userId_idx").on(table.userId),
 ]);
 
-export const site_config = sqliteTable("site_config", {
-	organization_id: text().notNull().references(() => organization.id, { onDelete: "cascade" } ),
-	site_id: text().notNull().references(() => sites.id, { onDelete: "cascade" } ),
-	key: text().notNull(),
-	value: text(),
-	updated_at: text().default(sql`(strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))`).notNull(),
-}, (table) => [
-	foreignKey({ columns: [table.organization_id, table.site_id], foreignColumns: [sites.organization_id, sites.id], name: "site_config_site_scope_fk" }).onDelete("cascade"),
-	primaryKey({ columns: [table.organization_id, table.site_id, table.key] }),
-]);
 
 export const offerings = sqliteTable("offerings", {
 	id: text().primaryKey(),
@@ -1214,80 +1175,8 @@ export const site_link_items = sqliteTable("site_link_items", {
 	check("site_link_items_status_check", sql`status IN ('active', 'hidden')`),
 ]);
 
-export const tenant_compliance = sqliteTable("tenant_compliance", {
-	id: text().primaryKey(),
-	organization_id: text().notNull().references(() => organization.id, { onDelete: "cascade" } ),
-	site_id: text().notNull().references(() => sites.id, { onDelete: "cascade" } ).unique(),
-	entity_name: text(),
-	dba_name: text(),
-	entity_type: text(),
-	nonprofit_status: text(),
-	registration_number: text(),
-	service_area: text(),
-	service_area_type: text(),
-	disclaimer: text(),
-	footer_disclaimer: text(),
-	privacy_page_id: text().references(() => tenant_pages.id, { onDelete: "set null" } ),
-	terms_page_id: text().references(() => tenant_pages.id, { onDelete: "set null" } ),
-	notice_page_id: text().references(() => tenant_pages.id, { onDelete: "set null" } ),
-	founder_name: text(),
-	founding_date: text(),
-	same_as: text(),
-	contact_points: text(),
-	address_visibility: text().default("hidden").notNull(),
-	metadata_json: text(),
-	created_at: text().default(sql`(strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))`).notNull(),
-	updated_at: text().default(sql`(strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))`).notNull(),
-	updated_by: text(),
-}, (table) => [
-	foreignKey({ columns: [table.organization_id, table.site_id], foreignColumns: [sites.organization_id, sites.id], name: "tenant_compliance_site_scope_fk" }).onDelete("cascade"),
-	check("tenant_compliance_service_area_type_check", sql`service_area_type IN ('AdministrativeArea', 'City', 'Country', 'Place', 'State')`),
-	check("tenant_compliance_same_as_check", sql`same_as IS NULL OR (json_valid(same_as) AND json_type(same_as) IS 'array')`),
-	check("tenant_compliance_contact_points_check", sql`contact_points IS NULL OR (json_valid(contact_points) AND json_type(contact_points) IS 'array')`),
-	check("tenant_compliance_nonprofit_status_check", sql`nonprofit_status IN (${sql.raw([...NONPROFIT_STATUS_CANONICAL].map(value => `'${value}'`).join(", "))})`),
-	check("tenant_compliance_address_visibility_check", sql`address_visibility IN ('visible', 'hidden')`),
-]);
 
-export const site_consultation_settings = sqliteTable("site_consultation_settings", {
-	id: text().primaryKey(),
-	organization_id: text().notNull().references(() => organization.id, { onDelete: "cascade" } ),
-	site_id: text().notNull().references(() => sites.id, { onDelete: "cascade" } ).unique(),
-	mode: text().default("external_url").notNull(),
-	cta_label: text().notNull(),
-	external_url: text(),
-	schedule_path: text().notNull(),
-	confirmation_path: text().notNull(),
-	tracking_enabled: integer().default(1).notNull(),
-	metadata_json: text(),
-	created_at: text().default(sql`(strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))`).notNull(),
-	updated_at: text().default(sql`(strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))`).notNull(),
-	updated_by: text(),
-}, (table) => [
-	foreignKey({ columns: [table.organization_id, table.site_id], foreignColumns: [sites.organization_id, sites.id], name: "site_consultation_settings_site_scope_fk" }).onDelete("cascade"),
-	check("site_consultation_settings_metadata_json_check", sql`metadata_json IS NULL OR (json_valid(metadata_json))`),
-	check("site_consultation_settings_mode_check", sql`mode IN ('external_url', 'native_disabled')`),
-	check("site_consultation_settings_schedule_path_check", sql`schedule_path LIKE '/%'`),
-	check("site_consultation_settings_confirmation_path_check", sql`confirmation_path LIKE '/%'`),
-	index("site_consultation_settings_organization_id_idx").on(table.organization_id),
-]);
 
-export const site_theme_tokens = sqliteTable("site_theme_tokens", {
-	id: text().primaryKey(),
-	organization_id: text().notNull().references(() => organization.id, { onDelete: "cascade" } ),
-	site_id: text().notNull().references(() => sites.id, { onDelete: "cascade" } ),
-	template_slug: text().notNull(),
-	tokens_json: text().notNull(),
-	status: text().default("active").notNull(),
-	created_at: text().default(sql`(strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))`).notNull(),
-	updated_at: text().default(sql`(strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))`).notNull(),
-	updated_by: text(),
-}, (table) => [
-	foreignKey({ columns: [table.organization_id, table.site_id], foreignColumns: [sites.organization_id, sites.id], name: "site_theme_tokens_site_scope_fk" }).onDelete("cascade"),
-	check("site_theme_tokens_tokens_json_check", sql`tokens_json IS NULL OR (json_valid(tokens_json) AND json_type(tokens_json) IS 'object')`),
-	unique("site_theme_tokens_site_template_unique").on(table.site_id, table.template_slug),
-	check("site_theme_tokens_status_check", sql`status IN ('active', 'disabled')`),
-	index("site_theme_tokens_organization_id_idx").on(table.organization_id),
-]);
 
 export const site_redirects = sqliteTable("site_redirects", {
 	id: text().primaryKey(),
@@ -1426,9 +1315,12 @@ export const site_locales = sqliteTable("site_locales", {
 	label: text(),
 	is_source: integer({ mode: "boolean" }).default(false).notNull(),
 	status: text().default("disabled").notNull(),
+	activated_at: text(),
+	disabled_at: text(),
 	created_at: text().default(sql`(strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))`).notNull(),
 	updated_at: text().default(sql`(strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))`).notNull(),
 }, (table) => [
+	uniqueIndex("site_locales_secondary_published_unique").on(table.organization_id, table.site_id).where(sql`is_source = 0 AND status = 'published'`),
 	foreignKey({ columns: [table.organization_id, table.site_id], foreignColumns: [sites.organization_id, sites.id], name: "site_locales_site_scope_fk" }).onDelete("cascade"),
 	check("site_locales_source_boolean_check", sql`is_source IN (0, 1)`),
 	unique("site_locales_organization_id_site_id_locale_unique").on(table.organization_id, table.site_id, table.locale),
@@ -1464,34 +1356,6 @@ export const platform_locale_messages = sqliteTable("platform_locale_messages", 
 	primaryKey({ columns: [table.locale, table.message_key] }),
 ]);
 
-export const site_language_licenses = sqliteTable("site_language_licenses", {
-	id: text().primaryKey(),
-	organization_id: text().notNull(),
-	site_id: text().notNull(),
-	locale: text().notNull(),
-	stripe_subscription_id: text(),
-	stripe_subscription_item_id: text(),
-	status: text().default("disabled").notNull(),
-	operation_id: text(),
-	provider_idempotency_key: text(),
-	last_provider_quantity: integer(),
-	last_error_code: text(),
-	activated_at: text(),
-	disabled_at: text(),
-	created_at: text().default(sql`(strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))`).notNull(),
-	updated_at: text().default(sql`(strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))`).notNull(),
-}, (table) => [
-	foreignKey({
-		columns: [table.organization_id, table.site_id, table.locale],
-		foreignColumns: [site_locales.organization_id, site_locales.site_id, site_locales.locale],
-		name: "site_language_licenses_site_locale_fk",
-	}).onDelete("cascade"),
-	unique("site_language_licenses_org_site_locale_unique").on(table.organization_id, table.site_id, table.locale),
-	check("site_language_licenses_status_check", sql`${table.status} IN ('enabling', 'active', 'disabling', 'disabled')`),
-	check("site_language_licenses_non_english_check", sql`${table.locale} <> 'en'`),
-	index("site_language_licenses_organization_status_idx").on(table.organization_id, table.status),
-	index("site_language_licenses_subscription_item_idx").on(table.stripe_subscription_item_id),
-]);
 
 export const mcp_tool_call_events = sqliteTable("mcp_tool_call_events", {
 	id: text().primaryKey(),
@@ -1573,7 +1437,8 @@ export const site_transfer_requests = sqliteTable("site_transfer_requests", {
 
 export const sites = sqliteTable("sites", {
 	id: text().primaryKey(),
-	settings_json: text().default("{}").notNull(),
+	settings_json: text({ mode: "json" }).$type<SiteSettings>().default({}).notNull(),
+	integrations_json: text({ mode: "json" }).$type<SiteIntegrations>().default({}).notNull(),
 	organization_id: text().notNull().references(() => organization.id, { onDelete: "cascade" } ),
 	theme_id: text().default("saya-theme-v1").notNull(),
 	slug: text().notNull().unique(),
@@ -1612,6 +1477,19 @@ export const sites = sqliteTable("sites", {
 	feature_overrides: text(),
 	analytics_data_start_at: text(),
 }, (table) => [
+	check("sites_settings_json_check", sql`json_valid(settings_json) AND json_type(settings_json) IS 'object'`),
+	check("sites_integrations_json_check", sql`json_valid(integrations_json) AND json_type(integrations_json) IS 'object'`),
+	check("sites_config_object_check", sql`json_type(settings_json, '$.config') IS NULL OR json_type(settings_json, '$.config') IS 'object'`),
+	check("sites_theme_by_template_object_check", sql`json_type(settings_json, '$.theme_by_template') IS NULL OR json_type(settings_json, '$.theme_by_template') IS 'object'`),
+	check("sites_consultation_object_check", sql`json_type(settings_json, '$.consultation') IS NULL OR json_type(settings_json, '$.consultation') IS 'object'`),
+	check("sites_compliance_object_check", sql`json_type(settings_json, '$.compliance') IS NULL OR json_type(settings_json, '$.compliance') IS 'object'`),
+	check("sites_consultation_check", sql`json_type(settings_json, '$.consultation') IS NULL OR (json_extract(settings_json, '$.consultation.mode') IN ('external_url', 'native_disabled') AND json_type(settings_json, '$.consultation.cta_label') IS 'text' AND json_extract(settings_json, '$.consultation.schedule_path') LIKE '/%' AND json_extract(settings_json, '$.consultation.confirmation_path') LIKE '/%' AND json_type(settings_json, '$.consultation.tracking_enabled') IN ('true', 'false')) IS TRUE`),
+	check("sites_compliance_check", sql`json_type(settings_json, '$.compliance') IS NULL OR (json_extract(settings_json, '$.compliance.address_visibility') IN ('visible', 'hidden') AND (json_extract(settings_json, '$.compliance.service_area_type') IS NULL OR json_extract(settings_json, '$.compliance.service_area_type') IN ('AdministrativeArea', 'City', 'Country', 'Place', 'State')) AND json_type(settings_json, '$.compliance.same_as') IN ('array', 'null') AND json_type(settings_json, '$.compliance.contact_points') IN ('array', 'null')) IS TRUE`),
+	check("sites_compliance_nonprofit_check", sql`json_extract(settings_json, '$.compliance.nonprofit_status') IS NULL OR json_extract(settings_json, '$.compliance.nonprofit_status') IN (${sql.raw([...NONPROFIT_STATUS_CANONICAL].map(value => `'${value}'`).join(', '))})`),
+	check("sites_facebook_integration_check", sql`json_type(integrations_json, '$.facebook') IS NULL OR (json_type(integrations_json, '$.facebook') IS 'object' AND json_type(integrations_json, '$.facebook.revision') IS 'text' AND json_extract(integrations_json, '$.facebook.kind') IN ('oauth') AND json_extract(integrations_json, '$.facebook.status') IN ('active', 'disabled', 'error')) IS TRUE`),
+	check("sites_google_integration_check", sql`json_type(integrations_json, '$.google') IS NULL OR (json_type(integrations_json, '$.google') IS 'object' AND json_type(integrations_json, '$.google.revision') IS 'text' AND json_extract(integrations_json, '$.google.kind') IN ('oauth', 'manual') AND json_extract(integrations_json, '$.google.status') IN ('active', 'disabled', 'error')) IS TRUE`),
+	check("sites_google_credentials_check", sql`json_type(integrations_json, '$.google') IS NULL OR (CASE json_extract(integrations_json, '$.google.kind') WHEN 'oauth' THEN json_type(integrations_json, '$.google.encrypted_access_token') IS 'text' AND json_type(integrations_json, '$.google.encrypted_refresh_token') IS 'text' WHEN 'manual' THEN json_type(integrations_json, '$.google.encrypted_access_token') IS NULL AND json_type(integrations_json, '$.google.encrypted_refresh_token') IS NULL END) IS TRUE`),
+	check("sites_facebook_credentials_check", sql`json_type(integrations_json, '$.facebook') IS NULL OR json_type(integrations_json, '$.facebook.encrypted_user_token') IS 'text'`),
 	check("sites_feature_overrides_check", sql`feature_overrides IS NULL OR (json_valid(feature_overrides) AND json_type(feature_overrides) IS 'object')`),
 	check("sites_theme_id_check", sql`${table.theme_id} IN (${sql.raw(Object.values(publicTemplateRegistry).map(template => `'${template.themeId}'`).join(", "))})`),
 	check("sites_status_check", sql`${table.status} IN ('active', 'inactive', 'suspended')`),
@@ -1893,44 +1771,22 @@ export const availability_overrides = sqliteTable("availability_overrides", {
 	index("availability_overrides_site_month_idx").on(table.site_id, table.override_date),
 ]);
 
-export const mcp_workspace_preferences = sqliteTable("mcp_workspace_preferences", {
+export const user_workspace_state = sqliteTable("user_workspace_state", {
 	user_id: text().primaryKey().references(() => user.id, { onDelete: "cascade" } ),
 	organization_id: text().references(() => organization.id, { onDelete: "set null" } ),
 	site_id: text().references(() => sites.id, { onDelete: "set null" } ),
 	location_id: text().references(() => business_locations.id, { onDelete: "set null" } ),
 	created_at: text().default(sql`(strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))`).notNull(),
 	updated_at: text().default(sql`(strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))`).notNull(),
+	whatsapp_pending_confirmation: text(),
+	whatsapp_last_inbound_id: text(),
+	whatsapp_updated_at: text(),
 }, (table) => [
-	foreignKey({ columns: [table.organization_id, table.site_id], foreignColumns: [sites.organization_id, sites.id], name: "mcp_workspace_preferences_site_scope_fk" }),
+	check("user_workspace_state_whatsapp_pending_check", sql`whatsapp_pending_confirmation IS NULL OR (json_valid(whatsapp_pending_confirmation) AND json_type(whatsapp_pending_confirmation) IS 'object')`),
+	foreignKey({ columns: [table.organization_id, table.site_id], foreignColumns: [sites.organization_id, sites.id], name: "user_workspace_state_site_scope_fk" }),
 ]);
 
-export const google_analytics_connections = sqliteTable("google_analytics_connections", {
-	id: text().primaryKey(),
-	organization_id: text().notNull().references(() => organization.id, { onDelete: "cascade" } ),
-	site_id: text().notNull().references(() => sites.id, { onDelete: "cascade" } ),
-	connected_by_user_id: text().references(() => user.id, { onDelete: "set null" } ),
-	provider_account_email: text().notNull(),
-	encrypted_access_token: text().notNull(),
-	encrypted_refresh_token: text().notNull(),
-	scopes: text().notNull(),
-	ga4_property_id: text(),
-	ga4_property_name: text(),
-	ga4_measurement_id: text(),
-	search_console_site_url: text(),
-	status: text().default("active").notNull(),
-	expires_at: text(),
-	created_at: text().default(sql`(strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))`).notNull(),
-	updated_at: text().default(sql`(strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))`).notNull(),
-}, (table) => [
-	foreignKey({ columns: [table.organization_id, table.site_id], foreignColumns: [sites.organization_id, sites.id], name: "google_analytics_connections_site_scope_fk" }).onDelete("cascade"),
-	check("google_analytics_connections_status_check", sql`status IN ('active', 'disabled', 'error')`),
-	unique("google_analytics_connections_organization_id_site_id_unique").on(table.organization_id, table.site_id),
-]);
 
-export const zaraz_sync_lock = sqliteTable("zaraz_sync_lock", {
-	id: text().primaryKey(),
-	locked_at: text(),
-});
 
 export const content_documents = sqliteTable("content_documents", {
 	id: text().primaryKey(),

@@ -63,9 +63,10 @@ export function appendPublicShellQueries(
                   AND social_ma.site_id = bl.site_id
                WHERE bl.organization_id = ? AND bl.site_id = ? AND bl.status = 'active'
                ORDER BY bl.title ASC`, [organizationId, siteId]),
-    config: push(`SELECT key, value
-                FROM site_config
-               WHERE organization_id = ? AND site_id = ?
+    config: push(`SELECT setting.key, setting.value
+                FROM sites s, json_each(s.settings_json, '$.config') setting
+               WHERE s.organization_id = ? AND s.id = ?
+                 AND setting.key IN ('brand_color', 'press_email', 'partnerships_email', 'catering_email', 'careers_email', 'google_site_verification', 'default_timezone')
               UNION ALL
               SELECT '__experience_count',
                      CAST((SELECT COUNT(*) FROM experiences e JOIN products p ON p.id = e.id WHERE e.site_id = ? AND p.is_visible = 1) AS TEXT)

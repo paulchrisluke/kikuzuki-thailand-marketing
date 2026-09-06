@@ -401,8 +401,8 @@ export async function upsertProfessionalServiceContent(
     }
     const addressVisibility = item.address_visibility === 'visible' ? 'visible' : 'hidden'
 
-    const existingCompliance = await queryFirst<{ id: string }>(db, 'SELECT id FROM tenant_compliance WHERE site_id = ? LIMIT 1', [siteId])
-    const complianceId = existingCompliance?.id || cleanString(item.id, 80) || `compliance_${siteId}`
+    const existingCompliance = await queryFirst<{ id: string }>(db, "SELECT id FROM sites WHERE id = ? AND json_type(settings_json, '$.compliance') = 'object' LIMIT 1", [siteId])
+    const complianceId = siteId
     if (existingCompliance && Object.hasOwn(item, 'media')) {
       validationError('compliance.media cannot replace an existing placement; use attach/remove/reorder media operations')
     }
@@ -416,26 +416,28 @@ export async function upsertProfessionalServiceContent(
 
     statements.push({
       query: `
-      INSERT INTO tenant_compliance
-        (id, organization_id, site_id, entity_name, dba_name, entity_type, nonprofit_status,
-         registration_number, service_area, service_area_type, disclaimer, footer_disclaimer,
-         founder_name, founding_date, same_as, contact_points, address_visibility,
-         metadata_json, updated_at, updated_by)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, ?)
-      ON CONFLICT(site_id) DO UPDATE SET
-        entity_name = excluded.entity_name, dba_name = excluded.dba_name, entity_type = excluded.entity_type,
-        nonprofit_status = excluded.nonprofit_status, registration_number = excluded.registration_number,
-        service_area = excluded.service_area, service_area_type = excluded.service_area_type,
-        disclaimer = excluded.disclaimer, footer_disclaimer = excluded.footer_disclaimer,
-        founder_name = excluded.founder_name,
-        founding_date = excluded.founding_date, same_as = excluded.same_as,
-        contact_points = excluded.contact_points, address_visibility = excluded.address_visibility,
-        metadata_json = excluded.metadata_json, updated_at = CURRENT_TIMESTAMP, updated_by = excluded.updated_by
+      UPDATE sites SET settings_json = json_set(settings_json, '$.compliance', json_object(
+          'entity_name', ?,
+          'dba_name', ?,
+          'entity_type', ?,
+          'nonprofit_status', ?,
+          'registration_number', ?,
+          'service_area', ?,
+          'service_area_type', ?,
+          'disclaimer', ?,
+          'footer_disclaimer', ?,
+          'founder_name', ?,
+          'founding_date', ?,
+          'same_as', json(?),
+          'contact_points', json(?),
+          'address_visibility', ?,
+          'metadata_json', json(?),
+          'created_at', COALESCE(json_extract(settings_json, '$.compliance.created_at'), CURRENT_TIMESTAMP),
+          'updated_at', CURRENT_TIMESTAMP, 'updated_by', ?
+        )), updated_at = CURRENT_TIMESTAMP
+      WHERE id = ? AND organization_id = ?
     `,
       params: [
-        complianceId,
-        organizationId,
-        siteId,
         cleanString(item.entity_name, 200) || null,
         cleanString(item.dba_name, 200) || null,
         entityType || null,
@@ -452,12 +454,14 @@ export async function upsertProfessionalServiceContent(
         addressVisibility,
         json(strictMediaFreeRecord(item.metadata, 'compliance.metadata')),
         updatedBy,
+        siteId,
+        organizationId,
       ],
     })
     if (!existingCompliance) statements.push(...insertInitialMediaPlacements({
       organizationId,
       siteId,
-      placement: { owner_type: 'tenant_compliance', owner_id: complianceId, slot: 'document' },
+      placement: { owner_type: 'site', owner_id: complianceId, slot: 'compliance_document' },
       media: complianceMedia.map(item => ({ asset_id: item.asset_id })),
     }))
     written.compliance = 1
@@ -472,20 +476,15 @@ export async function upsertProfessionalServiceContent(
     }
     statements.push({
       query: `
-      INSERT INTO site_consultation_settings
-        (id, organization_id, site_id, mode, cta_label, external_url, schedule_path,
-         confirmation_path, tracking_enabled, metadata_json, updated_at, updated_by)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, ?)
-      ON CONFLICT(site_id) DO UPDATE SET
-        mode = excluded.mode, cta_label = excluded.cta_label, external_url = excluded.external_url,
-        schedule_path = excluded.schedule_path, confirmation_path = excluded.confirmation_path,
-        tracking_enabled = excluded.tracking_enabled, metadata_json = excluded.metadata_json,
-        updated_at = CURRENT_TIMESTAMP, updated_by = excluded.updated_by
+      UPDATE sites SET settings_json = json_set(settings_json, '$.consultation', json_object(
+          'mode', ?, 'cta_label', ?, 'external_url', ?, 'schedule_path', ?, 'confirmation_path', ?,
+          'tracking_enabled', json(CASE WHEN ? THEN 'true' ELSE 'false' END), 'metadata_json', json(?),
+          'created_at', COALESCE(json_extract(settings_json, '$.consultation.created_at'), CURRENT_TIMESTAMP),
+          'updated_at', CURRENT_TIMESTAMP, 'updated_by', ?
+        )), updated_at = CURRENT_TIMESTAMP
+      WHERE id = ? AND organization_id = ?
     `,
       params: [
-        cleanString(item.id, 80) || `consultation_${siteId}`,
-        organizationId,
-        siteId,
         mode,
         requiredText(item.cta_label, 'consultation.cta_label', 120),
         externalUrl,
@@ -494,6 +493,8 @@ export async function upsertProfessionalServiceContent(
         item.tracking_enabled === false ? 0 : 1,
         json(strictMediaFreeRecord(item.metadata, 'consultation.metadata')),
         updatedBy,
+        siteId,
+        organizationId,
       ],
     })
     written.consultation = 1
@@ -503,14 +504,14 @@ export async function upsertProfessionalServiceContent(
     const themeTokens = validateThemeTokens(data.themeTokens)
     statements.push({
       query: `
-      INSERT INTO site_theme_tokens
-        (id, organization_id, site_id, template_slug, tokens_json, status, updated_at, updated_by)
-      VALUES (?, ?, ?, 'blawby', ?, 'active', CURRENT_TIMESTAMP, ?)
-      ON CONFLICT(site_id, template_slug) DO UPDATE SET
-        tokens_json = excluded.tokens_json, status = 'active', updated_at = CURRENT_TIMESTAMP,
-        updated_by = excluded.updated_by
+      UPDATE sites SET settings_json = json_set(settings_json, '$.theme_by_template.blawby', json_object(
+        'tokens', json(?), 'status', 'active',
+        'created_at', COALESCE(json_extract(settings_json, '$.theme_by_template.blawby.created_at'), CURRENT_TIMESTAMP),
+        'updated_at', CURRENT_TIMESTAMP, 'updated_by', ?
+      )), updated_at = CURRENT_TIMESTAMP
+      WHERE id = ? AND organization_id = ?
     `,
-      params: [`theme_${siteId}_blawby`, organizationId, siteId, json(themeTokens), updatedBy],
+      params: [json(themeTokens), updatedBy, siteId, organizationId],
     })
     written.themeTokens = 1
   }

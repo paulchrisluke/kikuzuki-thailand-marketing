@@ -123,10 +123,9 @@ export default defineHandler(async (event) => {
     `, [payload.source.details.currency, new Date().toISOString(), siteId, organizationId])
 
     await execute(db, `
-      INSERT INTO site_config (organization_id, site_id, key, value)
-      VALUES (?, ?, 'default_timezone', ?)
-      ON CONFLICT(organization_id, site_id, key) DO UPDATE SET value = excluded.value
-    `, [organizationId, siteId, payload.source.details.timezone])
+      UPDATE sites SET settings_json = json_set(settings_json, '$.config.default_timezone', ?)
+      WHERE organization_id = ? AND id = ?
+    `, [payload.source.details.timezone, organizationId, siteId])
 
     const locationRow = await queryFirst<{ id: string; slug: string | null }>(db, `
       SELECT id, slug FROM business_locations

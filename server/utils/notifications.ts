@@ -287,8 +287,7 @@ async function getOwnerNotificationChannels(
   hasWhatsAppPhone: boolean
 ): Promise<NotificationChannel[]> {
   const row = await queryFirst<{ value?: string }>(db, `
-    SELECT value FROM site_config
-    WHERE organization_id = ? AND site_id = ? AND key = 'owner_notification_channels'
+    SELECT json_extract(settings_json, '$.config.owner_notification_channels') AS value FROM sites WHERE organization_id = ? AND id = ?
     LIMIT 1
   `, [opts.organizationId, opts.siteId])
 

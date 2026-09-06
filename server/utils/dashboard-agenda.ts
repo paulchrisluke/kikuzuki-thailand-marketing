@@ -267,14 +267,14 @@ export async function listAgenda(
     SELECT ${alias}.id, '${kind}' AS kind, ${fields}, ${alias}.site_id,
            COALESCE(s.subdomain, s.id) AS site_slug, ${alias}.location_id,
            l.slug AS location_slug, l.title AS location_title,
-           CASE WHEN ${alias}.location_id IS NULL THEN tz.value ELSE l.timezone END AS timezone,
+           CASE WHEN ${alias}.location_id IS NULL THEN json_extract(s.settings_json, '$.config.default_timezone') ELSE l.timezone END AS timezone,
            NULL AS guest_image_url,
            ${enrichment.resourceImage ?? `COALESCE(${locationMediaUrlSelect(alias)}, ${siteMediaUrlSelect(alias)})`} AS resource_image_url,
            ${enrichment.resourceTitle ?? 'COALESCE(l.title, s.brand_name, s.subdomain, s.id)'} AS resource_title
     FROM ${kind === 'reservation' ? 'reservation_submissions' : kind === 'experience_booking' ? 'experience_bookings' : 'posts'} ${alias}
     JOIN sites s ON s.id = ${alias}.site_id AND s.organization_id = ${alias}.organization_id
     LEFT JOIN business_locations l ON l.id = ${alias}.location_id AND l.site_id = ${alias}.site_id
-    LEFT JOIN site_config tz ON tz.site_id = s.id AND tz.organization_id = s.organization_id AND tz.key = 'default_timezone'
+    
     ${enrichment.joins ?? ''}
     WHERE ${alias}.organization_id = ? ${scopeConditions(query, alias)}
   `

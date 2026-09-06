@@ -873,7 +873,7 @@ export async function deleteLocation(
     },
     {
       query: `
-      UPDATE mcp_workspace_preferences
+      UPDATE user_workspace_state
       SET location_id = NULL,
           updated_at = ?
       WHERE organization_id = ? AND site_id = ? AND location_id = ?

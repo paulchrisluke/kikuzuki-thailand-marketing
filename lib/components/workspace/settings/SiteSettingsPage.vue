@@ -94,7 +94,7 @@
 
           <div v-else-if="detailKey === 'localization'" class="space-y-6">
             <p class="text-base text-muted">
-              English is the permanent source language. {{ localizationSettings?.billing_enabled ? 'Each secondary language is billed on this site’s Growth subscription.' : 'Growth includes one secondary language at no extra cost.' }}
+              English is the permanent source language. Growth includes one secondary language at no extra cost.
             </p>
             <div v-if="localizationLoading" class="space-y-3">
               <USkeleton class="h-16 rounded-lg" />
@@ -106,19 +106,19 @@
                 <div v-for="language in localizationSettings.languages" :key="language.locale" class="flex flex-wrap items-center justify-between gap-4 rounded-lg border border-default p-4">
                   <div>
                     <p class="font-medium">{{ language.label || language.locale }} <span class="text-sm text-muted">({{ language.locale }})</span></p>
-                    <UBadge :color="language.is_source || language.license_status === 'active' ? 'success' : 'neutral'" variant="subtle" size="sm" class="mt-1">
-                      {{ language.is_source ? 'Source · published' : `${language.license_status || 'disabled'} · ${language.locale_status}` }}
+                    <UBadge :color="language.is_source || language.status === 'published' ? 'success' : 'neutral'" variant="subtle" size="sm" class="mt-1">
+                      {{ language.is_source ? 'Source · published' : language.status }}
                     </UBadge>
                   </div>
                   <div v-if="!language.is_source" class="flex gap-2">
-                    <UButton v-if="language.license_status === 'active'" color="neutral" variant="outline" :loading="localizationBusy" @click="disableLanguage(language.locale)">Disable</UButton>
-                    <UButton v-if="language.license_status === 'disabled'" color="error" variant="outline" :loading="localizationBusy" @click="deleteLanguage(language.locale)">Delete content</UButton>
+                    <UButton v-if="language.status === 'published'" color="neutral" variant="outline" :loading="localizationBusy" @click="disableLanguage(language.locale)">Disable</UButton>
+                    <UButton v-if="language.status === 'disabled'" color="error" variant="outline" :loading="localizationBusy" @click="deleteLanguage(language.locale)">Delete content</UButton>
                   </div>
                 </div>
               </div>
               <p v-if="!enableableCatalogOptions.length" class="text-sm text-muted">No additional languages are available to enable right now.</p>
               <UFormField v-else label="Available language">
-                <USelect v-model="newLocale" :items="enableableCatalogOptions" :placeholder="localizationSettings.billing_enabled ? `Select a language to enable for ${formattedLanguagePrice}` : 'Select a language to enable'" size="xl" class="w-full" />
+                <USelect v-model="newLocale" :items="enableableCatalogOptions" placeholder="Select a language to enable" size="xl" class="w-full" />
               </UFormField>
             </template>
           </div>
@@ -227,9 +227,9 @@ interface SiteSettingsResponse {
 }
 
 interface FacebookConnectionStatus { connected: boolean; facebook_page_name?: string }
-interface LocalizationLanguageRow { locale: string; label: string | null; is_source: number | boolean; locale_status: string; license_status: string | null }
+interface LocalizationLanguageRow { locale: string; label: string | null; is_source: number | boolean; status: string }
 interface LocalizationCatalogRow { locale: string; label: string; direction: string }
-interface LocalizationSettings { effective_plan: string; billing_enabled: boolean; interval: 'month' | 'year' | null; unit_amount_cents: number | null; languages: LocalizationLanguageRow[]; available_catalogs: LocalizationCatalogRow[] }
+interface LocalizationSettings { effective_plan: string; languages: LocalizationLanguageRow[]; available_catalogs: LocalizationCatalogRow[] }
 interface SettingsPageResource {
   settings: { success: boolean; settings: SiteSettingsResponse }
   notifications: { success: boolean; notifications: { whatsapp_phone: string | null; channels: string[] } }
@@ -330,9 +330,8 @@ const form = reactive<SiteSettingsForm>({
 const CHANNEL_OPTIONS = [{ label: 'Email', value: 'email' }, { label: 'WhatsApp', value: 'whatsapp' }]
 const hasFacebookAccess = computed(() => dashboard.site.value?.effective_plan === 'growth')
 const enableableCatalogOptions = computed(() => (localizationSettings.value?.available_catalogs ?? [])
-  .filter(catalog => !localizationSettings.value?.languages.some(language => language.locale === catalog.locale && language.license_status !== 'disabled'))
+  .filter(catalog => !localizationSettings.value?.languages.some(language => language.locale === catalog.locale && language.status !== 'disabled'))
   .map(catalog => ({ label: `${catalog.label} (${catalog.locale})`, value: catalog.locale })))
-const formattedLanguagePrice = computed(() => localizationSettings.value?.unit_amount_cents == null ? '$5/month or $60/year' : `$${(localizationSettings.value.unit_amount_cents / 100).toFixed(0)}/${localizationSettings.value.interval}`)
 const nameCharactersRemaining = computed(() => 50 - form.brand_name.length)
 const descriptionCharactersRemaining = computed(() => 500 - form.brand_description.length)
 

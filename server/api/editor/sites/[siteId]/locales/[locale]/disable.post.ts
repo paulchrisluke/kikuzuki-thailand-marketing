@@ -2,7 +2,7 @@ import { defineHandler } from 'nitro'
 import { getRouterParam } from 'nitro/h3'
 
 import { requireSiteAccess } from '~/server/utils/location-access'
-import { disableSiteLanguageLicense } from '~/server/utils/site-language-billing'
+import { disableSiteLanguage } from '~/server/utils/site-languages'
 import { isDemoOrg } from '~/server/utils/demo'
 import { hasPlatformEventPermission } from '~/server/utils/platform-admin-users'
 
@@ -14,5 +14,5 @@ export default defineHandler(async (event) => {
   if (isDemoOrg(site.organization_id) && !(await hasPlatformEventPermission(event, env, { platform: ['access'] }))) {
     throw createError({ statusCode: 403, statusMessage: 'Demo site is read-only' })
   }
-  return { license: await disableSiteLanguageLicense(db, env, { organizationId: site.organization_id, siteId, locale }) }
+  return { language: await disableSiteLanguage(db, { organizationId: site.organization_id, siteId, locale }) }
 })

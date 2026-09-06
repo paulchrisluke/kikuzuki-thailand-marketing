@@ -824,16 +824,16 @@ export async function getPlatformBlogPost(db: DbClient, postIdOrSlug: string, si
   const context = await resolveTenantContext(db, resolvedSiteId, env)
   const editorTheme = !isPlatformSite(resolvedSiteId) ? await queryFirst<{ theme_id: string | null; vertical: string | null; brand_name: string | null; brand_color: string | null } | null>(db, `
     SELECT s.theme_id, s.vertical, s.brand_name,
-           (SELECT sc.value FROM site_config sc WHERE sc.site_id = s.id AND sc.key = 'brand_color' LIMIT 1) AS brand_color
+           json_extract(s.settings_json, '$.config.brand_color') AS brand_color
       FROM sites s
      WHERE s.id = ? LIMIT 1
   `, [resolvedSiteId]) : null
   const editorTemplate = !isPlatformSite(resolvedSiteId) ? resolvePublicTemplate({ themeId: editorTheme?.theme_id, vertical: editorTheme?.vertical }) : null
   const editorThemeTokenRow = editorTemplate ? await queryFirst<{ tokens_json: string | null } | null>(db, `
-    SELECT tokens_json FROM site_theme_tokens
-     WHERE site_id = ? AND template_slug = ? AND status = 'active'
+    SELECT json_extract(settings_json, ? || '.tokens') AS tokens_json FROM sites
+     WHERE id = ? AND json_extract(settings_json, ? || '.status') = 'active'
      LIMIT 1
-  `, [resolvedSiteId, editorTemplate.slug]) : null
+  `, ['$.theme_by_template.' + editorTemplate.slug, resolvedSiteId, '$.theme_by_template.' + editorTemplate.slug]) : null
   const editorThemeTokens = parseBlogEditorThemeTokens(editorThemeTokenRow?.tokens_json)
   return {
     ...contentReviewUrls(attachFeaturedMedia(attachPublished(post, Boolean(post.published_at))), 'blog', siteId, publicPath, context),

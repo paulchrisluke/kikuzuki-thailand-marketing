@@ -1,3 +1,4 @@
+import type { IntegrationVersion, FacebookIntegration } from '~/shared/site-settings'
 import type { D1Database } from '@cloudflare/workers-types'
 import { parsePostInput } from '~/shared/posts'
 import { execute, executeBatch, queryFirst } from '~/server/db'
@@ -17,21 +18,9 @@ export interface FacebookEnv {
   CONNECTOR_TOKEN_ENCRYPTION_KEY?: string
 }
 
-export interface FacebookPagesConnection {
-  id: string
+export interface FacebookPagesConnection extends Omit<FacebookIntegration, 'kind' | 'revision'>, IntegrationVersion {
   organization_id: string
   site_id: string
-  connected_by_user_id: string
-  facebook_user_id: string
-  facebook_page_id?: string
-  facebook_page_name?: string
-  encrypted_user_token: string
-  encrypted_page_token?: string
-  user_token_expires_at?: string
-  scopes?: string
-  status: 'active' | 'disabled' | 'error'
-  created_at: string
-  updated_at: string
 }
 
 export interface FacebookPage {
@@ -243,7 +232,8 @@ export const publishToPage = async (
 
 export const storeFacebookPagesConnection = async (
   env: FacebookEnv,
-  connection: Omit<FacebookPagesConnection, 'id' | 'created_at' | 'updated_at'>
+  connection: Omit<FacebookPagesConnection, 'id' | 'created_at' | 'updated_at' | keyof IntegrationVersion>,
+  expected: IntegrationVersion
 ): Promise<string> => {
   if (!env.DB) throw new Error('Database not available')
 
@@ -256,40 +246,22 @@ export const storeFacebookPagesConnection = async (
     ? await encryptSecret(connection.encrypted_page_token, tokenEnv)
     : null
 
-  await execute(env.DB, `
-    INSERT INTO facebook_pages_connections
-    (id, organization_id, site_id, connected_by_user_id,
-     facebook_user_id, facebook_page_id, facebook_page_name,
-     encrypted_user_token, encrypted_page_token,
-     user_token_expires_at, scopes, status, created_at, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    ON CONFLICT(organization_id, site_id) DO UPDATE SET
-      connected_by_user_id = excluded.connected_by_user_id,
-      facebook_user_id = excluded.facebook_user_id,
-      facebook_page_id = excluded.facebook_page_id,
-      facebook_page_name = excluded.facebook_page_name,
-      encrypted_user_token = excluded.encrypted_user_token,
-      encrypted_page_token = excluded.encrypted_page_token,
-      user_token_expires_at = excluded.user_token_expires_at,
-      scopes = excluded.scopes,
-      status = excluded.status,
-      updated_at = excluded.updated_at
-  `, [
-    connectionId,
-    connection.organization_id,
-    connection.site_id,
-    connection.connected_by_user_id,
-    connection.facebook_user_id,
-    connection.facebook_page_id ?? null,
-    connection.facebook_page_name ?? null,
-    encryptedUserToken,
-    encryptedPageToken,
-    connection.user_token_expires_at ?? null,
-    connection.scopes ?? null,
-    connection.status,
-    now,
-    now
-  ])
+  const { organization_id: organizationId, site_id: siteId, ...providerState } = connection
+  const payload = JSON.stringify({
+    ...providerState, id: connectionId, kind: 'oauth', revision: crypto.randomUUID(),
+    encrypted_user_token: encryptedUserToken,
+    encrypted_page_token: encryptedPageToken, updated_at: now,
+  })
+  const result = await execute(env.DB, `
+    UPDATE sites SET integrations_json = json_set(integrations_json, '$.facebook',
+      json_set(json_patch(CASE WHEN json_extract(integrations_json, '$.facebook.kind') = 'oauth'
+                             THEN json_extract(integrations_json, '$.facebook') ELSE '{}' END, json(?)),
+        '$.created_at', COALESCE(json_extract(integrations_json, '$.facebook.created_at'), ?)))
+    WHERE id = ? AND organization_id = ?
+      AND json_extract(integrations_json, '$.facebook.revision') IS ?
+      AND json_extract(settings_json, '$.config.resource_team_generation') IS ?
+  `, [payload, now, siteId, organizationId, expected.revision, expected.transfer_generation])
+  if (result.meta?.changes !== 1) throw new Error('Site ownership or facebook connection changed during authorization')
 
   return connectionId
 }
@@ -302,9 +274,26 @@ export const getFacebookPagesConnection = async (
   if (!env.DB) return null
 
   const connection = await queryFirst<FacebookPagesConnection>(env.DB, `
-    SELECT * FROM facebook_pages_connections
-    WHERE organization_id = ? AND site_id = ? AND status = 'active'
-    LIMIT 1
+    SELECT id AS site_id, organization_id,
+           json_extract(integrations_json, '$.facebook.id') AS id,
+           json_extract(integrations_json, '$.facebook.revision') AS revision,
+           json_extract(settings_json, '$.config.resource_team_generation') AS transfer_generation,
+           json_extract(integrations_json, '$.facebook.connected_by_user_id') AS connected_by_user_id,
+           json_extract(integrations_json, '$.facebook.facebook_user_id') AS facebook_user_id,
+           json_extract(integrations_json, '$.facebook.facebook_page_id') AS facebook_page_id,
+           json_extract(integrations_json, '$.facebook.facebook_page_name') AS facebook_page_name,
+           json_extract(integrations_json, '$.facebook.encrypted_user_token') AS encrypted_user_token,
+           json_extract(integrations_json, '$.facebook.encrypted_page_token') AS encrypted_page_token,
+           json_extract(integrations_json, '$.facebook.user_token_expires_at') AS user_token_expires_at,
+           json_extract(integrations_json, '$.facebook.scopes') AS scopes,
+           json_extract(integrations_json, '$.facebook.status') AS status,
+           json_extract(integrations_json, '$.facebook.created_at') AS created_at,
+           json_extract(integrations_json, '$.facebook.updated_at') AS updated_at
+      FROM sites
+     WHERE organization_id = ? AND id = ?
+       AND json_extract(integrations_json, '$.facebook.kind') = 'oauth'
+       AND json_extract(integrations_json, '$.facebook.status') = 'active'
+     LIMIT 1
   `, [organizationId, siteId])
 
   if (!connection) return null

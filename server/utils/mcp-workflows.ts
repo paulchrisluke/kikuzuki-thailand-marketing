@@ -91,7 +91,7 @@ export async function getNotificationsSettings(
     getOrgWhatsAppPhone(db, organizationId, siteId),
     queryFirst<{ value: string }>(
       db,
-      `SELECT value FROM site_config WHERE organization_id = ? AND site_id = ? AND key = 'owner_notification_channels' LIMIT 1`,
+      `SELECT json_extract(settings_json, '$.config.owner_notification_channels') AS value FROM sites WHERE organization_id = ? AND id = ? LIMIT 1`,
       [organizationId, siteId],
     ),
   ])
@@ -138,8 +138,8 @@ export async function updateNotificationsSettings(
     ops.push(
       execute(
         db,
-        `INSERT INTO site_config (organization_id, site_id, key, value) VALUES (?, ?, 'owner_notification_channels', ?) ON CONFLICT(organization_id, site_id, key) DO UPDATE SET value = excluded.value`,
-        [organizationId, siteId, value],
+        `UPDATE sites SET settings_json = json_set(settings_json, '$.config.owner_notification_channels', json(?)) WHERE organization_id = ? AND id = ?`,
+        [value, organizationId, siteId],
       )
     )
   }

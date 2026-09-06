@@ -9,7 +9,6 @@ import {
 import type { CloudflareEnv } from '~/server/utils/auth'
 import { handleApplicationStripeEvent } from '~/server/utils/billing-webhook-app-events'
 import { handleStripeGa4Event } from '~/server/utils/stripe-ga4'
-import { reconcileSiteLanguageSubscription } from '~/server/utils/site-language-billing'
 
 export async function processStripeEvent(
   env: CloudflareEnv,
@@ -23,6 +22,5 @@ export async function processStripeEvent(
     await reconcileBetterAuthSubscriptionEvent(db, event, stripe, adapter, loadStripePlans)
     await handleApplicationStripeEvent(env, db as D1Database, event, adapter, stripe, loadStripePlans)
     await handleStripeGa4Event(env, db, stripe, event)
-    await reconcileSiteLanguageSubscription(db, stripe, event, adapter)
   })
 }

@@ -1,4 +1,4 @@
-import { execute, queryAll, queryFirst } from '~/server/db'
+import { execute, queryAll, queryFirst, type DbClient } from '~/server/db'
 import { d1JsonStringSet } from '~/server/db/d1-limits'
 import type { CloudflareEnv } from '~/server/utils/auth'
 import { listUserOrganizations, resolveOrganizationMembership } from '~/server/utils/member-access'
@@ -69,7 +69,7 @@ export async function getMcpWorkspacePreference(
 ) {
   return await queryFirst<McpWorkspacePreferenceRow>(db, `
     SELECT user_id, organization_id, site_id, location_id, created_at, updated_at
-    FROM mcp_workspace_preferences
+    FROM user_workspace_state
     WHERE user_id = ?
     LIMIT 1
   `, [userId])
@@ -249,7 +249,7 @@ export async function upsertMcpWorkspacePreference(
 ) {
   const now = new Date().toISOString()
   await execute(db, `
-    INSERT INTO mcp_workspace_preferences (
+    INSERT INTO user_workspace_state (
       user_id, organization_id, site_id, location_id, created_at, updated_at
     ) VALUES (?, ?, ?, ?, ?, ?)
     ON CONFLICT(user_id) DO UPDATE SET
@@ -264,5 +264,64 @@ export async function upsertMcpWorkspacePreference(
     input.locationId,
     now,
     now,
+  ])
+}
+
+export type JsonSerializable = string | number | boolean | null | { [key: string]: JsonSerializable } | JsonSerializable[]
+
+function nowIso() {
+  return new Date().toISOString()
+}
+
+function jsonOrNull(value: JsonSerializable | null | undefined): string | null {
+  return value == null ? null : JSON.stringify(value)
+}
+
+export async function getWhatsAppWorkspaceState(
+  db: DbClient,
+  userId: string,
+): Promise<{
+  user_id: string
+  pending_confirmation: string | null
+  last_inbound_id: string | null
+  updated_at: string
+} | null> {
+  const result = await queryFirst<{
+    user_id: string
+    pending_confirmation: string | null
+    last_inbound_id: string | null
+    updated_at: string
+  }>(db, `
+    SELECT user_id, whatsapp_pending_confirmation AS pending_confirmation, whatsapp_last_inbound_id AS last_inbound_id, whatsapp_updated_at AS updated_at
+      FROM user_workspace_state
+     WHERE user_id = ? AND whatsapp_updated_at IS NOT NULL LIMIT 1
+  `, [userId])
+  return result ?? null
+}
+
+export async function patchWhatsAppWorkspaceState(
+  db: DbClient,
+  opts: {
+    userId: string
+    pendingConfirmation?: JsonSerializable | null
+    lastInboundId?: string | null
+  }
+): Promise<void> {
+  const updateFields: string[] = []
+  if ('pendingConfirmation' in opts) updateFields.push('whatsapp_pending_confirmation = excluded.whatsapp_pending_confirmation')
+  if ('lastInboundId' in opts) updateFields.push('whatsapp_last_inbound_id = excluded.whatsapp_last_inbound_id')
+  updateFields.push('whatsapp_updated_at = excluded.whatsapp_updated_at')
+
+  await execute(db, `
+    INSERT INTO user_workspace_state
+      (user_id, whatsapp_pending_confirmation, whatsapp_last_inbound_id, whatsapp_updated_at)
+    VALUES (?, ?, ?, ?)
+    ON CONFLICT(user_id) DO UPDATE SET
+      ${updateFields.join(',\n      ')}
+  `, [
+    opts.userId,
+    jsonOrNull(opts.pendingConfirmation),
+    opts.lastInboundId ?? null,
+    nowIso(),
   ])
 }

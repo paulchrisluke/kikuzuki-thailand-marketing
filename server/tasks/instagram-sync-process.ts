@@ -15,6 +15,7 @@ interface SyncTaskContext {
 }
 
 interface ConnectionRow {
+  revision: string | null
   id: string
   organization_id: string
   site_id: string
@@ -63,17 +64,20 @@ export default defineScheduledTask({
     // The organization billing projection is the authority for paid scheduled
     // integrations; legacy entitlement caches are not access grants here.
     const billingRows = await queryAll<ConnectionRow>(db, `
-      SELECT fpc.id, fpc.organization_id, fpc.site_id,
-             fpc.facebook_page_id, fpc.encrypted_user_token, fpc.encrypted_page_token,
+      SELECT json_extract(s.integrations_json, '$.facebook.id') AS id, s.organization_id, s.id AS site_id,
+             json_extract(s.integrations_json, '$.facebook.revision') AS revision,
+             json_extract(s.integrations_json, '$.facebook.facebook_page_id') AS facebook_page_id,
+             json_extract(s.integrations_json, '$.facebook.encrypted_user_token') AS encrypted_user_token,
+             json_extract(s.integrations_json, '$.facebook.encrypted_page_token') AS encrypted_page_token,
              ob.access_plan,
              ob.access_expires_at, ob.payment_status, ob.paid_through, ob.past_due_since, ob.updated_at
-      FROM facebook_pages_connections fpc
+      FROM sites s
       INNER JOIN organization_billing ob
-        ON ob.organization_id = fpc.organization_id
+        ON ob.organization_id = s.organization_id
        AND ob.access_plan = 'growth'
-      WHERE fpc.status = 'active'
-        OR (fpc.status = 'error' AND fpc.updated_at < datetime('now', '-1 hour'))
-      ORDER BY fpc.organization_id
+      WHERE json_extract(s.integrations_json, '$.facebook.status') = 'active'
+        OR (json_extract(s.integrations_json, '$.facebook.status') = 'error' AND json_extract(s.integrations_json, '$.facebook.updated_at') < datetime('now', '-1 hour'))
+      ORDER BY s.organization_id
     `)
     const connections = billingRows.filter((row) => hasScheduledPaidEntitlement(row, 'managed_service'))
 
@@ -123,8 +127,10 @@ export default defineScheduledTask({
 
         // Surface the error in the dashboard connection status; retry after 1h via updated_at
         await execute(db, `
-          UPDATE facebook_pages_connections SET status = 'error', updated_at = ? WHERE id = ?
-        `, [new Date().toISOString(), conn.id])
+          UPDATE sites SET integrations_json = json_set(integrations_json, '$.facebook.status', 'error',
+            '$.facebook.updated_at', ?, '$.facebook.revision', ?)
+          WHERE id = ? AND organization_id = ? AND json_extract(integrations_json, '$.facebook.revision') IS ?
+        `, [new Date().toISOString(), crypto.randomUUID(), conn.site_id, conn.organization_id, conn.revision])
           .catch(updateErr => console.error(`[instagram-sync-process] failed to persist error status for connection ${conn.id}:`, updateErr))
       }
 

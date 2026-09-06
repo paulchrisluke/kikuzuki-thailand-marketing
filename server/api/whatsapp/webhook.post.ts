@@ -2,7 +2,7 @@ import { cloudflareEnv, jsonResponse } from '~/server/utils/api-response'
 import { compareWhatsAppDeliveryStatus, sendWhatsAppText } from '~/server/utils/whatsapp'
 import { parseMetaMsisdn } from '~/utils/phone'
 import {
-  getChannelState, upsertChannelState, type JsonSerializable, } from '~/server/utils/chowbot-conversations'
+  getWhatsAppWorkspaceState, patchWhatsAppWorkspaceState, type JsonSerializable, } from '~/server/utils/mcp-context'
 import { execute, queryAll, queryFirst } from '~/server/db'
 import { ensureGuestThread, getGuestThreadById, updateThreadProjectionIfLatestEntry } from '~/server/domain/guest-threads/repository'
 import { getAdapter } from '~/server/domain/guest-threads/adapters/registry'
@@ -215,7 +215,7 @@ async function routeManagerWhatsAppMessage(
     message: WhatsAppMessage
     toPhone: string
     userId: string
-    existingState: Awaited<ReturnType<typeof getChannelState>>
+    existingState: Awaited<ReturnType<typeof getWhatsAppWorkspaceState>>
     messageId: string
   },
 ): Promise<void> {
@@ -225,9 +225,8 @@ async function routeManagerWhatsAppMessage(
   const hasQuotedContext = Boolean(contextId)
 
   const clearPending = () =>
-    upsertChannelState(db, {
+    patchWhatsAppWorkspaceState(db, {
       userId: opts.userId,
-      channel: 'whatsapp',
       pendingConfirmation: null,
       lastInboundId: opts.messageId,
     })
@@ -294,9 +293,8 @@ async function routeManagerWhatsAppMessage(
         if (!sendResult.success) {
           throw new Error(sendResult.error || 'Failed to send WhatsApp confirmation prompt')
         }
-        await upsertChannelState(db, {
+        await patchWhatsAppWorkspaceState(db, {
           userId: opts.userId,
-          channel: 'whatsapp',
           pendingConfirmation: newState,
           lastInboundId: opts.messageId,
         })
@@ -308,9 +306,8 @@ async function routeManagerWhatsAppMessage(
         if (!sendResult.success) {
           throw new Error(sendResult.error || 'Failed to send WhatsApp disambiguation prompt')
         }
-        await upsertChannelState(db, {
+        await patchWhatsAppWorkspaceState(db, {
           userId: opts.userId,
-          channel: 'whatsapp',
           pendingConfirmation: newState as unknown as JsonSerializable,
           lastInboundId: opts.messageId,
         })
@@ -322,9 +319,8 @@ async function routeManagerWhatsAppMessage(
         if (!sendResult.success) {
           throw new Error(sendResult.error || 'Failed to send WhatsApp routing prompt')
         }
-        await upsertChannelState(db, {
+        await patchWhatsAppWorkspaceState(db, {
           userId: opts.userId,
-          channel: 'whatsapp',
           pendingConfirmation: null,
           lastInboundId: opts.messageId,
         })
@@ -430,9 +426,8 @@ async function routeManagerWhatsAppMessage(
       }
       const sendResult = await sendWhatsAppText(env, opts.toPhone, buildCollectReplyPrompt(guestEmailMasked))
       if (!sendResult.success) throw new Error(sendResult.error || 'Failed to send WhatsApp reply prompt')
-      await upsertChannelState(db, {
+      await patchWhatsAppWorkspaceState(db, {
         userId: opts.userId,
-        channel: 'whatsapp',
         pendingConfirmation: newState,
         lastInboundId: opts.messageId,
       })
@@ -452,9 +447,8 @@ async function routeManagerWhatsAppMessage(
     }
     const sendResult = await sendWhatsAppText(env, opts.toPhone, buildConfirmSendPrompt(pendingState.guestEmailMasked))
     if (!sendResult.success) throw new Error(sendResult.error || 'Failed to send WhatsApp confirmation prompt')
-    await upsertChannelState(db, {
+    await patchWhatsAppWorkspaceState(db, {
       userId: opts.userId,
-      channel: 'whatsapp',
       pendingConfirmation: newState,
       lastInboundId: opts.messageId,
     })
@@ -485,9 +479,8 @@ async function routeManagerWhatsAppMessage(
         replyBody: rawText,
         guestEmailMasked,
       }
-      await upsertChannelState(db, {
+      await patchWhatsAppWorkspaceState(db, {
         userId: opts.userId,
-        channel: 'whatsapp',
         pendingConfirmation: newState,
         lastInboundId: opts.messageId,
       })
@@ -496,9 +489,8 @@ async function routeManagerWhatsAppMessage(
     }
     case 'start_disambiguation': {
       const newState: PendingWhatsAppReplyState = { kind: 'disambiguate', candidates: fresh.recentCandidates }
-      await upsertChannelState(db, {
+      await patchWhatsAppWorkspaceState(db, {
         userId: opts.userId,
-        channel: 'whatsapp',
         pendingConfirmation: newState as unknown as JsonSerializable,
         lastInboundId: opts.messageId,
       })
@@ -542,7 +534,6 @@ async function handleMessage(db: D1Database, env: ApiRecord, message: WhatsAppMe
             threadId: thread.id,
             kind: 'message',
             actorKind: 'guest',
-            channel: 'whatsapp',
             body: text,
             dedupeKey: `whatsapp:${message.id}`,
           })
@@ -583,7 +574,7 @@ async function handleMessage(db: D1Database, env: ApiRecord, message: WhatsAppMe
   // manager-routing tiers since those tiers also send replies and mutate channel state —
   // a webhook retry must not run them twice either.
   const messageId = message.id || message.message_id
-  const existingState = await getChannelState(db, user.id, 'whatsapp')
+  const existingState = await getWhatsAppWorkspaceState(db, user.id)
   if (existingState?.last_inbound_id === messageId) {
     console.log('[whatsapp] Skipping duplicate message:', messageId)
     return
