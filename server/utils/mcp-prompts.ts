@@ -14,13 +14,6 @@ export interface McpPromptDefinition {
 
 export const MCP_PROMPTS: McpPromptDefinition[] = [
   {
-    name: "onboard_new_site",
-    description: "Set up a brand-new KrabiClaw site end-to-end from a Google Maps listing.",
-    arguments: [
-      { name: "maps_url", description: "Google Maps URL or shortlink for the business.", required: true },
-    ],
-  },
-  {
     name: "set_up_products",
     description: "Build out Products from a free-text description of names, categories, and prices.",
     arguments: [
@@ -90,20 +83,6 @@ function requireArg(args: Record<string, string>, name: string): string {
 
 export function renderMcpPrompt(name: string, args: Record<string, string>): { description: string; text: string } {
   switch (name) {
-    case "onboard_new_site": {
-      const mapsUrl = requireArg(args, "maps_url");
-      return {
-        description: `Onboard a new site from ${mapsUrl}`,
-        text: [
-          `Call import_from_maps with maps_url "${mapsUrl}" to pull in the business details.`,
-          "Ask for the required missing context: what the main CTA button should say (e.g. \"Book Now\"), and whether they want to upload a hero image or have AI generate one — follow the existing image-work rules for whichever they choose.",
-          "Ask the optional questions too (short business story, logo upload), but let the user skip either.",
-          "Do not ask about Products, detailed services, or social links yet — those come later, after the site is live.",
-          "Once the required context is in hand, call create_site, then create_location, then call set_workspace_context so the new site becomes the active context for the rest of the conversation.",
-          "Say \"Working with [site name].\" once the site is confirmed.",
-        ].join(" "),
-      };
-    }
     case "set_up_products": {
       const itemsDescription = requireArg(args, "items_description");
       return {

@@ -4,7 +4,6 @@ import {
   setOrgWhatsAppPhone,
 } from "~/server/utils/whatsapp";
 import type { CloudflareEnv } from "~/server/utils/auth";
-import { updateLocation } from "~/server/utils/location-management";
 import { execute, queryAll, queryFirst, type DbClient } from "~/server/db";
 import { d1JsonStringSet } from '~/server/db/d1-limits'
 import { revokeReviewRequestForBooking } from "~/server/utils/review-requests";
@@ -365,49 +364,6 @@ export async function listWorkRequestsForOrganization(
 
 export function buildTenantPageReplacementConfirmationToken(expectedDocumentUpdatedAt: string, removedBlockIds: readonly string[]) {
   return `tenant-page-replacement:${expectedDocumentUpdatedAt}:${[...removedBlockIds].sort().join(',')}`
-}
-
-export async function hydrateSeededLocationForOnboarding(
-  env: CloudflareEnv,
-  db: D1Database,
-  organizationId: string,
-  siteId: string,
-  userId: string,
-  updates: Record<string, unknown>,
-) {
-  const locations = await queryAll<{ id: string; slug: string; notification_phone: string | null }>(db, `
-    SELECT id, slug, notification_phone
-    FROM business_locations
-    WHERE organization_id = ? AND site_id = ? AND status = 'active'
-    ORDER BY is_primary DESC, created_at ASC
-  `, [organizationId, siteId]);
-  if (locations.length !== 1) {
-    throw new Error(
-      "Location limit reached and no single seeded location was available to hydrate.",
-    );
-  }
-
-  const location = locations[0]!;
-
-  const result = await updateLocation(
-    db,
-    organizationId,
-    siteId,
-    location.id,
-    updates,
-    userId,
-    env,
-  );
-
-  if (result.status >= 400) {
-    return result;
-  }
-
-  return {
-    ...result.data,
-    hydrated_seed_location: true,
-    previous_slug: location.slug,
-  };
 }
 
 function safeJson(value: unknown) {

@@ -52,7 +52,7 @@ test('MCP annotation validation accepts only internally consistent hint combinat
     assert.equal(byName.get(name)?.destructiveHint, true, name)
   }
 
-  for (const name of ['create_location', 'update_location']) {
+  for (const name of ['update_location']) {
     const tool = MCP_PUBLIC_TOOLS.find(candidate => candidate.name === name)
     assert.ok(tool && 'city' in tool.inputSchema.properties, `${name} must accept the canonical city field`)
   }

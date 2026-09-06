@@ -109,7 +109,10 @@ export async function loadPublicShellSource(
   if (locale && locale !== 'en') {
     const entitlement = await assertPublicSiteLanguageEntitlement(db, site.organization_id, siteId, locale)
     if (entitlement.source) throw new HTTPError({ statusCode: 404, statusMessage: 'English source routes are unprefixed' })
-    payload.platformMessages = entitlement.platform_messages ?? {}
+    if (!entitlement.platform_messages) {
+      throw new HTTPError({ statusCode: 500, statusMessage: 'Published platform locale messages are unavailable' })
+    }
+    payload.platformMessages = entitlement.platform_messages
     const localizedRows = await queryAll<StoredPublicLocalizationRow>(db, `
       SELECT resource_type, resource_id, locale, values_json, route_path, document_id
        FROM resource_localizations

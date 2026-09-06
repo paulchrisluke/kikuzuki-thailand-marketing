@@ -125,7 +125,7 @@ export async function executeMcpToolCall(
     return renderStructuredResponse(
       { sites: page.items, currentUser, page_info: page.page_info },
       sites.length === 0
-        ? "Welcome to KrabiClaw. You have no sites yet — let's create one."
+        ? "You have no sites yet. Create your site and locations in the KrabiClaw CMS, then return here to manage their content."
         : `You have ${sites.length} site${sites.length > 1 ? "s" : ""}: ${sites.map((s: { name: unknown }) => s.name).join(", ")}.`,
     );
   }
@@ -330,30 +330,6 @@ export async function executeMcpToolCall(
       },
       `${images.length} AI-generated image${images.length !== 1 ? "s" : ""} ready to review.`,
     );
-  }
-
-  if (toolName === "create_site") {
-    const user = authenticatedUser ?? await requireMcpUser(event);
-    const result = await runSiteCreation(user.env, user.db, user.userId, {
-      name: requiredString(normalizedArguments, "name"),
-      subdomain: requiredString(normalizedArguments, "subdomain"),
-      vertical: requiredString(normalizedArguments, "vertical") as SiteVertical,
-    });
-    assertDomainSuccess(result);
-    const normalized = normalizeSiteCreationData(result.data);
-    const createdSite = await resolveMcpWorkspace(
-      user.db,
-      user.env,
-      user.userId,
-      { siteId: normalized.siteId, requireSite: true },
-    );
-    await upsertMcpWorkspacePreference(user.db, {
-      userId: user.userId,
-      organizationId: createdSite.site?.organization_id ?? null,
-      siteId: createdSite.site?.id ?? normalized.siteId,
-      locationId: createdSite.location?.id ?? null,
-    });
-    return normalized;
   }
 
   const siteId = requiredString(normalizedArguments, "site_id");

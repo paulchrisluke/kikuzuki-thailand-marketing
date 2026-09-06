@@ -106,3 +106,14 @@ not rerun it after a dependency change, use:
 ```sh
 corepack yarn patch-package --error-on-fail
 ```
+
+## Isolated MCP verification
+
+Set `PLAYWRIGHT_PORT` to an unused local port when another checkout is running,
+for example `PLAYWRIGHT_PORT=3107 corepack yarn playwright test tests/e2e/mcp-owner-tools.spec.ts --workers=1`.
+The standard local Worker preparation and worktree-local D1 storage remain in use.
+
+The diagnostic `test:mcp:edit` script requires `--site-id`. The `test:mcp:image`
+and `test:mcp:ops` scripts require both `--site-id` and `--location-id` for
+explicit disposable fixtures provisioned through the approved setup/CMS path;
+they no longer create business sites or locations through MCP.

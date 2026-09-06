@@ -19,7 +19,7 @@
             :to="localePath(productPresentation!.collectionPath)"
             class="rounded-full px-3 py-2 text-sm text-muted transition hover:bg-muted hover:text-default"
           >
-            {{ productPresentation!.collectionLabel }}
+            {{ productCollectionLabel }}
           </NuxtLink>
 
           <NuxtLink
@@ -69,7 +69,7 @@
             <div class="absolute inset-x-0 top-16 border-b border-default bg-default p-4 shadow-sm lg:hidden">
               <nav class="grid gap-1" :aria-label="t('saya.header.mobile_nav_aria')">
                 <NuxtLink v-if="showProducts" :to="localePath(productPresentation!.collectionPath)" class="rounded-full px-4 py-3 text-sm font-semibold text-default hover:bg-muted" @click="closeMobileNav">
-                  {{ productPresentation!.collectionLabel }}
+                  {{ productCollectionLabel }}
                 </NuxtLink>
                 <NuxtLink v-if="locations.length > 1" :to="localePath('/locations')" class="rounded-full px-4 py-3 text-sm text-default hover:bg-muted" @click="closeMobileNav">
                   {{ t('saya.header.locations') }}
@@ -171,6 +171,9 @@ const isExperienceSite = computed(() => props.site?.vertical === 'experience')
 
 const productPresentation = computed(() => resolveProductPresentation(props.site?.vertical))
 const showProducts = computed(() => props.hasProducts && productPresentation.value !== null)
+const productCollectionLabel = computed(() => productPresentation.value?.locationCollectionSegment === 'menu'
+  ? t('saya.header.menu')
+  : t('saya.footer.products'))
 const hasOrderLinks = computed(() =>
   props.locations.some((loc: ApiRecord) => loc.grab_url || loc.uber_eats_url || loc.foodpanda_url)
 )

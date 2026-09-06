@@ -72,7 +72,7 @@
         <div>
           <h4 class="saya-eyebrow mb-5 text-inverted/50">{{ t('saya.footer.heading_experience') }}</h4>
           <ul class="space-y-3 text-sm">
-            <li v-if="showProducts"><NuxtLink :to="localePath(productPresentation!.collectionPath)" class="text-inverted/60 no-underline transition hover:text-inverted">{{ productPresentation!.collectionLabel }}</NuxtLink></li>
+            <li v-if="showProducts"><NuxtLink :to="localePath(productPresentation!.collectionPath)" class="text-inverted/60 no-underline transition hover:text-inverted">{{ productCollectionLabel }}</NuxtLink></li>
             <li v-if="hasExperiences"><NuxtLink :to="localePath('/experiences')" class="text-inverted/60 no-underline transition hover:text-inverted">{{ t('saya.footer.experiences') }}</NuxtLink></li>
             <li v-if="!isExperienceSite"><NuxtLink :to="localePath('/reservations')" class="text-inverted/60 no-underline transition hover:text-inverted">{{ copy.reservationPageKicker }}</NuxtLink></li>
             <li v-if="!isExperienceSite"><NuxtLink :to="localePath('/photos')" class="text-inverted/60 no-underline transition hover:text-inverted">{{ t('saya.footer.gallery') }}</NuxtLink></li>
@@ -189,10 +189,13 @@ interface PublicLocation {
     locality?: string
     administrativeArea?: string
   } | string | null
+  address_translated?: string | null
   city?: string | null
   phone?: string | null
   email?: string | null
   googleBusinessHours?: ApiValue
+  opening_hours?: ApiValue
+  opening_hours_translated?: string[] | null
   special_hours?: ApiValue
   timezone?: string | null
   is_primary?: boolean
@@ -249,6 +252,9 @@ const locationsError = computed(() => props.error)
 
 const productPresentation = computed(() => resolveProductPresentation(props.site?.vertical))
 const showProducts = computed(() => props.hasProducts && productPresentation.value !== null)
+const productCollectionLabel = computed(() => productPresentation.value?.locationCollectionSegment === 'menu'
+  ? t('saya.footer.menu')
+  : t('saya.footer.products'))
 const year = new Date().getFullYear()
 const logoUrl = computed(() => Array.isArray(props.site?.media)
   ? (props.site.media as ApiRecord[]).find(item => item.slot === 'logo')?.public_url || null
@@ -306,12 +312,17 @@ const locations = computed(() =>
     const closure = getActiveSpecialClosure(loc.special_hours, loc.timezone)
     return {
       ...loc,
-      hoursToday: closure ? t('saya.footer.temporarily_closed') : (loc.googleBusinessHours ? getTodayGoogleHours(loc.googleBusinessHours) : null)
+      hoursToday: closure
+        ? t('saya.footer.temporarily_closed')
+        : locale.value === 'en'
+          ? getTodayGoogleHours(loc.opening_hours)
+          : localizedHoursToday(loc),
     }
   })
 )
 
 function formatLocAddress(loc: PublicLocation) {
+  if (locale.value !== 'en') return typeof loc.address_translated === 'string' ? loc.address_translated.trim() : ''
   if (!loc.address) return ''
   let addr: PublicLocation['address'] = loc.address
   if (typeof addr === 'string') {
@@ -326,5 +337,17 @@ function formatLocAddress(loc: PublicLocation) {
   const normalizedAddr = typeof addr === 'object' && addr !== null ? addr : null
   const line1 = Array.isArray(normalizedAddr?.addressLines) ? normalizedAddr?.addressLines?.[0] : ''
   return [line1, normalizedAddr?.locality, normalizedAddr?.administrativeArea].filter(Boolean).join(', ')
+}
+
+function localizedHoursToday(loc: PublicLocation): string | null {
+  if (!Array.isArray(loc.opening_hours_translated)) return null
+  const weekday = new Intl.DateTimeFormat('en-US', {
+    weekday: 'long',
+    timeZone: typeof loc.timezone === 'string' ? loc.timezone : undefined,
+  }).format(new Date()).toUpperCase()
+  const index = ['MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY', 'SUNDAY'].indexOf(weekday)
+  if (index < 0) return null
+  const value = loc.opening_hours_translated[index]
+  return typeof value === 'string' ? value : null
 }
 </script>

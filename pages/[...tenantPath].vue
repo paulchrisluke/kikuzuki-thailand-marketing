@@ -97,6 +97,11 @@ if (localizedRoute.value) {
   useState<string>('public-locale', () => 'en').value = localizedRoute.value.locale
   useState<Record<string, string> | null>('platform-locale-messages', () => null).value = localizedRoute.value.platform_messages
   useState<LocalizedPublicRoute['locale_representations']>('public-locale-representations', () => []).value = localizedRoute.value.locale_representations
+  const { $setAppLocale } = useNuxtApp() as {
+    $setAppLocale?: (locale: string, messages: Record<string, string> | null) => void
+  }
+  if (!$setAppLocale) throw new Error('Application locale setter is unavailable')
+  $setAppLocale(localizedRoute.value.locale, localizedRoute.value.platform_messages)
   useHead({
     htmlAttrs: { lang: localizedRoute.value.locale },
     link: [{ rel: 'alternate', hreflang: localizedRoute.value.locale, href: localizedRoute.value.route_path }],

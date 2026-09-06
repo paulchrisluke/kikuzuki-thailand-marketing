@@ -749,7 +749,13 @@ async function loadPublicPageSource(
         localizations: localizedLocale ? publicLocalizations : null,
       })
     : null
-  if (contentPagePath && !tenantPage && locale && locale !== sourceLocale && !isPreviewAuthorized) {
+  // These complete built-in routes may display an optional CMS content overlay.
+  // The route remains valid when that optional overlay has no translated page.
+  const allowsMissingLocalizedTenantPage = page === 'contact'
+    || page === 'reservations'
+    || page === 'experiences'
+    || page === 'order'
+  if (contentPagePath && !tenantPage && locale && locale !== sourceLocale && !isPreviewAuthorized && !allowsMissingLocalizedTenantPage) {
     throw new HTTPError({ statusCode: 404, statusMessage: 'Localized page was not found' })
   }
   const contentRows: SiteContent[] = tenantPage ? tenantPageToContentRows(tenantPage) : []
@@ -783,14 +789,24 @@ async function loadPublicPageSource(
       }
     })
     if (localizedLocale) {
+      const categoryLocalizations = new Map(
+        publicLocalizations
+          .filter(item => item.resourceType === 'product_category')
+          .map(item => [item.resourceId, item]),
+      )
       products = projectExactLocalizedCollection('product', products, publicLocalizations)
-        .map(product => ({
-          ...product,
-          image: product.image
-            ? projectLocalizedMediaAlt([product.image], publicLocalizations)[0] ?? null
-            : null,
-          gallery: projectLocalizedMediaAlt(product.gallery, publicLocalizations),
-        }))
+        .flatMap(product => {
+          const categoryLocalization = categoryLocalizations.get(product.category.id)
+          if (!categoryLocalization) return []
+          return [{
+            ...product,
+            category: projectExactLocalizedResource('product_category', product.category, categoryLocalization),
+            image: product.image
+              ? projectLocalizedMediaAlt([product.image], publicLocalizations)[0] ?? null
+              : null,
+            gallery: projectLocalizedMediaAlt(product.gallery, publicLocalizations),
+          }]
+        })
     }
   }
 
@@ -1061,7 +1077,11 @@ async function loadPublicPageSource(
     ? projectExactLocalizedCollection('location_qa', sourceQaList, publicLocalizations)
     : sourceQaList
 
-  const sourceLabel = shell.locales.find(item => item.code === 'en')?.label ?? 'English'
+  const sourceLocaleRepresentation = shell.locales.find(item => item.code === 'en')
+  if (!sourceLocaleRepresentation?.label) {
+    throw new HTTPError({ statusCode: 500, statusMessage: 'Site source locale label is missing' })
+  }
+  const sourceLabel = sourceLocaleRepresentation.label
   const sourceLocationRow = locationId
     ? (locRows.results ?? []).find(row => row.id === locationId)
     : null
@@ -1080,15 +1100,16 @@ async function loadPublicPageSource(
     representationSourcePath = `/locations/${sourceLocationSlug}${routeSuffix}`
     representationResource = { type: 'business_location', id: locationId, routeSuffix }
   }
-  const localeRepresentations = await listPublicLocaleRepresentations(db, {
-    organizationId: orgId,
-    siteId,
-    sourcePath: representationSourcePath,
-    sourceLabel,
-    resource: representationResource,
-    pageId: representationResource ? undefined : tenantPage?.page_id,
-    publishedLocaleRoute: !representationResource && !tenantPage && Boolean(routePagePath),
-  })
+  const localeRepresentations = !representationResource && tenantPage?.localeRepresentations
+    ? tenantPage.localeRepresentations
+    : await listPublicLocaleRepresentations(db, {
+        organizationId: orgId,
+        siteId,
+        sourcePath: representationSourcePath,
+        sourceLabel,
+        resource: representationResource,
+        publishedLocaleRoute: !representationResource && Boolean(routePagePath),
+      })
   const pagePayload = {
     kind: page ?? 'home',
     success: true,

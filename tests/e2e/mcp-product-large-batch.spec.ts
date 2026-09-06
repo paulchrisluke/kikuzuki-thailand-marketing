@@ -1,18 +1,13 @@
 import { expect, test } from '@playwright/test'
 import { loginAs } from './helpers/auth'
-import { ensureSite, mcpData, mcpRequest } from './helpers/mcp'
+import { ensureLocation, ensureSite, mcpData, mcpRequest } from './helpers/mcp'
 import { MCP_GROWTH_USER_ID } from './helpers/plan-fixtures'
 
 test('Product batches validate and commit atomically at the supported limit', async ({ request, baseURL }) => {
   test.setTimeout(120_000)
   await loginAs(request, baseURL!, MCP_GROWTH_USER_ID)
   const siteId = await ensureSite(request, baseURL!)
-  const locationResponse = await mcpRequest(request, baseURL!, {
-    method: 'tools/call',
-    toolName: 'create_location',
-    args: { site_id: siteId, title: `Product Batch ${Date.now()}` },
-  })
-  const locationId = mcpData<{ id: string }>(await locationResponse.json()).id
+  const locationId = await ensureLocation(request, baseURL!, siteId)
 
   const categoryIds: string[] = []
   for (const name of ['First', 'Second']) {

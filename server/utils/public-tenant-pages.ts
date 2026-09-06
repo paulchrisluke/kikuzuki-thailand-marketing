@@ -14,6 +14,8 @@ import {
   projectLocalizedMediaAlt,
   type ExactPublicLocalization,
 } from '~/server/utils/public-localization'
+import { listPublicLocaleRepresentations } from '~/server/utils/public-locale-representations'
+import type { PublicLocaleRepresentation } from '~/utils/public-resource-contracts'
 
 export interface PublicTenantPage {
   id: string
@@ -31,6 +33,7 @@ export interface PublicTenantPage {
   blocks: TenantPageBlock[]
   media: MediaPlacementItem[]
   social_image: SocialImageSource | null
+  localeRepresentations?: PublicLocaleRepresentation[]
   updated_at: string
 }
 
@@ -242,7 +245,12 @@ async function hydrateBlocks(
   })
 }
 
-function mapPage(page: TenantPageDto, blocks: TenantPageBlock[], socialMedia: { media: MediaPlacementItem[]; social_image: SocialImageSource | null }): PublicTenantPage {
+function mapPage(
+  page: TenantPageDto,
+  blocks: TenantPageBlock[],
+  socialMedia: { media: MediaPlacementItem[]; social_image: SocialImageSource | null },
+  localeRepresentations: PublicLocaleRepresentation[],
+): PublicTenantPage {
   return {
     id: page.id,
     page_id: page.page_id,
@@ -258,6 +266,7 @@ function mapPage(page: TenantPageDto, blocks: TenantPageBlock[], socialMedia: { 
     locale: page.locale,
     blocks,
     ...socialMedia,
+    localeRepresentations,
     updated_at: page.updated_at,
   }
 }
@@ -280,9 +289,14 @@ export async function getPublicTenantPageForPath(
   const localizations = page.locale === 'en'
     ? null
     : options.localizations ?? await loadExactPublicLocalizations(db, page.organization_id, siteId, page.locale)
-  const [blocks, media] = await Promise.all([
+  const [blocks, media, sourceLocale] = await Promise.all([
     hydrateBlocks(db, siteId, page.path, page.blocks, options.hydrationResources, localizations),
     loadPublicSocialMedia(db, siteId, 'tenant_page', [page.id]),
+    queryFirst<{ label: string | null }>(db, `
+      SELECT label FROM site_locales
+       WHERE organization_id = ? AND site_id = ? AND is_source = 1
+       LIMIT 1
+    `, [page.organization_id, siteId]),
   ])
   const localizedMedia = page.locale === 'en'
     ? media.get(page.id) ?? { media: [], social_image: null }
@@ -298,7 +312,17 @@ export async function getPublicTenantPageForPath(
       )
     }
   }
-  return mapPage(page, blocks, localizedMedia)
+  if (!sourceLocale?.label) {
+    throw new HTTPError({ statusCode: 500, statusMessage: 'Site source locale label is missing' })
+  }
+  const localeRepresentations = await listPublicLocaleRepresentations(db, {
+    organizationId: page.organization_id,
+    siteId,
+    sourcePath: page.path,
+    sourceLabel: sourceLocale.label,
+    pageId: page.page_id,
+  })
+  return mapPage(page, blocks, localizedMedia, localeRepresentations)
 }
 
 async function resolveVariantId(db: DbClient, siteId: string, path: string, locale?: string | null): Promise<string> {

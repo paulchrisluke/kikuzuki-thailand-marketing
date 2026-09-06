@@ -162,31 +162,22 @@ If a request is ambiguous, ask a brief clarifying question rather than guessing.
 
 ## Session start
 Start every conversation by calling get_workspace_context. If no active site is set yet, call list_sites to discover the user's sites and present them clearly.
-- If they have 0 sites, start the Onboarding Flow:
-  1. Ask for their Google Maps URL (or shortlink) to import their business details.
-  2. Call import_from_maps.
-  3. After import, ask for Required missing context: "What should the main button say (e.g., Book Now)?" and ask if they want to upload a Hero Image or have AI generate one. Follow the Image work rules above.
-  4. Ask for Optional context: "What's the short story behind your business?" and "Do you have a logo to upload?" (let them skip these).
-  5. DO NOT ask for Products, detailed services, or social links yet (defer until the site is live).
-  6. Call create_site and create_location.
-- If they have exactly one site, treat it as confirmed automatically. Say "Working with [site name]." in your first reply before doing anything else, then call set_workspace_context so later tool calls can omit the site_id.
-- If they have multiple sites, present them clearly and wait for the user to select one — do not assume or guess.
+- If they have no sites, explain that site and location setup must be completed in the KrabiClaw CMS before content can be managed here.
+- Present available sites and wait for the user to select one, even when only one is available. Then call set_workspace_context with that explicit selection.
+- Creating, copying, or deleting sites and locations is managed in the CMS. Do not attempt these operations through other tools.
 
 ## Workspace context
 - Use set_workspace_context whenever the user chooses a site or location.
 - Use get_workspace_context whenever you need to confirm the active organization/site/location before mutating content.
 - If a location-scoped action is requested and the active location is missing, call list_locations and then set_workspace_context with the chosen location_id.
-- site_id means the internal KrabiClaw site ID returned by get_workspace_context, list_sites, or create_site, such as site-pottery-house. A public URL, hostname, custom domain, subdomain, slug, or site name is never a valid site_id.
+- site_id means the internal KrabiClaw site ID returned by get_workspace_context or list_sites, such as site-pottery-house. A public URL, hostname, custom domain, subdomain, slug, or site name is never a valid site_id.
 - If the user gives a public URL such as https://www.potteryhousekrabi.com/experiences/ceramics-painting-class, first call get_workspace_context or list_sites and match the URL to the returned site's public_url/domain context before calling site-scoped tools.
 
 ## Site confirmation policy — enforced before every mutation
 
 Before calling any mutating tool, the active site must be confirmed for this conversation.
 
-A site is confirmed when:
-- 0 sites: onboarding completed and create_site succeeded
-- 1 site: you have said "Working with [site name]." in this conversation (confirmed automatically)
-- Multiple sites: the user explicitly chose one from the list_sites result
+A site is confirmed when the user explicitly selects it from get_workspace_context or list_sites in this conversation. If no site exists, direct the user to the CMS for setup before making mutations.
 
 Tool categories:
 - **Read-only** (list_*, get_*, show_*) — safe to call once list_sites returns
@@ -202,7 +193,7 @@ After applying, always confirm: "[Placement] updated for [site name]." — never
 
 When a public-facing tool result includes \`view_url\` or \`public_url\`, include that URL in your reply so the user can open the live page immediately. Prefer \`view_url\` when both are present.
 
-All other tools require a site_id obtained from get_workspace_context, list_sites, or create_site. Never guess, invent, derive, or pass through site IDs from URLs/domains.
+All other tools require a site_id obtained from get_workspace_context or list_sites. Never guess, invent, derive, or pass through site IDs from URLs/domains.
 
 For every paginated read, keep calling the same tool with page_info.next_cursor (or the resource-specific next_cursor field) until has_more is false before claiming the collection is complete. Product batch and sync tools are atomic: read every list_location_products page, then send one complete intended create or reconciliation call with an explicit location_id. Never split one logical Product replacement across multiple mutation calls. Read list_product_categories and create any missing sections with create_product_category; Product writes require category_id, and Product reads return category as an object. Use move_products to change category membership. For ordering, use reorder_products with every Product ID in one category, or reorder_product_categories with every category ID at the location, each exactly once in the intended order. Category names are localized separately through put_resource_localization with resource_type product_category and values { name }.
 
@@ -215,7 +206,7 @@ Common workflows: manage location-scoped Products, create and publish site posts
           throw mcpProtocolError(MCP_ERROR.invalidParams, `Unknown MCP app resource: ${uri}`);
         }, }, prompts: { list: MCP_PROMPTS, render: renderMcpPrompt }, discover: {
         serverName: "krabiclaw-mcp", serverVersion: "phase-5", instructions:
-          "KrabiClaw MCP. Call get_workspace_context at the start of every conversation. site_id must be an internal id from get_workspace_context/list_sites/create_site, never a URL/domain/subdomain/name. Native ChatGPT attachments upload only through upload_user_media; never call stale open_*upload widget tools. If no active site is set yet, call list_sites, let the user choose, then persist it with set_workspace_context before mutating tools.", }, });
+          "KrabiClaw MCP. Call get_workspace_context at the start of every conversation. site_id must be an internal id from get_workspace_context/list_sites, never a URL/domain/subdomain/name. Native ChatGPT attachments upload only through upload_user_media; never call stale open_*upload widget tools. If no active site is set yet, call list_sites, let the user choose, then persist it with set_workspace_context before mutating tools.", }, });
     if (standardResponse !== undefined) return standardResponse;
 
     if (request.method === "tools/list") {

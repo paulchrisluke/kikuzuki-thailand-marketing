@@ -284,6 +284,7 @@ interface ContactLocation {
     locality?: string
     administrativeArea?: string
   } | null
+  address_translated?: string | null
   city?: string | null
 }
 
@@ -300,6 +301,7 @@ interface TenantFieldError {
 }
 
 function formatLocAddress(loc: ContactLocation) {
+  if (locale.value !== 'en') return typeof loc.address_translated === 'string' ? loc.address_translated.trim() : ''
   if (!loc.address) return loc.city || ''
   if (typeof loc.address === 'string') return loc.address
   const a = loc.address

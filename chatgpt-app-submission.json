@@ -4,7 +4,7 @@
   "app_info": {
     "display_name": "KrabiClaw",
     "subtitle": "Manage your business website",
-    "description": "KrabiClaw helps business owners create and manage websites, locations, products, experiences, posts, media, localizations, and customer inquiries through ChatGPT.",
+    "description": "Manage your KrabiClaw business website from ChatGPT. Choose a site and location, edit products and experiences, publish announcements and blog articles, update page content and translations, and upload or assign media. Review customer inquiries and experience bookings from your connected workspace. Publishing and content changes can appear on your public website. Some imports and document analysis use AI credits. A KrabiClaw account with access to the selected business is required. Site and location setup and deletion are managed in the KrabiClaw CMS.",
     "category": "BUSINESS"
   },
   "tools": {
@@ -15,9 +15,9 @@
         "destructiveHint": false
       },
       "justifications": {
-        "read_only_justification": "Analyzes an attachment, consumes AI credits, and records usage in the tenant workspace.",
-        "open_world_justification": "Sends the attached document to the configured AI service for analysis.",
-        "destructive_justification": "Does not delete, replace, revoke, or irreversibly overwrite existing state."
+        "read_only_justification": "Analyzes an uploaded document through Anthropic via Cloudflare AI Gateway and charges tenant AI credits. This changes persisted state or consumes credits.",
+        "open_world_justification": "Document contents and the question are sent to Anthropic through Cloudflare AI Gateway.",
+        "destructive_justification": "Analyzes an uploaded document through Anthropic via Cloudflare AI Gateway and charges tenant AI credits. Existing content is not deleted or overwritten."
       }
     },
     "attach_media": {
@@ -27,9 +27,9 @@
         "destructiveHint": false
       },
       "justifications": {
-        "read_only_justification": "Creates or changes data in the authenticated tenant workspace.",
-        "open_world_justification": "Can change tenant content that is visible on a public website or an external service.",
-        "destructive_justification": "Does not delete, replace, revoke, or irreversibly overwrite existing state."
+        "read_only_justification": "Adds an existing asset to a public content collection without replacing its existing placements. This changes persisted state or consumes credits.",
+        "open_world_justification": "Adds an existing asset to a public content collection without replacing its existing placements. Its effects can change content or behavior on the public website.",
+        "destructive_justification": "Adds an existing asset to a public content collection without replacing its existing placements. Existing content is not deleted or overwritten."
       }
     },
     "batch_create_products": {
@@ -39,9 +39,9 @@
         "destructiveHint": false
       },
       "justifications": {
-        "read_only_justification": "Creates or changes data in the authenticated tenant workspace.",
-        "open_world_justification": "Can change tenant content that is visible on a public website or an external service.",
-        "destructive_justification": "Does not delete, replace, revoke, or irreversibly overwrite existing state."
+        "read_only_justification": "Creates new products in the selected location and records product events. This changes persisted state or consumes credits.",
+        "open_world_justification": "Creates new products in the selected location and records product events. Its effects can change content or behavior on the public website.",
+        "destructive_justification": "Creates new products in the selected location and records product events. Existing content is not deleted or overwritten."
       }
     },
     "change_tenant_page_path": {
@@ -51,21 +51,9 @@
         "destructiveHint": true
       },
       "justifications": {
-        "read_only_justification": "Creates or changes data in the authenticated tenant workspace.",
-        "open_world_justification": "Can change tenant content that is visible on a public website or an external service.",
-        "destructive_justification": "Can delete, replace, reorder, publish, or overwrite existing state that is not restored automatically."
-      }
-    },
-    "copy_location_batch": {
-      "annotations": {
-        "readOnlyHint": false,
-        "openWorldHint": true,
-        "destructiveHint": true
-      },
-      "justifications": {
-        "read_only_justification": "Creates or changes data in the authenticated tenant workspace.",
-        "open_world_justification": "Can change tenant content that is visible on a public website or an external service.",
-        "destructive_justification": "Can delete, replace, reorder, publish, or overwrite existing state that is not restored automatically."
+        "read_only_justification": "Changes a tenant page URL and its routing records. This changes persisted state or consumes credits.",
+        "open_world_justification": "Changes a tenant page URL and its routing records. Its effects can change content or behavior on the public website.",
+        "destructive_justification": "Changes a tenant page URL and its routing records. Existing state is deleted, replaced or overwritten rather than only appended."
       }
     },
     "create_blog_post": {
@@ -75,9 +63,9 @@
         "destructiveHint": false
       },
       "justifications": {
-        "read_only_justification": "Creates or changes data in the authenticated tenant workspace.",
-        "open_world_justification": "Can change tenant content that is visible on a public website or an external service.",
-        "destructive_justification": "Does not delete, replace, revoke, or irreversibly overwrite existing state."
+        "read_only_justification": "Creates a tenant blog article and its content document, with publication governed by its supplied status and schedule. This changes persisted state or consumes credits.",
+        "open_world_justification": "Creates a tenant blog article and its content document, with publication governed by its supplied status and schedule. Its effects can change content or behavior on the public website.",
+        "destructive_justification": "Creates a tenant blog article and its content document, with publication governed by its supplied status and schedule. Existing content is not deleted or overwritten."
       }
     },
     "create_experience": {
@@ -87,21 +75,9 @@
         "destructiveHint": false
       },
       "justifications": {
-        "read_only_justification": "Creates or changes data in the authenticated tenant workspace.",
-        "open_world_justification": "Can change tenant content that is visible on a public website or an external service.",
-        "destructive_justification": "Does not delete, replace, revoke, or irreversibly overwrite existing state."
-      }
-    },
-    "create_location": {
-      "annotations": {
-        "readOnlyHint": false,
-        "openWorldHint": true,
-        "destructiveHint": false
-      },
-      "justifications": {
-        "read_only_justification": "Creates or changes data in the authenticated tenant workspace.",
-        "open_world_justification": "Can change tenant content that is visible on a public website or an external service.",
-        "destructive_justification": "Does not delete, replace, revoke, or irreversibly overwrite existing state."
+        "read_only_justification": "Creates a bookable experience with pricing and scheduling at the selected location. This changes persisted state or consumes credits.",
+        "open_world_justification": "Creates a bookable experience with pricing and scheduling at the selected location. Its effects can change content or behavior on the public website.",
+        "destructive_justification": "Creates a bookable experience with pricing and scheduling at the selected location. Existing content is not deleted or overwritten."
       }
     },
     "create_location_qa": {
@@ -111,9 +87,9 @@
         "destructiveHint": false
       },
       "justifications": {
-        "read_only_justification": "Creates or changes data in the authenticated tenant workspace.",
-        "open_world_justification": "Can change tenant content that is visible on a public website or an external service.",
-        "destructive_justification": "Does not delete, replace, revoke, or irreversibly overwrite existing state."
+        "read_only_justification": "Adds a public question and answer to the selected location. This changes persisted state or consumes credits.",
+        "open_world_justification": "Adds a public question and answer to the selected location. Its effects can change content or behavior on the public website.",
+        "destructive_justification": "Adds a public question and answer to the selected location. Existing content is not deleted or overwritten."
       }
     },
     "create_owner_entered_site_review": {
@@ -123,9 +99,9 @@
         "destructiveHint": false
       },
       "justifications": {
-        "read_only_justification": "Creates or changes data in the authenticated tenant workspace.",
-        "open_world_justification": "Can change tenant content that is visible on a public website or an external service.",
-        "destructive_justification": "Does not delete, replace, revoke, or irreversibly overwrite existing state."
+        "read_only_justification": "Creates an owner-entered review with source and attribution provenance for the selected site. This changes persisted state or consumes credits.",
+        "open_world_justification": "Creates an owner-entered review with source and attribution provenance for the selected site. Its effects can change content or behavior on the public website.",
+        "destructive_justification": "Creates an owner-entered review with source and attribution provenance for the selected site. Existing content is not deleted or overwritten."
       }
     },
     "create_post": {
@@ -135,9 +111,9 @@
         "destructiveHint": false
       },
       "justifications": {
-        "read_only_justification": "Creates or changes data in the authenticated tenant workspace.",
-        "open_world_justification": "Can change tenant content that is visible on a public website or an external service.",
-        "destructive_justification": "Does not delete, replace, revoke, or irreversibly overwrite existing state."
+        "read_only_justification": "Creates a website announcement, publishing immediately unless scheduled for later. This changes persisted state or consumes credits.",
+        "open_world_justification": "Creates a website announcement, publishing immediately unless scheduled for later. Its effects can change content or behavior on the public website.",
+        "destructive_justification": "Creates a website announcement, publishing immediately unless scheduled for later. Existing content is not deleted or overwritten."
       }
     },
     "create_product": {
@@ -147,9 +123,9 @@
         "destructiveHint": false
       },
       "justifications": {
-        "read_only_justification": "Creates or changes data in the authenticated tenant workspace.",
-        "open_world_justification": "Can change tenant content that is visible on a public website or an external service.",
-        "destructive_justification": "Does not delete, replace, revoke, or irreversibly overwrite existing state."
+        "read_only_justification": "Creates a product with explicit price semantics in the selected location and category. This changes persisted state or consumes credits.",
+        "open_world_justification": "Creates a product with explicit price semantics in the selected location and category. Its effects can change content or behavior on the public website.",
+        "destructive_justification": "Creates a product with explicit price semantics in the selected location and category. Existing content is not deleted or overwritten."
       }
     },
     "create_product_category": {
@@ -159,21 +135,9 @@
         "destructiveHint": false
       },
       "justifications": {
-        "read_only_justification": "Creates or changes data in the authenticated tenant workspace.",
-        "open_world_justification": "Can change tenant content that is visible on a public website or an external service.",
-        "destructive_justification": "Does not delete, replace, revoke, or irreversibly overwrite existing state."
-      }
-    },
-    "create_site": {
-      "annotations": {
-        "readOnlyHint": false,
-        "openWorldHint": true,
-        "destructiveHint": false
-      },
-      "justifications": {
-        "read_only_justification": "Creates or changes data in the authenticated tenant workspace.",
-        "open_world_justification": "Can change tenant content that is visible on a public website or an external service.",
-        "destructive_justification": "Does not delete, replace, revoke, or irreversibly overwrite existing state."
+        "read_only_justification": "Adds a product category to the selected location. This changes persisted state or consumes credits.",
+        "open_world_justification": "Adds a product category to the selected location. Its effects can change content or behavior on the public website.",
+        "destructive_justification": "Adds a product category to the selected location. Existing content is not deleted or overwritten."
       }
     },
     "create_site_qa": {
@@ -183,9 +147,9 @@
         "destructiveHint": false
       },
       "justifications": {
-        "read_only_justification": "Creates or changes data in the authenticated tenant workspace.",
-        "open_world_justification": "Can change tenant content that is visible on a public website or an external service.",
-        "destructive_justification": "Does not delete, replace, revoke, or irreversibly overwrite existing state."
+        "read_only_justification": "Adds a public question and answer to the selected site. This changes persisted state or consumes credits.",
+        "open_world_justification": "Adds a public question and answer to the selected site. Its effects can change content or behavior on the public website.",
+        "destructive_justification": "Adds a public question and answer to the selected site. Existing content is not deleted or overwritten."
       }
     },
     "create_tenant_page": {
@@ -195,9 +159,9 @@
         "destructiveHint": false
       },
       "justifications": {
-        "read_only_justification": "Creates or changes data in the authenticated tenant workspace.",
-        "open_world_justification": "Can change tenant content that is visible on a public website or an external service.",
-        "destructive_justification": "Does not delete, replace, revoke, or irreversibly overwrite existing state."
+        "read_only_justification": "Creates a tenant page and its structured content document. This changes persisted state or consumes credits.",
+        "open_world_justification": "Creates a tenant page and its structured content document. Its effects can change content or behavior on the public website.",
+        "destructive_justification": "Creates a tenant page and its structured content document. Existing content is not deleted or overwritten."
       }
     },
     "delete_blog_post": {
@@ -207,9 +171,9 @@
         "destructiveHint": true
       },
       "justifications": {
-        "read_only_justification": "Creates or changes data in the authenticated tenant workspace.",
-        "open_world_justification": "Can change tenant content that is visible on a public website or an external service.",
-        "destructive_justification": "Can delete, replace, reorder, publish, or overwrite existing state that is not restored automatically."
+        "read_only_justification": "Deletes the selected tenant blog article and its associated content. This changes persisted state or consumes credits.",
+        "open_world_justification": "Deletes the selected tenant blog article and its associated content. Its effects can change content or behavior on the public website.",
+        "destructive_justification": "Deletes the selected tenant blog article and its associated content. Existing state is deleted, replaced or overwritten rather than only appended."
       }
     },
     "delete_experience": {
@@ -219,21 +183,9 @@
         "destructiveHint": true
       },
       "justifications": {
-        "read_only_justification": "Creates or changes data in the authenticated tenant workspace.",
-        "open_world_justification": "Can change tenant content that is visible on a public website or an external service.",
-        "destructive_justification": "Can delete, replace, reorder, publish, or overwrite existing state that is not restored automatically."
-      }
-    },
-    "delete_location": {
-      "annotations": {
-        "readOnlyHint": false,
-        "openWorldHint": true,
-        "destructiveHint": true
-      },
-      "justifications": {
-        "read_only_justification": "Creates or changes data in the authenticated tenant workspace.",
-        "open_world_justification": "Can change tenant content that is visible on a public website or an external service.",
-        "destructive_justification": "Can delete, replace, reorder, publish, or overwrite existing state that is not restored automatically."
+        "read_only_justification": "Deletes the selected experience and associated booking guest threads and media placements; related records may be removed by database cascades. This changes persisted state or consumes credits.",
+        "open_world_justification": "Deletes the selected experience and associated booking guest threads and media placements; related records may be removed by database cascades. Its effects can change content or behavior on the public website.",
+        "destructive_justification": "Deletes the selected experience and associated booking guest threads and media placements; related records may be removed by database cascades. Existing state is deleted, replaced or overwritten rather than only appended."
       }
     },
     "delete_location_qa": {
@@ -243,9 +195,9 @@
         "destructiveHint": true
       },
       "justifications": {
-        "read_only_justification": "Creates or changes data in the authenticated tenant workspace.",
-        "open_world_justification": "Can change tenant content that is visible on a public website or an external service.",
-        "destructive_justification": "Can delete, replace, reorder, publish, or overwrite existing state that is not restored automatically."
+        "read_only_justification": "Deletes the selected location question and answer. This changes persisted state or consumes credits.",
+        "open_world_justification": "Deletes the selected location question and answer. Its effects can change content or behavior on the public website.",
+        "destructive_justification": "Deletes the selected location question and answer. Existing state is deleted, replaced or overwritten rather than only appended."
       }
     },
     "delete_media_asset": {
@@ -255,9 +207,9 @@
         "destructiveHint": true
       },
       "justifications": {
-        "read_only_justification": "Creates or changes data in the authenticated tenant workspace.",
-        "open_world_justification": "Can change tenant content that is visible on a public website or an external service.",
-        "destructive_justification": "Can delete, replace, reorder, publish, or overwrite existing state that is not restored automatically."
+        "read_only_justification": "Removes an asset and its site placements, and deletes backing Cloudflare storage when no other asset references it. This changes persisted state or consumes credits.",
+        "open_world_justification": "Removes an asset and its site placements, and deletes backing Cloudflare storage when no other asset references it. Its effects can change content or behavior on the public website.",
+        "destructive_justification": "Removes an asset and its site placements, and deletes backing Cloudflare storage when no other asset references it. Existing state is deleted, replaced or overwritten rather than only appended."
       }
     },
     "delete_owner_entered_site_review": {
@@ -267,9 +219,9 @@
         "destructiveHint": true
       },
       "justifications": {
-        "read_only_justification": "Creates or changes data in the authenticated tenant workspace.",
-        "open_world_justification": "Can change tenant content that is visible on a public website or an external service.",
-        "destructive_justification": "Can delete, replace, reorder, publish, or overwrite existing state that is not restored automatically."
+        "read_only_justification": "Deletes the selected owner-entered site review. This changes persisted state or consumes credits.",
+        "open_world_justification": "Deletes the selected owner-entered site review. Its effects can change content or behavior on the public website.",
+        "destructive_justification": "Deletes the selected owner-entered site review. Existing state is deleted, replaced or overwritten rather than only appended."
       }
     },
     "delete_post": {
@@ -279,9 +231,9 @@
         "destructiveHint": true
       },
       "justifications": {
-        "read_only_justification": "Creates or changes data in the authenticated tenant workspace.",
-        "open_world_justification": "Can change tenant content that is visible on a public website or an external service.",
-        "destructive_justification": "Can delete, replace, reorder, publish, or overwrite existing state that is not restored automatically."
+        "read_only_justification": "Deletes the selected website announcement. This changes persisted state or consumes credits.",
+        "open_world_justification": "Deletes the selected website announcement. Its effects can change content or behavior on the public website.",
+        "destructive_justification": "Deletes the selected website announcement. Existing state is deleted, replaced or overwritten rather than only appended."
       }
     },
     "delete_product": {
@@ -291,9 +243,9 @@
         "destructiveHint": true
       },
       "justifications": {
-        "read_only_justification": "Creates or changes data in the authenticated tenant workspace.",
-        "open_world_justification": "Can change tenant content that is visible on a public website or an external service.",
-        "destructive_justification": "Can delete, replace, reorder, publish, or overwrite existing state that is not restored automatically."
+        "read_only_justification": "Deletes a product, its reviews and placements, and updates the remaining product order. This changes persisted state or consumes credits.",
+        "open_world_justification": "Deletes a product, its reviews and placements, and updates the remaining product order. Its effects can change content or behavior on the public website.",
+        "destructive_justification": "Deletes a product, its reviews and placements, and updates the remaining product order. Existing state is deleted, replaced or overwritten rather than only appended."
       }
     },
     "delete_product_category": {
@@ -303,9 +255,9 @@
         "destructiveHint": true
       },
       "justifications": {
-        "read_only_justification": "Creates or changes data in the authenticated tenant workspace.",
-        "open_world_justification": "Can change tenant content that is visible on a public website or an external service.",
-        "destructive_justification": "Can delete, replace, reorder, publish, or overwrite existing state that is not restored automatically."
+        "read_only_justification": "Deletes a category and all its standard products, reviews and placements, then updates category order. This changes persisted state or consumes credits.",
+        "open_world_justification": "Deletes a category and all its standard products, reviews and placements, then updates category order. Its effects can change content or behavior on the public website.",
+        "destructive_justification": "Deletes a category and all its standard products, reviews and placements, then updates category order. Existing state is deleted, replaced or overwritten rather than only appended."
       }
     },
     "delete_resource_localization": {
@@ -315,9 +267,9 @@
         "destructiveHint": true
       },
       "justifications": {
-        "read_only_justification": "Creates or changes data in the authenticated tenant workspace.",
-        "open_world_justification": "Can change tenant content that is visible on a public website or an external service.",
-        "destructive_justification": "Can delete, replace, reorder, publish, or overwrite existing state that is not restored automatically."
+        "read_only_justification": "Deletes the selected translated resource representation. This changes persisted state or consumes credits.",
+        "open_world_justification": "Deletes the selected translated resource representation. Its effects can change content or behavior on the public website.",
+        "destructive_justification": "Deletes the selected translated resource representation. Existing state is deleted, replaced or overwritten rather than only appended."
       }
     },
     "delete_site_qa": {
@@ -327,9 +279,9 @@
         "destructiveHint": true
       },
       "justifications": {
-        "read_only_justification": "Creates or changes data in the authenticated tenant workspace.",
-        "open_world_justification": "Can change tenant content that is visible on a public website or an external service.",
-        "destructive_justification": "Can delete, replace, reorder, publish, or overwrite existing state that is not restored automatically."
+        "read_only_justification": "Deletes the selected site question and answer. This changes persisted state or consumes credits.",
+        "open_world_justification": "Deletes the selected site question and answer. Its effects can change content or behavior on the public website.",
+        "destructive_justification": "Deletes the selected site question and answer. Existing state is deleted, replaced or overwritten rather than only appended."
       }
     },
     "get_blog_post": {
@@ -339,9 +291,9 @@
         "destructiveHint": false
       },
       "justifications": {
-        "read_only_justification": "Retrieves data from the authenticated tenant workspace without modifying state.",
-        "open_world_justification": "Does not change public internet state or a third-party system.",
-        "destructive_justification": "Does not delete, replace, revoke, or irreversibly overwrite existing state."
+        "read_only_justification": "Reads the selected tenant blog article and content for editing. It does not mutate application content or consume AI credits.",
+        "open_world_justification": "Reads the selected tenant blog article and content for editing. It does not publish content or write to an external service.",
+        "destructive_justification": "Reads the selected tenant blog article and content for editing. Existing content is not deleted or overwritten."
       }
     },
     "get_booking_policy": {
@@ -351,9 +303,9 @@
         "destructiveHint": false
       },
       "justifications": {
-        "read_only_justification": "Retrieves data from the authenticated tenant workspace without modifying state.",
-        "open_world_justification": "Does not change public internet state or a third-party system.",
-        "destructive_justification": "Does not delete, replace, revoke, or irreversibly overwrite existing state."
+        "read_only_justification": "Reads the selected site or location booking policy. It does not mutate application content or consume AI credits.",
+        "open_world_justification": "Reads the selected site or location booking policy. It does not publish content or write to an external service.",
+        "destructive_justification": "Reads the selected site or location booking policy. Existing content is not deleted or overwritten."
       }
     },
     "get_contact_inquiries": {
@@ -363,9 +315,9 @@
         "destructiveHint": false
       },
       "justifications": {
-        "read_only_justification": "Retrieves data from the authenticated tenant workspace without modifying state.",
-        "open_world_justification": "Does not change public internet state or a third-party system.",
-        "destructive_justification": "Does not delete, replace, revoke, or irreversibly overwrite existing state."
+        "read_only_justification": "Reads authorized customer contact inquiries, including personal contact information. It does not mutate application content or consume AI credits.",
+        "open_world_justification": "Reads authorized customer contact inquiries, including personal contact information. It does not publish content or write to an external service.",
+        "destructive_justification": "Reads authorized customer contact inquiries, including personal contact information. Existing content is not deleted or overwritten."
       }
     },
     "get_experience": {
@@ -375,9 +327,9 @@
         "destructiveHint": false
       },
       "justifications": {
-        "read_only_justification": "Retrieves data from the authenticated tenant workspace without modifying state.",
-        "open_world_justification": "Does not change public internet state or a third-party system.",
-        "destructive_justification": "Does not delete, replace, revoke, or irreversibly overwrite existing state."
+        "read_only_justification": "Reads the selected experience and its pricing and scheduling details. It does not mutate application content or consume AI credits.",
+        "open_world_justification": "Reads the selected experience and its pricing and scheduling details. It does not publish content or write to an external service.",
+        "destructive_justification": "Reads the selected experience and its pricing and scheduling details. Existing content is not deleted or overwritten."
       }
     },
     "get_location": {
@@ -387,9 +339,9 @@
         "destructiveHint": false
       },
       "justifications": {
-        "read_only_justification": "Retrieves data from the authenticated tenant workspace without modifying state.",
-        "open_world_justification": "Does not change public internet state or a third-party system.",
-        "destructive_justification": "Does not delete, replace, revoke, or irreversibly overwrite existing state."
+        "read_only_justification": "Reads the selected location, including operational contact and notification settings. It does not mutate application content or consume AI credits.",
+        "open_world_justification": "Reads the selected location, including operational contact and notification settings. It does not publish content or write to an external service.",
+        "destructive_justification": "Reads the selected location, including operational contact and notification settings. Existing content is not deleted or overwritten."
       }
     },
     "get_post": {
@@ -399,9 +351,9 @@
         "destructiveHint": false
       },
       "justifications": {
-        "read_only_justification": "Retrieves data from the authenticated tenant workspace without modifying state.",
-        "open_world_justification": "Does not change public internet state or a third-party system.",
-        "destructive_justification": "Does not delete, replace, revoke, or irreversibly overwrite existing state."
+        "read_only_justification": "Reads the selected website announcement. It does not mutate application content or consume AI credits.",
+        "open_world_justification": "Reads the selected website announcement. It does not publish content or write to an external service.",
+        "destructive_justification": "Reads the selected website announcement. Existing content is not deleted or overwritten."
       }
     },
     "get_product": {
@@ -411,9 +363,9 @@
         "destructiveHint": false
       },
       "justifications": {
-        "read_only_justification": "Retrieves data from the authenticated tenant workspace without modifying state.",
-        "open_world_justification": "Does not change public internet state or a third-party system.",
-        "destructive_justification": "Does not delete, replace, revoke, or irreversibly overwrite existing state."
+        "read_only_justification": "Reads the selected product and its price and content. It does not mutate application content or consume AI credits.",
+        "open_world_justification": "Reads the selected product and its price and content. It does not publish content or write to an external service.",
+        "destructive_justification": "Reads the selected product and its price and content. Existing content is not deleted or overwritten."
       }
     },
     "get_product_catalog_localization": {
@@ -423,9 +375,9 @@
         "destructiveHint": false
       },
       "justifications": {
-        "read_only_justification": "Retrieves data from the authenticated tenant workspace without modifying state.",
-        "open_world_justification": "Does not change public internet state or a third-party system.",
-        "destructive_justification": "Does not delete, replace, revoke, or irreversibly overwrite existing state."
+        "read_only_justification": "Reads product catalog translations for the selected site and locale. It does not mutate application content or consume AI credits.",
+        "open_world_justification": "Reads product catalog translations for the selected site and locale. It does not publish content or write to an external service.",
+        "destructive_justification": "Reads product catalog translations for the selected site and locale. Existing content is not deleted or overwritten."
       }
     },
     "get_professional_service_content": {
@@ -435,9 +387,9 @@
         "destructiveHint": false
       },
       "justifications": {
-        "read_only_justification": "Retrieves data from the authenticated tenant workspace without modifying state.",
-        "open_world_justification": "Does not change public internet state or a third-party system.",
-        "destructive_justification": "Does not delete, replace, revoke, or irreversibly overwrite existing state."
+        "read_only_justification": "Reads the selected professional-service content. It does not mutate application content or consume AI credits.",
+        "open_world_justification": "Reads the selected professional-service content. It does not publish content or write to an external service.",
+        "destructive_justification": "Reads the selected professional-service content. Existing content is not deleted or overwritten."
       }
     },
     "get_reservation_inquiries": {
@@ -447,9 +399,9 @@
         "destructiveHint": false
       },
       "justifications": {
-        "read_only_justification": "Retrieves data from the authenticated tenant workspace without modifying state.",
-        "open_world_justification": "Does not change public internet state or a third-party system.",
-        "destructive_justification": "Does not delete, replace, revoke, or irreversibly overwrite existing state."
+        "read_only_justification": "Reads authorized reservation inquiries, including guest contact and reservation information. It does not mutate application content or consume AI credits.",
+        "open_world_justification": "Reads authorized reservation inquiries, including guest contact and reservation information. It does not publish content or write to an external service.",
+        "destructive_justification": "Reads authorized reservation inquiries, including guest contact and reservation information. Existing content is not deleted or overwritten."
       }
     },
     "get_resource_localization": {
@@ -459,9 +411,9 @@
         "destructiveHint": false
       },
       "justifications": {
-        "read_only_justification": "Retrieves data from the authenticated tenant workspace without modifying state.",
-        "open_world_justification": "Does not change public internet state or a third-party system.",
-        "destructive_justification": "Does not delete, replace, revoke, or irreversibly overwrite existing state."
+        "read_only_justification": "Reads a resource translation and any existing authoring document. It does not mutate application content or consume AI credits.",
+        "open_world_justification": "Reads a resource translation and any existing authoring document. It does not publish content or write to an external service.",
+        "destructive_justification": "Reads a resource translation and any existing authoring document. Existing content is not deleted or overwritten."
       }
     },
     "get_site": {
@@ -471,9 +423,9 @@
         "destructiveHint": false
       },
       "justifications": {
-        "read_only_justification": "Retrieves data from the authenticated tenant workspace without modifying state.",
-        "open_world_justification": "Does not change public internet state or a third-party system.",
-        "destructive_justification": "Does not delete, replace, revoke, or irreversibly overwrite existing state."
+        "read_only_justification": "Reads the selected accessible site and workspace context. It does not mutate application content or consume AI credits.",
+        "open_world_justification": "Reads the selected accessible site and workspace context. It does not publish content or write to an external service.",
+        "destructive_justification": "Reads the selected accessible site and workspace context. Existing content is not deleted or overwritten."
       }
     },
     "get_site_analytics": {
@@ -483,9 +435,9 @@
         "destructiveHint": false
       },
       "justifications": {
-        "read_only_justification": "Retrieves data from the authenticated tenant workspace without modifying state.",
-        "open_world_justification": "Does not change public internet state or a third-party system.",
-        "destructive_justification": "Does not delete, replace, revoke, or irreversibly overwrite existing state."
+        "read_only_justification": "Reads site analytics reports from stored aggregates and retained raw events without creating aggregates. It does not mutate application content or consume AI credits.",
+        "open_world_justification": "Reads site analytics reports from stored aggregates and retained raw events without creating aggregates. It does not publish content or write to an external service.",
+        "destructive_justification": "Reads site analytics reports from stored aggregates and retained raw events without creating aggregates. Existing content is not deleted or overwritten."
       }
     },
     "get_site_media_assets": {
@@ -495,9 +447,9 @@
         "destructiveHint": false
       },
       "justifications": {
-        "read_only_justification": "Retrieves data from the authenticated tenant workspace without modifying state.",
-        "open_world_justification": "Does not change public internet state or a third-party system.",
-        "destructive_justification": "Does not delete, replace, revoke, or irreversibly overwrite existing state."
+        "read_only_justification": "Lists the selected site media library and public asset URLs. It does not mutate application content or consume AI credits.",
+        "open_world_justification": "Lists the selected site media library and public asset URLs. It does not publish content or write to an external service.",
+        "destructive_justification": "Lists the selected site media library and public asset URLs. Existing content is not deleted or overwritten."
       }
     },
     "get_site_settings": {
@@ -507,9 +459,9 @@
         "destructiveHint": false
       },
       "justifications": {
-        "read_only_justification": "Retrieves data from the authenticated tenant workspace without modifying state.",
-        "open_world_justification": "Does not change public internet state or a third-party system.",
-        "destructive_justification": "Does not delete, replace, revoke, or irreversibly overwrite existing state."
+        "read_only_justification": "Reads the selected site settings. It does not mutate application content or consume AI credits.",
+        "open_world_justification": "Reads the selected site settings. It does not publish content or write to an external service.",
+        "destructive_justification": "Reads the selected site settings. Existing content is not deleted or overwritten."
       }
     },
     "get_tenant_page": {
@@ -519,9 +471,9 @@
         "destructiveHint": false
       },
       "justifications": {
-        "read_only_justification": "Retrieves data from the authenticated tenant workspace without modifying state.",
-        "open_world_justification": "Does not change public internet state or a third-party system.",
-        "destructive_justification": "Does not delete, replace, revoke, or irreversibly overwrite existing state."
+        "read_only_justification": "Reads the selected tenant page and its existing content document. It does not mutate application content or consume AI credits.",
+        "open_world_justification": "Reads the selected tenant page and its existing content document. It does not publish content or write to an external service.",
+        "destructive_justification": "Reads the selected tenant page and its existing content document. Existing content is not deleted or overwritten."
       }
     },
     "get_workspace_context": {
@@ -531,9 +483,9 @@
         "destructiveHint": false
       },
       "justifications": {
-        "read_only_justification": "Retrieves data from the authenticated tenant workspace without modifying state.",
-        "open_world_justification": "Does not change public internet state or a third-party system.",
-        "destructive_justification": "Does not delete, replace, revoke, or irreversibly overwrite existing state."
+        "read_only_justification": "Reads the authenticated user workspace selection and available context. It does not mutate application content or consume AI credits.",
+        "open_world_justification": "Reads the authenticated user workspace selection and available context. It does not publish content or write to an external service.",
+        "destructive_justification": "Reads the authenticated user workspace selection and available context. Existing content is not deleted or overwritten."
       }
     },
     "import_from_maps": {
@@ -543,9 +495,9 @@
         "destructiveHint": false
       },
       "justifications": {
-        "read_only_justification": "Queries Google Places, consumes credits, and records usage without persisting imported content.",
-        "open_world_justification": "Queries Google Maps and Google Places without persisting the imported content.",
-        "destructive_justification": "Does not delete, replace, revoke, or irreversibly overwrite existing state."
+        "read_only_justification": "Queries Google Places and charges tenant credits without creating or updating a site or location. This changes persisted state or consumes credits.",
+        "open_world_justification": "The requested business lookup is sent to Google Places.",
+        "destructive_justification": "Queries Google Places and charges tenant credits without creating or updating a site or location. Existing content is not deleted or overwritten."
       }
     },
     "import_products_from_media": {
@@ -555,9 +507,9 @@
         "destructiveHint": false
       },
       "justifications": {
-        "read_only_justification": "Creates or changes data in the authenticated tenant workspace.",
-        "open_world_justification": "Can change tenant content that is visible on a public website or an external service.",
-        "destructive_justification": "Does not delete, replace, revoke, or irreversibly overwrite existing state."
+        "read_only_justification": "Sends a stored image or PDF to Anthropic through Cloudflare AI Gateway, charges credits, and creates extracted products. This changes persisted state or consumes credits.",
+        "open_world_justification": "The image or PDF is sent to Anthropic through Cloudflare AI Gateway, and extracted products can appear on the public website.",
+        "destructive_justification": "Sends a stored image or PDF to Anthropic through Cloudflare AI Gateway, charges credits, and creates extracted products. Existing content is not deleted or overwritten."
       }
     },
     "list_all_experience_bookings": {
@@ -567,9 +519,9 @@
         "destructiveHint": false
       },
       "justifications": {
-        "read_only_justification": "Retrieves data from the authenticated tenant workspace without modifying state.",
-        "open_world_justification": "Does not change public internet state or a third-party system.",
-        "destructive_justification": "Does not delete, replace, revoke, or irreversibly overwrite existing state."
+        "read_only_justification": "Lists authorized bookings across the selected site, including guest names and contact details. It does not mutate application content or consume AI credits.",
+        "open_world_justification": "Lists authorized bookings across the selected site, including guest names and contact details. It does not publish content or write to an external service.",
+        "destructive_justification": "Lists authorized bookings across the selected site, including guest names and contact details. Existing content is not deleted or overwritten."
       }
     },
     "list_blog_posts": {
@@ -579,9 +531,9 @@
         "destructiveHint": false
       },
       "justifications": {
-        "read_only_justification": "Retrieves data from the authenticated tenant workspace without modifying state.",
-        "open_world_justification": "Does not change public internet state or a third-party system.",
-        "destructive_justification": "Does not delete, replace, revoke, or irreversibly overwrite existing state."
+        "read_only_justification": "Lists the selected site blog articles. It does not mutate application content or consume AI credits.",
+        "open_world_justification": "Lists the selected site blog articles. It does not publish content or write to an external service.",
+        "destructive_justification": "Lists the selected site blog articles. Existing content is not deleted or overwritten."
       }
     },
     "list_experience_bookings": {
@@ -591,9 +543,9 @@
         "destructiveHint": false
       },
       "justifications": {
-        "read_only_justification": "Retrieves data from the authenticated tenant workspace without modifying state.",
-        "open_world_justification": "Does not change public internet state or a third-party system.",
-        "destructive_justification": "Does not delete, replace, revoke, or irreversibly overwrite existing state."
+        "read_only_justification": "Lists authorized bookings for the selected experience, including guest names and contact details. It does not mutate application content or consume AI credits.",
+        "open_world_justification": "Lists authorized bookings for the selected experience, including guest names and contact details. It does not publish content or write to an external service.",
+        "destructive_justification": "Lists authorized bookings for the selected experience, including guest names and contact details. Existing content is not deleted or overwritten."
       }
     },
     "list_experiences": {
@@ -603,9 +555,9 @@
         "destructiveHint": false
       },
       "justifications": {
-        "read_only_justification": "Retrieves data from the authenticated tenant workspace without modifying state.",
-        "open_world_justification": "Does not change public internet state or a third-party system.",
-        "destructive_justification": "Does not delete, replace, revoke, or irreversibly overwrite existing state."
+        "read_only_justification": "Lists the selected site experiences, filtered by an explicit location when provided. It does not mutate application content or consume AI credits.",
+        "open_world_justification": "Lists the selected site experiences, filtered by an explicit location when provided. It does not publish content or write to an external service.",
+        "destructive_justification": "Lists the selected site experiences, filtered by an explicit location when provided. Existing content is not deleted or overwritten."
       }
     },
     "list_location_products": {
@@ -615,9 +567,9 @@
         "destructiveHint": false
       },
       "justifications": {
-        "read_only_justification": "Retrieves data from the authenticated tenant workspace without modifying state.",
-        "open_world_justification": "Does not change public internet state or a third-party system.",
-        "destructive_justification": "Does not delete, replace, revoke, or irreversibly overwrite existing state."
+        "read_only_justification": "Lists products in the explicitly selected location. It does not mutate application content or consume AI credits.",
+        "open_world_justification": "Lists products in the explicitly selected location. It does not publish content or write to an external service.",
+        "destructive_justification": "Lists products in the explicitly selected location. Existing content is not deleted or overwritten."
       }
     },
     "list_location_qa": {
@@ -627,9 +579,9 @@
         "destructiveHint": false
       },
       "justifications": {
-        "read_only_justification": "Retrieves data from the authenticated tenant workspace without modifying state.",
-        "open_world_justification": "Does not change public internet state or a third-party system.",
-        "destructive_justification": "Does not delete, replace, revoke, or irreversibly overwrite existing state."
+        "read_only_justification": "Lists questions and answers for the selected location. It does not mutate application content or consume AI credits.",
+        "open_world_justification": "Lists questions and answers for the selected location. It does not publish content or write to an external service.",
+        "destructive_justification": "Lists questions and answers for the selected location. Existing content is not deleted or overwritten."
       }
     },
     "list_location_reviews": {
@@ -639,9 +591,9 @@
         "destructiveHint": false
       },
       "justifications": {
-        "read_only_justification": "Retrieves data from the authenticated tenant workspace without modifying state.",
-        "open_world_justification": "Does not change public internet state or a third-party system.",
-        "destructive_justification": "Does not delete, replace, revoke, or irreversibly overwrite existing state."
+        "read_only_justification": "Lists reviews for the selected location. It does not mutate application content or consume AI credits.",
+        "open_world_justification": "Lists reviews for the selected location. It does not publish content or write to an external service.",
+        "destructive_justification": "Lists reviews for the selected location. Existing content is not deleted or overwritten."
       }
     },
     "list_locations": {
@@ -651,9 +603,9 @@
         "destructiveHint": false
       },
       "justifications": {
-        "read_only_justification": "Retrieves data from the authenticated tenant workspace without modifying state.",
-        "open_world_justification": "Does not change public internet state or a third-party system.",
-        "destructive_justification": "Does not delete, replace, revoke, or irreversibly overwrite existing state."
+        "read_only_justification": "Lists locations accessible in the selected site. It does not mutate application content or consume AI credits.",
+        "open_world_justification": "Lists locations accessible in the selected site. It does not publish content or write to an external service.",
+        "destructive_justification": "Lists locations accessible in the selected site. Existing content is not deleted or overwritten."
       }
     },
     "list_posts": {
@@ -663,9 +615,9 @@
         "destructiveHint": false
       },
       "justifications": {
-        "read_only_justification": "Retrieves data from the authenticated tenant workspace without modifying state.",
-        "open_world_justification": "Does not change public internet state or a third-party system.",
-        "destructive_justification": "Does not delete, replace, revoke, or irreversibly overwrite existing state."
+        "read_only_justification": "Lists website announcements for the selected site. It does not mutate application content or consume AI credits.",
+        "open_world_justification": "Lists website announcements for the selected site. It does not publish content or write to an external service.",
+        "destructive_justification": "Lists website announcements for the selected site. Existing content is not deleted or overwritten."
       }
     },
     "list_product_categories": {
@@ -675,9 +627,9 @@
         "destructiveHint": false
       },
       "justifications": {
-        "read_only_justification": "Retrieves data from the authenticated tenant workspace without modifying state.",
-        "open_world_justification": "Does not change public internet state or a third-party system.",
-        "destructive_justification": "Does not delete, replace, revoke, or irreversibly overwrite existing state."
+        "read_only_justification": "Lists product categories for the selected location. It does not mutate application content or consume AI credits.",
+        "open_world_justification": "Lists product categories for the selected location. It does not publish content or write to an external service.",
+        "destructive_justification": "Lists product categories for the selected location. Existing content is not deleted or overwritten."
       }
     },
     "list_site_locales": {
@@ -687,9 +639,9 @@
         "destructiveHint": false
       },
       "justifications": {
-        "read_only_justification": "Retrieves data from the authenticated tenant workspace without modifying state.",
-        "open_world_justification": "Does not change public internet state or a third-party system.",
-        "destructive_justification": "Does not delete, replace, revoke, or irreversibly overwrite existing state."
+        "read_only_justification": "Reads the selected site locale records without provisioning translations. It does not mutate application content or consume AI credits.",
+        "open_world_justification": "Reads the selected site locale records without provisioning translations. It does not publish content or write to an external service.",
+        "destructive_justification": "Reads the selected site locale records without provisioning translations. Existing content is not deleted or overwritten."
       }
     },
     "list_site_qa": {
@@ -699,9 +651,9 @@
         "destructiveHint": false
       },
       "justifications": {
-        "read_only_justification": "Retrieves data from the authenticated tenant workspace without modifying state.",
-        "open_world_justification": "Does not change public internet state or a third-party system.",
-        "destructive_justification": "Does not delete, replace, revoke, or irreversibly overwrite existing state."
+        "read_only_justification": "Lists questions and answers for the selected site. It does not mutate application content or consume AI credits.",
+        "open_world_justification": "Lists questions and answers for the selected site. It does not publish content or write to an external service.",
+        "destructive_justification": "Lists questions and answers for the selected site. Existing content is not deleted or overwritten."
       }
     },
     "list_site_reviews": {
@@ -711,9 +663,9 @@
         "destructiveHint": false
       },
       "justifications": {
-        "read_only_justification": "Retrieves data from the authenticated tenant workspace without modifying state.",
-        "open_world_justification": "Does not change public internet state or a third-party system.",
-        "destructive_justification": "Does not delete, replace, revoke, or irreversibly overwrite existing state."
+        "read_only_justification": "Lists reviews and their provenance for the selected site. It does not mutate application content or consume AI credits.",
+        "open_world_justification": "Lists reviews and their provenance for the selected site. It does not publish content or write to an external service.",
+        "destructive_justification": "Lists reviews and their provenance for the selected site. Existing content is not deleted or overwritten."
       }
     },
     "list_sites": {
@@ -723,9 +675,9 @@
         "destructiveHint": false
       },
       "justifications": {
-        "read_only_justification": "Retrieves data from the authenticated tenant workspace without modifying state.",
-        "open_world_justification": "Does not change public internet state or a third-party system.",
-        "destructive_justification": "Does not delete, replace, revoke, or irreversibly overwrite existing state."
+        "read_only_justification": "Lists sites accessible to the authenticated user without provisioning a site. It does not mutate application content or consume AI credits.",
+        "open_world_justification": "Lists sites accessible to the authenticated user without provisioning a site. It does not publish content or write to an external service.",
+        "destructive_justification": "Lists sites accessible to the authenticated user without provisioning a site. Existing content is not deleted or overwritten."
       }
     },
     "list_tenant_pages": {
@@ -735,9 +687,9 @@
         "destructiveHint": false
       },
       "justifications": {
-        "read_only_justification": "Retrieves data from the authenticated tenant workspace without modifying state.",
-        "open_world_justification": "Does not change public internet state or a third-party system.",
-        "destructive_justification": "Does not delete, replace, revoke, or irreversibly overwrite existing state."
+        "read_only_justification": "Lists tenant pages for the selected site. It does not mutate application content or consume AI credits.",
+        "open_world_justification": "Lists tenant pages for the selected site. It does not publish content or write to an external service.",
+        "destructive_justification": "Lists tenant pages for the selected site. Existing content is not deleted or overwritten."
       }
     },
     "move_products": {
@@ -747,9 +699,9 @@
         "destructiveHint": true
       },
       "justifications": {
-        "read_only_justification": "Creates or changes data in the authenticated tenant workspace.",
-        "open_world_justification": "Can change tenant content that is visible on a public website or an external service.",
-        "destructive_justification": "Can delete, replace, reorder, publish, or overwrite existing state that is not restored automatically."
+        "read_only_justification": "Changes the category membership and ordering of selected products. This changes persisted state or consumes credits.",
+        "open_world_justification": "Changes the category membership and ordering of selected products. Its effects can change content or behavior on the public website.",
+        "destructive_justification": "Changes the category membership and ordering of selected products. Existing state is deleted, replaced or overwritten rather than only appended."
       }
     },
     "preview_booking_policy": {
@@ -759,9 +711,9 @@
         "destructiveHint": false
       },
       "justifications": {
-        "read_only_justification": "Retrieves data from the authenticated tenant workspace without modifying state.",
-        "open_world_justification": "Does not change public internet state or a third-party system.",
-        "destructive_justification": "Does not delete, replace, revoke, or irreversibly overwrite existing state."
+        "read_only_justification": "Computes a booking-policy preview without saving the proposed policy. It does not mutate application content or consume AI credits.",
+        "open_world_justification": "Computes a booking-policy preview without saving the proposed policy. It does not publish content or write to an external service.",
+        "destructive_justification": "Computes a booking-policy preview without saving the proposed policy. Existing content is not deleted or overwritten."
       }
     },
     "publish_blog_post": {
@@ -771,9 +723,9 @@
         "destructiveHint": true
       },
       "justifications": {
-        "read_only_justification": "Creates or changes data in the authenticated tenant workspace.",
-        "open_world_justification": "Can change tenant content that is visible on a public website or an external service.",
-        "destructive_justification": "Can delete, replace, reorder, publish, or overwrite existing state that is not restored automatically."
+        "read_only_justification": "Changes the selected blog article publication state and public availability. This changes persisted state or consumes credits.",
+        "open_world_justification": "Changes the selected blog article publication state and public availability. Its effects can change content or behavior on the public website.",
+        "destructive_justification": "Changes the selected blog article publication state and public availability. Existing state is deleted, replaced or overwritten rather than only appended."
       }
     },
     "publish_post": {
@@ -783,9 +735,9 @@
         "destructiveHint": true
       },
       "justifications": {
-        "read_only_justification": "Creates or changes data in the authenticated tenant workspace.",
-        "open_world_justification": "Can change tenant content that is visible on a public website or an external service.",
-        "destructive_justification": "Can delete, replace, reorder, publish, or overwrite existing state that is not restored automatically."
+        "read_only_justification": "Publishes the selected announcement to the website; enabled social-channel publication can also enqueue external delivery. This changes persisted state or consumes credits.",
+        "open_world_justification": "Publishes the selected announcement to the website; enabled social-channel publication can also enqueue external delivery. Its effects can change content or behavior on the public website.",
+        "destructive_justification": "Publishes the selected announcement to the website; enabled social-channel publication can also enqueue external delivery. Existing state is deleted, replaced or overwritten rather than only appended."
       }
     },
     "put_resource_localization": {
@@ -795,9 +747,9 @@
         "destructiveHint": true
       },
       "justifications": {
-        "read_only_justification": "Creates or changes data in the authenticated tenant workspace.",
-        "open_world_justification": "Can change tenant content that is visible on a public website or an external service.",
-        "destructive_justification": "Can delete, replace, reorder, publish, or overwrite existing state that is not restored automatically."
+        "read_only_justification": "Creates or overwrites translated resource values and supplied translated content. This changes persisted state or consumes credits.",
+        "open_world_justification": "Creates or overwrites translated resource values and supplied translated content. Its effects can change content or behavior on the public website.",
+        "destructive_justification": "Creates or overwrites translated resource values and supplied translated content. Existing state is deleted, replaced or overwritten rather than only appended."
       }
     },
     "remove_media": {
@@ -807,9 +759,9 @@
         "destructiveHint": true
       },
       "justifications": {
-        "read_only_justification": "Creates or changes data in the authenticated tenant workspace.",
-        "open_world_justification": "Can change tenant content that is visible on a public website or an external service.",
-        "destructive_justification": "Can delete, replace, reorder, publish, or overwrite existing state that is not restored automatically."
+        "read_only_justification": "Removes an asset placement from public content while retaining the underlying media asset. This changes persisted state or consumes credits.",
+        "open_world_justification": "Removes an asset placement from public content while retaining the underlying media asset. Its effects can change content or behavior on the public website.",
+        "destructive_justification": "Removes an asset placement from public content while retaining the underlying media asset. Existing state is deleted, replaced or overwritten rather than only appended."
       }
     },
     "rename_product_category": {
@@ -819,9 +771,9 @@
         "destructiveHint": true
       },
       "justifications": {
-        "read_only_justification": "Creates or changes data in the authenticated tenant workspace.",
-        "open_world_justification": "Can change tenant content that is visible on a public website or an external service.",
-        "destructive_justification": "Can delete, replace, reorder, publish, or overwrite existing state that is not restored automatically."
+        "read_only_justification": "Overwrites the selected product category name. This changes persisted state or consumes credits.",
+        "open_world_justification": "Overwrites the selected product category name. Its effects can change content or behavior on the public website.",
+        "destructive_justification": "Overwrites the selected product category name. Existing state is deleted, replaced or overwritten rather than only appended."
       }
     },
     "reorder_blog_posts": {
@@ -831,9 +783,9 @@
         "destructiveHint": true
       },
       "justifications": {
-        "read_only_justification": "Creates or changes data in the authenticated tenant workspace.",
-        "open_world_justification": "Can change tenant content that is visible on a public website or an external service.",
-        "destructive_justification": "Can delete, replace, reorder, publish, or overwrite existing state that is not restored automatically."
+        "read_only_justification": "Overwrites the presentation order of selected blog articles. This changes persisted state or consumes credits.",
+        "open_world_justification": "Overwrites the presentation order of selected blog articles. Its effects can change content or behavior on the public website.",
+        "destructive_justification": "Overwrites the presentation order of selected blog articles. Existing state is deleted, replaced or overwritten rather than only appended."
       }
     },
     "reorder_location_qa": {
@@ -843,9 +795,9 @@
         "destructiveHint": true
       },
       "justifications": {
-        "read_only_justification": "Creates or changes data in the authenticated tenant workspace.",
-        "open_world_justification": "Can change tenant content that is visible on a public website or an external service.",
-        "destructive_justification": "Can delete, replace, reorder, publish, or overwrite existing state that is not restored automatically."
+        "read_only_justification": "Overwrites question-and-answer order for the selected location. This changes persisted state or consumes credits.",
+        "open_world_justification": "Overwrites question-and-answer order for the selected location. Its effects can change content or behavior on the public website.",
+        "destructive_justification": "Overwrites question-and-answer order for the selected location. Existing state is deleted, replaced or overwritten rather than only appended."
       }
     },
     "reorder_media": {
@@ -855,9 +807,9 @@
         "destructiveHint": true
       },
       "justifications": {
-        "read_only_justification": "Creates or changes data in the authenticated tenant workspace.",
-        "open_world_justification": "Can change tenant content that is visible on a public website or an external service.",
-        "destructive_justification": "Can delete, replace, reorder, publish, or overwrite existing state that is not restored automatically."
+        "read_only_justification": "Overwrites media placement ordering for the selected public content collection. This changes persisted state or consumes credits.",
+        "open_world_justification": "Overwrites media placement ordering for the selected public content collection. Its effects can change content or behavior on the public website.",
+        "destructive_justification": "Overwrites media placement ordering for the selected public content collection. Existing state is deleted, replaced or overwritten rather than only appended."
       }
     },
     "reorder_product_categories": {
@@ -867,9 +819,9 @@
         "destructiveHint": true
       },
       "justifications": {
-        "read_only_justification": "Creates or changes data in the authenticated tenant workspace.",
-        "open_world_justification": "Can change tenant content that is visible on a public website or an external service.",
-        "destructive_justification": "Can delete, replace, reorder, publish, or overwrite existing state that is not restored automatically."
+        "read_only_justification": "Overwrites category order in the selected location. This changes persisted state or consumes credits.",
+        "open_world_justification": "Overwrites category order in the selected location. Its effects can change content or behavior on the public website.",
+        "destructive_justification": "Overwrites category order in the selected location. Existing state is deleted, replaced or overwritten rather than only appended."
       }
     },
     "reorder_products": {
@@ -879,9 +831,9 @@
         "destructiveHint": true
       },
       "justifications": {
-        "read_only_justification": "Creates or changes data in the authenticated tenant workspace.",
-        "open_world_justification": "Can change tenant content that is visible on a public website or an external service.",
-        "destructive_justification": "Can delete, replace, reorder, publish, or overwrite existing state that is not restored automatically."
+        "read_only_justification": "Overwrites product order within the selected category. This changes persisted state or consumes credits.",
+        "open_world_justification": "Overwrites product order within the selected category. Its effects can change content or behavior on the public website.",
+        "destructive_justification": "Overwrites product order within the selected category. Existing state is deleted, replaced or overwritten rather than only appended."
       }
     },
     "reorder_site_qa": {
@@ -891,9 +843,9 @@
         "destructiveHint": true
       },
       "justifications": {
-        "read_only_justification": "Creates or changes data in the authenticated tenant workspace.",
-        "open_world_justification": "Can change tenant content that is visible on a public website or an external service.",
-        "destructive_justification": "Can delete, replace, reorder, publish, or overwrite existing state that is not restored automatically."
+        "read_only_justification": "Overwrites question-and-answer order for the selected site. This changes persisted state or consumes credits.",
+        "open_world_justification": "Overwrites question-and-answer order for the selected site. Its effects can change content or behavior on the public website.",
+        "destructive_justification": "Overwrites question-and-answer order for the selected site. Existing state is deleted, replaced or overwritten rather than only appended."
       }
     },
     "replace_blog_content": {
@@ -903,9 +855,9 @@
         "destructiveHint": true
       },
       "justifications": {
-        "read_only_justification": "Creates or changes data in the authenticated tenant workspace.",
-        "open_world_justification": "Can change tenant content that is visible on a public website or an external service.",
-        "destructive_justification": "Can delete, replace, reorder, publish, or overwrite existing state that is not restored automatically."
+        "read_only_justification": "Replaces the selected blog article content document after version and removal checks. This changes persisted state or consumes credits.",
+        "open_world_justification": "Replaces the selected blog article content document after version and removal checks. Its effects can change content or behavior on the public website.",
+        "destructive_justification": "Replaces the selected blog article content document after version and removal checks. Existing state is deleted, replaced or overwritten rather than only appended."
       }
     },
     "reply_to_review": {
@@ -915,9 +867,9 @@
         "destructiveHint": true
       },
       "justifications": {
-        "read_only_justification": "Creates or changes data in the authenticated tenant workspace.",
-        "open_world_justification": "Can change tenant content that is visible on a public website or an external service.",
-        "destructive_justification": "Can delete, replace, reorder, publish, or overwrite existing state that is not restored automatically."
+        "read_only_justification": "Overwrites or clears the owner reply stored on a site review; it does not send a reply to Google. This changes persisted state or consumes credits.",
+        "open_world_justification": "Overwrites or clears the owner reply stored on a site review; it does not send a reply to Google. Its effects can change content or behavior on the public website.",
+        "destructive_justification": "Overwrites or clears the owner reply stored on a site review; it does not send a reply to Google. Existing state is deleted, replaced or overwritten rather than only appended."
       }
     },
     "save_generated_image": {
@@ -927,9 +879,9 @@
         "destructiveHint": false
       },
       "justifications": {
-        "read_only_justification": "Creates or changes data in the authenticated tenant workspace.",
-        "open_world_justification": "Can change tenant content that is visible on a public website or an external service.",
-        "destructive_justification": "Does not delete, replace, revoke, or irreversibly overwrite existing state."
+        "read_only_justification": "Stores supplied image bytes as a new media asset with a public URL; it does not generate the image. This changes persisted state or consumes credits.",
+        "open_world_justification": "The supplied image bytes are stored in Cloudflare storage at a public media URL.",
+        "destructive_justification": "Stores supplied image bytes as a new media asset with a public URL; it does not generate the image. Existing content is not deleted or overwritten."
       }
     },
     "save_generated_image_file": {
@@ -939,9 +891,9 @@
         "destructiveHint": false
       },
       "justifications": {
-        "read_only_justification": "Creates or changes data in the authenticated tenant workspace.",
-        "open_world_justification": "Can change tenant content that is visible on a public website or an external service.",
-        "destructive_justification": "Does not delete, replace, revoke, or irreversibly overwrite existing state."
+        "read_only_justification": "Stores the supplied image attachment as a new media asset with a public URL; it does not generate the image. This changes persisted state or consumes credits.",
+        "open_world_justification": "The supplied image attachment is stored in Cloudflare storage at a public media URL.",
+        "destructive_justification": "Stores the supplied image attachment as a new media asset with a public URL; it does not generate the image. Existing content is not deleted or overwritten."
       }
     },
     "set_brand_color": {
@@ -951,9 +903,9 @@
         "destructiveHint": true
       },
       "justifications": {
-        "read_only_justification": "Creates or changes data in the authenticated tenant workspace.",
-        "open_world_justification": "Can change tenant content that is visible on a public website or an external service.",
-        "destructive_justification": "Can delete, replace, reorder, publish, or overwrite existing state that is not restored automatically."
+        "read_only_justification": "Overwrites the selected site public brand color. This changes persisted state or consumes credits.",
+        "open_world_justification": "Overwrites the selected site public brand color. Its effects can change content or behavior on the public website.",
+        "destructive_justification": "Overwrites the selected site public brand color. Existing state is deleted, replaced or overwritten rather than only appended."
       }
     },
     "set_default_currency": {
@@ -963,9 +915,9 @@
         "destructiveHint": true
       },
       "justifications": {
-        "read_only_justification": "Creates or changes data in the authenticated tenant workspace.",
-        "open_world_justification": "Can change tenant content that is visible on a public website or an external service.",
-        "destructive_justification": "Can delete, replace, reorder, publish, or overwrite existing state that is not restored automatically."
+        "read_only_justification": "Overwrites the selected site default currency setting. This changes persisted state or consumes credits.",
+        "open_world_justification": "Overwrites the selected site default currency setting. Its effects can change content or behavior on the public website.",
+        "destructive_justification": "Overwrites the selected site default currency setting. Existing state is deleted, replaced or overwritten rather than only appended."
       }
     },
     "set_media": {
@@ -975,9 +927,9 @@
         "destructiveHint": true
       },
       "justifications": {
-        "read_only_justification": "Creates or changes data in the authenticated tenant workspace.",
-        "open_world_justification": "Can change tenant content that is visible on a public website or an external service.",
-        "destructive_justification": "Can delete, replace, reorder, publish, or overwrite existing state that is not restored automatically."
+        "read_only_justification": "Replaces or clears the asset assigned to a single public media placement. This changes persisted state or consumes credits.",
+        "open_world_justification": "Replaces or clears the asset assigned to a single public media placement. Its effects can change content or behavior on the public website.",
+        "destructive_justification": "Replaces or clears the asset assigned to a single public media placement. Existing state is deleted, replaced or overwritten rather than only appended."
       }
     },
     "set_workspace_context": {
@@ -987,9 +939,9 @@
         "destructiveHint": true
       },
       "justifications": {
-        "read_only_justification": "Creates or changes data in the authenticated tenant workspace.",
-        "open_world_justification": "Does not change public internet state or a third-party system.",
-        "destructive_justification": "Can delete, replace, reorder, publish, or overwrite existing state that is not restored automatically."
+        "read_only_justification": "Overwrites the authenticated user selected workspace site or location. This changes persisted state or consumes credits.",
+        "open_world_justification": "Overwrites the authenticated user selected workspace site or location. It does not publish content or write to an external service.",
+        "destructive_justification": "Overwrites the authenticated user selected workspace site or location. Existing state is deleted, replaced or overwritten rather than only appended."
       }
     },
     "show_generated_images": {
@@ -999,9 +951,9 @@
         "destructiveHint": false
       },
       "justifications": {
-        "read_only_justification": "Retrieves data from the authenticated tenant workspace without modifying state.",
-        "open_world_justification": "Does not change public internet state or a third-party system.",
-        "destructive_justification": "Does not delete, replace, revoke, or irreversibly overwrite existing state."
+        "read_only_justification": "Formats supplied image references for display without saving or generating images. It does not mutate application content or consume AI credits.",
+        "open_world_justification": "Formats supplied image references for display without saving or generating images. It does not publish content or write to an external service.",
+        "destructive_justification": "Formats supplied image references for display without saving or generating images. Existing content is not deleted or overwritten."
       }
     },
     "sync_product_catalog_localization": {
@@ -1011,9 +963,9 @@
         "destructiveHint": true
       },
       "justifications": {
-        "read_only_justification": "Creates or changes data in the authenticated tenant workspace.",
-        "open_world_justification": "Can change tenant content that is visible on a public website or an external service.",
-        "destructive_justification": "Can delete, replace, reorder, publish, or overwrite existing state that is not restored automatically."
+        "read_only_justification": "Reconciles translated product catalog values for the selected site and locale. This changes persisted state or consumes credits.",
+        "open_world_justification": "Reconciles translated product catalog values for the selected site and locale. Its effects can change content or behavior on the public website.",
+        "destructive_justification": "Reconciles translated product catalog values for the selected site and locale. Existing state is deleted, replaced or overwritten rather than only appended."
       }
     },
     "sync_products": {
@@ -1023,9 +975,9 @@
         "destructiveHint": true
       },
       "justifications": {
-        "read_only_justification": "Creates or changes data in the authenticated tenant workspace.",
-        "open_world_justification": "Can change tenant content that is visible on a public website or an external service.",
-        "destructive_justification": "Can delete, replace, reorder, publish, or overwrite existing state that is not restored automatically."
+        "read_only_justification": "Reconciles a complete location catalog, creates and updates products, and marks omitted products unavailable. This changes persisted state or consumes credits.",
+        "open_world_justification": "Reconciles a complete location catalog, creates and updates products, and marks omitted products unavailable. Its effects can change content or behavior on the public website.",
+        "destructive_justification": "Reconciles a complete location catalog, creates and updates products, and marks omitted products unavailable. Existing state is deleted, replaced or overwritten rather than only appended."
       }
     },
     "update_blog_metadata": {
@@ -1035,9 +987,9 @@
         "destructiveHint": true
       },
       "justifications": {
-        "read_only_justification": "Creates or changes data in the authenticated tenant workspace.",
-        "open_world_justification": "Can change tenant content that is visible on a public website or an external service.",
-        "destructive_justification": "Can delete, replace, reorder, publish, or overwrite existing state that is not restored automatically."
+        "read_only_justification": "Overwrites selected blog metadata, including public navigation and search settings. This changes persisted state or consumes credits.",
+        "open_world_justification": "Overwrites selected blog metadata, including public navigation and search settings. Its effects can change content or behavior on the public website.",
+        "destructive_justification": "Overwrites selected blog metadata, including public navigation and search settings. Existing state is deleted, replaced or overwritten rather than only appended."
       }
     },
     "update_blog_post": {
@@ -1047,9 +999,9 @@
         "destructiveHint": true
       },
       "justifications": {
-        "read_only_justification": "Creates or changes data in the authenticated tenant workspace.",
-        "open_world_justification": "Can change tenant content that is visible on a public website or an external service.",
-        "destructive_justification": "Can delete, replace, reorder, publish, or overwrite existing state that is not restored automatically."
+        "read_only_justification": "Overwrites supplied fields of an existing tenant blog article. This changes persisted state or consumes credits.",
+        "open_world_justification": "Overwrites supplied fields of an existing tenant blog article. Its effects can change content or behavior on the public website.",
+        "destructive_justification": "Overwrites supplied fields of an existing tenant blog article. Existing state is deleted, replaced or overwritten rather than only appended."
       }
     },
     "update_booking_policy": {
@@ -1059,9 +1011,9 @@
         "destructiveHint": true
       },
       "justifications": {
-        "read_only_justification": "Creates or changes data in the authenticated tenant workspace.",
-        "open_world_justification": "Can change tenant content that is visible on a public website or an external service.",
-        "destructive_justification": "Can delete, replace, reorder, publish, or overwrite existing state that is not restored automatically."
+        "read_only_justification": "Overwrites booking rules, including cancellation and deposit terms, for the selected site or location. This changes persisted state or consumes credits.",
+        "open_world_justification": "Overwrites booking rules, including cancellation and deposit terms, for the selected site or location. Its effects can change content or behavior on the public website.",
+        "destructive_justification": "Overwrites booking rules, including cancellation and deposit terms, for the selected site or location. Existing state is deleted, replaced or overwritten rather than only appended."
       }
     },
     "update_experience": {
@@ -1071,9 +1023,9 @@
         "destructiveHint": true
       },
       "justifications": {
-        "read_only_justification": "Creates or changes data in the authenticated tenant workspace.",
-        "open_world_justification": "Can change tenant content that is visible on a public website or an external service.",
-        "destructive_justification": "Can delete, replace, reorder, publish, or overwrite existing state that is not restored automatically."
+        "read_only_justification": "Overwrites experience content, price, capacity, status or schedule as requested. This changes persisted state or consumes credits.",
+        "open_world_justification": "Overwrites experience content, price, capacity, status or schedule as requested. Its effects can change content or behavior on the public website.",
+        "destructive_justification": "Overwrites experience content, price, capacity, status or schedule as requested. Existing state is deleted, replaced or overwritten rather than only appended."
       }
     },
     "update_experience_booking": {
@@ -1083,9 +1035,9 @@
         "destructiveHint": true
       },
       "justifications": {
-        "read_only_justification": "Creates or changes data in the authenticated tenant workspace.",
-        "open_world_justification": "Does not change public internet state or a third-party system.",
-        "destructive_justification": "Can delete, replace, reorder, publish, or overwrite existing state that is not restored automatically."
+        "read_only_justification": "Overwrites a booking status and emits an internal inbox event; cancellation also revokes its review request. This changes persisted state or consumes credits.",
+        "open_world_justification": "Overwrites a booking status and emits an internal inbox event; cancellation also revokes its review request. It does not publish content or write to an external service.",
+        "destructive_justification": "Overwrites a booking status and emits an internal inbox event; cancellation also revokes its review request. Existing state is deleted, replaced or overwritten rather than only appended."
       }
     },
     "update_location": {
@@ -1095,9 +1047,9 @@
         "destructiveHint": true
       },
       "justifications": {
-        "read_only_justification": "Creates or changes data in the authenticated tenant workspace.",
-        "open_world_justification": "Can change tenant content that is visible on a public website or an external service.",
-        "destructive_justification": "Can delete, replace, reorder, publish, or overwrite existing state that is not restored automatically."
+        "read_only_justification": "Overwrites supplied location fields, including public hours and contact details or operational capacity and notification settings. This changes persisted state or consumes credits.",
+        "open_world_justification": "Overwrites supplied location fields, including public hours and contact details or operational capacity and notification settings. Its effects can change content or behavior on the public website.",
+        "destructive_justification": "Overwrites supplied location fields, including public hours and contact details or operational capacity and notification settings. Existing state is deleted, replaced or overwritten rather than only appended."
       }
     },
     "update_location_qa": {
@@ -1107,9 +1059,9 @@
         "destructiveHint": true
       },
       "justifications": {
-        "read_only_justification": "Creates or changes data in the authenticated tenant workspace.",
-        "open_world_justification": "Can change tenant content that is visible on a public website or an external service.",
-        "destructive_justification": "Can delete, replace, reorder, publish, or overwrite existing state that is not restored automatically."
+        "read_only_justification": "Overwrites the selected location question or answer. This changes persisted state or consumes credits.",
+        "open_world_justification": "Overwrites the selected location question or answer. Its effects can change content or behavior on the public website.",
+        "destructive_justification": "Overwrites the selected location question or answer. Existing state is deleted, replaced or overwritten rather than only appended."
       }
     },
     "update_media_asset": {
@@ -1119,9 +1071,9 @@
         "destructiveHint": true
       },
       "justifications": {
-        "read_only_justification": "Creates or changes data in the authenticated tenant workspace.",
-        "open_world_justification": "Can change tenant content that is visible on a public website or an external service.",
-        "destructive_justification": "Can delete, replace, reorder, publish, or overwrite existing state that is not restored automatically."
+        "read_only_justification": "Overwrites media metadata such as alt text or category. This changes persisted state or consumes credits.",
+        "open_world_justification": "Overwrites media metadata such as alt text or category. Its effects can change content or behavior on the public website.",
+        "destructive_justification": "Overwrites media metadata such as alt text or category. Existing state is deleted, replaced or overwritten rather than only appended."
       }
     },
     "update_owner_entered_site_review": {
@@ -1131,9 +1083,9 @@
         "destructiveHint": true
       },
       "justifications": {
-        "read_only_justification": "Creates or changes data in the authenticated tenant workspace.",
-        "open_world_justification": "Can change tenant content that is visible on a public website or an external service.",
-        "destructive_justification": "Can delete, replace, reorder, publish, or overwrite existing state that is not restored automatically."
+        "read_only_justification": "Overwrites selected owner-entered review fields while enforcing provenance rules. This changes persisted state or consumes credits.",
+        "open_world_justification": "Overwrites selected owner-entered review fields while enforcing provenance rules. Its effects can change content or behavior on the public website.",
+        "destructive_justification": "Overwrites selected owner-entered review fields while enforcing provenance rules. Existing state is deleted, replaced or overwritten rather than only appended."
       }
     },
     "update_post": {
@@ -1143,9 +1095,9 @@
         "destructiveHint": true
       },
       "justifications": {
-        "read_only_justification": "Creates or changes data in the authenticated tenant workspace.",
-        "open_world_justification": "Can change tenant content that is visible on a public website or an external service.",
-        "destructive_justification": "Can delete, replace, reorder, publish, or overwrite existing state that is not restored automatically."
+        "read_only_justification": "Overwrites fields of an existing website announcement. This changes persisted state or consumes credits.",
+        "open_world_justification": "Overwrites fields of an existing website announcement. Its effects can change content or behavior on the public website.",
+        "destructive_justification": "Overwrites fields of an existing website announcement. Existing state is deleted, replaced or overwritten rather than only appended."
       }
     },
     "update_product": {
@@ -1155,9 +1107,9 @@
         "destructiveHint": true
       },
       "justifications": {
-        "read_only_justification": "Creates or changes data in the authenticated tenant workspace.",
-        "open_world_justification": "Can change tenant content that is visible on a public website or an external service.",
-        "destructive_justification": "Can delete, replace, reorder, publish, or overwrite existing state that is not restored automatically."
+        "read_only_justification": "Overwrites product fields, including public content, availability and price. This changes persisted state or consumes credits.",
+        "open_world_justification": "Overwrites product fields, including public content, availability and price. Its effects can change content or behavior on the public website.",
+        "destructive_justification": "Overwrites product fields, including public content, availability and price. Existing state is deleted, replaced or overwritten rather than only appended."
       }
     },
     "update_professional_service_content": {
@@ -1167,9 +1119,9 @@
         "destructiveHint": true
       },
       "justifications": {
-        "read_only_justification": "Creates or changes data in the authenticated tenant workspace.",
-        "open_world_justification": "Can change tenant content that is visible on a public website or an external service.",
-        "destructive_justification": "Can delete, replace, reorder, publish, or overwrite existing state that is not restored automatically."
+        "read_only_justification": "Creates or overwrites professional-service content for the selected site. This changes persisted state or consumes credits.",
+        "open_world_justification": "Creates or overwrites professional-service content for the selected site. Its effects can change content or behavior on the public website.",
+        "destructive_justification": "Creates or overwrites professional-service content for the selected site. Existing state is deleted, replaced or overwritten rather than only appended."
       }
     },
     "update_site_qa": {
@@ -1179,9 +1131,9 @@
         "destructiveHint": true
       },
       "justifications": {
-        "read_only_justification": "Creates or changes data in the authenticated tenant workspace.",
-        "open_world_justification": "Can change tenant content that is visible on a public website or an external service.",
-        "destructive_justification": "Can delete, replace, reorder, publish, or overwrite existing state that is not restored automatically."
+        "read_only_justification": "Overwrites the selected site question or answer. This changes persisted state or consumes credits.",
+        "open_world_justification": "Overwrites the selected site question or answer. Its effects can change content or behavior on the public website.",
+        "destructive_justification": "Overwrites the selected site question or answer. Existing state is deleted, replaced or overwritten rather than only appended."
       }
     },
     "update_site_settings": {
@@ -1191,9 +1143,9 @@
         "destructiveHint": true
       },
       "justifications": {
-        "read_only_justification": "Creates or changes data in the authenticated tenant workspace.",
-        "open_world_justification": "Can change tenant content that is visible on a public website or an external service.",
-        "destructive_justification": "Can delete, replace, reorder, publish, or overwrite existing state that is not restored automatically."
+        "read_only_justification": "Overwrites supplied site settings, including branding, currency, tracking, verification and indexing controls. This changes persisted state or consumes credits.",
+        "open_world_justification": "Overwrites supplied site settings, including branding, currency, tracking, verification and indexing controls. Its effects can change content or behavior on the public website.",
+        "destructive_justification": "Overwrites supplied site settings, including branding, currency, tracking, verification and indexing controls. Existing state is deleted, replaced or overwritten rather than only appended."
       }
     },
     "update_tenant_page": {
@@ -1203,9 +1155,9 @@
         "destructiveHint": true
       },
       "justifications": {
-        "read_only_justification": "Creates or changes data in the authenticated tenant workspace.",
-        "open_world_justification": "Can change tenant content that is visible on a public website or an external service.",
-        "destructive_justification": "Can delete, replace, reorder, publish, or overwrite existing state that is not restored automatically."
+        "read_only_justification": "Overwrites tenant page metadata or supplied structured content, subject to version and removal checks. This changes persisted state or consumes credits.",
+        "open_world_justification": "Overwrites tenant page metadata or supplied structured content, subject to version and removal checks. Its effects can change content or behavior on the public website.",
+        "destructive_justification": "Overwrites tenant page metadata or supplied structured content, subject to version and removal checks. Existing state is deleted, replaced or overwritten rather than only appended."
       }
     },
     "upload_user_media": {
@@ -1215,77 +1167,77 @@
         "destructiveHint": false
       },
       "justifications": {
-        "read_only_justification": "Creates or changes data in the authenticated tenant workspace.",
-        "open_world_justification": "Can change tenant content that is visible on a public website or an external service.",
-        "destructive_justification": "Does not delete, replace, revoke, or irreversibly overwrite existing state."
+        "read_only_justification": "Stores a user attachment in Cloudflare media storage and returns a public URL, even before assignment to a page. This changes persisted state or consumes credits.",
+        "open_world_justification": "The attachment is stored in Cloudflare storage at a public media URL.",
+        "destructive_justification": "Stores a user attachment in Cloudflare media storage and returns a public URL, even before assignment to a page. Existing content is not deleted or overwritten."
       }
     }
   },
   "test_cases": [
     {
-      "description": "List the sites and locations available to the signed-in business owner.",
-      "user_prompt": "Show me my business sites and the locations for my first site.",
+      "description": "Add a menu item at the explicitly selected demo location.",
+      "user_prompt": "Use Ember & Slice, West Village. In Submission Drinks, add Submission Iced Coffee at 90 THB per item, tax-inclusive, with description “Coffee served over ice.” If that exact item already exists, show it and ask before creating a duplicate.",
       "file_attachment_urls": null,
-      "tools_triggered": "list_sites, list_locations",
-      "expected_output": "Returns only the authenticated owner's sites and the locations for the selected site.",
+      "tools_triggered": "list_sites, list_locations, list_product_categories, list_location_products, create_product",
+      "expected_output": "Creates one item only in the selected category and location with amount_minor 9000, currency THB, unit item, tax_behavior inclusive, and the supplied description.",
       "expected_output_url": null
     },
     {
-      "description": "Create a Product at an explicitly selected location.",
-      "user_prompt": "At my Ao Nang location, add a Sushi product named Chef's Choice with no numeric price and display the exact wording “Market Price.”",
+      "description": "Update an existing menu item without changing other items.",
+      "user_prompt": "At Ember & Slice, West Village, update Espresso in Submission Drinks to 85 THB per item, tax-inclusive, and description “Freshly brewed espresso.” Keep its name and availability unchanged.",
       "file_attachment_urls": null,
-      "tools_triggered": "create_product",
-      "expected_output": "Creates the Product at Ao Nang with no fixed Price and preserves “Market Price” as the customer-facing price wording.",
+      "tools_triggered": "list_location_products, get_product, update_product",
+      "expected_output": "Updates the explicitly identified Espresso to amount_minor 8500 and the supplied description; other fields and products remain unchanged.",
       "expected_output_url": null
     },
     {
-      "description": "Synchronize a complete Product list at one explicit location.",
-      "user_prompt": "Replace the intended product list for my Krabi Town location with these three products, and mark omitted products unavailable.",
+      "description": "Mark a menu item unavailable without deleting it.",
+      "user_prompt": "At Ember & Slice, West Village, mark Tea in Submission Drinks unavailable because it is sold out. Keep the item, price, and description so I can make it available again later.",
       "file_attachment_urls": null,
-      "tools_triggered": "sync_products",
-      "expected_output": "Updates only the Krabi Town catalog atomically and reports the resulting Products.",
+      "tools_triggered": "list_location_products, get_product, update_product",
+      "expected_output": "Sets available to false on the explicitly identified Tea product. The product remains stored with its price and description unchanged; no product is deleted.",
       "expected_output_url": null
     },
     {
-      "description": "Create and publish a site post.",
-      "user_prompt": "Create a post announcing our holiday hours, show me the draft, then publish it after I confirm.",
+      "description": "Change an existing experience description.",
+      "user_prompt": "At Ember & Slice, West Village, update Submission cooking class with tagline “Cook, taste, and learn together” and description “A hands-on cooking class with guided preparation and a shared meal.” Keep its price and duration unchanged.",
       "file_attachment_urls": null,
-      "tools_triggered": "create_post, publish_post",
-      "expected_output": "Creates the draft and publishes it only after the required confirmation.",
+      "tools_triggered": "list_experiences, get_experience, update_experience",
+      "expected_output": "Updates only the selected experience tagline and description, preserving price, duration, and scheduling.",
       "expected_output_url": null
     },
     {
-      "description": "Create an Experience at an explicitly selected location.",
-      "user_prompt": "At my Ao Nang location, create a two-hour Thai cooking class Experience priced at 1,500 THB per person, excluding tax.",
+      "description": "Change experience pricing and duration.",
+      "user_prompt": "At Ember & Slice, West Village, change Submission cooking class to 90 minutes and 1,200 THB per person excluding tax. Keep its description and booking schedule unchanged.",
       "file_attachment_urls": null,
-      "tools_triggered": "create_experience",
-      "expected_output": "Creates the Experience only at the explicitly selected Ao Nang location with the supplied duration and fixed Price semantics.",
+      "tools_triggered": "list_experiences, get_experience, update_experience",
+      "expected_output": "Updates the selected experience to duration_minutes 90 and price amount_minor 120000, currency THB, unit person, tax_behavior exclusive; preserves content and booking schedule.",
       "expected_output_url": null
     }
   ],
   "negative_test_cases": [
     {
-      "description": "Do not invoke the app for personal calendar requests.",
-      "user_prompt": "What appointments are on my personal calendar tomorrow?",
+      "description": "Site provisioning belongs in the CMS.",
+      "user_prompt": "Create a new business website for me.",
       "file_attachment_urls": null,
       "tools_triggered": null,
-      "expected_output": "The app should not be invoked because it does not manage personal calendars.",
+      "expected_output": "Explain that site creation must be completed in the KrabiClaw CMS; do not attempt to provision a site through MCP.",
       "expected_output_url": null
     },
     {
-      "description": "Do not invoke the app for medical diagnosis.",
-      "user_prompt": "Diagnose this rash and tell me which medicine to take.",
+      "description": "Location creation and copying belong in the CMS.",
+      "user_prompt": "Duplicate my location into a new branch, including all its products and experiences.",
       "file_attachment_urls": null,
       "tools_triggered": null,
-      "expected_output": "The app should not be invoked because medical diagnosis is outside its business website workflows.",
+      "expected_output": "Direct the user to location setup in the CMS; do not invoke a content tool to create or duplicate a location.",
       "expected_output_url": null
     },
     {
-      "description": "Do not invoke the app to execute a financial trade.",
-      "user_prompt": "Buy 20 shares of a technology stock for me.",
+      "description": "Deleting a location belongs in the CMS.",
+      "user_prompt": "Delete my business location permanently.",
       "file_attachment_urls": null,
       "tools_triggered": null,
-      "expected_output": "The app should not be invoked because it cannot trade securities or manage brokerage accounts.",
+      "expected_output": "Explain that location deletion is managed in the CMS; do not approximate it by deleting the location’s products, experiences, or media.",
       "expected_output_url": null
     }
   ]

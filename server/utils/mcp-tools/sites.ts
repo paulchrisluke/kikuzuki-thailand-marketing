@@ -1,6 +1,5 @@
 import type { McpToolDefinition } from './shared'
 import { ROBOTS_DIRECTIVE_ENUM, SUPPORTED_CURRENCIES, currentUserObject, globalTool, pageInfoObject, paginationInputSchema, siteListItem, siteTool, withToolAnnotations } from './shared'
-import { ALL_VERTICALS } from '~/utils/vertical-copy'
 
 const SITE_MEDIA_ITEM_SCHEMA = {
   type: 'object',
@@ -33,33 +32,6 @@ export const SITES_TOOLS: McpToolDefinition[] = [
           page_info: pageInfoObject,
         },
         required: ['sites', 'currentUser', 'page_info'],
-      },
-    })),
-  globalTool(withToolAnnotations({
-      name: 'create_site',
-      description: 'Create a new site in the caller\'s organization.',
-      domain: 'sites',
-      minimumRole: 'editor',
-      confirmRequired: true,
-      inputSchema: {
-        type: 'object',
-        properties: {
-          name: { type: 'string' },
-          subdomain: { type: 'string' },
-          vertical: { type: 'string', enum: [...ALL_VERTICALS] },
-        },
-        required: ['name', 'subdomain', 'vertical'],
-        additionalProperties: true,
-      },
-      outputSchema: {
-        type: 'object',
-        properties: {
-          siteId: { type: 'string', description: 'New site ID — pass as site_id in all subsequent calls.' },
-          subdomain: { type: 'string' },
-          organizationId: { type: 'string' },
-          message: { type: 'string' },
-        },
-        required: ['siteId', 'subdomain'],
       },
     })),
   siteTool({

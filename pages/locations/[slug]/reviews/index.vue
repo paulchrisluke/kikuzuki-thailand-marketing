@@ -131,7 +131,7 @@
             }"
           >
             <NuxtLink :to="localePath(`/locations/${slug}/reviews/${review.id}`)" class="mt-4 inline-flex text-sm font-medium text-primary no-underline hover:underline">
-              Read review
+              {{ t('saya.reviews_page.read_review') }}
             </NuxtLink>
 
             <!-- Photos -->

@@ -14,7 +14,6 @@ const USER_ID = process.argv.includes('--user-id')
 const MCP_VERSION = process.env.MCP_PROTOCOL_VERSION ?? '2025-06-18'
 
 const isLocal = (() => { try { const h = new URL(BASE_URL).hostname; return h === 'localhost' || h === '127.0.0.1'; } catch { return false; } })()
-const allowCreate = isLocal || process.env.MCP_ALLOW_CREATE === '1'
 let failed = false
 
 function pass(message) {
@@ -101,24 +100,8 @@ async function main() {
   if (Array.isArray(welcomeData?.sites)) pass('list_sites returns sites array')
   else fail('list_sites did not return sites array', welcome.body)
 
-  let siteId = SITE_ID
-  if (!siteId) {
-    if (!allowCreate) {
-      throw new Error('Refusing to create a site on a non-local target. Pass --site-id or set MCP_ALLOW_CREATE=1.')
-    }
-    const suffix = Date.now()
-    const create = await mcp(headers, 'create_site', {
-      name: `MCP Edit Check ${suffix}`,
-      subdomain: `mcp-edit-check-${suffix}`,
-      vertical: 'restaurant',
-    })
-    expectStatus('create_site succeeds', create)
-    siteId = resultData(create.body)?.siteId
-    if (siteId) pass(`created test site ${siteId}`)
-    else fail('create_site did not return siteId', create.body)
-  }
-
-  if (!siteId) process.exit(1)
+  const siteId = SITE_ID
+  if (!siteId) throw new Error('Pass --site-id for a disposable site provisioned through local setup or the CMS.')
 
   const list = await mcp(headers, 'list_sites')
   expectStatus('list_sites succeeds', list)

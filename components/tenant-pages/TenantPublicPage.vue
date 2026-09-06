@@ -5,6 +5,7 @@
 <script setup lang="ts">
 import { publicApiRequest, isRecord } from '~/utils/api-clients'
 import type { PublicTenantPage } from '~/server/utils/public-tenant-pages'
+import type { PublicLocaleRepresentation } from '~/utils/public-resource-contracts'
 import type { PublicBlawbyIdentity, PublicCompliance } from '~/types/blawby'
 
 const props = defineProps<{ path: string; previewToken?: string | null; locale?: string | null }>()
@@ -67,6 +68,10 @@ if (error.value) throw error.value
 if (!data.value?.page) throw createError({ statusCode: 500, statusMessage: 'Tenant page data was not returned' })
 
 const page = computed(() => data.value!.page)
+if (!page.value.localeRepresentations) {
+  throw createError({ statusCode: 500, statusMessage: 'Tenant page locale representations were not returned' })
+}
+useState<PublicLocaleRepresentation[]>('public-locale-representations', () => []).value = page.value.localeRepresentations
 const template = computed<'saya' | 'blawby'>(() => isBlawby.value ? 'blawby' : 'saya')
 const schemaContext = inject<{ identity: ComputedRef<PublicBlawbyIdentity>; compliance: ComputedRef<PublicCompliance | null> } | null>('blawby-schema-context', null)
 const schemaOrg = useBlawbyOrgIdentity(() => schemaContext?.identity.value, () => schemaContext?.compliance.value)

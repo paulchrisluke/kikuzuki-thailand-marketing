@@ -5,7 +5,7 @@ import { normalizeLocationNotificationPhone, serializeOpeningHours } from '../..
 
 // createLocation/updateLocation (server/utils/location-management.ts) are the
 // one write boundary shared by the dashboard HTTP routes AND the MCP/ChowBot
-// create_location/update_location tools (server/utils/mcp-executor/locations.ts).
+// update_location tool (server/utils/mcp-executor/locations.ts).
 // Before this fix, createLocation wrote input.notification_phone straight to
 // the column with zero validation, so an MCP-set manager number could bypass
 // issue #293 Section D's "reject impossible/invalid numbers at write

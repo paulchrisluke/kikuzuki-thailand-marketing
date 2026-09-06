@@ -22,7 +22,7 @@ export const CONTEXT_TOOLS: McpToolDefinition[] = [
     })),
   globalTool(withToolAnnotations({
       name: 'set_workspace_context',
-      description: 'Persist the active MCP site and optional location so later tool calls can omit raw IDs. Pass an internal site_id from get_workspace_context, list_sites, or create_site to switch sites. Do not pass a public URL, hostname, custom domain, subdomain, slug, or site name as site_id. Pass location_id to switch locations within the active or specified site.',
+      description: 'Persist the active MCP site and optional location so later tool calls can omit raw IDs. Pass an internal site_id from get_workspace_context or list_sites to switch sites. Do not pass a public URL, hostname, custom domain, subdomain, slug, or site name as site_id. Pass location_id to switch locations within the active or specified site.',
       domain: 'context',
       minimumRole: 'editor',
       confirmRequired: false,
@@ -30,7 +30,7 @@ export const CONTEXT_TOOLS: McpToolDefinition[] = [
         type: 'object',
         properties: {
           organization_id: { type: 'string' },
-          site_id: { type: 'string', description: 'Internal KrabiClaw site ID from get_workspace_context, list_sites, or create_site, e.g. site-pottery-house. Do not pass a public URL, hostname, custom domain, subdomain, slug, or site name here.' },
+          site_id: { type: 'string', description: 'Internal KrabiClaw site ID from get_workspace_context or list_sites, e.g. site-pottery-house. Do not pass a public URL, hostname, custom domain, subdomain, slug, or site name here.' },
           location_id: { type: 'string', description: 'Location id or slug.' },
         },
         anyOf: [
