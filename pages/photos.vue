@@ -7,15 +7,15 @@
     <template v-else>
       <!-- Page header -->
       <header class="mx-auto max-w-7xl px-4 pt-16 pb-12 sm:px-6 lg:px-8 text-center">
-        <p class="saya-kicker mb-6">Gallery</p>
-        <h1 class="saya-display-md saya-italic text-default">Photos from every room.</h1>
+        <p class="saya-kicker mb-6">{{ t('saya.footer.gallery') }}</p>
+        <h1 class="saya-display-md saya-italic text-default">{{ t('saya.photos.title') }}</h1>
 
         <!-- Multi-location pills -->
         <div v-if="locations.length > 1" class="mt-8 flex flex-wrap justify-center gap-3">
           <NuxtLink
             v-for="loc in locations"
             :key="loc.id"
-            :to="`/locations/${loc.slug}/photos`"
+            :to="localePath(`/locations/${loc.slug}/photos`)"
             class="inline-flex items-center gap-2 rounded-full border border-default px-5 py-2.5 text-sm text-muted no-underline transition hover:bg-muted hover:text-default"
           >
             <SayaIcon name="map-pin" class="size-3.5 opacity-70" />
@@ -26,8 +26,8 @@
 
       <!-- Empty state -->
       <div v-if="photos.length === 0" class="mx-auto max-w-xl px-4 py-24 text-center sm:px-6">
-        <h1 class="saya-display-md text-muted">No photos yet.</h1>
-        <p class="mt-4 text-sm text-muted">Add photos from the dashboard after creating a location.</p>
+        <h1 class="saya-display-md text-muted">{{ t('saya.photos.empty_title') }}</h1>
+        <p class="mt-4 text-sm text-muted">{{ t('saya.photos.empty_desc') }}</p>
       </div>
 
       <template v-else>
@@ -45,13 +45,13 @@
             >
               <img
                 :src="photo.public_url"
-                :alt="photo.alt_text || ''"
+                :alt="typeof photo.alt_text === 'string' ? photo.alt_text : ''"
                 loading="lazy"
                 class="block w-full transition-opacity duration-200 group-hover:opacity-80"
               />
               <div class="absolute inset-0 flex items-end bg-linear-to-t from-black/60 to-transparent p-6 opacity-0 transition-opacity duration-300 group-hover:opacity-100">
-                <span class="saya-eyebrow rounded-full bg-white/25 px-4 py-1.5 text-[10px] font-bold tracking-widest text-white backdrop-blur-md border border-white/20">
-                  {{ locationTitle(photo) || photo.category || 'Gallery' }}
+                <span v-if="photoLabel(photo)" class="saya-eyebrow rounded-full bg-white/25 px-4 py-1.5 text-[10px] font-bold tracking-widest text-white backdrop-blur-md border border-white/20">
+                  {{ photoLabel(photo) }}
                 </span>
               </div>
             </button>
@@ -68,6 +68,7 @@
 <script setup>
 definePageMeta({ layout: 'saya' })
 
+const { localePath, t } = useI18n()
 const { siteId, site } = useTenantSite()
 if (!siteId) throw createError({ statusCode: 404 })
 
@@ -76,18 +77,39 @@ const siteName = computed(() => site?.brand_name?.trim() ?? '')
 
 const locationsById = computed(() => Object.fromEntries(locations.value.map(l => [l.id, l])))
 function locationTitle(photo) {
-  return locations.value.length > 1 ? locationsById.value[photo.owner_id]?.title : null
+  if (locations.value.length <= 1) return null
+  const title = locationsById.value[photo.owner_id]?.title
+  return typeof title === 'string' ? title : null
 }
 
-const cats = [
-  { key: 'ALL', label: 'All' },
-  { key: 'FOOD', label: 'Food' },
-  { key: 'INTERIOR', label: 'Interior' },
-  { key: 'EXTERIOR', label: 'Exterior' },
-  { key: 'MENU', label: 'Menu' },
-  { key: 'TEAM', label: 'Team' }
-]
+const photoCategoryKeys = {
+  FOOD: 'saya.photos.category_food',
+  INTERIOR: 'saya.photos.category_interior',
+  EXTERIOR: 'saya.photos.category_exterior',
+  MENU: 'saya.photos.category_menu',
+  TEAM: 'saya.photos.category_team',
+  OTHER: 'saya.photos.category_other',
+}
+const cats = computed(() => [
+  { key: 'ALL', label: t('saya.photos.category_all') },
+  { key: 'FOOD', label: t('saya.photos.category_food') },
+  { key: 'INTERIOR', label: t('saya.photos.category_interior') },
+  { key: 'EXTERIOR', label: t('saya.photos.category_exterior') },
+  { key: 'MENU', label: t('saya.photos.category_menu') },
+  { key: 'TEAM', label: t('saya.photos.category_team') }
+])
 const activeCategory = ref('ALL')
+
+function categoryLabel(category) {
+  const key = photoCategoryKeys[category]
+  return typeof key === 'string' ? t(key) : t('saya.photos.category_other')
+}
+
+function photoLabel(photo) {
+  const title = locationTitle(photo)
+  if (locations.value.length > 1) return title
+  return categoryLabel(photo.category)
+}
 
 const sorted = computed(() => {
   const filtered = activeCategory.value === 'ALL'
@@ -110,14 +132,18 @@ const lightboxItems = computed(() =>
     url: p.public_url,
     kind: 'image',
     description: p.alt_text,
-    alt: p.alt_text || p.category || ''
+    alt: typeof p.alt_text === 'string' ? p.alt_text : ''
   }))
 )
 
 useSocialMetadata(() => ({
   path: '/photos',
-  title: `Photos | ${siteName.value}`,
-  description: `Photo gallery from ${siteName.value}.`,
+  title: `${t('saya.subnav.photos')} | ${siteName.value}`,
+  description: t('saya.photos.meta_description', {
+    count: photos.value.length,
+    location: siteName.value,
+    site: siteName.value,
+  }),
   brand: {
     siteName: siteName.value,
   },

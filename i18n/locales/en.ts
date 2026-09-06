@@ -4,6 +4,7 @@ export default {
     "reviews": "Guest reviews & ratings."
   },
   "legal": {
+    "cookie_preferences": "Cookie preferences",
     "privacy": "Privacy",
     "terms": "Terms"
   },
@@ -169,7 +170,22 @@ export default {
       "meta_description": "Products from {site}."
     },
     "photos": {
+      "title": "Photos from every room.",
+      "empty_title": "No photos yet.",
+      "empty_desc": "Photos added by the team will appear here.",
+      "category_all": "All",
+      "category_food": "Food",
+      "category_interior": "Interior",
+      "category_exterior": "Exterior",
+      "category_menu": "Menu",
+      "category_team": "Team",
+      "category_other": "Other",
       "meta_description": "{count} photos from {location} at {site}."
+    },
+    "carousel": {
+      "previous": "Previous",
+      "next": "Next",
+      "go_to_item": "Go to item {number}"
     },
     "reviews": {
       "title": "Guest Experience",
@@ -280,6 +296,7 @@ export default {
       "highest_rated": "Highest rated",
       "lowest_rated": "Lowest rated",
       "with_photos": "With photos",
+      "read_review": "Read review",
       "meta_description": "Guest reviews for {site}."
     },
     "qa_page": {

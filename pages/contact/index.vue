@@ -301,7 +301,7 @@ interface TenantFieldError {
 }
 
 function formatLocAddress(loc: ContactLocation) {
-  if (locale.value !== 'en') return loc.address_translated?.trim() || ''
+  if (locale.value !== 'en') return typeof loc.address_translated === 'string' ? loc.address_translated.trim() : ''
   if (!loc.address) return loc.city || ''
   if (typeof loc.address === 'string') return loc.address
   const a = loc.address
