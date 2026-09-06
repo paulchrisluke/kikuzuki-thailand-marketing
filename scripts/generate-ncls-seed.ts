@@ -38,12 +38,7 @@ export function renderNclsFixtureSql(): string {
   if (!site) throw new Error('NCLS fixture has no site row')
 
   const afterCore = [
-    'site_config',
     'site_domains',
-    'tenant_compliance',
-    'site_consultation_settings',
-    'site_theme_tokens',
-    'location_qa',
     'reviews',
     'offerings',
   ].map(name => renderRows(table(name))).filter(Boolean).join('\n\n')
@@ -76,15 +71,9 @@ ${renderRows(table('media_assets'))}
 
 ${renderRows(table('site_locales'))}
 
-${renderRows(table('tenant_pages'))}
-
-${renderRows(table('blog_posts'))}
-
 ${renderRows(table('content_documents'))}
 
 ${renderRows(table('content_blocks'))}
-
-${renderRows(table('tenant_page_variants'))}
 
 ${renderRows(table('site_redirects'))}
 

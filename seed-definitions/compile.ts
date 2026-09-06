@@ -308,7 +308,7 @@ export function compileCuratedSiteFixture(
       siteId: fixture.siteId,
     },
     site: { ...fixture.site, media: validatedSiteMedia },
-    siteConfig: fixture.siteConfig.map((entry) => ({ ...entry })),
+    settings: structuredClone(fixture.settings),
     siteLocales: fixture.siteLocales.map((entry) => ({ ...entry })),
     siteDomains: fixture.siteDomains.map((entry) => ({ ...entry })),
     locations: fixture.locations.map((location) => ({ ...location, media: validatedLocationMediaById.get(location.id)! })),

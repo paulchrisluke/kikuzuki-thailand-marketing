@@ -139,13 +139,16 @@ export const kikuzukiFixture: CuratedSiteDefinition = {
     defaultCurrency: 'THB',
     vertical: 'restaurant',
   },
-  siteConfig: [
-    { key: 'default_timezone', value: 'Asia/Bangkok' },
-    { key: 'source_locale', value: 'en' },
-    { key: 'brand_color', value: '#ea201c' },
-    { key: 'whatsapp_phone', value: '+66952932112' },
-    { key: 'owner_notification_channels', value: '["whatsapp"]' },
-  ],
+  settings: {
+    "config": {
+      "default_timezone": "Asia/Bangkok",
+      "brand_color": "#ea201c",
+      "whatsapp_phone": "+66952932112",
+      "owner_notification_channels": [
+        "whatsapp"
+      ]
+    }
+  },
   siteLocales: [
     {
       id: 'locale::org-kikuzuki::site-kikuzuki::en',
@@ -156,14 +159,6 @@ export const kikuzukiFixture: CuratedSiteDefinition = {
     },
   ],
   siteDomains: [
-    {
-      id: 'domain-kikuzuki-local',
-      domain: 'kikuzuki-krabi-thailand.localhost',
-      type: 'subdomain',
-      role: 'secondary',
-      status: 'active',
-      dnsStatus: 'valid',
-    },
     {
       id: 'domain-kikuzuki-prod',
       domain: 'kikuzuki-krabi-thailand.krabiclaw.com',
@@ -614,14 +609,7 @@ export const compiledKikuzukiSeed = compileCuratedSiteFixture(kikuzukiFixture)
 export function renderKikuzukiCoreSeedBlock(): string {
   const { site, identity } = compiledKikuzukiSeed
 
-  const siteConfigRows = compiledKikuzukiSeed.siteConfig
-    .map((entry) => `  (${[
-      sqlValue(identity.organizationId),
-      sqlValue(identity.siteId),
-      sqlValue(entry.key),
-      sqlValue(entry.value),
-    ].join(', ')})`)
-    .join(',\n')
+  const settings = compiledKikuzukiSeed.settings
 
   const siteLocaleRows = compiledKikuzukiSeed.siteLocales
     .map((entry) => `  (${[
@@ -653,7 +641,7 @@ INSERT OR REPLACE INTO sites (
   id, organization_id, theme_id, slug, subdomain,
   brand_name, brand_description,
   status, onboarding_status,
-  contact_email, contact_phone, default_currency, vertical, analytics_data_start_at
+  contact_email, contact_phone, default_currency, vertical, settings_json, analytics_data_start_at
 ) VALUES (
   ${sqlValue(identity.siteId)},
   ${sqlValue(identity.organizationId)},
@@ -668,12 +656,10 @@ INSERT OR REPLACE INTO sites (
   NULL,
   ${sqlValue(site.defaultCurrency)},
   ${sqlValue(site.vertical)},
+  ${sqlJson(settings)},
   strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
 );
 
-INSERT OR REPLACE INTO site_config (organization_id, site_id, key, value)
-VALUES
-${siteConfigRows};
 
 INSERT OR REPLACE INTO site_locales
   (id, organization_id, site_id, locale, label, is_source, status)
@@ -911,23 +897,7 @@ export function renderKikuzukiExperienceBlock(): string {
       sqlValue(experience.featured), sqlValue(experience.featuredSortOrder), sqlValue(sortOrderFor(experience.id)),
       sqlJson(experience.tags), sqlJson(experience.details), sqlValue(experience.seoTitle), sqlValue(experience.seoDescription),
       sqlValue('template'), sqlValue('seed:kikuzuki'), sqlValue('seed:kikuzuki'),
-    ].join(', ')})`)
-    .join(',\n')
-  const experienceRows = compiledKikuzukiSeed.experiences
-    .map((experience) => `  (${[
-      sqlValue(experience.id),
-      sqlValue(identity.organizationId),
-      sqlValue(identity.siteId),
-      sqlValue(experience.locationId),
-      sqlValue(experience.tagline),
-      sqlValue(experience.priceAmount == null ? experience.price : null),
-      sqlValue(experience.durationMinutes),
-      sqlValue(experience.maxCapacity),
-      experience.recurringSlots === null ? 'NULL' : sqlJson(experience.recurringSlots),
-      (experience.includedItems?.length ?? 0) > 0 ? sqlJson(experience.includedItems) : 'NULL',
-      (experience.whatToBring?.length ?? 0) > 0 ? sqlJson(experience.whatToBring) : 'NULL',
-      sqlValue(experience.meetingPoint),
-      sqlValue(experience.cancellationPolicy),
+      sqlJson({ tagline: experience.tagline, pricing_note: experience.priceAmount == null ? experience.price : null, duration_minutes: experience.durationMinutes, max_capacity: experience.maxCapacity, recurring_slots: experience.recurringSlots, included_items: experience.includedItems?.length ? experience.includedItems : null, what_to_bring: experience.whatToBring?.length ? experience.whatToBring : null, meeting_point: experience.meetingPoint ?? null, cancellation_policy: experience.cancellationPolicy ?? null }),
     ].join(', ')})`)
     .join(',\n')
   const experiencePriceRows = compiledKikuzukiSeed.experiences
@@ -954,7 +924,7 @@ ${experienceMedia
     sqlValue(`em-${experience.id}-${media.slot}-${index}`),
     sqlValue(identity.organizationId),
     sqlValue(identity.siteId),
-    sqlValue('experience'), sqlValue(experience.id), sqlValue(media.slot),
+    sqlValue('product'), sqlValue(experience.id), sqlValue(media.slot),
     sqlValue(media.asset_id),
     index, sqlValue('active'),
   ].join(', ')})`)
@@ -970,15 +940,9 @@ ${experienceCategoryRows};
 INSERT OR REPLACE INTO products
   (id, organization_id, site_id, location_id, product_type, category_id, name, slug, description,
    is_visible, available, featured, featured_sort_order, sort_order, tags_json, details_json,
-   seo_title, seo_description, source, created_by, updated_by)
+   seo_title, seo_description, source, created_by, updated_by, experience_json)
 VALUES
 ${experienceProductRows};
-
-INSERT OR REPLACE INTO experiences
-  (id, organization_id, site_id, location_id, tagline, pricing_note, duration_minutes, max_capacity,
-   recurring_slots, included_items, what_to_bring, meeting_point, cancellation_policy)
-VALUES
-${experienceRows};
 
 INSERT OR REPLACE INTO prices
   (id, organization_id, site_id, location_id, product_id, amount_minor, currency, unit, tax_behavior,

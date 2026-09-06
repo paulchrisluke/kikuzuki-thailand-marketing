@@ -1,3 +1,4 @@
+import type { SiteSettings } from '../shared/site-settings.ts'
 import type { PostMutation, PostTopic } from '../shared/posts.ts'
 import type { OpeningHours, RecurringSlots } from '../shared/reservation-hours.ts'
 export interface SeedPublicRouteExpectation {
@@ -32,7 +33,7 @@ export interface CuratedSiteDefinition extends CuratedSiteIdentity {
     defaultCurrency: string
     vertical: 'restaurant' | 'experience' | 'service'
   }
-  siteConfig: CuratedSiteConfigEntry[]
+  settings: SiteSettings
   siteLocales: CuratedSiteLocaleDefinition[]
   siteDomains: CuratedSiteDomainDefinition[]
   locations: CuratedLocationDefinition[]
@@ -54,11 +55,6 @@ export interface CuratedSiteDefinition extends CuratedSiteIdentity {
     status: string
     plan: 'free' | 'growth'
   }
-}
-
-export interface CuratedSiteConfigEntry {
-  key: string
-  value: string
 }
 
 export interface CuratedSiteLocaleDefinition {
@@ -435,7 +431,7 @@ export interface CompiledSeedBusinessLocationTranslation {
 export interface CompiledCuratedSiteBundle {
   identity: CuratedSiteIdentity
   site: CuratedSiteDefinition['site']
-  siteConfig: CuratedSiteConfigEntry[]
+  settings: SiteSettings
   siteLocales: CuratedSiteLocaleDefinition[]
   siteDomains: CuratedSiteDomainDefinition[]
   locations: CuratedLocationDefinition[]
@@ -461,18 +457,6 @@ export interface CompiledCuratedSiteBundle {
     status: string
     plan: 'free' | 'growth'
   }
-}
-
-export interface SerializedSeedPublicRouteExpectation {
-  path: string
-  titlePattern: string
-  titleFlags: string
-  text: string
-}
-
-export interface SerializedCompiledCuratedSiteBundle
-  extends Omit<CompiledCuratedSiteBundle, 'publicRoutes'> {
-  publicRoutes: SerializedSeedPublicRouteExpectation[]
 }
 
 export interface CompiledSeedProductCategory {

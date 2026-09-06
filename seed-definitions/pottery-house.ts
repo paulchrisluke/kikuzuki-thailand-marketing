@@ -38,12 +38,13 @@ export const potteryHouseFixture: CuratedSiteDefinition = {
     defaultCurrency: 'THB',
     vertical: 'experience',
   },
-  siteConfig: [
-    { key: 'default_timezone', value: 'Asia/Bangkok' },
-    { key: 'source_locale', value: 'en' },
-    { key: 'brand_color', value: '#96826A' },
-    { key: 'whatsapp_phone', value: '+447464115465' },
-  ],
+  settings: {
+    "config": {
+      "default_timezone": "Asia/Bangkok",
+      "brand_color": "#96826A",
+      "whatsapp_phone": "+447464115465"
+    }
+  },
   siteLocales: [
     {
       id: 'locale::org-pottery-house::site-pottery-house::en',
@@ -61,14 +62,6 @@ export const potteryHouseFixture: CuratedSiteDefinition = {
     },
   ],
   siteDomains: [
-    {
-      id: 'domain-pottery-local',
-      domain: 'pottery-house.localhost',
-      type: 'subdomain',
-      role: 'secondary',
-      status: 'active',
-      dnsStatus: 'valid',
-    },
     {
       id: 'domain-pottery-prod',
       domain: 'pottery-house.krabiclaw.com',
@@ -858,14 +851,7 @@ export const potteryHouseFixture: CuratedSiteDefinition = {
 export const compiledPotteryHouseSeed = compileCuratedSiteFixture(potteryHouseFixture)
 
 export function renderCompiledPotteryHouseCoreSeedBlock(): string {
-  const siteConfigRows = compiledPotteryHouseSeed.siteConfig
-    .map((entry) => `  (${[
-      sqlValue(compiledPotteryHouseSeed.identity.organizationId),
-      sqlValue(compiledPotteryHouseSeed.identity.siteId),
-      sqlValue(entry.key),
-      sqlValue(entry.value),
-    ].join(', ')})`)
-    .join(',\n')
+  const settings = compiledPotteryHouseSeed.settings
 
   const siteLocaleRows = compiledPotteryHouseSeed.siteLocales
     .map((entry) => `  (${[
@@ -899,7 +885,7 @@ INSERT OR REPLACE INTO sites (
   id, organization_id, theme_id, slug, subdomain,
   brand_name, brand_description,
   status, onboarding_status,
-  contact_email, contact_phone, default_currency, vertical, analytics_data_start_at
+  contact_email, contact_phone, default_currency, vertical, settings_json, analytics_data_start_at
 ) VALUES (
   ${sqlValue(identity.siteId)},
   ${sqlValue(identity.organizationId)},
@@ -914,12 +900,10 @@ INSERT OR REPLACE INTO sites (
   ${sqlValue(site.contactPhone ?? null)},
   ${sqlValue(site.defaultCurrency)},
   ${sqlValue(site.vertical)},
+  ${sqlJson(settings)},
   strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
 );
 
-INSERT OR REPLACE INTO site_config (organization_id, site_id, key, value)
-VALUES
-${siteConfigRows};
 
 INSERT OR REPLACE INTO site_locales
   (id, organization_id, site_id, locale, label, is_source, status)
@@ -1045,19 +1029,7 @@ export function renderCompiledPotteryHouseExperiencesBlock(): string {
       sqlValue(experience.featured), sqlValue(experience.featuredSortOrder), sqlValue(sortOrderFor(experience.id)),
       sqlJson(experience.tags), sqlJson(experience.details), sqlValue(experience.seoTitle), sqlValue(experience.seoDescription),
       sqlValue('template'), sqlValue('seed:pottery-house'), sqlValue('seed:pottery-house'),
-    ].join(', ')})`)
-    .join(',\n')
-  const experienceRows = compiledPotteryHouseSeed.experiences
-    .map((experience) => `  (${[
-      sqlValue(experience.id),
-      sqlValue(experience.organizationId),
-      sqlValue(experience.siteId),
-      sqlValue(experience.locationId),
-      sqlValue(experience.tagline),
-      sqlValue(experience.priceAmount == null ? experience.price : null),
-      sqlValue(experience.durationMinutes),
-      sqlValue(experience.maxCapacity),
-      experience.recurringSlots === null ? 'NULL' : sqlJson(experience.recurringSlots),
+      sqlJson({ tagline: experience.tagline, pricing_note: experience.priceAmount == null ? experience.price : null, duration_minutes: experience.durationMinutes, max_capacity: experience.maxCapacity, recurring_slots: experience.recurringSlots, included_items: experience.includedItems?.length ? experience.includedItems : null, what_to_bring: experience.whatToBring?.length ? experience.whatToBring : null, meeting_point: experience.meetingPoint ?? null, cancellation_policy: experience.cancellationPolicy ?? null }),
     ].join(', ')})`)
     .join(',\n')
   const experiencePriceRows = compiledPotteryHouseSeed.experiences
@@ -1081,7 +1053,7 @@ ${experienceMedia
     sqlValue(`em-${experience.id}-${media.slot}-${index}`),
     sqlValue(experience.organizationId),
     sqlValue(experience.siteId),
-    sqlValue('experience'), sqlValue(experience.id), sqlValue(media.slot),
+    sqlValue('product'), sqlValue(experience.id), sqlValue(media.slot),
     sqlValue(media.asset_id),
     index, sqlValue('active'),
   ].join(', ')})`)
@@ -1098,15 +1070,9 @@ ${experienceCategoryRows};
 INSERT OR REPLACE INTO products
   (id, organization_id, site_id, location_id, product_type, category_id, name, slug, description,
    is_visible, available, featured, featured_sort_order, sort_order, tags_json, details_json,
-   seo_title, seo_description, source, created_by, updated_by)
+   seo_title, seo_description, source, created_by, updated_by, experience_json)
 VALUES
 ${experienceProductRows};
-
-INSERT OR REPLACE INTO experiences
-  (id, organization_id, site_id, location_id, tagline, pricing_note,
-   duration_minutes, max_capacity, recurring_slots)
-VALUES
-${experienceRows};
 
 INSERT OR REPLACE INTO prices
   (id, organization_id, site_id, location_id, product_id, amount_minor, currency, unit, tax_behavior,
@@ -1160,11 +1126,9 @@ export function renderCompiledPotteryHouseQaBlock(): string {
       sqlValue(qa.siteId),
       sqlValue(qa.locationId),
       sqlValue(qa.question),
-      sqlValue(qa.questionAuthor),
       sqlValue(qa.answer),
-      sqlValue(qa.answerAuthor),
-      sqlValue(qa.isOwnerAnswer),
-      sqlValue(qa.upvoteCount),
+      sqlValue('qa'), sqlValue('root'), sqlValue('en'),
+      sqlJson({ question_author: qa.questionAuthor, answer_author: qa.answerAuthor, is_owner_answer: Boolean(qa.isOwnerAnswer), upvote_count: qa.upvoteCount }),
       sqlValue(qa.source),
       sqlValue(qa.status),
       sqlValue(qa.sortOrder),
@@ -1173,10 +1137,8 @@ export function renderCompiledPotteryHouseQaBlock(): string {
 
   return `-- BEGIN GENERATED: pottery_qa
 -- Location Q&A for Pottery House Krabi.
-INSERT OR IGNORE INTO location_qa
-  (id, organization_id, site_id, location_id,
-   question, question_author, answer, answer_author,
-   is_owner_answer, upvote_count, source, status, sort_order)
+INSERT OR IGNORE INTO content_documents
+  (id, organization_id, site_id, location_id, title, summary, kind, row_role, locale, metadata_json, source, status, sort_order)
 VALUES
 ${qaRows};
 -- END GENERATED: pottery_qa`
@@ -1189,13 +1151,9 @@ export function renderCompiledPotteryHousePostsBlock(): string {
       sqlValue(post.organizationId),
       sqlValue(post.siteId),
       sqlValue(post.locationId),
-      sqlValue(post.post_type),
-      sqlValue(post.title),
-      sqlValue(post.body),
-      sqlValue(post.call_to_action === null ? null : JSON.stringify(post.call_to_action)),
-      sqlValue(post.event === null ? null : JSON.stringify(post.event)),
-      sqlValue(post.offer === null ? null : JSON.stringify(post.offer)),
-      sqlValue(post.alert_type),
+      sqlValue(post.title), sqlValue(post.body),
+      sqlValue('social_post'), sqlValue('root'), sqlValue('en'), sqlValue('template'),
+      sqlJson({ post_type: post.post_type, call_to_action: post.call_to_action, event: post.event, offer: post.offer, alert_type: post.alert_type }),
       sqlValue(post.status),
       sqlValue(post.publishedAt),
       sqlValue(post.createdBy),
@@ -1204,13 +1162,11 @@ export function renderCompiledPotteryHousePostsBlock(): string {
 
   const postMediaRows = compiledPotteryHouseSeed.posts.flatMap(post => post.media.map((media, index) => `  (${[
     sqlValue(`placement-post-${post.id}-${media.slot}-${index}`), sqlValue(post.organizationId), sqlValue(post.siteId),
-    sqlValue('post'), sqlValue(post.id), sqlValue(media.slot), sqlValue(media.asset_id), index, sqlValue('active'),
+    sqlValue('content_document'), sqlValue(post.id), sqlValue(media.slot), sqlValue(media.asset_id), index, sqlValue('active'),
   ].join(', ')})`)).join(',\n')
   return `-- BEGIN GENERATED: pottery_posts
-INSERT OR IGNORE INTO posts
-  (id, organization_id, site_id, location_id,
-   post_type, title, body, call_to_action, event, offer, alert_type,
-   status, published_at, created_by)
+INSERT OR IGNORE INTO content_documents
+  (id, organization_id, site_id, location_id, title, summary, kind, row_role, locale, source, metadata_json, status, published_at, created_by)
 VALUES
 ${postRows};
 
@@ -1225,7 +1181,6 @@ ${postMediaRows};` : ''}
 export function renderCompiledPotteryHouseBlogBlock(): string {
   const publishedAt = '2026-07-08T00:00:00.000Z'
   const postId = 'blog-pottery-group-bookings'
-  const documentId = 'content-document-pottery-group-bookings'
   const blockId = 'content-block-pottery-group-bookings'
   const body = `# Group Bookings Create a Unique Pottery Experience in Krabi
 
@@ -1242,10 +1197,10 @@ Our team can help organise group timing, capacity, and the right workshop format
 
   return `-- BEGIN GENERATED: pottery_blog
 -- Tenant blog coverage for Pottery House Krabi parity checks.
-INSERT OR IGNORE INTO blog_posts
-  (id, organization_id, site_id, title, slug, excerpt, category, status,
+INSERT OR IGNORE INTO content_documents
+  (id, organization_id, site_id, title, slug, summary, metadata_json, status,
    author_id, published_at, created_at, updated_at,
-   seo_description, seo_keywords, canonical_url, robots, hide_from_nav)
+   seo_description, seo_keywords, canonical_url, robots, kind, row_role, locale, visibility)
 VALUES (
   ${sqlValue(postId)},
   ${sqlValue('org-pottery-house')},
@@ -1253,7 +1208,7 @@ VALUES (
   ${sqlValue('Group Bookings Create a Unique Pottery Experience in Krabi')},
   ${sqlValue('group-bookings-create-a-unique-pottery-experience-in-krabi')},
   ${sqlValue('A practical guide to private pottery sessions in Krabi for retreats, schools, and team events.')},
-  ${sqlValue('Group bookings')},
+  ${sqlJson({ category: 'Group bookings', hide_from_nav: false })},
   'published',
   ${sqlValue('user-pottery-house')},
   ${sqlValue(publishedAt)},
@@ -1263,20 +1218,17 @@ VALUES (
   ${sqlValue('pottery workshop krabi, group booking krabi, retreat activity krabi, team building pottery')},
   ${sqlValue('/blog/group-bookings-create-a-unique-pottery-experience-in-krabi')},
   ${sqlValue('index,follow')},
-  0
+  'article', 'root', 'en', 'public'
 );
 
 INSERT OR REPLACE INTO media_placements
   (id, organization_id, site_id, owner_type, owner_id, slot, asset_id, sort_order, status)
-VALUES ('placement-blog-pottery-group-bookings-featured', 'org-pottery-house', 'site-pottery-house', 'blog_post', ${sqlValue(postId)}, 'featured', 'media-ph-homepage-custom', 0, 'active');
+VALUES ('placement-blog-pottery-group-bookings-featured', 'org-pottery-house', 'site-pottery-house', 'content_document', ${sqlValue(postId)}, 'featured', 'media-ph-homepage-custom', 0, 'active');
 
-INSERT OR REPLACE INTO content_documents
-  (id, site_id, owner_type, owner_id, created_at, updated_at)
-VALUES (${sqlValue(documentId)}, 'site-pottery-house', 'tenant_blog', ${sqlValue(postId)}, ${sqlValue(publishedAt)}, ${sqlValue(publishedAt)});
 
 INSERT OR REPLACE INTO content_blocks
   (id, document_id, parent_block_id, type, position, level, data_json, created_at, updated_at)
-VALUES (${sqlValue(blockId)}, ${sqlValue(documentId)}, NULL, 'markdown', 0, NULL, ${sqlJson(blockData)}, ${sqlValue(publishedAt)}, ${sqlValue(publishedAt)});
+VALUES (${sqlValue(blockId)}, ${sqlValue(postId)}, NULL, 'markdown', 0, NULL, ${sqlJson(blockData)}, ${sqlValue(publishedAt)}, ${sqlValue(publishedAt)});
 -- END GENERATED: pottery_blog`
 }
 
