@@ -396,30 +396,44 @@ const loading = ref(true)
 const loadError = ref<string | null>(null)
 const analytics = ref<AnalyticsResponse | null>(null)
 const range = reactive(presetRange('last_30_days', getLocalTimezone()))
+const isNumberField = (row: unknown, ...fields: string[]): boolean =>
+  isRecord(row) && fields.every(field => typeof row[field] === 'number')
+const isLabelled = (row: unknown, label: string, ...numbers: string[]): boolean =>
+  isRecord(row) && typeof row[label] === 'string' && isNumberField(row, ...numbers)
+
+/**
+ * Every field the page reads is checked, not just the containers around them.
+ * Checking only that `conversions` was an array let `[{}]` through, and the row
+ * then threw on `eventName.replaceAll` while rendering; a missing metric passed
+ * too and rendered as a zero through `|| 0`, which reads as real traffic of
+ * none rather than as a response we should have rejected.
+ */
 const isAnalyticsResponse = (value: unknown): value is AnalyticsResponse =>
   isRecord(value)
+  && isNumberField(value.metrics, 'pageViews', 'uniqueSessions', 'uniqueVisitors', 'returningVisitors', 'avgSessionDuration', 'pagesPerSession')
   && isRecord(value.metrics)
-  && typeof value.metrics.pageViews === 'number'
-  && typeof value.metrics.uniqueSessions === 'number'
-  && typeof value.metrics.uniqueVisitors === 'number'
-  && typeof value.metrics.avgSessionDuration === 'number'
-  && Array.isArray(value.dailyData)
-  && value.dailyData.every(day =>
-    isRecord(day)
-    && typeof day.date === 'string'
-    && typeof day.pageViews === 'number'
-    && typeof day.sessions === 'number',
-  )
-  && Array.isArray(value.topPages)
-  && Array.isArray(value.countries)
-  && Array.isArray(value.cities)
-  && Array.isArray(value.referrers)
-  && Array.isArray(value.devices)
-  && Array.isArray(value.attribution)
-  && Array.isArray(value.conversions)
+  && (value.metrics.changePercent === null || typeof value.metrics.changePercent === 'number')
   && isRecord(value.period)
   && typeof value.period.startDate === 'string'
   && typeof value.period.endDate === 'string'
+  && typeof value.period.timezone === 'string'
+  && (value.period.analyticsDataStartAt === null || typeof value.period.analyticsDataStartAt === 'string')
+  && Array.isArray(value.dailyData)
+  && value.dailyData.every(row => isLabelled(row, 'date', 'pageViews', 'sessions', 'avgDuration'))
+  && Array.isArray(value.topPages)
+  && value.topPages.every(row => isLabelled(row, 'path', 'views', 'percentOfTotal'))
+  && Array.isArray(value.countries)
+  && value.countries.every(row => isLabelled(row, 'countryCode', 'views', 'percentOfTotal'))
+  && Array.isArray(value.cities)
+  && value.cities.every(row => isLabelled(row, 'city', 'views') && typeof (row as Record<string, unknown>).countryCode === 'string')
+  && Array.isArray(value.referrers)
+  && value.referrers.every(row => isLabelled(row, 'source', 'views', 'percentOfTotal'))
+  && Array.isArray(value.devices)
+  && value.devices.every(row => isLabelled(row, 'type', 'views', 'percentOfTotal'))
+  && Array.isArray(value.attribution)
+  && value.attribution.every(row => isLabelled(row, 'source', 'sessions', 'conversions', 'conversionRate') && typeof (row as Record<string, unknown>).medium === 'string')
+  && Array.isArray(value.conversions)
+  && value.conversions.every(row => isLabelled(row, 'eventName', 'count', 'conversionRate') && typeof (row as Record<string, unknown>).stage === 'string')
 
 const isInsightsResponse = (value: unknown): value is InsightsResponse =>
   isRecord(value)

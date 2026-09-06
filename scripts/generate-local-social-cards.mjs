@@ -65,7 +65,13 @@ let failed = 0
 
 for (const organization of organizations) {
   const scoped = await fetch(new URL(`/api/dashboard/context?org=${encodeURIComponent(organization.slug)}`, baseURL), { headers: { cookie } })
-  if (!scoped.ok) continue
+  if (!scoped.ok) {
+    // Counted, not skipped quietly: an organization whose sites were never
+    // reached must not let the command report success.
+    console.error(`[local:cards] ${organization.slug}: context ${scoped.status}`)
+    failed += 1
+    continue
+  }
   for (const site of (await scoped.json()).sites ?? []) {
     // One site failing must not end the run: the rest of the tenants still
     // need their cards, and a second run picks up whatever this one missed

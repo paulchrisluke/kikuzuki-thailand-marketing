@@ -56,7 +56,9 @@
               <span class="flex items-center gap-2 text-[15px] font-semibold text-warning">
                 <UIcon name="i-lucide-circle-alert" class="size-4 shrink-0" /> Custom domain not connected
               </span>
-              <span class="mt-1 block text-sm text-muted">{{ siteDomain }}</span>
+              <span class="mt-1 block text-sm text-muted">
+                {{ siteDomain ?? 'No custom domain set' }}
+              </span>
             </NuxtLink>
 
             <EditorNavigationList :groups="sectionGroups" :active-item="activeSection" variant="cards" />
@@ -114,7 +116,10 @@ const activeSection = computed(() => sectionSegment.value || null)
 
 const siteName = computed(() => dashboard.site.value?.brand_name ?? '')
 const canManageSite = computed(() => dashboard.siteAccess.value !== 'location')
-const siteDomain = computed(() => dashboard.site.value?.custom_domain || dashboard.site.value?.public_url || '')
+// The custom domain and only the custom domain. Falling through to the public
+// URL printed a working krabiclaw.com address underneath "Custom domain not
+// connected", which reads as the domain that failed.
+const siteDomain = computed(() => dashboard.site.value?.custom_domain ?? null)
 const publicSiteUrl = computed(() => dashboard.site.value?.public_url || '')
 
 const template = computed(() => resolvePublicTemplate({ vertical: dashboard.site.value?.vertical }).slug)

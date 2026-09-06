@@ -156,15 +156,14 @@ const addressSummary = computed(() => location.value?.address?.addressLines?.joi
 
 const capabilities = computed(() => {
   const vertical = dashboard.site.value?.vertical
-  if (!vertical) return null
-  try {
-    return resolveCmsCapabilities(normalizeVertical(vertical) as SiteVertical, resolvePublicTemplate({ vertical }).slug, {
-      site: parseCmsFeatureOverrideDelta(dashboard.site.value?.feature_overrides),
-      location: parseCmsFeatureOverrideDelta(dashboardLocationRow.value?.feature_overrides),
-    })
-  } catch {
-    return null
-  }
+  if (!vertical) throw createError({ statusCode: 500, statusMessage: 'Site vertical is not configured' })
+  // Deliberately unguarded: swallowing a capability error left the hub with an
+  // empty feature set, which removes every content and reservation row and
+  // leaves a location that looks like it holds nothing.
+  return resolveCmsCapabilities(normalizeVertical(vertical) as SiteVertical, resolvePublicTemplate({ vertical }).slug, {
+    site: parseCmsFeatureOverrideDelta(dashboard.site.value?.feature_overrides),
+    location: parseCmsFeatureOverrideDelta(dashboardLocationRow.value?.feature_overrides),
+  })
 })
 const featureSet = computed(() => new Set<ProductFeature>([
   ...(capabilities.value?.pages.map(page => page.feature) ?? []),

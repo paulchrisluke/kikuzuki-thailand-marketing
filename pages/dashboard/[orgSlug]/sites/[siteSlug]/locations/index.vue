@@ -70,16 +70,16 @@ const locationsPath = computed(() => {
 // two never disagree.
 const capabilities = computed(() => {
   const rawVertical = dashboard.site.value?.vertical
-  if (!rawVertical) return null
-  try {
-    return resolveCmsCapabilities(
-      normalizeVertical(rawVertical) as SiteVertical,
-      resolvePublicTemplate({ vertical: rawVertical }).slug,
-      { site: parseCmsFeatureOverrideDelta(dashboard.site.value?.feature_overrides) },
-    )
-  } catch {
-    return null
-  }
+  if (!rawVertical) throw createError({ statusCode: 500, statusMessage: 'Site vertical is not configured' })
+  // Deliberately unguarded: swallowing this returned generic vocabulary for a
+  // professional services site, and on the hub an empty feature set that hid
+  // every content section. A misconfiguration must be visible, not quietly
+  // rendered as a site with nothing in it.
+  return resolveCmsCapabilities(
+    normalizeVertical(rawVertical) as SiteVertical,
+    resolvePublicTemplate({ vertical: rawVertical }).slug,
+    { site: parseCmsFeatureOverrideDelta(dashboard.site.value?.feature_overrides) },
+  )
 })
 const usesServiceAreaVocabulary = computed(() => capabilities.value?.locationVocabulary === 'office/service area')
 const locationsLabel = computed(() => (usesServiceAreaVocabulary.value ? 'Offices / Service Areas' : 'Locations'))

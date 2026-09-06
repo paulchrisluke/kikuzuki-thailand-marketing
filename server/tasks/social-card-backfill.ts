@@ -25,10 +25,10 @@ const OWNER_SOURCES: ReadonlyArray<{ table: string; ownerType: SocialCardOwner['
 
 export default defineScheduledTask({
   meta: { name: 'social-card-backfill', description: 'Generate social cards for owners that have none' },
-  async run({ context }): Promise<{ result: { generated: number; failed: number; remaining: number; skipped?: string } }> {
+  async run({ context }): Promise<{ result: { generated: number; failed: number; hasMore: boolean; skipped?: string } }> {
     const environment = (context as { cloudflare?: { env?: Record<string, unknown> } } | undefined)?.cloudflare?.env
     const db = environment?.DB as D1Database | undefined
-    if (!db && import.meta.dev) return { result: { generated: 0, failed: 0, remaining: 0, skipped: 'DB unavailable in local scheduled task context' } }
+    if (!db && import.meta.dev) return { result: { generated: 0, failed: 0, hasMore: false, skipped: 'DB unavailable in local scheduled task context' } }
     if (!db) throw new Error('DB is required')
 
     // Cards are generated whenever content or media changes through the API, so
@@ -55,7 +55,10 @@ export default defineScheduledTask({
       if (result.kind === 'generated') generated += 1
       if (result.kind === 'failed') failed += 1
     }
-    // One extra row was fetched purely to report whether a backlog remains.
-    return { result: { generated, failed, remaining: owners.length > OWNERS_PER_RUN ? OWNERS_PER_RUN + 1 : owners.length - generated - failed } }
+    // One extra row is fetched purely to know whether a backlog remains; the
+    // size of that backlog is not counted, and reporting a number here would be
+    // inventing one. Owners that failed still have no card and are selected
+    // again on the next run.
+    return { result: { generated, failed, hasMore: owners.length > OWNERS_PER_RUN } }
   },
 })
