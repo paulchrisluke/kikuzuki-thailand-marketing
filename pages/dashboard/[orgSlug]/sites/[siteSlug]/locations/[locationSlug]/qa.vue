@@ -183,43 +183,45 @@ async function loadQa() {
 }
 
 
-// ── Translations (resource_localizations, same API as the editor CRUD) ──
 const translationLocale = ref('en')
 const translationLocales = ref<string[]>([])
 const translationFields = reactive({ question: '', answer: '' })
+const translationUpdatedAt = ref<string | null>(null)
 const translationError = ref<string | null>(null)
 const translationSaving = ref(false)
-function isQaLocalesResponse(value: unknown): value is { languages: Array<{ locale: string; locale_status: string; is_source: boolean | number }> } {
+function isQaLocalesResponse(value: unknown): value is { languages: Array<{ locale: string; status: string; is_source: boolean | number }> } {
   return isRecord(value) && Array.isArray(value.languages)
 }
 async function loadTranslationLocales() {
   try {
-    const response = await dashboardApi<{ languages: Array<{ locale: string; locale_status: string; is_source: boolean | number }> }>(
+    const response = await dashboardApi<{ languages: Array<{ locale: string; status: string; is_source: boolean | number }> }>(
       `/api/editor/sites/${siteId}/locales`,
       { validate: isQaLocalesResponse },
     )
-    translationLocales.value = response.languages.filter(item => item.locale_status === 'published' && !item.is_source).map(item => item.locale)
+    translationLocales.value = response.languages.filter(item => item.status === 'published' && !item.is_source).map(item => item.locale)
   } catch (cause) {
     translationLocales.value = []
     translationError.value = cause instanceof Error ? cause.message : 'Failed to load site languages'
   }
 }
-function isQaTranslationResponse(value: unknown): value is { localization: { values: Record<string, unknown> } } {
-  return isRecord(value) && isRecord(value.localization) && isRecord(value.localization.values)
+function isQaTranslationResponse(value: unknown): value is { localization: { title: string | null; summary: string | null; updated_at: string } } {
+  return isRecord(value) && isRecord(value.localization) && typeof value.localization.updated_at === 'string'
 }
 async function loadTranslationFields(qaId: string) {
   translationError.value = null
   try {
-    const response = await dashboardApi<{ localization: { values: Record<string, unknown> } }>(
-      `/api/editor/sites/${siteId}/localization/location_qa/${qaId}/${encodeURIComponent(translationLocale.value)}`,
+    const response = await dashboardApi<{ localization: { title: string | null; summary: string | null; updated_at: string } }>(
+      `/api/editor/sites/${siteId}/localization/content_document/${qaId}/${encodeURIComponent(translationLocale.value)}`,
       { validate: isQaTranslationResponse },
     )
-    const values = response.localization.values
-    translationFields.question = typeof values.question === 'string' ? values.question : ''
-    translationFields.answer = typeof values.answer === 'string' ? values.answer : ''
+    const values = response.localization
+    translationUpdatedAt.value = values.updated_at
+    translationFields.question = typeof values.title === 'string' ? values.title : ''
+    translationFields.answer = typeof values.summary === 'string' ? values.summary : ''
   } catch (cause) {
     const statusCode = isRecord(cause) && typeof cause.statusCode === 'number' ? cause.statusCode : null
     if (statusCode !== 404) translationError.value = cause instanceof Error ? cause.message : 'Failed to load translation'
+    translationUpdatedAt.value = null
     translationFields.question = ''; translationFields.answer = ''
   }
 }
@@ -231,13 +233,14 @@ async function saveTranslation() {
   translationSaving.value = true; translationError.value = null
   try {
     const values: Record<string, string> = {}
-    if (translationFields.question.trim()) values.question = translationFields.question.trim()
-    if (translationFields.answer.trim()) values.answer = translationFields.answer.trim()
-    await dashboardApi(`/api/editor/sites/${siteId}/localization/location_qa/${editingId.value}/${encodeURIComponent(translationLocale.value)}`, {
+    values.title = translationFields.question.trim()
+    values.summary = translationFields.answer.trim()
+    await dashboardApi(`/api/editor/sites/${siteId}/localization/content_document/${editingId.value}/${encodeURIComponent(translationLocale.value)}`, {
       method: 'PUT',
-      body: { values },
+      body: { values, ...(translationUpdatedAt.value ? { expected_updated_at: translationUpdatedAt.value } : {}) },
       validate: isRecord,
     })
+    await loadTranslationFields(editingId.value)
     toast.add({ description: 'Translation saved', color: 'success' })
   } catch (cause) {
     translationError.value = cause instanceof Error ? cause.message : 'Failed to save translation'

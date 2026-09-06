@@ -79,9 +79,7 @@
             <UFormField :label="`Label (${translationLocale})`" class="mt-2">
               <UInput v-model="itemTranslationLabels[item.id]" data-testid="links-item-translation-label" />
             </UFormField>
-            <UButton data-testid="links-save-item-translation" class="mt-3" size="sm" variant="soft" :loading="itemTranslationSavingId === item.id" :disabled="translationUnavailable" @click="saveItemTranslation(item)">Save translation</UButton>
           </div>
-          <p v-if="itemTranslationError" class="text-sm text-error">{{ itemTranslationError }}</p>
         </div>
       </UCard>
 
@@ -406,29 +404,28 @@ onBeforeRouteLeave(() => {
   return window.confirm('Discard unsaved links page changes?')
 })
 
-// ── Translations (resource_localizations, same API as the editor CRUD) ──
 const translationLocale = ref('')
 const translationLocales = ref<string[]>([])
 const translationLocaleError = ref<string | null>(null)
 const translationFields = reactive({ title: '', seo_title: '', seo_description: '' })
 const translationError = ref<string | null>(null)
 const translationSaving = ref(false)
-const itemTranslationLabels = reactive<Record<string, string>>({})
-const itemTranslationError = ref<string | null>(null)
-const itemTranslationSavingId = ref<string | null>(null)
-const translationUnavailable = computed(() => Boolean(translationLocaleError.value || translationError.value || itemTranslationError.value))
+const itemTranslationLabels = ref<Record<string, string>>({})
+const translationUpdatedAt = ref<string | null>(null)
+const translatedBlocks = ref<Array<{ id: string; source_block_id: string | null; type: 'cta'; data: Record<string, unknown> }>>([])
+const translationUnavailable = computed(() => Boolean(translationLocaleError.value || translationError.value))
 
-function isLocalesResponse(value: unknown): value is { languages: Array<{ locale: string; locale_status: string; is_source: boolean | number }> } {
+function isLocalesResponse(value: unknown): value is { languages: Array<{ locale: string; status: string; is_source: boolean | number }> } {
   return isRecord(value) && Array.isArray(value.languages)
 }
 async function loadTranslationLocales() {
   translationLocaleError.value = null
   try {
-    const response = await dashboardApi<{ languages: Array<{ locale: string; locale_status: string; is_source: boolean | number }> }>(
+    const response = await dashboardApi<{ languages: Array<{ locale: string; status: string; is_source: boolean | number }> }>(
       `/api/editor/sites/${siteId}/locales`,
       { validate: isLocalesResponse },
     )
-    translationLocales.value = response.languages.filter(item => item.locale_status === 'published' && !item.is_source).map(item => item.locale)
+    translationLocales.value = response.languages.filter(item => item.status === 'published' && !item.is_source).map(item => item.locale)
     translationLocale.value = translationLocales.value[0] ?? ''
   } catch (cause) {
     translationLocales.value = []
@@ -436,74 +433,53 @@ async function loadTranslationLocales() {
     translationLocaleError.value = cause instanceof Error ? cause.message : 'Failed to load site languages'
   }
 }
-function isTranslationResponse(value: unknown): value is { localization: { values: Record<string, unknown> } } {
-  return isRecord(value) && isRecord(value.localization) && isRecord(value.localization.values)
+type LinksTranslationResponse = { localization: { title: string | null; seo_title: string | null; seo_description: string | null;
+  updated_at: string; content_blocks: typeof translatedBlocks.value } }
+function isTranslationResponse(value: unknown): value is LinksTranslationResponse {
+  return isRecord(value) && isRecord(value.localization) && typeof value.localization.updated_at === 'string' && Array.isArray(value.localization.content_blocks)
 }
 async function loadTranslationFields() {
   translationError.value = null
+  translationUpdatedAt.value = null
+  translatedBlocks.value = []
   translationFields.title = ''; translationFields.seo_title = ''; translationFields.seo_description = ''
+  itemTranslationLabels.value = {}
   if (!form.id || !translationLocale.value) return
   try {
-    const response = await dashboardApi<{ localization: { values: Record<string, unknown> } }>(
-      `/api/editor/sites/${siteId}/localization/site_link_page/${form.id}/${encodeURIComponent(translationLocale.value)}`,
-      { validate: isTranslationResponse },
-    )
-    const values = response.localization.values
-    translationFields.title = typeof values.title === 'string' ? values.title : ''
-    translationFields.seo_title = typeof values.seo_title === 'string' ? values.seo_title : ''
-    translationFields.seo_description = typeof values.seo_description === 'string' ? values.seo_description : ''
+    const { localization } = await dashboardApi<LinksTranslationResponse>(
+      `/api/editor/sites/${siteId}/localization/content_document/${form.id}/${encodeURIComponent(translationLocale.value)}`, { validate: isTranslationResponse })
+    translationUpdatedAt.value = localization.updated_at
+    translatedBlocks.value = localization.content_blocks
+    translationFields.title = localization.title ?? ''
+    translationFields.seo_title = localization.seo_title ?? ''
+    translationFields.seo_description = localization.seo_description ?? ''
+    for (const block of localization.content_blocks) {
+      if (block.source_block_id && typeof block.data.label === 'string') itemTranslationLabels.value[block.source_block_id] = block.data.label
+    }
   } catch (cause) {
     const statusCode = isRecord(cause) && typeof cause.statusCode === 'number' ? cause.statusCode : null
     if (statusCode !== 404) translationError.value = cause instanceof Error ? cause.message : 'Failed to load translation'
   }
 }
-async function loadItemTranslations() {
-  itemTranslationError.value = null
-  for (const key of Object.keys(itemTranslationLabels)) itemTranslationLabels[key] = ''
-  if (!translationLocale.value) return
-  for (const item of items.value) {
-    itemTranslationLabels[item.id] = ''
-    try {
-      const response = await dashboardApi<{ localization: { values: Record<string, unknown> } }>(
-        `/api/editor/sites/${siteId}/localization/site_link_item/${item.id}/${encodeURIComponent(translationLocale.value)}`,
-        { validate: isTranslationResponse },
-      )
-      const value = response.localization.values.label
-      itemTranslationLabels[item.id] = typeof value === 'string' ? value : ''
-    } catch (cause) {
-      const statusCode = isRecord(cause) && typeof cause.statusCode === 'number' ? cause.statusCode : null
-      if (statusCode !== 404) {
-        itemTranslationError.value = cause instanceof Error ? cause.message : 'Failed to load link translations'
-        return
-      }
-    }
-  }
-}
-watch(translationLocale, () => { void loadTranslationFields(); void loadItemTranslations() })
-watch(() => form.id, () => {
-  if (!form.id) return
-  void loadTranslationLocales().then(() => {
-    if (!translationLocale.value) return
-    void loadTranslationFields()
-    void loadItemTranslations()
-  })
-})
-watch(() => items.value.map(item => item.id).join(','), () => { if (translationLocale.value) void loadItemTranslations() })
+watch(translationLocale, () => { void loadTranslationFields() })
+watch(() => form.id, () => { if (form.id) void loadTranslationLocales().then(loadTranslationFields) })
+watch(() => items.value.map(item => item.id).join(','), () => { if (translationLocale.value) void loadTranslationFields() })
 
 async function saveTranslation() {
   if (!form.id || !translationLocale.value) return
   translationSaving.value = true
   translationError.value = null
   try {
-    const values: Record<string, string> = {}
-    if (translationFields.title.trim()) values.title = translationFields.title.trim()
-    if (translationFields.seo_title.trim()) values.seo_title = translationFields.seo_title.trim()
-    if (translationFields.seo_description.trim()) values.seo_description = translationFields.seo_description.trim()
-    await dashboardApi(`/api/editor/sites/${siteId}/localization/site_link_page/${form.id}/${encodeURIComponent(translationLocale.value)}`, {
-      method: 'PUT',
-      body: { values, route_path: `/${translationLocale.value}/links` },
-      validate: isRecord,
+    const blocks = items.value.filter(item => itemTranslationLabels.value[item.id]?.trim()).map(item => ({
+      id: translatedBlocks.value.find(block => block.source_block_id === item.id)?.id,
+      source_block_id: item.id, type: 'cta', data: { label: itemTranslationLabels.value[item.id]!.trim() },
+    }))
+    await dashboardApi(`/api/editor/sites/${siteId}/localization/content_document/${form.id}/${encodeURIComponent(translationLocale.value)}`, {
+      method: 'PUT', body: { values: { title: translationFields.title.trim(), seo_title: translationFields.seo_title.trim(),
+        seo_description: translationFields.seo_description.trim() }, route_path: `/${translationLocale.value}/links`,
+        content_blocks: blocks, ...(translationUpdatedAt.value ? { expected_updated_at: translationUpdatedAt.value } : {}) }, validate: isRecord,
     })
+    await loadTranslationFields()
     toast.add({ description: 'Translation saved', color: 'success' })
   } catch (cause) {
     translationError.value = cause instanceof Error ? cause.message : 'Failed to save translation'
@@ -512,22 +488,4 @@ async function saveTranslation() {
   }
 }
 
-async function saveItemTranslation(item: LinkItem) {
-  const label = itemTranslationLabels[item.id]?.trim()
-  if (!translationLocale.value || !label) return
-  itemTranslationSavingId.value = item.id
-  itemTranslationError.value = null
-  try {
-    await dashboardApi(`/api/editor/sites/${siteId}/localization/site_link_item/${item.id}/${encodeURIComponent(translationLocale.value)}`, {
-      method: 'PUT',
-      body: { values: { label } },
-      validate: isRecord,
-    })
-    toast.add({ description: 'Translation saved', color: 'success' })
-  } catch (cause) {
-    itemTranslationError.value = cause instanceof Error ? cause.message : 'Failed to save translation'
-  } finally {
-    itemTranslationSavingId.value = null
-  }
-}
 </script>

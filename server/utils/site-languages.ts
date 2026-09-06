@@ -1,3 +1,4 @@
+import { prepareContentDocumentDeletion } from '~/server/utils/content-documents'
 import { execute, executeBatch, queryAll, queryFirst, type DbClient } from '~/server/db'
 import { getOrganizationBillingStatus } from '~/server/utils/billing'
 import type { CloudflareEnv } from '~/server/utils/auth'
@@ -7,7 +8,7 @@ import { localizationError } from '~/server/utils/localization-errors'
 interface SiteLanguageRow {
   id: string
   locale: string
-  status: 'published' | 'disabled' | 'draft'
+  status: 'published' | 'disabled'
   activated_at: string | null
   disabled_at: string | null
 }
@@ -35,17 +36,19 @@ export async function enableSiteLanguage(
   }
   const projection = await getOrganizationBillingStatus(env, db, input.organizationId)
   if (projection.plan !== 'growth' || !projection.stripeSubscriptionId) {
-    localizationError(402, 'LANGUAGE_LICENSE_REQUIRED', 'An active Growth subscription is required to enable a language')
+    localizationError(402, 'LANGUAGE_ENTITLEMENT_REQUIRED', 'An active Growth subscription is required to enable a language')
   }
   const now = new Date().toISOString()
   const result = await execute(db, `
     INSERT INTO site_locales (id, organization_id, site_id, locale, label, is_source, status, activated_at, created_at, updated_at)
     SELECT ?, ?, ?, ?, ?, 0, 'published', ?, ?, ?
-     WHERE NOT EXISTS (SELECT 1 FROM site_locales WHERE organization_id = ? AND site_id = ? AND is_source = 0 AND status = 'published' AND locale <> ?)
+     WHERE EXISTS (SELECT 1 FROM content_documents WHERE kind = 'locale_catalog' AND row_role = 'catalog' AND status = 'available'
+       AND (metadata_json ->> '$.locale') = ? AND (metadata_json ->> '$.source_manifest_hash') = ?)
+       AND NOT EXISTS (SELECT 1 FROM site_locales WHERE organization_id = ? AND site_id = ? AND is_source = 0 AND status = 'published' AND locale <> ?)
     ON CONFLICT(organization_id, site_id, locale) DO UPDATE SET label = excluded.label, status = 'published',
       activated_at = COALESCE(site_locales.activated_at, excluded.activated_at), disabled_at = NULL, updated_at = excluded.updated_at
-  `, [`locale::${input.organizationId}::${input.siteId}::${locale}`, input.organizationId, input.siteId, locale, input.label.trim() || locale, now, now, now, input.organizationId, input.siteId, locale])
-  if (result.meta?.changes !== 1) localizationError(409, 'LANGUAGE_LICENSE_REQUIRED', 'Growth includes one secondary language per site. Disable the current language before enabling another.')
+  `, [`locale::${input.organizationId}::${input.siteId}::${locale}`, input.organizationId, input.siteId, locale, input.label.trim() || locale, now, now, now, locale, await englishManifestHash(), input.organizationId, input.siteId, locale])
+  if (result.meta?.changes !== 1) localizationError(409, 'LANGUAGE_ENTITLEMENT_REQUIRED', 'Language could not be enabled because its catalog or site language state changed.')
   return await loadLanguage(db, input.organizationId, input.siteId, locale)
 }
 
@@ -68,26 +71,15 @@ export async function deleteDisabledSiteLanguageContent(
   const locale = canonicalizeLocale(input.locale)
   if (locale === 'en') localizationError(422, 'LOCALIZATION_VALIDATION_FAILED', 'English source content cannot be deleted')
   const language = await loadLanguage(db, input.organizationId, input.siteId, locale)
-  if (language && language.status !== 'disabled') localizationError(409, 'LANGUAGE_LICENSE_SYNCING', 'Disable the language before permanently deleting its content', { locale })
-  const documents = await queryFirst<{ ids: string | null }>(db, `
-    SELECT json_group_array(document_id) AS ids
-      FROM (
-        SELECT document_id FROM resource_localizations
-         WHERE organization_id = ? AND site_id = ? AND locale = ? AND document_id IS NOT NULL
-        UNION
-        SELECT document_id FROM tenant_page_variants
-         WHERE organization_id = ? AND site_id = ? AND locale = ? AND document_id IS NOT NULL
-      )
-  `, [input.organizationId, input.siteId, locale, input.organizationId, input.siteId, locale])
-  const documentIds = documents?.ids ? JSON.parse(documents.ids) as string[] : []
+  if (language && language.status !== 'disabled') localizationError(409, 'LOCALIZATION_VALIDATION_FAILED', 'Disable the language before permanently deleting its content', { locale })
+  const documents = await queryAll<{ id: string }>(db, `SELECT id FROM content_documents
+    WHERE organization_id = ? AND site_id = ? AND locale = ? AND row_role = 'representation'`, [input.organizationId, input.siteId, locale])
   const statements = [
+    { query: `UPDATE site_locales SET locale = NULL WHERE organization_id = ? AND site_id = ? AND locale = ? AND status <> 'disabled'`, params: [input.organizationId, input.siteId, locale] },
     { query: `DELETE FROM site_redirects WHERE organization_id = ? AND site_id = ? AND locale = ?`, params: [input.organizationId, input.siteId, locale] },
-    { query: `DELETE FROM media_placements WHERE owner_type = 'tenant_page' AND owner_id IN (SELECT id FROM tenant_page_variants WHERE organization_id = ? AND site_id = ? AND locale = ?)`, params: [input.organizationId, input.siteId, locale] },
-    { query: `DELETE FROM media_placements WHERE owner_type = 'content_block' AND owner_id IN (SELECT id FROM content_blocks WHERE document_id IN (SELECT value FROM json_each(?)))`, params: [JSON.stringify(documentIds)] },
+    ...documents.flatMap(document => prepareContentDocumentDeletion({ documentId: document.id, organizationId: input.organizationId, siteId: input.siteId })),
     { query: `DELETE FROM resource_localizations WHERE organization_id = ? AND site_id = ? AND locale = ?`, params: [input.organizationId, input.siteId, locale] },
-    { query: `DELETE FROM tenant_page_variants WHERE organization_id = ? AND site_id = ? AND locale = ?`, params: [input.organizationId, input.siteId, locale] },
-    ...documentIds.map(documentId => ({ query: `DELETE FROM content_documents WHERE id = ?`, params: [documentId] })),
-    { query: `DELETE FROM site_locales WHERE organization_id = ? AND site_id = ? AND locale = ? AND is_source = 0`, params: [input.organizationId, input.siteId, locale] },
+    { query: `DELETE FROM site_locales WHERE organization_id = ? AND site_id = ? AND locale = ? AND is_source = 0 AND status = 'disabled'`, params: [input.organizationId, input.siteId, locale] },
   ]
   await executeBatch(db, statements, { operation: 'delete disabled language content' })
   return { deleted: true, locale }

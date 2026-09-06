@@ -7,9 +7,9 @@ export default defineHandler(async (event) => {
   const { db } = await requireSiteAccess(event, siteId)
   
   const scopes = await db.prepare(`
-    SELECT DISTINCT page_path
-    FROM location_qa
-    WHERE site_id = ? AND location_id IS NULL AND page_path IS NOT NULL
+    SELECT DISTINCT scope_path AS page_path
+    FROM content_documents
+    WHERE kind = 'qa' AND row_role = 'root' AND site_id = ? AND location_id IS NULL AND scope_path IS NOT NULL
     ORDER BY page_path ASC
   `).bind(siteId).all()
   

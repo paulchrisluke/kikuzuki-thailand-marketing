@@ -58,7 +58,7 @@ test.describe('stateless MCP server', () => {
       args: {
         site_id: siteId,
         variant_id: homeVariant!.id,
-        expected_document_updated_at: pageBeforeData.document.updated_at,
+        expected_updated_at: pageBeforeData.document.updated_at,
         blocks: pageBeforeData.blocks.map(block => ({
           id: block.id,
           type: block.type,

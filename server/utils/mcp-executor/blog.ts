@@ -176,12 +176,10 @@ function toBlogPostSummary(post: Record<string, unknown>) {
 
 export function projectBlogPostForMcp(post: Record<string, unknown>) {
   const contentDocument = responseRecord(post.content_document, 'post.content_document')
-  const document = responseRecord(contentDocument.document, 'post.content_document.document')
   if (!Array.isArray(contentDocument.blocks)) invalidBlogResponse('post.content_document.blocks', 'an array')
   return {
     ...toBlogPostSummary(post),
     content_blocks: contentDocument.blocks.map((block, index) => toContentBlockProjection(block, index)),
-    document_updated_at: responseString(document.updated_at, 'post.content_document.document.updated_at'),
   }
 }
 
@@ -269,7 +267,7 @@ export async function handleBlogTools(ctx: McpExecutorContext): Promise<unknown>
         requiredString(args, "post_id"),
         {
           content_blocks: args.content_blocks,
-          expected_document_updated_at: requiredString(args, "expected_document_updated_at"),
+          expected_updated_at: requiredString(args, "expected_updated_at"),
         } as never,
         site.siteId,
         site.env,
@@ -291,7 +289,6 @@ export async function handleBlogTools(ctx: McpExecutorContext): Promise<unknown>
       const normalizedScheduledFor = typeof scheduledFor === 'string' ? scheduledFor.trim() : scheduledFor
       await updatePlatformBlogLifecycle(site.db, postId, {
         expected_updated_at: requiredString(args, 'expected_updated_at'),
-        expected_document_updated_at: requiredString(args, 'expected_document_updated_at'),
         ...(Object.prototype.hasOwnProperty.call(args, 'scheduled_for')
           ? { scheduled_for: normalizedScheduledFor as string | null }
           : {}),

@@ -1,19 +1,17 @@
-import { resourceLocalizationDeletionQueries } from '~/server/utils/localization'
+import { createContentDocumentWithBlocks, prepareContentDocumentDeletion, updateContentDocument, type ContentDocumentChanges } from '~/server/utils/content-documents'
 import { parsePostInput, parsePostTopic, PostValidationError, type PostTopic } from '~/shared/posts'
 import { execute, executeBatch, queryAll, queryFirst, type DbClient } from '~/server/db'
 import { fireOrganizationEventSafe } from '~/server/utils/organization-events'
 import { normalizePostSlug, postPublicPath } from '~/utils/post-slugs'
 import type { DomainEnv } from '~/server/utils/domains'
-import { buildDeleteOwnerPlacementsQuery, insertInitialMediaPlacements, hydrateMediaAssetRefs } from '~/server/utils/media-asset-manager'
+import { insertInitialMediaPlacements, hydrateMediaAssetRefs } from '~/server/utils/media-asset-manager'
 import type { MediaPlacementItem } from '~/server/utils/media-placement'
 import { refreshSocialCard } from '~/server/utils/social-card'
 import { loadPublicSocialMedia, type PublicSocialMedia } from '~/server/utils/public-social-image'
 import type { SocialImageSource } from '~/utils/social-metadata'
 import {
   loadExactPublicLocalizations,
-  projectExactLocalizedResource,
   projectLocalizedMediaAlt,
-  resolveLocalizedRouteResourceId,
 } from '~/server/utils/public-localization'
 import { listPublicLocaleRepresentations } from '~/server/utils/public-locale-representations'
 import { getLinkedInstagramAccount, publishToInstagram, publishToPage } from '~/server/utils/facebook-pages'
@@ -65,9 +63,7 @@ export type Post = PostTopic & {
   updated_at: string
 }
 
-export interface PostChannelJob {
-  id: string
-  post_id: string
+export interface PostChannelState {
   channel: 'instagram' | 'facebook'
   status: 'pending' | 'published' | 'failed' | 'skipped'
   provider_post_id: string | null
@@ -77,7 +73,7 @@ export interface PostChannelJob {
 }
 
 export type PostWithChannels = Post & {
-  channels: PostChannelJob[]
+  channels: PostChannelState[]
 }
 
 export type PostPublishChannel = 'site' | 'instagram' | 'facebook'
@@ -124,10 +120,6 @@ interface PublishedPostRow {
   updated_at: string
 }
 
-function jsonValue(value: unknown): string | null {
-  return value === null ? null : JSON.stringify(value)
-}
-
 async function validatePostLocation(db: DbClient, organizationId: string, siteId: string, locationId: string | null, post: PostTopic) {
   const location = locationId ? await queryFirst<{ phone: string | null }>(db, 'SELECT phone FROM business_locations WHERE id = ? AND organization_id = ? AND site_id = ?', [locationId, organizationId, siteId]) : null
   if (locationId && !location) throw new PostValidationError('location_id must belong to this site')
@@ -157,7 +149,7 @@ async function allocatePostSlug(db: DbClient, siteId: string, source: string, ex
     const slug = attempt === 0 ? base : `${base}-${attempt + 1}`
     const existing = await queryFirst<{ id: string }>(
       db,
-      `SELECT id FROM posts WHERE site_id = ? AND slug = ? ${excludePostId ? 'AND id != ?' : ''} LIMIT 1`,
+      `SELECT id FROM content_documents WHERE kind = 'social_post' AND row_role = 'root' AND site_id = ? AND slug = ? ${excludePostId ? 'AND id != ?' : ''} LIMIT 1`,
       excludePostId ? [siteId, slug, excludePostId] : [siteId, slug],
     )
     if (!existing) return slug
@@ -178,13 +170,13 @@ function postMediaPlacementQueries(
   return [
     ...insertInitialMediaPlacements({
       organizationId, siteId,
-      placement: { owner_type: 'post', owner_id: postId, slot: 'cover' },
+      placement: { owner_type: 'content_document', owner_id: postId, slot: 'cover' },
       media: cover ? [{ asset_id: cover.asset_id }] : [],
       now,
     }),
     ...insertInitialMediaPlacements({
       organizationId, siteId,
-      placement: { owner_type: 'post', owner_id: postId, slot: 'gallery' },
+      placement: { owner_type: 'content_document', owner_id: postId, slot: 'gallery' },
       media: gallery.map(item => ({ asset_id: item.asset_id })),
       now,
     }),
@@ -192,7 +184,7 @@ function postMediaPlacementQueries(
 }
 
 async function getPostMediaByPostIds(db: DbClient, siteId: string, postIds: string[]) {
-  return await loadPublicSocialMedia(db, siteId, 'post', postIds)
+  return await loadPublicSocialMedia(db, siteId, 'content_document', postIds)
 }
 
 function publicMediaFromRows(rows: MediaPlacementItem[] | undefined): PublicPostMedia[] {
@@ -274,9 +266,9 @@ export async function listPosts(
     throw new PostValidationError('status must be published or scheduled')
   }
   let query = `
-    SELECT p.*, bl.phone AS location_phone
-    FROM posts p LEFT JOIN business_locations bl ON bl.id = p.location_id AND bl.site_id = p.site_id
-    WHERE p.organization_id = ? AND p.site_id = ?
+    SELECT p.id, p.organization_id, p.site_id, p.location_id, p.slug, p.title, p.seo_title, p.seo_description, p.status, p.scheduled_for, p.published_at, p.created_by, p.created_at, p.updated_at, p.summary AS body, (p.metadata_json ->> '$.post_type') AS post_type, json_extract(p.metadata_json, '$.event') AS event, json_extract(p.metadata_json, '$.offer') AS offer, json_extract(p.metadata_json, '$.call_to_action') AS call_to_action, (p.metadata_json ->> '$.alert_type') AS alert_type, bl.phone AS location_phone
+    FROM content_documents p LEFT JOIN business_locations bl ON bl.id = p.location_id AND bl.site_id = p.site_id
+    WHERE p.kind = 'social_post' AND p.row_role = 'root' AND p.organization_id = ? AND p.site_id = ?
   `
   const params: string[] = [organizationId, siteId]
   if (status) {
@@ -303,9 +295,9 @@ export async function getPost(
   const post = await queryFirst<PostRow>(
     db,
     `
-    SELECT p.*, bl.phone AS location_phone
-    FROM posts p LEFT JOIN business_locations bl ON bl.id = p.location_id AND bl.site_id = p.site_id
-    WHERE p.id = ? AND p.organization_id = ? AND p.site_id = ?
+    SELECT p.id, p.organization_id, p.site_id, p.location_id, p.slug, p.title, p.seo_title, p.seo_description, p.status, p.scheduled_for, p.published_at, p.created_by, p.created_at, p.updated_at, p.summary AS body, (p.metadata_json ->> '$.post_type') AS post_type, json_extract(p.metadata_json, '$.event') AS event, json_extract(p.metadata_json, '$.offer') AS offer, json_extract(p.metadata_json, '$.call_to_action') AS call_to_action, (p.metadata_json ->> '$.alert_type') AS alert_type, bl.phone AS location_phone
+    FROM content_documents p LEFT JOIN business_locations bl ON bl.id = p.location_id AND bl.site_id = p.site_id
+    WHERE p.kind = 'social_post' AND p.row_role = 'root' AND p.id = ? AND p.organization_id = ? AND p.site_id = ?
     LIMIT 1
   `,
     [postId, organizationId, siteId],
@@ -313,7 +305,11 @@ export async function getPost(
   if (!post) return null
 
   const [jobs, origin, mediaByPost] = await Promise.all([
-    queryAll<PostChannelJob>(db, `SELECT * FROM post_channel_jobs WHERE post_id = ? ORDER BY channel`, [postId]),
+    queryAll<PostChannelState>(db, `SELECT c.key AS channel,
+      c.value ->> '$.status' AS status, c.value ->> '$.provider_post_id' AS provider_post_id,
+      c.value ->> '$.error' AS error, c.value ->> '$.published_at' AS published_at, c.value ->> '$.created_at' AS created_at
+      FROM content_documents d, json_each(d.metadata_json, '$.channels') c
+      WHERE d.id = ? AND d.kind = 'social_post' AND d.row_role = 'root' ORDER BY c.key`, [postId]),
     resolveSitePublicOrigin(db, siteId),
     getPostMediaByPostIds(db, siteId, [postId]),
   ])
@@ -350,27 +346,19 @@ export async function createPost(
   // Retry slug allocation on unique constraint conflict (race condition)
   for (let attempt = 0; attempt < 3; attempt++) {
     try {
-      await executeBatch(db, [{
-        query: `
-        INSERT INTO posts (id, organization_id, site_id, location_id, slug, post_type, title, body,
-          seo_title, seo_description,
-          call_to_action, event, offer, alert_type,
-          status, scheduled_for, published_at, created_by, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      `,
-        params: [
-          id, organizationId, siteId,
-          data.location_id ?? null, slug, data.post_type ?? 'standard',
-          title, body,
-          cleanString(data.seo_title), cleanString(data.seo_description),
-          jsonValue(data.call_to_action), jsonValue(data.event), jsonValue(data.offer), data.alert_type,
-          status, data.scheduled_for ?? null, publishedAt, createdBy, now, now,
-        ],
-      }, ...postMediaPlacementQueries(organizationId, siteId, id, media)])
+      await createContentDocumentWithBlocks(db, {
+        id, rowRole: 'root', kind: 'social_post', locale: 'en', organizationId, siteId,
+        locationId: data.location_id ?? null, slug, title, summary: body,
+        seoTitle: cleanString(data.seo_title), seoDescription: cleanString(data.seo_description),
+        status, source: 'manual', scheduledFor: data.scheduled_for ?? null, publishedAt, createdBy,
+        metadata: { post_type: data.post_type, call_to_action: data.call_to_action, event: data.event,
+          offer: data.offer, alert_type: data.alert_type, channels: {} },
+      }, [], { additionalQueriesAfter: postMediaPlacementQueries(organizationId, siteId, id, media) })
+
       break
     } catch (err) {
       const message = String((err as ApiValue)?.message || err || '')
-      if (message.includes('posts_site_slug_idx') || message.includes('UNIQUE constraint failed') && message.includes('slug')) {
+      if (message.includes('UNIQUE constraint failed') && message.includes('content_documents.slug')) {
         slug = await allocatePostSlug(db, siteId, cleanString(data.slug) ?? title ?? body.slice(0, 80) ?? id)
         continue
       }
@@ -410,7 +398,7 @@ export async function createPost(
       },
     })
   }
-  await refreshSocialCard({ db, env, owner: { owner_type: 'post', owner_id: id }, actorId: createdBy })
+  await refreshSocialCard({ db, env, owner: { owner_type: 'content_document', owner_id: id }, actorId: createdBy })
   return createdPost
 }
 
@@ -425,7 +413,7 @@ export async function updatePost(
 ): Promise<Post | null> {
   const row = await queryFirst<PostRow>(
     db,
-    `SELECT * FROM posts WHERE id = ? AND organization_id = ? AND site_id = ? LIMIT 1`,
+    `SELECT id, organization_id, site_id, location_id, slug, title, seo_title, seo_description, status, scheduled_for, published_at, created_by, created_at, updated_at, summary AS body, (metadata_json ->> '$.post_type') AS post_type, json_extract(metadata_json, '$.event') AS event, json_extract(metadata_json, '$.offer') AS offer, json_extract(metadata_json, '$.call_to_action') AS call_to_action, (metadata_json ->> '$.alert_type') AS alert_type, NULL AS location_phone FROM content_documents WHERE kind = 'social_post' AND row_role = 'root' AND id = ? AND organization_id = ? AND site_id = ? LIMIT 1`,
     [postId, organizationId, siteId],
   )
   if (!row) return null
@@ -436,78 +424,46 @@ export async function updatePost(
   if (data.post_type === 'alert' && (await getPostMediaByPostIds(db, siteId, [postId])).get(postId)?.media.length) throw new PostValidationError('Remove post media before changing the topic to alert')
 
   const now = new Date().toISOString()
-  const sets: string[] = ['updated_at = ?']
-  const params: SqlBindValue[] = [now]
-
-  if (data.slug !== undefined || !existing.slug) {
-    const nextSlug = await allocatePostSlug(
-      db,
-      siteId,
-      cleanString(data.slug) ?? cleanString(data.title) ?? existing.title ?? cleanString(data.body) ?? existing.body.slice(0, 80) ?? postId,
-      postId,
-    )
-    sets.push('slug = ?')
-    params.push(nextSlug)
+  const changes: ContentDocumentChanges = {
+    title: data.title, summary: data.body, seo_title: data.seo_title, seo_description: data.seo_description,
+    scheduled_for: data.scheduled_for, location_id: data.location_id, updated_by: _updatedBy,
+    metadata: { post_type: data.post_type, call_to_action: data.call_to_action, event: data.event,
+      offer: data.offer, alert_type: data.alert_type },
   }
-
-  const fields: Array<[string, string | null | undefined]> = [
-    ['title', data.title], ['body', data.body],
-    ['scheduled_for', data.scheduled_for], ['location_id', data.location_id],
-    ['post_type', data.post_type], ['seo_title', data.seo_title], ['seo_description', data.seo_description],
-    ['call_to_action', jsonValue(data.call_to_action)], ['event', jsonValue(data.event)],
-    ['offer', jsonValue(data.offer)], ['alert_type', data.alert_type],
-  ]
-  for (const [col, val] of fields) {
-    if (val !== undefined) { sets.push(`${col} = ?`); params.push(val ?? null) }
-  }
+  const allocateSlug = data.slug !== undefined || !existing.slug
+  const slugSource = cleanString(data.slug) ?? cleanString(data.title) ?? existing.title ?? cleanString(data.body) ?? existing.body.slice(0, 80)
+  if (allocateSlug) changes.slug = await allocatePostSlug(db, siteId, slugSource, postId)
   if (data.scheduled_for !== undefined && data.scheduled_for !== existing.scheduled_for) {
-    if (data.scheduled_for) {
-      sets.push("status = 'scheduled'", 'published_at = NULL')
-    } else if (existing.status === 'scheduled') {
-      sets.push("status = 'published'", 'published_at = ?')
-      params.push(now)
-    }
+    if (data.scheduled_for) { changes.status = 'scheduled'; changes.published_at = null }
+    else if (existing.status === 'scheduled') { changes.status = 'published'; changes.published_at = now }
   }
-
-  const hasContentChange = data.title !== undefined || data.body !== undefined ||
-    data.slug !== undefined || data.seo_title !== undefined || data.seo_description !== undefined ||
-    data.post_type !== undefined
-  if (hasContentChange) {
-    sets.push('source = ?')
-    params.push('manual')
-  }
-
-  params.push(postId, organizationId, siteId, row.updated_at, row.event, row.offer, row.call_to_action, row.post_type, row.body)
-
-  for (let attempt = 0; attempt < 3; attempt++) {
+  if (data.title !== undefined || data.body !== undefined || data.slug !== undefined || data.seo_title !== undefined || data.seo_description !== undefined || data.post_type !== undefined) changes.source = 'manual'
+  for (let attempt = 0; ; attempt++) {
     try {
-      const [result] = await executeBatch(db, [{
-        query: `UPDATE posts SET ${sets.join(', ')} WHERE id = ? AND organization_id = ? AND site_id = ? AND updated_at IS ? AND event IS ? AND offer IS ? AND call_to_action IS ? AND post_type IS ? AND body IS ? ${data.post_type === 'alert' ? "AND NOT EXISTS (SELECT 1 FROM media_placements WHERE owner_type = 'post' AND owner_id = posts.id AND slot IN ('cover', 'gallery'))" : ''}`,
-        params,
-      }])
-      if (!result?.meta.changes) throw new PostValidationError('Post changed while you were editing; reload it before saving')
+      await updateContentDocument(db, postId, { expected_updated_at: row.updated_at, changes,
+        additionalQueriesBefore: data.post_type === 'alert' ? [{
+          query: `INSERT INTO content_blocks(id, document_id, parent_block_id, type, position, level, data_json, created_at, updated_at)
+            SELECT NULL, ?, NULL, 'markdown', 0, NULL, '{}', ?, ? WHERE EXISTS (
+              SELECT 1 FROM media_placements WHERE owner_type = 'content_document' AND owner_id IN (
+                SELECT id FROM content_documents WHERE id = ? OR root_id = ?
+              ) AND slot IN ('cover','gallery')
+            )`, params: [postId, now, now, postId, postId],
+        }] : [],
+      })
       break
-    } catch (err) {
-      const message = String((err as ApiValue)?.message || err || '')
-      if (message.includes('posts_site_slug_idx') || message.includes('UNIQUE constraint failed') && message.includes('slug') && (data.slug !== undefined || !existing.slug)) {
-        const slugIndex = sets.findIndex(s => s.startsWith('slug = ?'))
-        if (slugIndex !== -1) {
-          const nextSlug = await allocatePostSlug(
-            db,
-            siteId,
-            cleanString(data.slug) ?? cleanString(data.title) ?? existing.title ?? cleanString(data.body) ?? existing.body.slice(0, 80) ?? postId,
-            postId,
-          )
-          params[slugIndex] = nextSlug
-          continue
-        }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      if (allocateSlug && attempt < 2 && message.includes('UNIQUE constraint failed') && message.includes('content_documents.slug')) {
+        changes.slug = await allocatePostSlug(db, siteId, slugSource, postId)
+        continue
       }
-      throw err
+      if (data.post_type === 'alert' && (await getPostMediaByPostIds(db, siteId, [postId])).get(postId)?.media.length) throw new PostValidationError('Remove post media before changing the topic to alert')
+      throw error
     }
   }
 
   const updated = await getPost(db, organizationId, siteId, postId)
-  await refreshSocialCard({ db, env, owner: { owner_type: 'post', owner_id: postId }, actorId: _updatedBy })
+  await refreshSocialCard({ db, env, owner: { owner_type: 'content_document', owner_id: postId }, actorId: _updatedBy })
   return updated
 }
 
@@ -523,7 +479,7 @@ export async function publishPost(
   if (!channels.length) {
     throw new Error('At least one publish channel is required')
   }
-  const socialChannels = channels.filter((channel): channel is PostChannelJob['channel'] =>
+  const socialChannels = channels.filter((channel): channel is PostChannelState['channel'] =>
     channel === 'facebook' || channel === 'instagram',
   )
   if (socialChannels.length > 0 && !socialPublish) {
@@ -532,22 +488,22 @@ export async function publishPost(
 
   const existing = await queryFirst<PostRow>(
     db,
-    `SELECT * FROM posts WHERE id = ? AND organization_id = ? AND site_id = ? LIMIT 1`,
+    `SELECT id, organization_id, site_id, location_id, slug, title, seo_title, seo_description, status, scheduled_for, published_at, created_by, created_at, updated_at, summary AS body, (metadata_json ->> '$.post_type') AS post_type, json_extract(metadata_json, '$.event') AS event, json_extract(metadata_json, '$.offer') AS offer, json_extract(metadata_json, '$.call_to_action') AS call_to_action, (metadata_json ->> '$.alert_type') AS alert_type, NULL AS location_phone FROM content_documents WHERE kind = 'social_post' AND row_role = 'root' AND id = ? AND organization_id = ? AND site_id = ? LIMIT 1`,
     [postId, organizationId, siteId],
   )
   if (!existing) return null
 
-  const now = new Date().toISOString()
+  const now = new Date(Math.max(Date.now(), Date.parse(existing.updated_at) + 1)).toISOString()
   const slug = existing.slug ?? await allocatePostSlug(db, siteId, existing.title ?? existing.body.slice(0, 80) ?? postId, postId)
 
   if (channels.includes('site')) {
     const updateResult = await execute(
       db,
-      `UPDATE posts
+      `UPDATE content_documents
           SET status = 'published', slug = ?, scheduled_for = NULL,
               published_at = COALESCE(published_at, ?), updated_at = ?
-        WHERE id = ? AND organization_id = ? AND site_id = ?`,
-      [slug, now, now, postId, organizationId, siteId],
+        WHERE kind = 'social_post' AND row_role = 'root' AND id = ? AND organization_id = ? AND site_id = ? AND updated_at = ?`,
+      [slug, now, now, postId, organizationId, siteId, existing.updated_at],
     )
     if (Number(updateResult.meta.changes ?? 0) === 0) return null
   }
@@ -573,14 +529,14 @@ export async function publishPost(
 
   if (!post) return null
 
-  await refreshSocialCard({ db, env, owner: { owner_type: 'post', owner_id: postId } })
+  await refreshSocialCard({ db, env, owner: { owner_type: 'content_document', owner_id: postId } })
 
   const socialCapability = socialPublish
   for (const channel of socialChannels) {
-    if (!(await claimPostChannelJob(db, postId, channel, now))) continue
+    if (!(await claimPostChannelState(db, postId, channel, now))) continue
 
     if (socialCapability?.kind === 'unavailable') {
-      await settlePostChannelJob(db, postId, channel, { kind: 'skipped', reason: socialCapability.reason })
+      await settlePostChannelState(db, postId, channel, { kind: 'skipped', reason: socialCapability.reason })
       continue
     }
 
@@ -591,56 +547,38 @@ export async function publishPost(
   return await getPost(db, organizationId, siteId, postId)
 }
 
-async function claimPostChannelJob(
-  db: DbClient,
-  postId: string,
-  channel: PostChannelJob['channel'],
-  now: string,
-): Promise<boolean> {
-  const inserted = await execute(db, `
-    INSERT OR IGNORE INTO post_channel_jobs (id, post_id, channel, status, created_at)
-    VALUES (?, ?, ?, 'pending', ?)
-  `, [crypto.randomUUID(), postId, channel, now])
-  if (Number(inserted.meta?.changes ?? 0) === 1) return true
-
-  const reclaimed = await execute(db, `
-    UPDATE post_channel_jobs
-       SET status = 'pending', provider_post_id = NULL, error = NULL, published_at = NULL
-     WHERE post_id = ? AND channel = ? AND status = 'skipped'
-  `, [postId, channel])
-  return Number(reclaimed.meta?.changes ?? 0) === 1
+async function claimPostChannelState(db: DbClient, postId: string, channel: PostChannelState['channel'], now: string): Promise<boolean> {
+  const path = '$.channels.' + channel
+  const claimed = await execute(db, `UPDATE content_documents SET
+    metadata_json = json_set(metadata_json, ?, json_object('status', 'pending', 'provider_post_id', NULL,
+      'error', NULL, 'published_at', NULL, 'created_at', COALESCE(json_extract(metadata_json, ?), ?))),
+    updated_at = CASE WHEN ? > updated_at THEN ? ELSE strftime('%Y-%m-%dT%H:%M:%fZ', updated_at, '+0.001 seconds') END
+    WHERE id = ? AND kind = 'social_post' AND row_role = 'root'
+      AND (json_type(metadata_json, ?) IS NULL OR json_extract(metadata_json, ?) = 'skipped')`,
+  [path, path + '.created_at', now, now, now, postId, path, path + '.status'])
+  return Number(claimed.meta.changes ?? 0) === 1
 }
 
-type PostChannelJobOutcome =
+type PostChannelStateOutcome =
   | { kind: 'published'; providerPostId: string }
   | { kind: 'failed' | 'skipped'; reason: string }
 
-async function settlePostChannelJob(
-  db: DbClient,
-  postId: string,
-  channel: PostChannelJob['channel'],
-  outcome: PostChannelJobOutcome,
-) {
+async function settlePostChannelState(db: DbClient, postId: string, channel: PostChannelState['channel'], outcome: PostChannelStateOutcome) {
   const now = new Date().toISOString()
-  if (outcome.kind === 'published') {
-    await execute(db, `
-      UPDATE post_channel_jobs
-         SET status = 'published', provider_post_id = ?, error = NULL, published_at = ?
-       WHERE post_id = ? AND channel = ? AND status = 'pending'
-    `, [outcome.providerPostId, now, postId, channel])
-    return
-  }
-  await execute(db, `
-    UPDATE post_channel_jobs
-       SET status = ?, provider_post_id = NULL, error = ?, published_at = NULL
-     WHERE post_id = ? AND channel = ? AND status = 'pending'
-  `, [outcome.kind, outcome.reason, postId, channel])
+  const path = '$.channels.' + channel
+  await execute(db, `UPDATE content_documents SET metadata_json = json_set(metadata_json,
+    ?, ?, ?, ?, ?, ?, ?, ?),
+    updated_at = CASE WHEN ? > updated_at THEN ? ELSE strftime('%Y-%m-%dT%H:%M:%fZ', updated_at, '+0.001 seconds') END
+    WHERE id = ? AND kind = 'social_post' AND row_role = 'root' AND json_extract(metadata_json, ?) = 'pending'`,
+  [path + '.status', outcome.kind, path + '.provider_post_id', outcome.kind === 'published' ? outcome.providerPostId : null,
+    path + '.error', outcome.kind === 'published' ? null : outcome.reason,
+    path + '.published_at', outcome.kind === 'published' ? now : null, now, now, postId, path + '.status'])
 }
 
 async function publishPostChannel(
   db: DbClient,
   postId: string,
-  channel: PostChannelJob['channel'],
+  channel: PostChannelState['channel'],
   post: PostWithChannels,
   socialPublish: Extract<PostSocialPublish, { kind: 'connected' }>,
 ) {
@@ -650,19 +588,19 @@ async function publishPostChannel(
       const result = await publishToPage(socialPublish.pageToken, socialPublish.pageId, { message: post.body })
       providerPostId = result.id
     } catch (error) {
-      await settlePostChannelJob(db, postId, channel, {
+      await settlePostChannelState(db, postId, channel, {
         kind: 'failed',
         reason: error instanceof Error ? error.message : 'facebook publish failed',
       })
       return
     }
-    await settlePostChannelJob(db, postId, channel, { kind: 'published', providerPostId })
+    await settlePostChannelState(db, postId, channel, { kind: 'published', providerPostId })
     return
   }
 
   const imageUrl = post.media?.find(item => item.slot === 'cover' && item.kind === 'image')?.public_url
   if (!imageUrl) {
-    await settlePostChannelJob(db, postId, channel, {
+    await settlePostChannelState(db, postId, channel, {
       kind: 'skipped',
       reason: 'Instagram requires an image. Add a photo to this post.',
     })
@@ -673,14 +611,14 @@ async function publishPostChannel(
   try {
     instagramAccountId = await getLinkedInstagramAccount(socialPublish.pageToken, socialPublish.pageId)
   } catch (error) {
-    await settlePostChannelJob(db, postId, channel, {
+    await settlePostChannelState(db, postId, channel, {
       kind: 'failed',
       reason: error instanceof Error ? error.message : 'instagram account lookup failed',
     })
     return
   }
   if (!instagramAccountId) {
-    await settlePostChannelJob(db, postId, channel, {
+    await settlePostChannelState(db, postId, channel, {
       kind: 'skipped',
       reason: 'No Instagram Business account is linked to this Facebook Page.',
     })
@@ -695,13 +633,13 @@ async function publishPostChannel(
     })
     providerPostId = result.id
   } catch (error) {
-    await settlePostChannelJob(db, postId, channel, {
+    await settlePostChannelState(db, postId, channel, {
       kind: 'failed',
       reason: error instanceof Error ? error.message : 'instagram publish failed',
     })
     return
   }
-  await settlePostChannelJob(db, postId, channel, { kind: 'published', providerPostId })
+  await settlePostChannelState(db, postId, channel, { kind: 'published', providerPostId })
 }
 
 interface DuePostRow {
@@ -717,9 +655,9 @@ interface DuePostRow {
 export async function publishDuePosts(db: DbClient, now = new Date()) {
   const nowIso = now.toISOString()
   const due = await queryAll<DuePostRow>(db, `
-    SELECT id, organization_id, site_id, location_id, post_type, scheduled_for, updated_at
-      FROM posts
-     WHERE status = 'scheduled' AND julianday(scheduled_for) <= julianday(?)
+    SELECT id, organization_id, site_id, location_id, (metadata_json ->> '$.post_type') AS post_type, scheduled_for, updated_at
+      FROM content_documents
+     WHERE kind = 'social_post' AND row_role = 'root' AND status = 'scheduled' AND julianday(scheduled_for) <= julianday(?)
      ORDER BY julianday(scheduled_for) ASC, id ASC
      LIMIT 100
   `, [nowIso])
@@ -731,10 +669,10 @@ export async function publishDuePosts(db: DbClient, now = new Date()) {
     const results = await executeBatch(db, [
       {
         query: `
-          UPDATE posts
+          UPDATE content_documents
              SET status = 'published', scheduled_for = NULL,
                  published_at = COALESCE(published_at, scheduled_for, ?), updated_at = ?
-           WHERE id = ? AND status = 'scheduled' AND scheduled_for = ? AND julianday(scheduled_for) <= julianday(?) AND updated_at = ?
+           WHERE kind = 'social_post' AND row_role = 'root' AND id = ? AND status = 'scheduled' AND scheduled_for = ? AND julianday(scheduled_for) <= julianday(?) AND updated_at = ?
         `,
         params: [nowIso, updatedAt, post.id, post.scheduled_for, nowIso, post.updated_at],
       },
@@ -762,14 +700,8 @@ export async function deletePost(
   siteId: string,
   postId: string,
 ): Promise<boolean> {
-  const results = await executeBatch(db, [
-    ...resourceLocalizationDeletionQueries('site_post', { query: 'SELECT id FROM posts WHERE id = ? AND organization_id = ? AND site_id = ?', params: [postId, organizationId, siteId] }),
-    buildDeleteOwnerPlacementsQuery({ ownerType: 'post', ownerId: postId, organizationId, siteId }),
-    {
-      query: 'DELETE FROM posts WHERE id = ? AND organization_id = ? AND site_id = ?',
-      params: [postId, organizationId, siteId],
-    },
-  ])
+  const results = await executeBatch(db, prepareContentDocumentDeletion({ documentId: postId, organizationId, siteId }))
+
   return Number(results.at(-1)?.meta.changes ?? 0) > 0
 }
 
@@ -779,22 +711,25 @@ export async function getPublishedPosts(
   siteId: string,
   limit = 20,
   locationId?: string,
+  locale = 'en',
 ): Promise<PublishedPostSummary[]> {
   let query = `
-    SELECT p.id, p.site_id, p.location_id, bl.title AS location_title, bl.slug AS location_slug, bl.phone AS location_phone,
-           p.slug, p.post_type, p.title, p.body,
+    SELECT p.id, p.site_id, root.location_id, bl.title AS location_title, bl.slug AS location_slug, bl.phone AS location_phone,
+           p.slug, (root.metadata_json ->> '$.post_type') AS post_type, p.title, p.summary AS body,
            p.seo_title, p.seo_description,
-           p.call_to_action, p.event, p.offer, p.alert_type, p.published_at, p.created_at, p.updated_at
-    FROM posts p
+           json_extract(root.metadata_json, '$.call_to_action') AS call_to_action, CASE WHEN (root.metadata_json ->> '$.event') IS NULL THEN NULL ELSE json_patch(json_extract(root.metadata_json, '$.event'), COALESCE(json_extract(p.metadata_json, '$.event'), '{}')) END AS event, CASE WHEN (root.metadata_json ->> '$.offer') IS NULL THEN NULL ELSE json_patch(json_extract(root.metadata_json, '$.offer'), COALESCE(json_extract(p.metadata_json, '$.offer'), '{}')) END AS offer, (root.metadata_json ->> '$.alert_type') AS alert_type, root.published_at, p.created_at, p.updated_at
+    FROM content_documents root JOIN content_documents p ON COALESCE(p.root_id,p.id) = root.id AND p.locale = ?
     LEFT JOIN business_locations bl ON p.location_id = bl.id
-    WHERE p.site_id = ? AND p.status = 'published'
+    WHERE root.kind = 'social_post' AND root.row_role = 'root' AND p.site_id = ? AND root.status = 'published'
+      AND ((root.metadata_json ->> '$.event') IS NULL OR json_type(p.metadata_json, '$.event.title') = 'text')
+      AND ((root.metadata_json ->> '$.offer.terms_conditions') IS NULL OR json_type(p.metadata_json, '$.offer.terms_conditions') = 'text')
   `
-  const params: SqlBindValue[] = [siteId]
+  const params: SqlBindValue[] = [locale, siteId]
   if (locationId) {
     query += ` AND p.location_id = ?`
     params.push(locationId)
   }
-  query += ` ORDER BY p.published_at DESC LIMIT ?`
+  query += ` ORDER BY root.published_at DESC LIMIT ?`
   params.push(limit)
   const rows = await queryAll<PublishedPostRow>(db, query, params)
   const [origin, mediaByPost] = await Promise.all([
@@ -814,12 +749,12 @@ export async function getPublishedPostBySlug(
     db,
     `
     SELECT p.id, p.site_id, p.location_id, bl.title AS location_title, bl.slug AS location_slug, bl.phone AS location_phone,
-           p.slug, p.post_type, p.title, p.body,
+           p.slug, (p.metadata_json ->> '$.post_type') AS post_type, p.title, p.summary AS body,
            p.seo_title, p.seo_description,
-           p.call_to_action, p.event, p.offer, p.alert_type, p.published_at, p.created_at, p.updated_at
-    FROM posts p
+           json_extract(p.metadata_json, '$.call_to_action') AS call_to_action, json_extract(p.metadata_json, '$.event') AS event, json_extract(p.metadata_json, '$.offer') AS offer, (p.metadata_json ->> '$.alert_type') AS alert_type, p.published_at, p.created_at, p.updated_at
+    FROM content_documents p
     LEFT JOIN business_locations bl ON p.location_id = bl.id
-    WHERE p.site_id = ? AND p.status = 'published' AND (p.slug = ? OR p.id = ?)
+    WHERE p.kind = 'social_post' AND p.row_role = 'root' AND p.site_id = ? AND p.status = 'published' AND (p.slug = ? OR p.id = ?)
     LIMIT 1
   `,
     [siteId, slugOrId, slugOrId],
@@ -847,24 +782,27 @@ export async function getPublishedPostByPublicRoute(
   const site = await queryFirst<{ organization_id: string }>(db, 'SELECT organization_id FROM sites WHERE id = ? AND status = \'active\' LIMIT 1', [siteId])
   if (!site) return null
 
-  let resourceId = slug
-  let localizations = [] as Awaited<ReturnType<typeof loadExactPublicLocalizations>>
-  if (locale !== 'en') {
-    localizations = await loadExactPublicLocalizations(db, site.organization_id, siteId, locale)
-    const routeResourceId = resolveLocalizedRouteResourceId(localizations, 'site_post', `/${locale}/posts/${slug}`)
-    if (!routeResourceId) return null
-    resourceId = routeResourceId
-  }
-
-  const sourcePost = await getPublishedPostBySlug(db, siteId, resourceId)
+  const localizations = locale === 'en' ? [] : await loadExactPublicLocalizations(db, site.organization_id, siteId, locale)
+  const translated = locale === 'en' ? null : await queryFirst<{
+    id: string; root_id: string; title: string | null; summary: string | null;
+    seo_title: string | null; seo_description: string | null; metadata_json: string;
+  }>(db, `SELECT d.id, d.root_id, d.title, d.summary, d.seo_title, d.seo_description, d.metadata_json
+    FROM content_documents d JOIN content_documents root ON root.id = d.root_id
+    WHERE d.site_id = ? AND d.locale = ? AND d.path = ? AND d.row_role = 'representation'
+      AND root.kind = 'social_post' AND root.status = 'published' LIMIT 1`, [siteId, locale, '/posts/' + slug])
+  if (locale !== 'en' && !translated) return null
+  const sourcePost = await getPublishedPostBySlug(db, siteId, translated?.root_id ?? slug)
   if (!sourcePost) return null
   let post = sourcePost
-  if (locale !== 'en') {
-    const postLocalization = localizations.find(item => item.resourceType === 'site_post' && item.resourceId === sourcePost.id)
-    if (!postLocalization) return null
-    post = {
-      ...projectExactLocalizedResource('site_post', sourcePost, postLocalization),
-      media: projectLocalizedMediaAlt(sourcePost.media, localizations),
+  if (translated) {
+    const metadata = JSON.parse(translated.metadata_json) as Record<string, unknown>
+    if (!translated.summary || sourcePost.event && !metadata.event || sourcePost.offer?.terms_conditions && !metadata.offer) return null
+    const media = publicMediaFromRows((await getPostMediaByPostIds(db, siteId, [translated.id])).get(translated.id)?.media)
+    post = { ...sourcePost, title: translated.title ?? '', body: translated.summary, summary: translated.summary,
+      seo_title: translated.seo_title, seo_description: translated.seo_description, public_path: '/' + locale + '/posts/' + slug,
+      event: sourcePost.event ? { ...sourcePost.event, ...(metadata.event as { title: string }) } : null,
+      offer: sourcePost.offer ? { ...sourcePost.offer, ...(metadata.offer as { terms_conditions?: string }) } : null,
+      media: projectLocalizedMediaAlt(media, localizations),
     }
   }
 
@@ -873,7 +811,7 @@ export async function getPublishedPostByPublicRoute(
     siteId,
     sourcePath: sourcePost.public_path,
     sourceLabel: 'English',
-    resource: { type: 'site_post', id: sourcePost.id },
+    documentId: sourcePost.id,
   })
   return { ...post, localeRepresentations }
 }

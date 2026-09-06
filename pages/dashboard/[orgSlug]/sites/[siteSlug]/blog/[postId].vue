@@ -102,7 +102,6 @@ const baseUrl = `/dashboard/${orgSlug}/sites/${siteSlug}/blog`
 
 useSeoMeta({ title: 'Edit Post | Dashboard' })
 
-// ── Translations (resource_localizations, same API as the editor CRUD) ──
 const dashboardApi = useDashboardApi()
 const toast = useToast()
 const translationLocale = ref('en')
@@ -112,27 +111,25 @@ const translationBlocks = ref<BlogEditorBlock[]>([])
 const translationDocumentUpdatedAt = ref<string | null>(null)
 const translationError = ref<string | null>(null)
 const translationSaving = ref(false)
-function isBlogLocalesResponse(value: unknown): value is { languages: Array<{ locale: string; locale_status: string; is_source: boolean | number }> } {
+function isBlogLocalesResponse(value: unknown): value is { languages: Array<{ locale: string; status: string; is_source: boolean | number }> } {
   return isRecord(value) && Array.isArray(value.languages)
 }
 async function loadTranslationLocales() {
   try {
-    const response = await dashboardApi<{ languages: Array<{ locale: string; locale_status: string; is_source: boolean | number }> }>(
+    const response = await dashboardApi<{ languages: Array<{ locale: string; status: string; is_source: boolean | number }> }>(
       `/api/editor/sites/${siteId}/locales`,
       { validate: isBlogLocalesResponse },
     )
-    translationLocales.value = response.languages.filter(item => item.locale_status === 'published' && !item.is_source).map(item => item.locale)
+    translationLocales.value = response.languages.filter(item => item.status === 'published' && !item.is_source).map(item => item.locale)
   } catch (cause) {
     translationLocales.value = []
     translationError.value = cause instanceof Error ? cause.message : 'Failed to load site languages'
   }
 }
-type BlogTranslationResponse = { localization: { values: Record<string, unknown>; content_document?: { document: { updated_at: string }; blocks: BlogEditorBlock[] } } }
+type BlogTranslationResponse = { localization: Record<string, unknown> & { updated_at: string; metadata: Record<string, unknown>; content_blocks: BlogEditorBlock[] } }
 function isBlogTranslationResponse(value: unknown): value is BlogTranslationResponse {
-  if (!isRecord(value) || !isRecord(value.localization) || !isRecord(value.localization.values)) return false
-  const document = value.localization.content_document
-  return document === undefined
-    || (isRecord(document) && isRecord(document.document) && typeof document.document.updated_at === 'string' && Array.isArray(document.blocks))
+  return isRecord(value) && isRecord(value.localization) && typeof value.localization.updated_at === 'string'
+    && isRecord(value.localization.metadata) && Array.isArray(value.localization.content_blocks)
 }
 function translationBlockFields(block: BlogEditorBlock) {
   return blogLocalizedTextFields(block)
@@ -149,17 +146,17 @@ async function loadTranslationFields() {
   translationError.value = null
   try {
     const response = await dashboardApi<BlogTranslationResponse>(
-      `/api/editor/sites/${siteId}/localization/tenant_blog_post/${postId}/${encodeURIComponent(translationLocale.value)}`,
+      `/api/editor/sites/${siteId}/localization/content_document/${postId}/${encodeURIComponent(translationLocale.value)}`,
       { validate: isBlogTranslationResponse },
     )
-    const values = response.localization.values
-    translationBlocks.value = structuredClone(response.localization.content_document?.blocks ?? [])
-    translationDocumentUpdatedAt.value = response.localization.content_document?.document.updated_at ?? null
+    const values = response.localization
+    translationBlocks.value = structuredClone(response.localization.content_blocks)
+    translationDocumentUpdatedAt.value = response.localization.updated_at
     translationFields.title = typeof values.title === 'string' ? values.title : ''
-    translationFields.excerpt = typeof values.excerpt === 'string' ? values.excerpt : ''
-    translationFields.category = typeof values.category === 'string' ? values.category : ''
-    translationFields.tags_text = Array.isArray(values.tags_json) ? values.tags_json.join(', ') : ''
-    translationFields.nav_title = typeof values.nav_title === 'string' ? values.nav_title : ''
+    translationFields.excerpt = typeof values.summary === 'string' ? values.summary : ''
+    translationFields.category = typeof values.metadata.category === 'string' ? values.metadata.category : ''
+    translationFields.tags_text = Array.isArray(values.metadata.tags) ? values.metadata.tags.join(', ') : ''
+    translationFields.nav_title = typeof values.metadata.nav_title === 'string' ? values.metadata.nav_title : ''
     translationFields.seo_title = typeof values.seo_title === 'string' ? values.seo_title : ''
     translationFields.seo_description = typeof values.seo_description === 'string' ? values.seo_description : ''
     translationFields.seo_keywords = typeof values.seo_keywords === 'string' ? values.seo_keywords : ''
@@ -187,31 +184,32 @@ async function saveTranslation() {
       return field.value.trim() !== '' && (translatedValue === undefined || translatedValue.trim() === '')
     }))
     if (missingBlockText) throw new Error('Translate every article text field before saving.')
-    const values: Record<string, string> = {}
-    if (translationFields.title.trim()) values.title = translationFields.title.trim()
-    if (translationFields.excerpt.trim()) values.excerpt = translationFields.excerpt.trim()
-    if (translationFields.category.trim()) values.category = translationFields.category.trim()
-    if (translationFields.nav_title.trim()) values.nav_title = translationFields.nav_title.trim()
-    if (translationFields.seo_title.trim()) values.seo_title = translationFields.seo_title.trim()
-    if (translationFields.seo_description.trim()) values.seo_description = translationFields.seo_description.trim()
-    if (translationFields.seo_keywords.trim()) values.seo_keywords = translationFields.seo_keywords.trim()
+    const metadata: Record<string, unknown> = {}
+    const values: Record<string, unknown> = { metadata }
+    values.title = translationFields.title.trim()
+    values.summary = translationFields.excerpt.trim()
+    metadata.category = translationFields.category.trim()
+    metadata.nav_title = translationFields.nav_title.trim()
+    values.seo_title = translationFields.seo_title.trim()
+    values.seo_description = translationFields.seo_description.trim()
+    values.seo_keywords = translationFields.seo_keywords.trim()
     const slug = String(postResource.value?.post.slug ?? '')
     const template: unknown = postResource.value?.post.editor_template
     if (template !== 'saya' && template !== 'blawby') throw new Error('Article template is missing or invalid.')
     const sourcePath = tenantBlogPostPath({ themeId: publicTemplateRegistry[template].themeId }, slug)
     const tags_json = translationFields.tags_text.split(',').map(tag => tag.trim()).filter(Boolean)
-    const response = await dashboardApi<BlogTranslationResponse>(`/api/editor/sites/${siteId}/localization/tenant_blog_post/${postId}/${encodeURIComponent(translationLocale.value)}`, {
+    const response = await dashboardApi<BlogTranslationResponse>(`/api/editor/sites/${siteId}/localization/content_document/${postId}/${encodeURIComponent(translationLocale.value)}`, {
       method: 'PUT',
       body: {
-        values: { ...values, ...(tags_json.length ? { tags_json } : {}) },
+        values: { ...values, metadata: { ...metadata, tags: tags_json } },
         route_path: `/${translationLocale.value}${sourcePath}`,
         content_blocks: translationBlocks.value,
-        ...(translationDocumentUpdatedAt.value ? { expected_document_updated_at: translationDocumentUpdatedAt.value } : {}),
+        ...(translationDocumentUpdatedAt.value ? { expected_updated_at: translationDocumentUpdatedAt.value } : {}),
       },
       validate: isBlogTranslationResponse,
     })
-    translationBlocks.value = structuredClone(response.localization.content_document?.blocks ?? [])
-    translationDocumentUpdatedAt.value = response.localization.content_document?.document.updated_at ?? null
+    translationBlocks.value = structuredClone(response.localization.content_blocks)
+    translationDocumentUpdatedAt.value = response.localization.updated_at
     toast.add({ description: 'Translation saved', color: 'success' })
   } catch (cause) {
     translationError.value = cause instanceof Error ? cause.message : 'Failed to save translation'

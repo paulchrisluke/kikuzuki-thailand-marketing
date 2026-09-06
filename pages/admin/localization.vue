@@ -19,15 +19,15 @@
           </section>
           <button v-for="catalog in catalogs" :key="catalog.locale" class="block w-full rounded-xl border p-4 text-left" :class="selectedLocale === catalog.locale ? 'border-primary bg-primary/5' : 'border-default'" @click="selectCatalog(catalog.locale)">
             <span class="font-medium">{{ catalog.label }} ({{ catalog.locale }})</span>
-            <span class="mt-1 block text-sm text-muted">{{ catalog.status }} · {{ catalog.completed_keys }}/{{ catalog.total_keys }} keys · {{ catalog.active_license_count }} active licenses</span>
+            <span class="mt-1 block text-sm text-muted">{{ catalog.status }} · {{ catalog.completed_keys }}/{{ catalog.total_keys }} keys · {{ catalog.active_site_count }} published site languages</span>
           </button>
         </aside>
         <section v-if="selected" class="min-w-0 rounded-xl border border-default p-5">
           <div class="flex flex-wrap items-start justify-between gap-4">
             <div><h2 class="text-xl font-semibold">{{ selected.label }} ({{ selected.locale }})</h2><p class="mt-1 text-sm text-muted">Manifest {{ selected.source_manifest_hash === selected.current_source_manifest_hash ? 'current' : 'stale' }}</p></div>
             <div class="flex gap-2">
-              <button v-if="selected.status === 'available'" class="rounded-lg border border-default px-3 py-2 text-sm" :disabled="busy || Number(selected.active_license_count) > 0" @click="saveCatalog(false)">Make unavailable</button>
-              <button class="rounded-lg border border-error/40 px-3 py-2 text-sm text-error" :disabled="busy || Number(selected.active_license_count) > 0" @click="deleteCatalog">Delete</button>
+              <button v-if="selected.status === 'available'" class="rounded-lg border border-default px-3 py-2 text-sm" :disabled="busy || Number(selected.active_site_count) > 0" @click="saveCatalog(false)">Make unavailable</button>
+              <button class="rounded-lg border border-error/40 px-3 py-2 text-sm text-error" :disabled="busy || Number(selected.active_site_count) > 0" @click="deleteCatalog">Delete</button>
             </div>
           </div>
           <p class="mt-5 text-sm text-muted">Edit the complete flat message map. Availability requires every English key, nonblank values, matching placeholders, and the current English manifest hash.</p>
@@ -47,7 +47,7 @@
 definePageMeta({ layout: 'dashboard' })
 useSeoMeta({ title: 'Localization | KrabiClaw Admin', robots: 'noindex, nofollow' })
 
-interface CatalogSummary { locale: string; label: string; direction: 'ltr' | 'rtl'; status: 'available' | 'unavailable'; completed_keys: number; total_keys: number; active_license_count: number }
+interface CatalogSummary { locale: string; label: string; direction: 'ltr' | 'rtl'; status: 'available' | 'unavailable'; completed_keys: number; total_keys: number; active_site_count: number }
 interface CatalogDetail extends CatalogSummary { messages: Record<string, string>; source_messages: Record<string, string>; source_manifest_hash: string | null; current_source_manifest_hash: string }
 const catalogs = ref<CatalogSummary[]>([])
 const selectedLocale = ref('')

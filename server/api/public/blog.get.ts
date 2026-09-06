@@ -12,12 +12,12 @@ export default defineHandler(async (event) => {
 
   const sql = `
     SELECT
-      p.id, p.title, p.slug, p.excerpt, p.category, p.seo_description, p.seo_keywords, p.canonical_url, p.robots, p.published_at, p.nav_section, p.nav_title, p.nav_order, p.nav_section_order, p.hide_from_nav, p.featured_order, mp.asset_id AS asset_id, ma.public_url, ma.thumbnail_url, ma.kind, ma.width, ma.height
-    FROM blog_posts p
-    LEFT JOIN media_placements mp ON mp.owner_type = 'blog_post' AND mp.owner_id = p.id AND mp.slot = 'featured' AND mp.sort_order = 0 AND mp.status = 'active'
+      p.id, p.title, p.slug, p.summary AS excerpt, (p.metadata_json ->> '$.category') AS category, p.seo_description, p.seo_keywords, p.canonical_url, p.robots, p.published_at, (p.metadata_json ->> '$.nav_section') AS nav_section, (p.metadata_json ->> '$.nav_title') AS nav_title, (p.metadata_json ->> '$.nav_order') AS nav_order, (p.metadata_json ->> '$.nav_section') AS nav_section_order, (p.metadata_json ->> '$.hide_from_nav') AS hide_from_nav, (p.metadata_json ->> '$.featured_order') AS featured_order, mp.asset_id AS asset_id, ma.public_url, ma.thumbnail_url, ma.kind, ma.width, ma.height
+    FROM content_documents p
+    LEFT JOIN media_placements mp ON mp.owner_type = 'content_document' AND mp.owner_id = p.id AND mp.slot = 'featured' AND mp.sort_order = 0 AND mp.status = 'active'
     LEFT JOIN media_assets ma ON ma.id = mp.asset_id AND ma.status = 'active'
     WHERE p.status = 'published' AND p.site_id = '${PLATFORM_SITE_ID}' AND p.visibility = 'public'
-    ORDER BY COALESCE(p.featured_order, 999999), COALESCE(p.nav_section_order, 999999), COALESCE(p.nav_section, p.category), COALESCE(p.nav_order, 999999), p.published_at DESC
+    ORDER BY COALESCE((p.metadata_json ->> '$.featured_order'), 999999), COALESCE((p.metadata_json ->> '$.nav_section')_order, 999999), COALESCE((p.metadata_json ->> '$.nav_section'), (p.metadata_json ->> '$.category')), COALESCE((p.metadata_json ->> '$.nav_order'), 999999), p.published_at DESC
     LIMIT 100
   `
 

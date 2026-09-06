@@ -4,8 +4,8 @@ import { listQa } from '~/server/utils/location-qa'
 export async function getTenantPages(db: DbClient, siteId: string): Promise<Array<{ path: string; title: string }>> {
   const rows = await queryAll<{ path: string; title: string }>(db,
     `SELECT v.path AS path, v.title
-     FROM tenant_page_variants v
-     WHERE v.site_id = ?
+     FROM content_documents v
+     WHERE v.kind = 'page' AND v.row_role = 'root' AND v.site_id = ?
      ORDER BY v.title ASC`,
     [siteId],
   )
@@ -14,9 +14,9 @@ export async function getTenantPages(db: DbClient, siteId: string): Promise<Arra
 
 export async function getQaScopes(db: DbClient, siteId: string): Promise<Array<{ page_path: string | null }>> {
   const rows = await queryAll<{ page_path: string | null }>(db,
-    `SELECT DISTINCT page_path
-     FROM location_qa
-     WHERE site_id = ? AND location_id IS NULL
+    `SELECT DISTINCT scope_path AS page_path
+     FROM content_documents
+     WHERE kind = 'qa' AND row_role = 'root' AND site_id = ? AND location_id IS NULL
      ORDER BY page_path ASC`,
     [siteId],
   )
@@ -36,12 +36,5 @@ export async function getSiteQa(
   page_path: string | null
 }>> {
   const rows = await listQa(db, siteId, null, false, pagePath)
-  return (rows ?? []).map(row => ({
-    id: row.id as string,
-    question: row.question as string,
-    answer: (row.answer as string | null) ?? null,
-    status: (row.status as 'published' | 'hidden') ?? 'published',
-    sort_order: (row.sort_order as number) ?? 0,
-    page_path: (row.page_path as string | null) ?? null,
-  }))
+  return rows.map(({ id, question, answer, status, sort_order, page_path }) => ({ id, question, answer, status, sort_order, page_path }))
 }

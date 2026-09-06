@@ -341,8 +341,12 @@ function buildDocumentWriteBatch(
     })),
     stalePlacementQuery,
     { query: `DELETE FROM media_placements WHERE owner_type = 'content_block' AND owner_id IN (
-      SELECT translated.id FROM content_blocks translated JOIN content_blocks source ON source.id = translated.source_block_id
-      WHERE source.document_id = ? AND source.id NOT IN (SELECT value FROM json_each(?))
+      WITH RECURSIVE removed(id) AS (
+        SELECT translated.id FROM content_blocks translated JOIN content_blocks source ON source.id = translated.source_block_id
+        WHERE source.document_id = ? AND source.id NOT IN (SELECT value FROM json_each(?))
+        UNION
+        SELECT child.id FROM content_blocks child JOIN removed ON child.parent_block_id = removed.id OR child.source_block_id = removed.id
+      ) SELECT id FROM removed
     )`, params: [document.id, d1JsonStringSet(retainedIds)] },
     ...insertionOrder.map(block => ({
       query: `INSERT INTO content_blocks (id, document_id, source_block_id, parent_block_id, type, position, level, data_json, created_at, updated_at)
@@ -388,7 +392,7 @@ function buildDocumentWriteBatch(
 async function writeDocumentBlocks(
   db: DbClient,
   document: ContentDocumentRow,
-  blocks: ContentBlockWriteInput[],
+  blocks: ContentBlockWriteInput[] | undefined,
   opts: ContentDocumentWriteOptions = {},
 ) {
   const prepared = buildDocumentWriteBatch(document, blocks, {
@@ -545,6 +549,7 @@ export async function appendContentBlock(
   if (input.after_block_id && afterIndex === -1) badRequest('after_block_id was not found in this document')
 
   const newBlock: ContentBlockWriteInput = {
+    source_block_id: input.source_block_id ?? null,
     parent_block_id: input.parent_block_id ?? null,
     type: assertBlockType(input.type),
     position: afterIndex + 1,
@@ -554,6 +559,8 @@ export async function appendContentBlock(
   const snapshots = [
     ...existing.slice(0, afterIndex + 1).map(block => ({
       id: block.id,
+
+      source_block_id: block.source_block_id,
       parent_block_id: block.parent_block_id,
       type: block.type,
       position: block.position,
@@ -564,6 +571,8 @@ export async function appendContentBlock(
     newBlock,
     ...existing.slice(afterIndex + 1).map(block => ({
       id: block.id,
+
+      source_block_id: block.source_block_id,
       parent_block_id: block.parent_block_id,
       type: block.type,
       position: block.position,
@@ -591,6 +600,8 @@ export async function replaceContentBlock(
   }
   const snapshots = blocks.map((block) => ({
     id: block.id,
+
+    source_block_id: block.source_block_id,
     parent_block_id: block.parent_block_id,
     type: block.type,
     position: block.position,
@@ -632,6 +643,8 @@ export async function deleteContentBlock(
     .filter(block => !removedIds.has(block.id))
     .map((block, index) => ({
       id: block.id,
+
+      source_block_id: block.source_block_id,
       parent_block_id: block.parent_block_id,
       type: block.type,
       position: index,

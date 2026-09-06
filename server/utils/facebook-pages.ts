@@ -1,5 +1,6 @@
 import type { IntegrationVersion, FacebookIntegration } from '~/shared/site-settings'
 import type { D1Database } from '@cloudflare/workers-types'
+import { prepareContentDocumentWithBlocks } from './content-documents'
 import { parsePostInput } from '~/shared/posts'
 import { execute, executeBatch, queryFirst } from '~/server/db'
 import { encryptSecret, decryptSecret, encryptionEnv } from './encryption'
@@ -371,7 +372,6 @@ export const publishToInstagram = async (
   })
 }
 
-// Sync Instagram media to posts table
 export const syncInstagramPosts = async (
   env: FacebookEnv,
   organizationId: string,
@@ -389,11 +389,9 @@ export const syncInstagramPosts = async (
 
   for (const item of media) {
     try {
-      // Check if post already exists
       const existing = await queryFirst(env.DB,
-        `SELECT p.id FROM post_channel_jobs j
-         JOIN posts p ON p.id = j.post_id
-         WHERE j.channel = 'instagram' AND j.provider_post_id = ? AND p.site_id = ? LIMIT 1`,
+        `SELECT id FROM content_documents WHERE kind = 'social_post' AND row_role = 'root'
+          AND (metadata_json ->> '$.channels.instagram.provider_post_id') = ? AND site_id = ? LIMIT 1`,
         [item.id, siteId]
       )
 
@@ -426,7 +424,6 @@ export const syncInstagramPosts = async (
       const postId = `ig-post-${item.id}`
       const now = new Date().toISOString()
 
-      // Use D1 batch to make asset creation and post insert atomic
       await executeBatch(env.DB, [
         buildMediaAssetInsertQuery({
           id: assetId,
@@ -442,36 +439,14 @@ export const syncInstagramPosts = async (
           file_size: imageBuffer.byteLength,
           status: 'active',
         }, now),
-        {
-          query: `
-          INSERT INTO posts (
-            id, organization_id, site_id, location_id, post_type,
-            title, body, status, published_at,
-            created_by, created_at, updated_at
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        `,
-          params: [
-            postId,
-            organizationId,
-            siteId,
-            null,
-            'standard',
-            title,
-            body,
-            'published',
-            item.timestamp,
-            'instagram-sync',
-            now,
-            now
-          ]
-        },
-        buildMediaPlacementInsertQuery({ organizationId, siteId, ownerType: 'post', ownerId: postId, slot: 'cover', assetId, sortOrder: 0, createdAt: now, updatedAt: now }),
-        {
-          query: `INSERT INTO post_channel_jobs
-            (id, post_id, channel, status, provider_post_id, published_at, created_at)
-            VALUES (?, ?, 'instagram', 'published', ?, ?, ?)`,
-          params: [`ig-job-${item.id}`, postId, item.id, item.timestamp, now],
-        },
+        ...prepareContentDocumentWithBlocks({ id: postId, organizationId, siteId, kind: 'social_post',
+          rowRole: 'root', locale: 'en', title, summary: body, status: 'published', source: 'manual',
+          publishedAt: item.timestamp, createdBy: 'instagram-sync',
+          metadata: { post_type: 'standard', event: null, offer: null, call_to_action: null, alert_type: null,
+            channels: { instagram: { status: 'published', provider_post_id: item.id, error_message: null,
+              published_at: item.timestamp, created_at: now } } },
+        }, []).queries,
+        buildMediaPlacementInsertQuery({ organizationId, siteId, ownerType: 'content_document', ownerId: postId, slot: 'cover', assetId, sortOrder: 0, createdAt: now, updatedAt: now }),
       ])
 
       success++
@@ -484,7 +459,6 @@ export const syncInstagramPosts = async (
   return { success, errors, skipped }
 }
 
-// Sync Facebook posts to posts table
 export const syncFacebookPosts = async (
   env: FacebookEnv,
   organizationId: string,
@@ -502,11 +476,9 @@ export const syncFacebookPosts = async (
 
   for (const item of posts) {
     try {
-      // Check if post already exists
       const existing = await queryFirst(env.DB,
-        `SELECT p.id FROM post_channel_jobs j
-         JOIN posts p ON p.id = j.post_id
-         WHERE j.channel = 'facebook' AND j.provider_post_id = ? AND p.site_id = ? LIMIT 1`,
+        `SELECT id FROM content_documents WHERE kind = 'social_post' AND row_role = 'root'
+          AND (metadata_json ->> '$.channels.facebook.provider_post_id') = ? AND site_id = ? LIMIT 1`,
         [item.id, siteId]
       )
 
@@ -540,7 +512,6 @@ export const syncFacebookPosts = async (
       const postId = `fb-post-${item.id}`
       const now = new Date().toISOString()
 
-      // Use D1 batch to make asset creation and post insert atomic
       await executeBatch(env.DB, [
         buildMediaAssetInsertQuery({
           id: assetId,
@@ -556,36 +527,14 @@ export const syncFacebookPosts = async (
           file_size: imageBuffer.byteLength,
           status: 'active',
         }, now),
-        {
-          query: `
-          INSERT INTO posts (
-            id, organization_id, site_id, location_id, post_type,
-            title, body, status, published_at,
-            created_by, created_at, updated_at
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        `,
-          params: [
-            postId,
-            organizationId,
-            siteId,
-            null,
-            'standard',
-            title,
-            body,
-            'published',
-            item.created_time,
-            'facebook-sync',
-            now,
-            now
-          ]
-        },
-        buildMediaPlacementInsertQuery({ organizationId, siteId, ownerType: 'post', ownerId: postId, slot: 'cover', assetId, sortOrder: 0, createdAt: now, updatedAt: now }),
-        {
-          query: `INSERT INTO post_channel_jobs
-            (id, post_id, channel, status, provider_post_id, published_at, created_at)
-            VALUES (?, ?, 'facebook', 'published', ?, ?, ?)`,
-          params: [`fb-job-${item.id}`, postId, item.id, item.created_time, now],
-        },
+        ...prepareContentDocumentWithBlocks({ id: postId, organizationId, siteId, kind: 'social_post',
+          rowRole: 'root', locale: 'en', title, summary: body, status: 'published', source: 'manual',
+          publishedAt: item.created_time, createdBy: 'facebook-sync',
+          metadata: { post_type: 'standard', event: null, offer: null, call_to_action: null, alert_type: null,
+            channels: { facebook: { status: 'published', provider_post_id: item.id, error_message: null,
+              published_at: item.created_time, created_at: now } } },
+        }, []).queries,
+        buildMediaPlacementInsertQuery({ organizationId, siteId, ownerType: 'content_document', ownerId: postId, slot: 'cover', assetId, sortOrder: 0, createdAt: now, updatedAt: now }),
       ])
 
       success++

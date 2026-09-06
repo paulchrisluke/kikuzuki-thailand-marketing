@@ -1,24 +1,23 @@
-import { resourceLocalizationDeletionQueries } from '~/server/utils/localization'
 import { HTTPError } from 'nitro';
 
-import { executeBatch, queryAll, queryFirst, type BatchQuery, type DbClient } from '~/server/db'
+import { execute, executeBatch, queryAll, queryFirst, type BatchQuery, type DbClient } from '~/server/db'
 import {
   createContentDocumentWithBlocks,
+  prepareContentDocumentDeletion,
   getContentEditorSnapshot,
-  getContentBlocksForOwner,
+  getContentBlocksForDocument,
   getContentOutline,
-  getContentDocumentByOwner,
+  getContentDocumentById,
   listBlocksForDocument,
-  replaceContentDocumentBlocks,
+  updateContentDocument,
+  prepareContentDocumentUpdate,
+  type ContentDocumentChanges,
   renderContentBlocksToMarkdown,
-  type ContentDocumentOwnerType,
   type ContentBlockInput,
 } from '~/server/utils/content-documents'
 import {
   loadExactPublicLocalizations,
-  projectExactLocalizedResource,
   projectLocalizedMediaAlt,
-  resolveLocalizedRouteResourceId,
 } from '~/server/utils/public-localization'
 import { listPublicLocaleRepresentations } from '~/server/utils/public-locale-representations'
 import { normalizeVertical } from '~/utils/vertical-copy'
@@ -121,9 +120,6 @@ export type PlatformRobotsDirective = 'index,follow' | 'noindex,follow' | 'index
 
 export const PLATFORM_ROBOTS_DIRECTIVES: readonly PlatformRobotsDirective[] = ['index,follow', 'noindex,follow', 'index,nofollow', 'noindex,nofollow']
 
-function blogContentOwnerType(siteId: string | null): ContentDocumentOwnerType {
-  return isPlatformSite(siteId ?? PLATFORM_SITE_ID) ? 'platform_blog' : 'tenant_blog'
-}
 
 export interface PlatformContentNavInput {
   nav_section?: string | null
@@ -191,13 +187,11 @@ export interface PlatformBlogUpdateInput extends PlatformContentNavInput {
   redirect_old_slug?: boolean
   reset_slug_override?: boolean
   content_blocks?: Array<ContentBlockInput & { id?: string }>
-  expected_document_updated_at?: string
   expected_updated_at?: string
 }
 
 export interface PlatformBlogLifecycleInput {
   expected_updated_at: string
-  expected_document_updated_at: string
   scheduled_for?: string | null
 }
 
@@ -207,23 +201,20 @@ export interface PlatformBlogLifecycleState {
   published_at: string | null
   scheduled_for: string | null
   updated_at: string
-  content_document_updated_at: string
 }
 
 export function parsePlatformBlogLifecycleInput(body: unknown, _action: 'publish' = 'publish'): PlatformBlogLifecycleInput {
   if (!body || typeof body !== 'object' || Array.isArray(body)) badRequest('Request body must be a valid object')
   const record = body as Record<string, unknown>
-  const allowed = new Set(['expected_updated_at', 'expected_document_updated_at', 'scheduled_for'])
+  const allowed = new Set(['expected_updated_at', 'scheduled_for'])
   const unknownField = Object.keys(record).find(key => !allowed.has(key))
   if (unknownField) badRequest(`Unknown request field: ${unknownField}`)
   if (typeof record.expected_updated_at !== 'string' || !record.expected_updated_at.trim()) badRequest('expected_updated_at is required')
-  if (typeof record.expected_document_updated_at !== 'string' || !record.expected_document_updated_at.trim()) badRequest('expected_document_updated_at is required')
   if (record.scheduled_for !== undefined && record.scheduled_for !== null && typeof record.scheduled_for !== 'string') {
     badRequest('scheduled_for must be a string or null')
   }
   return {
     expected_updated_at: record.expected_updated_at,
-    expected_document_updated_at: record.expected_document_updated_at,
     scheduled_for: record.scheduled_for as string | null | undefined,
   }
 }
@@ -245,7 +236,7 @@ export interface PlatformDocCreateInput extends PlatformContentNavInput, Platfor
 export interface PlatformDocUpdateInput extends PlatformContentNavInput, PlatformDocNavGroupInput {
   title?: string
   content_blocks?: Array<ContentBlockInput & { id?: string }>
-  expected_document_updated_at?: string
+  expected_updated_at?: string
   excerpt?: string | null
   category?: string | null
   seo_description?: string | null
@@ -270,15 +261,13 @@ function notFound(message: string): never {
 // list-then-match step before it can get/update/publish/delete a post or doc.
 async function resolvePlatformContentId(
   db: DbClient,
-  table: 'blog_posts' | 'platform_docs',
+  kind: 'article' | 'platform_doc',
   identifier: string,
   notFoundMessage: string,
   siteId: string | null = null,
 ): Promise<string> {
-  const scope = table === 'blog_posts' ? ' AND site_id = ?' : ''
-  const scopeParams = table === 'blog_posts' ? [siteId ?? PLATFORM_SITE_ID] : []
-  const byId = await queryFirst<{ id: string }>(db, `SELECT id FROM ${table} WHERE id = ?${scope} LIMIT 1`, [identifier, ...scopeParams])
-  const bySlug = await queryFirst<{ id: string }>(db, `SELECT id FROM ${table} WHERE slug = ?${scope} LIMIT 1`, [identifier, ...scopeParams])
+  const byId = await queryFirst<{ id: string }>(db, `SELECT id FROM content_documents WHERE kind = ? AND row_role = 'root' AND site_id = ? AND id = ? LIMIT 1`, [kind, siteId ?? PLATFORM_SITE_ID, identifier])
+  const bySlug = await queryFirst<{ id: string }>(db, `SELECT id FROM content_documents WHERE kind = ? AND row_role = 'root' AND site_id = ? AND slug = ? LIMIT 1`, [kind, siteId ?? PLATFORM_SITE_ID, identifier])
   if (byId && bySlug && byId.id !== bySlug.id) {
     badRequest('Ambiguous platform content identifier; use the row id.')
   }
@@ -296,11 +285,10 @@ function normalizeSlugFromTitle(title: string, fallbackPrefix: 'post' | 'doc') {
   return slug || `${fallbackPrefix}-${Date.now()}`
 }
 
-function isUniqueConstraintError(err: unknown, table: 'blog_posts' | 'platform_docs') {
+function isUniqueConstraintError(err: unknown) {
   const message = String((err as ApiValue)?.message || err || '')
   const normalized = message.replace(/["'`]/g, '')
-  if (table === 'blog_posts') return normalized.includes('blog_posts.slug')
-  return normalized.includes('platform_docs.slug')
+  return normalized.includes('content_documents.slug') && normalized.includes('content_documents.locale')
 }
 
 function assertStringLength(value: string | null | undefined, max: number, field: string) {
@@ -602,9 +590,9 @@ async function resolveTenantContext(db: DbClient, siteId: string | null, env?: C
 export async function getPublishedPlatformBlogPost(db: DbClient, category: string, slug: string, env: CloudflareEnv) {
   const post = await queryFirst<ApiRecord>(db, `
     SELECT
-      p.id, p.title, p.slug, p.excerpt, p.category, p.tags_json, p.seo_title, p.seo_description, p.seo_keywords,
+      p.id, p.title, p.slug, p.summary AS excerpt, (p.metadata_json ->> '$.category') AS category, json_extract(p.metadata_json, '$.tags') AS tags_json, p.seo_title, p.seo_description, p.seo_keywords,
       p.canonical_url, p.robots, p.visibility,
-      p.nav_section, p.nav_title, p.nav_order, p.nav_section_order, p.hide_from_nav, p.featured_order,
+      (p.metadata_json ->> '$.nav_section') AS nav_section, (p.metadata_json ->> '$.nav_title') AS nav_title, (p.metadata_json ->> '$.nav_order') AS nav_order, (p.metadata_json ->> '$.nav_section_order') AS nav_section_order, (p.metadata_json ->> '$.hide_from_nav') AS hide_from_nav, (p.metadata_json ->> '$.featured_order') AS featured_order,
       p.published_at, p.created_at, p.updated_at,
       p.author_id,
       mp.asset_id AS asset_id,
@@ -613,17 +601,17 @@ export async function getPublishedPlatformBlogPost(db: DbClient, category: strin
       ma.kind,
       ma.width,
       ma.height
-    FROM blog_posts p
-    LEFT JOIN media_placements mp ON mp.owner_type = 'blog_post' AND mp.owner_id = p.id AND mp.slot = 'featured' AND mp.sort_order = 0
+    FROM content_documents p
+    LEFT JOIN media_placements mp ON mp.owner_type = 'content_document' AND mp.owner_id = p.id AND mp.slot = 'featured' AND mp.sort_order = 0
     LEFT JOIN media_assets ma ON ma.id = mp.asset_id AND ma.status = 'active'
-    WHERE p.slug = ? AND p.category = ? AND p.status = 'published' AND p.site_id = ?
+    WHERE p.kind = 'article' AND p.row_role = 'root' AND p.slug = ? AND (p.metadata_json ->> '$.category') = ? AND p.status = 'published' AND p.site_id = ?
   `, [slug, category, PLATFORM_SITE_ID])
 
   if (!post) return null
 
-  const contentBlocks = await getContentBlocksForOwner(db, 'platform_blog', String(post.id))
+  const contentBlocks = await getContentBlocksForDocument(db, String(post.id))
   if (!contentBlocks) throw new HTTPError({ statusCode: 500, statusMessage: 'Blog content document is missing' })
-  const socialMedia = (await loadPublicSocialMedia(db, PLATFORM_SITE_ID, 'blog_post', [String(post.id)])).get(String(post.id))
+  const socialMedia = (await loadPublicSocialMedia(db, PLATFORM_SITE_ID, 'content_document', [String(post.id)])).get(String(post.id))
   const { author_id: authorId, ...postRecord } = post
   const authors = await findAuthUsersByIds(env, [authorId as string | null])
   const author = typeof authorId === 'string' ? authors.get(authorId) ?? null : null
@@ -644,24 +632,24 @@ export async function getPublishedPlatformDoc(db: DbClient, category: string, sl
   const doc = await queryFirst<ApiRecord>(
     db,
     `SELECT
-       p.id, p.title, p.slug, p.excerpt, p.category, p.difficulty_level,
+       p.id, p.title, p.slug, p.summary AS excerpt, (p.metadata_json ->> '$.category') AS category, (p.metadata_json ->> '$.difficulty_level') AS difficulty_level,
        p.seo_description, p.seo_keywords, p.canonical_url, p.robots,
-       p.nav_section, p.nav_title, p.nav_order, p.nav_section_order, p.nav_group, p.nav_group_order, p.hide_from_nav, p.featured_order,
+       (p.metadata_json ->> '$.nav_section') AS nav_section, (p.metadata_json ->> '$.nav_title') AS nav_title, (p.metadata_json ->> '$.nav_order') AS nav_order, (p.metadata_json ->> '$.nav_section_order') AS nav_section_order, (p.metadata_json ->> '$.nav_group') AS nav_group, (p.metadata_json ->> '$.nav_group_order') AS nav_group_order, (p.metadata_json ->> '$.hide_from_nav') AS hide_from_nav, (p.metadata_json ->> '$.featured_order') AS featured_order,
        p.author_id,
        mp.asset_id AS asset_id, p.updated_at,
        ma.public_url, ma.thumbnail_url, ma.kind, ma.width, ma.height
-     FROM platform_docs p
-     LEFT JOIN media_placements mp ON mp.owner_type = 'platform_doc' AND mp.owner_id = p.id AND mp.slot = 'featured' AND mp.sort_order = 0
+     FROM content_documents p
+     LEFT JOIN media_placements mp ON mp.owner_type = 'content_document' AND mp.owner_id = p.id AND mp.slot = 'featured' AND mp.sort_order = 0
      LEFT JOIN media_assets ma ON ma.id = mp.asset_id AND ma.status = 'active'
-     WHERE p.slug = ? AND p.category = ?`,
+     WHERE p.kind = 'platform_doc' AND p.row_role = 'root' AND p.site_id = 'platform' AND p.slug = ? AND (p.metadata_json ->> '$.category') = ?`,
     [slug, category],
   )
 
   if (!doc) return null
 
-  const contentBlocks = await getContentBlocksForOwner(db, 'platform_doc', String(doc.id))
+  const contentBlocks = await getContentBlocksForDocument(db, String(doc.id))
   if (!contentBlocks) throw new HTTPError({ statusCode: 500, statusMessage: 'Documentation content document is missing' })
-  const socialMedia = (await loadPublicSocialMedia(db, PLATFORM_SITE_ID, 'platform_doc', [String(doc.id)])).get(String(doc.id))
+  const socialMedia = (await loadPublicSocialMedia(db, PLATFORM_SITE_ID, 'content_document', [String(doc.id)])).get(String(doc.id))
   const { author_id: authorId, ...docRecord } = doc
   const authors = await findAuthUsersByIds(env, [authorId as string | null])
   const author = typeof authorId === 'string' ? authors.get(authorId) ?? null : null
@@ -718,6 +706,7 @@ function hasOwnField<T extends object>(input: T, key: PropertyKey) {
 function validateBlogCommon(input: Partial<PlatformBlogCreateInput>, isTenant = false) {
   normalizeBlankToNull(input)
   validateNavMetadata(input)
+  if ('visibility' in input && input.visibility !== undefined && !['public', 'unlisted'].includes(String(input.visibility))) badRequest('visibility must be public or unlisted')
   if (input.title !== undefined) assertStringLength(input.title, BLOG_TITLE_MAX, 'title')
   if (input.excerpt !== undefined) assertStringLength(input.excerpt ?? null, BLOG_EXCERPT_MAX, 'excerpt')
   if (input.category !== undefined) {
@@ -769,16 +758,16 @@ function validateDocCommon(input: Partial<PlatformDocCreateInput>) {
 
 export async function listPlatformBlogPosts(db: DbClient, status?: string | null, siteId: string | null = null, env?: CloudflareEnv) {
   let sql = `SELECT
-      p.id, p.title, p.slug, p.excerpt, p.category, p.tags_json, p.status, p.visibility, p.scheduled_for,
+      p.id, p.title, p.slug, p.summary AS excerpt, (p.metadata_json ->> '$.category') AS category, json_extract(p.metadata_json, '$.tags') AS tags_json, p.status, p.visibility, p.scheduled_for,
       p.seo_title, p.seo_description, p.seo_keywords, p.canonical_url, p.robots,
-      p.nav_section, p.nav_title, p.nav_order, p.nav_section_order, p.hide_from_nav, p.featured_order,
+      (p.metadata_json ->> '$.nav_section') AS nav_section, (p.metadata_json ->> '$.nav_title') AS nav_title, (p.metadata_json ->> '$.nav_order') AS nav_order, (p.metadata_json ->> '$.nav_section_order') AS nav_section_order, (p.metadata_json ->> '$.hide_from_nav') AS hide_from_nav, (p.metadata_json ->> '$.featured_order') AS featured_order,
       mp.asset_id AS asset_id, ma.public_url AS media_public_url, ma.thumbnail_url AS media_thumbnail_url, ma.kind AS media_kind,
       ma.width AS media_width, ma.height AS media_height,
       p.published_at, p.created_at, p.updated_at
-    FROM blog_posts p
-    LEFT JOIN media_placements mp ON mp.owner_type = 'blog_post' AND mp.owner_id = p.id AND mp.slot = 'featured' AND mp.sort_order = 0
+    FROM content_documents p
+    LEFT JOIN media_placements mp ON mp.owner_type = 'content_document' AND mp.owner_id = p.id AND mp.slot = 'featured' AND mp.sort_order = 0
     LEFT JOIN media_assets ma ON ma.id = mp.asset_id AND ma.status = 'active'
-    WHERE p.site_id = ?`
+    WHERE p.kind = 'article' AND p.row_role = 'root' AND p.site_id = ?`
   const resolvedSiteId = siteId ?? PLATFORM_SITE_ID
   const params: ApiValue[] = [resolvedSiteId]
   if (status === 'published') sql += " AND p.status = 'published'"
@@ -798,25 +787,25 @@ export async function listPlatformBlogPosts(db: DbClient, status?: string | null
 
 export async function getPlatformBlogPost(db: DbClient, postIdOrSlug: string, siteId: string | null = null, env?: CloudflareEnv) {
   const resolvedSiteId = siteId ?? PLATFORM_SITE_ID
-  const postId = await resolvePlatformContentId(db, 'blog_posts', postIdOrSlug, 'Post not found', resolvedSiteId)
+  const postId = await resolvePlatformContentId(db, 'article', postIdOrSlug, 'Post not found', resolvedSiteId)
   const post = await queryFirst<ApiRecord | null>(
     db,
     `SELECT
-       p.id, p.title, p.slug, p.excerpt, p.category, p.tags_json, p.status, p.visibility, p.scheduled_for,
-       p.first_published_at, p.slug_manually_overridden,
+       p.id, p.title, p.slug, p.summary AS excerpt, (p.metadata_json ->> '$.category') AS category, json_extract(p.metadata_json, '$.tags') AS tags_json, p.status, p.visibility, p.scheduled_for,
+       p.first_published_at, (p.metadata_json ->> '$.slug_manually_overridden') AS slug_manually_overridden,
        p.seo_title, p.seo_description, p.seo_keywords, p.canonical_url, p.robots,
-       p.nav_section, p.nav_title, p.nav_order, p.nav_section_order, p.hide_from_nav, p.featured_order,
+       (p.metadata_json ->> '$.nav_section') AS nav_section, (p.metadata_json ->> '$.nav_title') AS nav_title, (p.metadata_json ->> '$.nav_order') AS nav_order, (p.metadata_json ->> '$.nav_section_order') AS nav_section_order, (p.metadata_json ->> '$.hide_from_nav') AS hide_from_nav, (p.metadata_json ->> '$.featured_order') AS featured_order,
        mp.asset_id AS asset_id, ma.public_url AS media_public_url, ma.thumbnail_url AS media_thumbnail_url, ma.kind AS media_kind,
        ma.width AS media_width, ma.height AS media_height,
        p.published_at, p.created_at, p.updated_at
-     FROM blog_posts p
-     LEFT JOIN media_placements mp ON mp.owner_type = 'blog_post' AND mp.owner_id = p.id AND mp.slot = 'featured' AND mp.sort_order = 0
+     FROM content_documents p
+     LEFT JOIN media_placements mp ON mp.owner_type = 'content_document' AND mp.owner_id = p.id AND mp.slot = 'featured' AND mp.sort_order = 0
      LEFT JOIN media_assets ma ON ma.id = mp.asset_id AND ma.status = 'active'
-     WHERE p.id = ?`,
+     WHERE p.kind = 'article' AND p.row_role = 'root' AND p.id = ?`,
     [postId],
   )
   if (!post) notFound('Post not found')
-  const contentDocument = await getContentEditorSnapshot(db, blogContentOwnerType(resolvedSiteId), postId)
+  const contentDocument = await getContentEditorSnapshot(db, postId)
   if (!contentDocument) throw new HTTPError({ statusCode: 500, statusMessage: 'Blog content document is missing' })
   const rawBlocks = await listBlocksForDocument(db, contentDocument.document.id)
   const slug = typeof post.slug === 'string' ? post.slug : ''
@@ -850,8 +839,8 @@ export async function getPlatformBlogPost(db: DbClient, postIdOrSlug: string, si
 export async function getPublishedSiteBlogPost(db: DbClient, siteId: string, slug: string, env: CloudflareEnv) {
   const post = await queryFirst<ApiRecord>(db, `
     SELECT
-      p.id, p.title, p.slug, p.excerpt, p.category, p.tags_json, p.seo_title, p.seo_description, p.seo_keywords,
-      p.canonical_url, p.robots, p.featured_order, p.visibility,
+      p.id, p.title, p.slug, p.summary AS excerpt, (p.metadata_json ->> '$.category') AS category, json_extract(p.metadata_json, '$.tags') AS tags_json, p.seo_title, p.seo_description, p.seo_keywords,
+      p.canonical_url, p.robots, (p.metadata_json ->> '$.featured_order') AS featured_order, p.visibility,
       p.published_at, p.created_at, p.updated_at,
       p.author_id,
       mp.asset_id AS asset_id,
@@ -860,23 +849,23 @@ export async function getPublishedSiteBlogPost(db: DbClient, siteId: string, slu
       ma.kind,
       ma.width,
       ma.height
-    FROM blog_posts p
-    LEFT JOIN media_placements mp ON mp.owner_type = 'blog_post' AND mp.owner_id = p.id AND mp.slot = 'featured' AND mp.sort_order = 0
+    FROM content_documents p
+    LEFT JOIN media_placements mp ON mp.owner_type = 'content_document' AND mp.owner_id = p.id AND mp.slot = 'featured' AND mp.sort_order = 0
     LEFT JOIN media_assets ma ON ma.id = mp.asset_id AND ma.status = 'active'
-    WHERE p.slug = ? AND p.site_id = ? AND p.status = 'published'
+    WHERE p.kind = 'article' AND p.row_role = 'root' AND p.slug = ? AND p.site_id = ? AND p.status = 'published'
       AND (p.scheduled_for IS NULL OR p.scheduled_for <= strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
     LIMIT 1
   `, [slug, siteId])
 
   if (!post) return null
 
-  const contentDocument = await getContentDocumentByOwner(db, 'tenant_blog', String(post.id))
+  const contentDocument = await getContentDocumentById(db, String(post.id))
   if (!contentDocument) throw new HTTPError({ statusCode: 500, statusMessage: 'Blog content document is missing' })
   const [contentBlocks, rawBlocks] = await Promise.all([
-    getContentBlocksForOwner(db, 'tenant_blog', String(post.id)),
+    getContentBlocksForDocument(db, String(post.id)),
     listBlocksForDocument(db, contentDocument.id),
   ])
-  const socialMedia = (await loadPublicSocialMedia(db, siteId, 'blog_post', [String(post.id)])).get(String(post.id))
+  const socialMedia = (await loadPublicSocialMedia(db, siteId, 'content_document', [String(post.id)])).get(String(post.id))
   const { author_id: authorId, ...postRecord } = post
   const authors = await findAuthUsersByIds(env, [authorId as string | null])
   const author = typeof authorId === 'string' ? authors.get(authorId) ?? null : null
@@ -910,54 +899,38 @@ export async function getPublishedLocalizedSiteBlogPost(
         siteId,
         sourcePath: `/${prefix}/${slug}`,
         sourceLabel: 'English',
-        resource: { type: 'tenant_blog_post', id: post.id },
+        documentId: post.id,
       }),
     }
   }
 
   const localizations = await loadExactPublicLocalizations(db, site.organization_id, siteId, locale)
-  const routePath = `/${locale}/${prefix}/${slug}`
-  const resourceId = resolveLocalizedRouteResourceId(localizations, 'tenant_blog_post', routePath)
-  if (!resourceId) return null
-  const row = await queryFirst<{ document_id: string | null }>(db, `
-    SELECT document_id FROM resource_localizations
-     WHERE organization_id = ? AND site_id = ? AND locale = ?
-       AND resource_type = 'tenant_blog_post' AND resource_id = ?
-     LIMIT 1
-  `, [site.organization_id, siteId, locale, resourceId])
-  if (!row?.document_id) return null
-  const source = await queryFirst<{ slug: string }>(db, `
-    SELECT slug FROM blog_posts WHERE id = ? AND site_id = ? AND status = 'published' LIMIT 1
-  `, [resourceId, siteId])
-  if (!source) return null
-  const canonical = await getPublishedSiteBlogPost(db, siteId, source.slug, env)
-  if (!canonical || typeof canonical.id !== 'string') return null
-  const postLocalization = localizations.find(item => item.resourceType === 'tenant_blog_post' && item.resourceId === resourceId)
-  if (!postLocalization) return null
-  const [contentBlocks, rawBlocks] = await Promise.all([
-    getContentOutline(db, row.document_id),
-    listBlocksForDocument(db, row.document_id),
+  const row = await queryFirst<{ id: string; root_id: string; title: string | null; summary: string | null;
+    seo_title: string | null; seo_description: string | null; seo_keywords: string | null; metadata_json: string;
+    source_slug: string; updated_at: string }>(db, `
+    SELECT d.id, d.root_id, d.title, d.summary, d.seo_title, d.seo_description, d.seo_keywords, d.metadata_json,
+           d.updated_at, root.slug AS source_slug
+      FROM content_documents d JOIN content_documents root ON root.id = d.root_id
+     WHERE d.site_id = ? AND d.locale = ? AND d.path = ? AND d.row_role = 'representation'
+       AND root.kind = 'article' AND root.row_role = 'root' AND root.status = 'published' LIMIT 1
+  `, [siteId, locale, '/' + prefix + '/' + slug])
+  if (!row) return null
+  const canonical = await getPublishedSiteBlogPost(db, siteId, row.source_slug, env)
+  if (!canonical) return null
+  const metadata = JSON.parse(row.metadata_json) as Record<string, unknown>
+  const [contentBlocks, rawBlocks, social] = await Promise.all([
+    getContentOutline(db, row.id), listBlocksForDocument(db, row.id),
+    loadPublicSocialMedia(db, siteId, 'content_document', [row.id]),
   ])
-  const localizedContentBlocks = contentBlocks.map(block => ({
-    ...block,
-    media: block.media.map(({ alt_text: _sourceAlt, ...item }) => ({ ...item, alt_text: null })),
-  }))
-  const localized = projectExactLocalizedResource('tenant_blog_post', canonical, postLocalization)
-  const media = Array.isArray(localized.media)
-    ? projectLocalizedMediaAlt(localized.media, localizations)
-    : []
-  return {
-    ...localized,
-    body: renderContentBlocksToMarkdown(rawBlocks),
-    content_blocks: localizedContentBlocks,
-    media,
-    localeRepresentations: await listPublicLocaleRepresentations(db, {
-      organizationId: site.organization_id,
-      siteId,
-      sourcePath: `/${prefix}/${source.slug}`,
-      sourceLabel: 'English',
-      resource: { type: 'tenant_blog_post', id: resourceId },
-    }),
+  return { ...canonical, title: row.title, excerpt: row.summary, slug,
+    seo_title: row.seo_title, seo_description: row.seo_description, seo_keywords: row.seo_keywords,
+    category: metadata.category ?? null, tags: metadata.tags ?? [], nav_title: metadata.nav_title ?? null,
+    canonical_url: null, updated_at: row.updated_at, body: renderContentBlocksToMarkdown(rawBlocks),
+    content_blocks: contentBlocks.map(block => ({ ...block, media: projectLocalizedMediaAlt(block.media.map(item => ({ ...item, alt_text: item.alt_text ?? null })), localizations) })),
+    media: projectLocalizedMediaAlt(social.get(row.id)?.media ?? [], localizations),
+    social_image: social.get(row.id)?.social_image ?? null,
+    localeRepresentations: await listPublicLocaleRepresentations(db, { organizationId: site.organization_id, siteId,
+      sourcePath: '/' + prefix + '/' + row.source_slug, sourceLabel: 'English', documentId: row.root_id }),
   }
 }
 
@@ -1007,54 +980,27 @@ export async function createPlatformBlogPost(
   for (let attempt = 0; attempt < slugAttempts; attempt++) {
     const slug = attempt === 0 ? slugBase : `${slugBase}-${randomSlugSuffix()}`
     try {
-      const blogPostInsert: BatchQuery = {
-        query: `
-        INSERT INTO blog_posts (id, organization_id, site_id, title, slug, excerpt, category, tags_json, nav_section, nav_title, nav_order, nav_section_order, hide_from_nav, featured_order, status, visibility, scheduled_for, slug_manually_overridden, seo_title, seo_description, seo_keywords, canonical_url, robots, author_id, published_at, first_published_at, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        params: [
-          id,
-          organizationId,
-          siteId,
-          input.title,
-          slug,
-          input.excerpt ?? null,
-          input.category ?? null,
-          input.tags ? JSON.stringify(input.tags) : null,
-          input.nav_section ?? null,
-          input.nav_title ?? null,
-          input.nav_order != null ? Number(input.nav_order) : null,
-          input.nav_section_order != null ? Number(input.nav_section_order) : null,
-          normalizeHideFromNav(input.hide_from_nav) ?? 0,
-          input.featured_order != null ? Number(input.featured_order) : null,
-          status,
-          input.visibility ?? 'public',
-          scheduledFor,
-          customSlug ? 1 : 0,
-          input.seo_title ?? null,
-          input.seo_description ?? null,
-          input.seo_keywords ?? null,
-          input.canonical_url ?? null,
-          input.robots ?? null,
-          authorId,
-          publishedAt,
-          publishedAt,
-          now,
-          now,
-        ],
-      }
-
-      const ownerType = blogContentOwnerType(siteId)
-      await createContentDocumentWithBlocks(db, ownerType, id, canonicalBlocks, {
-        siteId: placementScope.siteId,
-        bodyMarkdown: canonicalBody,
-        additionalQueriesBefore: [blogPostInsert],
+      await createContentDocumentWithBlocks(db, {
+        id, rowRole: 'root', locale: 'en', kind: 'article', organizationId, siteId,
+        title: input.title, slug, summary: input.excerpt ?? null, status, visibility: input.visibility ?? 'public',
+        authorId, scheduledFor, publishedAt, firstPublishedAt: publishedAt,
+        seoTitle: input.seo_title, seoDescription: input.seo_description, seoKeywords: input.seo_keywords,
+        canonicalUrl: input.canonical_url, robots: input.robots,
+        metadata: { category: input.category ?? null, tags: input.tags ?? null,
+          nav_section: input.nav_section ?? null, nav_title: input.nav_title ?? null,
+          nav_order: input.nav_order != null ? Number(input.nav_order) : null,
+          nav_section_order: input.nav_section_order != null ? Number(input.nav_section_order) : null,
+          hide_from_nav: normalizeHideFromNav(input.hide_from_nav) ?? 0,
+          featured_order: input.featured_order != null ? Number(input.featured_order) : null,
+          slug_manually_overridden: customSlug ? 1 : 0 },
+      }, canonicalBlocks, { bodyMarkdown: canonicalBody,
         additionalQueriesAfter: [
-          ...insertInitialMediaPlacements({ organizationId: placementScope.organizationId, siteId: placementScope.siteId, placement: { owner_type: 'blog_post', owner_id: id, slot: 'featured' }, media: featuredId ? [{ asset_id: featuredId }] : [], now }),
+          ...insertInitialMediaPlacements({ organizationId: placementScope.organizationId, siteId: placementScope.siteId, placement: { owner_type: 'content_document', owner_id: id, slot: 'featured' }, media: featuredId ? [{ asset_id: featuredId }] : [], now }),
           ...await contentBlockPlacementQueries(db, canonicalBlocks, placementScope, now),
         ],
       })
       const post = await getPlatformBlogPost(db, id, siteId, env)
-      if (env) await refreshSocialCard({ db, env, owner: { owner_type: 'blog_post', owner_id: id }, actorId: authorId })
+      if (env) await refreshSocialCard({ db, env, owner: { owner_type: 'content_document', owner_id: id }, actorId: authorId })
       return {
         success: true,
         id,
@@ -1068,8 +1014,8 @@ export async function createPlatformBlogPost(
         post,
       }
     } catch (err) {
-      if (customSlug && isUniqueConstraintError(err, 'blog_posts')) badRequest('slug is already in use')
-      if (isUniqueConstraintError(err, 'blog_posts') && attempt < slugAttempts - 1) continue
+      if (customSlug && isUniqueConstraintError(err)) badRequest('slug is already in use')
+      if (isUniqueConstraintError(err) && attempt < slugAttempts - 1) continue
       throw err
     }
   }
@@ -1085,326 +1031,116 @@ export async function updatePlatformBlogLifecycle(
 ): Promise<PlatformBlogLifecycleState> {
   const resolvedSiteId = siteId ?? PLATFORM_SITE_ID
   if (!input.expected_updated_at?.trim()) badRequest('expected_updated_at is required')
-  if (!input.expected_document_updated_at?.trim()) badRequest('expected_document_updated_at is required')
 
   let scheduledFor: string | null = null
   try { scheduledFor = parseScheduledFor(input.scheduled_for) } catch (error) { badRequest((error as Error).message) }
   if (scheduledFor && new Date(scheduledFor).getTime() <= Date.now()) badRequest('scheduled_for must be in the future')
 
-  type LifecycleSource = {
-    id: string
-    status: string
-    updated_at: string
-    document_id: string | null
-    document_updated_at: string | null
-  }
-  const rows = await queryAll<LifecycleSource>(db, `
-    SELECT p.id, p.status, p.updated_at,
-           d.id AS document_id,
-           d.updated_at AS document_updated_at
-      FROM blog_posts p
-      LEFT JOIN content_documents d
-        ON d.owner_type = ? AND d.owner_id = p.id
-     WHERE (p.id = ? OR p.slug = ?)
-       AND p.site_id = ?
-     LIMIT 2
-  `, [blogContentOwnerType(resolvedSiteId), postIdOrSlug, postIdOrSlug, resolvedSiteId])
-  if (rows.length === 0) notFound('Post not found')
-  if (rows.length > 1) badRequest('Ambiguous platform content identifier; use the row id.')
-  const source = rows[0]!
+  const sourceId = await resolvePlatformContentId(db, 'article', postIdOrSlug, 'Post not found', resolvedSiteId)
+  const source = await queryFirst<{ id: string; status: string; updated_at: string }>(db,
+    "SELECT id, status, updated_at FROM content_documents WHERE id = ? AND row_role = 'root' AND kind = 'article'", [sourceId])
+  if (!source) notFound('Post not found')
   if (source.status !== 'scheduled') badRequest('Only a scheduled article can be published or rescheduled')
   if (source.updated_at !== input.expected_updated_at) {
-    throw new HTTPError({ statusCode: 409, statusMessage: 'Blog post was updated by another writer' })
+    throw new HTTPError({ statusCode: 409, statusMessage: 'Article was updated by another writer' })
   }
-  if (!source.document_id || !source.document_updated_at) {
-    throw new HTTPError({ statusCode: 500, statusMessage: 'Blog content document is missing' })
+  const committedAt = new Date(Math.max(Date.now(), Date.parse(source.updated_at) + 1)).toISOString()
+  const result = await execute(db, `UPDATE content_documents SET scheduled_for = ?,
+    published_at = ?, first_published_at = CASE WHEN ? IS NULL THEN COALESCE(first_published_at, ?) ELSE first_published_at END,
+    status = ?, updated_at = ? WHERE id = ? AND kind = 'article' AND row_role = 'root' AND updated_at = ? AND status = 'scheduled'`,
+  [scheduledFor, scheduledFor ? null : committedAt, scheduledFor, committedAt,
+    scheduledFor ? 'scheduled' : 'published', committedAt, source.id, input.expected_updated_at])
+  if (Number(result.meta.changes ?? 0) !== 1) {
+    throw new HTTPError({ statusCode: 409, statusMessage: 'Article was updated by another writer' })
   }
-  if (source.document_updated_at !== input.expected_document_updated_at) {
-    throw new HTTPError({ statusCode: 409, statusMessage: 'Content document was updated by another writer' })
-  }
-
-  const sourceTimestamp = Date.parse(source.updated_at)
-  const documentTimestamp = Date.parse(source.document_updated_at)
-  const committedAt = new Date(Math.max(
-    Date.now(),
-    Number.isFinite(sourceTimestamp) ? sourceTimestamp + 1 : 0,
-    Number.isFinite(documentTimestamp) ? documentTimestamp + 1 : 0,
-  )).toISOString()
-  const rowParams: ApiValue[] = []
-  let rowAssignments: string
-  if (scheduledFor) {
-    rowAssignments = `scheduled_for = ?,
-      published_at = NULL,
-      status = 'scheduled',
-      updated_at = ?`
-    rowParams.push(scheduledFor, committedAt)
-  } else {
-    rowAssignments = `scheduled_for = NULL,
-      published_at = ?,
-      first_published_at = COALESCE(first_published_at, ?),
-      status = 'published',
-      updated_at = ?`
-    rowParams.push(committedAt, committedAt, committedAt)
-  }
-
-  const queries: BatchQuery[] = [
-    {
-      query: `INSERT INTO content_blocks (id, document_id, parent_block_id, type, position, level, data_json, created_at, updated_at)
-        SELECT ?, ?, NULL, '__blog_lifecycle_concurrency_guard__', 0, NULL, '{}', ?, ?
-         WHERE NOT EXISTS (SELECT 1 FROM blog_posts WHERE id = ? AND updated_at = ?)
-            OR NOT EXISTS (
-              SELECT 1 FROM content_documents
-               WHERE id = ? AND updated_at = ?
-            )`,
-      params: [
-        crypto.randomUUID(),
-        source.document_id,
-        committedAt,
-        committedAt,
-        source.id,
-        input.expected_updated_at,
-        source.document_id,
-        input.expected_document_updated_at,
-      ],
-    },
-    {
-      query: `UPDATE blog_posts SET ${rowAssignments} WHERE id = ? AND updated_at = ?`,
-      params: [...rowParams, source.id, input.expected_updated_at],
-    },
-  ]
-  try {
-    await executeBatch(db, queries)
-  } catch (error) {
-    const latest = await queryFirst<{ updated_at: string; document_updated_at: string | null;  } | null>(db, `
-      SELECT p.updated_at, d.updated_at AS document_updated_at
-        FROM blog_posts p
-        LEFT JOIN content_documents d ON d.id = ?
-       WHERE p.id = ? LIMIT 1
-    `, [source.document_id, source.id])
-    if (!latest) notFound('Post not found')
-    if (latest.updated_at !== input.expected_updated_at) {
-      throw new HTTPError({ statusCode: 409, statusMessage: 'Blog post was updated by another writer' })
-    }
-    if (latest.document_updated_at !== input.expected_document_updated_at ) {
-      throw new HTTPError({ statusCode: 409, statusMessage: 'Content document was updated by another writer' })
-    }
-    throw error
-  }
-
-  return {
-    id: source.id,
-    status: scheduledFor ? 'scheduled' : 'published',
-    published_at: scheduledFor ? null : committedAt,
-    scheduled_for: scheduledFor,
-    updated_at: committedAt,
-    content_document_updated_at: source.document_updated_at,
-  }
+  return { id: source.id, status: scheduledFor ? 'scheduled' as const : 'published' as const,
+    published_at: scheduledFor ? null : committedAt, scheduled_for: scheduledFor, updated_at: committedAt }
 }
 
 export async function updatePlatformBlogPost(
-  db: D1Database,
-  postIdOrSlug: string,
-  input: PlatformBlogUpdateInput,
-  siteId: string | null = null,
-  env?: CloudflareEnv,
+  db: D1Database, postIdOrSlug: string, input: PlatformBlogUpdateInput,
+  siteId: string | null = null, env?: CloudflareEnv,
 ) {
   const resolvedSiteId = siteId ?? PLATFORM_SITE_ID
   rejectLegacyBlogContentFields(input)
   rejectBlogUpdateLifecycleFields(input)
-  if (!BLOG_UPDATE_MUTATION_FIELDS.some(field => input[field] !== undefined)) {
-    badRequest('At least one blog mutation field is required')
-  }
-  const postId = await resolvePlatformContentId(db, 'blog_posts', postIdOrSlug, 'Post not found', resolvedSiteId)
+  if (!BLOG_UPDATE_MUTATION_FIELDS.some(field => input[field] !== undefined)) badRequest('At least one blog mutation field is required')
+  const postId = await resolvePlatformContentId(db, 'article', postIdOrSlug, 'Post not found', resolvedSiteId)
   const isTenant = !isPlatformSite(resolvedSiteId)
   validateBlogCommon(input, isTenant)
-  const current = await queryFirst<{ organization_id: string | null; category: string | null; title: string; slug: string; published_at: string | null; first_published_at: string | null; slug_manually_overridden: number; updated_at: string }>(db, 'SELECT organization_id, category, title, slug, published_at, first_published_at, slug_manually_overridden, updated_at FROM blog_posts WHERE id = ? LIMIT 1', [postId])
+  const current = await queryFirst<{ organization_id: string; category: string | null; title: string; slug: string;
+    first_published_at: string | null; slug_manually_overridden: number; updated_at: string }>(db, `
+    SELECT organization_id, metadata_json ->> '$.category' AS category, title, slug, first_published_at,
+      metadata_json ->> '$.slug_manually_overridden' AS slug_manually_overridden, updated_at
+    FROM content_documents WHERE id = ? AND kind = 'article' AND row_role = 'root'`, [postId])
   if (!current) notFound('Post not found')
-  const placementScope = await mediaPlacementScope(db, resolvedSiteId, current.organization_id)
-  if (input.expected_updated_at && current.updated_at !== input.expected_updated_at) {
-    throw new HTTPError({ statusCode: 409, statusMessage: 'Blog post was updated by another writer' })
-  }
-  let normalizedBlocks: Array<ContentBlockInput & { id?: string }> | null = null
-  let contentDocument: Awaited<ReturnType<typeof getContentEditorSnapshot>> = null
-  if (input.content_blocks !== undefined) {
-    if (!input.expected_document_updated_at) badRequest('expected_document_updated_at is required with content_blocks')
-    contentDocument = await getContentEditorSnapshot(db, blogContentOwnerType(resolvedSiteId), postId)
-    if (!contentDocument || contentDocument.document.updated_at !== input.expected_document_updated_at) {
-      throw new HTTPError({ statusCode: 409, statusMessage: 'Content document was updated by another writer' })
-    }
-    normalizedBlocks = await normalizeEditorContentBlocks(db, input.content_blocks, placementScope)
-  }
-  const effectiveCategory = input.category !== undefined ? input.category : current?.category ?? null
+  if (input.content_blocks !== undefined && !input.expected_updated_at) badRequest('expected_updated_at is required with content_blocks')
+  const effectiveCategory = input.category === undefined ? current.category : input.category
   if (!isTenant) {
     if (!effectiveCategory?.trim()) badRequest('category is required')
     assertValidBlogCategory(effectiveCategory)
   }
-  const now = new Date().toISOString()
-  const updates: string[] = ['updated_at = ?']
-  const params: ApiValue[] = [now]
-
-  if (input.visibility !== undefined && !['public', 'unlisted'].includes(input.visibility)) badRequest('visibility must be public or unlisted')
+  const placementScope = await mediaPlacementScope(db, resolvedSiteId, current.organization_id)
+  const normalizedBlocks = input.content_blocks === undefined ? undefined : await normalizeEditorContentBlocks(db, input.content_blocks, placementScope)
+  const metadata: Record<string, unknown> = {}
+  const changes: ContentDocumentChanges = { metadata }
   if (input.title !== undefined) {
-    if (!input.title?.trim()) badRequest('title cannot be blank')
-    // Published URLs are durable identifiers. A headline edit must not silently
-    // move the article and break inbound links, feeds, search, or tenant schema.
-    updates.push('title = ?')
-    params.push(input.title)
-    if (!current?.first_published_at && !current?.slug_manually_overridden && input.slug === undefined) {
-      updates.push('slug = ?')
-      params.push(normalizeBlogSlug(input.title))
-    }
+    if (!input.title.trim()) badRequest('title cannot be blank')
+    changes.title = input.title
+    if (!current.first_published_at && !current.slug_manually_overridden && input.slug === undefined) changes.slug = normalizeBlogSlug(input.title)
   }
-
   if (input.reset_slug_override && input.slug !== undefined && input.slug !== null) badRequest('reset_slug_override cannot be combined with a manual slug')
-  const slugMutation = resolveSlugMutation({
-    requestedSlug: input.reset_slug_override ? null : input.slug,
-    title: input.title ?? current?.title ?? '',
-    currentSlug: current?.slug ?? '',
-    manuallyOverridden: Boolean(current?.slug_manually_overridden),
-  })
-  const requestedSlug = input.slug !== undefined || input.reset_slug_override ? slugMutation.slug : null
-  if (requestedSlug && requestedSlug !== current?.slug) {
-    const postCollision = await queryFirst<{ id: string } | null>(db, `
-      SELECT id FROM blog_posts
-       WHERE slug = ? AND id != ? AND site_id = ? LIMIT 1
-    `, [requestedSlug, postId, resolvedSiteId])
-    if (postCollision) badRequest('Slug already in use')
-    const redirectCollision = await queryFirst<{ id: string } | null>(db, `
-      SELECT id FROM site_redirects WHERE site_id = ? AND locale = 'en' AND from_path IN (?, ?, ?) LIMIT 1
-    `, [resolvedSiteId, `/blog/${requestedSlug}`, `/article/${requestedSlug}`, `/${requestedSlug}`])
-    if (redirectCollision) badRequest('Slug collides with redirect history')
-    updates.push('slug = ?', 'slug_manually_overridden = ?')
-    params.push(requestedSlug, slugMutation.manuallyOverridden ? 1 : 0)
-  } else if (input.reset_slug_override) {
-    updates.push('slug_manually_overridden = 0')
+  const slugMutation = resolveSlugMutation({ requestedSlug: input.reset_slug_override ? null : input.slug,
+    title: input.title ?? current.title, currentSlug: current.slug, manuallyOverridden: Boolean(current.slug_manually_overridden) })
+  const requestedSlug = input.slug !== undefined || input.reset_slug_override ? slugMutation.slug : changes.slug
+  if (requestedSlug && requestedSlug !== current.slug) {
+    const redirect = await queryFirst<{ id: string }>(db, `SELECT id FROM site_redirects WHERE site_id = ? AND locale = 'en' AND from_path IN (?, ?, ?) LIMIT 1`,
+      [resolvedSiteId, `/blog/${requestedSlug}`, `/article/${requestedSlug}`, `/${requestedSlug}`])
+    if (redirect) badRequest('Slug collides with redirect history')
+    changes.slug = requestedSlug
+    if (input.slug !== undefined || input.reset_slug_override) metadata.slug_manually_overridden = slugMutation.manuallyOverridden ? 1 : 0
+  } else if (input.reset_slug_override) metadata.slug_manually_overridden = 0
+  for (const field of ['seo_title', 'seo_description', 'seo_keywords', 'canonical_url', 'robots', 'visibility'] as const) {
+    if (input[field] !== undefined) changes[field] = input[field]
   }
-
+  if (input.excerpt !== undefined) changes.summary = input.excerpt
+  for (const field of ['category', 'nav_section', 'nav_title'] as const) if (input[field] !== undefined) metadata[field] = input[field]
+  for (const field of ['nav_order', 'nav_section_order', 'featured_order'] as const) {
+    if (input[field] !== undefined) metadata[field] = input[field] === null ? null : Number(input[field])
+  }
+  if (input.tags !== undefined) metadata.tags = input.tags
+  if (input.hide_from_nav !== undefined) metadata.hide_from_nav = normalizeHideFromNav(input.hide_from_nav) ?? 0
   const featuredId = featuredAssetId(input)
-  if (featuredId) {
-    await hydrateMediaAssetRefs(db, {
-      ...placementScope,
-      refs: [{ asset_id: featuredId }],
-      allowedKinds: ['image', 'video'],
-      fieldName: 'media',
-    })
-  }
-  const fields: Array<keyof Omit<PlatformBlogUpdateInput,
-    | 'title'
-    | 'hide_from_nav'
-    | 'slug'
-    | 'redirect_old_slug'
-    | 'reset_slug_override'
-    | 'content_blocks'
-    | 'expected_document_updated_at'
-    | 'expected_updated_at'
-  >> = [
-    'excerpt',
-    'category',
-    'nav_section',
-    'nav_title',
-    'nav_order',
-    'nav_section_order',
-    'featured_order',
-    'seo_title',
-    'seo_description',
-    'seo_keywords',
-    'canonical_url',
-    'robots',
-    'visibility',
-  ]
-  for (const field of fields) {
-    if (input[field] !== undefined) {
-      updates.push(`${field} = ?`)
-      params.push(input[field] as ApiValue)
-    }
-  }
-  if (input.tags !== undefined) {
-    updates.push('tags_json = ?')
-    params.push(input.tags ? JSON.stringify(input.tags) : null)
-  }
-  if (input.hide_from_nav !== undefined) {
-    updates.push('hide_from_nav = ?')
-    params.push(normalizeHideFromNav(input.hide_from_nav) ?? 0)
-  }
-
-  params.push(postId)
-  if (input.expected_updated_at) params.push(input.expected_updated_at)
-
-  let blogMutationApplied = false
+  if (featuredId) await hydrateMediaAssetRefs(db, { ...placementScope, refs: [{ asset_id: featuredId }], allowedKinds: ['image', 'video'], fieldName: 'media' })
+  const now = new Date().toISOString()
+  const mediaQueries = featuredId === undefined ? [] : buildSingleMediaPlacementQueries({
+    organizationId: placementScope.organizationId, siteId: placementScope.siteId,
+    placement: { owner_type: 'content_document', owner_id: postId, slot: 'featured' }, media: featuredId ? [{ asset_id: featuredId }] : [], now,
+  })
   try {
-    const rowUpdate = {
-      query: `UPDATE blog_posts SET ${updates.join(', ')} WHERE id = ?${input.expected_updated_at ? ' AND updated_at = ?' : ''}`,
-      params,
-    }
-    if (normalizedBlocks && contentDocument) {
-      const before = input.expected_updated_at ? [{
-        query: 'INSERT INTO blog_posts SELECT * FROM blog_posts WHERE id = ? AND updated_at != ?',
-        params: [postId, input.expected_updated_at],
-      }, rowUpdate] : [rowUpdate]
-      await replaceContentDocumentBlocks(db, blogContentOwnerType(siteId), postId, normalizedBlocks, {
-        expected_document_updated_at: input.expected_document_updated_at ?? contentDocument.document.updated_at,
-        additionalQueriesBefore: before,
-        additionalQueriesAfter: await contentBlockPlacementQueries(db, normalizedBlocks as NormalizedEditorBlock[], placementScope, now),
-      })
-    } else {
-      const post = await queryFirst<ApiRecord | null>(db, `${rowUpdate.query} RETURNING id`, rowUpdate.params)
-      if (!post && input.expected_updated_at) throw new HTTPError({ statusCode: 409, statusMessage: 'Blog post was updated by another writer' })
-      if (!post) notFound('Post not found')
-    }
-    blogMutationApplied = true
-
-    if (featuredId !== undefined) {
-      await executeBatch(db, buildSingleMediaPlacementQueries({ organizationId: placementScope.organizationId, siteId: placementScope.siteId, placement: { owner_type: 'blog_post', owner_id: postId, slot: 'featured' }, media: featuredId ? [{ asset_id: featuredId }] : [] }))
-    }
-
-    if (requestedSlug && requestedSlug !== current?.slug && current?.first_published_at && input.redirect_old_slug !== false) {
+    await updateContentDocument(db, postId, {
+      expected_updated_at: input.expected_updated_at ?? current.updated_at, blocks: normalizedBlocks, changes,
+      additionalQueriesAfter: [...mediaQueries, ...(normalizedBlocks ? await contentBlockPlacementQueries(db, normalizedBlocks, placementScope, now) : [])],
+    })
+    if (requestedSlug && requestedSlug !== current.slug && current.first_published_at && input.redirect_old_slug !== false) {
       await createBlogRedirect(db, postId, siteId, current.slug)
     }
-
-    const updatedPost = await getPlatformBlogPost(db, postId, siteId, env)
-    if (env) await refreshSocialCard({ db, env, owner: { owner_type: 'blog_post', owner_id: postId } })
-    return {
-      success: true,
-      admin_edit_url: updatedPost.admin_edit_url,
-      edit_url: updatedPost.edit_url,
-      public_path: updatedPost.public_path,
-      public_url: updatedPost.public_url,
-      preview_url: updatedPost.preview_url,
-      post: updatedPost,
-    }
-  } catch (err) {
-    if (!blogMutationApplied && input.expected_updated_at) {
-      const latest = await queryFirst<{ updated_at: string } | null>(db, 'SELECT updated_at FROM blog_posts WHERE id = ? LIMIT 1', [postId])
-      if (latest && latest.updated_at !== input.expected_updated_at) {
-        throw new HTTPError({ statusCode: 409, statusMessage: 'Blog post was updated by another writer' })
-      }
-    }
-    if (isUniqueConstraintError(err, 'blog_posts')) badRequest('Slug already in use')
-    throw err
+    const post = await getPlatformBlogPost(db, postId, siteId, env)
+    if (env) await refreshSocialCard({ db, env, owner: { owner_type: 'content_document', owner_id: postId } })
+    return { success: true, admin_edit_url: post.admin_edit_url, edit_url: post.edit_url,
+      public_path: post.public_path, public_url: post.public_url, preview_url: post.preview_url, post }
+  } catch (error) {
+    if (isUniqueConstraintError(error)) badRequest('Slug already in use')
+    throw error
   }
 }
 
 export async function deletePlatformBlogPost(db: D1Database, postIdOrSlug: string, siteId: string | null = null) {
-  const resolvedSiteId = siteId ?? PLATFORM_SITE_ID
-  const postId = await resolvePlatformContentId(db, 'blog_posts', postIdOrSlug, 'Post not found', resolvedSiteId)
-  const ownerType = blogContentOwnerType(resolvedSiteId)
-  await executeBatch(db, [
-    ...resourceLocalizationDeletionQueries('tenant_blog_post', { query: 'SELECT id FROM blog_posts WHERE id = ? AND site_id = ?', params: [postId, resolvedSiteId] }),
-    { query: "DELETE FROM media_placements WHERE owner_type = 'blog_post' AND owner_id = ?", params: [postId] },
-    {
-      query: `
-        DELETE FROM media_placements
-        WHERE owner_type = 'content_block' AND owner_id IN (
-          SELECT id FROM content_blocks WHERE document_id IN (
-            SELECT id FROM content_documents WHERE owner_type = ? AND owner_id = ?
-          )
-        )
-      `,
-      params: [ownerType, postId],
-    },
-    { query: 'DELETE FROM content_documents WHERE owner_type = ? AND owner_id = ?', params: [ownerType, postId] },
-    { query: 'DELETE FROM blog_posts WHERE id = ?', params: [postId] },
-  ])
+  const postId = await resolvePlatformContentId(db, 'article', postIdOrSlug, 'Post not found', siteId ?? PLATFORM_SITE_ID)
+  const document = await getContentDocumentById(db, postId)
+  if (!document) notFound('Document not found')
+  await executeBatch(db, prepareContentDocumentDeletion({ documentId: document.id,
+    organizationId: document.organization_id, siteId: document.site_id }))
   return { success: true }
 }
 
@@ -1422,87 +1158,62 @@ export async function reorderPlatformBlogPosts(
   env?: CloudflareEnv,
 ) {
   if (!items.length) badRequest('items are required')
-  const now = new Date().toISOString()
-  const queries: { query: string; params: unknown[] }[] = []
-  const resolvedSiteId = siteId ?? PLATFORM_SITE_ID
-  const scopeClause = 'site_id = ?'
-
+  if (new Set(items.map(item => item.post_id)).size !== items.length) badRequest('Reorder identifiers must be distinct')
+  const queries: BatchQuery[] = []
   for (const item of items) {
-    const metadata: Partial<PlatformContentNavInput> = { nav_order: item.nav_order }
-    if (hasOwnField(item, 'nav_section')) metadata.nav_section = item.nav_section ?? null
-    if (hasOwnField(item, 'nav_title')) metadata.nav_title = item.nav_title ?? null
-    if (hasOwnField(item, 'nav_section_order')) metadata.nav_section_order = item.nav_section_order ?? null
-    validateNavMetadata(metadata)
-    const postId = await resolvePlatformContentId(db, 'blog_posts', item.post_id, 'Post not found', resolvedSiteId)
-    const updates = ['nav_order = ?', 'updated_at = ?']
-    const params: ApiValue[] = [Number(item.nav_order), now]
-    if (hasOwnField(item, 'nav_section')) {
-      updates.splice(1, 0, 'nav_section = ?')
-      params.splice(1, 0, item.nav_section ?? null)
-    }
-    if (hasOwnField(item, 'nav_title')) {
-      updates.splice(updates.length - 1, 0, 'nav_title = ?')
-      params.splice(params.length - 1, 0, item.nav_title ?? null)
-    }
-    if (hasOwnField(item, 'nav_section_order')) {
-      updates.splice(updates.length - 1, 0, 'nav_section_order = ?')
-      params.splice(params.length - 1, 0, item.nav_section_order != null ? Number(item.nav_section_order) : null)
-    }
-    if (hasOwnField(item, 'hide_from_nav')) {
-      updates.splice(updates.length - 1, 0, 'hide_from_nav = ?')
-      params.splice(params.length - 1, 0, normalizeHideFromNav(item.hide_from_nav) ?? 0)
-    }
-    params.push(postId)
-    params.push(resolvedSiteId)
-    queries.push({
-      query: `UPDATE blog_posts SET ${updates.join(', ')} WHERE id = ? AND ${scopeClause}`,
-      params,
-    })
+    validateNavMetadata(item)
+    const id = await resolvePlatformContentId(db, 'article', item.post_id, 'Post not found', siteId ?? PLATFORM_SITE_ID)
+    const document = await getContentDocumentById(db, id)
+    if (!document) notFound('Post not found')
+    const metadata: Record<string, unknown> = { nav_order: Number(item.nav_order) }
+    for (const field of ['nav_section', 'nav_title'] as const) if (hasOwnField(item, field)) metadata[field] = item[field] ?? null
+    for (const field of ['nav_section_order'] as const) if (hasOwnField(item, field)) metadata[field] = item[field] === null ? null : Number(item[field])
+    if (hasOwnField(item, 'hide_from_nav')) metadata.hide_from_nav = normalizeHideFromNav(item.hide_from_nav) ?? 0
+    queries.push(...prepareContentDocumentUpdate(document, { expected_updated_at: document.updated_at, changes: { metadata } }).queries)
   }
-
   await executeBatch(db, queries)
   return { success: true, posts: await listPlatformBlogPosts(db, null, siteId, env) }
 }
 
 export async function listPlatformDocs(db: DbClient, _status?: string | null) {
   const sql = `SELECT
-      d.id, d.title, d.slug, d.excerpt, d.category, d.seo_description, d.seo_keywords, d.canonical_url, d.robots,
-      d.nav_section, d.nav_title, d.nav_order, d.nav_section_order, d.nav_group, d.nav_group_order, d.hide_from_nav, d.featured_order,
+      d.id, d.title, d.slug, d.summary AS excerpt, (d.metadata_json ->> '$.category') AS category, d.seo_description, d.seo_keywords, d.canonical_url, d.robots,
+      (d.metadata_json ->> '$.nav_section') AS nav_section, (d.metadata_json ->> '$.nav_title') AS nav_title, (d.metadata_json ->> '$.nav_order') AS nav_order, (d.metadata_json ->> '$.nav_section_order') AS nav_section_order, (d.metadata_json ->> '$.nav_group') AS nav_group, (d.metadata_json ->> '$.nav_group_order') AS nav_group_order, (d.metadata_json ->> '$.hide_from_nav') AS hide_from_nav, (d.metadata_json ->> '$.featured_order') AS featured_order,
       mp.asset_id AS asset_id, ma.public_url AS media_public_url, ma.thumbnail_url AS media_thumbnail_url, ma.kind AS media_kind,
       ma.width AS media_width, ma.height AS media_height,
-      d.difficulty_level, d.sort_order, d.created_at, d.updated_at
-    FROM platform_docs d
-    LEFT JOIN media_placements mp ON mp.owner_type = 'platform_doc' AND mp.owner_id = d.id AND mp.slot = 'featured' AND mp.sort_order = 0
+      (d.metadata_json ->> '$.difficulty_level') AS difficulty_level, d.sort_order, d.created_at, d.updated_at
+    FROM content_documents d
+    LEFT JOIN media_placements mp ON mp.owner_type = 'content_document' AND mp.owner_id = d.id AND mp.slot = 'featured' AND mp.sort_order = 0
     LEFT JOIN media_assets ma ON ma.id = mp.asset_id AND ma.status = 'active'
-    ORDER BY COALESCE(d.featured_order, 999999), COALESCE(d.nav_section_order, 999999), COALESCE(d.nav_section, d.category), COALESCE(d.nav_group_order, 999999), COALESCE(d.nav_group, ''), COALESCE(d.nav_order, d.sort_order, 999999), d.created_at DESC`
+    WHERE d.kind = 'platform_doc' AND d.row_role = 'root' AND d.site_id = 'platform' ORDER BY COALESCE((d.metadata_json ->> '$.featured_order'), 999999), COALESCE((d.metadata_json ->> '$.nav_section_order'), 999999), COALESCE((d.metadata_json ->> '$.nav_section'), (d.metadata_json ->> '$.category')), COALESCE((d.metadata_json ->> '$.nav_group_order'), 999999), COALESCE((d.metadata_json ->> '$.nav_group'), ''), COALESCE((d.metadata_json ->> '$.nav_order'), d.sort_order, 999999), d.created_at DESC`
   const results = await queryAll<ApiRecord>(db, sql)
   return (results ?? []).map(record => platformDocReviewUrls(attachFeaturedMedia(attachPublished(record, true))))
 }
 
 export async function getPlatformDoc(db: DbClient, docIdOrSlug: string) {
-  const docId = await resolvePlatformContentId(db, 'platform_docs', docIdOrSlug, 'Doc not found')
+  const docId = await resolvePlatformContentId(db, 'platform_doc', docIdOrSlug, 'Doc not found')
   const doc = await queryFirst<ApiRecord | null>(
     db,
     `SELECT
-       d.id, d.title, d.slug, d.excerpt, d.category, d.seo_description, d.seo_keywords, d.canonical_url, d.robots,
-       d.nav_section, d.nav_title, d.nav_order, d.nav_section_order, d.nav_group, d.nav_group_order, d.hide_from_nav, d.featured_order,
-       d.difficulty_level, d.sort_order,
+       d.id, d.title, d.slug, d.summary AS excerpt, (d.metadata_json ->> '$.category') AS category, d.seo_description, d.seo_keywords, d.canonical_url, d.robots,
+       (d.metadata_json ->> '$.nav_section') AS nav_section, (d.metadata_json ->> '$.nav_title') AS nav_title, (d.metadata_json ->> '$.nav_order') AS nav_order, (d.metadata_json ->> '$.nav_section_order') AS nav_section_order, (d.metadata_json ->> '$.nav_group') AS nav_group, (d.metadata_json ->> '$.nav_group_order') AS nav_group_order, (d.metadata_json ->> '$.hide_from_nav') AS hide_from_nav, (d.metadata_json ->> '$.featured_order') AS featured_order,
+       (d.metadata_json ->> '$.difficulty_level') AS difficulty_level, d.sort_order,
        mp.asset_id AS asset_id, ma.public_url AS media_public_url, ma.thumbnail_url AS media_thumbnail_url, ma.kind AS media_kind,
        ma.width AS media_width, ma.height AS media_height,
        d.created_at, d.updated_at
-     FROM platform_docs d
-     LEFT JOIN media_placements mp ON mp.owner_type = 'platform_doc' AND mp.owner_id = d.id AND mp.slot = 'featured' AND mp.sort_order = 0
+     FROM content_documents d
+     LEFT JOIN media_placements mp ON mp.owner_type = 'content_document' AND mp.owner_id = d.id AND mp.slot = 'featured' AND mp.sort_order = 0
      LEFT JOIN media_assets ma ON ma.id = mp.asset_id AND ma.status = 'active'
-     WHERE d.id = ?`,
+     WHERE d.kind = 'platform_doc' AND d.row_role = 'root' AND d.site_id = 'platform' AND d.id = ?`,
     [docId],
   )
   if (!doc) notFound('Doc not found')
-  const contentDocument = await getContentEditorSnapshot(db, 'platform_doc', docId)
+  const contentDocument = await getContentEditorSnapshot(db, docId)
   if (!contentDocument) throw new HTTPError({ statusCode: 500, statusMessage: 'Documentation content document is missing' })
   return {
     ...platformDocReviewUrls(attachFeaturedMedia(attachPublished(doc, true))),
     content_blocks: contentDocument.blocks,
-    document_updated_at: contentDocument.document.updated_at,
+    updated_at: contentDocument.document.updated_at,
   }
 }
 
@@ -1534,44 +1245,28 @@ export async function createPlatformDoc(
   for (let attempt = 0; attempt < MAX_SLUG_ATTEMPTS; attempt++) {
     const slug = attempt === 0 ? slugBase : `${slugBase}-${randomSlugSuffix()}`
     try {
-      const docInsert: BatchQuery = { query: `
-        INSERT INTO platform_docs (id, title, slug, excerpt, category, nav_section, nav_title, nav_order, nav_section_order, nav_group, nav_group_order, hide_from_nav, featured_order, author_id, seo_description, seo_keywords, canonical_url, robots, difficulty_level, sort_order, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, params: [
-        id,
-        input.title,
-        slug,
-        input.excerpt ?? null,
-        input.category ?? null,
-        input.nav_section ?? null,
-        input.nav_title ?? null,
-        input.nav_order != null ? Number(input.nav_order) : null,
-        input.nav_section_order != null ? Number(input.nav_section_order) : null,
-        input.nav_group ?? null,
-        input.nav_group_order != null ? Number(input.nav_group_order) : null,
-        normalizeHideFromNav(input.hide_from_nav) ?? 0,
-        input.featured_order != null ? Number(input.featured_order) : null,
-        authorId,
-        input.seo_description ?? null,
-        input.seo_keywords ?? null,
-        input.canonical_url ?? null,
-        input.robots ?? null,
-        input.difficulty_level ?? null,
-        input.sort_order ?? 0,
-        now,
-        now,
-      ] }
-      await createContentDocumentWithBlocks(db, 'platform_doc', id, normalizedBlocks, {
-        siteId: placementScope.siteId,
-        bodyMarkdown: canonicalBody,
-        additionalQueriesBefore: [docInsert],
+      await createContentDocumentWithBlocks(db, {
+        id, rowRole: 'root', locale: 'en', kind: 'platform_doc',
+        organizationId: PLATFORM_ORGANIZATION_ID, siteId: PLATFORM_SITE_ID,
+        title: input.title, slug, summary: input.excerpt, authorId, sortOrder: input.sort_order ?? 0,
+        seoDescription: input.seo_description, seoKeywords: input.seo_keywords,
+        canonicalUrl: input.canonical_url, robots: input.robots,
+        metadata: { category: input.category ?? null, nav_section: input.nav_section ?? null,
+          nav_title: input.nav_title ?? null, nav_order: input.nav_order != null ? Number(input.nav_order) : null,
+          nav_section_order: input.nav_section_order != null ? Number(input.nav_section_order) : null,
+          nav_group: input.nav_group ?? null, nav_group_order: input.nav_group_order ?? null,
+          hide_from_nav: normalizeHideFromNav(input.hide_from_nav) ?? 0,
+          featured_order: input.featured_order != null ? Number(input.featured_order) : null,
+          difficulty_level: input.difficulty_level ?? null },
+      }, normalizedBlocks, { bodyMarkdown: canonicalBody,
         additionalQueriesAfter: [
-          ...insertInitialMediaPlacements({ organizationId: placementScope.organizationId, siteId: placementScope.siteId, placement: { owner_type: 'platform_doc', owner_id: id, slot: 'featured' }, media: featuredId ? [{ asset_id: featuredId }] : [], now }),
+          ...insertInitialMediaPlacements({ organizationId: placementScope.organizationId, siteId: placementScope.siteId, placement: { owner_type: 'content_document', owner_id: id, slot: 'featured' }, media: featuredId ? [{ asset_id: featuredId }] : [], now }),
           ...await contentBlockPlacementQueries(db, normalizedBlocks, placementScope, now),
         ],
       })
 
       const doc = await getPlatformDoc(db, id)
-      if (env) await refreshSocialCard({ db, env, owner: { owner_type: 'platform_doc', owner_id: id }, actorId: authorId })
+      if (env) await refreshSocialCard({ db, env, owner: { owner_type: 'content_document', owner_id: id }, actorId: authorId })
       return {
         success: true,
         id,
@@ -1582,7 +1277,7 @@ export async function createPlatformDoc(
         doc,
       }
     } catch (err) {
-      if (isUniqueConstraintError(err, 'platform_docs') && attempt < MAX_SLUG_ATTEMPTS - 1) continue
+      if (isUniqueConstraintError(err) && attempt < MAX_SLUG_ATTEMPTS - 1) continue
       throw err
     }
   }
@@ -1590,131 +1285,67 @@ export async function createPlatformDoc(
 }
 
 export async function updatePlatformDoc(
-  db: D1Database,
-  docIdOrSlug: string,
-  input: PlatformDocUpdateInput,
-  env?: CloudflareEnv,
+  db: D1Database, docIdOrSlug: string, input: PlatformDocUpdateInput, env?: CloudflareEnv,
 ) {
-  const docId = await resolvePlatformContentId(db, 'platform_docs', docIdOrSlug, 'Doc not found')
   validateDocCommon(input)
-  const now = new Date().toISOString()
-  const updates: string[] = ['updated_at = ?']
-  const params: ApiValue[] = [now]
-
+  const docId = await resolvePlatformContentId(db, 'platform_doc', docIdOrSlug, 'Doc not found')
+  const document = await getContentDocumentById(db, docId)
+  if (!document) notFound('Doc not found')
+  const changes: ContentDocumentChanges = {}
+  const metadata: Record<string, unknown> = {}
+  changes.metadata = metadata
   if (input.title !== undefined) {
-    if (!input.title?.trim()) badRequest('title cannot be blank')
-    const slug = normalizeSlugFromTitle(input.title, 'doc')
-    const existing = await queryFirst(db, 'SELECT id FROM platform_docs WHERE slug = ? AND id != ? LIMIT 1', [slug, docId])
-    if (existing) badRequest('Slug already in use')
-    updates.push('title = ?', 'slug = ?')
-    params.push(input.title, slug)
+    if (!input.title.trim()) badRequest('title cannot be blank')
+    changes.title = input.title
+    changes.slug = normalizeSlugFromTitle(input.title, 'doc')
   }
-
-  const featuredId = featuredAssetId(input)
+  if (input.excerpt !== undefined) changes.summary = input.excerpt
+  for (const field of ['seo_description', 'seo_keywords', 'canonical_url', 'robots'] as const) {
+    if (input[field] !== undefined) changes[field] = input[field]
+  }
+  if (input.sort_order !== undefined) {
+    if (input.sort_order === null || !Number.isInteger(input.sort_order)) badRequest('sort_order must be an integer')
+    changes.sort_order = input.sort_order
+  }
+  for (const field of ['category', 'nav_section', 'nav_title', 'nav_group', 'difficulty_level'] as const) {
+    if (input[field] !== undefined) metadata[field] = input[field]
+  }
+  for (const field of ['nav_order', 'nav_section_order', 'nav_group_order', 'featured_order'] as const) {
+    if (input[field] !== undefined) metadata[field] = input[field] === null ? null : Number(input[field])
+  }
+  if (input.hide_from_nav !== undefined) metadata.hide_from_nav = normalizeHideFromNav(input.hide_from_nav) ?? 0
   const placementScope = await mediaPlacementScope(db, null, null)
-  if (featuredId) {
-    await hydrateMediaAssetRefs(db, {
-      ...placementScope,
-      refs: [{ asset_id: featuredId }],
-      allowedKinds: ['image', 'video'],
-      fieldName: 'media',
-    })
+  const featuredId = featuredAssetId(input)
+  if (featuredId) await hydrateMediaAssetRefs(db, { ...placementScope, refs: [{ asset_id: featuredId }], allowedKinds: ['image', 'video'], fieldName: 'media' })
+  const blocks = input.content_blocks === undefined ? undefined : await normalizeEditorContentBlocks(db, input.content_blocks, placementScope)
+  if (blocks) {
+    if (!blocks.length) badRequest('content_blocks cannot be empty')
+    if (!input.expected_updated_at) badRequest('expected_updated_at is required with content_blocks')
   }
-
-  const fields: Array<keyof PlatformDocUpdateInput> = [
-    'excerpt',
-    'category',
-    'nav_section',
-    'nav_title',
-    'nav_order',
-    'nav_section_order',
-    'nav_group',
-    'nav_group_order',
-    'featured_order',
-    'seo_description',
-    'seo_keywords',
-    'canonical_url',
-    'robots',
-    'difficulty_level',
-    'sort_order',
-  ]
-  for (const field of fields) {
-    if (input[field] !== undefined) {
-      updates.push(`${field} = ?`)
-      params.push(input[field] as ApiValue)
-    }
-  }
-  if (input.hide_from_nav !== undefined) {
-    updates.push('hide_from_nav = ?')
-    params.push(normalizeHideFromNav(input.hide_from_nav) ?? 0)
-  }
-
-  const normalizedBlocks = input.content_blocks === undefined
-    ? null
-    : await normalizeEditorContentBlocks(db, input.content_blocks, placementScope)
-  if (normalizedBlocks) {
-    if (!normalizedBlocks.length) badRequest('content_blocks cannot be empty')
-    if (!input.expected_document_updated_at) badRequest('expected_document_updated_at is required with content_blocks')
-  }
-
-  const rowUpdate: BatchQuery = {
-    query: `UPDATE platform_docs SET ${updates.join(', ')} WHERE id = ?`,
-    params: [...params, docId],
-  }
-  const mutationQueries: BatchQuery[] = [rowUpdate]
-  if (featuredId !== undefined) {
-    mutationQueries.push(...buildSingleMediaPlacementQueries({ organizationId: placementScope.organizationId, siteId: placementScope.siteId, placement: { owner_type: 'platform_doc', owner_id: docId, slot: 'featured' }, media: featuredId ? [{ asset_id: featuredId }] : [], now }))
-  }
+  const now = new Date().toISOString()
+  const mediaQueries = featuredId === undefined ? [] : buildSingleMediaPlacementQueries({
+    organizationId: placementScope.organizationId, siteId: placementScope.siteId,
+    placement: { owner_type: 'content_document', owner_id: docId, slot: 'featured' }, media: featuredId ? [{ asset_id: featuredId }] : [], now,
+  })
   try {
-    if (normalizedBlocks) {
-      await replaceContentDocumentBlocks(db, 'platform_doc', docId, normalizedBlocks, {
-        expected_document_updated_at: input.expected_document_updated_at!,
-        additionalQueriesBefore: [rowUpdate],
-        additionalQueriesAfter: [
-          ...mutationQueries.slice(1),
-          ...await contentBlockPlacementQueries(db, normalizedBlocks, placementScope, now),
-        ],
-      })
-    } else {
-      await executeBatch(db, mutationQueries)
-    }
-
-    const updatedDoc = await getPlatformDoc(db, docId)
-    if (env) await refreshSocialCard({ db, env, owner: { owner_type: 'platform_doc', owner_id: docId } })
-    return {
-      success: true,
-      admin_edit_url: updatedDoc.admin_edit_url,
-      public_path: updatedDoc.public_path,
-      public_url: updatedDoc.public_url,
-      doc: updatedDoc,
-    }
-  } catch (err) {
-    if (isUniqueConstraintError(err, 'platform_docs')) badRequest('Slug already in use')
-    throw err
+    await updateContentDocument(db, docId, { expected_updated_at: input.expected_updated_at ?? document.updated_at, blocks, changes,
+      additionalQueriesAfter: [...mediaQueries, ...(blocks ? await contentBlockPlacementQueries(db, blocks, placementScope, now) : [])],
+    })
+    const doc = await getPlatformDoc(db, docId)
+    if (env) await refreshSocialCard({ db, env, owner: { owner_type: 'content_document', owner_id: docId } })
+    return { success: true, admin_edit_url: doc.admin_edit_url, public_path: doc.public_path, public_url: doc.public_url, doc }
+  } catch (error) {
+    if (isUniqueConstraintError(error)) badRequest('Slug already in use')
+    throw error
   }
 }
 
 export async function deletePlatformDoc(db: D1Database, docIdOrSlug: string) {
-  const docId = await resolvePlatformContentId(db, 'platform_docs', docIdOrSlug, 'Doc not found')
-  await executeBatch(db, [
-    { query: "DELETE FROM media_placements WHERE owner_type = 'platform_doc' AND owner_id = ?", params: [docId] },
-    // The content_documents delete below cascades to content_blocks (FK ON DELETE
-    // CASCADE), but media_placements for those blocks (owner_type = 'content_block')
-    // has no owner FK, so it must be cleared explicitly while the blocks still exist.
-    {
-      query: `
-        DELETE FROM media_placements
-        WHERE owner_type = 'content_block' AND owner_id IN (
-          SELECT id FROM content_blocks WHERE document_id IN (
-            SELECT id FROM content_documents WHERE owner_type = 'platform_doc' AND owner_id = ?
-          )
-        )
-      `,
-      params: [docId],
-    },
-    { query: "DELETE FROM content_documents WHERE owner_type = 'platform_doc' AND owner_id = ?", params: [docId] },
-    { query: 'DELETE FROM platform_docs WHERE id = ?', params: [docId] },
-  ])
+  const docId = await resolvePlatformContentId(db, 'platform_doc', docIdOrSlug, 'Doc not found')
+  const document = await getContentDocumentById(db, docId)
+  if (!document) notFound('Document not found')
+  await executeBatch(db, prepareContentDocumentDeletion({ documentId: document.id,
+    organizationId: document.organization_id, siteId: document.site_id }))
   return { success: true }
 }
 
@@ -1732,53 +1363,20 @@ export async function reorderPlatformDocs(
   }>,
 ) {
   if (!items.length) badRequest('items are required')
-  const now = new Date().toISOString()
-  const queries: { query: string; params: unknown[] }[] = []
-
+  if (new Set(items.map(item => item.doc_id)).size !== items.length) badRequest('Reorder identifiers must be distinct')
+  const queries: BatchQuery[] = []
   for (const item of items) {
-    const metadata: Partial<PlatformContentNavInput> = { nav_order: item.nav_order }
-    if (hasOwnField(item, 'nav_section')) metadata.nav_section = item.nav_section ?? null
-    if (hasOwnField(item, 'nav_title')) metadata.nav_title = item.nav_title ?? null
-    if (hasOwnField(item, 'nav_section_order')) metadata.nav_section_order = item.nav_section_order ?? null
-    validateNavMetadata(metadata)
-    validateDocNavGroupMetadata({
-      nav_group: hasOwnField(item, 'nav_group') ? item.nav_group ?? null : undefined,
-      nav_group_order: hasOwnField(item, 'nav_group_order') ? item.nav_group_order ?? null : undefined,
-    })
-    const docId = await resolvePlatformContentId(db, 'platform_docs', item.doc_id, 'Doc not found')
-    const updates = ['nav_order = ?', 'updated_at = ?']
-    const params: ApiValue[] = [Number(item.nav_order), now]
-    if (hasOwnField(item, 'nav_section')) {
-      updates.splice(1, 0, 'nav_section = ?')
-      params.splice(1, 0, item.nav_section ?? null)
-    }
-    if (hasOwnField(item, 'nav_title')) {
-      updates.splice(updates.length - 1, 0, 'nav_title = ?')
-      params.splice(params.length - 1, 0, item.nav_title ?? null)
-    }
-    if (hasOwnField(item, 'nav_section_order')) {
-      updates.splice(updates.length - 1, 0, 'nav_section_order = ?')
-      params.splice(params.length - 1, 0, item.nav_section_order != null ? Number(item.nav_section_order) : null)
-    }
-    if (hasOwnField(item, 'nav_group')) {
-      updates.splice(updates.length - 1, 0, 'nav_group = ?')
-      params.splice(params.length - 1, 0, item.nav_group ?? null)
-    }
-    if (hasOwnField(item, 'nav_group_order')) {
-      updates.splice(updates.length - 1, 0, 'nav_group_order = ?')
-      params.splice(params.length - 1, 0, item.nav_group_order != null ? Number(item.nav_group_order) : null)
-    }
-    if (hasOwnField(item, 'hide_from_nav')) {
-      updates.splice(updates.length - 1, 0, 'hide_from_nav = ?')
-      params.splice(params.length - 1, 0, normalizeHideFromNav(item.hide_from_nav) ?? 0)
-    }
-    params.push(docId)
-    queries.push({
-      query: `UPDATE platform_docs SET ${updates.join(', ')} WHERE id = ?`,
-      params,
-    })
+    validateNavMetadata(item)
+    validateDocNavGroupMetadata(item)
+    const id = await resolvePlatformContentId(db, 'platform_doc', item.doc_id, 'Doc not found', PLATFORM_SITE_ID)
+    const document = await getContentDocumentById(db, id)
+    if (!document) notFound('Doc not found')
+    const metadata: Record<string, unknown> = { nav_order: Number(item.nav_order) }
+    for (const field of ['nav_section', 'nav_title', 'nav_group'] as const) if (hasOwnField(item, field)) metadata[field] = item[field] ?? null
+    for (const field of ['nav_section_order', 'nav_group_order'] as const) if (hasOwnField(item, field)) metadata[field] = item[field] === null ? null : Number(item[field])
+    if (hasOwnField(item, 'hide_from_nav')) metadata.hide_from_nav = normalizeHideFromNav(item.hide_from_nav) ?? 0
+    queries.push(...prepareContentDocumentUpdate(document, { expected_updated_at: document.updated_at, changes: { metadata } }).queries)
   }
-
   await executeBatch(db, queries)
   return { success: true, docs: await listPlatformDocs(db) }
 }

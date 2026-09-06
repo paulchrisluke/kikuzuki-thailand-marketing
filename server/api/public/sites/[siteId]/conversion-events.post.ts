@@ -55,12 +55,12 @@ export default defineHandler(async (event) => {
     if (pagePath && (!pagePath.startsWith('/') || pagePath.includes('?') || pagePath.includes('#'))) return jsonResponse({ error: 'Invalid page_path' }, { status: 400 })
     const pageId = cleanString(body.page_id, 120)
     if (pageId) {
-      const page = await queryFirst<{ id: string }>(db, 'SELECT id FROM tenant_pages WHERE id = ? AND site_id = ? LIMIT 1', [pageId, siteId])
+      const page = await queryFirst<{ id: string }>(db, "SELECT id FROM content_documents WHERE kind = 'page' AND id = ? AND site_id = ? LIMIT 1", [pageId, siteId])
       if (!page) return jsonResponse({ error: 'Page not found' }, { status: 404 })
-      entityType = 'tenant_page'; entityId = page.id
+      entityType = 'content_document'; entityId = page.id
     }
     if (stage === 'external_booking_handoff') {
-      const consultation = await queryFirst<{ external_url: string | null }>(db, `SELECT json_extract(settings_json, '$.consultation.external_url') AS external_url FROM sites WHERE id = ? AND json_extract(settings_json, '$.consultation.mode') = 'external_url' LIMIT 1`, [siteId])
+      const consultation = await queryFirst<{ external_url: string | null }>(db, `SELECT (settings_json ->> '$.consultation.external_url') AS external_url FROM sites WHERE id = ? AND (settings_json ->> '$.consultation.mode') = 'external_url' LIMIT 1`, [siteId])
       const host = consultation?.external_url ? destinationHost(consultation.external_url) : null
       if (!host) return jsonResponse({ error: 'Consultation destination is unavailable' }, { status: 404 })
       ctaDestination = host
@@ -81,26 +81,30 @@ export default defineHandler(async (event) => {
     stage = 'external_handoff'
     entityId = cleanString(body.link_item_id, 120) || null
     if (!entityId) return jsonResponse({ error: 'link_item_id is required' }, { status: 400 })
-    const link = await queryFirst<{ id: string; label: string; destination: string; sort_order: number; page_path: string }>(db, `SELECT li.id, li.label, li.destination, li.sort_order, lp.path page_path FROM site_link_items li JOIN site_link_pages lp ON lp.id = li.link_page_id WHERE li.id = ? AND li.site_id = ? AND li.status = 'active' LIMIT 1`, [entityId, siteId])
+    const link = await queryFirst<{ id: string; label: string; destination: string; sort_order: number; page_path: string }>(db, `SELECT b.id, (b.data_json ->> '$.label') AS label, (source.data_json ->> '$.url') AS destination, source.position AS sort_order, d.path AS page_path
+      FROM content_blocks b JOIN content_documents d ON d.id = b.document_id
+      JOIN content_documents root ON root.id = COALESCE(d.root_id,d.id)
+      JOIN content_blocks source ON source.id = COALESCE(b.source_block_id,b.id)
+      WHERE b.id = ? AND d.site_id = ? AND b.type = 'cta' AND root.kind = 'page' AND root.row_role = 'root'
+        AND (root.metadata_json ->> '$.recipe') = 'links' AND (source.data_json ->> '$.status') = 'active' LIMIT 1`, [entityId, siteId])
     const host = link ? destinationHost(link.destination) : null
     if (!link || !host) return jsonResponse({ error: 'Link item not found' }, { status: 404 })
-    entityType = 'site_link_item'; ctaDestination = host; pageType = 'links'; pagePath = link.page_path
+    entityType = 'content_block'; ctaDestination = host; pageType = 'links'; pagePath = link.page_path
     metadata = { link_label: link.label, position: Number(link.sort_order) + 1, destination_hostname: host }
   } else if (eventName === 'donation_click') {
     stage = 'external_handoff'
-    const variantId = cleanString(body.tenant_page_variant_id, 120)
+    const documentId = cleanString(body.document_id, 120)
     const tierLabel = cleanString(body.tier_label, 100)
     const tierAmount = body.tier_amount == null ? null : Number(body.tier_amount)
-    if (!variantId || !tierLabel || (tierAmount !== null && (!Number.isFinite(tierAmount) || tierAmount <= 0))) return jsonResponse({ error: 'Valid tenant_page_variant_id and donation choice are required' }, { status: 400 })
+    if (!documentId || !tierLabel || (tierAmount !== null && (!Number.isFinite(tierAmount) || tierAmount <= 0))) return jsonResponse({ error: 'Valid document_id and donation choice are required' }, { status: 400 })
     const page = await queryFirst<{ id: string; page_id: string; path: string }>(db, `
-      SELECT v.id, v.page_id, v.path
-        FROM tenant_pages p
-        JOIN tenant_page_variants v ON v.page_id = p.id
-       WHERE v.id = ? AND v.site_id = ? AND p.recipe = 'donate'
+      SELECT v.id, root.id AS page_id, v.path
+        FROM content_documents v JOIN content_documents root ON root.id = COALESCE(v.root_id,v.id)
+       WHERE v.id = ? AND v.site_id = ? AND root.kind = 'page' AND root.row_role = 'root' AND (root.metadata_json ->> '$.recipe') = 'donate'
        LIMIT 1
-    `, [variantId, siteId])
+    `, [documentId, siteId])
     if (!page) return jsonResponse({ error: 'Donation page not found' }, { status: 404 })
-    const blocks = await queryAll<{ data_json: string }>(db, `SELECT cb.data_json FROM content_documents cd JOIN content_blocks cb ON cb.document_id = cd.id WHERE cd.owner_type = 'tenant_page' AND cd.owner_id = ? AND cb.type = 'donation_choices'`, [variantId])
+    const blocks = await queryAll<{ data_json: string }>(db, `SELECT cb.data_json FROM content_documents cd JOIN content_blocks cb ON cb.document_id = cd.id WHERE cd.id = ? AND cb.type = 'donation_choices'`, [documentId])
     const choices = blocks.flatMap((row) => {
       try {
         const data = JSON.parse(row.data_json) as ApiRecord
@@ -119,7 +123,7 @@ export default defineHandler(async (event) => {
           return tier.title === tierLabel && Number(tier.amount) === tierAmount
         }))
     if (!choice) return jsonResponse({ error: 'Donation choice is not published' }, { status: 400 })
-    entityType = 'tenant_page'; entityId = page.page_id; pageType = 'donate'; pagePath = page.path; ctaDestination = choice.host
+    entityType = 'content_document'; entityId = page.id; pageType = 'donate'; pagePath = page.path; ctaDestination = choice.host
     metadata = { tier_label: tierLabel, ...(tierAmount === null ? {} : { tier_amount: tierAmount }), destination_hostname: choice.host }
   } else {
     return jsonResponse({ error: 'Submission conversions are server-produced' }, { status: 400 })

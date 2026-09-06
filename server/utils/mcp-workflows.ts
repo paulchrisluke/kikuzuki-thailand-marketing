@@ -297,8 +297,8 @@ export async function listWorkRequestsForOrganization(
   `, [organizationId]);
 }
 
-export function buildTenantPageReplacementConfirmationToken(expectedDocumentUpdatedAt: string, removedBlockIds: readonly string[]) {
-  return `tenant-page-replacement:${expectedDocumentUpdatedAt}:${[...removedBlockIds].sort().join(',')}`
+export function buildTenantPageReplacementConfirmationToken(expectedUpdatedAt: string, removedBlockIds: readonly string[]) {
+  return `tenant-page-replacement:${expectedUpdatedAt}:${[...removedBlockIds].sort().join(',')}`
 }
 
 function safeJson(value: unknown) {

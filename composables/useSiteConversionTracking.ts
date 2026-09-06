@@ -12,7 +12,7 @@ interface ConversionPayload {
   location_id?: string | null
   product_id?: string | null
   link_item_id?: string | null
-  tenant_page_variant_id?: string | null
+  document_id?: string | null
   tier_label?: string | null
   tier_amount?: number | null
 }
@@ -63,8 +63,8 @@ export function useSiteConversionTracking(consultationSource?: MaybeRefOrGetter<
     mirrorConversion({ event_name: eventName, stage: 'submitted', location_id: locationId })
   }
 
-  function trackDonationClick(tenantPageVariantId: string, pagePath: string, tierLabel: string, tierAmount: number | null) {
-    track({ event_name: 'donation_click', stage: 'external_handoff', tenant_page_variant_id: tenantPageVariantId, page_path: pagePath, page_type: 'donate', tier_label: tierLabel, tier_amount: tierAmount })
+  function trackDonationClick(documentId: string, pagePath: string, tierLabel: string, tierAmount: number | null) {
+    track({ event_name: 'donation_click', stage: 'external_handoff', document_id: documentId, page_path: pagePath, page_type: 'donate', tier_label: tierLabel, tier_amount: tierAmount })
   }
 
   function trackLinkClick(linkItemId: string) {

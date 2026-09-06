@@ -60,7 +60,7 @@ export default defineHandler(async (event) => {
       db, `SELECT COUNT(*) as n FROM media_placements mp JOIN media_assets ma ON ma.id = mp.asset_id AND ma.status = 'active' WHERE mp.owner_type = 'business_location' AND mp.owner_id = ? AND mp.slot = 'gallery' AND mp.status = 'active'`, [location.id], )
 
     const qaCount = await queryFirst<{ n: number }>(
-      db, `SELECT COUNT(*) as n FROM location_qa WHERE location_id = ? AND status = 'published'`, [location.id], )
+      db, `SELECT COUNT(*) as n FROM content_documents WHERE kind = 'qa' AND row_role = 'root' AND location_id = ? AND status = 'published'`, [location.id], )
 
     // Derive the Google review-writing URL from the Places ID when available.
     const placeId = location.google_place_id

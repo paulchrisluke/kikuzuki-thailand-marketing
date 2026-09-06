@@ -227,28 +227,28 @@ async function copyPublicLink() {
   }
 }
 
-// ── Translations (resource_localizations, same API as the editor CRUD) ──
 const translationLocale = ref('en')
 const translationLocales = ref<string[]>([])
 const localeItems = computed(() => ['en', ...translationLocales.value])
 const translationFields = reactive({ title: '', body: '', seo_title: '', seo_description: '', event: { title: '' }, offer: { terms_conditions: '' } })
+const translationUpdatedAt = ref<string | null>(null)
 const translationError = ref<string | null>(null)
 const translationSaving = ref(false)
 
-function isPostLocalesResponse(value: unknown): value is { languages: Array<{ locale: string; locale_status: string; is_source: boolean | number }> } {
+function isPostLocalesResponse(value: unknown): value is { languages: Array<{ locale: string; status: string; is_source: boolean | number }> } {
   return isRecord(value) && Array.isArray(value.languages)
 }
-function isPostTranslationResponse(value: unknown): value is { localization: { values: Record<string, unknown> } } {
-  return isRecord(value) && isRecord(value.localization) && isRecord(value.localization.values)
+function isPostTranslationResponse(value: unknown): value is { localization: Record<string, unknown> & { metadata: Record<string, unknown>; updated_at: string } } {
+  return isRecord(value) && isRecord(value.localization) && isRecord(value.localization.metadata) && typeof value.localization.updated_at === 'string'
 }
 
 async function loadTranslationLocales() {
   try {
-    const response = await dashboardApi<{ languages: Array<{ locale: string; locale_status: string; is_source: boolean | number }> }>(
+    const response = await dashboardApi<{ languages: Array<{ locale: string; status: string; is_source: boolean | number }> }>(
       `/api/editor/sites/${siteId}/locales`,
       { validate: isPostLocalesResponse },
     )
-    translationLocales.value = response.languages.filter(item => item.locale_status === 'published' && !item.is_source).map(item => item.locale)
+    translationLocales.value = response.languages.filter(item => item.status === 'published' && !item.is_source).map(item => item.locale)
   } catch (cause) {
     translationLocales.value = []
     translationError.value = getErrorMessage(cause, 'Failed to load site languages')
@@ -258,19 +258,22 @@ async function loadTranslationLocales() {
 async function loadTranslationFields() {
   translationError.value = null
   try {
-    const response = await dashboardApi<{ localization: { values: Record<string, unknown> } }>(
-      `/api/editor/sites/${siteId}/localization/site_post/${postId.value}/${encodeURIComponent(translationLocale.value)}`,
+    const response = await dashboardApi<{ localization: Record<string, unknown> & { metadata: Record<string, unknown>; updated_at: string } }>(
+      `/api/editor/sites/${siteId}/localization/content_document/${postId.value}/${encodeURIComponent(translationLocale.value)}`,
       { validate: isPostTranslationResponse },
     )
-    const values = response.localization.values
-    translationFields.event.title = isRecord(values.event) && typeof values.event.title === 'string' ? values.event.title : ''
-    translationFields.offer.terms_conditions = isRecord(values.offer) && typeof values.offer.terms_conditions === 'string' ? values.offer.terms_conditions : ''
+    const values = response.localization
+    translationUpdatedAt.value = values.updated_at
+    translationFields.event.title = isRecord(values.metadata.event) && typeof values.metadata.event.title === 'string' ? values.metadata.event.title : ''
+    translationFields.offer.terms_conditions = isRecord(values.metadata.offer) && typeof values.metadata.offer.terms_conditions === 'string' ? values.metadata.offer.terms_conditions : ''
     for (const field of ['title', 'body', 'seo_title', 'seo_description'] as const) {
-      translationFields[field] = typeof values[field] === 'string' ? values[field] : ''
+      const value = values[field === 'body' ? 'summary' : field]
+      translationFields[field] = typeof value === 'string' ? value : ''
     }
   } catch (cause) {
     const statusCode = isRecord(cause) && typeof cause.statusCode === 'number' ? cause.statusCode : null
     if (statusCode !== 404) translationError.value = getErrorMessage(cause, 'Failed to load translation')
+    translationUpdatedAt.value = null
     translationFields.event.title = ''
     translationFields.offer.terms_conditions = ''
     for (const field of ['title', 'body', 'seo_title', 'seo_description'] as const) {
@@ -288,17 +291,19 @@ async function saveTranslation() {
   translationSaving.value = true
   translationError.value = null
   try {
-    const values: Record<string, unknown> = {}
-    if (translationFields.event.title.trim()) values.event = { title: translationFields.event.title.trim() }
-    if (translationFields.offer.terms_conditions.trim()) values.offer = { terms_conditions: translationFields.offer.terms_conditions.trim() }
+    const metadata: Record<string, unknown> = {}
+    const values: Record<string, unknown> = { metadata }
+    if (translationFields.event.title.trim()) metadata.event = { title: translationFields.event.title.trim() }
+    if (translationFields.offer.terms_conditions.trim()) metadata.offer = { terms_conditions: translationFields.offer.terms_conditions.trim() }
     for (const field of ['title', 'body', 'seo_title', 'seo_description'] as const) {
-      if (translationFields[field].trim()) values[field] = translationFields[field].trim()
+      values[field === 'body' ? 'summary' : field] = translationFields[field].trim()
     }
-    await dashboardApi(`/api/editor/sites/${siteId}/localization/site_post/${postId.value}/${encodeURIComponent(translationLocale.value)}`, {
+    await dashboardApi(`/api/editor/sites/${siteId}/localization/content_document/${postId.value}/${encodeURIComponent(translationLocale.value)}`, {
       method: 'PUT',
-      body: { values, route_path: `/${translationLocale.value}/posts/${editor.form.slug}` },
+      body: { values, ...(translationUpdatedAt.value ? { expected_updated_at: translationUpdatedAt.value } : {}), route_path: `/${translationLocale.value}/posts/${editor.form.slug}` },
       validate: isRecord,
     })
+    await loadTranslationFields()
     toast.add({ description: 'Translation saved', color: 'success' })
   } catch (cause) {
     translationError.value = getErrorMessage(cause, 'Failed to save translation')

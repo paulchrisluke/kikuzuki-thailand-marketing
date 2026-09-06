@@ -1,10 +1,11 @@
+import { prepareContentDocumentDeletion, prepareContentDocumentWithBlocks } from '~/server/utils/content-documents'
 import { parseOpeningHours, parseSpecialHours } from '~/shared/reservation-hours'
 import { googleReviewUpserts } from '~/server/utils/google-places'
 import { HTTPError, defineHandler  } from 'nitro';
 
 import { cloudflareEnv, jsonResponse } from '~/server/utils/api-response'
 import { getAuthSession } from '~/server/utils/auth'
-import { execute, executeBatch, queryFirst, type BatchQuery } from '~/server/db'
+import { execute, executeBatch, queryFirst, queryAll, type BatchQuery } from '~/server/db'
 import { resourceLocalizationDeletionQueries } from '~/server/utils/localization'
 import { planProductCategories } from '~/server/utils/product-management'
 import { updateLocation } from '~/server/utils/location-management'
@@ -187,9 +188,8 @@ export default defineHandler(async (event) => {
         if (!assetId) continue
         const block = await queryFirst<{ id: string }>(db, `
           SELECT cb.id FROM content_blocks cb
-          JOIN content_documents d ON d.id = cb.document_id AND d.owner_type = 'tenant_page'
-          JOIN tenant_page_variants v ON v.id = d.owner_id
-          WHERE v.site_id = ? AND v.path = ?
+          JOIN content_documents d ON d.id = cb.document_id AND d.kind = 'page' AND d.row_role = 'root'
+          WHERE d.site_id = ? AND d.path = ?
             AND (cb.type = 'hero' AND ? = 'hero' OR json_extract(cb.data_json, '$.field') = ?)
           ORDER BY cb.position LIMIT 1
         `, [siteId, onboardingPagePath(pageName), row.field, row.field])
@@ -214,8 +214,6 @@ export default defineHandler(async (event) => {
     const batchQueries: BatchQuery[] = [
       ...categoryPlan.inserts,
       ...resourceLocalizationDeletionQueries('product', standardProducts),
-      ...resourceLocalizationDeletionQueries('location_qa', { query: 'SELECT id FROM location_qa WHERE organization_id = ? AND site_id = ?', params: [organizationId, siteId] }),
-      ...resourceLocalizationDeletionQueries('site_post', { query: 'SELECT id FROM posts WHERE organization_id = ? AND site_id = ?', params: [organizationId, siteId] }),
       { query: `DELETE FROM media_placements WHERE owner_type = 'review' AND owner_id IN (SELECT id FROM reviews WHERE product_id IN (${standardProducts.query}))`, params: standardProducts.params },
     ]
 
@@ -255,33 +253,18 @@ export default defineHandler(async (event) => {
       })
     }
 
-    batchQueries.push({ query: `DELETE FROM location_qa WHERE organization_id = ? AND site_id = ?`, params: [organizationId, siteId] })
-    for (const item of payload.preview.qa) {
-      // Draft Q&A is template boilerplate, not owner-authored — mark 'template'.
-      batchQueries.push({
-        query: `
-          INSERT INTO location_qa
-            (id, organization_id, site_id, location_id, question, answer, answer_author, is_owner_answer, source, status, sort_order, created_at, updated_at)
-          VALUES (?, ?, ?, ?, ?, ?, ?, 1, 'template', 'published', ?, ?, ?)
-        `, params: [
-          item.id, organizationId, siteId, locationRow.id, item.question, item.answer, item.answer_author, item.sort_order, now, now, ], })
-    }
-
-    batchQueries.push({
-      query: `DELETE FROM media_placements WHERE organization_id = ? AND site_id = ? AND owner_type = 'post' AND owner_id IN (SELECT id FROM posts WHERE organization_id = ? AND site_id = ?)`,
-      params: [organizationId, siteId, organizationId, siteId],
-    })
-    batchQueries.push({ query: `DELETE FROM posts WHERE organization_id = ? AND site_id = ?`, params: [organizationId, siteId] })
-    for (const post of payload.preview.posts) {
-      // Draft "welcome" posts are auto-generated, not owner-authored — mark 'template'.
-      batchQueries.push({
-        query: `
-          INSERT INTO posts
-            (id, organization_id, site_id, location_id, post_type, title, body, status, published_at, created_by, source, created_at, updated_at)
-          VALUES (?, ?, ?, ?, 'standard', ?, ?, ?, ?, ?, 'template', ?, ?)
-        `, params: [
-          post.id, organizationId, siteId, locationRow.id, post.title, post.body, post.status, post.published_at, session.user.id, now, now, ], })
-    }
+    const replaced = await queryAll<{ id: string }>(db, "SELECT id FROM content_documents WHERE organization_id = ? AND site_id = ? AND row_role = 'root' AND kind IN ('qa','social_post')", [organizationId, siteId])
+    for (const document of replaced) batchQueries.push(...prepareContentDocumentDeletion({ documentId: document.id, organizationId, siteId }))
+    for (const item of payload.preview.qa) batchQueries.push(...prepareContentDocumentWithBlocks({
+      id: item.id, organizationId, siteId, kind: 'qa', rowRole: 'root', locale: 'en', locationId: locationRow.id,
+      title: item.question, summary: item.answer, source: 'template', status: 'published', sortOrder: item.sort_order,
+      metadata: { answer_author: item.answer_author, is_owner_answer: 1, upvote_count: 0 },
+    }, []).queries)
+    for (const post of payload.preview.posts) batchQueries.push(...prepareContentDocumentWithBlocks({
+      id: post.id, organizationId, siteId, kind: 'social_post', rowRole: 'root', locale: 'en', locationId: locationRow.id,
+      title: post.title, summary: post.body, status: post.status, publishedAt: post.published_at, source: 'template',
+      createdBy: session.user.id, metadata: { post_type: 'standard', channels: {} },
+    }, []).queries)
 
     batchQueries.push(...googleReviewUpserts({ organizationId, siteId, locationId: locationRow.id }, payload.preview.reviews, now))
 

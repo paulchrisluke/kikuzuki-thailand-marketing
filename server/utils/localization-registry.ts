@@ -1,130 +1,36 @@
 import { localizationError } from '~/server/utils/localization-errors'
-import { resolvePublicTemplate } from '~/utils/template-registry'
 
 import { LOCALIZED_RESOURCE_TYPES, type LocalizedResourceType } from '~/shared/content-registries'
 export { LOCALIZED_RESOURCE_TYPES, type LocalizedResourceType } from '~/shared/content-registries'
 
 export type LocalizedValues = Record<string, unknown>
 
-type ValueShape = 'text' | 'string_array' | 'details' | 'features' | 'faqs' | 'post_event' | 'post_offer'
+type ValueShape = 'text' | 'string_array' | 'details' | 'features' | 'faqs' | { readonly [field: string]: ValueShape }
 
 interface ResourceLocalizationDefinition {
   table: string
   fields: Readonly<Record<string, ValueShape>>
-  route: 'none' | 'location' | 'product' | 'experience' | 'offering' | 'site_post' | 'tenant_blog_post' | 'site_link_page'
+  route: 'none' | 'location' | 'product' | 'offering'
 }
 
+const POLICY_FIELDS = { additional_notes_html: 'text' } as const
+const EXPERIENCE_FIELDS = { tagline: 'text', pricing_note: 'text',
+  included_items: 'string_array', what_to_bring: 'string_array', meeting_point: 'text',
+  cancellation_policy: 'text', policy: POLICY_FIELDS } as const
+
 export const RESOURCE_LOCALIZATION_REGISTRY: Readonly<Record<LocalizedResourceType, ResourceLocalizationDefinition>> = Object.freeze({
-  site: {
-    table: 'sites',
-    fields: {
-      brand_name: 'text',
-      brand_description: 'text',
-      seo_title: 'text',
-      seo_description: 'text',
-    },
-    route: 'none',
-  },
-  business_location: {
-    table: 'business_locations',
-    fields: {
-      title: 'text',
-      address: 'text',
-      city: 'text',
-      neighborhood: 'text',
-      description: 'text',
-      short_description: 'text',
-      seo_title: 'text',
-      seo_description: 'text',
-    },
-    route: 'location',
-  },
-  product: {
-    table: 'products',
-    fields: {
-      name: 'text',
-      description: 'text',
-      tags_json: 'string_array',
-      details_json: 'details',
-      seo_title: 'text',
-      seo_description: 'text',
-    },
-    route: 'product',
-  },
-  // The category name lives on the category row, so it is translated once per
-  // category instead of once per Product that happens to sit in it.
-  product_category: {
-    table: 'product_categories',
-    fields: {
-      name: 'text',
-    },
-    route: 'none',
-  },
-  experience: {
-    table: 'experiences',
-    fields: {
-      title: 'text',
-      tagline: 'text',
-      body: 'text',
-      pricing_note: 'text',
-      included_items_json: 'string_array',
-      what_to_bring: 'string_array',
-      meeting_point: 'text',
-      cancellation_policy: 'text',
-      seo_title: 'text',
-      seo_description: 'text',
-    },
-    route: 'experience',
-  },
-  offering: {
-    table: 'offerings',
-    fields: {
-      name: 'text',
-      label: 'text',
-      summary: 'text',
-      short_description: 'text',
-      body: 'text',
-      features_json: 'features',
-      faqs_json: 'faqs',
-      cta_label: 'text',
-      seo_title: 'text',
-      seo_description: 'text',
-    },
-    route: 'offering',
-  },
-  site_post: {
-    table: 'posts',
-    fields: {
-      title: 'text',
-      body: 'text',
-      seo_title: 'text',
-      seo_description: 'text',
-      event: 'post_event',
-      offer: 'post_offer',
-    },
-    route: 'site_post',
-  },
-  tenant_blog_post: {
-    table: 'blog_posts',
-    fields: {
-      title: 'text',
-      excerpt: 'text',
-      category: 'text',
-      tags_json: 'string_array',
-      nav_title: 'text',
-      seo_title: 'text',
-      seo_description: 'text',
-      seo_keywords: 'text',
-    },
-    route: 'tenant_blog_post',
-  },
-  location_qa: { table: 'location_qa', fields: { question: 'text', answer: 'text' }, route: 'none' },
+  site: { table: 'sites', fields: { brand_name: 'text', brand_description: 'text', seo_title: 'text', seo_description: 'text',
+    compliance: { service_area: 'text', disclaimer: 'text', footer_disclaimer: 'text' }, consultation: { cta_label: 'text' },
+    booking: { experience: POLICY_FIELDS } }, route: 'none' },
+  business_location: { table: 'business_locations', fields: { title: 'text', address: 'text', city: 'text',
+    neighborhood: 'text', description: 'text', short_description: 'text', seo_title: 'text', seo_description: 'text',
+    booking: { reservation: { policy: POLICY_FIELDS }, experience: { policy: POLICY_FIELDS } } }, route: 'location' },
+  product: { table: 'products', fields: { name: 'text', description: 'text', tags_json: 'string_array', details_json: 'details',
+    seo_title: 'text', seo_description: 'text', experience: EXPERIENCE_FIELDS }, route: 'product' },
+  product_category: { table: 'product_categories', fields: { name: 'text' }, route: 'none' },
+  offering: { table: 'offerings', fields: { name: 'text', label: 'text', summary: 'text', short_description: 'text', body: 'text',
+    features_json: 'features', faqs_json: 'faqs', cta_label: 'text', seo_title: 'text', seo_description: 'text' }, route: 'offering' },
   media_asset: { table: 'media_assets', fields: { alt_text: 'text' }, route: 'none' },
-    booking_policy: { table: 'booking_policies', fields: { additional_notes_html: 'text' }, route: 'none' },
-    site_link_page: { table: 'site_link_pages', fields: { title: 'text', seo_title: 'text', seo_description: 'text' }, route: 'site_link_page' },
-  site_link_item: { table: 'site_link_items', fields: { label: 'text' }, route: 'none' },
-  tenant_compliance: { table: 'tenant_compliance', fields: { service_area: 'text', disclaimer: 'text', footer_disclaimer: 'text' }, route: 'none' },
-  site_consultation_settings: { table: 'site_consultation_settings', fields: { cta_label: 'text' }, route: 'none' },
 })
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -136,10 +42,11 @@ function isNonBlankText(value: unknown): value is string {
 }
 
 function validateShape(field: string, value: unknown, shape: ValueShape): void {
-  if (shape === 'text') return
-  if ((shape === 'post_event' || shape === 'post_offer') && isRecord(value)) {
-    const key = shape === 'post_event' ? 'title' : 'terms_conditions'
-    if (Object.keys(value).length === 1 && isNonBlankText(value[key])) return
+  if (shape === 'text' && typeof value === 'string') return
+  if (typeof shape === 'object' && isRecord(value)) {
+    if (Object.keys(value).some(key => !Object.hasOwn(shape, key))) localizationError(422, 'LOCALIZATION_VALIDATION_FAILED', `${field} contains unknown localized fields`, { field })
+    for (const [key, nested] of Object.entries(value)) validateShape(`${field}.${key}`, nested, shape[key]!)
+    return
   }
   if (shape === 'string_array') {
     if (Array.isArray(value) && value.every(isNonBlankText)) return
@@ -192,37 +99,20 @@ export function validateLocalizedValues(resourceType: LocalizedResourceType, inp
 
 const SEGMENT = '[^/?#]+'
 
-export function validateLocalizedRoutePath(
-  resourceType: LocalizedResourceType,
-  locale: string,
-  routePath: unknown,
-  vertical: string,
-): string | null {
+export function validateLocalizedRoutePath(resourceType: LocalizedResourceType, locale: string, routePath: unknown,
+  vertical: string, productType: string | null = null): string | null {
   const definition = RESOURCE_LOCALIZATION_REGISTRY[resourceType]
   if (definition.route === 'none') {
-    if (routePath !== undefined && routePath !== null) {
-      localizationError(422, 'LOCALIZATION_VALIDATION_FAILED', `${resourceType} does not accept route_path`)
-    }
+    if (routePath !== undefined && routePath !== null) localizationError(422, 'LOCALIZATION_VALIDATION_FAILED', resourceType + ' does not accept route_path')
     return null
   }
-  if (typeof routePath !== 'string' || !routePath.trim()) {
-    localizationError(422, 'LOCALIZATION_VALIDATION_FAILED', `route_path is required for ${resourceType}`)
-  }
+  if (typeof routePath !== 'string' || !routePath.trim()) localizationError(422, 'LOCALIZATION_VALIDATION_FAILED', 'route_path is required for ' + resourceType)
   const path = routePath.trim()
-  const escapedLocale = locale.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-  let pattern: RegExp
-  if (definition.route === 'location') pattern = new RegExp(`^/${escapedLocale}/locations/${SEGMENT}$`)
-  else if (definition.route === 'product') {
-    const family = vertical === 'restaurant' ? 'menu' : 'products'
-    pattern = new RegExp(`^/${escapedLocale}/locations/${SEGMENT}/${family}/${SEGMENT}$`)
-  } else if (definition.route === 'experience') pattern = new RegExp(`^/${escapedLocale}/experiences/${SEGMENT}$`)
-  else if (definition.route === 'offering') pattern = new RegExp(`^/${escapedLocale}/services/${SEGMENT}$`)
-  else if (definition.route === 'site_post') pattern = new RegExp(`^/${escapedLocale}/posts/${SEGMENT}$`)
-  else if (definition.route === 'tenant_blog_post') {
-    pattern = new RegExp(`^/${escapedLocale}/${resolvePublicTemplate({ vertical }).serviceRoutes.articleDetailPrefix.slice(1)}/${SEGMENT}$`)
-  } else pattern = new RegExp(`^/${escapedLocale}/${SEGMENT}$`)
-  if (!pattern.test(path) || path.includes('//')) {
-    localizationError(422, 'LOCALIZATION_VALIDATION_FAILED', `route_path is invalid for ${resourceType}`, { route_path: path })
-  }
+  const prefix = '/' + locale + '/'
+  const family = vertical === 'restaurant' ? 'menu' : 'products'
+  const suffix = definition.route === 'location' ? 'locations/' + SEGMENT
+    : definition.route === 'product' ? productType === 'experience' ? 'experiences/' + SEGMENT : 'locations/' + SEGMENT + '/' + family + '/' + SEGMENT
+    : 'services/' + SEGMENT
+  if (!path.startsWith(prefix) || !new RegExp('^' + suffix + '$').test(path.slice(prefix.length)) || path.includes('//')) localizationError(422, 'LOCALIZATION_VALIDATION_FAILED', 'route_path is invalid for ' + resourceType, { route_path: path })
   return path
 }

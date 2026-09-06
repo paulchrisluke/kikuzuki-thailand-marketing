@@ -4,13 +4,13 @@ import { d1JsonStringSet } from '~/server/db/d1-limits'
 import {
   createContentDocumentWithBlocks,
   getContentDocumentById,
-  getContentDocumentByOwner,
   getContentEditorSnapshot,
   getContentEditorSnapshotForDocument,
-  prepareContentDocumentBlocksReplacement,
+  prepareContentDocumentUpdate,
   prepareContentDocumentWithBlocks,
-  replaceContentDocumentBlocks,
+  updateContentDocument,
   type ContentBlockInput,
+  type ContentDocumentInput,
 } from '~/server/utils/content-documents'
 import {
   normalizeTenantPageBlocks,
@@ -47,7 +47,7 @@ export interface TenantPageEditorInput {
   recipe?: string | null
   sortOrder?: number | null
   blocks: unknown
-  expectedDocumentUpdatedAt?: string | null
+  expectedUpdatedAt?: string | null
 }
 
 export interface TenantPageDocument {
@@ -76,8 +76,8 @@ export interface TenantPageDto {
   updated_at: string
 }
 
-interface TenantPageVariantRow {
-  variant_id: string
+interface PageRepresentationRow {
+  id: string
   page_id: string
   organization_id: string
   site_id: string
@@ -92,7 +92,6 @@ interface TenantPageVariantRow {
   page_type: TenantPageType
   recipe: string | null
   sort_order: number
-  document_id: string | null
   updated_at: string
 }
 
@@ -311,13 +310,13 @@ export interface TenantPageScope {
   organizationId: string
 }
 
-async function getVariantRow(db: DbClient, variantId: string, scope?: TenantPageScope): Promise<TenantPageVariantRow | null> {
-  return await queryFirst<TenantPageVariantRow | null>(db, [
-    'SELECT v.id AS variant_id, v.page_id, v.organization_id, v.site_id, v.locale, v.path,',
+async function getPageRepresentation(db: DbClient, variantId: string, scope?: TenantPageScope): Promise<PageRepresentationRow | null> {
+  return await queryFirst<PageRepresentationRow | null>(db, [
+    'SELECT v.id, COALESCE(v.root_id, v.id) AS page_id, v.organization_id, v.site_id, v.locale, v.path,',
     '       v.title, v.summary, v.seo_title, v.seo_description, v.canonical_url, v.robots,',
-    '       p.page_type, p.recipe, p.sort_order, v.document_id, v.updated_at',
-    '  FROM tenant_page_variants v JOIN tenant_pages p ON p.id = v.page_id',
-    ' WHERE v.id = ? AND (? IS NULL OR v.site_id = ?) AND (? IS NULL OR v.organization_id = ?) LIMIT 1',
+    `       json_extract(p.metadata_json, '$.page_type') AS page_type, json_extract(p.metadata_json, '$.recipe') AS recipe, p.sort_order, v.updated_at`,
+    `  FROM content_documents v JOIN content_documents p ON p.id = COALESCE(v.root_id, v.id) AND p.row_role = 'root' AND p.kind = 'page'`,
+    ` WHERE v.row_role IN ('root','representation') AND v.kind = 'page' AND v.id = ? AND (? IS NULL OR v.site_id = ?) AND (? IS NULL OR v.organization_id = ?) LIMIT 1`,
   ].join('\n'), [variantId, scope?.siteId ?? null, scope?.siteId ?? null, scope?.organizationId ?? null, scope?.organizationId ?? null])
 }
 
@@ -348,8 +347,8 @@ export async function assertTenantPagePathAvailable(
   const path = normalizeTenantPagePath(input.path)
   if (isReservedPath(path) && !input.allowSystemPath) conflict('This path is reserved by a platform or product route')
   const row = await queryFirst<{ id: string } | null>(db, [
-    'SELECT id FROM tenant_page_variants',
-    'WHERE site_id = ? AND locale = ? AND path = ?',
+    'SELECT id FROM content_documents',
+    `WHERE row_role IN ('root','representation') AND kind = 'page' AND site_id = ? AND locale = ? AND path = ?`,
     '  AND (? IS NULL OR id <> ?) LIMIT 1',
   ].join('\n'), [input.siteId, input.locale, path, input.excludeVariantId ?? null, input.excludeVariantId ?? null])
   if (row) conflict('A tenant page already uses this path for the selected locale')
@@ -384,8 +383,8 @@ async function assertTenantPageRedirectLocaleSafe(
 ) {
   const owner = await queryFirst<{ locale: string } | null>(db, `
     SELECT locale
-      FROM tenant_page_variants
-     WHERE site_id = ? AND locale = ? AND path = ?
+      FROM content_documents
+     WHERE row_role IN ('root','representation') AND kind = 'page' AND site_id = ? AND locale = ? AND path = ?
          AND id <> ?
      LIMIT 1
   `, [input.siteId, input.locale, input.fromPath, input.variantId])
@@ -430,7 +429,7 @@ async function prepareTenantPageRedirectFlatten(
 
 async function canonicalTenantPageIdentity(
   db: DbClient,
-  row: Pick<TenantPageVariantRow, 'site_id' | 'locale' | 'page_type' | 'recipe'>,
+  row: Pick<PageRepresentationRow, 'site_id' | 'locale' | 'page_type' | 'recipe'>,
   input: { pageType?: TenantPageType | null; recipe?: string | null },
 ): Promise<{ pageType: TenantPageType; recipe: string | null }> {
   const source = await queryFirst<{ is_source: number } | null>(db, `
@@ -447,9 +446,9 @@ async function canonicalTenantPageIdentity(
   }
 }
 
-function pageDto(row: TenantPageVariantRow, document: TenantPageDocument, blocks: TenantPageBlock[]): TenantPageDto {
+function pageDto(row: PageRepresentationRow, document: TenantPageDocument, blocks: TenantPageBlock[]): TenantPageDto {
   return {
-    id: row.variant_id,
+    id: row.id,
     page_id: row.page_id,
     site_id: row.site_id,
     organization_id: row.organization_id,
@@ -472,15 +471,15 @@ function pageDto(row: TenantPageVariantRow, document: TenantPageDocument, blocks
 
 export async function listTenantPages(db: DbClient, siteId: string, opts: { locale?: string | null } = {}) {
   const locale = await resolveLocale(db, siteId, opts.locale)
-  const rows = await queryAll<TenantPageVariantRow>(db, [
-    'SELECT v.id AS variant_id, v.page_id, v.organization_id, v.site_id, v.locale, v.path,',
+  const rows = await queryAll<PageRepresentationRow>(db, [
+    'SELECT v.id, COALESCE(v.root_id, v.id) AS page_id, v.organization_id, v.site_id, v.locale, v.path,',
     '       v.title, v.summary, v.seo_title, v.seo_description, v.canonical_url, v.robots,',
-    '       p.page_type, p.recipe, p.sort_order, v.document_id, v.updated_at',
-    '  FROM tenant_page_variants v JOIN tenant_pages p ON p.id = v.page_id',
-    ' WHERE v.site_id = ? AND v.locale = ? ORDER BY p.sort_order ASC, v.title ASC',
+    `       json_extract(p.metadata_json, '$.page_type') AS page_type, json_extract(p.metadata_json, '$.recipe') AS recipe, p.sort_order, v.updated_at`,
+    `  FROM content_documents v JOIN content_documents p ON p.id = COALESCE(v.root_id, v.id) AND p.row_role = 'root' AND p.kind = 'page'`,
+    ` WHERE v.row_role IN ('root','representation') AND v.kind = 'page' AND v.site_id = ? AND v.locale = ? ORDER BY p.sort_order ASC, v.title ASC`,
   ].join('\n'), [siteId, locale])
   return rows.map(row => ({
-    id: row.variant_id,
+    id: row.id,
     page_id: row.page_id,
     locale: row.locale,
     path: row.path,
@@ -493,12 +492,11 @@ export async function listTenantPages(db: DbClient, siteId: string, opts: { loca
 }
 
 export async function getTenantPageForEditor(db: DbClient, variantId: string, scope?: TenantPageScope): Promise<TenantPageDto> {
-  const row = await getVariantRow(db, variantId, scope)
+  const row = await getPageRepresentation(db, variantId, scope)
   if (!row) notFound('Tenant page variant not found')
-  if (!row.document_id) throw new HTTPError({ statusCode: 500, statusMessage: 'Tenant page has no content document' })
-  const document = await getContentDocumentById(db, row.document_id)
+  const document = await getContentDocumentById(db, row.id)
   if (!document) throw new HTTPError({ statusCode: 500, statusMessage: 'Tenant page content document not found' })
-  const snapshot = await getContentEditorSnapshot(db, 'tenant_page', variantId)
+  const snapshot = await getContentEditorSnapshot(db, variantId)
   const blocks = await attachTenantPageMedia(db, row.site_id, (snapshot?.blocks ?? []).map(block => ({ ...block, media: [] })) as TenantPageBlock[])
   return pageDto(row, document, blocks)
 }
@@ -506,17 +504,16 @@ export async function getTenantPageForEditor(db: DbClient, variantId: string, sc
 export async function getPublishedTenantPage(db: DbClient, siteId: string, path: string, locale?: string | null): Promise<TenantPageDto | null> {
   const resolvedLocale = await resolveLocale(db, siteId, locale)
   const normalizedPath = normalizeTenantPagePath(path)
-  const selectPublished = async (candidateLocale: string) => await queryFirst<TenantPageVariantRow | null>(db, [
-    'SELECT v.id AS variant_id, v.page_id, v.organization_id, v.site_id, v.locale, v.path,',
+  const selectPublished = async (candidateLocale: string) => await queryFirst<PageRepresentationRow | null>(db, [
+    'SELECT v.id, COALESCE(v.root_id, v.id) AS page_id, v.organization_id, v.site_id, v.locale, v.path,',
     '       v.title, v.summary, v.seo_title, v.seo_description, v.canonical_url, v.robots,',
-    '       p.page_type, p.recipe, p.sort_order, v.document_id, v.updated_at',
-    '  FROM tenant_page_variants v JOIN tenant_pages p ON p.id = v.page_id',
-    " WHERE v.site_id = ? AND v.locale = ? AND v.path = ? LIMIT 1",
+    `       json_extract(p.metadata_json, '$.page_type') AS page_type, json_extract(p.metadata_json, '$.recipe') AS recipe, p.sort_order, v.updated_at`,
+    `  FROM content_documents v JOIN content_documents p ON p.id = COALESCE(v.root_id, v.id) AND p.row_role = 'root' AND p.kind = 'page'`,
+    " WHERE v.row_role IN ('root','representation') AND v.kind = 'page' AND v.site_id = ? AND v.locale = ? AND v.path = ? LIMIT 1",
   ].join('\n'), [siteId, candidateLocale, normalizedPath])
   const row = await selectPublished(resolvedLocale)
   if (!row) return null
-  if (!row.document_id) return null
-  const document = await getContentDocumentByOwner(db, 'tenant_page', row.variant_id)
+  const document = await getContentDocumentById(db, row.id)
   if (!document) throw new HTTPError({ statusCode: 500, statusMessage: 'Published tenant page content is unavailable' })
   const snapshot = await getContentEditorSnapshotForDocument(db, document)
   if (!snapshot) throw new HTTPError({ statusCode: 500, statusMessage: 'Published tenant page content is unavailable' })
@@ -538,10 +535,10 @@ export async function resolvePublishedTenantPageIdentity(
     recipe: string | null
     locale: string
   } | null>(db, `
-    SELECT p.id AS page_id, p.page_type, p.recipe, v.locale
-      FROM tenant_page_variants v
-      JOIN tenant_pages p ON p.id = v.page_id
-     WHERE v.site_id = ? AND v.locale = ? AND v.path = ?
+    SELECT p.id AS page_id, json_extract(p.metadata_json, '$.page_type') AS page_type, json_extract(p.metadata_json, '$.recipe') AS recipe, v.locale
+      FROM content_documents v
+      JOIN content_documents p ON p.id = COALESCE(v.root_id, v.id) AND p.row_role = 'root' AND p.kind = 'page'
+     WHERE v.row_role IN ('root','representation') AND v.kind = 'page' AND v.site_id = ? AND v.locale = ? AND v.path = ?
       LIMIT 1
   `, [siteId, candidateLocale, normalizedPath])
   const page = await selectPublished(resolvedLocale)
@@ -568,8 +565,8 @@ export async function createTenantPagesBatch(
 
   const existingVariants = await queryAll<{ path: string; }>(db, `
     SELECT path
-      FROM tenant_page_variants
-     WHERE site_id = ? AND locale = ?
+      FROM content_documents
+     WHERE row_role IN ('root','representation') AND kind = 'page' AND site_id = ? AND locale = ?
   `, [input.siteId, locale])
   const existingPaths = new Set<string>()
   for (const row of existingVariants) {
@@ -606,27 +603,17 @@ export async function createTenantPagesBatch(
     const blocks = normalizeTenantPageBlocks(effectiveData.blocks)
     await assertTenantPageSupport(db, input.organizationId, input.siteId, effectiveData, blocks)
 
-    const pageId = crypto.randomUUID()
-    const variantId = effectiveData.id ?? crypto.randomUUID()
-    const documentId = crypto.randomUUID()
+    const pageId = effectiveData.id ?? crypto.randomUUID()
+    const variantId = pageId
     const now = new Date().toISOString()
     const placementQueries = await tenantPagePlacementQueries(db, input.organizationId, input.siteId, blocks, now)
-    const pageQuery: BatchQuery = {
-      query: "INSERT INTO tenant_pages (id, organization_id, site_id, page_type, recipe, sort_order, source, updated_at, updated_by) VALUES (?, ?, ?, ?, ?, 0, 'pages', ?, ?)",
-      params: [pageId, input.organizationId, input.siteId, metadata.pageType, metadata.recipe, now, input.userId ?? null],
-    }
-    const variantQuery: BatchQuery = {
-      query: "INSERT INTO tenant_page_variants (id, organization_id, site_id, page_id, locale, document_id, path, title, summary, seo_title, seo_description, canonical_url, robots, created_at, updated_at, updated_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-      params: [variantId, input.organizationId, input.siteId, pageId, locale, documentId, path, metadata.title, metadata.summary, metadata.seoTitle, metadata.seoDescription, metadata.canonicalUrl, metadata.robots, now, now, input.userId ?? null],
-    }
-    const prepared = prepareContentDocumentWithBlocks('tenant_page', variantId, blocksAsInputs(blocks), {
-      siteId: input.siteId,
-      documentId,
-      additionalQueriesBefore: [pageQuery, variantQuery],
-      additionalQueriesAfter: [...placementQueries, {
-        query: 'UPDATE tenant_page_variants SET updated_at = ?, updated_by = ? WHERE id = ?',
-        params: [now, input.userId ?? null, variantId],
-      }],
+    const prepared = prepareContentDocumentWithBlocks({
+      id: variantId, rowRole: 'root', locale: 'en', organizationId: input.organizationId, siteId: input.siteId, kind: 'page',
+      metadata: { page_type: metadata.pageType, recipe: metadata.recipe }, source: 'pages',
+      path, title: metadata.title, summary: metadata.summary, seoTitle: metadata.seoTitle, seoDescription: metadata.seoDescription,
+      canonicalUrl: metadata.canonicalUrl, robots: metadata.robots, createdBy: input.userId, updatedBy: input.userId,
+    }, blocksAsInputs(blocks), {
+      additionalQueriesAfter: placementQueries,
     })
     queries.push(...prepared.queries)
     existingPaths.add(path)
@@ -655,8 +642,7 @@ export interface OnboardingTenantPageInput {
   trustedSystemPage?: boolean
 }
 
-interface OnboardingTenantPageVariantRow extends TenantPageVariantRow {
-  document_id: string | null
+interface OnboardingPageRepresentationRow extends PageRepresentationRow {
   document_created_at: string | null
   document_updated_at: string | null
 }
@@ -688,22 +674,18 @@ export async function applyOnboardingTenantPages(
   const paths = pages.map(page => page.path)
   if (new Set(paths).size !== paths.length) badRequest('Onboarding page paths must be unique')
   const locale = await resolveLocale(db, input.siteId, 'en')
-  const existingRows = await queryAll<OnboardingTenantPageVariantRow>(db, `
-    SELECT v.id AS variant_id, v.page_id, v.organization_id, v.site_id, v.locale,
+  const existingRows = await queryAll<OnboardingPageRepresentationRow>(db, `
+    SELECT v.id, COALESCE(v.root_id, v.id) AS page_id, v.organization_id, v.site_id, v.locale,
            v.path, v.title, v.summary, v.seo_title,
-           v.seo_description, v.canonical_url, v.robots, p.page_type, p.recipe,
-           p.sort_order, v.document_id, v.updated_at,
-           d.id AS document_id, d.created_at AS document_created_at, d.updated_at AS document_updated_at
-      FROM tenant_page_variants v
-      JOIN tenant_pages p ON p.id = v.page_id
-      LEFT JOIN content_documents d
-        ON d.id = v.document_id
-       AND d.owner_type = 'tenant_page'
-       AND d.owner_id = v.id
-     WHERE v.site_id = ? AND v.organization_id = ? AND v.locale = ?
+           v.seo_description, v.canonical_url, v.robots, json_extract(p.metadata_json, '$.page_type') AS page_type, json_extract(p.metadata_json, '$.recipe') AS recipe,
+           p.sort_order, v.updated_at,
+           v.created_at AS document_created_at, v.updated_at AS document_updated_at
+      FROM content_documents v
+      JOIN content_documents p ON p.id = COALESCE(v.root_id, v.id) AND p.row_role = 'root' AND p.kind = 'page'
+     WHERE v.row_role IN ('root','representation') AND v.kind = 'page' AND v.site_id = ? AND v.organization_id = ? AND v.locale = ?
        AND v.path IN (SELECT value FROM json_each(?))
   `, [input.siteId, input.organizationId, locale, d1JsonStringSet(paths)])
-  const existingByPath = new Map<string, OnboardingTenantPageVariantRow>()
+  const existingByPath = new Map<string, OnboardingPageRepresentationRow>()
   for (const row of existingRows) {
     existingByPath.set(normalizeTenantPagePath(row.path), row)
   }
@@ -717,7 +699,7 @@ export async function applyOnboardingTenantPages(
       missingPages.push(page)
       continue
     }
-    if (!row.document_id || !row.document_created_at || !row.document_updated_at) {
+    if (!row.id || !row.document_created_at || !row.document_updated_at) {
       throw new HTTPError({ statusCode: 500, statusMessage: 'Tenant page content document not found' })
     }
 
@@ -740,37 +722,32 @@ export async function applyOnboardingTenantPages(
     await assertTenantPageSupport(db, input.organizationId, input.siteId, effectiveData, blocks)
 
     const document = {
-      id: row.document_id,
+      id: row.id,
       site_id: input.siteId,
-      owner_type: 'tenant_page' as const,
-      owner_id: row.variant_id,
+      organization_id: input.organizationId,
+      kind: 'page' as const,
+      row_role: row.locale === 'en' ? 'root' as const : 'representation' as const,
+      root_id: row.locale === 'en' ? null : row.page_id,
+      locale: row.locale,
       created_at: row.document_created_at,
       updated_at: row.document_updated_at,
     }
     const now = new Date().toISOString()
     const placementQueries = await tenantPagePlacementQueries(db, input.organizationId, input.siteId, blocks, now)
-    const prepared = prepareContentDocumentBlocksReplacement(document, blocksAsInputs(blocks), {
-      expected_document_updated_at: row.document_updated_at,
+    const prepared = prepareContentDocumentUpdate(document, {
+      blocks: blocksAsInputs(blocks), expected_updated_at: row.document_updated_at,
       additionalQueriesAfter: [
         ...placementQueries,
         {
-          query: 'UPDATE tenant_page_variants SET path = ?, title = ?, summary = ?, seo_title = ?, seo_description = ?, canonical_url = ?, robots = ?, updated_at = ?, updated_by = ? WHERE id = ? AND site_id = ? AND organization_id = ? AND document_id = ?',
-          params: [page.path, metadata.title, metadata.summary, metadata.seoTitle, metadata.seoDescription, metadata.canonicalUrl, metadata.robots, now, input.userId, row.variant_id, input.siteId, input.organizationId, row.document_id],
+          query: 'UPDATE content_documents SET path = ?, title = ?, summary = ?, seo_title = ?, seo_description = ?, canonical_url = ?, robots = ?, updated_by = ? WHERE id = ? AND site_id = ? AND organization_id = ?',
+          params: [page.path, metadata.title, metadata.summary, metadata.seoTitle, metadata.seoDescription, metadata.canonicalUrl, metadata.robots, input.userId, row.id, input.siteId, input.organizationId],
         },
         {
-          query: `UPDATE tenant_pages SET
-            page_type = CASE WHEN EXISTS (SELECT 1 FROM site_locales WHERE site_id = ? AND locale = ? AND is_source = 1) THEN ? ELSE page_type END,
-            recipe = CASE WHEN EXISTS (SELECT 1 FROM site_locales WHERE site_id = ? AND locale = ? AND is_source = 1) THEN ? ELSE recipe END,
-            sort_order = CASE WHEN EXISTS (SELECT 1 FROM site_locales WHERE site_id = ? AND locale = ? AND is_source = 1) THEN COALESCE(?, sort_order) ELSE sort_order END,
-            updated_at = ?, updated_by = ?
-            WHERE id = ? AND site_id = ? AND organization_id = ?`,
-          params: [
-            input.siteId, locale, metadata.pageType,
-            input.siteId, locale, metadata.recipe,
-            input.siteId, locale, effectiveData.sortOrder ?? null,
-            now, input.userId,
-            row.page_id, input.siteId, input.organizationId,
-          ],
+          query: `UPDATE content_documents SET metadata_json = json_set(metadata_json, '$.page_type', ?, '$.recipe', ?),
+            sort_order = COALESCE(?, sort_order), updated_by = ?
+            WHERE row_role = 'root' AND kind = 'page' AND id = ? AND site_id = ? AND organization_id = ? AND ? = 'en'`,
+          params: [metadata.pageType, metadata.recipe, effectiveData.sortOrder ?? null, input.userId,
+            row.page_id, input.siteId, input.organizationId, locale],
         },
       ],
     })
@@ -816,9 +793,9 @@ export async function createTenantPage(db: DbClient, input: { organizationId: st
   const locale = await resolveLocale(db, input.siteId, input.data.locale)
   const existingPage = input.data.pageId
     ? await queryFirst<{ id: string; organization_id: string; site_id: string; page_type: TenantPageType; recipe: string | null } | null>(db, `
-        SELECT id, organization_id, site_id, page_type, recipe
-          FROM tenant_pages
-         WHERE id = ? AND organization_id = ? AND site_id = ?
+        SELECT id, organization_id, site_id, json_extract(metadata_json, '$.page_type') AS page_type, json_extract(metadata_json, '$.recipe') AS recipe
+          FROM content_documents
+         WHERE row_role = 'root' AND kind = 'page' AND id = ? AND organization_id = ? AND site_id = ?
          LIMIT 1
       `, [input.data.pageId, input.organizationId, input.siteId])
     : null
@@ -830,9 +807,9 @@ export async function createTenantPage(db: DbClient, input: { organizationId: st
   const sourceVariant = existingPage
     ? await queryFirst<{ path: string } | null>(db, `
         SELECT v.path
-          FROM tenant_page_variants v
+          FROM content_documents v
           JOIN site_locales l ON l.site_id = v.site_id AND l.locale = v.locale AND l.is_source = 1
-         WHERE v.page_id = ? AND v.organization_id = ? AND v.site_id = ?
+         WHERE v.row_role IN ('root','representation') AND v.kind = 'page' AND COALESCE(v.root_id, v.id) = ? AND v.organization_id = ? AND v.site_id = ?
          LIMIT 1
       `, [existingPage.id, input.organizationId, input.siteId])
     : null
@@ -867,47 +844,36 @@ export async function createTenantPage(db: DbClient, input: { organizationId: st
   const metadata = metadataForInput(effectiveData, locale, path)
   const blocks = normalizeTenantPageBlocks(effectiveData.blocks)
   await assertTenantPageSupport(db, input.organizationId, input.siteId, effectiveData, blocks)
-  const pageId = existingPage?.id ?? crypto.randomUUID()
-  const variantId = effectiveData.id ?? crypto.randomUUID()
-  const documentId = crypto.randomUUID()
+  const pageId = existingPage?.id ?? effectiveData.id ?? crypto.randomUUID()
+  const variantId = existingPage ? effectiveData.id ?? crypto.randomUUID() : pageId
   const now = new Date().toISOString()
   const placementQueries = await tenantPagePlacementQueries(db, input.organizationId, input.siteId, blocks, now)
-  const pageQuery: BatchQuery = {
-    query: "INSERT INTO tenant_pages (id, organization_id, site_id, page_type, recipe, sort_order, source, updated_at, updated_by) VALUES (?, ?, ?, ?, ?, 0, 'pages', ?, ?)",
-    params: [pageId, input.organizationId, input.siteId, metadata.pageType, metadata.recipe, now, input.userId],
+  const representation: ContentDocumentInput = {
+    id: variantId, organizationId: input.organizationId, siteId: input.siteId, kind: 'page',
+    ...(existingPage ? { rowRole: 'representation', rootId: pageId, locale } : {
+      rowRole: 'root', locale: 'en', metadata: { page_type: metadata.pageType, recipe: metadata.recipe }, source: 'pages',
+    }),
+    path, title: metadata.title, summary: metadata.summary, seoTitle: metadata.seoTitle, seoDescription: metadata.seoDescription,
+    canonicalUrl: metadata.canonicalUrl, robots: metadata.robots, createdBy: input.userId, updatedBy: input.userId,
   }
-  const variantQuery: BatchQuery = {
-    query: "INSERT INTO tenant_page_variants (id, organization_id, site_id, page_id, locale, document_id, path, title, summary, seo_title, seo_description, canonical_url, robots, created_at, updated_at, updated_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-    params: [variantId, input.organizationId, input.siteId, pageId, locale, documentId, path, metadata.title, metadata.summary, metadata.seoTitle, metadata.seoDescription, metadata.canonicalUrl, metadata.robots, now, now, input.userId],
-  }
-  await createContentDocumentWithBlocks(db, 'tenant_page', variantId, blocksAsInputs(blocks), {
-    siteId: input.siteId,
-    documentId,
-    additionalQueriesBefore: [
-      ...(existingPage ? [] : [pageQuery]),
-      variantQuery,
-    ],
-    additionalQueriesAfter: [...placementQueries, {
-      query: 'UPDATE tenant_page_variants SET updated_at = ?, updated_by = ? WHERE id = ?',
-      params: [now, input.userId, variantId],
-    }, publicResourceCacheInvalidationQuery(input.siteId, 'tenant-page-create')],
+  await createContentDocumentWithBlocks(db, representation, blocksAsInputs(blocks), {
+    additionalQueriesAfter: [...placementQueries, publicResourceCacheInvalidationQuery(input.siteId, 'tenant-page-create')],
   })
   if (path === '/') {
     // The homepage is represented by the site card. Refresh the site card only.
     await refreshSocialCard({ db, env: input.env, owner: { owner_type: 'site', owner_id: input.siteId }, actorId: input.userId })
   } else {
-    await refreshSocialCard({ db, env: input.env, owner: { owner_type: 'tenant_page', owner_id: variantId }, actorId: input.userId })
+    await refreshSocialCard({ db, env: input.env, owner: { owner_type: 'content_document', owner_id: variantId }, actorId: input.userId })
   }
   return { page: await getTenantPageForEditor(db, variantId) }
 }
 
 export async function updateTenantPage(db: DbClient, variantId: string, input: { userId: string | null; data: TenantPageEditorInput; scope: TenantPageScope; env: CloudflareEnv }) {
-  const row = await getVariantRow(db, variantId, input.scope)
+  const row = await getPageRepresentation(db, variantId, input.scope)
   if (!row) notFound('Tenant page variant not found')
-  if (!row.document_id) throw new HTTPError({ statusCode: 500, statusMessage: 'Tenant page has no content document' })
-  const document = await getContentDocumentById(db, row.document_id)
+  const document = await getContentDocumentById(db, row.id)
   if (!document) throw new HTTPError({ statusCode: 500, statusMessage: 'Tenant page content document not found' })
-  if (!input.data.expectedDocumentUpdatedAt || document.updated_at !== input.data.expectedDocumentUpdatedAt) conflict('Tenant page content was updated by another writer')
+  if (!input.data.expectedUpdatedAt || document.updated_at !== input.data.expectedUpdatedAt) conflict('Tenant page content was updated by another writer')
   const currentSnapshot = await getContentEditorSnapshotForDocument(db, document)
   if (!currentSnapshot) throw new HTTPError({ statusCode: 500, statusMessage: 'Tenant page content document not found' })
   const currentBlocks = await attachTenantPageMedia(
@@ -959,38 +925,31 @@ export async function updateTenantPage(db: DbClient, variantId: string, input: {
           toPath: path,
         }, now),
         {
-          query: "INSERT INTO site_redirects (id, organization_id, site_id, locale, owner_type, owner_id, from_path, to_path, status_code, behavior, reason, source, created_at, updated_at) VALUES (?, ?, ?, ?, 'tenant_page', ?, ?, ?, 301, 'redirect', 'tenant_page_path_change', 'tenant-pages', ?, ?) ON CONFLICT(site_id, locale, from_path) DO UPDATE SET owner_type = excluded.owner_type, owner_id = excluded.owner_id, to_path = excluded.to_path, status_code = excluded.status_code, behavior = excluded.behavior, reason = excluded.reason, source = excluded.source, updated_at = excluded.updated_at",
+          query: "INSERT INTO site_redirects (id, organization_id, site_id, locale, owner_type, owner_id, from_path, to_path, status_code, behavior, reason, source, created_at, updated_at) VALUES (?, ?, ?, ?, 'content_document', ?, ?, ?, 301, 'redirect', 'tenant_page_path_change', 'tenant-pages', ?, ?) ON CONFLICT(site_id, locale, from_path) DO UPDATE SET owner_type = excluded.owner_type, owner_id = excluded.owner_id, to_path = excluded.to_path, status_code = excluded.status_code, behavior = excluded.behavior, reason = excluded.reason, source = excluded.source, updated_at = excluded.updated_at",
           params: [crypto.randomUUID(), row.organization_id, row.site_id, row.locale, variantId, row.path, path, now, now],
         },
       ]
     : []
   const updateVariant: BatchQuery = {
-    query: 'UPDATE tenant_page_variants SET path = ?, title = ?, summary = ?, seo_title = ?, seo_description = ?, canonical_url = ?, robots = ?, updated_at = ?, updated_by = ? WHERE id = ? AND site_id = ? AND organization_id = ?',
-    params: [path, metadata.title, metadata.summary, metadata.seoTitle, metadata.seoDescription, metadata.canonicalUrl, metadata.robots, now, input.userId, variantId, input.scope.siteId, input.scope.organizationId],
+    query: 'UPDATE content_documents SET path = ?, title = ?, summary = ?, seo_title = ?, seo_description = ?, canonical_url = ?, robots = ?, updated_by = ? WHERE id = ? AND site_id = ? AND organization_id = ?',
+    params: [path, metadata.title, metadata.summary, metadata.seoTitle, metadata.seoDescription, metadata.canonicalUrl, metadata.robots, input.userId, variantId, input.scope.siteId, input.scope.organizationId],
   }
   const updatePage: BatchQuery = {
-    query: `UPDATE tenant_pages SET
-      page_type = CASE WHEN EXISTS (SELECT 1 FROM site_locales WHERE site_id = ? AND locale = ? AND is_source = 1) THEN ? ELSE page_type END,
-      recipe = CASE WHEN EXISTS (SELECT 1 FROM site_locales WHERE site_id = ? AND locale = ? AND is_source = 1) THEN ? ELSE recipe END,
-      sort_order = CASE WHEN EXISTS (SELECT 1 FROM site_locales WHERE site_id = ? AND locale = ? AND is_source = 1) THEN COALESCE(?, sort_order) ELSE sort_order END,
-      updated_at = ?, updated_by = ?
-      WHERE id = ? AND site_id = ? AND organization_id = ?`,
-    params: [
-      input.scope.siteId, row.locale, metadata.pageType,
-      input.scope.siteId, row.locale, metadata.recipe,
-      input.scope.siteId, row.locale, input.data.sortOrder ?? null,
-      now, input.userId, row.page_id, input.scope.siteId, input.scope.organizationId,
-    ],
+    query: `UPDATE content_documents SET metadata_json = json_set(metadata_json, '$.page_type', ?, '$.recipe', ?),
+      sort_order = COALESCE(?, sort_order), updated_by = ?
+      WHERE row_role = 'root' AND kind = 'page' AND id = ? AND site_id = ? AND organization_id = ? AND ? = 'en'`,
+    params: [metadata.pageType, metadata.recipe, input.data.sortOrder ?? null, input.userId,
+      row.page_id, input.scope.siteId, input.scope.organizationId, row.locale],
   }
-  await replaceContentDocumentBlocks(db, 'tenant_page', variantId, blocksAsInputs(blocks), {
-    expected_document_updated_at: input.data.expectedDocumentUpdatedAt,
+  await updateContentDocument(db, variantId, {
+    blocks: blocksAsInputs(blocks), expected_updated_at: input.data.expectedUpdatedAt,
     additionalQueriesAfter: [...placementQueries, updateVariant, updatePage, ...redirectQueries, publicResourceCacheInvalidationQuery(input.scope.siteId, 'tenant-page-update')],
   })
   if (row.path === '/' || path === '/') {
     // The homepage is represented by the site card. Refresh the site card only.
     await refreshSocialCard({ db, env: input.env, owner: { owner_type: 'site', owner_id: input.scope.siteId }, actorId: input.userId })
   } else {
-    await refreshSocialCard({ db, env: input.env, owner: { owner_type: 'tenant_page', owner_id: variantId }, actorId: input.userId })
+    await refreshSocialCard({ db, env: input.env, owner: { owner_type: 'content_document', owner_id: variantId }, actorId: input.userId })
   }
   return { page: await getTenantPageForEditor(db, variantId, input.scope) }
 }
@@ -999,8 +958,8 @@ export async function listPublishedTenantPagePaths(db: DbClient, siteId: string,
   const resolvedLocale = await resolveLocale(db, siteId, locale)
   return await queryAll<{ id: string; path: string; title: string; updated_at: string; robots: string | null }>(db, `
     SELECT v.id, v.path, v.title, v.updated_at, v.robots
-      FROM tenant_page_variants v
-     WHERE v.site_id = ? AND v.locale = ?
+      FROM content_documents v
+     WHERE v.row_role IN ('root','representation') AND v.kind = 'page' AND v.site_id = ? AND v.locale = ?
      ORDER BY path ASC
   `, [siteId, resolvedLocale])
 }
@@ -1012,8 +971,8 @@ export async function getTenantPageById(db: DbClient, variantId: string, scope?:
 export async function getTenantPageForEditorByPath(db: DbClient, siteId: string, path: string, locale?: string | null) {
   const resolvedLocale = await resolveLocale(db, siteId, locale)
   const row = await queryFirst<{ id: string } | null>(db, `
-    SELECT id FROM tenant_page_variants
-     WHERE site_id = ? AND locale = ? AND path = ?
+    SELECT id FROM content_documents
+     WHERE row_role IN ('root','representation') AND kind = 'page' AND site_id = ? AND locale = ? AND path = ?
      LIMIT 1
   `, [siteId, resolvedLocale, normalizeTenantPagePath(path)])
   if (!row) notFound('Tenant page variant not found')
