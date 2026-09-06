@@ -51,185 +51,272 @@
           />
         </div>
 
-        <UCard variant="soft">
-          <div class="grid gap-4 lg:grid-cols-[13rem_1fr]">
-            <div class="grid gap-2 sm:grid-cols-2 lg:grid-cols-1">
-              <UButton
-                v-for="preset in presets"
-                :key="preset.key"
-                :label="preset.label"
-                :variant="activePreset === preset.key ? 'soft' : 'ghost'"
-                :color="activePreset === preset.key ? 'primary' : 'neutral'"
-                block
-                class="justify-start"
-                @click="applyPreset(preset.key)"
-              />
-            </div>
-            <div class="grid gap-4 sm:grid-cols-[1fr_1fr_auto] sm:items-end">
-              <UFormField label="Start date">
-                <UInput v-model="range.startDate" type="date" class="w-full" @change="markCustomAndLoad" />
-              </UFormField>
-              <UFormField label="End date">
-                <UInput v-model="range.endDate" type="date" class="w-full" @change="markCustomAndLoad" />
-              </UFormField>
-              <UButton icon="i-lucide-check" :loading="loading" @click="markCustomAndLoad">
-                Apply
-              </UButton>
-            </div>
-          </div>
-        </UCard>
 
-        <div class="grid gap-4 xl:grid-cols-2">
-          <UCard variant="soft">
-            <template #header><h2 class="font-semibold text-highlighted">Attribution</h2></template>
-            <div class="space-y-3">
-              <DashboardAnalyticsRow
-                v-for="row in analytics?.attribution || []"
-                :key="`${row.source}-${row.medium}-${row.campaign || ''}`"
-                :label="`${row.source} / ${row.medium}${row.campaign ? ` · ${row.campaign}` : ''}`"
-                :value="`${formatCount(row.sessions)} sessions · ${formatCount(row.conversions)} conversions`"
-                :percent="row.conversionRate"
-              />
-              <p v-if="!loading && !(analytics?.attribution || []).length" class="text-sm text-muted">No attribution data yet.</p>
-            </div>
-          </UCard>
-          <UCard variant="soft">
-            <template #header><h2 class="font-semibold text-highlighted">Conversions</h2></template>
-            <div class="space-y-3">
-              <DashboardAnalyticsRow
-                v-for="row in analytics?.conversions || []"
-                :key="`${row.eventName}-${row.stage}`"
-                :label="`${row.eventName.replaceAll('_', ' ')} · ${row.stage.replaceAll('_', ' ')}`"
-                :value="formatCount(row.count)"
-                :percent="row.conversionRate"
-              />
-              <p v-if="!loading && !(analytics?.conversions || []).length" class="text-sm text-muted">No conversions yet.</p>
-            </div>
-          </UCard>
-        </div>
+        <UTabs
+          v-model="tab"
+          :items="tabItems"
+          :content="false"
+          class="w-full"
+        />
 
-        <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          <UCard v-for="metric in metricCards" :key="metric.label" variant="soft">
-            <div class="flex items-start justify-between gap-3">
-              <div>
-                <p class="text-sm text-muted">{{ metric.label }}</p>
-                <p class="mt-2 text-2xl font-semibold text-highlighted">{{ loading ? '...' : metric.value }}</p>
+        <div v-if="tab === 'views'" class="space-y-6">
+          <UCard variant="soft">
+            <div class="grid gap-4 lg:grid-cols-[13rem_1fr]">
+              <div class="grid gap-2 sm:grid-cols-2 lg:grid-cols-1">
+                <UButton
+                  v-for="preset in presets"
+                  :key="preset.key"
+                  :label="preset.label"
+                  :variant="activePreset === preset.key ? 'soft' : 'ghost'"
+                  :color="activePreset === preset.key ? 'primary' : 'neutral'"
+                  block
+                  class="justify-start"
+                  @click="applyPreset(preset.key)"
+                />
               </div>
-              <UIcon :name="metric.icon" class="size-5 text-muted" />
+              <div class="grid gap-4 sm:grid-cols-[1fr_1fr_auto] sm:items-end">
+                <UFormField label="Start date">
+                  <UInput v-model="range.startDate" type="date" class="w-full" @change="markCustomAndLoad" />
+                </UFormField>
+                <UFormField label="End date">
+                  <UInput v-model="range.endDate" type="date" class="w-full" @change="markCustomAndLoad" />
+                </UFormField>
+                <UButton icon="i-lucide-check" :loading="loading" @click="markCustomAndLoad">
+                  Apply
+                </UButton>
+              </div>
             </div>
-            <p class="mt-2 text-xs text-muted">{{ metric.detail }}</p>
+          </UCard>
+
+          <div class="grid gap-4 xl:grid-cols-2">
+            <UCard variant="soft">
+              <template #header><h2 class="font-semibold text-highlighted">Attribution</h2></template>
+              <div class="space-y-3">
+                <DashboardAnalyticsRow
+                  v-for="row in analytics?.attribution || []"
+                  :key="`${row.source}-${row.medium}-${row.campaign || ''}`"
+                  :label="`${row.source} / ${row.medium}${row.campaign ? ` · ${row.campaign}` : ''}`"
+                  :value="`${formatCount(row.sessions)} sessions · ${formatCount(row.conversions)} conversions`"
+                  :percent="row.conversionRate"
+                />
+                <p v-if="!loading && !(analytics?.attribution || []).length" class="text-sm text-muted">No attribution data yet.</p>
+              </div>
+            </UCard>
+            <UCard variant="soft">
+              <template #header><h2 class="font-semibold text-highlighted">Conversions</h2></template>
+              <div class="space-y-3">
+                <DashboardAnalyticsRow
+                  v-for="row in analytics?.conversions || []"
+                  :key="`${row.eventName}-${row.stage}`"
+                  :label="`${row.eventName.replaceAll('_', ' ')} · ${row.stage.replaceAll('_', ' ')}`"
+                  :value="formatCount(row.count)"
+                  :percent="row.conversionRate"
+                />
+                <p v-if="!loading && !(analytics?.conversions || []).length" class="text-sm text-muted">No conversions yet.</p>
+              </div>
+            </UCard>
+          </div>
+
+          <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            <UCard v-for="metric in metricCards" :key="metric.label" variant="soft">
+              <div class="flex items-start justify-between gap-3">
+                <div>
+                  <p class="text-sm text-muted">{{ metric.label }}</p>
+                  <p class="mt-2 text-2xl font-semibold text-highlighted">{{ loading ? '...' : metric.value }}</p>
+                </div>
+                <UIcon :name="metric.icon" class="size-5 text-muted" />
+              </div>
+              <p class="mt-2 text-xs text-muted">{{ metric.detail }}</p>
+            </UCard>
+          </div>
+
+          <UCard variant="soft">
+            <template #header>
+              <div class="flex items-center justify-between gap-3">
+                <h2 class="font-semibold text-highlighted">Traffic trend</h2>
+                <UBadge color="neutral" variant="soft">{{ dailyData.length }} days</UBadge>
+              </div>
+            </template>
+            <div v-if="loading" class="h-64 animate-pulse rounded-lg bg-muted/50" />
+            <div v-else-if="dailyData.length === 0" class="py-12 text-center text-sm text-muted">No analytics data for this range.</div>
+            <div v-else class="h-64">
+              <svg viewBox="0 0 800 260" class="h-full w-full" role="img" aria-label="Pageviews and unique sessions over time">
+                <line x1="40" y1="218" x2="780" y2="218" class="stroke-muted" stroke-width="1" />
+                <polyline :points="pageviewPoints" fill="none" stroke="currentColor" stroke-width="3" class="text-primary" stroke-linecap="round" stroke-linejoin="round" />
+                <polyline :points="sessionPoints" fill="none" stroke="currentColor" stroke-width="2" class="text-muted" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="5 7" />
+                <g v-for="point in pageviewDots" :key="point.key">
+                  <circle :cx="point.x" :cy="point.y" r="3" class="fill-primary" />
+                </g>
+              </svg>
+            </div>
+            <div class="mt-3 flex flex-wrap gap-4 text-xs text-muted">
+              <span class="inline-flex items-center gap-2"><span class="size-2 rounded-full bg-primary" /> Pageviews</span>
+              <span class="inline-flex items-center gap-2"><span class="h-px w-4 border-t border-dashed border-muted" /> Sessions</span>
+            </div>
+          </UCard>
+
+          <div class="grid gap-4 xl:grid-cols-2">
+            <UCard variant="soft">
+              <template #header>
+                <h2 class="font-semibold text-highlighted">Countries</h2>
+              </template>
+              <div class="space-y-3">
+                <DashboardAnalyticsRow
+                  v-for="country in analytics?.countries || []"
+                  :key="country.countryCode"
+                  :label="countryName(country.countryCode)"
+                  :prefix="countryFlag(country.countryCode)"
+                  :value="formatCount(country.views)"
+                  :percent="country.percentOfTotal"
+                />
+                <p v-if="!loading && !(analytics?.countries || []).length" class="text-sm text-muted">No country data yet.</p>
+              </div>
+            </UCard>
+
+            <UCard variant="soft">
+              <template #header>
+                <h2 class="font-semibold text-highlighted">Referrers</h2>
+              </template>
+              <div class="space-y-3">
+                <DashboardAnalyticsRow
+                  v-for="referrer in analytics?.referrers || []"
+                  :key="referrer.source"
+                  :label="referrer.source"
+                  :value="formatCount(referrer.views)"
+                  :percent="referrer.percentOfTotal"
+                />
+                <p v-if="!loading && !(analytics?.referrers || []).length" class="text-sm text-muted">No referrer data yet.</p>
+              </div>
+            </UCard>
+
+            <UCard variant="soft">
+              <template #header>
+                <h2 class="font-semibold text-highlighted">Devices</h2>
+              </template>
+              <div class="space-y-3">
+                <DashboardAnalyticsRow
+                  v-for="device in analytics?.devices || []"
+                  :key="device.type"
+                  :label="device.type"
+                  :prefix="deviceIcon(device.type)"
+                  :value="formatCount(device.views)"
+                  :percent="device.percentOfTotal"
+                />
+                <p v-if="!loading && !(analytics?.devices || []).length" class="text-sm text-muted">No device data yet.</p>
+              </div>
+            </UCard>
+
+            <UCard variant="soft">
+              <template #header>
+                <h2 class="font-semibold text-highlighted">Cities</h2>
+              </template>
+              <div class="space-y-3">
+                <DashboardAnalyticsRow
+                  v-for="city in analytics?.cities || []"
+                  :key="`${city.city}-${city.region}-${city.countryCode}`"
+                  :label="city.region ? `${city.city}, ${city.region}` : city.city"
+                  :prefix="countryFlag(city.countryCode)"
+                  :value="formatCount(city.views)"
+                  :percent="percentOfViews(city.views)"
+                />
+                <p v-if="!loading && !(analytics?.cities || []).length" class="text-sm text-muted">No city data yet.</p>
+              </div>
+            </UCard>
+          </div>
+
+          <UCard variant="soft">
+            <template #header>
+              <h2 class="font-semibold text-highlighted">Top pages</h2>
+            </template>
+            <div class="space-y-3">
+              <DashboardAnalyticsRow
+                v-for="page in analytics?.topPages || []"
+                :key="page.path"
+                :label="page.path"
+                :value="formatCount(page.views)"
+                :percent="page.percentOfTotal"
+              />
+              <p v-if="!loading && !(analytics?.topPages || []).length" class="text-sm text-muted">No page data yet.</p>
+            </div>
           </UCard>
         </div>
 
-        <UCard variant="soft">
-          <template #header>
-            <div class="flex items-center justify-between gap-3">
-              <h2 class="font-semibold text-highlighted">Traffic trend</h2>
-              <UBadge color="neutral" variant="soft">{{ dailyData.length }} days</UBadge>
-            </div>
-          </template>
-          <div v-if="loading" class="h-64 animate-pulse rounded-lg bg-muted/50" />
-          <div v-else-if="dailyData.length === 0" class="py-12 text-center text-sm text-muted">No analytics data for this range.</div>
-          <div v-else class="h-64">
-            <svg viewBox="0 0 800 260" class="h-full w-full" role="img" aria-label="Pageviews and unique sessions over time">
-              <line x1="40" y1="218" x2="780" y2="218" class="stroke-muted" stroke-width="1" />
-              <polyline :points="pageviewPoints" fill="none" stroke="currentColor" stroke-width="3" class="text-primary" stroke-linecap="round" stroke-linejoin="round" />
-              <polyline :points="sessionPoints" fill="none" stroke="currentColor" stroke-width="2" class="text-muted" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="5 7" />
-              <g v-for="point in pageviewDots" :key="point.key">
-                <circle :cx="point.x" :cy="point.y" r="3" class="fill-primary" />
-              </g>
-            </svg>
+        <div v-else-if="tab === 'reviews'" class="space-y-6">
+          <div class="grid gap-6 lg:grid-cols-[20rem_1fr]">
+            <UCard variant="soft">
+              <div class="flex items-baseline gap-2">
+                <UIcon name="i-lucide-star" class="size-6 text-primary" />
+                <span class="text-4xl font-semibold tabular-nums text-highlighted">{{ reviews.average ?? '—' }}</span>
+              </div>
+              <p class="mt-1 text-sm text-muted">
+                {{ reviews.total === 1 ? '1 approved review' : `${formatCount(reviews.total)} approved reviews` }}
+              </p>
+
+              <!-- A review carries one overall rating, so this is its distribution.
+                   There are no per-category scores in the schema to break down. -->
+              <div class="mt-6 space-y-2">
+                <div v-for="bucket in reviews.distribution" :key="bucket.rating" class="flex items-center gap-3">
+                  <span class="w-10 shrink-0 text-sm tabular-nums text-muted">{{ bucket.rating }}★</span>
+                  <span class="h-2 flex-1 overflow-hidden rounded-full bg-elevated">
+                    <span
+                      class="block h-full rounded-full bg-primary"
+                      :style="{ width: `${reviews.total ? (bucket.count / reviews.total) * 100 : 0}%` }"
+                    />
+                  </span>
+                  <span class="w-8 shrink-0 text-right text-sm tabular-nums text-muted">{{ bucket.count }}</span>
+                </div>
+              </div>
+            </UCard>
+
+            <UCard variant="soft">
+              <template #header>
+                <h2 class="font-semibold text-highlighted">Recent reviews</h2>
+              </template>
+              <div v-if="reviews.recent.length" class="divide-y divide-default">
+                <article v-for="review in reviews.recent" :key="review.id" class="py-4 first:pt-0 last:pb-0">
+                  <div class="flex flex-wrap items-center gap-x-3 gap-y-1">
+                    <span class="font-medium text-highlighted">{{ review.author }}</span>
+                    <span class="text-sm tabular-nums text-primary">{{ '★'.repeat(review.rating) }}</span>
+                    <span class="text-xs text-muted">{{ formatDate(review.createdAt.slice(0, 10)) }}</span>
+                  </div>
+                  <p v-if="review.title" class="mt-1 font-medium text-highlighted">{{ review.title }}</p>
+                  <p v-if="review.content" class="mt-1 line-clamp-3 text-sm leading-6 text-muted">{{ review.content }}</p>
+                </article>
+              </div>
+              <p v-else class="py-8 text-center text-sm text-muted">No approved reviews yet.</p>
+            </UCard>
           </div>
-          <div class="mt-3 flex flex-wrap gap-4 text-xs text-muted">
-            <span class="inline-flex items-center gap-2"><span class="size-2 rounded-full bg-primary" /> Pageviews</span>
-            <span class="inline-flex items-center gap-2"><span class="h-px w-4 border-t border-dashed border-muted" /> Sessions</span>
-          </div>
-        </UCard>
-
-        <div class="grid gap-4 xl:grid-cols-2">
-          <UCard variant="soft">
-            <template #header>
-              <h2 class="font-semibold text-highlighted">Countries</h2>
-            </template>
-            <div class="space-y-3">
-              <DashboardAnalyticsRow
-                v-for="country in analytics?.countries || []"
-                :key="country.countryCode"
-                :label="countryName(country.countryCode)"
-                :prefix="countryFlag(country.countryCode)"
-                :value="formatCount(country.views)"
-                :percent="country.percentOfTotal"
-              />
-              <p v-if="!loading && !(analytics?.countries || []).length" class="text-sm text-muted">No country data yet.</p>
-            </div>
-          </UCard>
-
-          <UCard variant="soft">
-            <template #header>
-              <h2 class="font-semibold text-highlighted">Referrers</h2>
-            </template>
-            <div class="space-y-3">
-              <DashboardAnalyticsRow
-                v-for="referrer in analytics?.referrers || []"
-                :key="referrer.source"
-                :label="referrer.source"
-                :value="formatCount(referrer.views)"
-                :percent="referrer.percentOfTotal"
-              />
-              <p v-if="!loading && !(analytics?.referrers || []).length" class="text-sm text-muted">No referrer data yet.</p>
-            </div>
-          </UCard>
-
-          <UCard variant="soft">
-            <template #header>
-              <h2 class="font-semibold text-highlighted">Devices</h2>
-            </template>
-            <div class="space-y-3">
-              <DashboardAnalyticsRow
-                v-for="device in analytics?.devices || []"
-                :key="device.type"
-                :label="device.type"
-                :prefix="deviceIcon(device.type)"
-                :value="formatCount(device.views)"
-                :percent="device.percentOfTotal"
-              />
-              <p v-if="!loading && !(analytics?.devices || []).length" class="text-sm text-muted">No device data yet.</p>
-            </div>
-          </UCard>
-
-          <UCard variant="soft">
-            <template #header>
-              <h2 class="font-semibold text-highlighted">Cities</h2>
-            </template>
-            <div class="space-y-3">
-              <DashboardAnalyticsRow
-                v-for="city in analytics?.cities || []"
-                :key="`${city.city}-${city.region}-${city.countryCode}`"
-                :label="city.region ? `${city.city}, ${city.region}` : city.city"
-                :prefix="countryFlag(city.countryCode)"
-                :value="formatCount(city.views)"
-                :percent="percentOfViews(city.views)"
-              />
-              <p v-if="!loading && !(analytics?.cities || []).length" class="text-sm text-muted">No city data yet.</p>
-            </div>
-          </UCard>
         </div>
 
-        <UCard variant="soft">
-          <template #header>
-            <h2 class="font-semibold text-highlighted">Top pages</h2>
-          </template>
-          <div class="space-y-3">
-            <DashboardAnalyticsRow
-              v-for="page in analytics?.topPages || []"
-              :key="page.path"
-              :label="page.path"
-              :value="formatCount(page.views)"
-              :percent="page.percentOfTotal"
-            />
-            <p v-if="!loading && !(analytics?.topPages || []).length" class="text-sm text-muted">No page data yet.</p>
+        <div v-else class="space-y-6">
+          <p class="text-sm text-muted">What is still missing from each site's setup.</p>
+          <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            <UCard v-for="site in setup" :key="site.siteId" variant="soft">
+              <template #header>
+                <div class="flex items-baseline justify-between gap-3">
+                  <h2 class="min-w-0 truncate font-semibold text-highlighted">{{ site.label }}</h2>
+                  <span class="shrink-0 text-sm tabular-nums text-muted">{{ site.completed }}/{{ site.total }}</span>
+                </div>
+              </template>
+              <span class="mb-4 block h-2 overflow-hidden rounded-full bg-elevated">
+                <span
+                  class="block h-full rounded-full bg-primary"
+                  :style="{ width: `${site.total ? (site.completed / site.total) * 100 : 0}%` }"
+                />
+              </span>
+              <ul class="space-y-2">
+                <li v-for="item in site.items" :key="item.id" class="flex items-center gap-2 text-sm">
+                  <UIcon
+                    :name="item.done ? 'i-lucide-circle-check' : 'i-lucide-circle-dashed'"
+                    class="size-4 shrink-0"
+                    :class="item.done ? 'text-success' : 'text-muted'"
+                  />
+                  <span :class="item.done ? 'text-muted line-through' : 'text-highlighted'">{{ item.label }}</span>
+                </li>
+              </ul>
+            </UCard>
           </div>
-        </UCard>
+        </div>
       </div>
     </template>
   </UDashboardPanel>
@@ -269,9 +356,42 @@ const toast = useToast()
 const route = useRoute()
 
 interface InsightsSite { id: string; label: string; subdomain: string | null }
-interface InsightsResponse { sites: InsightsSite[]; siteId: string | null; report: AnalyticsResponse }
+interface InsightsReviews {
+  total: number
+  average: number | null
+  distribution: Array<{ rating: number; count: number }>
+  recent: Array<{ id: string; author: string; rating: number; title: string | null; content: string | null; createdAt: string }>
+}
+interface InsightsSetup {
+  siteId: string
+  label: string
+  completed: number
+  total: number
+  items: Array<{ id: string; label: string; done: boolean }>
+}
+interface InsightsResponse {
+  sites: InsightsSite[]
+  siteId: string | null
+  report: AnalyticsResponse
+  reviews: InsightsReviews
+  setup: InsightsSetup[]
+}
+
+type InsightsTab = 'views' | 'reviews' | 'opportunities'
+
+// Reviews and Opportunities read what we actually hold. There is no Superhost
+// equivalent, and a review carries one overall rating rather than per-category
+// scores, so neither is invented here.
+const tab = ref<InsightsTab>('views')
+const tabItems = [
+  { label: 'Views', value: 'views' as const },
+  { label: 'Reviews', value: 'reviews' as const },
+  { label: 'Opportunities', value: 'opportunities' as const },
+]
 
 const sites = ref<InsightsSite[]>([])
+const reviews = ref<InsightsResponse['reviews']>({ total: 0, average: null, distribution: [], recent: [] })
+const setup = ref<InsightsResponse['setup']>([])
 // Deep-linked from a site's own overview; null means every site in the org.
 const selectedSiteId = ref<string | null>(typeof route.query.siteId === 'string' && route.query.siteId ? route.query.siteId : null)
 
@@ -318,6 +438,12 @@ const isInsightsResponse = (value: unknown): value is InsightsResponse =>
   && value.sites.every(site => isRecord(site) && typeof site.id === 'string' && typeof site.label === 'string')
   && (value.siteId === null || typeof value.siteId === 'string')
   && isAnalyticsResponse(value.report)
+  && isRecord(value.reviews)
+  && typeof value.reviews.total === 'number'
+  && Array.isArray(value.reviews.distribution)
+  && Array.isArray(value.reviews.recent)
+  && Array.isArray(value.setup)
+  && value.setup.every(entry => isRecord(entry) && typeof entry.siteId === 'string' && Array.isArray(entry.items))
 
 const initialRange = { ...range }
 let latestManualRequestId = 0
@@ -348,6 +474,8 @@ watch([insightsResource, analyticsPending, analyticsResourceError], ([resource, 
     sites.value = resource.sites
     selectedSiteId.value = resource.siteId
     analytics.value = resource.report
+    reviews.value = resource.reviews
+    setup.value = resource.setup
     loadError.value = null
   }
 }, { immediate: true })
@@ -427,6 +555,8 @@ async function loadAnalytics() {
     sites.value = response.sites
     selectedSiteId.value = response.siteId
     analytics.value = response.report
+    reviews.value = response.reviews
+    setup.value = response.setup
   } catch (error) {
     if (requestId !== latestManualRequestId) return
     loadError.value = error instanceof Error ? error.message : 'Failed to load insights'
