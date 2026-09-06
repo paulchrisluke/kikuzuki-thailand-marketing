@@ -227,7 +227,10 @@ const detailTitle = computed(() => {
   return ''
 })
 
-const PANE_BREAKPOINT = '(min-width: 1280px)'
+// Tailwind's `lg`, which is where EditorPaneShell puts the pane and where
+// every other split in the dashboard sits. Kept as one constant per hub so the
+// redirect and the layout cannot disagree about whether a pane exists.
+const PANE_BREAKPOINT = '(min-width: 1024px)'
 let sectionChosen = false
 
 function openFirstSectionBesideTheRail() {

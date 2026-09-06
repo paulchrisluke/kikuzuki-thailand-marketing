@@ -268,7 +268,10 @@ watch([overview, overviewPending, overviewError], ([resource, pending, cause]) =
  * because the server cannot know the viewport, and `replace` so Back still
  * leaves the location instead of bouncing through the hub.
  */
-const PANE_BREAKPOINT = '(min-width: 1280px)'
+// Tailwind's `lg`, which is where EditorPaneShell puts the pane and where
+// every other split in the dashboard sits. Kept as one constant per hub so the
+// redirect and the layout cannot disagree about whether a pane exists.
+const PANE_BREAKPOINT = '(min-width: 1024px)'
 let sectionChosen = false
 
 function openFirstSectionBesideTheRail() {
