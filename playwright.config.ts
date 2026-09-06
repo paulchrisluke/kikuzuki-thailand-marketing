@@ -37,6 +37,7 @@ const localWorkerCommand = [
   '--assets .output/public',
   '--local',
   `--port ${port}`,
+  `--host localhost:${port}`,
   '--var E2E_ALLOW_DEV_ROUTES:true',
   `--var E2E_DEV_ROUTE_SECRET:${localDevRouteSecret}`,
   '--var EMAIL_DELIVERY_MODE:log_only',

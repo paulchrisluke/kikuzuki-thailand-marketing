@@ -14,7 +14,7 @@
     </template>
   </div>
   <PlatformButton v-else :to="user ? postLoginUrl : to" :external="Boolean(user)" v-bind="$attrs">
-    {{ user ? 'Dashboard' : label }}
+    {{ user && !selectedPlan ? 'Dashboard' : label }}
   </PlatformButton>
 </template>
 
@@ -22,12 +22,13 @@
 import { buildPostLoginUrl } from '~/shared/auth/return-target'
 
 defineOptions({ inheritAttrs: false })
-withDefaults(defineProps<{ account?: boolean, to?: string, label?: string }>(), {
+const props = withDefaults(defineProps<{ account?: boolean, to?: string, label?: string }>(), {
   account: false,
   to: '/signup',
   label: 'Start free',
 })
 // The canonical Better Auth session is shared and hydrated from the Nuxt payload.
 const { user, sessionError } = await useAuthSession()
-const postLoginUrl = buildPostLoginUrl()
+const selectedPlan = computed(() => new URL(props.to, 'https://krabiclaw.internal').searchParams.get('plan'))
+const postLoginUrl = computed(() => buildPostLoginUrl({ plan: selectedPlan.value ?? undefined }))
 </script>

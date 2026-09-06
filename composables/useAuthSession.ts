@@ -3,17 +3,24 @@ import { authClient } from '~/lib/auth-client'
 type Session = typeof authClient.$Infer.Session
 
 export async function useAuthSession() {
+  const nuxtApp = useNuxtApp()
+  if (import.meta.client) {
+    const { data } = useNuxtData<{ session: Session | null }>('auth-session')
+    if (nuxtApp.isHydrating && data.value) authClient.hydrateSession(data.value.session)
+    const session = authClient.useSession()
+    return {
+      sessionData: computed(() => session.value.data),
+      user: computed(() => session.value.data?.user ?? null),
+      isAuthenticated: computed(() => Boolean(session.value.data?.user)),
+      sessionLoading: computed(() => session.value.isPending),
+      sessionError: computed(() => session.value.error),
+    }
+  }
   const event = useRequestEvent()
   const result = await useAsyncData('auth-session', async () => {
-    if (import.meta.server) {
-      const provider = event?.context.authSessionProvider as (() => Promise<Session | null>) | undefined
-      if (!provider) throw createError({ statusCode: 500, statusMessage: 'Auth session provider unavailable' })
-      return { session: await provider() }
-    }
-    const response = await authClient.getSession()
-    if (response.error) throw createError({ statusCode: response.error.status, statusMessage: response.error.message })
-    // Keep the envelope non-null so an anonymous SSR result also hydrates without a refetch.
-    return { session: response.data }
+    const provider = event?.context.authSessionProvider as (() => Promise<Session | null>) | undefined
+    if (!provider) throw createError({ statusCode: 500, statusMessage: 'Auth session provider unavailable' })
+    return { session: await provider() }
   })
   const sessionData = computed(() => result.data.value?.session ?? null)
   const user = computed(() => sessionData.value?.user ?? null)
