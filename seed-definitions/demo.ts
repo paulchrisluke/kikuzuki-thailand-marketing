@@ -63,7 +63,7 @@ export const demoFixture: CuratedSiteDefinition = {
       locale: 'th',
       label: 'ไทย',
       isSource: false,
-      status: 'published',
+      status: 'disabled',
     },
   ],
   siteDomains: [

@@ -144,8 +144,8 @@ export function renderTenantPagesSeedSql(input: {
   }
   const pages = Array.from(new Set([...input.rows.map(row => row.page), ...(input.pages ?? []), 'home', 'about', 'contact']))
   const chunks: string[] = []
-  const publishedLocales = input.locales.filter(locale => locale.status === 'published').sort((a, b) => Number(b.locale === 'en') - Number(a.locale === 'en'))
-  for (const locale of publishedLocales) {
+  const configuredLocales = [...input.locales].sort((a, b) => Number(b.locale === 'en') - Number(a.locale === 'en'))
+  for (const locale of configuredLocales) {
     for (const page of pages) {
       const sourceRows = input.rows.filter(row => row.page === page)
       const localizedRows = locale.locale === input.sourceLocale
@@ -180,7 +180,7 @@ export function renderTenantPagesSeedSql(input: {
       ))
     }
   }
-  for (const locale of publishedLocales) {
+  for (const locale of configuredLocales) {
     for (const page of input.additionalPages ?? []) {
       if (locale.locale !== input.sourceLocale) continue
       chunks.push(renderPage(
