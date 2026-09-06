@@ -1,4 +1,4 @@
-import { normalizeOpeningHours, isOpenNow } from '~/shared/reservation-hours'
+import { normalizeOpeningHours, isOpenNow } from '../shared/reservation-hours.ts'
 /** Derives up to 2 uppercase initials from a display name, for UAvatar's `text` fallback. */
 export function getInitials(name: string | null | undefined): string {
   const value = name?.trim()
