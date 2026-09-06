@@ -56,8 +56,8 @@ async function main() {
   }
 
   const before = {
-    reservations: Number(d1Query(`SELECT COUNT(*) as c FROM reservation_submissions WHERE site_id = '${sqlEscape(expectedSiteId)}'`)[0]?.c ?? 0),
-    contacts: Number(d1Query(`SELECT COUNT(*) as c FROM contact_submissions WHERE site_id = '${sqlEscape(expectedSiteId)}'`)[0]?.c ?? 0),
+    reservations: Number(d1Query(`SELECT COUNT(*) as c FROM requests WHERE kind = 'reservation' AND site_id = '${sqlEscape(expectedSiteId)}'`)[0]?.c ?? 0),
+    contacts: Number(d1Query(`SELECT COUNT(*) as c FROM requests WHERE kind = 'contact' AND site_id = '${sqlEscape(expectedSiteId)}'`)[0]?.c ?? 0),
   }
 
   const browser = await chromium.launch({ headless: true })
@@ -133,8 +133,8 @@ async function main() {
     }
 
     const after = {
-      reservations: Number(d1Query(`SELECT COUNT(*) as c FROM reservation_submissions WHERE site_id = '${sqlEscape(expectedSiteId)}'`)[0]?.c ?? 0),
-      contacts: Number(d1Query(`SELECT COUNT(*) as c FROM contact_submissions WHERE site_id = '${sqlEscape(expectedSiteId)}'`)[0]?.c ?? 0),
+      reservations: Number(d1Query(`SELECT COUNT(*) as c FROM requests WHERE kind = 'reservation' AND site_id = '${sqlEscape(expectedSiteId)}'`)[0]?.c ?? 0),
+      contacts: Number(d1Query(`SELECT COUNT(*) as c FROM requests WHERE kind = 'contact' AND site_id = '${sqlEscape(expectedSiteId)}'`)[0]?.c ?? 0),
     }
 
     if (JSON.stringify(before) !== JSON.stringify(after)) {

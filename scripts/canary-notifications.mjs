@@ -128,10 +128,10 @@ async function main() {
   while (Date.now() < deadline) {
     const rows = d1Query(`
       SELECT d.id, d.channel, d.purpose, d.status, d.provider_message_id, d.error, d.created_at,
-             gt.submission_type, gt.submission_id
+             gt.kind, gt.id
       FROM guest_thread_deliveries d
-      JOIN guest_thread_entries e ON e.id = d.entry_id
-      JOIN guest_threads gt ON gt.id = e.thread_id
+      JOIN activity_entries e ON e.id = d.entry_id
+      JOIN requests gt ON gt.id = e.request_id
       WHERE gt.organization_id = '${sqlEscape(orgId)}'
         AND gt.site_id = '${sqlEscape(siteId)}'
         AND d.purpose = 'owner_alert'
@@ -153,10 +153,10 @@ async function main() {
   if ((!emailRow && !emailQuotaBlocked) || !whatsappRow) {
     const rows = d1Query(`
       SELECT d.id, d.channel, d.purpose, d.status, d.provider_message_id, d.error, d.created_at,
-             gt.submission_type, gt.submission_id
+             gt.kind, gt.id
       FROM guest_thread_deliveries d
-      JOIN guest_thread_entries e ON e.id = d.entry_id
-      JOIN guest_threads gt ON gt.id = e.thread_id
+      JOIN activity_entries e ON e.id = d.entry_id
+      JOIN requests gt ON gt.id = e.request_id
       WHERE gt.organization_id = '${sqlEscape(orgId)}'
         AND gt.site_id = '${sqlEscape(siteId)}'
         AND d.purpose = 'owner_alert'
@@ -195,13 +195,13 @@ async function main() {
   while (Date.now() < cancelDeadline) {
     const rows = d1Query(`
       SELECT d.id, d.channel, d.purpose, d.status, d.provider_message_id, d.error, d.created_at,
-             gt.submission_type, gt.submission_id
+             gt.kind, gt.id
       FROM guest_thread_deliveries d
-      JOIN guest_thread_entries e ON e.id = d.entry_id
-      JOIN guest_threads gt ON gt.id = e.thread_id
+      JOIN activity_entries e ON e.id = d.entry_id
+      JOIN requests gt ON gt.id = e.request_id
       WHERE gt.organization_id = '${sqlEscape(orgId)}'
         AND gt.site_id = '${sqlEscape(siteId)}'
-        AND gt.submission_type = 'reservation'
+        AND gt.kind = 'reservation'
         AND d.purpose = 'owner_alert'
         AND d.created_at >= '${sqlEscape(cancelSince)}'
       ORDER BY d.created_at DESC
@@ -223,13 +223,13 @@ async function main() {
   if ((!cancelEmailRow && !cancelEmailQuotaBlocked) || !cancelWhatsappRow) {
     const rows = d1Query(`
       SELECT d.id, d.channel, d.purpose, d.status, d.provider_message_id, d.error, d.created_at,
-             gt.submission_type, gt.submission_id
+             gt.kind, gt.id
       FROM guest_thread_deliveries d
-      JOIN guest_thread_entries e ON e.id = d.entry_id
-      JOIN guest_threads gt ON gt.id = e.thread_id
+      JOIN activity_entries e ON e.id = d.entry_id
+      JOIN requests gt ON gt.id = e.request_id
       WHERE gt.organization_id = '${sqlEscape(orgId)}'
         AND gt.site_id = '${sqlEscape(siteId)}'
-        AND gt.submission_type = 'reservation'
+        AND gt.kind = 'reservation'
         AND d.purpose = 'owner_alert'
         AND d.created_at >= '${sqlEscape(cancelSince)}'
       ORDER BY d.created_at DESC

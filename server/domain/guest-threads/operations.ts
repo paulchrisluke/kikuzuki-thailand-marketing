@@ -231,8 +231,9 @@ function operationSubject(action: string, fromName: string): string {
 function operationBody(action: string, request: GuestRequest): string {
   if (request.kind === 'contact') throw new Error('Contact requests have no booking operations')
   const context = `${request.booking_date} at ${request.time_slot} for ${request.party_size}${request.payload.party_size_is_minimum ? '+' : ''} guests`
-  if (action === 'confirm') return `Your booking is confirmed: ${context}.`
-  if (action === 'cancel') return `Your booking for ${context} has been cancelled.`
+  const noun = request.kind === 'reservation' ? 'reservation' : 'booking'
+  if (action === 'confirm') return `Your ${noun} is confirmed: ${context}.`
+  if (action === 'cancel') return `Your ${noun} for ${context} has been cancelled.`
   return `Thanks for visiting us on ${request.booking_date}.`
 }
 

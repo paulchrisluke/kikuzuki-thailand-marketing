@@ -93,14 +93,14 @@ export default defineHandler(async (event) => {
       requestIsSubmittable, requestGuardParams, 'review request state changed during submission', ), batchAssertion(
       `EXISTS (
         SELECT 1 FROM requests
-        WHERE id = ?
+        WHERE id = ? AND kind = ?
           AND organization_id = ?
           AND site_id = ?
           AND customer_id = ?
           AND json_extract(payload_json, '$.review.submitted_at') IS NULL
           AND review_id IS NULL
       )`, [
-        result.request.booking_id, result.context.organization_id, result.context.site_id, result.request.customer_id, ], 'review booking state changed during submission', ), batchAssertion(
+        result.request.booking_id, result.request.booking_type, result.context.organization_id, result.context.site_id, result.request.customer_id, ], 'review booking state changed during submission', ), batchAssertion(
       `EXISTS (
         SELECT 1 FROM customers
         WHERE id = ?
@@ -148,13 +148,13 @@ export default defineHandler(async (event) => {
         now, userId, anonymousUserId, now, ...requestGuardParams, ], }, batchAssertion('changes() = 1', [], 'review request submission compare-and-set failed'), {
       query: `UPDATE requests
         SET payload_json = json_set(payload_json, '$.review.submitted_at', ?), review_id = ?, updated_at = ?
-        WHERE id = ?
+        WHERE id = ? AND kind = ?
           AND organization_id = ?
           AND site_id = ?
           AND customer_id = ?
           AND json_extract(payload_json, '$.review.submitted_at') IS NULL
           AND review_id IS NULL`, params: [
-        now, reviewId, now, result.request.booking_id, result.context.organization_id, result.context.site_id, result.request.customer_id, ], }, batchAssertion('changes() = 1', [], 'review booking submission compare-and-set failed'), {
+        now, reviewId, now, result.request.booking_id, result.request.booking_type, result.context.organization_id, result.context.site_id, result.request.customer_id, ], }, batchAssertion('changes() = 1', [], 'review booking submission compare-and-set failed'), {
       query: `UPDATE customers
         SET last_review_at = ?, user_id = COALESCE(user_id, ?), updated_at = ?
         WHERE id = ?

@@ -20,7 +20,7 @@ interface NotificationList {
 
 interface DeliveryView {
   id: string
-  thread_id: string
+  request_id: string
   entry_id: string
   purpose: string
   status: string
@@ -193,7 +193,7 @@ test('guest thread state stays source-owned, per-user, tenant-isolated, and idem
     })
     await expectStatus(deliveryResponse, 200)
     const deliveries = (await deliveryResponse.json() as DeliveryList).deliveries.filter(row =>
-      row.thread_id === threadId && row.purpose === 'member_reply',
+      row.request_id === threadId && row.purpose === 'member_reply',
     )
     expect(deliveries).toHaveLength(1)
     expect(deliveries[0]!.entry_id).toBe(replyEntries[0]!.id)
