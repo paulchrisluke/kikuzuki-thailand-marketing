@@ -6,8 +6,8 @@ import {
   RESOLVED_AGENT_GUIDANCE_SCHEMA,
 } from '~/server/utils/agent-skills/mcp-schema'
 import {
-  PUBLICATION_CONTENT_BLOCK_TYPES,
-  PUBLICATION_CONTENT_DOCUMENT_OWNER_TYPES,
+  CONTENT_BLOCK_TYPES,
+  CONTENT_DOCUMENT_KINDS,
 } from '~/shared/content-registries'
 
 export interface PlatformMcpToolDefinition {
@@ -30,8 +30,8 @@ const NULLABLE_NUMBER = { type: ['number', 'null'] }
 const ROBOTS_ENUM = ['index,follow', 'noindex,follow', 'index,nofollow', 'noindex,nofollow']
 const DOC_CATEGORY_ENUM = ['Getting Started', 'Menu Management', 'Theme Customization', 'SEO & Marketing', 'Integrations', 'Advanced']
 const DOC_DIFFICULTY_ENUM = ['Beginner', 'Intermediate', 'Advanced']
-const CONTENT_DOCUMENT_OWNER_TYPE_ENUM = [...PUBLICATION_CONTENT_DOCUMENT_OWNER_TYPES]
-const CONTENT_BLOCK_TYPE_ENUM = [...PUBLICATION_CONTENT_BLOCK_TYPES]
+const CONTENT_DOCUMENT_KIND_ENUM = CONTENT_DOCUMENT_KINDS.filter(kind => kind !== 'locale_catalog')
+const CONTENT_BLOCK_TYPE_ENUM = [...CONTENT_BLOCK_TYPES]
 const PAGINATION_INPUT_SCHEMA = {
   limit: { type: 'number', minimum: 1, maximum: 100, description: 'Page size. Defaults to 50; maximum 100.' },
   cursor: { type: 'string', description: 'Opaque next_cursor from the previous page.' },
@@ -155,26 +155,6 @@ const CONTENT_BLOCK_WRITE_RESULT_SCHEMA = {
 
 const CONTENT_DOCUMENT_LOOKUP_SCHEMA = {
   document_id: { type: 'string' },
-  owner_type: { type: 'string', enum: CONTENT_DOCUMENT_OWNER_TYPE_ENUM },
-  owner_id: { type: 'string' },
-}
-
-const CONTENT_DOCUMENT_LOOKUP_REQUIREMENT = {
-  oneOf: [
-    {
-      required: ['document_id'],
-      not: {
-        anyOf: [
-          { required: ['owner_type'] },
-          { required: ['owner_id'] },
-        ],
-      },
-    },
-    {
-      required: ['owner_type', 'owner_id'],
-      not: { required: ['document_id'] },
-    },
-  ],
 }
 
 const CONTENT_BLOCK_INPUT_PROPERTIES = {
@@ -250,8 +230,7 @@ const BLOG_SUMMARY_SCHEMA = {
 }
 
 // The MCP-facing contract for a platform blog post: content_blocks is the
-// only structured-content representation. updated_at and document_updated_at
-// are the exact concurrency tokens — no body, no components, no internal document/
+// only structured-content representation. updated_at is the concurrency token — no body, no components, no internal document/
 // revision ids. Used as the single `post` shape returned by every high-level
 // blog tool (get/create/update-metadata/replace-content/publish),
 // so callers see one vocabulary everywhere instead of a different shape per
@@ -279,7 +258,6 @@ const PLATFORM_BLOG_POST_PROJECTION_SCHEMA = {
     public_url: NULLABLE_STRING,
     preview_url: NULLABLE_STRING,
     content_blocks: { type: 'array', items: CONTENT_BLOCK_SCHEMA },
-    document_updated_at: { type: 'string' },
   },
   required: [
     'id', 'title', 'slug', 'status', 'visibility', 'excerpt', 'category',
@@ -287,7 +265,7 @@ const PLATFORM_BLOG_POST_PROJECTION_SCHEMA = {
     'published_at', 'scheduled_for', 'created_at', 'updated_at',
     'seo_title', 'seo_description', 'seo_keywords', 'canonical_url', 'robots',
     'media', 'admin_edit_url', 'public_path', 'public_url', 'preview_url',
-    'content_blocks', 'document_updated_at',
+    'content_blocks',
   ],
   additionalProperties: false,
 }
@@ -358,9 +336,8 @@ const DOC_RECORD_SCHEMA = {
   properties: {
     ...DOC_SUMMARY_SCHEMA.properties,
     content_blocks: { type: 'array', items: CONTENT_BLOCK_SCHEMA },
-    document_updated_at: { type: 'string' },
   },
-  required: [...DOC_SUMMARY_SCHEMA.required, 'content_blocks', 'document_updated_at'],
+  required: [...DOC_SUMMARY_SCHEMA.required, 'content_blocks'],
   additionalProperties: false,
 }
 
@@ -399,7 +376,7 @@ const PLATFORM_BLOG_TOOL_DESCRIPTION = [
   SHARED_TOOL_DESCRIPTION_LINES[0],
   'Use content_blocks[] as the only structured-content authoring shape — there is no separate body field and no separate structured-component array. Each block is { type, data, id?, level?, parent_block_id? } and blocks render in array order, so place a block at the exact index where it should appear on the page instead of embedding a placeholder tag in prose. Block types: heading, markdown, image, gallery, faq, how_to, ai_assistance, cta, callout.',
   'FAQ blocks (type: "faq") contain data.items[], each item { question: string, answer: string, position?: number }. How-To blocks (type: "how_to") contain data.steps[], each step { name: string, text: string, url?: string|null, position?: number } (name and text are both required strings; a missing name or text is the most common cause of a rejected update), and data may also include estimated_time, tool_items, and supply_items. AI Assistance blocks (type: "ai_assistance") contain data.prompts[], each prompt { prompt: string, title?: string|null, description?: string|null, copy_label?: string|null, position?: number }; each prompt is a writer-authored suggested prompt, not a generated answer. Keep AI Assistance prompts specific, actionable, page-aware, and rare enough to help the reader act.',
-  'On update: omitting content_blocks preserves the existing content exactly; sending a non-empty content_blocks array replaces the complete block set. expected_document_updated_at is required whenever content_blocks is sent.',
+  'On update: omitting content_blocks preserves the existing content exactly; sending a non-empty content_blocks array replaces the complete block set. expected_updated_at is required whenever content_blocks is sent.',
   SHARED_TOOL_DESCRIPTION_LINES[1],
   SHARED_TOOL_DESCRIPTION_LINES[2],
 ].join(' ')
@@ -407,7 +384,7 @@ const PLATFORM_BLOG_TOOL_DESCRIPTION = [
 const PLATFORM_DOC_TOOL_DESCRIPTION = [
   'Create or update a KrabiClaw platform documentation page with full SEO parity.',
   SHARED_TOOL_DESCRIPTION_LINES[0],
-  'Use content_blocks[] as the only content shape. Markdown, media, FAQ, How-To, and AI Assistance are blocks in their exact render order; there is no body or components authoring field. Call get_platform_doc first and preserve existing block ids. expected_document_updated_at is required when replacing blocks.',
+  'Use content_blocks[] as the only content shape. Markdown, media, FAQ, How-To, and AI Assistance are blocks in their exact render order; there is no body or components authoring field. Call get_platform_doc first and preserve existing block ids. expected_updated_at is required when replacing blocks.',
   SHARED_TOOL_DESCRIPTION_LINES[1],
   SHARED_TOOL_DESCRIPTION_LINES[2],
 ].join(' ')
@@ -721,7 +698,7 @@ export const PLATFORM_PUBLIC_MCP_TOOLS: PlatformMcpToolDefinition[] = [
   }),
   readTool({
     name: 'get_platform_blog_post',
-    description: 'Fetch one platform blog post with its canonical content_blocks, resolved media fields, and exact updated_at plus document_updated_at concurrency tokens. For tenant sites, provide site_id to fetch site-scoped blog posts.',
+    description: 'Fetch one platform blog post with its canonical content_blocks, resolved media fields, and exact updated_at concurrency token. For tenant sites, provide site_id to fetch site-scoped blog posts.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -790,10 +767,10 @@ export const PLATFORM_PUBLIC_MCP_TOOLS: PlatformMcpToolDefinition[] = [
       properties: {
         post_id: { type: 'string', description: 'Post id or slug.' },
         content_blocks: { type: 'array', description: 'Canonical ordered article blocks, replacing the complete block set.', items: { type: 'object', properties: CONTENT_BLOCK_INPUT_PROPERTIES, required: ['type', 'data'], additionalProperties: false }, minItems: 1 },
-        expected_document_updated_at: { type: 'string', description: 'Concurrency token from the post\'s document_updated_at (get_platform_blog_post). A stale token is rejected with a conflict.' },
+        expected_updated_at: { type: 'string', description: 'Concurrency token from the post\'s updated_at (get_platform_blog_post). A stale token is rejected with a conflict.' },
         site_id: { type: 'string', description: 'Optional site id to update tenant blog posts instead of platform posts.' },
       },
-      required: ['post_id', 'content_blocks', 'expected_document_updated_at'],
+      required: ['post_id', 'content_blocks', 'expected_updated_at'],
       additionalProperties: false,
     },
     outputSchema: PLATFORM_BLOG_POST_RESPONSE_SCHEMA,
@@ -807,11 +784,10 @@ export const PLATFORM_PUBLIC_MCP_TOOLS: PlatformMcpToolDefinition[] = [
       properties: {
         post_id: { type: 'string', description: 'Post id or slug.' },
         expected_updated_at: { type: 'string', description: 'Exact post.updated_at token from the latest successful get_platform_blog_post or blog mutation.' },
-        expected_document_updated_at: { type: 'string', description: 'Exact post.document_updated_at token from the latest successful get_platform_blog_post or blog mutation.' },
         scheduled_for: { type: ['string', 'null'], description: 'Optional future ISO 8601 datetime with timezone. Omit or pass null to publish immediately.' },
         site_id: { type: 'string', description: 'Optional site id for a tenant blog post.' },
       },
-      required: ['post_id', 'expected_updated_at', 'expected_document_updated_at'],
+      required: ['post_id', 'expected_updated_at'],
       additionalProperties: false,
     },
     outputSchema: PLATFORM_BLOG_POST_RESPONSE_SCHEMA,
@@ -933,7 +909,7 @@ export const PLATFORM_PUBLIC_MCP_TOOLS: PlatformMcpToolDefinition[] = [
         doc_id: { type: 'string', description: 'Doc id or slug.' },
         title: { type: 'string' },
         content_blocks: { type: 'array', minItems: 1, items: { type: 'object', properties: CONTENT_BLOCK_INPUT_PROPERTIES, required: ['type', 'data'], additionalProperties: false } },
-        expected_document_updated_at: { type: 'string' },
+        expected_updated_at: { type: 'string' },
         excerpt: { type: 'string' },
         category: { type: 'string', enum: DOC_CATEGORY_ENUM },
         ...NAV_FIELDS_SCHEMA,
@@ -1016,11 +992,11 @@ export const PLATFORM_PUBLIC_MCP_TOOLS: PlatformMcpToolDefinition[] = [
 export const PLATFORM_INTERNAL_MCP_TOOLS: PlatformMcpToolDefinition[] = [
   readTool({
     name: 'get_content_document_outline',
-    description: 'Get the block outline for a platform_blog or tenant_blog content document. Provide either document_id, or owner_type plus owner_id. Use get_platform_doc to read a platform document.',
+    description: 'Get the block outline for a content document by document_id. Use get_platform_doc for documentation metadata and blocks.',
     inputSchema: {
       type: 'object',
       properties: CONTENT_DOCUMENT_LOOKUP_SCHEMA,
-      ...CONTENT_DOCUMENT_LOOKUP_REQUIREMENT,
+      required: ['document_id'],
       additionalProperties: false,
     },
     outputSchema: {
@@ -1030,11 +1006,15 @@ export const PLATFORM_INTERNAL_MCP_TOOLS: PlatformMcpToolDefinition[] = [
           type: 'object',
           properties: {
             id: { type: 'string' },
-            owner_type: { type: 'string', enum: CONTENT_DOCUMENT_OWNER_TYPE_ENUM },
-            owner_id: { type: 'string' },
+            organization_id: { type: 'string' },
+            site_id: { type: 'string' },
+            kind: { type: 'string', enum: CONTENT_DOCUMENT_KIND_ENUM },
+            row_role: { type: 'string', enum: ['root', 'representation'] },
+            root_id: NULLABLE_STRING,
+            locale: { type: 'string' },
             updated_at: { type: 'string' },
           },
-          required: ['id', 'owner_type', 'owner_id', 'updated_at'],
+          required: ['id', 'organization_id', 'site_id', 'kind', 'row_role', 'root_id', 'locale', 'updated_at'],
           additionalProperties: false,
         },
         blocks: { type: 'array', items: CONTENT_BLOCK_SCHEMA },
@@ -1071,7 +1051,7 @@ export const PLATFORM_INTERNAL_MCP_TOOLS: PlatformMcpToolDefinition[] = [
   }),
   writeTool({
     name: 'append_content_block',
-    description: 'Append a block to a content document. Provide either document_id, or owner_type plus owner_id; after_block_id inserts after a specific block.',
+    description: 'Append a block to a content document. Provide document_id; after_block_id inserts after a specific block.',
     openWorld: true,
     inputSchema: {
       type: 'object',
@@ -1080,8 +1060,7 @@ export const PLATFORM_INTERNAL_MCP_TOOLS: PlatformMcpToolDefinition[] = [
         after_block_id: NULLABLE_STRING,
         ...CONTENT_BLOCK_INPUT_PROPERTIES,
       },
-      required: ['type', 'data'],
-      ...CONTENT_DOCUMENT_LOOKUP_REQUIREMENT,
+      required: ['document_id', 'type', 'data'],
       additionalProperties: false,
     },
     outputSchema: CONTENT_BLOCK_WRITE_RESULT_SCHEMA,
@@ -1124,7 +1103,7 @@ export const PLATFORM_INTERNAL_MCP_TOOLS: PlatformMcpToolDefinition[] = [
     inputSchema: {
       type: 'object',
       properties: CONTENT_DOCUMENT_LOOKUP_SCHEMA,
-      ...CONTENT_DOCUMENT_LOOKUP_REQUIREMENT,
+      required: ['document_id'],
       additionalProperties: false,
     },
     outputSchema: {

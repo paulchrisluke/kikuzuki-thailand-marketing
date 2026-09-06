@@ -1,5 +1,4 @@
-// Mirrors the fixed category set for platform_blog_posts. Single source of
-// truth for blog category <-> slug conversion across routing, nav, sitemap,
+// Single source of truth for blog category <-> slug conversion across routing, nav, sitemap,
 // and admin editing surfaces.
 export const BLOG_CATEGORY_SLUGS: Record<string, string> = {
   Marketing: 'marketing',

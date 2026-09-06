@@ -74,7 +74,7 @@ test.describe('stateless MCP server', () => {
       const placement = await mcpRequest(request, baseURL!, {
         method: 'tools/call',
         toolName: 'set_media',
-        args: { site_id: siteId, placement: { owner_type: 'post', owner_id: created.id, slot: 'cover' }, asset_id: imageAssetId },
+        args: { site_id: siteId, placement: { owner_type: 'content_document', owner_id: created.id, slot: 'cover' }, asset_id: imageAssetId },
       })
       if (placement.status() !== 200) console.error(await placement.text())
       expect(placement.status()).toBe(200)
@@ -202,9 +202,9 @@ test.describe('stateless MCP server', () => {
       if (create.status() !== 200) console.error(await create.text())
       expect(create.status()).toBe(200)
       const createBody = await create.json()
-      const created = mcpData<{ post: { id: string; document_updated_at: string; content_blocks: Array<{ type: string }> } }>(createBody).post
+      const created = mcpData<{ post: { id: string; updated_at: string; content_blocks: Array<{ type: string }> } }>(createBody).post
       postId = created.id
-      expect(created.document_updated_at).toEqual(expect.any(String))
+      expect(created.updated_at).toEqual(expect.any(String))
       expect(created.content_blocks.map(block => block.type)).toEqual(['heading', 'markdown'])
 
       const get = await mcpRequest(request, baseURL!, {
@@ -212,8 +212,8 @@ test.describe('stateless MCP server', () => {
         args: { site_id: siteId, post_id: postId },
       })
       expect(get.status()).toBe(200)
-      const readPost = mcpData<{ post: Record<string, unknown> & { document_updated_at: string; content_blocks: Array<{ type: string }> } }>(await get.json()).post
-      expect(readPost.document_updated_at).toEqual(created.document_updated_at)
+      const readPost = mcpData<{ post: Record<string, unknown> & { updated_at: string; content_blocks: Array<{ type: string }> } }>(await get.json()).post
+      expect(readPost.updated_at).toEqual(created.updated_at)
       expect(readPost.content_blocks.map(block => block.type)).toEqual(['heading', 'markdown'])
       expect(readPost).not.toHaveProperty('body')
       expect(readPost).not.toHaveProperty('components')
@@ -224,7 +224,7 @@ test.describe('stateless MCP server', () => {
         args: {
           site_id: siteId,
           post_id: postId,
-          expected_document_updated_at: readPost.document_updated_at,
+          expected_updated_at: readPost.updated_at,
           content_blocks: [
             { type: 'heading', level: 2, data: { text: 'Edited through MCP' } },
             { type: 'markdown', data: { markdown: 'Still one shared **document**.', editor_mode: 'rich' } },
@@ -233,9 +233,9 @@ test.describe('stateless MCP server', () => {
         },
       })
       expect(update.status()).toBe(200)
-      const updatedPost = mcpData<{ post: { updated_at: string; document_updated_at: string; content_blocks: Array<{ type: string }> } }>(await update.json()).post
-      expect(updatedPost.document_updated_at).toEqual(expect.any(String))
-      expect(updatedPost.document_updated_at).not.toBe(readPost.document_updated_at)
+      const updatedPost = mcpData<{ post: { updated_at: string; content_blocks: Array<{ type: string }> } }>(await update.json()).post
+      expect(updatedPost.updated_at).toEqual(expect.any(String))
+      expect(updatedPost.updated_at).not.toBe(readPost.updated_at)
 
       const updatedRead = await mcpRequest(request, baseURL!, {
         method: 'tools/call', toolName: 'get_blog_post', args: { site_id: siteId, post_id: postId },
@@ -261,7 +261,7 @@ test.describe('stateless MCP server', () => {
         args: {
           site_id: siteId,
           post_id: postId,
-          expected_document_updated_at: readPost.document_updated_at,
+          expected_updated_at: readPost.updated_at,
           body: 'This should never be persisted.',
         },
       })
