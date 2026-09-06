@@ -69,7 +69,7 @@
                 </UCard>
               </NuxtLink>
 
-              <EditorNavigationList :groups="contentGroups" />
+              <EditorNavigationList :groups="contentGroups" variant="cards" />
             </div>
           </div>
         </UPageBody>
