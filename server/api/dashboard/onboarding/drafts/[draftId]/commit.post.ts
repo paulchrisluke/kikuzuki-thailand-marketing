@@ -7,7 +7,7 @@ import { planProductCategories } from '~/server/utils/product-management'
 import { updateLocation } from '~/server/utils/location-management'
 import { getDraftMedia, parseOnboardingDraftPayload } from '~/server/utils/onboarding-drafts'
 import { runSiteCreation } from '~/server/utils/site-creation'
-import { refreshSocialCard } from '~/server/utils/social-card'
+import { regenerateSiteSocialCards } from '~/server/utils/social-card'
 import { purgePublicResourceCacheSafe } from '~/server/utils/public-resource-cache'
 import { createMediaAsset, insertInitialMediaPlacements } from '~/server/utils/media-asset-manager'
 import { resolveUserOrganization } from '~/server/utils/member-access'
@@ -299,11 +299,15 @@ export default defineHandler(async (event) => {
     }
     draftCommitted = true
 
-    // The homepage and its media are now committed: generate the site card once
-    // so its first real card uses the homepage hero when available. This is a
-    // single site-owner refresh, not a whole-site regeneration.
+    // Everything the draft created is committed, so generate cards for all of
+    // it — not just the site. A commit writes locations, products and posts
+    // directly, which never passes through the media-placement path that
+    // refreshes a card on change, so those owners would otherwise have no card
+    // at all and every page would ship without an og:image.
     try {
-      await refreshSocialCard({ db, env, owner: { owner_type: 'site', owner_id: siteId }, actorId: session.user.id })
+      const results = await regenerateSiteSocialCards({ db, env, siteId, actorId: session.user.id })
+      const failed = results.filter(result => result.kind === 'failed')
+      if (failed.length) console.error('commit_post_site_cards_partial', { siteId, failed: failed.length, total: results.length })
     } catch (cardError) {
       console.error('commit_post_site_card_failed', { siteId, error: cardError instanceof Error ? { name: cardError.name, message: cardError.message } : String(cardError) })
     }
