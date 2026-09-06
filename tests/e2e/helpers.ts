@@ -78,7 +78,7 @@ export async function openTenantPage(page: Page, url: string, headers: Record<st
   }
   const report = (event: string) => console.log('[e2e-navigation]', JSON.stringify({
     event, stage, path: new URL(url).pathname, hostname, durationMs: Date.now() - started,
-    remainingTestMs: Math.max(0, test.info().timeout - (Date.now() - test.info().startTime.getTime())),
+    testTimeoutMs: test.info().timeout,
     documentResponse,
     pending: [...pending].map(request => {
       const resource = new URL(request.url())
