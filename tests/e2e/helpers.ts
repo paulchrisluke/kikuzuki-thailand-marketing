@@ -1,4 +1,4 @@
-import { expect, type Page } from '@playwright/test'
+import { expect, test, type Page, type Request, type Response } from '@playwright/test'
 import { blawbyTestBaseUrl, blawbyTestExtraHeaders, tenantTestBaseUrl, potteryHouseTestBaseUrl, tenantTestExtraHeaders, potteryHouseTestExtraHeaders } from './test-env'
 
 export const tenantBaseURL = tenantTestBaseUrl()
@@ -64,26 +64,65 @@ export async function openTenantPage(page: Page, url: string, headers: Record<st
     })
   }
 
-  const response = await page.goto(url, { waitUntil: 'load' })
-  if (usesZarazConsent) {
-    await page.waitForFunction(() => {
-      const consent = (window as Window & { zaraz?: { consent?: ZarazConsentApi } }).zaraz?.consent
-      return consent?.APIReady === true
-    })
-    const alreadyAccepted = await page.evaluate(() => {
-      const consent = (window as Window & { zaraz?: { consent?: ZarazConsentApi } }).zaraz?.consent
-      if (!consent?.APIReady) return false
-      const choices = Object.values(consent.getAll())
-      return choices.length > 0 && choices.every(Boolean)
-    })
-    if (!alreadyAccepted) {
-      const consentModal = page.getByRole('dialog', { name: 'Cookie Settings' })
-      await consentModal.getByRole('button', { name: 'Accept All' }).click()
-      await expect(consentModal).toBeHidden()
+  const started = Date.now()
+  const pending = new Set<Request>()
+  let stage = 'navigation'
+  let documentResponse: Record<string, unknown> | null = null
+  const onRequest = (request: Request) => pending.add(request)
+  const onFinished = (request: Request) => pending.delete(request)
+  const onResponse = (response: Response) => {
+    if (response.request().isNavigationRequest() && response.frame() === page.mainFrame()) {
+      const headers = response.headers()
+      documentResponse = { status: response.status(), requestId: headers['x-request-id'], rayId: headers['cf-ray'] }
     }
   }
+  const report = (event: string) => console.log('[e2e-navigation]', JSON.stringify({
+    event, stage, path: new URL(url).pathname, hostname, durationMs: Date.now() - started,
+    remainingTestMs: Math.max(0, test.info().timeout - (Date.now() - test.info().startTime.getTime())),
+    documentResponse,
+    pending: [...pending].map(request => {
+      const resource = new URL(request.url())
+      return { origin: resource.origin, path: resource.pathname, type: request.resourceType() }
+    }),
+  }))
+  page.on('request', onRequest)
+  page.on('requestfinished', onFinished)
+  page.on('requestfailed', onFinished)
+  page.on('response', onResponse)
+  report('started')
+  try {
+    const response = await page.goto(url, { waitUntil: 'load' })
+    stage = 'consent'
+    report('loaded')
+    if (usesZarazConsent) {
+      await page.waitForFunction(() => {
+        const consent = (window as Window & { zaraz?: { consent?: ZarazConsentApi } }).zaraz?.consent
+        return consent?.APIReady === true
+      })
+      const alreadyAccepted = await page.evaluate(() => {
+        const consent = (window as Window & { zaraz?: { consent?: ZarazConsentApi } }).zaraz?.consent
+        if (!consent?.APIReady) return false
+        const choices = Object.values(consent.getAll())
+        return choices.length > 0 && choices.every(Boolean)
+      })
+      if (!alreadyAccepted) {
+        const consentModal = page.getByRole('dialog', { name: 'Cookie Settings' })
+        await consentModal.getByRole('button', { name: 'Accept All' }).click()
+        await expect(consentModal).toBeHidden()
+      }
+    }
 
-  return response
+    report('finished')
+    return response
+  } catch (error) {
+    report('failed')
+    throw error
+  } finally {
+    page.off('request', onRequest)
+    page.off('requestfinished', onFinished)
+    page.off('requestfailed', onFinished)
+    page.off('response', onResponse)
+  }
 }
 
 export function collectPageErrors(page: Page, options: { failOnAllWarnings?: boolean } = {}) {
