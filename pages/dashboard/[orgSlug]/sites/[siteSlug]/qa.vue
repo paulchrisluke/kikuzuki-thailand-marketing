@@ -1,56 +1,49 @@
 <template>
-  <UDashboardPanel id="site-qa">
-    <template #header>
-      <UDashboardNavbar title="Site" :toggle="false">
-        <template #leading>
-          <DashboardNavbarLeading v-if="sitePaths" :to="sitePaths.site" label="Site" />
-        </template>
-        <template #trailing>
-          <USelect v-model="selectedPagePath" :items="pageScopes" class="w-48" aria-label="Q&A page scope" />
-        </template>
-      </UDashboardNavbar>
-    </template>
+  <div class="space-y-6">
+    <!-- Which page these questions belong to. It was in the navbar, which the
+         shell now owns, so it sits with the section it filters. -->
+    <div class="flex justify-end">
+      <USelect v-model="selectedPagePath" :items="pageScopes" class="w-48" aria-label="Q&A page scope" />
+    </div>
 
-    <template #body>
-      <DashboardListEditor
-        v-model:editing="editing"
-        title="Q&A"
-        description="Manage general questions or questions tailored to a public page."
-        :items="listItems"
-        :pending="pending"
-        :error="qaError ? getErrorMessage(qaError, 'Q&A request failed') : null"
-        empty-title="No site Q&A yet"
-        empty-icon="i-lucide-circle-help"
-        add-label="Add a question"
-        reorderable
-        :removing-id="removingId"
-        @add="openNew"
-        @open="openExisting"
-        @remove="removeItem"
-        @move="move"
-      >
-        <template #item="{ item }">
-          <p class="text-sm font-medium text-highlighted">{{ item.title }}</p>
-          <p class="mt-1 line-clamp-2 text-sm text-muted">{{ item.summary }}</p>
-        </template>
-      </DashboardListEditor>
-
-      <DashboardListItemDialog
-        v-model:open="dialogOpen"
-        :title="editingId ? 'Edit question' : 'Add a question'"
-        :removable="Boolean(editingId)"
-        :saving="saving"
-        :removing="removingId === editingId"
-        :save-disabled="!form.question.trim()"
-        @save="save"
-        @remove="removeEditing"
-      >
-        <UFormField label="Question"><UTextarea v-model="form.question" :rows="3" autofocus class="w-full" /></UFormField>
-        <UFormField label="Answer"><UTextarea v-model="form.answer" :rows="6" class="w-full" /></UFormField>
-        <UCheckbox v-model="form.published" label="Published" />
-      </DashboardListItemDialog>
+  <DashboardListEditor
+    v-model:editing="editing"
+    title="Q&A"
+    description="Manage general questions or questions tailored to a public page."
+    :items="listItems"
+    :pending="pending"
+    :error="qaError ? getErrorMessage(qaError, 'Q&A request failed') : null"
+    empty-title="No site Q&A yet"
+    empty-icon="i-lucide-circle-help"
+    add-label="Add a question"
+    reorderable
+    :removing-id="removingId"
+    @add="openNew"
+    @open="openExisting"
+    @remove="removeItem"
+    @move="move"
+  >
+    <template #item="{ item }">
+      <p class="text-sm font-medium text-highlighted">{{ item.title }}</p>
+      <p class="mt-1 line-clamp-2 text-sm text-muted">{{ item.summary }}</p>
     </template>
-  </UDashboardPanel>
+  </DashboardListEditor>
+
+  <DashboardListItemDialog
+    v-model:open="dialogOpen"
+    :title="editingId ? 'Edit question' : 'Add a question'"
+    :removable="Boolean(editingId)"
+    :saving="saving"
+    :removing="removingId === editingId"
+    :save-disabled="!form.question.trim()"
+    @save="save"
+    @remove="removeEditing"
+  >
+    <UFormField label="Question"><UTextarea v-model="form.question" :rows="3" autofocus class="w-full" /></UFormField>
+    <UFormField label="Answer"><UTextarea v-model="form.answer" :rows="6" class="w-full" /></UFormField>
+    <UCheckbox v-model="form.published" label="Published" />
+  </DashboardListItemDialog>
+  </div>
 </template>
 
 <script setup lang="ts">
@@ -60,7 +53,6 @@ import { getErrorMessage } from '~/utils/errors'
 const dashboardApi = useDashboardApi()
 definePageMeta({ layout: 'dashboard', cmsCapabilityKey: 'site.qa' })
 
-const { sitePaths } = useDashboardSiteLinks()
 useSeoMeta({ title: 'Site Q&A | KrabiClaw Dashboard', robots: 'noindex, nofollow' })
 
 interface QaRow {
