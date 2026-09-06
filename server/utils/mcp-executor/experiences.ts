@@ -1,6 +1,7 @@
+import { executeGuestThreadOperation } from '~/server/domain/guest-threads/operations'
 import { getGuestRequest } from '~/server/domain/requests'
 import type { McpExecutorContext } from './shared'
-import { createExperience, deleteExperience, getExperienceBookingsSummary, getExperienceById, listExperienceBookings, listExperienceBookingsForSite, listExperiences, updateBookingStatus, updateExperience, type CreateExperienceInput, type UpdateExperienceInput } from '~/server/utils/experiences'
+import { createExperience, deleteExperience, getExperienceBookingsSummary, getExperienceById, listExperienceBookings, listExperienceBookingsForSite, listExperiences, updateExperience, type CreateExperienceInput, type UpdateExperienceInput } from '~/server/utils/experiences'
 import { renderStructuredResponse } from '~/server/utils/mcp-render'
 import { paginateMcpCollection } from '~/server/utils/mcp-pagination'
 import { attachViewUrlToRecord, NOT_HANDLED, expandSlotGeneratorArgs, mutationContextPayload, omit, optionalDaysWindow, optionalString, requiredString } from './shared'
@@ -138,22 +139,20 @@ export async function handleExperiencesTools(ctx: McpExecutorContext): Promise<u
     }
     case "update_experience_booking": {
       const bookingId = requiredString(args, "booking_id")
-      const status = requiredString(args, "status") as "pending" | "confirmed" | "cancelled"
-      const updated = await updateBookingStatus(
-        site.db,
-        site.siteId,
-        requiredString(args, "experience_id"),
-        bookingId,
-        status,
-      )
-      if (updated) {
-        const thread = await getGuestRequest(site.db, bookingId, undefined, 'experience_booking')
-        if (thread) {
-          await publishGuestInboxThreadEvent(site.env, site.db, { threadId: thread.id, type: 'thread.changed' })
-        }
-      }
+      const status = requiredString(args, 'status')
+      const experience = await getExperienceById(site.db, site.siteId, requiredString(args, 'experience_id'))
+      const request = await getGuestRequest(site.db, bookingId, site.siteId, 'experience_booking')
+      if (!experience || !request || request.product_id !== experience.id) throw new Error('Booking not found')
+      const action = status === 'confirmed' ? 'confirm' : status === 'cancelled' ? 'cancel' : status === 'completed' ? 'complete' : null
+      if (!action) throw new Error('Status must be confirmed, cancelled, or completed')
+      const outcome = await executeGuestThreadOperation(site.db, { threadId: bookingId, siteId: site.siteId, action, actorUserId: site.userId, env: site.env,
+        idempotencyKey: `mcp:experience-booking:${bookingId}:${request.status}:${request.updated_at}:${action}` })
+      if (!outcome.ok) throw new Error('message' in outcome ? outcome.message : outcome.reason)
+      await publishGuestInboxThreadEvent(site.env, site.db, { threadId: bookingId, type: 'thread.changed' })
+      const [booking] = await listExperienceBookings(site.db, site.siteId, experience.id, { bookingId })
+      if (!booking) throw new Error('Updated booking no longer exists')
       return {
-        booking: updated,
+        booking,
         context: await mutationContextPayload(site),
       };
     }

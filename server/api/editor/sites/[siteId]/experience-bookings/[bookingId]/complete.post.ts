@@ -1,8 +1,7 @@
-import { getGuestRequest } from '~/server/domain/requests'
 import { cloudflareEnv, jsonResponse } from '~/server/utils/api-response'
 import { getAuthSession } from '~/server/utils/auth'
 import { queryFirst } from '~/server/db'
-import { markBookingCompleted } from '~/server/utils/review-requests'
+import { executeGuestThreadOperation } from '~/server/domain/guest-threads/operations'
 import { assertResourceAccess } from '~/server/utils/member-access'
 import { loadMemberSiteRow } from '~/server/utils/location-access'
 import { publishGuestInboxThreadEvent } from '~/server/cloudflare/guest-inbox-events'
@@ -33,12 +32,9 @@ export default defineHandler(async (event) => {
     env,
     memberId: site.member_id, role: site.member_role, organizationId: site.organization_id, siteId, resourceLocationId: booking.location_id, })
 
-  const completed = await markBookingCompleted(db, 'experience_booking', bookingId, 'manual')
-  if (!completed) return jsonResponse({ error: 'Only confirmed bookings can be completed' }, { status: 400 })
-  const thread = await getGuestRequest(db, bookingId, undefined, 'experience_booking')
-  if (thread) {
-    await publishGuestInboxThreadEvent(env, db, { threadId: thread.id, type: 'thread.changed' })
-  }
+  const outcome = await executeGuestThreadOperation(db, { threadId: bookingId, siteId, action: 'complete', actorUserId: session.user.id, env, idempotencyKey: `manual-complete:${bookingId}` })
+  if (!outcome.ok) return jsonResponse({ error: 'message' in outcome ? outcome.message : outcome.reason }, { status: outcome.status })
+  await publishGuestInboxThreadEvent(env, db, { threadId: bookingId, type: 'thread.changed' })
 
   return jsonResponse({ completed: true, booking_id: bookingId })
 })

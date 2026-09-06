@@ -5,9 +5,8 @@ import {
   setOrgWhatsAppPhone,
 } from "~/server/utils/whatsapp";
 import type { CloudflareEnv } from "~/server/utils/auth";
-import { execute, queryAll, queryFirst, type DbClient } from "~/server/db";
+import { execute, queryAll, queryFirst } from "~/server/db";
 import { d1JsonStringSet } from '~/server/db/d1-limits'
-import { revokeReviewRequestForBooking } from "~/server/utils/review-requests";
 import { reorderQa, updateQa } from "~/server/utils/location-qa";
 import { listUserOrganizations, resolveOrganizationMembership } from '~/server/utils/member-access'
 
@@ -242,47 +241,6 @@ export async function getReservationSubmissionsByStatus(
     byStatus[row.status] = row.count
   }
   return byStatus
-}
-
-export async function updateReservationSubmissionStatus(
-  db: DbClient,
-  siteId: string,
-  submissionId: string,
-  status: string,
-  opts: { locationId?: string | null } = {},
-) {
-  if (!["pending", "confirmed", "cancelled", "completed"].includes(status)) {
-    throw new Error("Invalid reservation submission status");
-  }
-
-  const now = new Date().toISOString()
-  const params = [status, now]
-  const sets = [`status = ?`, `updated_at = ?`]
-  if (status === 'completed') {
-    sets.push(`payload_json = json_set(payload_json, '$.completion.at', COALESCE(json_extract(payload_json, '$.completion.at'), ?), '$.completion.source', COALESCE(json_extract(payload_json, '$.completion.source'), 'manual'))`)
-    params.push(now)
-  }
-  params.push(submissionId, siteId)
-  let where = `kind = 'reservation' AND id = ? AND site_id = ?`
-  if (opts.locationId) {
-    where += ` AND location_id = ?`
-    params.push(opts.locationId)
-  }
-  const result = await execute(db, `
-    UPDATE requests
-    SET ${sets.join(', ')}
-    WHERE ${where}
-  `, params);
-
-  if (!result.meta.changes) throw new Error("Reservation not found");
-  if (status === 'cancelled') {
-    await revokeReviewRequestForBooking(db, 'reservation', submissionId)
-  }
-  return {
-    updated: true,
-    submission_id: submissionId,
-    status,
-  };
 }
 
 export async function updateLocationQa(

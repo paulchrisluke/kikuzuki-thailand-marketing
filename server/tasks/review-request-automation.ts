@@ -1,7 +1,8 @@
 import type { D1Database } from '@cloudflare/workers-types'
 import { queryAll } from '~/server/db'
 import { resolveLocationTimezone } from '~/server/utils/site-config'
-import { markBookingCompleted, type ReviewBookingType } from '~/server/utils/review-requests'
+import type { ReviewBookingType } from '~/server/utils/review-requests'
+import { executeGuestThreadOperation } from '~/server/domain/guest-threads/operations'
 import { sendReviewRequestForBooking } from '~/server/utils/review-request-delivery'
 import { defineScheduledTask } from '~/server/utils/scheduled-task'
 import { collectScheduledPaidRows } from '~/server/utils/scheduled-billing-access'
@@ -84,10 +85,13 @@ async function autoCompleteBookings(db: D1Database, env: ApiRecord, kind: Review
   for (const row of rows) {
     const timezone = await resolveLocationTimezone(db, row.organization_id, row.site_id, row.location_id)
     const duration = kind === 'reservation' ? 180 : row.duration_minutes ?? 360
-    if (nowComparableMs(timezone) >= localComparableMs(row.booking_date, row.time_slot) + duration * 60_000
-      && await markBookingCompleted(db, kind, row.id, 'auto')) {
+    if (nowComparableMs(timezone) < localComparableMs(row.booking_date, row.time_slot) + duration * 60_000) continue
+    const outcome = await executeGuestThreadOperation(db, { threadId: row.id, siteId: row.site_id, action: 'complete', actorUserId: null, completionSource: 'auto', env, idempotencyKey: `auto-complete:${row.id}` })
+    if (outcome.ok) {
       completed += 1
       await publishGuestInboxThreadEvent(env, db, { threadId: row.id, type: 'thread.changed' })
+    } else if (outcome.status !== 409) {
+      throw new Error(`Automatic completion failed: ${outcome.reason}`)
     }
   }
   return completed

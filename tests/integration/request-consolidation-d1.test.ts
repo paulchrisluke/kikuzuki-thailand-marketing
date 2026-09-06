@@ -4,7 +4,7 @@ import { generateSQLiteDrizzleJson, generateSQLiteMigration } from 'drizzle-kit/
 import { Miniflare } from 'miniflare'
 import * as schema from '../../server/db/schema.ts'
 import { readAvailability, executeAvailabilityClaim, setAvailability } from '../../server/utils/availability.ts'
-import { bookingPayloadForGuest, requestInsertQueries, cancelBookingRequest } from '../../server/domain/requests.ts'
+import { bookingPayloadForGuest, requestInsertQueries, cancelBookingRequest, getGuestRequest } from '../../server/domain/requests.ts'
 
 import { executeGuestThreadOperation } from '../../server/domain/guest-threads/operations.ts'
 import { createExperience, updateExperience } from '../../server/utils/experiences.ts'
@@ -72,6 +72,9 @@ test('canonical requests claim one seat and update independent owner slots atomi
     const policy = await resolveBookingPolicy(db, { siteId: 'site-proof', policyType: 'experience', locationId: 'location-proof', experienceId: experience.id })
     assert.equal(policy.reschedule_allowed, false)
     assert.equal(policy.minimum_guest_age, 18)
+    await db.prepare("INSERT INTO customers (id,organization_id,site_id,source) VALUES ('customer-proof','org-proof','site-proof','manual')").run()
+    await assert.rejects(() => db.prepare("INSERT INTO review_requests (id,organization_id,site_id,customer_id,booking_type,booking_id,token_hash,expires_at) VALUES ('wrong-review','org-proof','site-proof','customer-proof','experience_booking',?,'wrong-token','2099-01-01T00:00:00Z')").bind(winner).run(), /FOREIGN KEY constraint/)
+    await db.prepare("INSERT INTO review_requests (id,organization_id,site_id,customer_id,booking_type,booking_id,token_hash,expires_at) VALUES ('valid-review','org-proof','site-proof','customer-proof','reservation',?,'valid-token','2099-01-01T00:00:00Z')").bind(winner).run()
     const now = new Date().toISOString()
     const bookingWrites = requestInsertQueries({ id: 'experience-booking-proof', kind: 'experience_booking', organization_id: 'org-proof', site_id: 'site-proof', location_id: 'location-proof', product_id: experience.id, customer_id: null, review_id: null, status: 'confirmed', booking_date: date, time_slot: '18:30', party_size: 1, conversation_state: 'needs_attention', resolved_at: null, payload: bookingPayloadForGuest({ name: 'Guest', email: 'guest@proof.example' }), created_at: now, updated_at: now })
     await db.batch(bookingWrites.map(write => db.prepare(write.query).bind(...write.params)))
@@ -80,6 +83,13 @@ test('canonical requests claim one seat and update independent owner slots atomi
     assert.equal((await executeGuestThreadOperation(db, operation)).ok, true)
     assert.equal(await db.prepare("SELECT status FROM requests WHERE id='experience-booking-proof'").first('status'), 'completed')
     assert.equal(await db.prepare("SELECT count(*) FROM activity_entries WHERE request_id='experience-booking-proof' AND kind='operation'").first('count(*)'), 1)
+    const completedBooking = await getGuestRequest(db, 'experience-booking-proof')
+    assert.ok(completedBooking && completedBooking.kind === 'experience_booking')
+    const autoWrites = requestInsertQueries({ ...completedBooking, id: 'automatic-booking', status: 'confirmed', payload: { ...completedBooking.payload, completion: { at: null, source: null } } })
+    await db.batch(autoWrites.map(write => db.prepare(write.query).bind(...write.params)))
+    assert.equal((await executeGuestThreadOperation(db, { threadId: 'automatic-booking', siteId: 'site-proof', action: 'complete', actorUserId: null, completionSource: 'auto', idempotencyKey: 'auto-proof', env: {} })).ok, true)
+    assert.equal(await db.prepare("SELECT json_extract(payload_json,'$.completion.source') AS source FROM requests WHERE id='automatic-booking'").first('source'), 'auto')
+    assert.equal(await db.prepare("SELECT actor_kind FROM activity_entries WHERE request_id='automatic-booking' AND kind='operation'").first('actor_kind'), 'system')
     await db.batch([
       "INSERT INTO organization (id,name,slug) VALUES ('org-former','Former','former')",
       "INSERT INTO organization (id,name,slug) VALUES ('org-current','Current','current')",

@@ -26,16 +26,15 @@ export type OperationOutcome =
   | { ok: false; status: 502; reason: 'delivery_failed'; message: string }
   | { ok: false; status: 504; reason: 'delivery_unknown'; message: string }
 
-export interface ExecuteOperationInput {
+export type ExecuteOperationInput = {
   threadId: string
   siteId: string
   action: string
-  actorUserId: string
   body?: string
   deliveryId?: string
   env: ReplyEmailEnv
   idempotencyKey?: string
-}
+} & ({ actorUserId: string; completionSource?: 'manual' } | { actorUserId: null; action: 'complete'; completionSource: 'auto' })
 
 interface ThreadContext {
   thread: GuestThreadRow
@@ -121,7 +120,7 @@ function operationEntryQuery(
     query: `
       INSERT INTO activity_entries
         (id, request_id, kind, scope_kind, actor_kind, actor_user_id, channel, body, event_name, payload_json, dedupe_key, sequence, occurred_at, created_at)
-      SELECT ?, gt.id, 'operation', 'request', 'member', ?, NULL, ?, ?, ?, ?,
+      SELECT ?, gt.id, 'operation', 'request', ?, ?, NULL, ?, ?, ?, ?,
              COALESCE((SELECT MAX(sequence) FROM activity_entries WHERE request_id = gt.id), 0) + 1,
              ?, ?
       FROM requests gt
@@ -130,6 +129,7 @@ function operationEntryQuery(
     `,
     params: [
       entryId,
+      input.actorUserId === null ? 'system' : 'member',
       input.actorUserId,
       plan.requiresNotification ? operationBody(plan.action, context.thread) : null,
       `${plan.kind}.${plan.action}`,
@@ -145,12 +145,12 @@ function operationEntryQuery(
   }
 }
 
-function sourceUpdateQuery(context: ThreadContext, plan: SourceMutationPlan, entryId: string, now: string): BatchQuery {
+function sourceUpdateQuery(context: ThreadContext, plan: SourceMutationPlan, input: ExecuteOperationInput, entryId: string, now: string): BatchQuery {
   const completion = plan.action === 'complete'
-    ? ", payload_json = json_set(payload_json, '$.completion.at', COALESCE(json_extract(payload_json, '$.completion.at'), ?), '$.completion.source', COALESCE(json_extract(payload_json, '$.completion.source'), 'manual'))"
+    ? ", payload_json = json_set(payload_json, '$.completion.at', COALESCE(json_extract(payload_json, '$.completion.at'), ?), '$.completion.source', COALESCE(json_extract(payload_json, '$.completion.source'), ?))"
     : ''
   const params = completion
-    ? [plan.afterStatus, now, now, context.thread.id, context.thread.site_id, plan.beforeStatus, entryId]
+    ? [plan.afterStatus, now, now, input.completionSource ?? 'manual', context.thread.id, context.thread.site_id, plan.beforeStatus, entryId]
     : [plan.afterStatus, now, context.thread.id, context.thread.site_id, plan.beforeStatus, entryId]
   return {
     query: `
@@ -315,7 +315,7 @@ async function executeSourceMutation(
     : null
   const queries = [
     operationEntryQuery(context, plan, input, entryId, dedupeKey, now, subject),
-    sourceUpdateQuery(context, plan, entryId, now),
+    sourceUpdateQuery(context, plan, input, entryId, now),
     resolveThreadQuery(context.thread.id, entryId, now),
   ]
   const revokeReview = revokeReviewRequestQuery(context, plan, entryId, now)

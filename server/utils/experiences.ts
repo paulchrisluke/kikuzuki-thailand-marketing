@@ -5,13 +5,12 @@ import { HTTPError } from 'nitro';
 import type { CloudflareEnv } from '~/server/utils/auth'
 
 
-import { execute, executeBatch, queryAll, queryFirst, type BatchQuery, type DbClient } from '~/server/db'
+import { executeBatch, queryAll, queryFirst, type BatchQuery, type DbClient } from '~/server/db'
 import { fireOrganizationEventSafe } from '~/server/utils/organization-events'
 
 import type { Price, PriceInput } from '~/shared/prices'
 import { PRICE_TAX_BEHAVIORS, PRICE_UNITS } from '~/shared/prices'
 import { isCurrencyCode } from '~/shared/currencies'
-import { revokeReviewRequestForBooking } from '~/server/utils/review-requests'
 import {
   insertInitialMediaPlacements,
   hydrateMediaAssetRefs,
@@ -67,7 +66,7 @@ export interface Experience {
   created_at: string
   updated_at: string
   // Only present once attachAvailabilitySummaries has run (public list/detail/bootstrap
-  // responses) â€” absent on raw rows from create/update/CMS/MCP paths.
+  // responses) — absent on raw rows from create/update/CMS/MCP paths.
   availability_state?: AvailabilityState
   next_available_date?: string | null
   next_available_time?: string | null
@@ -191,7 +190,7 @@ export async function listExperiences(
   const params: (string | number)[] = [siteId]
 
   if (opts.activeOnly) {
-    // "active-only" means publicly visible, not "bookable" â€” sold_out experiences
+    // "active-only" means publicly visible, not "bookable" — sold_out experiences
     // stay visible with sold-out messaging; inactive experiences are hidden.
     sql += ` AND p.is_visible = 1`
   }
@@ -257,7 +256,7 @@ async function attachScheduledPrices(db: DbClient, experience: Experience): Prom
 }
 
 // Used by callers (update/delete/bookings) that need the canonical row id before
-// running their own queries against other tables â€” getExperienceById/BySlug above
+// running their own queries against other tables — getExperienceById/BySlug above
 // already accept either form directly for reads of the experience itself.
 async function resolveExperienceId(db: DbClient, siteId: string, idOrSlug: string): Promise<string | null> {
   const byId = await queryFirst<{ id: string }>(db, `SELECT id FROM products WHERE product_type = 'experience' AND site_id = ? AND id = ? LIMIT 1`, [siteId, idOrSlug])
@@ -381,7 +380,7 @@ export function generateSlots(startTime: string, endTime: string, intervalMinute
     const m = (t % 60).toString().padStart(2, '0')
     slots.push(`${h}:${m}`)
     if (slots.length > MAX_TOTAL_SLOTS) {
-      throw new HTTPError({ statusCode: 400, statusMessage: `interval is too small â€” generated more than ${MAX_TOTAL_SLOTS} slots` })
+      throw new HTTPError({ statusCode: 400, statusMessage: `interval is too small — generated more than ${MAX_TOTAL_SLOTS} slots` })
     }
   }
   return slots
@@ -684,7 +683,7 @@ export async function listExperienceBookings(
   db: DbClient,
   siteId: string,
   experienceIdOrSlug: string,
-  opts: { locationId?: string | null } = {},
+  opts: { locationId?: string | null; bookingId?: string } = {},
 ): Promise<ExperienceBooking[]> {
   const experienceId = (await resolveExperienceId(db, siteId, experienceIdOrSlug)) ?? experienceIdOrSlug
   if (opts.locationId) {
@@ -700,6 +699,10 @@ export async function listExperienceBookings(
   if (opts.locationId) {
     where += ` AND eb.location_id = ?`
     params.push(opts.locationId)
+  }
+  if (opts.bookingId) {
+    where += ' AND eb.id = ?'
+    params.push(opts.bookingId)
   }
   const results = await queryAll<ExperienceBooking>(
     db,
@@ -833,55 +836,16 @@ export function summarizeExperienceBookings(
   }
 }
 
-export async function updateBookingStatus(
-  db: DbClient,
-  siteId: string,
-  experienceIdOrSlug: string,
-  bookingId: string,
-  status: 'pending' | 'confirmed' | 'cancelled' | 'completed',
-): Promise<boolean> {
-  const experienceId = (await resolveExperienceId(db, siteId, experienceIdOrSlug)) ?? experienceIdOrSlug
-  const result = await execute(
-    db,
-    `UPDATE requests SET status = ?, updated_at = ?
-       WHERE kind = 'experience_booking' AND site_id = ? AND product_id = ? AND id = ?`,
-    [status, new Date().toISOString(), siteId, experienceId, bookingId],
-  )
-  if (status === 'cancelled' && result.meta.changes) {
-    await revokeReviewRequestForBooking(db, 'experience_booking', bookingId)
-  }
-  return Boolean(result.meta.changes)
-}
-
-export async function updateBookingStatusForSite(
-  db: DbClient,
-  siteId: string,
-  bookingId: string,
-  status: 'pending' | 'confirmed' | 'cancelled' | 'completed',
-): Promise<boolean> {
-  const result = await execute(
-    db,
-    `UPDATE requests SET status = ?, updated_at = ?
-       WHERE kind = 'experience_booking' AND site_id = ? AND id = ?`,
-    [status, new Date().toISOString(), siteId, bookingId],
-  )
-  if (status === 'cancelled' && result.meta.changes) {
-    await revokeReviewRequestForBooking(db, 'experience_booking', bookingId)
-  }
-  return Boolean(result.meta.changes)
-}
-
-
 export const PUBLIC_BOOKING_WINDOW_DAYS = 31
 const AVAILABILITY_SUMMARY_WINDOW_DAYS = 14
 const LIMITED_REMAINING_THRESHOLD = 2
 
-// â”€â”€ Availability summary (public cards/detail) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Availability summary (public cards/detail) ──────────────────────────────
 // Canonical status/booking-status mapping, since this schema keeps a single
 // `status` column rather than splitting publication vs. booking state:
-//   - 'inactive'  â†’ never public, never bookable (excluded upstream by all list/detail queries).
-//   - 'sold_out'  â†’ public, but globally not bookable (owner-set, independent of real slot math).
-//   - 'active'    â†’ public; bookability is derived from real slots/bookings/overrides below.
+//   - 'inactive'  → never public, never bookable (excluded upstream by all list/detail queries).
+//   - 'sold_out'  → public, but globally not bookable (owner-set, independent of real slot math).
+//   - 'active'    → public; bookability is derived from real slots/bookings/overrides below.
 export type AvailabilityState =
   | 'available'
   | 'limited'

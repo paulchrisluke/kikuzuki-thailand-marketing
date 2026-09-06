@@ -149,35 +149,6 @@ export async function getReviewRequestByToken(
   return { request, context }
 }
 
-export async function markBookingCompleted(
-  db: DbClient,
-  bookingType: ReviewBookingType,
-  bookingId: string,
-  source: CompletionSource,
-  completedAt = new Date().toISOString(),
-): Promise<boolean> {
-  const result = await execute(db, `UPDATE requests SET status = 'completed',
-    payload_json = json_set(payload_json, '$.completion.at', COALESCE(json_extract(payload_json, '$.completion.at'), ?), '$.completion.source', COALESCE(json_extract(payload_json, '$.completion.source'), ?)), updated_at = ?
-    WHERE id = ? AND kind = ? AND status IN ('confirmed', 'completed')`, [completedAt, source, new Date().toISOString(), bookingId, bookingType])
-  return Number(result.meta.changes) > 0
-}
-
-export async function revokeReviewRequestForBooking(
-  db: DbClient,
-  bookingType: ReviewBookingType,
-  bookingId: string,
-): Promise<void> {
-  const now = new Date().toISOString()
-  await execute(db, `
-    UPDATE review_requests
-    SET revoked_at = COALESCE(revoked_at, ?), updated_at = ?
-    WHERE booking_type = ?
-      AND booking_id = ?
-      AND submitted_at IS NULL
-      AND revoked_at IS NULL
-  `, [now, now, bookingType, bookingId])
-}
-
 export async function createOrRotateReviewRequest(
   db: DbClient,
   context: ReviewBookingContext,

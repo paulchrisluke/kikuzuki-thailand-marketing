@@ -155,6 +155,7 @@ export const requests = sqliteTable("requests", {
  check("requests_scope_check", sql`(kind = 'platform_contact' AND organization_id IS NULL AND site_id IS NULL AND location_id IS NULL AND product_id IS NULL AND customer_id IS NULL) OR (kind = 'work' AND organization_id IS NOT NULL AND location_id IS NULL AND product_id IS NULL AND customer_id IS NULL) OR (kind IN ('contact', 'reservation', 'experience_booking') AND organization_id IS NOT NULL AND site_id IS NOT NULL)`),
  check("requests_booking_check", sql`(kind IN ('reservation', 'experience_booking') AND location_id IS NOT NULL AND booking_date IS NOT NULL AND time_slot IS NOT NULL AND party_size IS NOT NULL AND party_size > 0 AND status IS NOT NULL AND status IN ('pending', 'confirmed', 'cancelled', 'completed') AND (kind != 'experience_booking' OR product_id IS NOT NULL) AND (kind != 'reservation' OR product_id IS NULL)) OR (kind NOT IN ('reservation', 'experience_booking') AND booking_date IS NULL AND time_slot IS NULL AND party_size IS NULL)`),
  check("requests_state_check", sql`(kind = 'work' AND status IS NOT NULL AND status IN ('pending', 'in_progress', 'done', 'cancelled') AND priority IS NOT NULL AND priority IN ('low', 'normal', 'high', 'urgent') AND conversation_state IS NULL) OR (kind IN ('contact', 'reservation', 'experience_booking') AND conversation_state IS NOT NULL AND conversation_state IN ('needs_attention', 'waiting_on_guest', 'resolved') AND priority IS NULL AND assigned_to IS NULL AND (kind != 'contact' OR status IS NULL)) OR (kind = 'platform_contact' AND status IS NULL AND priority IS NULL AND conversation_state IS NULL AND assigned_to IS NULL)`),
+ uniqueIndex("requests_review_owner_unique").on(table.organization_id, table.site_id, table.id, table.kind),
  uniqueIndex("requests_scope_id_unique").on(table.organization_id, table.site_id, table.id),
  index("requests_site_activity_idx").on(table.site_id, table.conversation_state, table.updated_at),
  index("requests_booking_slot_idx").on(table.site_id, table.kind, table.location_id, table.product_id, table.booking_date, table.time_slot, table.status),
@@ -843,7 +844,7 @@ export const review_requests = sqliteTable("review_requests", {
 	location_id: text().references(() => business_locations.id, { onDelete: "set null" } ),
 	customer_id: text().notNull().references(() => customers.id, { onDelete: "cascade" } ),
 	booking_type: text().notNull(),
-	booking_id: text().notNull().references(() => requests.id, { onDelete: "cascade" }),
+	booking_id: text().notNull(),
 	token_hash: text().notNull().unique(),
 	expires_at: text().notNull(),
 	first_sent_at: text(),
@@ -858,6 +859,7 @@ export const review_requests = sqliteTable("review_requests", {
 	created_at: text().default(sql`(strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))`).notNull(),
 	updated_at: text().default(sql`(strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))`).notNull(),
 }, (table) => [
+ foreignKey({ columns: [table.organization_id, table.site_id, table.booking_id, table.booking_type], foreignColumns: [requests.organization_id, requests.site_id, requests.id, requests.kind], name: "review_requests_booking_scope_fk" }).onDelete("cascade"),
 	foreignKey({ columns: [table.organization_id, table.site_id], foreignColumns: [sites.organization_id, sites.id], name: "review_requests_site_scope_fk" }).onDelete("cascade"),
 	uniqueIndex("idx_review_requests_active_booking_unique")
 		.on(table.site_id, table.booking_type, table.booking_id)
