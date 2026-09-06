@@ -1,80 +1,70 @@
 <template>
-  <UDashboardPanel id="location-qa">
-    <template #header>
-      <UDashboardNavbar title="Location" :toggle="false">
-        <template #leading>
-          <DashboardNavbarLeading v-if="locationPaths" :to="locationPaths.location" label="Location" />
-        </template>
-      </UDashboardNavbar>
+  <div class="space-y-6">
+  <DashboardListEditor
+    v-model:editing="editing"
+    title="Q&A"
+    description="Add common guest questions, then answer them once."
+    :items="listItems"
+    :pending="loading"
+    :error="loadError"
+    empty-title="No Q&A yet"
+    empty-icon="i-lucide-circle-help"
+    add-label="Add a question"
+    reorderable
+    :removing-id="removingId"
+    @add="openNew"
+    @open="openExisting"
+    @remove="removeItem"
+    @move="moveQa"
+  >
+    <template #item="{ item }">
+      <div class="flex flex-wrap items-center gap-2">
+        <UBadge :color="item.row.status === 'published' ? 'success' : 'neutral'" variant="soft">{{ item.row.status }}</UBadge>
+        <span class="text-xs text-muted">{{ item.row.upvote_count }} upvotes</span>
+      </div>
+      <p class="mt-2 text-sm font-semibold text-highlighted">{{ item.row.question }}</p>
+      <p class="mt-1 line-clamp-2 text-sm text-muted" :class="item.row.answer ? '' : 'italic'">{{ item.row.answer || 'No answer yet.' }}</p>
     </template>
+  </DashboardListEditor>
 
-    <template #body>
-      <DashboardListEditor
-        v-model:editing="editing"
-        title="Q&A"
-        description="Add common guest questions, then answer them once."
-        :items="listItems"
-        :pending="loading"
-        :error="loadError"
-        empty-title="No Q&A yet"
-        empty-icon="i-lucide-circle-help"
-        add-label="Add a question"
-        reorderable
-        :removing-id="removingId"
-        @add="openNew"
-        @open="openExisting"
-        @remove="removeItem"
-        @move="moveQa"
-      >
-        <template #item="{ item }">
-          <div class="flex flex-wrap items-center gap-2">
-            <UBadge :color="item.row.status === 'published' ? 'success' : 'neutral'" variant="soft">{{ item.row.status }}</UBadge>
-            <span class="text-xs text-muted">{{ item.row.upvote_count }} upvotes</span>
-          </div>
-          <p class="mt-2 text-sm font-semibold text-highlighted">{{ item.row.question }}</p>
-          <p class="mt-1 line-clamp-2 text-sm text-muted" :class="item.row.answer ? '' : 'italic'">{{ item.row.answer || 'No answer yet.' }}</p>
-        </template>
-      </DashboardListEditor>
+  <DashboardListItemDialog
+    v-model:open="dialogOpen"
+    :title="editingId ? 'Edit question' : 'Add a question'"
+    :removable="Boolean(editingId)"
+    :saving="saving"
+    :removing="removingId === editingId"
+    :save-disabled="!locationId || (translationLocale === 'en' ? !form.question.trim() : false)"
+    @save="translationLocale === 'en' ? saveQa() : saveTranslation()"
+    @remove="removeEditing"
+  >
+    <UFormField v-if="editingId && translationLocales.length" label="Language">
+      <select v-model="translationLocale" aria-label="Field language" class="rounded-lg border border-default bg-default px-2 py-1 text-sm">
+        <option value="en">en</option>
+        <option v-for="option in translationLocales" :key="option" :value="option">{{ option }}</option>
+      </select>
+    </UFormField>
 
-      <DashboardListItemDialog
-        v-model:open="dialogOpen"
-        :title="editingId ? 'Edit question' : 'Add a question'"
-        :removable="Boolean(editingId)"
-        :saving="saving"
-        :removing="removingId === editingId"
-        :save-disabled="!locationId || (translationLocale === 'en' ? !form.question.trim() : false)"
-        @save="translationLocale === 'en' ? saveQa() : saveTranslation()"
-        @remove="removeEditing"
-      >
-        <UFormField v-if="editingId && translationLocales.length" label="Language">
-          <select v-model="translationLocale" aria-label="Field language" class="rounded-lg border border-default bg-default px-2 py-1 text-sm">
-            <option value="en">en</option>
-            <option v-for="option in translationLocales" :key="option" :value="option">{{ option }}</option>
-          </select>
-        </UFormField>
-
-        <template v-if="translationLocale === 'en'">
-          <UFormField label="Question">
-            <UTextarea v-model="form.question" :rows="3" placeholder="Do you accept walk-ins?" autofocus class="w-full" />
-          </UFormField>
-          <UFormField label="Answer">
-            <UTextarea v-model="form.answer" :rows="4" placeholder="Yes, walk-ins are welcome when seats are available." class="w-full" />
-          </UFormField>
-          <UCheckbox v-if="editingId" v-model="form.published" label="Published" />
-        </template>
-        <template v-else>
-          <p class="text-xs text-muted">Source (English): {{ form.question }}</p>
-          <UFormField :label="`Question (${translationLocale})`">
-            <UTextarea v-model="translationFields.question" :rows="3" class="w-full" />
-          </UFormField>
-          <UFormField :label="`Answer (${translationLocale})`">
-            <UTextarea v-model="translationFields.answer" :rows="4" class="w-full" />
-          </UFormField>
-          <p v-if="translationError" class="text-sm text-error">{{ translationError }}</p>
-        </template>
-      </DashboardListItemDialog>
+    <template v-if="translationLocale === 'en'">
+      <UFormField label="Question">
+        <UTextarea v-model="form.question" :rows="3" placeholder="Do you accept walk-ins?" autofocus class="w-full" />
+      </UFormField>
+      <UFormField label="Answer">
+        <UTextarea v-model="form.answer" :rows="4" placeholder="Yes, walk-ins are welcome when seats are available." class="w-full" />
+      </UFormField>
+      <UCheckbox v-if="editingId" v-model="form.published" label="Published" />
     </template>
-  </UDashboardPanel>
+    <template v-else>
+      <p class="text-xs text-muted">Source (English): {{ form.question }}</p>
+      <UFormField :label="`Question (${translationLocale})`">
+        <UTextarea v-model="translationFields.question" :rows="3" class="w-full" />
+      </UFormField>
+      <UFormField :label="`Answer (${translationLocale})`">
+        <UTextarea v-model="translationFields.answer" :rows="4" class="w-full" />
+      </UFormField>
+      <p v-if="translationError" class="text-sm text-error">{{ translationError }}</p>
+    </template>
+  </DashboardListItemDialog>
+  </div>
 </template>
 
 <script setup lang="ts">
@@ -84,7 +74,6 @@ import DashboardListItemDialog from '~/components/dashboard/DashboardListItemDia
 const dashboardApi = useDashboardApi()
 definePageMeta({ layout: 'dashboard', cmsCapabilityKey: 'location.qa' })
 
-const { locationPaths } = useDashboardSiteLinks()
 
 interface QaRow {
   id: string

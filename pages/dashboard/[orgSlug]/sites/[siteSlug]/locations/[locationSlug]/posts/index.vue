@@ -1,67 +1,60 @@
 <template>
-  <UDashboardPanel id="location-posts">
-    <template #header>
-      <UDashboardNavbar title="Posts" :toggle="false">
-        <template #leading>
-          <DashboardNavbarLeading v-if="locationPaths" :to="locationPaths.location" label="Location" />
-        </template>
-        <template #right>
-          <UButton :to="`${postsPath}/new`" icon="i-lucide-plus" label="New post" />
-        </template>
-      </UDashboardNavbar>
-    </template>
+  <div class="space-y-6">
+    <!-- The section's own actions. Its title and the way back belong to the
+         shell, which renders them once for whichever section is open. -->
+    <div class="flex flex-wrap items-center justify-end gap-2">
+    <UButton :to="`${postsPath}/new`" icon="i-lucide-plus" label="New post" />
+    </div>
 
-    <template #body>
-      <div class="space-y-4">
-        <UTabs v-model="activeTab" :items="postTabs" :content="false" aria-label="Post status" />
+  <div class="space-y-4">
+    <UTabs v-model="activeTab" :items="postTabs" :content="false" aria-label="Post status" />
 
-        <UAlert v-if="loadError" color="error" variant="soft" icon="i-lucide-triangle-alert" :description="loadError" />
+    <UAlert v-if="loadError" color="error" variant="soft" icon="i-lucide-triangle-alert" :description="loadError" />
 
-        <div v-else-if="pending" class="space-y-2">
-          <USkeleton v-for="index in 4" :key="index" class="h-16 w-full rounded-lg" />
-        </div>
+    <div v-else-if="pending" class="space-y-2">
+      <USkeleton v-for="index in 4" :key="index" class="h-16 w-full rounded-lg" />
+    </div>
 
-        <div v-else-if="!visiblePosts.length" class="rounded-lg border border-dashed border-default py-12 text-center">
-          <UIcon name="i-lucide-file-text" class="mx-auto size-8 text-muted" />
-          <p class="mt-3 text-sm text-muted">{{ emptyMessage }}</p>
-        </div>
+    <div v-else-if="!visiblePosts.length" class="rounded-lg border border-dashed border-default py-12 text-center">
+      <UIcon name="i-lucide-file-text" class="mx-auto size-8 text-muted" />
+      <p class="mt-3 text-sm text-muted">{{ emptyMessage }}</p>
+    </div>
 
-        <ul v-else class="divide-y divide-default overflow-hidden rounded-lg border border-default">
-          <li v-for="post in visiblePosts" :key="String(post.id)">
-            <NuxtLink
-              :to="`${postsPath}/${post.id}`"
-              class="flex w-full items-center gap-4 px-4 py-3 text-left transition-colors hover:bg-elevated"
-              :data-testid="`post-${post.id}`"
+    <ul v-else class="divide-y divide-default overflow-hidden rounded-lg border border-default">
+      <li v-for="post in visiblePosts" :key="String(post.id)">
+        <NuxtLink
+          :to="`${postsPath}/${post.id}`"
+          class="flex w-full items-center gap-4 px-4 py-3 text-left transition-colors hover:bg-elevated"
+          :data-testid="`post-${post.id}`"
+        >
+          <span class="size-10 shrink-0 overflow-hidden rounded bg-muted">
+            <img
+              v-if="coverUrl(post)"
+              :src="coverUrl(post)!"
+              :alt="postTitle(post)"
+              class="h-full w-full object-cover"
             >
-              <span class="size-10 shrink-0 overflow-hidden rounded bg-muted">
-                <img
-                  v-if="coverUrl(post)"
-                  :src="coverUrl(post)!"
-                  :alt="postTitle(post)"
-                  class="h-full w-full object-cover"
-                >
-                <span v-else class="flex h-full w-full items-center justify-center">
-                  <UIcon name="i-lucide-file-text" class="size-4 text-muted" />
-                </span>
-              </span>
-              <span class="min-w-0 flex-1">
-                <span class="block truncate text-sm font-semibold text-highlighted">{{ postTitle(post) }}</span>
-                <span class="mt-1 block text-xs text-muted">{{ formatDate(String(post.updated_at ?? '')) }}</span>
-              </span>
-              <UBadge
-                :color="post.status === 'published' ? 'success' : 'warning'"
-                variant="soft"
-                size="sm"
-                class="shrink-0"
-              >
-                {{ post.status === 'published' ? 'Live' : 'Scheduled' }}
-              </UBadge>
-            </NuxtLink>
-          </li>
-        </ul>
-      </div>
-    </template>
-  </UDashboardPanel>
+            <span v-else class="flex h-full w-full items-center justify-center">
+              <UIcon name="i-lucide-file-text" class="size-4 text-muted" />
+            </span>
+          </span>
+          <span class="min-w-0 flex-1">
+            <span class="block truncate text-sm font-semibold text-highlighted">{{ postTitle(post) }}</span>
+            <span class="mt-1 block text-xs text-muted">{{ formatDate(String(post.updated_at ?? '')) }}</span>
+          </span>
+          <UBadge
+            :color="post.status === 'published' ? 'success' : 'warning'"
+            variant="soft"
+            size="sm"
+            class="shrink-0"
+          >
+            {{ post.status === 'published' ? 'Live' : 'Scheduled' }}
+          </UBadge>
+        </NuxtLink>
+      </li>
+    </ul>
+  </div>
+  </div>
 </template>
 
 <script setup lang="ts">

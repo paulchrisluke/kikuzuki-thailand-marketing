@@ -1,74 +1,64 @@
 <template>
-  <UDashboardPanel id="location-experiences">
-    <template #header>
-      <UDashboardNavbar title="Experiences" :toggle="false">
-        <template #leading>
-          <DashboardNavbarLeading v-if="locationPaths" :to="locationPaths.location" label="Location" />
-        </template>
-      </UDashboardNavbar>
-    </template>
+  <div class="space-y-6">
+  <UCard
+    v-if="!currentLocationId"
+    class="border border-dashed border-default"
+    :ui="{ body: 'py-20 sm:py-20 text-center' }"
+  >
+    <UIcon name="i-lucide-map-pin" class="mx-auto size-10 text-muted" />
+    <p class="mt-4 text-sm font-semibold text-highlighted">Choose a location first</p>
+    <p class="mt-1 text-sm text-muted">Experiences are managed per location.</p>
+  </UCard>
 
-    <template #body>
-      <UCard
-        v-if="!currentLocationId"
-        class="border border-dashed border-default"
-        :ui="{ body: 'py-20 sm:py-20 text-center' }"
+  <DashboardListEditor
+    v-else
+    v-model:editing="editing"
+    title="Experiences"
+    description="Bookable experiences at this location — a tasting menu, a chef's table, a cooking class."
+    :items="listItems"
+    :pending="pending"
+    :error="loadError"
+    empty-title="No experiences yet"
+    empty-icon="i-lucide-ticket"
+    add-label="Add an experience"
+    :removing-id="removingId"
+    @add="openCreate"
+    @open="openExperience"
+    @remove="removeExperience"
+  >
+    <template #item="{ item }">
+      <button
+        type="button"
+        class="flex w-full items-center gap-4 text-left"
+        :data-testid="`experience-${item.id}`"
+        @click="openExperience(item)"
       >
-        <UIcon name="i-lucide-map-pin" class="mx-auto size-10 text-muted" />
-        <p class="mt-4 text-sm font-semibold text-highlighted">Choose a location first</p>
-        <p class="mt-1 text-sm text-muted">Experiences are managed per location.</p>
-      </UCard>
-
-      <DashboardListEditor
-        v-else
-        v-model:editing="editing"
-        title="Experiences"
-        description="Bookable experiences at this location — a tasting menu, a chef's table, a cooking class."
-        :items="listItems"
-        :pending="pending"
-        :error="loadError"
-        empty-title="No experiences yet"
-        empty-icon="i-lucide-ticket"
-        add-label="Add an experience"
-        :removing-id="removingId"
-        @add="openCreate"
-        @open="openExperience"
-        @remove="removeExperience"
-      >
-        <template #item="{ item }">
-          <button
-            type="button"
-            class="flex w-full items-center gap-4 text-left"
-            :data-testid="`experience-${item.id}`"
-            @click="openExperience(item)"
+        <span class="size-12 shrink-0 overflow-hidden rounded-lg bg-muted">
+          <img
+            v-if="coverUrl(item.row)"
+            :src="coverUrl(item.row)!"
+            :alt="item.row.title"
+            class="h-full w-full object-cover"
           >
-            <span class="size-12 shrink-0 overflow-hidden rounded-lg bg-muted">
-              <img
-                v-if="coverUrl(item.row)"
-                :src="coverUrl(item.row)!"
-                :alt="item.row.title"
-                class="h-full w-full object-cover"
-              >
-              <span v-else class="flex h-full w-full items-center justify-center">
-                <UIcon name="i-lucide-ticket" class="size-4 text-muted" />
-              </span>
-            </span>
-            <span class="min-w-0 flex-1">
-              <span class="block truncate text-sm font-semibold text-highlighted">{{ item.row.title }}</span>
-              <!--
-                A summary line, the way the menu lists a dish's price — not a
-                badge. Nothing else in the CMS badges a row's state, and an
-                experience that is off reads as a fact about it, not an alert.
-              -->
-              <span class="mt-1 block truncate text-sm" :class="summary(item.row) ? 'text-muted' : 'italic text-muted'">
-                {{ summary(item.row) || 'Nothing set yet' }}
-              </span>
-            </span>
-          </button>
-        </template>
-      </DashboardListEditor>
+          <span v-else class="flex h-full w-full items-center justify-center">
+            <UIcon name="i-lucide-ticket" class="size-4 text-muted" />
+          </span>
+        </span>
+        <span class="min-w-0 flex-1">
+          <span class="block truncate text-sm font-semibold text-highlighted">{{ item.row.title }}</span>
+          <!--
+            A summary line, the way the menu lists a dish's price — not a
+            badge. Nothing else in the CMS badges a row's state, and an
+            experience that is off reads as a fact about it, not an alert.
+          -->
+          <span class="mt-1 block truncate text-sm" :class="summary(item.row) ? 'text-muted' : 'italic text-muted'">
+            {{ summary(item.row) || 'Nothing set yet' }}
+          </span>
+        </span>
+      </button>
     </template>
-  </UDashboardPanel>
+  </DashboardListEditor>
+  </div>
 </template>
 
 <script setup lang="ts">
