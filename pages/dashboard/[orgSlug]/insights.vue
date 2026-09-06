@@ -2,10 +2,8 @@
   <UDashboardPanel id="organization-insights">
     <template #header>
       <UDashboardNavbar title="Insights">
-        <template #trailing>
-          <UButton icon="i-lucide-refresh-cw" color="neutral" variant="soft" :loading="loading" @click="loadAnalytics">
-            Refresh
-          </UButton>
+        <template #leading>
+          <DashboardNavbarLeading :to="orgPaths.org" label="Today" />
         </template>
       </UDashboardNavbar>
     </template>
@@ -19,15 +17,6 @@
           title="Analytics could not be loaded"
           :description="loadError"
         />
-        <p class="text-sm text-muted">{{ rangeLabel }} · {{ analytics?.period.timezone || 'UTC' }} reporting time</p>
-        <UAlert
-          v-if="analytics?.period.analyticsDataStartAt"
-          color="neutral"
-          variant="soft"
-          title="Canonical analytics history"
-          :description="`Reliable analytics data begins ${formatDate(analytics.period.analyticsDataStartAt.slice(0, 10))}.`"
-        />
-
         <!--
           Which sites the figures cover. Every site the member may read is
           listed, so the filter can never offer one the API would refuse.
@@ -289,7 +278,6 @@
         </div>
 
         <div v-else class="space-y-6">
-          <p class="text-sm text-muted">What is still missing from each site's setup.</p>
           <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             <UCard v-for="site in setup" :key="site.siteId" variant="soft">
               <template #header>
@@ -354,6 +342,7 @@ interface AnalyticsResponse {
 
 const toast = useToast()
 const route = useRoute()
+const { orgPaths } = useDashboardSiteLinks()
 
 interface InsightsSite { id: string; label: string; subdomain: string | null }
 interface InsightsReviews {
@@ -493,7 +482,6 @@ const maxTrendValue = computed(() => Math.max(1, ...dailyData.value.map(day => M
 const pageviewPoints = computed(() => toPoints(dailyData.value.map(day => day.pageViews)))
 const sessionPoints = computed(() => toPoints(dailyData.value.map(day => day.sessions)))
 const pageviewDots = computed(() => toDots(dailyData.value.map(day => day.pageViews)))
-const rangeLabel = computed(() => `${formatDate(range.startDate)} to ${formatDate(range.endDate)}`)
 
 const metricCards = computed(() => {
   const metrics = analytics.value?.metrics

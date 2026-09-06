@@ -19,6 +19,7 @@ export type ScheduledTaskName =
   | 'instagram-sync-process'
   | 'review-request-automation'
   | 'stripe-reconciliation'
+  | 'social-card-backfill'
 
 type TaskLoader = () => Promise<{ default: ScheduledTaskDefinition }>
 
@@ -28,13 +29,14 @@ export const SCHEDULED_TASKS: Readonly<Record<string, readonly ScheduledTaskName
   '*/2 * * * *': ['public-resource-cache-invalidation'],
   '*/10 * * * *': ['domain-reconciliation', 'zaraz-analytics-reconciliation'],
   '0 3 * * *': ['domain-reconciliation-daily', 'analytics-aggregate-daily'],
-  '0 4 * * *': ['site-transfer-reminders'],
+  '0 4 * * *': ['site-transfer-reminders', 'social-card-backfill'],
   '0 0 * * SUN': ['google-places-sync'],
   '0 * * * *': ['instagram-sync-process', 'review-request-automation', 'stripe-reconciliation'],
 }
 
 const TASK_LOADERS: Readonly<Record<ScheduledTaskName, TaskLoader>> = {
   'blog-scheduled-publish': async () => import('./tasks/blog-scheduled-publish'),
+  'social-card-backfill': async () => import('./tasks/social-card-backfill'),
   'post-scheduled-publish': async () => import('./tasks/post-scheduled-publish'),
   'public-resource-cache-invalidation': async () => import('./tasks/public-resource-cache-invalidation'),
   'domain-reconciliation': async () => import('./tasks/domain-reconciliation'),
