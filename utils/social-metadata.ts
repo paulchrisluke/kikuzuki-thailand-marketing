@@ -107,21 +107,21 @@ function toSocialImageSource(source: SocialMediaSource | null | undefined): Soci
   }
 }
 
+/**
+ * A resource's social image is its own generated `social_card`. There is no
+ * second source.
+ *
+ * This previously fell through to the site's social card, then its share image,
+ * then its logo. That hid a real failure: location social cards were not being
+ * generated at all, and every location served the site logo instead — a
+ * plausible-looking image that meant the Satori card was missing. A resource
+ * with no card now resolves to null, so the absence is visible and gets fixed
+ * at the generator rather than papered over at the reader.
+ */
 export function resolveSocialImageFromMedia(
   ownerMedia: readonly SocialMediaSource[],
-  siteMedia: readonly SocialMediaSource[],
 ): SocialImageSource | null {
-  const candidates = [
-    ownerMedia.find(item => item.slot === 'social_card'),
-    siteMedia.find(item => item.slot === 'social_card'),
-    siteMedia.find(item => item.slot === 'social_share'),
-    siteMedia.find(item => item.slot === 'logo'),
-  ]
-  for (const candidate of candidates) {
-    const resolved = toSocialImageSource(candidate)
-    if (resolved) return resolved
-  }
-  return null
+  return toSocialImageSource(ownerMedia.find(item => item.slot === 'social_card'))
 }
 
 export interface PublicSocialMedia<T extends SocialMediaSource = SocialMediaSource> {
@@ -131,11 +131,10 @@ export interface PublicSocialMedia<T extends SocialMediaSource = SocialMediaSour
 
 export function publicSocialMediaFromPlacements<T extends SocialMediaSource>(
   ownerMedia: readonly T[],
-  siteMedia: readonly T[],
 ): PublicSocialMedia<T> {
   return {
     media: ownerMedia.filter(item => item.slot !== 'social_card'),
-    social_image: resolveSocialImageFromMedia(ownerMedia, siteMedia),
+    social_image: resolveSocialImageFromMedia(ownerMedia),
   }
 }
 

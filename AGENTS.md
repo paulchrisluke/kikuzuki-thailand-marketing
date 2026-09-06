@@ -14,49 +14,44 @@ Custom database migrations are prohibited. If an LLM proposes, generates, or edi
 - Do not hand-mutate staging or production data or schema to mask application failures.
 - Do not broaden the task to adjacent defects. Report them unless they directly block the requested change; if they block it, fix them through the same canonical path rather than creating another mechanism.
 
-## Never guess which record
+## No fallbacks
 
-An operation on a specific record must receive that record's identity from its
-caller. When the identity is missing, ambiguous, or not found, fail: return an
-error, a 400, or an explicit empty state. Never substitute a different record.
+Every value has exactly one source. Every surface declares which source it reads.
+When that source is empty, the surface shows an explicit empty or error state.
 
-Banned outright, with no "unless documented" escape:
+Never substitute a second source. No `a ?? b`, no `a || b`, no
+`find(...) ?? items[0]`, no "if this is missing, use that instead" anywhere —
+schema, API, domain utility, composable, or component. A `??` guarding a genuinely
+optional value against `null`/`undefined` is fine; a `??` that reaches for
+different data is not.
 
-- `find(x => x.is_primary) ?? items[0]`, and every variant of it — first row,
-  newest row, the only row that happens to exist, `ORDER BY … LIMIT 1` used to
-  *choose* a record rather than to page through them.
-- Introducing a `primary` / `default` / `main` flag so a surface has something to
-  show when it was given nothing. That is a UI problem wearing a schema costume;
-  build the selector instead.
-- Inferring a target from context the caller did not pass: the current site, the
-  last-used item, the single item that exists today.
+Also banned, as the same thing in other clothes:
 
-This is not a style preference. The ChatGPT MCP app edited the wrong products in
-production because a tool resolved an ambiguous target instead of refusing it.
-Code that is correct only because one row exists today changes meaning silently
-the day a second row appears, and it changes it in production, for a customer.
+- Ordering a query so a `LIMIT 1` picks something — `ORDER BY is_primary DESC`.
+  Sorting for presentation is fine; sorting to make a choice is not.
+- A `primary` / `default` / `main` flag added so a surface has something to show
+  when it was given nothing. Build the selector instead.
+- Inferring a target the caller did not pass: the current site, the last-used
+  item, the one row that happens to exist today.
+- Placeholder or example content standing in for absent tenant data.
 
-If a surface needs a record and has none, the answer is a selector, an explicit
-error, or a named owner column. Never a guess.
+**A fallback is not a safety net. It is a bug report you decided not to file.**
+Everything after the `??` runs precisely when something upstream is broken, and
+it makes the failure invisible at exactly the moment it needs to be loud. Two
+examples from this repository:
 
-There is no exception, including a "named" second source. A surface that shows a
-location's email shows the location's email; if it is missing, that is an empty
-state. A surface that shows the site's contact email — the Blawby contact form —
-reads `sites.contact_email` and nothing else. `location.email ?? site.contact_email`
-is banned too: it makes one field mean two different things depending on data the
-reader cannot see, and it hides a missing location email instead of surfacing it.
+- The ChatGPT MCP app edited the wrong products in production because a tool
+  resolved an ambiguous target instead of refusing it.
+- Location social cards are not being generated. Nobody knew, because
+  `resolveSocialImageFromMedia` fell through to the site logo, so every location
+  rendered a plausible-looking image and the missing Satori card never surfaced.
 
-Each field has exactly one owner, and each surface declares which owner it reads.
-Resolution belongs in the schema and the API, not in a chain of `??` in a
-composable or a component. If two surfaces need different sources, that is two
-explicit reads, not one function that decides at runtime.
+If a value is missing, the correct outcomes are: fail the request, render an
+empty state that names what is absent, or fix the source. Never paper over it.
 
-Sorting for stable presentation is not selection. `ORDER BY title ASC` is fine.
-`ORDER BY is_primary DESC` existing to give a `LIMIT 1` its meaning is not.
-
-Breaking a surface that currently relies on one of these chains is the intended
-outcome, not a reason to keep it. Leaving them in place across successive epochs
-is how the schema drifted in the first place.
+Breaking a surface that currently depends on a fallback is the intended outcome
+of removing it, not a regression to patch. The surface was already broken; the
+fallback was hiding it. Carrying these across epochs is how the schema drifted.
 
 ## Complexity control
 
