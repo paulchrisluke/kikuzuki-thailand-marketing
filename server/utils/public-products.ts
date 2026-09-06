@@ -142,11 +142,18 @@ export async function loadPublicProductDetail(
   const sourceProduct = collection.products.find(product => product.id === productId)
   const locationLocalization = localizations.find(item => item.resourceType === 'business_location' && item.resourceId === location.id)
   const productLocalization = localizations.find(item => item.resourceType === 'product' && item.resourceId === productId)
+  const categoryLocalizations = new Map(
+    localizations
+      .filter(item => item.resourceType === 'product_category')
+      .map(item => [item.resourceId, item]),
+  )
+  const categoryLocalization = sourceProduct ? categoryLocalizations.get(sourceProduct.category.id) : undefined
   const siteLocalization = localizations.find(item => item.resourceType === 'site' && item.resourceId === siteId)
-  if (!sourceProduct || !locationLocalization || !productLocalization) return null
+  if (!sourceProduct || !locationLocalization || !productLocalization || !categoryLocalization) return null
   const localizedProduct = projectExactLocalizedResource('product', sourceProduct, productLocalization)
   const product = {
     ...localizedProduct,
+    category: projectExactLocalizedResource('product_category', localizedProduct.category, categoryLocalization),
     image: localizedProduct.image
       ? projectLocalizedMediaAlt([localizedProduct.image], localizations)[0] ?? null
       : null,
@@ -167,7 +174,13 @@ export async function loadPublicProductDetail(
     ...collection,
     site: localizedSite,
     locations: projectExactLocalizedCollection('business_location', collection.locations, localizations),
-    products: projectExactLocalizedCollection('product', collection.products, localizations),
+    products: projectExactLocalizedCollection('product', collection.products, localizations)
+      .flatMap(item => {
+        const localization = categoryLocalizations.get(item.category.id)
+        return localization
+          ? [{ ...item, category: projectExactLocalizedResource('product_category', item.category, localization) }]
+          : []
+      }),
     location: localizedLocation,
     product,
     localeRepresentations,

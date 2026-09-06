@@ -783,14 +783,24 @@ async function loadPublicPageSource(
       }
     })
     if (localizedLocale) {
+      const categoryLocalizations = new Map(
+        publicLocalizations
+          .filter(item => item.resourceType === 'product_category')
+          .map(item => [item.resourceId, item]),
+      )
       products = projectExactLocalizedCollection('product', products, publicLocalizations)
-        .map(product => ({
-          ...product,
-          image: product.image
-            ? projectLocalizedMediaAlt([product.image], publicLocalizations)[0] ?? null
-            : null,
-          gallery: projectLocalizedMediaAlt(product.gallery, publicLocalizations),
-        }))
+        .flatMap(product => {
+          const categoryLocalization = categoryLocalizations.get(product.category.id)
+          if (!categoryLocalization) return []
+          return [{
+            ...product,
+            category: projectExactLocalizedResource('product_category', product.category, categoryLocalization),
+            image: product.image
+              ? projectLocalizedMediaAlt([product.image], publicLocalizations)[0] ?? null
+              : null,
+            gallery: projectLocalizedMediaAlt(product.gallery, publicLocalizations),
+          }]
+        })
     }
   }
 
