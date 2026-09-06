@@ -1026,12 +1026,9 @@ async function loadPublicPageSource(
         throw new HTTPError({ statusCode: 500, statusMessage: 'Stored public blog post is invalid' })
       }
       sourceBlogPostIdentity = { id: String(postRow.root_id), slug: String(postRow.source_slug) }
-      if (!localizedLocale) {
-        options.signal?.throwIfAborted();
-        const contentBlocks = await getContentBlocksForDocument(db, String(postRow.id));
-        if (!contentBlocks) throw new HTTPError({ statusCode: 500, statusMessage: 'Blog content document is missing' })
-        blogPost = attachFeaturedMediaFromBareJoin({ ...postRow, content_blocks: contentBlocks });
-      }
+      options.signal?.throwIfAborted();
+      const contentBlocks = await getContentBlocksForDocument(db, postRow.id);
+      blogPost = attachFeaturedMediaFromBareJoin({ ...postRow, content_blocks: contentBlocks });
     }
   }
 

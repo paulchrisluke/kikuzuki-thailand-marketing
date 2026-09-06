@@ -772,7 +772,7 @@ export async function listPlatformBlogPosts(db: DbClient, status?: string | null
   const params: ApiValue[] = [resolvedSiteId]
   if (status === 'published') sql += " AND p.status = 'published'"
   else if (status === 'scheduled') sql += " AND p.status = 'scheduled'"
-  sql += ' ORDER BY COALESCE(p.featured_order, 999999), COALESCE(p.nav_section_order, 999999), COALESCE(p.nav_section, p.category), COALESCE(p.nav_order, 999999), p.created_at DESC'
+  sql += ' ORDER BY COALESCE(featured_order, 999999), COALESCE(nav_section_order, 999999), COALESCE(nav_section, category), COALESCE(nav_order, 999999), p.created_at DESC'
   const results = await queryAll<ApiRecord>(db, sql, params)
   const context = isPlatformSite(resolvedSiteId) ? undefined : await resolveTenantContext(db, resolvedSiteId, env)
   const site = !isPlatformSite(resolvedSiteId)

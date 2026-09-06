@@ -14,7 +14,7 @@ import {
   projectLocalizedMediaAlt,
   type ExactPublicLocalization,
 } from '~/server/utils/public-localization'
-import { listPublicLocaleRepresentations } from '~/server/utils/public-locale-representations'
+import { listPublicLocaleRepresentations, resolvePublicDocumentSourcePath } from '~/server/utils/public-locale-representations'
 import type { PublicLocaleRepresentation } from '~/utils/public-resource-contracts'
 
 export interface PublicTenantPage {
@@ -310,7 +310,7 @@ export async function getPublicTenantPageForPath(
   const localeRepresentations = await listPublicLocaleRepresentations(db, {
     organizationId: page.organization_id,
     siteId,
-    sourcePath: page.path,
+    sourcePath: await resolvePublicDocumentSourcePath(db, siteId, page.page_id),
     sourceLabel: sourceLocale.label,
     documentId: page.page_id,
   })
