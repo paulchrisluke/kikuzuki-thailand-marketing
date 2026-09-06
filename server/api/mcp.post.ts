@@ -21,7 +21,8 @@ import {
   dispatchStandardMcpMethod, respondToMcpError, resolveMissingMcpCredential, unsupportedMcpMethodError, type McpToolMeta, } from "~/server/utils/mcp-runtime";
 import { getCloudflareWaitUntil, isMcpMutatingTool } from "~/server/utils/mcp-route-helpers";
 import { logMcpToolCallEvent } from "~/server/utils/mcp-telemetry";
-import { describeErrorForTelemetry } from "~/server/utils/error-telemetry";
+import { describeErrorForTelemetry, errorChainForTelemetry } from "~/server/utils/error-telemetry";
+import { getRequestDataMetrics, recordRequestPhase } from "~/server/utils/request-metrics";
 const TENANT_CATALOG_FINGERPRINT = catalogFingerprint(MCP_PUBLIC_TOOLS);
 
 // Fires a telemetry write without ever blocking or failing the MCP response.
@@ -103,12 +104,11 @@ export default defineHandler(async (event) => {
       ? request.params.name
       : undefined;
 
-    if (import.meta.dev) {
-      event.runtime?.node?.res?.once("finish", () => {
-        console.info("[MCP_REQUEST]", JSON.stringify({
-          method: requestMethod ?? null, request_id: requestId ?? null, status: event.runtime?.node?.res?.statusCode, duration_ms: Date.now() - requestStartedAt, content_length: event.runtime?.node?.res?.getHeader("content-length") ?? null, ray_id: (event.req.headers.get("cf-ray")) ?? null, user_agent: (event.req.headers.get("user-agent")) ?? null, }));
-      });
-    }
+    console.info('[MCP_REQUEST]', JSON.stringify({
+      event: 'mcp_request_started', request_id: getRequestDataMetrics(event).requestId,
+      rpc_id: requestId ?? null, method: requestMethod, tool: requestToolName ?? null,
+      ray_id: event.req.headers.get('cf-ray'),
+    }));
 
     // MCP protocol handshake — required before any tools/list or tools/call
     if (request.method === "initialize") {
@@ -204,7 +204,7 @@ When a public-facing tool result includes \`view_url\` or \`public_url\`, includ
 
 All other tools require a site_id obtained from get_workspace_context, list_sites, or create_site. Never guess, invent, derive, or pass through site IDs from URLs/domains.
 
-For every paginated read, keep calling the same tool with page_info.next_cursor (or the resource-specific next_cursor field) until has_more is false before claiming the collection is complete. Product batch and sync tools are atomic: read every list_location_products page, then send one complete intended create or reconciliation call with an explicit location_id. Never split one logical Product replacement across multiple mutation calls. For ordering, call move_products with only the Products being moved, or move_product_category for an entire category section; never resend the full catalog.
+For every paginated read, keep calling the same tool with page_info.next_cursor (or the resource-specific next_cursor field) until has_more is false before claiming the collection is complete. Product batch and sync tools are atomic: read every list_location_products page, then send one complete intended create or reconciliation call with an explicit location_id. Never split one logical Product replacement across multiple mutation calls. Read list_product_categories and create any missing sections with create_product_category; Product writes require category_id, and Product reads return category as an object. Use move_products to change category membership. For ordering, use reorder_products with every Product ID in one category, or reorder_product_categories with every category ID at the location, each exactly once in the intended order. Category names are localized separately through put_resource_localization with resource_type product_category and values { name }.
 
 Common workflows: manage location-scoped Products, create and publish site posts, triage contact and reservation submissions, update page content directly, upload media, reply to reviews, manage experiences and bookings, and generate or replace images for any content section. Manual locale management is available through the locale tools. Social publishing, domains, and priority-support requests are shown only when connector eligibility enables them; otherwise direct the user to the dashboard.`, });
     }
@@ -285,7 +285,10 @@ Common workflows: manage location-scoped Products, create and publish site posts
       const toolDef = MCP_TOOLS.find((t) => t.name === toolName);
       const toolStartedAt = Date.now();
 
+      const authStartedAt = performance.now();
       const mcpUser = await requireMcpUser(event, tenantAuthOptions);
+      recordRequestPhase(event, 'mcp_auth', authStartedAt);
+      const executionStartedAt = performance.now();
 
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       let result: any;
@@ -293,6 +296,12 @@ Common workflows: manage location-scoped Products, create and publish site posts
         assertConversationalToolEnabled(toolName, cfEnv as ApiRecord);
         result = await executeMcpToolCall(event, toolName, rawArgs, mcpUser);
       } catch (toolError) {
+        recordRequestPhase(event, 'mcp_execute', executionStartedAt);
+        console.error({
+          event: "mcp_tool_failed", tool: toolName, request_id: request.id,
+          ray_id: event.req.headers.get("cf-ray"), duration_ms: Date.now() - toolStartedAt,
+          errors: errorChainForTelemetry(toolError),
+        });
         const mcpErr = asMcpError(toolError);
         if (mcpErr.kind === "protocol") {
           const telemetryErrorMessage = describeErrorForTelemetry(toolError);
@@ -313,6 +322,7 @@ Common workflows: manage location-scoped Products, create and publish site posts
           isError: true, content: [{ type: "text", text: mcpErr.message }], });
       }
 
+      recordRequestPhase(event, 'mcp_execute', executionStartedAt);
       const isRender = isMcpRenderResponse(result);
       const structuredContent = isRender ? result.structuredContent : result;
       const modelText = isRender && result.modelText
@@ -356,6 +366,7 @@ Common workflows: manage location-scoped Products, create and publish site posts
             // before the stale public resource entry is cleared — otherwise a client
             // that reads public resources immediately after this mutation could still
             // see stale data.
+            const cacheStartedAt = performance.now();
             try {
               await purgePublicResourceCacheSafe({
                 DB: env.db,
@@ -364,6 +375,8 @@ Common workflows: manage location-scoped Products, create and publish site posts
               }, siteId)
             } catch (err: unknown) {
               console.warn("[mcp-cache-purge] public resource purge failed:", String(err))
+            } finally {
+              recordRequestPhase(event, 'mcp_cache_purge', cacheStartedAt);
             }
           }
           if (kv && db) {
@@ -414,5 +427,11 @@ Common workflows: manage location-scoped Products, create and publish site posts
     if (mappedStatus >= 500 && error instanceof Error) console.error(error.stack ?? error.message);
     return respondToMcpError(event, error, {
       requestId, requestMethod, requestToolName, requestToolArgs, baseUrl, ...runtimeDeps, });
+  } finally {
+    console.info('[MCP_REQUEST]', JSON.stringify({
+      event: 'mcp_request_finished', request_id: getRequestDataMetrics(event).requestId,
+      rpc_id: requestId ?? null, method: requestMethod ?? null, tool: requestToolName ?? null,
+      ray_id: event.req.headers.get('cf-ray'), duration_ms: Date.now() - requestStartedAt,
+    }));
   }
 });
