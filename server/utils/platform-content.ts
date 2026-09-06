@@ -922,7 +922,7 @@ export async function getPublishedLocalizedSiteBlogPost(
     getContentOutline(db, row.id), listBlocksForDocument(db, row.id),
     loadPublicSocialMedia(db, siteId, 'content_document', [row.id]),
   ])
-  return { ...canonical, title: row.title, excerpt: row.summary, slug,
+  return { ...canonical, id: row.id, title: row.title, excerpt: row.summary, slug,
     seo_title: row.seo_title, seo_description: row.seo_description, seo_keywords: row.seo_keywords,
     category: metadata.category ?? null, tags: metadata.tags ?? [], nav_title: metadata.nav_title ?? null,
     canonical_url: null, updated_at: row.updated_at, body: renderContentBlocksToMarkdown(rawBlocks),

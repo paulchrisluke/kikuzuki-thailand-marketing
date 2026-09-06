@@ -307,7 +307,7 @@ export async function getPost(
   const [jobs, origin, mediaByPost] = await Promise.all([
     queryAll<PostChannelState>(db, `SELECT c.key AS channel,
       c.value ->> '$.status' AS status, c.value ->> '$.provider_post_id' AS provider_post_id,
-      c.value ->> '$.error' AS error, c.value ->> '$.published_at' AS published_at, c.value ->> '$.created_at' AS created_at
+      c.value ->> '$.error_message' AS error, c.value ->> '$.published_at' AS published_at, c.value ->> '$.created_at' AS created_at
       FROM content_documents d, json_each(d.metadata_json, '$.channels') c
       WHERE d.id = ? AND d.kind = 'social_post' AND d.row_role = 'root' ORDER BY c.key`, [postId]),
     resolveSitePublicOrigin(db, siteId),
@@ -551,7 +551,7 @@ async function claimPostChannelState(db: DbClient, postId: string, channel: Post
   const path = '$.channels.' + channel
   const claimed = await execute(db, `UPDATE content_documents SET
     metadata_json = json_set(metadata_json, ?, json_object('status', 'pending', 'provider_post_id', NULL,
-      'error', NULL, 'published_at', NULL, 'created_at', COALESCE(json_extract(metadata_json, ?), ?))),
+      'error_message', NULL, 'published_at', NULL, 'created_at', COALESCE(json_extract(metadata_json, ?), ?))),
     updated_at = CASE WHEN ? > updated_at THEN ? ELSE strftime('%Y-%m-%dT%H:%M:%fZ', updated_at, '+0.001 seconds') END
     WHERE id = ? AND kind = 'social_post' AND row_role = 'root'
       AND (json_type(metadata_json, ?) IS NULL OR json_extract(metadata_json, ?) = 'skipped')`,
@@ -571,7 +571,7 @@ async function settlePostChannelState(db: DbClient, postId: string, channel: Pos
     updated_at = CASE WHEN ? > updated_at THEN ? ELSE strftime('%Y-%m-%dT%H:%M:%fZ', updated_at, '+0.001 seconds') END
     WHERE id = ? AND kind = 'social_post' AND row_role = 'root' AND json_extract(metadata_json, ?) = 'pending'`,
   [path + '.status', outcome.kind, path + '.provider_post_id', outcome.kind === 'published' ? outcome.providerPostId : null,
-    path + '.error', outcome.kind === 'published' ? null : outcome.reason,
+    path + '.error_message', outcome.kind === 'published' ? null : outcome.reason,
     path + '.published_at', outcome.kind === 'published' ? now : null, now, now, postId, path + '.status'])
 }
 
@@ -797,14 +797,15 @@ export async function getPublishedPostByPublicRoute(
   if (translated) {
     const metadata = JSON.parse(translated.metadata_json) as Record<string, unknown>
     if (!translated.summary || sourcePost.event && !metadata.event || sourcePost.offer?.terms_conditions && !metadata.offer) return null
-    const media = publicMediaFromRows((await getPostMediaByPostIds(db, siteId, [translated.id])).get(translated.id)?.media)
+    const socialMedia = (await getPostMediaByPostIds(db, siteId, [translated.id])).get(translated.id)
+    const media = publicMediaFromRows(socialMedia?.media)
     const publicPath = '/' + locale + '/posts/' + slug
     post = { ...sourcePost, id: translated.id, slug, title: translated.title ?? '', body: translated.summary, summary: translated.summary,
       seo_title: translated.seo_title, seo_description: translated.seo_description, public_path: publicPath,
       canonical_url: absoluteUrl(await resolveSitePublicOrigin(db, siteId), publicPath),
       event: sourcePost.event ? { ...sourcePost.event, ...(metadata.event as { title: string }) } : null,
       offer: sourcePost.offer ? { ...sourcePost.offer, ...(metadata.offer as { terms_conditions?: string }) } : null,
-      media: projectLocalizedMediaAlt(media, localizations),
+      media: projectLocalizedMediaAlt(media, localizations), social_image: socialMedia?.social_image ?? null,
     }
   }
 
