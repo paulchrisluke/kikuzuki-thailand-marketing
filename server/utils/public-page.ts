@@ -749,7 +749,11 @@ async function loadPublicPageSource(
         localizations: localizedLocale ? publicLocalizations : null,
       })
     : null
-  if (contentPagePath && !tenantPage && locale && locale !== sourceLocale && !isPreviewAuthorized) {
+  // Contact has a complete built-in route. Its CMS page is an optional hero and
+  // additional-content overlay, so a translated route remains valid when an
+  // older tenant has no canonical contact-page variant to translate.
+  const allowsMissingLocalizedTenantPage = page === 'contact'
+  if (contentPagePath && !tenantPage && locale && locale !== sourceLocale && !isPreviewAuthorized && !allowsMissingLocalizedTenantPage) {
     throw new HTTPError({ statusCode: 404, statusMessage: 'Localized page was not found' })
   }
   const contentRows: SiteContent[] = tenantPage ? tenantPageToContentRows(tenantPage) : []
@@ -1090,15 +1094,16 @@ async function loadPublicPageSource(
     representationSourcePath = `/locations/${sourceLocationSlug}${routeSuffix}`
     representationResource = { type: 'business_location', id: locationId, routeSuffix }
   }
-  const localeRepresentations = await listPublicLocaleRepresentations(db, {
-    organizationId: orgId,
-    siteId,
-    sourcePath: representationSourcePath,
-    sourceLabel,
-    resource: representationResource,
-    pageId: representationResource ? undefined : tenantPage?.page_id,
-    publishedLocaleRoute: !representationResource && !tenantPage && Boolean(routePagePath),
-  })
+  const localeRepresentations = !representationResource && tenantPage?.localeRepresentations
+    ? tenantPage.localeRepresentations
+    : await listPublicLocaleRepresentations(db, {
+        organizationId: orgId,
+        siteId,
+        sourcePath: representationSourcePath,
+        sourceLabel,
+        resource: representationResource,
+        publishedLocaleRoute: !representationResource && Boolean(routePagePath),
+      })
   const pagePayload = {
     kind: page ?? 'home',
     success: true,
