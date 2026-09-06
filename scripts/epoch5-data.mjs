@@ -20,7 +20,8 @@ const REMOVED = {
   oauthRefreshToken: ['accessTokenId'], subscription: ['limits', 'createdAt', 'updatedAt'],
 }
 const ADDED = { content_documents: ['site_id'], posts: ['call_to_action', 'event', 'offer', 'alert_type'], oauthClient: ['requirePKCE'], reviews: ['google_review_metadata'] }
-const RETIRED_TABLES = ['dashboard_preferences', 'themes']
+const ARCHIVED_TABLES = ['canary_runs', 'chowbot_conversations', 'chowbot_messages']
+const RETIRED_TABLES = ['dashboard_preferences', 'themes', ...ARCHIVED_TABLES]
 const DAYS = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday']
 const THAI_DAYS = ['วันอาทิตย์', 'วันจันทร์', 'วันอังคาร', 'วันพุธ', 'วันพฤหัสบดี', 'วันศุกร์', 'วันเสาร์']
 const TIME_COLUMNS = { platform_locale_catalogs: ['available_at', 'created_at', 'updated_at'], platform_locale_messages: ['updated_at'], resource_localizations: ['created_at', 'updated_at'] }
@@ -43,6 +44,29 @@ export function openDatabase(path) {
   db.pragma('foreign_keys = OFF')
   db.exec(readFileSync(path, 'utf8'))
   return db
+}
+
+export function historicalArchive(source) {
+  return {
+    source_epoch: 4,
+    source_schema_sha256: schemaHash(source),
+    tables: ARCHIVED_TABLES.map(table => {
+      const names = columns(source, table)
+      const query = `SELECT *, ${names.map((name, index) => `typeof(${qi(name)}) AS ${qi(`_archive_type_${index}`)}`).join(', ')} FROM ${qi(table)}`
+      const records = source.prepare(query).safeIntegers().all().map(row => names.map((name, index) => {
+        const type = row[`_archive_type_${index}`]
+        const value = type === 'integer' ? row[name].toString() : type === 'blob' ? row[name].toString('hex') : row[name]
+        return [type, value]
+      })).sort((a, b) => JSON.stringify(a) < JSON.stringify(b) ? -1 : JSON.stringify(a) > JSON.stringify(b) ? 1 : 0)
+      return { table, columns: names, records, sha256: hash(JSON.stringify(records)) }
+    }),
+  }
+}
+
+export function verifyHistoricalArchive(source, archive) {
+  const expected = historicalArchive(source)
+  assert(JSON.stringify(archive) === JSON.stringify(expected), 'Historical archive differs from exact typed source records')
+  return expected.tables.map(({ table, records, sha256 }) => ({ table, rows: records.length, sha256 }))
 }
 
 const SOURCE_PAGE_QUERY = `SELECT p.id FROM tenant_pages p WHERE NOT EXISTS (
@@ -253,7 +277,11 @@ export function project(source, evidence = {}) {
     return false
   })
   for (const [table, names] of Object.entries(REMOVED)) for (const key of names) discarded.push({ table, column: key, rows: data[table].length, non_null: data[table].filter(row => row[key] !== null).length, hash: hashRows(data[table], ['id', key]) })
-  for (const table of RETIRED_TABLES) { discarded.push({ table, rows: data[table].length, hash: hashRows(data[table], columns(source, table)) }); delete data[table] }
+  const archived = historicalArchive(source).tables.map(({ table, records, sha256 }) => ({ table, rows: records.length, sha256 }))
+  for (const table of RETIRED_TABLES) {
+    if (!ARCHIVED_TABLES.includes(table)) discarded.push({ table, rows: data[table].length, hash: hashRows(data[table], columns(source, table)) })
+    delete data[table]
+  }
   for (const [table, fields] of [['account', ['expiresAt']], ['oauthRefreshToken', ['accessTokenId']], ['subscription', ['limits']], ['site_transfer_requests', ['custom_domains_snapshot', 'custom_domains_removed_at']], ['business_locations', ['facebook_page_id', 'facebook_connection_id']], ['chowbot_channel_state', ['selected_site_id', 'active_conversation_id', 'pending_message_id']]]) for (const row of data[table]) for (const field of fields) assert(row[field] === null, `${table}.${field}: unexpected retained value`)
   for (const row of data.customers) assert(row.marketing_opted_out_at === null && row.loyalty_points_balance === 0, 'Customer has active data in retired unused fields')
   for (const row of data.business_locations) assert(row.attributes === null, 'Location has unmapped attributes')
@@ -348,7 +376,7 @@ export function project(source, evidence = {}) {
     else data.site_config.push({ organization_id: site.organization_id, site_id: site.id, key: 'default_timezone', value: priorZone, updated_at: site.updated_at })
   }
   for (const [table, names] of Object.entries(REMOVED)) for (const row of data[table]) for (const name of names) delete row[name]
-  return { data, sourceData, changed, discarded, discardedRows, unresolved, derived }
+  return { data, sourceData, changed, discarded, discardedRows, archived, unresolved, derived }
 }
 
 function assertSchema(source, target) {
@@ -359,9 +387,10 @@ function assertSchema(source, target) {
   }
 }
 
-export function verifyDatabases(source, target, evidence = {}) {
+export function verifyDatabases(source, target, evidence = {}, archive) {
   assertSchema(source, target)
   const projection = project(source, evidence)
+  if (projection.archived.some(table => table.rows > 0)) verifyHistoricalArchive(source, archive)
   const checks = []
   for (const table of tables(target)) {
     const names = columns(target, table).sort(), actual = rows(target, table), expected = projection.data[table]
@@ -379,7 +408,7 @@ export function verifyDatabases(source, target, evidence = {}) {
   assert(target.pragma('integrity_check', { simple: true }) === 'ok', 'Target SQLite integrity check failed')
   const invariants = auditTargetInvariants(target)
   assert(invariants.every(invariant => invariant.violations === 0), `Target invariant violations: ${invariants.filter(invariant => invariant.violations > 0).map(invariant => `${invariant.name}=${invariant.violations}`).join(', ')}`)
-  return { epoch: 5, generated_at: new Date().toISOString(), source_schema_sha256: schemaHash(source), target_schema_sha256: schemaHash(target), tables: checks, invariants, removed_columns: REMOVED, added_columns: ADDED, changed_fields: projection.changed, discarded_fields: projection.discarded, discarded_rows: projection.discardedRows, unresolved_fields: projection.unresolved, derived_projections: projection.derived, evidence_sha256: hash(JSON.stringify(evidence)) }
+  return { epoch: 5, generated_at: new Date().toISOString(), source_schema_sha256: schemaHash(source), target_schema_sha256: schemaHash(target), tables: checks, invariants, removed_columns: REMOVED, added_columns: ADDED, changed_fields: projection.changed, discarded_fields: projection.discarded, discarded_rows: projection.discardedRows, archived_tables: projection.archived, unresolved_fields: projection.unresolved, derived_projections: projection.derived, evidence_sha256: hash(JSON.stringify(evidence)) }
 }
 
 function main() {
@@ -393,7 +422,7 @@ function main() {
   try {
     if (command === 'plan') {
       const projection = project(source, evidence)
-      writeFileSync(resolve(targetPath), JSON.stringify({ changed_fields: projection.changed, discarded_fields: projection.discarded, discarded_rows: projection.discardedRows, unresolved_fields: projection.unresolved, derived_projections: projection.derived, projected_tables: Object.entries(projection.data).map(([table, values]) => ({ table, count: values.length, hash: hashRows(values, values.length ? Object.keys(values[0]).sort() : []) })) }, null, 2), { mode: 0o600, flag: 'wx' })
+      writeFileSync(resolve(targetPath), JSON.stringify({ changed_fields: projection.changed, discarded_fields: projection.discarded, discarded_rows: projection.discardedRows, archived_tables: projection.archived, unresolved_fields: projection.unresolved, derived_projections: projection.derived, projected_tables: Object.entries(projection.data).map(([table, values]) => ({ table, count: values.length, hash: hashRows(values, values.length ? Object.keys(values[0]).sort() : []) })) }, null, 2), { mode: 0o600, flag: 'wx' })
       console.log('Epoch 5 source projection is deterministic. Private disposition report written.')
       return
     }
@@ -403,6 +432,9 @@ function main() {
     if (command === 'transform') {
       assert(!existsSync(targetPath), 'Refusing to overwrite target database')
       const projection = project(source, evidence)
+      const archive = historicalArchive(source)
+      writeFileSync(`${resolve(targetPath)}.history.json`, JSON.stringify(archive, null, 2), { mode: 0o600, flag: 'wx' })
+      verifyHistoricalArchive(source, JSON.parse(readFileSync(`${resolve(targetPath)}.history.json`, 'utf8')))
       target = new Database(resolve(targetPath)); target.pragma('foreign_keys = OFF')
       for (const entry of baseline) target.exec(entry.sql)
       assertSchema(source, target)
@@ -420,7 +452,7 @@ function main() {
       for (const entry of baseline) expectedSchema.exec(entry.sql)
       assert(schemaHash(target) === schemaHash(expectedSchema), 'Actual target schema differs from generated baseline')
     } finally { expectedSchema.close() }
-    const manifest = verifyDatabases(source, target, evidence)
+    const manifest = verifyDatabases(source, target, evidence, JSON.parse(readFileSync(`${resolve(targetPath)}.history.json`, 'utf8')))
     manifest.baseline = baseline.map(entry => ({ name: entry.name, sha256: hash(entry.sql) }))
     writeFileSync(`${resolve(targetPath)}.${command === 'transform' ? 'manifest' : 'verification'}.json`, JSON.stringify(manifest, null, 2), { mode: 0o600 })
     console.log(`Epoch 5 ${command} passed: ${manifest.tables.length} tables, exact projected content, foreign keys and integrity verified.`)

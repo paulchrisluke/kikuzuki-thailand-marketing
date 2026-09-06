@@ -63,11 +63,8 @@ const GUEST_BOOKING_SITE_IDS = ['site-pottery-house', 'site-kikuzuki', 'site-ncl
 const E2E_FIXTURE_SITE_RETAINED_TABLES = [
   'usage_events',
   'stripe_ga4_subscription_intents',
-  'canary_runs',
   'mcp_tool_call_events',
   'notifications',
-  'chowbot_messages',
-  'chowbot_conversations',
   'organization_events',
   'site_domain_events',
   'site_conversion_events',

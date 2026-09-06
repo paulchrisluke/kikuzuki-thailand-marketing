@@ -3,9 +3,30 @@ import { readFileSync, readdirSync } from 'node:fs'
 import { resolve } from 'node:path'
 import test from 'node:test'
 import Database from 'better-sqlite3'
-import { auditTargetInvariants, convertHours, project, verifyDatabases, weeklyMinutes } from '../../scripts/epoch5-data.mjs'
+import { auditTargetInvariants, convertHours, historicalArchive, project, verifyDatabases, verifyHistoricalArchive, weeklyMinutes } from '../../scripts/epoch5-data.mjs'
 
 const root = process.env.EPOCH5_TEST_REPOSITORY ? resolve(process.env.EPOCH5_TEST_REPOSITORY) : resolve(import.meta.dirname, '../..')
+
+test('retired history preserves exact SQLite facts and rejects a missing or altered archive', () => {
+  const source = new Database(':memory:')
+  try {
+    source.exec(readFileSync(resolve(root, 'migrations-archive/epoch-4/0000_epoch_4_baseline.sql'), 'utf8'))
+    const details = JSON.stringify({ label: 'ประวัติ\nretained', result: null })
+    source.prepare("INSERT INTO canary_runs (id, run_type, status, details_json) VALUES ('proof', 'auth', 'pass', ?)").run(details)
+    const archive = JSON.parse(JSON.stringify(historicalArchive(source)))
+    assert.deepEqual(archive.tables.map(table => [table.table, table.records.length]), [
+      ['canary_runs', 1], ['chowbot_conversations', 0], ['chowbot_messages', 0],
+    ])
+    const canaries = archive.tables[0]
+    const detailsIndex = canaries.columns.indexOf('details_json')
+    assert.deepEqual(canaries.records[0][detailsIndex], ['text', details])
+    assert.equal(verifyHistoricalArchive(source, archive)[0].rows, 1)
+    assert.throws(() => verifyHistoricalArchive(source, undefined), /archive differs/)
+    canaries.records[0][detailsIndex] = ['text', 'altered']
+    assert.throws(() => verifyHistoricalArchive(source, archive), /archive differs/)
+    assert.equal(source.prepare("SELECT details_json FROM canary_runs WHERE id = 'proof'").get().details_json, details)
+  } finally { source.close() }
+})
 
 test('obsolete synthetic placements are accounted for while their Markdown and assets remain exact', () => {
   const source = new Database(':memory:')

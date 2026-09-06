@@ -117,23 +117,6 @@ export const business_locations = sqliteTable("business_locations", {
 	check("business_locations_special_hours_check", sql`special_hours IS NULL OR (json_valid(special_hours) AND json_type(special_hours) IS 'array')`),
 ]);
 
-export const canary_runs = sqliteTable("canary_runs", {
-	id: text().primaryKey(),
-	run_type: text().notNull(),
-	environment: text().default("production").notNull(),
-	status: text().notNull(),
-	organization_id: text().references(() => organization.id, { onDelete: "set null" } ),
-	site_id: text().references(() => sites.id, { onDelete: "set null" } ),
-	details_json: text(),
-	created_at: text().default(sql`(strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))`).notNull(),
-}, (table) => [
-	check("canary_runs_run_type_check", sql`run_type IN ('auth', 'notifications')`),
-	check("canary_runs_status_check", sql`status IN ('pass', 'fail')`),
-	check("canary_runs_details_json_check", sql`details_json IS NULL OR (json_valid(details_json))`),
-	index("idx_canary_runs_status_created").on(table.status, table.created_at),
-	index("idx_canary_runs_type_created").on(table.run_type, table.created_at),
-]);
-
 export const chowbot_channel_state = sqliteTable("chowbot_channel_state", {
 	user_id: text().notNull().references(() => user.id, { onDelete: "cascade" } ),
 	channel: text().notNull(),
@@ -143,50 +126,6 @@ export const chowbot_channel_state = sqliteTable("chowbot_channel_state", {
 }, (table) => [
 	check("chowbot_channel_state_pending_confirmation_check", sql`pending_confirmation IS NULL OR (json_valid(pending_confirmation) AND json_type(pending_confirmation) IS 'object')`),
 	primaryKey({ columns: [table.user_id, table.channel] }),
-]);
-
-export const chowbot_conversations = sqliteTable("chowbot_conversations", {
-	id: text().primaryKey(),
-	organization_id: text().notNull().references(() => organization.id, { onDelete: "cascade" } ),
-	site_id: text().notNull().references(() => sites.id, { onDelete: "cascade" } ),
-	user_id: text().notNull().references(() => user.id, { onDelete: "cascade" } ),
-	title: text().default("New Conversation").notNull(),
-	active_channel: text().default("dashboard").notNull(),
-	status: text().default("active").notNull(),
-	selected_location_id: text().references(() => business_locations.id, { onDelete: "set null" } ),
-	created_at: text().default(sql`(strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))`).notNull(),
-	updated_at: text().default(sql`(strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))`).notNull(),
-}, (table) => [
-	unique("chowbot_conversations_id_site_user_unique").on(table.id, table.site_id, table.user_id),
-	unique("chowbot_conversations_id_org_site_unique").on(table.id, table.organization_id, table.site_id),
-	index("chowbot_conversations_org_site_idx").on(table.organization_id, table.site_id),
-	index("chowbot_conversations_user_id_idx").on(table.user_id),
-	index("idx_chowbot_conversations_site").on(table.site_id, table.user_id, table.status, table.updated_at),
-]);
-
-export const chowbot_messages = sqliteTable("chowbot_messages", {
-	id: text().primaryKey(),
-	conversation_id: text().notNull().references(() => chowbot_conversations.id, { onDelete: "cascade" } ),
-	organization_id: text().notNull().references(() => organization.id, { onDelete: "cascade" } ),
-	site_id: text().notNull().references(() => sites.id, { onDelete: "cascade" } ),
-	user_id: text().references(() => user.id, { onDelete: "set null" } ),
-	role: text().notNull(),
-	channel: text().notNull(),
-	content: text(),
-	meta_message_id: text().unique(),
-	tool_calls: text(),
-	status: text().default("sent").notNull(),
-	error: text(),
-	created_at: text().default(sql`(strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))`).notNull(),
-}, (table) => [
-	check("chowbot_messages_tool_calls_check", sql`tool_calls IS NULL OR (json_valid(tool_calls))`),
-	foreignKey({
-		columns: [table.conversation_id, table.organization_id, table.site_id],
-		foreignColumns: [chowbot_conversations.id, chowbot_conversations.organization_id, chowbot_conversations.site_id],
-		name: "chowbot_messages_conversation_scope_fk",
-	}),
-	index("idx_chowbot_messages_conversation").on(table.conversation_id, table.created_at),
-	index("chowbot_messages_org_site_idx").on(table.organization_id, table.site_id),
 ]);
 
 export const contact_submissions = sqliteTable("contact_submissions", {
@@ -1439,8 +1378,6 @@ export const site_theme_tokens = sqliteTable("site_theme_tokens", {
 	check("site_theme_tokens_status_check", sql`status IN ('active', 'disabled')`),
 	index("site_theme_tokens_organization_id_idx").on(table.organization_id),
 ]);
-
-
 
 export const site_redirects = sqliteTable("site_redirects", {
 	id: text().primaryKey(),
