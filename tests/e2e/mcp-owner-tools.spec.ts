@@ -272,8 +272,18 @@ test.describe('stateless MCP server', () => {
     })
     expect(qaDeleteSecond.status()).toBe(200)
 
-    const deleteLocationRes = await request.delete(`${baseURL}/api/sites/${siteId}/locations/${locationId}`)
-    expect(deleteLocationRes.status()).toBe(200)
+    const requestId = crypto.randomUUID()
+    const cleanupStarted = Date.now()
+    const cleanupLog = { requestId, method: 'DELETE', path: `/api/sites/${siteId}/locations/${locationId}` }
+    console.log('[e2e-cleanup]', JSON.stringify({ ...cleanupLog, event: 'started', remainingTestMs: Math.max(0, test.info().timeout - (Date.now() - test.info().startTime.getTime())) }))
+    try {
+      const deleteLocationRes = await request.delete(`${baseURL}${cleanupLog.path}`, { headers: { 'x-request-id': requestId } })
+      console.log('[e2e-cleanup]', JSON.stringify({ ...cleanupLog, event: 'finished', durationMs: Date.now() - cleanupStarted, status: deleteLocationRes.status(), rayId: deleteLocationRes.headers()['cf-ray'] }))
+      expect(deleteLocationRes.status()).toBe(200)
+    } catch (error) {
+      console.log('[e2e-cleanup]', JSON.stringify({ ...cleanupLog, event: 'failed', durationMs: Date.now() - cleanupStarted }))
+      throw error
+    }
   })
 
   test('owner can manage site-level Q&A and provenance-aware reviews', async ({ request, baseURL }) => {

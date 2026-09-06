@@ -150,53 +150,7 @@ function configureZarazConsentManagement(config: ZarazConfig) {
   config.consent.defaultLanguage = 'en'
   config.consent.tcfCompliant = false
   config.consent.consentModalIntroHTML = 'We use optional analytics to understand site usage and improve our services. Read our <a href="https://krabiclaw.com/privacy">privacy policy</a>.'
-  config.consent.customCSS = `
-.cf_modal_container {
-  color: #1c1917;
-  font-family: ui-sans-serif, system-ui, sans-serif;
-}
-dialog::backdrop {
-  backdrop-filter: none;
-  background: rgba(15, 23, 42, 0.2);
-}
-.cf_modal {
-  inset: auto 1rem 1rem auto;
-  margin: 0;
-  max-height: min(70vh, 32rem);
-  max-width: 26rem;
-  padding: 1.25rem;
-  background: #fff;
-  border: 1px solid #e7e5e4;
-  border-radius: 0.75rem;
-  color: #1c1917;
-}
-.title_container {
-  margin-bottom: 0.75rem;
-}
-.cf_consent-intro,
-.cf_consent-element {
-  font-size: 0.875rem;
-  line-height: 1.4;
-}
-.cf_consent-buttons {
-  gap: 0.5rem;
-  margin: 1rem -1.25rem -1.25rem;
-  padding: 0.75rem 1.25rem;
-  background: #fafaf9;
-}
-.cf_button {
-  min-height: 2.5rem;
-  padding: 0.5rem 0.875rem;
-  border-radius: 0.375rem;
-}
-@media (max-width: 32rem) {
-  .cf_modal {
-    inset: auto 0.75rem 0.75rem;
-    width: auto;
-    max-height: 75vh;
-  }
-}
-`.trim()
+  config.consent.customCSS = ''
   config.consent.buttonTextTranslations = {
     accept_all: { en: 'Accept all' },
     confirm_my_choices: { en: 'Confirm my choices' },
