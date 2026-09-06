@@ -38,6 +38,29 @@ test('localized projection clears untranslated localizable fields', () => {
   assert.deepEqual(projected.price, { amount_minor: 2500 })
 })
 
+test('localized link-page SEO stays within its nullable public contract', () => {
+  const projected = projectExactLocalizedResource(
+    'site_link_page',
+    {
+      id: 'links-1',
+      title: 'Helpful links',
+      seo_title: 'Helpful links',
+      seo_description: 'English description',
+    },
+    {
+      resourceType: 'site_link_page',
+      resourceId: 'links-1',
+      locale: 'th',
+      routePath: '/th/links',
+      values: { title: 'ลิงก์ภาษาไทย' },
+    },
+  )
+
+  assert.equal(projected.title, 'ลิงก์ภาษาไทย')
+  assert.equal(projected.seo_title, 'ลิงก์ภาษาไทย')
+  assert.equal(projected.seo_description, null)
+})
+
 test('professional-service blog paths use the Blawby article route', () => {
   assert.equal(tenantBlogPostPath({ vertical: 'professional_service' }, 'thai-law'), '/article/thai-law')
 })

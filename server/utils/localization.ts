@@ -114,7 +114,10 @@ export async function getPersistedSourceLocale(
      ORDER BY id
   `, [organizationId, siteId])
   const source = rows.length === 1 ? rows[0] : undefined
-  if (!source || source.status !== 'published' || !platformLocale(source.locale)) {
+  // Epoch 4 stores English only as a published source and prohibits English
+  // resource localizations and language licenses. Keep runtime integrity aligned
+  // with that schema until a reviewed database epoch changes all three contracts.
+  if (!source || source.locale !== 'en' || source.status !== 'published' || !platformLocale(source.locale)) {
     throw new HTTPError({
       statusCode: 500,
       statusMessage: 'Site source locale integrity check failed',

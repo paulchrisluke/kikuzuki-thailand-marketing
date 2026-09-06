@@ -3,6 +3,7 @@ import { d1JsonStringSet } from '~/server/db/d1-limits'
 import { cleanString } from '~/server/utils/api-response'
 import { resolvePublicTemplate, type PublicTemplateSlug } from '~/utils/template-registry'
 import { getMediaPlacements } from '~/server/utils/media-placement'
+import { getPersistedSourceLocale } from '~/server/utils/localization'
 import { loadExactPublicLocalizations, projectExactLocalizedCollection, projectExactLocalizedResource } from '~/server/utils/public-localization'
 import { listPublicLocaleRepresentations } from '~/server/utils/public-locale-representations'
 import type { PublicLocaleRepresentation } from '~/utils/public-resource-contracts'
@@ -236,22 +237,27 @@ export async function getPublicLinksPage(db: DbClient, siteId: string, locale = 
   const sourceItems = items.filter(item => item.status === 'active')
   if (!sourcePage || sourcePage.path !== '/links' || sourceItems.length === 0) return null
   const organizationId = String(site.organization_id)
-  const localizations = locale === 'en'
+  const sourceLocale = await getPersistedSourceLocale(db, organizationId, siteId)
+  const isSourceLocale = locale === sourceLocale.locale
+  const localizations = isSourceLocale
     ? []
     : await loadExactPublicLocalizations(db, organizationId, siteId, locale)
   const pageLocalization = localizations.find(item => item.resourceType === 'site_link_page' && item.resourceId === sourcePage.id)
   const siteLocalization = localizations.find(item => item.resourceType === 'site' && item.resourceId === siteId)
-  if (locale !== 'en' && !pageLocalization) return null
-  const page = pageLocalization
-    ? projectExactLocalizedResource('site_link_page', sourcePage, pageLocalization)
-    : sourcePage
-  const publicItems = locale === 'en'
+  let page = sourcePage
+  if (!isSourceLocale) {
+    if (!pageLocalization) return null
+    page = projectExactLocalizedResource('site_link_page', sourcePage, pageLocalization)
+  }
+  const publicItems = isSourceLocale
     ? sourceItems
     : projectExactLocalizedCollection('site_link_item', sourceItems, localizations)
   if (publicItems.length === 0) return null
-  const localizedSite = siteLocalization
-    ? projectExactLocalizedResource('site', { ...site, id: siteId }, siteLocalization)
-    : { ...site, brand_name: null, brand_description: null }
+  const localizedSite = isSourceLocale
+    ? site
+    : siteLocalization
+      ? projectExactLocalizedResource('site', { ...site, id: siteId }, siteLocalization)
+      : { ...site, brand_name: null, brand_description: null }
 
   const template = resolvePublicTemplate({
     themeId: typeof site.theme_id === 'string' ? site.theme_id : null,

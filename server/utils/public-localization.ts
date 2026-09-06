@@ -126,8 +126,8 @@ export function projectExactLocalizedResource<T extends { id: string }>(
   }
   const localizedTitle = titleField[resourceType] ? localization.values[titleField[resourceType]] : undefined
   const localizedDescription = descriptionField[resourceType] ? localization.values[descriptionField[resourceType]] : undefined
-  if ('seo_title' in canonical) projectedValues.seo_title = typeof localizedTitle === 'string' ? localizedTitle : undefined
-  if ('seo_description' in canonical) projectedValues.seo_description = typeof localizedDescription === 'string' ? localizedDescription : undefined
+  if ('seo_title' in canonical) projectedValues.seo_title = typeof localizedTitle === 'string' ? localizedTitle : null
+  if ('seo_description' in canonical) projectedValues.seo_description = typeof localizedDescription === 'string' ? localizedDescription : null
   if (resourceType === 'site_post' && typeof localization.values.body === 'string') {
     projectedValues.body = localization.values.body
     projectedValues.summary = localization.values.body
