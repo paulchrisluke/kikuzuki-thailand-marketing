@@ -1,3 +1,5 @@
+import { errorChainForTelemetry } from '~/server/utils/error-telemetry'
+
 function bucket(env: ApiRecord): R2Bucket {
   if (!env.MEDIA_BUCKET) throw new Error('MEDIA_BUCKET binding not available')
   return env.MEDIA_BUCKET
@@ -21,6 +23,13 @@ function normalizeR2Key(key: string): string {
   return safeParts.join('/')
 }
 
+function r2BodyBytes(body: ArrayBuffer | ArrayBufferView | ReadableStream | Blob): number | null {
+  if (body instanceof ArrayBuffer) return body.byteLength
+  if (ArrayBuffer.isView(body)) return body.byteLength
+  if (body instanceof Blob) return body.size
+  return null
+}
+
 /** Upload a file to R2 and return its public CDN URL. */
 export async function uploadToR2(
   env: ApiRecord,
@@ -29,7 +38,23 @@ export async function uploadToR2(
   contentType: string
 ): Promise<string> {
   const normalizedKey = normalizeR2Key(key)
-  await bucket(env).put(normalizedKey, body, { httpMetadata: { contentType } })
+  const startedAt = Date.now()
+  try {
+    await bucket(env).put(normalizedKey, body, { httpMetadata: { contentType } })
+  } catch (putError) {
+    // R2 surfaces transient internal errors as `put: ... (10001)`. Callers outside
+    // uploadResolvedMediaToAssetStore log nothing, so record the write here.
+    console.error({
+      event: 'r2_put_failed',
+      r2_key: normalizedKey,
+      content_type: contentType,
+      bytes: r2BodyBytes(body),
+      streamed: !(body instanceof ArrayBuffer || ArrayBuffer.isView(body) || body instanceof Blob),
+      duration_ms: Date.now() - startedAt,
+      errors: errorChainForTelemetry(putError),
+    })
+    throw putError
+  }
   return getR2Url(env, normalizedKey)
 }
 
