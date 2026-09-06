@@ -31,9 +31,9 @@
     v-model:open="dialogOpen"
     :title="editingId ? 'Edit question' : 'Add a question'"
     :removable="Boolean(editingId)"
-    :saving="saving"
+    :saving="translationLocale === 'en' ? saving : translationSaving"
     :removing="removingId === editingId"
-    :save-disabled="!locationId || (translationLocale === 'en' ? !form.question.trim() : false)"
+    :save-disabled="!locationId || (translationLocale === 'en' ? !form.question.trim() : translationSaving)"
     @save="translationLocale === 'en' ? saveQa() : saveTranslation()"
     @remove="removeEditing"
   >

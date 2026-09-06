@@ -240,9 +240,15 @@ async function loadLocationContentCounts(
   // for every count after the first.
   const row = await queryFirst<Record<string, number>>(db, `
     SELECT
-      (SELECT COUNT(*) FROM media_placements
-        WHERE site_id = ? AND owner_type = 'business_location' AND owner_id = ?
-          AND slot IN ('hero', 'gallery') AND status = 'active') AS photos,
+      -- Joined to the asset: a placement can stay active while its asset is
+      -- retired, and every other media read here requires an active asset. The
+      -- count has to mean photos a guest could actually see.
+      (SELECT COUNT(*) FROM media_placements mp
+        JOIN media_assets ma ON ma.id = mp.asset_id
+         AND ma.organization_id = mp.organization_id AND ma.site_id = mp.site_id
+         AND ma.status = 'active'
+        WHERE mp.site_id = ? AND mp.owner_type = 'business_location' AND mp.owner_id = ?
+          AND mp.slot IN ('hero', 'gallery') AND mp.status = 'active') AS photos,
       (SELECT COUNT(*) FROM experiences WHERE site_id = ? AND location_id = ?) AS experiences,
       (SELECT COUNT(*) FROM posts WHERE site_id = ? AND location_id = ? AND status = 'published') AS posts,
       (SELECT COUNT(*) FROM location_qa WHERE site_id = ? AND location_id = ?) AS qa,
