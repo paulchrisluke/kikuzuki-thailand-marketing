@@ -14,6 +14,40 @@ Custom database migrations are prohibited. If an LLM proposes, generates, or edi
 - Do not hand-mutate staging or production data or schema to mask application failures.
 - Do not broaden the task to adjacent defects. Report them unless they directly block the requested change; if they block it, fix them through the same canonical path rather than creating another mechanism.
 
+## Never guess which record
+
+An operation on a specific record must receive that record's identity from its
+caller. When the identity is missing, ambiguous, or not found, fail: return an
+error, a 400, or an explicit empty state. Never substitute a different record.
+
+Banned outright, with no "unless documented" escape:
+
+- `find(x => x.is_primary) ?? items[0]`, and every variant of it — first row,
+  newest row, the only row that happens to exist, `ORDER BY … LIMIT 1` used to
+  *choose* a record rather than to page through them.
+- Introducing a `primary` / `default` / `main` flag so a surface has something to
+  show when it was given nothing. That is a UI problem wearing a schema costume;
+  build the selector instead.
+- Inferring a target from context the caller did not pass: the current site, the
+  last-used item, the single item that exists today.
+
+This is not a style preference. The ChatGPT MCP app edited the wrong products in
+production because a tool resolved an ambiguous target instead of refusing it.
+Code that is correct only because one row exists today changes meaning silently
+the day a second row appears, and it changes it in production, for a customer.
+
+If a surface needs a record and has none, the answer is a selector, an explicit
+error, or a named owner column. Never a guess.
+
+**The one construct that is not this:** walking a declared ownership hierarchy to
+a *named* owner — a location's contact email falling back to its site's
+`contact_email`, where both levels are documented owners of that field. The test
+is whether the second operand names a specific source or picks an arbitrary one.
+`?? site.contact_email` names one. `?? locations[0]` does not.
+
+Sorting for stable presentation is not selection. `ORDER BY title ASC` is fine.
+`ORDER BY is_primary DESC` existing to give a `LIMIT 1` its meaning is not.
+
 ## Complexity control
 
 Default order: delete, reuse, modify, add.
