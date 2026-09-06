@@ -51,11 +51,12 @@
                 trailingIcon: 'size-4',
               }"
               trailing-icon="i-lucide-chevrons-up-down"
-              @update:open="onPhoneCountryOpen"
             >
               <span class="flex min-w-0 items-center gap-2">
-                <span class="flex size-5 items-center text-lg">{{ country?.emoji || '🇺🇸' }}</span>
-                <span class="text-sm font-semibold text-highlighted">{{ countryCode }}</span>
+                <span v-if="country" class="flex size-5 items-center text-lg">{{ country.emoji }}</span>
+                <span class="truncate text-sm font-semibold" :class="countryCode ? 'text-highlighted' : 'text-muted'">
+                  {{ countryCode ?? 'Country' }}
+                </span>
               </span>
 
               <template #item-leading="{ item }">
@@ -75,7 +76,8 @@
               class="min-w-0 flex-1"
               size="xl"
               type="tel"
-              :placeholder="mask.replaceAll('#', '_')"
+              :disabled="!countryCode"
+              :placeholder="mask ? mask.replaceAll('#', '_') : 'Choose a country first'"
               :style="{ '--dial-code-length': `${dialCode.length + 1.5}ch` }"
               :ui="{
                 base: 'ps-(--dial-code-length)',
@@ -145,7 +147,7 @@ type IntakeForm = {
   postalCode: string
   country: string
   phone: string
-  currency: CurrencyCode
+  currency: CurrencyCode | undefined
   isPrimary: boolean
 }
 
@@ -165,7 +167,9 @@ const emit = defineEmits<{ submit: [] }>()
 const currencyOptions = CURRENCY_OPTIONS
 const phone = ref('')
 const phoneTouched = ref(false)
-const countryCode = ref('US')
+// No default country: a US/+1 prefill would be persisted as the owner's own
+// answer. The dial code, mask and phone input stay inert until one is chosen.
+const countryCode = ref<string | undefined>()
 const hydratingStoredPhone = ref(false)
 
 const { data: phoneCodes, status, execute } = useLazyFetch<PhoneCode[], unknown, string>('/api/phone-codes.json', {
@@ -173,18 +177,20 @@ const { data: phoneCodes, status, execute } = useLazyFetch<PhoneCode[], unknown,
   immediate: false,
 })
 
-const country = computed(() => phoneCodes.value?.find((c: PhoneCode) => c.code === countryCode.value))
-const dialCode = computed(() => country.value?.dialCode || '+1')
-const mask = computed(() => country.value?.mask || '(###) ###-####')
+const country = computed(() => phoneCodes.value?.find((c: PhoneCode) => c.code === countryCode.value) ?? null)
+const dialCode = computed(() => country.value?.dialCode ?? '')
+const mask = computed(() => country.value?.mask ?? '')
 const parsedPhone = computed(() =>
-  parsePhone(`${dialCode.value} ${phone.value}`, { defaultCountry: countryCode.value as CountryCode })
+  countryCode.value
+    ? parsePhone(`${dialCode.value} ${phone.value}`, { defaultCountry: countryCode.value as CountryCode })
+    : parsePhone(phone.value)
 )
 
-function onPhoneCountryOpen(open: boolean) {
-  if (open && !phoneCodes.value?.length) {
-    execute()
-  }
-}
+// The country has to be picked before anything can be typed, so the list is
+// loaded as soon as the contact step renders rather than on first open.
+onMounted(() => {
+  if (props.section === 'contact' && !phoneCodes.value?.length) execute()
+})
 
 watch(countryCode, () => {
   if (hydratingStoredPhone.value) return
@@ -200,7 +206,9 @@ function syncPhoneValue(value?: string | number) {
     : ''
 }
 
-watch(dialCode, syncPhoneValue)
+// Re-normalize the stored number when the dial code changes. Passing the watcher's
+// own argument through would write the dial code itself into the phone field.
+watch(dialCode, () => syncPhoneValue())
 
 watch(() => form.value.phone, value => {
   if (!value || value === parsedPhone.value.e164) return
@@ -219,6 +227,7 @@ watch(() => form.value.phone, value => {
 
 const canSubmit = computed(() => {
   if (props.section === 'currency') return !!form.value.currency
+  if (props.section === 'contact' && phone.value.trim() && !parsedPhone.value.valid) return false
   if (!props.requireLocationBasics) return true
   if (props.section === 'location') {
     return [form.value.streetAddress, form.value.city].every(value => value.trim().length > 0)
@@ -229,7 +238,8 @@ const canSubmit = computed(() => {
 const phoneError = computed(() => {
   if (props.section !== 'contact' || !phoneTouched.value) return undefined
   if (!phone.value.trim()) return props.requireLocationBasics ? 'Enter a phone number.' : undefined
-  return parsedPhone.value.valid ? undefined : `Enter a valid ${country.value?.name ?? countryCode.value} phone number.`
+  if (parsedPhone.value.valid) return undefined
+  return `Enter a valid ${country.value?.name ?? countryCode.value ?? ''} phone number.`.replace(/\s{2,}/g, ' ')
 })
 
 function submitAfterSelection() {

@@ -12,6 +12,7 @@
         :existing-site-slug="siteData?.subdomain ?? null"
         @site-created="onSiteCreated"
         @draft-saved="onDraftSaved"
+        @preview-requested="openMobilePreview"
         @draft-cleared="onDraftCleared"
         @vertical-selected="selectedOnboardingVertical = $event"
         @step-changed="activeOnboardingStep = $event"
@@ -111,6 +112,7 @@ const draftPreview = ref<{
   subdomainCandidate: string
 } | null>(null)
 const mobilePreviewOpen = ref(false)
+const hasAutoOpenedMobilePreview = ref(false)
 const isMobilePreviewViewport = ref(false)
 const contextLoaded = ref(false)
 const contextError = ref<Error | null>(null)
@@ -382,7 +384,20 @@ const onDraftSaved = (draft: {
   draftPreview.value = draft
   selectedLocationId.value = draft.draftId
   previewReloadToken.value = Date.now()
-  mobilePreviewOpen.value = isMobilePreviewViewport.value
+  // Every wizard step saves the draft again. The slideover covers the wizard, so
+  // it opens itself only the first time there is something to preview — after
+  // that it is opened on request from the wizard's preview controls.
+  if (isMobilePreviewViewport.value && !hasAutoOpenedMobilePreview.value) {
+    hasAutoOpenedMobilePreview.value = true
+    mobilePreviewOpen.value = true
+  }
+}
+
+// The wizard's preview controls. On mobile the slideover has to be opened; on
+// desktop the pane is already on screen, so refresh it against the saved draft.
+const openMobilePreview = () => {
+  previewReloadToken.value = Date.now()
+  if (isMobilePreviewViewport.value) mobilePreviewOpen.value = true
 }
 
 const onDraftCleared = () => {

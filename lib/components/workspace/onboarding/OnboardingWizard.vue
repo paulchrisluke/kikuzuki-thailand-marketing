@@ -2,26 +2,7 @@
   <div
     class="relative flex min-h-0 flex-col border-r border-default bg-default"
     :data-onboarding-hydrated="onboardingHydrated ? 'true' : 'false'"
-    @dragenter.prevent="dragCounter++"
-    @dragover.prevent
-    @dragleave="dragCounter = Math.max(0, dragCounter - 1)"
-    @drop.prevent="onDrop"
   >
-    <!-- Drag overlay -->
-    <Transition name="fade">
-      <div
-        v-if="isDragging && step !== 'welcome'"
-        class="absolute inset-0 z-10 flex items-center justify-center"
-      >
-        <UCard class="mx-8 border-2 border-dashed border-primary" :ui="{ body: 'px-8 py-10 sm:px-8 sm:py-10' }">
-          <div class="flex flex-col items-center gap-3 text-center">
-            <UIcon name="i-lucide-upload" class="size-10 text-primary" />
-            <p class="font-medium text-highlighted">Drop to attach</p>
-            <p class="text-xs text-muted">JPEG, PNG, WEBP, PDF — max 10 MB</p>
-          </div>
-        </UCard>
-      </div>
-    </Transition>
 
     <!-- Welcome screen -->
     <div v-if="step === 'welcome'" class="flex min-h-0 flex-1 flex-col gap-[18px] overflow-y-auto p-6 pb-4">
@@ -31,13 +12,13 @@
       <div>
         <p class="mb-1 text-[11px] font-bold uppercase tracking-[0.28em] text-primary">{{ isAddingLocation ? "Let's add a location" : "Let's build your site" }}</p>
         <h1 class="text-3xl font-extrabold leading-tight tracking-tight text-highlighted">
-          {{ isAddingLocation ? "Tell me about this location. I'll do the typing." : "Tell me about your business. I'll do the typing." }}
+          {{ isAddingLocation ? "Tell me about this location." : "Tell me about your business." }}
         </h1>
       </div>
       <p class="text-[14.5px] leading-relaxed text-muted">
         {{ isAddingLocation
           ? "Answer a few questions and this location is added to your site — you decide what to keep."
-          : "Answer a few questions and a real, SEO-ready site builds itself on the right — you decide what to keep." }}
+          : "Answer a few questions and your site preview builds on the right — you decide what to keep." }}
       </p>
       <div class="flex flex-col gap-2.5">
         <div
@@ -94,7 +75,7 @@
           size="sm"
           square
           aria-label="Preview draft"
-          @click="$emit('draft-saved', draftPreviewPayload)"
+          @click="requestPreview"
         />
       </div>
 
@@ -103,11 +84,9 @@
         :messages="conversationMessages"
         :placeholder="inputPlaceholder"
         :disabled="!awaitingInput"
-        :loading="typing"
-        :messages-status="typing ? 'streaming' : undefined"
         :show-empty-state="false"
         :render-markdown="renderMarkdown"
-        :quick-replies="importError ? [] : replies"
+        :quick-replies="replies"
         :show-prompt="showComposer"
         :show-assistant-avatar="false"
         @submit="handleTextSubmit"
@@ -211,11 +190,11 @@
                 block
                 color="neutral"
                 variant="outline"
-                @click="openDraftPreview"
+                @click="requestPreview"
               >
                 <div
                   class="relative flex h-36 items-center justify-center overflow-hidden bg-muted text-muted"
-                  :style="draftReadyThumbnailUrl ? undefined : { background: brandDraftForm.brandColor }"
+                  :style="draftReadyBackground"
                 >
                   <UBadge class="absolute right-3 top-3" color="success" variant="soft" label="Ready" />
                   <img
@@ -282,7 +261,7 @@
         >
           <UIcon name="i-lucide-triangle-alert" class="size-3.5 shrink-0" />
           <span>{{ importError }}</span>
-          <UButton size="xs" variant="link" color="error" @click="retryImport">Try again</UButton>
+          <UButton v-if="canRetryFailedStep" size="xs" variant="link" color="error" @click="retryFailedStep">Try again</UButton>
         </div>
       </template>
       </ConversationShell>
@@ -291,9 +270,10 @@
 </template>
 
 <script setup lang="ts">
-import { getLocalTimezone } from '~/utils/timezone'
 import { marked } from 'marked'
-import { DEFAULT_CURRENCY } from '~/shared/currencies'
+import { parsePhone } from '~/utils/phone'
+import { parseWeekdayHoursFromDescriptions } from '~/shared/reservation-hours'
+import type { CurrencyCode } from '~/shared/currencies'
 import ConversationShell from '~/components/conversation/ConversationShell.vue'
 import { loadDomPurify } from '~/utils/dom-purify-loader'
 import type { DraftBrandForm } from '~/lib/components/workspace/onboarding/DraftBrandCard.vue'
@@ -339,7 +319,7 @@ interface DraftSavedPayload {
   subdomainCandidate: string
 }
 
-type WizardStep = 'welcome' | 'vertical' | 'source' | 'awaiting_url' | 'awaiting_manual_name' | 'confirm' | 'location' | 'contact' | 'currency' | 'hours' | 'brand' | 'hero' | 'draft_ready' | 'create' | 'importing' | 'imported'
+type WizardStep = 'welcome' | 'vertical' | 'source' | 'awaiting_url' | 'awaiting_manual_name' | 'confirm' | 'location' | 'contact' | 'currency' | 'hours' | 'brand' | 'hero' | 'draft_ready' | 'create' | 'imported'
 type DetailsSource = 'imported' | 'manual'
 type DraftSourceType = 'manual' | 'google_places'
 
@@ -355,6 +335,7 @@ const props = defineProps<{
 const emit = defineEmits<{
   'site-created': [orgSlug: string | null, locationSlug?: string | null]
   'draft-saved': [draft: DraftSavedPayload]
+  'preview-requested': []
   'draft-cleared': []
   'vertical-selected': [vertical: SiteVertical]
   'step-changed': [step: WizardStep]
@@ -362,8 +343,12 @@ const emit = defineEmits<{
 
 const router = useRouter()
 const config = useRuntimeConfig()
-const toast = useToast()
 const { trackSiteCreated, trackOnboardingCompleted } = useAnalytics()
+
+const DRAFT_READY_REPLIES: QuickReply[] = [
+  { label: 'Create site', icon: 'i-lucide-rocket', primary: true, action: 'commit_draft' },
+  { label: 'Edit details', icon: 'i-lucide-pencil', action: 'edit_draft' },
+]
 
 const isAddingLocation = computed(() => props.mode === 'add-location')
 const skipVertical = computed(() => props.mode === 'add-location')
@@ -374,13 +359,13 @@ const addLocationEndpoint = '/api/dashboard/locations/add'
 
 const WELCOME_POINTS: [string, string][] = isAddingLocation.value
   ? [
-      ['i-lucide-globe', 'Pulls the address, hours & reviews from Google'],
-      ['i-lucide-sparkles', 'Adds the location to your existing site as you watch'],
+      ['i-lucide-globe', 'Pulls the address, hours & reviews Google already lists'],
+      ['i-lucide-sparkles', 'Keeps only what you confirm — nothing is filled in for you'],
       ['i-lucide-map-pin', 'Goes live on your site as soon as you save it'],
     ]
   : [
-      ['i-lucide-globe', 'Pulls your address, hours & reviews from Google'],
-      ['i-lucide-sparkles', 'Builds your homepage and story as you watch'],
+      ['i-lucide-globe', 'Pulls the address, hours & reviews Google already lists'],
+      ['i-lucide-sparkles', 'Builds a homepage preview as you answer'],
       ['i-lucide-rocket', 'Launches on your included site address when you are ready'],
     ]
 
@@ -397,7 +382,6 @@ const conversationMessages = computed(() => messages.value.map(msg => ({
     status: tool.done ? 'completed' : 'running',
   })),
 })))
-const typing = ref(false)
 const replies = ref<QuickReply[]>([])
 const awaitingInput = ref(false)
 const textInput = ref('')
@@ -425,16 +409,18 @@ const detailsForm = reactive({
   postalCode: '',
   country: '',
   phone: '',
-  currency: DEFAULT_CURRENCY,
+  currency: undefined as CurrencyCode | undefined,
   isPrimary: true,
 })
+// Unknown hours and timezone stay unknown: the hours card refuses to submit until
+// every day is either given times or marked closed, so nothing here is invented.
 const hoursForm = reactive({
   timezone: '',
   hours: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
-    .map(day => ({ day, open: '09:00', close: '18:00', closed: false })),
+    .map(day => ({ day, open: '', close: '', closed: false })),
 })
 const brandDraftForm = reactive({
-  brandColor: '#3F3F46',
+  brandColor: '',
   logoNote: '',
   logoPreviewUrl: '',
   logoImage: null as DraftBrandForm['logoImage'],
@@ -444,10 +430,6 @@ const brandDraftForm = reactive({
   heroHeadline: '',
   heroDescription: '',
 })
-
-// Drag support
-const dragCounter = ref(0)
-const isDragging = computed(() => dragCounter.value > 0)
 
 const inputPlaceholder = computed(() => {
   if (step.value === 'awaiting_manual_name') return 'Your business name…'
@@ -467,7 +449,7 @@ const progressStep = computed(() => {
   if (step.value === 'brand') return 9
   if (step.value === 'hero') return 10
   if (step.value === 'draft_ready') return 11
-  if (step.value === 'create' || step.value === 'importing') return 12
+  if (step.value === 'create') return 12
   if (step.value === 'imported') return 12
   return 1
 })
@@ -485,11 +467,10 @@ const progressLabel = computed(() => {
   if (step.value === 'hero') return 'Homepage hero'
   if (step.value === 'draft_ready') return 'Draft ready'
   if (step.value === 'create') return 'Create site'
-  if (step.value === 'importing') return 'Launching'
   if (step.value === 'imported') return 'Next steps'
   return 'Onboarding'
 })
-const canGoBack = computed(() => !importing.value && !typing.value && !['welcome', 'importing', 'imported'].includes(step.value))
+const canGoBack = computed(() => !importing.value && !['welcome', 'create', 'imported'].includes(step.value))
 const isPastMessage = (index: number) => index < messages.value.length - 1
 const isActiveStepMessage = (message: WizardMessage) => message.step === step.value && !importing.value
 const messageMotionStyle = (index: number) => ({
@@ -592,14 +573,11 @@ function rewindToChoiceMessage(index: number) {
   messages.value = messages.value.slice(0, index + 1)
   replies.value = []
   awaitingInput.value = false
-  typing.value = false
   importError.value = null
   if (message.step === 'vertical' || message.step === 'source' || message.step === 'confirm') {
     clearDraftPreview()
   }
 }
-
-const sleep = (ms: number) => new Promise(r => setTimeout(r, ms))
 
 const workspaceEntryPath = computed(() => {
   const slug = importedOrgSlug.value ?? props.existingOrgSlug ?? null
@@ -622,6 +600,9 @@ const draftReadyDomain = computed(() => {
   return candidate && freeSiteHost.value ? `${candidate}.${freeSiteHost.value}` : ''
 })
 const draftReadyThumbnailUrl = computed(() => brandDraftForm.heroPreviewUrl || brandDraftForm.logoPreviewUrl || '')
+const draftReadyBackground = computed(() => draftReadyThumbnailUrl.value || !brandDraftForm.brandColor
+  ? undefined
+  : { background: brandDraftForm.brandColor })
 const draftReadyInitials = computed(() => {
   const source = detailsForm.name || draftPreviewPayload.value?.draftName || ''
   return source
@@ -636,7 +617,7 @@ function pushUser(text: string) {
   messages.value.push({ id: crypto.randomUUID(), from: 'user', text })
 }
 
-async function pushBot(text: string, extra?: {
+function pushBot(text: string, extra?: {
   step?: WizardStep
   tools?: { label: string; done: boolean }[]
   draftReadyCard?: boolean
@@ -646,15 +627,11 @@ async function pushBot(text: string, extra?: {
   brandDraftCard?: WizardMessage['brandDraftCard']
   detailsCard?: WizardMessage['detailsCard']
 }) {
-  typing.value = true
-  await sleep(560)
-  typing.value = false
   messages.value.push({ id: crypto.randomUUID(), from: 'bot', text, step: extra?.step ?? step.value, ...extra })
-  await sleep(80)
 }
 
-function openDraftPreview() {
-  if (draftPreviewPayload.value) emit('draft-saved', draftPreviewPayload.value)
+function requestPreview() {
+  if (draftPreviewPayload.value) emit('preview-requested')
 }
 
 // ─── State machine ────────────────────────────────────────────────────────────
@@ -666,7 +643,7 @@ async function advance(target: WizardStep) {
   importError.value = null
 
   if (target === 'vertical') {
-    await pushBot("First — what kind of business is this?", {
+    pushBot("First — what kind of business is this?", {
       choiceCard: {
         choices: [
           { label: 'Restaurant, café or bar', icon: 'i-lucide-flame', primary: true, action: 'set_vertical_restaurant' },
@@ -678,7 +655,7 @@ async function advance(target: WizardStep) {
   }
 
   if (target === 'source') {
-    await pushBot("Got it. How would you like to add your business details?", {
+    pushBot("Got it. How would you like to add your business details?", {
       choiceCard: {
         choices: [
           { label: 'Google Maps', sub: 'Paste your Maps link', icon: 'i-lucide-globe', primary: true, action: 'ask_url' },
@@ -689,17 +666,17 @@ async function advance(target: WizardStep) {
   }
 
   if (target === 'awaiting_url') {
-    await pushBot("Paste your Google Maps link below — the full URL from your browser or a short maps.app.goo.gl link both work.")
+    pushBot("Paste your Google Maps link below — the full URL from your browser or a short maps.app.goo.gl link both work.")
     awaitingInput.value = true
   }
 
   if (target === 'awaiting_manual_name') {
-    await pushBot("What's the name of your business?")
+    pushBot("What's the name of your business?")
     awaitingInput.value = true
   }
 
   if (target === 'location') {
-    await pushBot(detailsSource.value === 'manual' ? 'Where should guests find you?' : detailsCardDescription.value, {
+    pushBot(detailsSource.value === 'manual' ? 'Where should guests find you?' : detailsCardDescription.value, {
       detailsCard: {
         actionLabel: 'Save location',
         requireLocationBasics: detailsRequireBasics.value,
@@ -710,7 +687,7 @@ async function advance(target: WizardStep) {
   }
 
   if (target === 'contact') {
-    await pushBot('Add the number guests should use first.', {
+    pushBot('Add the number guests should use first.', {
       detailsCard: {
         actionLabel: 'Save contact',
         requireLocationBasics: detailsRequireBasics.value,
@@ -721,7 +698,7 @@ async function advance(target: WizardStep) {
   }
 
   if (target === 'currency') {
-    await pushBot('Choose how guests will see prices.', {
+    pushBot('Choose how guests will see prices.', {
       detailsCard: {
         actionLabel: 'Use this currency',
         requireLocationBasics: false,
@@ -732,7 +709,7 @@ async function advance(target: WizardStep) {
   }
 
   if (target === 'hours') {
-    await pushBot('Add your weekly hours so bookings and visit details line up.', {
+    pushBot('Add your weekly hours so bookings and visit details line up.', {
       hoursCard: {
         actionLabel: 'Save hours',
       },
@@ -740,7 +717,7 @@ async function advance(target: WizardStep) {
   }
 
   if (target === 'brand') {
-    await pushBot('Choose the color and logo guests will recognize across your site.', {
+    pushBot('Choose the color and logo guests will recognize across your site.', {
       brandDraftCard: {
         actionLabel: 'Save brand',
         section: 'brand',
@@ -749,7 +726,7 @@ async function advance(target: WizardStep) {
   }
 
   if (target === 'hero') {
-    await pushBot('Add the photo and opening words guests see first on the homepage.', {
+    pushBot('Add the photo and opening words guests see first on the homepage.', {
       brandDraftCard: {
         actionLabel: 'Save hero',
         section: 'hero',
@@ -758,13 +735,10 @@ async function advance(target: WizardStep) {
   }
 
   if (target === 'draft_ready') {
-    await pushBot("Draft ready. Tap the preview any time — it's a private working copy, so you can review before reserving a live subdomain.", {
+    pushBot("Draft ready. Tap the preview any time — it's a private working copy, so you can review before reserving a live subdomain.", {
       draftReadyCard: true,
     })
-    replies.value = [
-      { label: 'Create site', icon: 'i-lucide-rocket', primary: true, action: 'commit_draft' },
-      { label: 'Edit details', icon: 'i-lucide-pencil', action: 'edit_draft' },
-    ]
+    replies.value = DRAFT_READY_REPLIES
   }
 
   if (target === 'create') {
@@ -921,7 +895,6 @@ async function selectChoice(choice: QuickReply, messageIndex?: number) {
   if (selectedChoiceAction.value || importing.value) return
   if (typeof messageIndex === 'number') rewindToChoiceMessage(messageIndex)
   selectedChoiceAction.value = choice.action ?? choice.label
-  await sleep(120)
   try {
     await handleReply(choice)
   } finally {
@@ -1001,11 +974,17 @@ async function submitBrandDraftCard() {
 
 // ─── Import flow ──────────────────────────────────────────────────────────────
 
-async function showLookupTools(label: string): Promise<{ label: string; done: boolean }[]> {
+// Stop the tool spinner when the call fails — a permanently spinning step reads
+// as still-in-progress work that is not happening.
+function failTool(tools: { label: string; done: boolean }[], label: string) {
+  const tool = tools[0]
+  if (!tool) return
+  tool.label = label
+  tool.done = true
+}
+
+function showLookupTools(label: string): { label: string; done: boolean }[] {
   const tools = reactive([{ label, done: false }])
-  typing.value = true
-  await sleep(400)
-  typing.value = false
   messages.value.push({ id: crypto.randomUUID(), from: 'bot', tools })
   return tools
 }
@@ -1028,11 +1007,12 @@ function showConfirm(preview: NonNullable<typeof pendingPreview.value>, returnSt
 }
 
 async function runLookup(mapsUrl: string) {
-  step.value = 'importing'
+  // Loading is a flag, not a step: the progress bar keeps showing the step the
+  // owner is actually on while the Google lookup runs.
   importing.value = true
   pendingMapsUrl.value = mapsUrl
   importError.value = null
-  const tools = await showLookupTools('Looking up your Google Maps listing…')
+  const tools = showLookupTools('Looking up your Google Maps listing…')
 
   try {
     const res = await applicationFetch<{
@@ -1061,11 +1041,11 @@ async function runLookup(mapsUrl: string) {
     }
 
     tools[0]!.done = true
-    await pushBot("Found it — does this look right?", { placePreview: res.preview })
+    pushBot("Found it — does this look right?", { placePreview: res.preview })
     showConfirm(res.preview, 'awaiting_url')
   } catch (err) {
     importError.value = err instanceof Error ? err.message : 'Something went wrong. Please try again.'
-    step.value = 'awaiting_url'
+    failTool(tools, 'Google Maps lookup failed')
     awaitingInput.value = true
   } finally {
     importing.value = false
@@ -1139,10 +1119,10 @@ async function submitDetails() {
     return
   }
 
-  step.value = 'importing'
+  step.value = 'create'
   importing.value = true
   importError.value = null
-  const tools = await showLookupTools('Adding your location…')
+  const tools = showLookupTools('Adding your location…')
 
   try {
     const endpoint = addLocationEndpoint
@@ -1195,7 +1175,10 @@ async function submitDetails() {
     await finishCreation(res.orgSlug, res.siteSlug ?? importedSiteSlug.value ?? props.existingSiteSlug ?? null, res.locationSlug)
   } catch (err) {
     importError.value = err instanceof Error ? err.message : 'Something went wrong. Please try again.'
-    step.value = 'draft_ready'
+    failTool(tools, 'Adding your location failed')
+    // Keep the approved details intact and retry from the last step the owner
+    // completed — never send them back through location editing.
+    step.value = 'hero'
   } finally {
     importing.value = false
   }
@@ -1217,16 +1200,15 @@ async function commitDraft() {
   if (committing) return
   if (!onboardingDraftId.value) {
     importError.value = 'No draft is ready yet. Save the preview first.'
-    await advance('location')
     return
   }
 
   committing = true
   replies.value = []
-  step.value = 'importing'
+  step.value = 'create'
   importing.value = true
   importError.value = null
-  const tools = await showLookupTools('Creating your site from the approved draft…')
+  const tools = showLookupTools('Creating your site from the approved draft…')
 
   try {
     const res = await applicationFetch<{
@@ -1264,7 +1246,11 @@ async function commitDraft() {
     await finishCreation(res.orgSlug, res.siteSlug ?? importedSiteSlug.value ?? props.existingSiteSlug ?? null, res.locationSlug)
   } catch (error) {
     importError.value = error instanceof Error ? error.message : 'Something went wrong. Please try again.'
-    step.value = 'location'
+    failTool(tools, 'Creating your site failed')
+    // The approved draft is untouched — stay on draft-ready so the owner can
+    // retry the create instead of being dropped back into location editing.
+    step.value = 'draft_ready'
+    replies.value = DRAFT_READY_REPLIES
   } finally {
     importing.value = false
     committing = false
@@ -1280,7 +1266,7 @@ function serializeDetails() {
     openingHours: serializeOpeningHours(),
     notificationPhone: detailsForm.phone.trim() || null,
     timezone: hoursForm.timezone.trim() || null,
-    currency: detailsForm.currency,
+    currency: detailsForm.currency ?? null,
     isPrimary: isAddingLocation.value ? detailsForm.isPrimary : true,
   }
 }
@@ -1311,12 +1297,15 @@ function composeAddress() {
     .join('\n')
 }
 
+// A day the owner has not answered yet is left out entirely — an unknown day
+// must never be serialized as invented opening and closing times.
 function serializeOpeningHours() {
-  const lines = hoursForm.hours.map((day) => {
-    if (day.closed) return `${day.day}: Closed`
-    return `${day.day}: ${formatTime(day.open)} - ${formatTime(day.close)}`
+  const lines = hoursForm.hours.flatMap((day) => {
+    if (day.closed) return [`${day.day}: Closed`]
+    if (!day.open || !day.close) return []
+    return [`${day.day}: ${formatTime(day.open)} - ${formatTime(day.close)}`]
   })
-  return lines.join('\n')
+  return lines.length ? lines.join('\n') : null
 }
 
 function formatTime(value: string) {
@@ -1328,10 +1317,6 @@ function formatTime(value: string) {
   return `${hour12}:${minute} ${suffix}`
 }
 
-function guessLocalTimezone(): string {
-  return getLocalTimezone()
-}
-
 function seedDetailsFromPreview(preview: NonNullable<typeof pendingPreview.value>) {
   detailsForm.name = preview.name ?? ''
   detailsForm.city = preview.city ?? ''
@@ -1340,8 +1325,12 @@ function seedDetailsFromPreview(preview: NonNullable<typeof pendingPreview.value
   detailsForm.region = ''
   detailsForm.postalCode = ''
   detailsForm.country = ''
-  detailsForm.phone = preview.phone ?? ''
-  detailsForm.currency = DEFAULT_CURRENCY
+  // Google returns the national format ("081 234 5678"), which carries no country
+  // and cannot be stored at the E.164 write boundary. Seed it only when it parses
+  // on its own; otherwise leave the field empty so the owner picks the country and
+  // enters the number, rather than staring at a value the form has to throw away.
+  detailsForm.phone = parsePhone(preview.phone ?? '').e164 ?? ''
+  detailsForm.currency = undefined
   seedHoursFromPreview(preview.openingHours)
   detailsForm.isPrimary = !isAddingLocation.value
 }
@@ -1355,42 +1344,24 @@ function seedDetailsFromManual(name: string) {
   detailsForm.postalCode = ''
   detailsForm.country = ''
   detailsForm.phone = ''
-  detailsForm.currency = DEFAULT_CURRENCY
+  detailsForm.currency = undefined
   seedHoursFromPreview(null)
   detailsForm.isPrimary = !isAddingLocation.value
 }
 
+// The timezone is never guessed from the browser — it stays unknown until the
+// owner picks one on the hours card, which refuses to submit without it.
 function seedHoursFromPreview(openingHours: string[] | null | undefined) {
-  hoursForm.timezone = guessLocalTimezone()
-  const byDay = new Map((openingHours ?? []).map((line) => {
-    const separatorIndex = line.indexOf(':')
-    const day = separatorIndex >= 0 ? line.slice(0, separatorIndex).trim() : line.trim()
-    const hours = separatorIndex >= 0 ? line.slice(separatorIndex + 1).trim() : ''
-    return [day, hours]
-  }))
+  hoursForm.timezone = ''
+  const byDay = parseWeekdayHoursFromDescriptions(openingHours)
   for (const row of hoursForm.hours) {
-    const value = byDay.get(row.day)
-    if (!value) {
-      row.open = '09:00'
-      row.close = '18:00'
-      row.closed = false
-      continue
-    }
-    row.closed = /closed/i.test(value)
-    const range = value.match(/(\d{1,2})(?::(\d{2}))?\s*(AM|PM)?\s*[-–]\s*(\d{1,2})(?::(\d{2}))?\s*(AM|PM)?/i)
-    if (range) {
-      row.open = normalizeTime(range[1]!, range[2] ?? '00', range[3])
-      row.close = normalizeTime(range[4]!, range[5] ?? '00', range[6])
-    }
+    const parsed = byDay.get(row.day)
+    // A day Google did not list, or listed in a form the shared parser does not
+    // understand, stays blank so the owner fills it in themselves.
+    row.open = parsed?.open ?? ''
+    row.close = parsed?.close ?? ''
+    row.closed = parsed?.closed ?? false
   }
-}
-
-function normalizeTime(hourInput: string, minute: string, suffix?: string) {
-  let hour = Number(hourInput)
-  if (suffix?.toUpperCase() === 'PM' && hour < 12) hour += 12
-  if (suffix?.toUpperCase() === 'AM' && hour === 12) hour = 0
-  if (!Number.isFinite(hour)) hour = 9
-  return `${String(hour).padStart(2, '0')}:${minute}`
 }
 
 async function finishCreation(orgSlug: string | null | undefined, siteSlug: string | null | undefined, locationSlug?: string | null) {
@@ -1402,11 +1373,10 @@ async function finishCreation(orgSlug: string | null | undefined, siteSlug: stri
     trackSiteCreated(importedSiteId.value)
   }
 
-  await sleep(300)
   const domainSlug = siteSlug ?? orgSlug
   const domain = domainSlug && freeSiteHost.value ? `**${domainSlug}.${freeSiteHost.value}**` : 'your new workspace'
-  await pushBot(`Done. Your workspace is live at ${domain}.`)
-  await pushBot(
+  pushBot(`Done. Your workspace is live at ${domain}.`)
+  pushBot(
     "From here, head to your dashboard to keep building — chat with ChowBot, use the structured editor, or pick it back up in ChatGPT. Connect Facebook whenever you're ready and posts you publish there will sync to your site too.",
   )
   step.value = 'imported'
@@ -1415,11 +1385,20 @@ async function finishCreation(orgSlug: string | null | undefined, siteSlug: stri
   ]
 }
 
-function retryImport() {
+const canRetryFailedStep = computed(() => {
+  if (step.value === 'awaiting_url') return Boolean(pendingMapsUrl.value)
+  if (step.value === 'draft_ready') return Boolean(onboardingDraftId.value)
+  if (step.value === 'hero') return isAddingLocation.value
+  return false
+})
+
+function retryFailedStep() {
+  if (!canRetryFailedStep.value) return
+  const failedStep = step.value
   importError.value = null
-  if (step.value === 'awaiting_url' && pendingMapsUrl.value) {
-    runLookup(pendingMapsUrl.value)
-  }
+  if (failedStep === 'awaiting_url') void runLookup(pendingMapsUrl.value)
+  else if (failedStep === 'draft_ready') void commitDraft()
+  else if (failedStep === 'hero') void submitDetails()
 }
 
 async function markOnboardingComplete() {
@@ -1433,14 +1412,6 @@ async function markOnboardingComplete() {
   trackOnboardingCompleted(siteId)
 }
 
-// ─── Drag & drop (no-op for now, future: attach files) ───────────────────────
-
-const onDrop = (e: DragEvent) => {
-  dragCounter.value = 0
-  const file = e.dataTransfer?.files[0]
-  if (!file) return
-  toast.add({ description: 'Use the Brand and Homepage hero steps to add your logo and hero photo.', color: 'neutral' })
-}
 </script>
 
 <style scoped>
