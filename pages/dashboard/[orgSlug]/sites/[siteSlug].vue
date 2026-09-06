@@ -42,25 +42,21 @@
           </div>
 
           <div v-else class="space-y-6">
-            <NuxtLink :to="`${sitePath}/brand`" class="group block rounded-2xl focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary">
-              <div class="rounded-2xl bg-elevated p-5 transition-colors group-hover:bg-accented">
-                <div class="flex items-center gap-4">
-                  <div
-                    class="flex size-14 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-default bg-default"
-                    :style="!logoUrl ? { backgroundColor: settings?.brand_color } : undefined"
-                  >
-                    <img v-if="logoUrl" :src="logoUrl" :alt="`${siteName} logo`" class="size-full object-contain">
-                    <span v-else class="text-xl font-semibold text-white">{{ siteName.slice(0, 1) }}</span>
-                  </div>
-                  <div class="min-w-0 flex-1">
-                    <p class="truncate text-[15px] font-semibold text-highlighted">{{ siteName }}</p>
-                    <p class="mt-1 truncate text-sm text-muted">{{ siteDomain }}</p>
-                  </div>
-                </div>
-                <p v-if="settings?.custom_domain_status !== 'active'" class="mt-4 flex items-center gap-2 text-xs font-medium text-warning">
-                  <UIcon name="i-lucide-circle-alert" class="size-4" /> Custom domain not connected
-                </p>
-              </div>
+            <!--
+              A problem with the site comes first and only when there is one,
+              the way the listing editor leads with "Unlisted" rather than with
+              the listing's own details. Otherwise the rail opens on Locations,
+              which is what a tenant came here to open.
+            -->
+            <NuxtLink
+              v-if="settings && settings.custom_domain_status !== 'active'"
+              :to="`${sitePath}/settings/domains`"
+              class="block rounded-2xl bg-elevated p-5 transition-colors hover:bg-accented focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+            >
+              <span class="flex items-center gap-2 text-[15px] font-semibold text-warning">
+                <UIcon name="i-lucide-circle-alert" class="size-4 shrink-0" /> Custom domain not connected
+              </span>
+              <span class="mt-1 block text-sm text-muted">{{ siteDomain }}</span>
             </NuxtLink>
 
             <EditorNavigationList :groups="sectionGroups" :active-item="activeSection" variant="cards" />
@@ -159,7 +155,6 @@ const { data: overviewData, pending } = await useAsyncData(`dashboard-home-${sit
 })
 
 const settings = computed(() => overviewData.value?.settings ?? null)
-const logoUrl = computed(() => settings.value?.media?.find(item => item.slot === 'logo')?.public_url ?? null)
 const locations = computed(() => overviewData.value?.locations ?? [])
 const pagesCount = computed(() => overviewData.value?.pages.length ?? 0)
 const mediaCount = computed(() => overviewData.value?.media.length ?? 0)
@@ -201,6 +196,8 @@ const sectionGroups = computed(() => {
     links: { label: 'Links page', summary: countSummary(activeLinksCount.value, 'active link', 'Add your first link'), rank: 6 },
   }
 
+  // Brand is its own surface, not the cog's: the gear opens site settings,
+  // this opens the brand editor. It ranks last because it is set up once.
   const content = [
     { id: 'pages', label: 'Pages', summary: countSummary(pagesCount.value, 'page', 'No pages yet'), to: `${sitePath.value}/pages` },
     ...capabilities.value.managers
@@ -213,6 +210,7 @@ const sectionGroups = computed(() => {
         rank: known[manager.id]!.rank,
       }))
       .sort((a, b) => a.rank - b.rank),
+    { id: 'brand', label: 'Brand', summary: siteName.value, to: `${sitePath.value}/brand` },
   ]
 
   return [
