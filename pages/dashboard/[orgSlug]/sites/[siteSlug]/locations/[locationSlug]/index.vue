@@ -3,7 +3,17 @@
     <template #header>
       <UDashboardNavbar :title="location?.title || 'Location'" :toggle="false">
         <template #leading>
-          <DashboardNavbarLeading :to="sitePath" label="Site overview" />
+          <DashboardNavbarLeading :to="locationsPath" label="Locations" />
+        </template>
+        <template #right>
+          <UButton
+            :to="settingsPath"
+            icon="i-lucide-settings"
+            color="neutral"
+            variant="ghost"
+            square
+            aria-label="Location settings"
+          />
         </template>
       </UDashboardNavbar>
     </template>
@@ -26,94 +36,40 @@
             />
 
             <div v-else-if="location" class="space-y-8">
-              <div class="flex items-center gap-2.5">
-                <UTabs
-                  v-model="activeTab"
-                  :items="tabs"
-                  :content="false"
-                  variant="pill"
-                  class="min-w-0 flex-1"
-                  :ui="{ list: 'w-full', trigger: 'flex-1' }"
-                />
-                <UButton
-                  :to="settingsPath"
-                  icon="i-lucide-settings"
-                  color="neutral"
-                  variant="ghost"
-                  square
-                  aria-label="Location settings"
-                />
-              </div>
-
-              <div v-if="activeTab === 'overview'" class="space-y-4">
-                <NuxtLink :to="`${settingsPath}/profile`" class="group block rounded-2xl focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary">
-                  <UCard
-                    variant="subtle"
-                    class="overflow-hidden rounded-2xl transition-colors group-hover:bg-elevated"
-                    :ui="{ body: 'p-0! sm:p-0!' }"
-                  >
-                    <img
-                      v-if="locationImage"
-                      :src="locationImage"
-                      :alt="`${location.title} preview`"
-                      class="aspect-[16/9] w-full object-cover"
-                    />
-                    <div class="space-y-3 px-5 py-5 sm:px-6">
-                      <div class="flex flex-wrap items-start justify-between gap-3">
-                        <div class="min-w-0">
-                          <h1 class="text-xl font-semibold text-highlighted">{{ location.title }}</h1>
-                          <p class="mt-1 text-sm text-muted">{{ addressSummary }}</p>
-                        </div>
-                        <div class="flex flex-wrap gap-2">
-                          <UBadge :color="location.status === 'active' ? 'success' : 'neutral'" variant="soft" class="capitalize">
-                            {{ location.status }}
-                          </UBadge>
-                          <UBadge v-if="location.is_primary" color="primary" variant="soft">Primary</UBadge>
-                        </div>
-                      </div>
-                      <p class="text-sm text-muted">{{ locationStatusSummary }}</p>
-                    </div>
-                  </UCard>
-                </NuxtLink>
-
-                <NuxtLink :to="`${locationPath}/inbox`" class="group block rounded-2xl focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary">
-                  <UCard variant="subtle" class="rounded-2xl transition-colors group-hover:bg-elevated">
-                    <div class="flex items-center justify-between gap-5">
+              <!--
+                The location itself, then everything you edit on it. Profile,
+                Hours and Discovery used to sit here as cards that linked into
+                Settings, where they are already listed with the same summaries
+                — a tab that mirrored the cog. They live in the cog only.
+              -->
+              <NuxtLink :to="`${settingsPath}/profile`" class="group block rounded-2xl focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary">
+                <UCard
+                  variant="subtle"
+                  class="overflow-hidden rounded-2xl transition-colors group-hover:bg-elevated"
+                  :ui="{ body: 'p-0! sm:p-0!' }"
+                >
+                  <img
+                    v-if="locationImage"
+                    :src="locationImage"
+                    :alt="`${location.title} preview`"
+                    class="aspect-[40/21] w-full object-cover"
+                  />
+                  <div class="space-y-2 px-5 py-5 sm:px-6">
+                    <div class="flex flex-wrap items-start justify-between gap-3">
                       <div class="min-w-0">
-                        <h2 class="font-semibold text-highlighted">Guest activity</h2>
-                        <p class="mt-1 text-sm text-muted">{{ inboxSummary.unreadThreads }} unread · {{ inboxSummary.openThreads }} open requests</p>
+                        <h1 class="text-xl font-semibold text-highlighted">{{ location.title }}</h1>
+                        <p class="mt-1 text-sm text-muted">{{ addressSummary }}</p>
                       </div>
-                      <UIcon name="i-lucide-chevron-right" class="size-5 shrink-0 text-muted" />
+                      <UBadge :color="location.status === 'active' ? 'success' : 'neutral'" variant="soft" class="capitalize">
+                        {{ location.status }}
+                      </UBadge>
                     </div>
-                  </UCard>
-                </NuxtLink>
+                    <p class="text-sm text-muted">{{ currentOpeningState }}</p>
+                  </div>
+                </UCard>
+              </NuxtLink>
 
-                <NuxtLink :to="`${settingsPath}/hours`" class="group block rounded-2xl focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary">
-                  <UCard variant="subtle" class="rounded-2xl transition-colors group-hover:bg-elevated">
-                    <div class="flex items-center justify-between gap-5">
-                      <div class="min-w-0">
-                        <h2 class="font-semibold text-highlighted">Hours</h2>
-                        <p class="mt-1 text-sm text-muted">{{ currentOpeningState }}</p>
-                      </div>
-                      <UIcon name="i-lucide-chevron-right" class="size-5 shrink-0 text-muted" />
-                    </div>
-                  </UCard>
-                </NuxtLink>
-
-                <NuxtLink :to="`${settingsPath}/discovery`" class="group block rounded-2xl focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary">
-                  <UCard variant="subtle" class="rounded-2xl transition-colors group-hover:bg-elevated">
-                    <div class="flex items-center justify-between gap-5">
-                      <div class="min-w-0">
-                        <h2 class="font-semibold text-highlighted">Discovery</h2>
-                        <p class="mt-1 text-sm text-muted">{{ location.google_place_id ? 'Google Places connected' : 'Google Places not connected' }}</p>
-                      </div>
-                      <UIcon name="i-lucide-chevron-right" class="size-5 shrink-0 text-muted" />
-                    </div>
-                  </UCard>
-                </NuxtLink>
-              </div>
-
-              <EditorNavigationList v-else :groups="contentGroups" />
+              <EditorNavigationList :groups="contentGroups" />
             </div>
           </div>
         </UPageBody>
@@ -152,10 +108,19 @@ interface InboxSummary {
   unreadThreads: number
 }
 
+interface LocationContentCounts {
+  photos: number
+  experiences: number
+  posts: number
+  qa: number
+  upcomingReservations: number
+}
+
 interface LocationOverviewResource {
   location: { success: boolean; location: LocationOverview }
   products: { success: boolean; products: ApiRecord[] }
   threads: { summary: InboxSummary }
+  counts: LocationContentCounts
 }
 
 const dashboardApi = useDashboardApi()
@@ -167,23 +132,17 @@ const locationId = computed(() => dashboardLocation.currentLocationId.value ?? '
 const sitePath = computed(() => `/dashboard/${String(route.params.orgSlug)}/sites/${String(route.params.siteSlug)}`)
 const locationPath = computed(() => `${sitePath.value}/locations/${String(route.params.locationSlug)}`)
 const settingsPath = computed(() => `${locationPath.value}/settings`)
+const locationsPath = computed(() => `${sitePath.value}/locations`)
 const location = ref<LocationOverview | null>(null)
 const products = ref<ApiRecord[]>([])
 const inboxSummary = ref<InboxSummary>({ openThreads: 0, unreadThreads: 0 })
+const counts = ref<LocationContentCounts>({ photos: 0, experiences: 0, posts: 0, qa: 0, upcomingReservations: 0 })
 const loading = ref(true)
 const error = ref<string | null>(null)
-// Same two tabs, same names, as the site overview.
-const activeTab = ref('overview')
-const tabs = [
-  { label: 'Overview', value: 'overview' },
-  { label: 'Content', value: 'content' },
-]
 
 const dashboardLocationRow = computed(() => dashboard.locations.value.find(candidate => candidate.id === locationId.value) ?? null)
-const locationImage = computed(() => {
-  const media = dashboardLocationRow.value?.media.find(item => item.slot === 'hero')
-  return media?.thumbnail_url || media?.public_url || ''
-})
+const locationImage = computed(() =>
+  dashboardLocationRow.value?.media.find(item => item.slot === 'social_card')?.public_url ?? '')
 // Reads `address` and only `address`. Falling through to `city` made this line
 // mean two different things depending on data the reader cannot see.
 const addressSummary = computed(() => location.value?.address?.addressLines?.join(', ') || 'Address not set')
@@ -225,47 +184,55 @@ const currentOpeningState = computed(() => {
   return getTodayGoogleHours(hours, today) || 'Hours synced'
 })
 
-const locationStatusSummary = computed(() => {
-  const parts = [currentOpeningState.value]
-  if (location.value?.rating) parts.push(`${location.value.rating} rating`)
-  parts.push(`${inboxSummary.value.unreadThreads} unread`)
-  return parts.join(' · ')
-})
 
+/** Plural-aware count, or the empty state that says what to do instead. */
+function countSummary(total: number, noun: string, empty: string): string {
+  if (!total) return empty
+  return `${total} ${total === 1 ? noun : `${noun}s`}`
+}
+
+/**
+ * Every row states what it holds. A row reading "Manage bookable experiences"
+ * tells a tenant nothing they did not already know from its label, and makes
+ * them open it to find out whether there is anything in there.
+ *
+ * Ordered by what gets edited: the menu and experiences are daily work, the
+ * location's own details are set up once and live in Settings.
+ */
 const contentGroups = computed(() => {
-  const publicContent = [
-    {
-      id: 'photos',
-      label: 'Photos',
-      summary: 'Manage the images shown for this location',
-      to: `${locationPath.value}/photos`,
-      visible: hasFeature('photos'),
-    },
+  const items = [
     {
       id: 'products',
       label: dashboard.site.value?.vertical === 'restaurant' ? 'Menu' : 'Products',
-      summary: `${products.value.length} ${products.value.length === 1 ? 'product' : 'products'}`,
+      summary: countSummary(products.value.length, 'item', 'Add your first item'),
       to: `${locationPath.value}/products`,
       visible: hasFeature('products'),
     },
     {
       id: 'experiences',
       label: 'Experiences',
-      summary: 'Manage bookable experiences',
+      summary: countSummary(counts.value.experiences, 'experience', 'Add your first experience'),
       to: `${locationPath.value}/experiences`,
       visible: hasFeature('experiences'),
     },
     {
+      id: 'photos',
+      label: 'Photos',
+      summary: countSummary(counts.value.photos, 'photo', 'Add photos'),
+      to: `${locationPath.value}/photos`,
+      visible: hasFeature('photos'),
+    },
+    {
       id: 'posts',
       label: 'Posts',
-      summary: 'Publish updates and stories from this location',
+      summary: countSummary(counts.value.posts, 'published post', 'Write your first post'),
       to: `${locationPath.value}/posts`,
       visible: hasFeature('posts'),
     },
     {
       id: 'qa',
       label: 'Q&A',
-      summary: 'Manage guest questions and answers',
+      summary: countSummary(counts.value.qa, 'question', 'Answer your first question'),
       to: `${locationPath.value}/qa`,
       visible: hasFeature('qa'),
     },
@@ -275,14 +242,23 @@ const contentGroups = computed(() => {
     {
       id: 'reservations',
       label: 'Reservations',
-      summary: 'Manage reservation requests and bookings',
+      summary: countSummary(counts.value.upcomingReservations, 'upcoming booking', 'No upcoming bookings'),
       to: `${locationPath.value}/reservations`,
       visible: hasFeature('reservations'),
+    },
+    {
+      id: 'inbox',
+      label: 'Guest activity',
+      summary: inboxSummary.value.unreadThreads
+        ? `${inboxSummary.value.unreadThreads} unread · ${inboxSummary.value.openThreads} open`
+        : countSummary(inboxSummary.value.openThreads, 'open request', 'Nothing waiting'),
+      to: `${locationPath.value}/inbox`,
+      visible: true,
     },
   ].filter(item => item.visible !== false)
 
   return [
-    { id: 'public-content', items: publicContent },
+    { id: 'public-content', items },
     { id: 'operations', label: 'Manage', items: operations },
   ].filter(group => group.items.length > 0)
 })
@@ -301,11 +277,16 @@ const isProductsResponse = (value: unknown): value is { success: boolean; produc
   && Array.isArray(value.products)
   && value.products.every(product => isRecord(product) && typeof product.id === 'string')
 
-const isThreadsSummaryResponse = (value: unknown): value is { summary: InboxSummary } =>
+const isOverviewResponse = (value: unknown): value is LocationOverviewResource =>
   isRecord(value)
-  && isRecord(value.summary)
-  && typeof value.summary.openThreads === 'number'
-  && typeof value.summary.unreadThreads === 'number'
+  && isRecord(value.location) && isLocationResponse(value.location)
+  && isRecord(value.products) && isProductsResponse(value.products)
+  && isRecord(value.threads) && isRecord(value.threads.summary)
+  && typeof value.threads.summary.openThreads === 'number'
+  && typeof value.threads.summary.unreadThreads === 'number'
+  && isRecord(value.counts)
+  && typeof value.counts.photos === 'number'
+  && typeof value.counts.experiences === 'number'
 
 const requestEvent = useRequestEvent()
 const overviewKey = computed(() => `dashboard-location-overview:${siteId}:${locationId.value}:${includeProducts.value ? 'products' : 'no-products'}`)
@@ -320,27 +301,13 @@ const { data: overview, pending: overviewPending, error: overviewError } = await
     }) as LocationOverviewResource
   }
 
-  const [locationResponse, menuResponse, threadsResponse] = await Promise.all([
-    dashboardApi<{ success: boolean; location: LocationOverview }>(
-      `/api/dashboard/locations/${locationId.value}`,
-      { validate: isLocationResponse },
-    ),
-    shouldIncludeProducts
-      ? dashboardApi<{ success: boolean; products: ApiRecord[] }>(
-          `/api/editor/sites/${siteId}/locations/${locationId.value}/products`,
-          { validate: isProductsResponse },
-        )
-      : Promise.resolve({ success: true, products: [] }),
-    dashboardApi<{ summary: InboxSummary }>(`/api/dashboard/sites/${siteId}/guest-threads`, {
-      query: { location_id: locationId.value },
-      validate: isThreadsSummaryResponse,
-    }),
-  ])
-  return {
-    location: locationResponse,
-    products: menuResponse,
-    threads: threadsResponse,
-  }
+  return await dashboardApi<LocationOverviewResource>(
+    `/api/dashboard/sites/${siteId}/locations/${locationId.value}/overview`,
+    {
+      query: { includeProducts: String(shouldIncludeProducts) },
+      validate: isOverviewResponse,
+    },
+  )
 }, { lazy: import.meta.client })
 
 watch([overview, overviewPending, overviewError], ([resource, pending, cause]) => {
@@ -353,6 +320,7 @@ watch([overview, overviewPending, overviewError], ([resource, pending, cause]) =
   location.value = resource.location.location
   products.value = resource.products.products
   inboxSummary.value = resource.threads.summary
+  counts.value = resource.counts
   error.value = null
 }, { immediate: true })
 </script>

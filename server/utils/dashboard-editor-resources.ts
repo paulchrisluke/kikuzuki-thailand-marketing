@@ -1,7 +1,7 @@
 import { HTTPError } from 'nitro';
 
 import type { H3Event } from 'nitro'
-import { queryAll } from '~/server/db'
+import { queryAll, queryFirst, type DbClient } from '~/server/db'
 import { getOrganizationBillingProjection } from '~/server/utils/organization-billing'
 import { listLocationQa } from '~/server/utils/location-qa'
 import { requireLocationAccess, requireSiteAccess } from '~/server/utils/location-access'
@@ -214,6 +214,51 @@ export async function loadDashboardSettingsResource(
   }
 }
 
+
+export interface LocationContentCounts {
+  photos: number
+  experiences: number
+  posts: number
+  qa: number
+  upcomingReservations: number
+}
+
+/**
+ * What each row on the location hub reports about itself.
+ *
+ * One statement rather than five round trips, because the hub renders every
+ * count at once and a row with no number is a row nobody can act on without
+ * opening it first.
+ */
+async function loadLocationContentCounts(
+  db: DbClient,
+  siteId: string,
+  locationId: string,
+): Promise<LocationContentCounts> {
+  // Positional placeholders repeated per subquery: D1 binds each `?` in order
+  // and does not honour numbered `?1` parameters, which silently returned zero
+  // for every count after the first.
+  const row = await queryFirst<Record<string, number>>(db, `
+    SELECT
+      (SELECT COUNT(*) FROM media_placements
+        WHERE site_id = ? AND owner_type = 'business_location' AND owner_id = ?
+          AND slot IN ('hero', 'gallery') AND status = 'active') AS photos,
+      (SELECT COUNT(*) FROM experiences WHERE site_id = ? AND location_id = ?) AS experiences,
+      (SELECT COUNT(*) FROM posts WHERE site_id = ? AND location_id = ? AND status = 'published') AS posts,
+      (SELECT COUNT(*) FROM location_qa WHERE site_id = ? AND location_id = ?) AS qa,
+      (SELECT COUNT(*) FROM reservation_submissions
+        WHERE site_id = ? AND location_id = ? AND status IN ('new', 'confirmed')
+          AND date >= date('now')) AS upcoming_reservations
+  `, Array.from({ length: 5 }, () => [siteId, locationId]).flat())
+  return {
+    photos: row?.photos ?? 0,
+    experiences: row?.experiences ?? 0,
+    posts: row?.posts ?? 0,
+    qa: row?.qa ?? 0,
+    upcomingReservations: row?.upcoming_reservations ?? 0,
+  }
+}
+
 export async function loadDashboardLocationOverview(
   event: H3Event,
   siteId: string,
@@ -232,7 +277,7 @@ export async function loadDashboardLocationOverview(
     siteId,
     locationId,
   })
-  const [capabilities, products, threads] = await Promise.all([
+  const [capabilities, products, threads, counts] = await Promise.all([
     resolveLocationCapabilitySummary(
       db,
       organization.id,
@@ -243,6 +288,7 @@ export async function loadDashboardLocationOverview(
       ? listLocationProducts(db, organization.id, siteId, locationId)
       : Promise.resolve([]),
     loadDashboardGuestThreads(event, siteId, { locationId }),
+    loadLocationContentCounts(db, siteId, locationId),
   ])
   return {
     location: {
@@ -252,6 +298,7 @@ export async function loadDashboardLocationOverview(
     },
     products: { success: true as const, products },
     threads: { summary: threads.summary },
+    counts,
   }
 }
 
