@@ -4,7 +4,9 @@ import { Miniflare } from 'miniflare'
 import { generateSQLiteDrizzleJson, generateSQLiteMigration } from 'drizzle-kit/api'
 import * as schema from '../../server/db/schema.ts'
 import { executeBatch } from '../../server/db/index.ts'
+import { buildMediaPlacementInsertQuery } from '../../server/utils/media-asset-manager.ts'
 import {
+  appendContentBlock, replaceContentBlock, deleteContentBlock,
   createContentDocumentWithBlocks, getContentDocumentById, listBlocksForDocument,
   prepareContentDocumentUpdate, prepareContentDocumentDeletion, updateContentDocument,
 } from '../../server/utils/content-documents.ts'
@@ -49,14 +51,34 @@ test('document scopes, translations, block ownership and concurrent edits persis
       rowRole: 'representation', rootId: translated.document.id, locale: 'th' }, []))
     await assert.rejects(updateContentDocument(db, translated.document.id, { expected_updated_at: translated.document.updated_at,
       blocks: [{ id: 'body', type: 'markdown', data: { markdown: 'Cross-document overwrite' } }] }))
+    await db.prepare("INSERT INTO media_assets (id,organization_id,site_id,kind,provider,source) VALUES ('shared-image','one','one','image','cloudflare_r2','uploaded')").run()
     const sourceLinks = await createContentDocumentWithBlocks(db, { id: 'links', organizationId: 'one', siteId: 'one',
       kind: 'page', rowRole: 'root', locale: 'en', title: 'Links', path: '/links', metadata: { recipe: 'links', page_type: 'custom' } },
     [{ id: 'link-a', type: 'cta', data: { label: 'A', url: '/a', status: 'active' } }, { id: 'link-b', type: 'cta', data: { label: 'B', url: '/b', status: 'active' } }])
     const translatedLinks = await createContentDocumentWithBlocks(db, { id: 'links-th', organizationId: 'one', siteId: 'one',
       kind: 'page', rowRole: 'representation', rootId: sourceLinks.document.id, locale: 'th', title: 'Translated links', path: '/links' },
-    [{ id: 'link-a-th', source_block_id: 'link-a', type: 'cta', data: { label: 'Translated A' } }])
+    [{ id: 'link-a-th', source_block_id: 'link-a', type: 'cta', data: { label: 'Translated A' } },
+      { id: 'translated-link-image', parent_block_id: 'link-a-th', type: 'image', data: {} }])
     await assert.rejects(updateContentDocument(db, translatedLinks.document.id, { expected_updated_at: translatedLinks.document.updated_at,
       blocks: [{ id: 'link-a-th', source_block_id: 'body', type: 'cta', data: { label: 'Wrong root' } }] }))
+    const appended = await appendContentBlock(db, translatedLinks.document.id, {
+      source_block_id: 'link-b', type: 'cta', data: { label: 'Translated B' },
+    })
+    const appendedLink = appended.blocks.find(block => block.source_block_id === 'link-b')
+    assert.ok(appendedLink)
+    let translatedBlocks = await listBlocksForDocument(db, translatedLinks.document.id)
+    let firstLink = translatedBlocks.find(block => block.id === 'link-a-th')!
+    assert.equal(firstLink.source_block_id, 'link-a')
+    await replaceContentBlock(db, firstLink.id, { expected_updated_at: firstLink.updated_at, data: { label: 'Edited A' } })
+    translatedBlocks = await listBlocksForDocument(db, translatedLinks.document.id)
+    firstLink = translatedBlocks.find(block => block.id === 'link-a-th')!
+    assert.equal(firstLink.source_block_id, 'link-a')
+    const secondLink = translatedBlocks.find(block => block.id === appendedLink.id)!
+    assert.equal(secondLink.source_block_id, 'link-b')
+    await deleteContentBlock(db, secondLink.id, { expected_updated_at: secondLink.updated_at })
+    assert.equal((await listBlocksForDocument(db, translatedLinks.document.id)).find(block => block.id === firstLink.id)?.source_block_id, 'link-a')
+    await executeBatch(db, [buildMediaPlacementInsertQuery({ id: 'translated-descendant-image', organizationId: 'one', siteId: 'one',
+      ownerType: 'content_block', ownerId: 'translated-link-image', slot: 'media', assetId: 'shared-image', sortOrder: 0 })])
     await updateContentDocument(db, sourceLinks.document.id, { expected_updated_at: sourceLinks.document.updated_at,
       blocks: [{ id: 'link-b', type: 'cta', data: { label: 'B', url: '/b', status: 'active' } }, { id: 'link-a', type: 'cta', data: { label: 'A', url: '/new-a', status: 'active' } }] })
     assert.equal((await listBlocksForDocument(db, translatedLinks.document.id))[0]?.id, 'link-a-th')
@@ -65,10 +87,20 @@ test('document scopes, translations, block ownership and concurrent edits persis
     await updateContentDocument(db, reordered.id, { expected_updated_at: reordered.updated_at,
       blocks: [{ id: 'link-b', type: 'cta', data: { label: 'B', url: '/b', status: 'active' } }] })
     assert.deepEqual(await listBlocksForDocument(db, translatedLinks.document.id), [])
+    assert.equal(await db.prepare("SELECT count(*) AS count FROM media_placements WHERE id = 'translated-descendant-image'").first('count'), 0)
     await assert.rejects(db.prepare("INSERT INTO content_documents(id,organization_id,site_id,kind,row_role,locale,summary,status,published_at,source,metadata_json) VALUES ('invalid-social','one','one','social_post','root','en','Body','published','2026-09-06T00:00:00.000Z','manual','{}')").run())
+    for (const [id, type, owner, slot] of [['root-image', 'content_document', document.id, 'featured'],
+      ['translated-image', 'content_block', 'translated-body', 'media'], ['retained-image', 'content_document', sourceLinks.document.id, 'featured']]) {
+      await executeBatch(db, [buildMediaPlacementInsertQuery({ id, organizationId: 'one', siteId: 'one', ownerType: type,
+        ownerId: owner, slot, assetId: 'shared-image', sortOrder: 0 })])
+    }
+    await assert.rejects(executeBatch(db, [buildMediaPlacementInsertQuery({ organizationId: 'two', siteId: 'two',
+      ownerType: 'content_document', ownerId: document.id, slot: 'featured', assetId: 'shared-image', sortOrder: 0 })]))
     await executeBatch(db, prepareContentDocumentDeletion({ documentId: document.id, organizationId: 'one', siteId: 'one' }))
     assert.equal(await getContentDocumentById(db, translated.document.id), undefined)
     assert.deepEqual(await listBlocksForDocument(db, translated.document.id), [])
+    assert.deepEqual((await db.prepare('SELECT id FROM media_placements').all()).results, [{ id: 'retained-image' }])
+    assert.equal(await db.prepare('SELECT count(*) AS count FROM media_assets').first('count'), 1)
     assert.equal((await db.prepare('PRAGMA foreign_key_check').all()).results.length, 0)
   } finally {
     await miniflare.dispose()
