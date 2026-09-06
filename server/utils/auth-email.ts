@@ -1,10 +1,8 @@
 import { renderEmail } from '~/server/emails/vue-email'
-import { shouldSendRealEmail } from '~/server/utils/email-delivery'
+import { sendEmail, hashEmail } from '~/server/utils/email-delivery'
 import AuthResetPassword from '~/server/emails/templates/AuthResetPassword'
 import AuthVerifyEmail from '~/server/emails/templates/AuthVerifyEmail'
 import GuestClaimVerify from '~/server/emails/templates/GuestClaimVerify'
-
-const AUTH_EMAIL_TIMEOUT_MS = 10_000
 
 export interface AuthEmailEnv {
   RESEND_API_KEY?: string
@@ -30,49 +28,15 @@ async function sendAuthEmail(
     text: string
   },
 ) {
-  if (!shouldSendRealEmail(env)) {
-    console.info('auth_email_log_only', {
-      to: opts.to,
-      subject: opts.subject,
-    })
-    return
+  const result = await sendEmail(env, opts)
+  if (result.status !== 'sent') {
+    throw new Error(`Auth email ${result.status}: ${result.error}`)
   }
-
-  if (!env.RESEND_API_KEY) {
-    console.warn('auth_email_skipped_missing_resend', {
-      to: opts.to,
-      subject: opts.subject,
-    })
-    return
-  }
-
-  const controller = new AbortController()
-  const timeout = setTimeout(() => controller.abort(), AUTH_EMAIL_TIMEOUT_MS)
-  let response: Response
-  try {
-    response = await fetch('https://api.resend.com/emails', {
-      method: 'POST',
-      signal: controller.signal,
-      headers: {
-        Authorization: `Bearer ${env.RESEND_API_KEY}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        from: env.EMAIL_FROM || 'KrabiClaw <hello@krabiclaw.com>',
-        to: [opts.to],
-        subject: opts.subject,
-        html: opts.html,
-        text: opts.text,
-      }),
-    })
-  } finally {
-    clearTimeout(timeout)
-  }
-
-  if (!response.ok) {
-    const body = await response.text().catch(() => '')
-    throw new Error(`Resend auth email failed: ${response.status} ${body}`)
-  }
+  console.info(result.messageId?.startsWith('log-only:') ? 'auth_email_log_only' : 'auth_email_provider_accepted', {
+    recipientHash: hashEmail(opts.to),
+    subject: opts.subject,
+    providerMessageId: result.messageId,
+  })
 }
 
 export async function sendPasswordResetEmail(

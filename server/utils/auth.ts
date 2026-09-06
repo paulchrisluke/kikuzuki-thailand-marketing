@@ -389,7 +389,7 @@ export function createAuth(env: CloudflareEnv) {
       autoSignIn: false,
       revokeSessionsOnPasswordReset: true,
       sendResetPassword: async ({ user, url }) => {
-        void sendPasswordResetEmail(env, {
+        await sendPasswordResetEmail(env, {
           email: user.email,
           resetUrl: url,
         }).catch((error) => {
@@ -408,7 +408,7 @@ export function createAuth(env: CloudflareEnv) {
       sendOnSignIn: true,
       autoSignInAfterVerification: false,
       sendVerificationEmail: async ({ user, url }) => {
-        void sendVerificationEmail(env, {
+        await sendVerificationEmail(env, {
           email: user.email,
           verificationUrl: url,
         }).catch((error) => {
