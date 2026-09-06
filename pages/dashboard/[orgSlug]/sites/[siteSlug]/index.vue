@@ -100,19 +100,6 @@
           <NuxtLink :to="`${siteDashboardPath}/settings`" class="site-card group block">
             <p class="text-[15px] font-semibold text-highlighted">Site type</p><p class="mt-3 text-[15px] capitalize text-muted">{{ siteType }}</p>
           </NuxtLink>
-
-          <!--
-            Insights lives here rather than in the menu: analytics is per site,
-            and the menu is organization-scoped, where an org with two sites has
-            no single site to report on.
-          -->
-          <NuxtLink :to="`${siteDashboardPath}/analytics`" class="site-card group block">
-            <div class="flex items-center justify-between gap-3">
-              <p class="text-[15px] font-semibold text-highlighted">Insights</p>
-              <UIcon name="i-lucide-chart-no-axes-column" class="size-5 text-muted" />
-            </div>
-            <p class="mt-3 text-[15px] text-muted">Traffic, sources and conversions for this site.</p>
-          </NuxtLink>
         </div>
 
         <div v-else class="space-y-6">

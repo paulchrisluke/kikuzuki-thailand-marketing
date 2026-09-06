@@ -1,10 +1,7 @@
 <template>
-  <UDashboardPanel id="site-analytics">
+  <UDashboardPanel id="organization-insights">
     <template #header>
-      <UDashboardNavbar title="Analytics">
-        <template #leading>
-          <DashboardNavbarLeading v-if="sitePaths" :to="sitePaths.site" label="Site" />
-        </template>
+      <UDashboardNavbar title="Insights">
         <template #trailing>
           <UButton icon="i-lucide-refresh-cw" color="neutral" variant="soft" :loading="loading" @click="loadAnalytics">
             Refresh
@@ -30,6 +27,29 @@
           title="Canonical analytics history"
           :description="`Reliable analytics data begins ${formatDate(analytics.period.analyticsDataStartAt.slice(0, 10))}.`"
         />
+
+        <!--
+          Which sites the figures cover. Every site the member may read is
+          listed, so the filter can never offer one the API would refuse.
+        -->
+        <div v-if="sites.length > 1" class="flex flex-wrap gap-2">
+          <UButton
+            label="All sites"
+            size="sm"
+            :variant="selectedSiteId === null ? 'soft' : 'ghost'"
+            :color="selectedSiteId === null ? 'primary' : 'neutral'"
+            @click="selectSite(null)"
+          />
+          <UButton
+            v-for="site in sites"
+            :key="site.id"
+            :label="site.label"
+            size="sm"
+            :variant="selectedSiteId === site.id ? 'soft' : 'ghost'"
+            :color="selectedSiteId === site.id ? 'primary' : 'neutral'"
+            @click="selectSite(site.id)"
+          />
+        </div>
 
         <UCard variant="soft">
           <div class="grid gap-4 lg:grid-cols-[13rem_1fr]">
@@ -219,8 +239,6 @@
 const dashboardApi = useDashboardApi()
 definePageMeta({ layout: 'dashboard' })
 
-const { sitePaths } = useDashboardSiteLinks()
-
 import DashboardAnalyticsRow from '~/lib/components/workspace/dashboard/AnalyticsRow.vue'
 import { getLocalTimezone } from '~/utils/timezone'
 
@@ -248,7 +266,14 @@ interface AnalyticsResponse {
 }
 
 const toast = useToast()
-const siteId = await useDashboardSiteId()
+const route = useRoute()
+
+interface InsightsSite { id: string; label: string; subdomain: string | null }
+interface InsightsResponse { sites: InsightsSite[]; siteId: string | null; report: AnalyticsResponse }
+
+const sites = ref<InsightsSite[]>([])
+// Deep-linked from a site's own overview; null means every site in the org.
+const selectedSiteId = ref<string | null>(typeof route.query.siteId === 'string' && route.query.siteId ? route.query.siteId : null)
 
 const presets: Array<{ key: PresetKey; label: string }> = [
   { key: 'last_52_weeks', label: 'Last 52 weeks' },
@@ -287,38 +312,53 @@ const isAnalyticsResponse = (value: unknown): value is AnalyticsResponse =>
   && typeof value.period.startDate === 'string'
   && typeof value.period.endDate === 'string'
 
-const requestEvent = useRequestEvent()
+const isInsightsResponse = (value: unknown): value is InsightsResponse =>
+  isRecord(value)
+  && Array.isArray(value.sites)
+  && value.sites.every(site => isRecord(site) && typeof site.id === 'string' && typeof site.label === 'string')
+  && (value.siteId === null || typeof value.siteId === 'string')
+  && isAnalyticsResponse(value.report)
+
 const initialRange = { ...range }
 let latestManualRequestId = 0
-const { data: analyticsResource, pending: analyticsPending, error: analyticsResourceError } =
+
+/** One read for the filter's options and the figures, so they cannot disagree. */
+async function fetchInsights(query: { startDate: string; endDate: string }) {
+  return await dashboardApi<InsightsResponse>('/api/dashboard/analytics', {
+    query: { ...query, ...(selectedSiteId.value ? { siteId: selectedSiteId.value } : {}) },
+    validate: isInsightsResponse,
+  })
+}
+
+const { data: insightsResource, pending: analyticsPending, error: analyticsResourceError } =
   await useAsyncData(
-    `dashboard-site-analytics:${siteId}:${initialRange.startDate}:${initialRange.endDate}`,
-    async () => {
-      if (import.meta.server) {
-        if (!requestEvent) throw createError({ statusCode: 500, statusMessage: 'Request context unavailable' })
-        const { loadDashboardSiteAnalytics } = await import('~/server/utils/dashboard-site-analytics')
-        return await loadDashboardSiteAnalytics(requestEvent, siteId, initialRange)
-      }
-      return await dashboardApi<AnalyticsResponse>(`/api/sites/${siteId}/analytics`, {
-        query: initialRange,
-        validate: isAnalyticsResponse,
-      })
-    },
+    `dashboard-org-insights:${initialRange.startDate}:${initialRange.endDate}:${selectedSiteId.value ?? 'all'}`,
+    () => fetchInsights(initialRange),
     { lazy: import.meta.client },
   )
 
-watch([analyticsResource, analyticsPending, analyticsResourceError], ([resource, pending, error]) => {
+watch([insightsResource, analyticsPending, analyticsResourceError], ([resource, pending, error]) => {
   if (latestManualRequestId !== 0) return
   loading.value = pending
   if (error) {
-    loadError.value = error instanceof Error ? error.message : 'Failed to load analytics'
+    loadError.value = error instanceof Error ? error.message : 'Failed to load insights'
     return
   }
   if (resource) {
-    analytics.value = resource
+    sites.value = resource.sites
+    selectedSiteId.value = resource.siteId
+    analytics.value = resource.report
     loadError.value = null
   }
 }, { immediate: true })
+
+function selectSite(siteId: string | null) {
+  if (selectedSiteId.value === siteId) return
+  selectedSiteId.value = siteId
+  // Keeps the filter in the URL so a deep link and a reload agree.
+  void navigateTo({ query: siteId ? { ...route.query, siteId } : { ...route.query, siteId: undefined } }, { replace: true })
+  loadAnalytics()
+}
 
 const dailyData = computed(() => analytics.value?.dailyData || [])
 const maxTrendValue = computed(() => Math.max(1, ...dailyData.value.map(day => Math.max(day.pageViews, day.sessions))))
@@ -382,16 +422,15 @@ async function loadAnalytics() {
   loading.value = true
   loadError.value = null
   try {
-    const response = await dashboardApi<AnalyticsResponse>(`/api/sites/${siteId}/analytics`, {
-      query: { startDate: range.startDate, endDate: range.endDate },
-      validate: isAnalyticsResponse,
-    })
+    const response = await fetchInsights({ startDate: range.startDate, endDate: range.endDate })
     if (requestId !== latestManualRequestId) return
-    analytics.value = response
+    sites.value = response.sites
+    selectedSiteId.value = response.siteId
+    analytics.value = response.report
   } catch (error) {
     if (requestId !== latestManualRequestId) return
-    loadError.value = error instanceof Error ? error.message : 'Failed to load analytics'
-    toast.add({ description: error instanceof Error ? error.message : 'Failed to load analytics', color: 'error' })
+    loadError.value = error instanceof Error ? error.message : 'Failed to load insights'
+    toast.add({ description: error instanceof Error ? error.message : 'Failed to load insights', color: 'error' })
   } finally {
     if (requestId === latestManualRequestId) loading.value = false
   }
@@ -474,5 +513,5 @@ function percentOfViews(views: number): number {
   return total > 0 ? Math.round((views / total) * 100) : 0
 }
 
-useSeoMeta({ title: 'Analytics | KrabiClaw Dashboard', robots: 'noindex, nofollow' })
+useSeoMeta({ title: 'Insights | KrabiClaw Dashboard', robots: 'noindex, nofollow' })
 </script>
