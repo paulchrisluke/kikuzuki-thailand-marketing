@@ -1020,7 +1020,6 @@ export const site_transfer_requests = sqliteTable("site_transfer_requests", {
 ]);
 
 export const sites = sqliteTable("sites", {
- settings_json: text().default("{}").notNull(),
 	id: text().primaryKey(),
 	settings_json: text({ mode: "json" }).$type<SiteSettings>().default({}).notNull(),
 	integrations_json: text({ mode: "json" }).$type<SiteIntegrations>().default({}).notNull(),
