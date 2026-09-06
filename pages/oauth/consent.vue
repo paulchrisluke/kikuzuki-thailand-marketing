@@ -106,6 +106,7 @@
 
 <script setup>
 import { $fetch } from 'ofetch'
+import { authClient } from '~/lib/auth-client'
 definePageMeta({ layout: 'standalone', auth: false })
 
 useSeoMeta({ robots: 'noindex, nofollow' })
