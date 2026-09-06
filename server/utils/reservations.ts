@@ -1,5 +1,5 @@
 import { queryAll, type DbClient } from '~/server/db'
-import { generateReservationTimes, isStructuredOpeningHours } from '~/shared/reservation-hours'
+import { generateReservationTimes, normalizeOpeningHours } from '~/shared/reservation-hours'
 import { isTimeSlotInPast } from '~/server/utils/site-config'
 import {
   assertAvailabilityDate,
@@ -80,10 +80,7 @@ export async function getReservationSlotAvailabilityRange(
   }
 
   return Object.fromEntries(dates.map((dateStr) => {
-    const scheduledSlots = (isStructuredOpeningHours(location.opening_hours)
-      ? generateReservationTimes(location.opening_hours, dateStr)
-      : []
-    ).filter(slot => !isTimeSlotInPast(dateStr, slot, timezone))
+    const scheduledSlots = generateReservationTimes(normalizeOpeningHours(location.opening_hours), dateStr).filter(slot => !isTimeSlotInPast(dateStr, slot, timezone))
     const overrideMap = overridesByDate.get(dateStr) ?? new Map<string, ReservationAvailabilityDataRow>()
     const bookedMap = bookingsByDate.get(dateStr) ?? new Map<string, number>()
     const overrides = [...overrideMap.values()]

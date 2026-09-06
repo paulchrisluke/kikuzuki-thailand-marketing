@@ -1,6 +1,6 @@
 <template>
   <AppSection v-if="headline || body || image" bg="black" padding="xl">
-    <div :class="image ? 'grid gap-16 lg:grid-cols-2 lg:items-center' : ''">
+    <div :class="image && (headline || body) ? 'grid gap-16 lg:grid-cols-2 lg:items-center' : ''">
       <div v-if="image" class="overflow-hidden">
         <UImage
           :src="image"
@@ -9,12 +9,12 @@
           class="h-full w-full object-cover aspect-4/3"
         />
       </div>
-      <div>
+      <div :class="image && !headline && !body ? 'mt-8 flex items-center justify-between' : ''">
         <p class="saya-eyebrow mb-8 text-inverted/60">{{ ourStoryKicker }}</p>
-        <h2 class="saya-display-md text-inverted" :class="image ? '' : 'max-w-3xl'">
+        <h2 v-if="headline" class="saya-display-md text-inverted" :class="image ? '' : 'max-w-3xl'">
           {{ headline }}
         </h2>
-        <p class="mt-8 text-base leading-relaxed text-inverted/60" :class="image ? '' : 'max-w-2xl'">
+        <p v-if="body" class="mt-8 text-base leading-relaxed text-inverted/60" :class="image ? '' : 'max-w-2xl'">
           {{ body }}
         </p>
         <NuxtLink

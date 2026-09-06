@@ -84,7 +84,7 @@ test.describe('tenant guest journeys (disposable local/preview data only)', () =
     await page.getByLabel('Email address').fill(email)
     await page.getByLabel(/Phone number/i).fill('+66812345679')
     const submission = page.waitForResponse(response => response.request().method() === 'POST' && response.url().endsWith('/api/public/sites/site-kikuzuki/reservations'))
-    await page.getByLabel('Your details').getByRole('button', { name: /confirm reservation|ยืนยันการจอง/i }).click()
+    await page.getByLabel('Your details').getByRole('button', { name: /request reservation|ขอจองโต๊ะ/i }).click()
     const response = await submission
     expect(response.status()).toBe(201)
     const reservation: { id?: unknown; cancellationToken?: unknown; message?: unknown } = await response.json()

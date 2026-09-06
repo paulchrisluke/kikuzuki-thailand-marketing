@@ -1,8 +1,5 @@
-// Reservation time-slot generation from a location's structured opening_hours.
-// Structured shape (seed-definitions/contracts.ts `openingHours`): Array<{ openDay, openTime, closeTime }>.
-// Locations synced from Google Places store opening_hours as an array of free-text weekday
-// descriptions instead — that shape can't be safely parsed into slots, so callers must fall
-// back to a static time list for those locations.
+// Shared opening-hours normalization, open-now display, and reservation slots.
+// Accept the CMS/Google hours contract without inventing availability.
 
 export interface StructuredOpeningHoursEntry {
   openDay: string
@@ -21,6 +18,136 @@ export function isStructuredOpeningHours(value: unknown): value is StructuredOpe
     && TIME_PATTERN.test((entry as StructuredOpeningHoursEntry).openTime)
     && TIME_PATTERN.test((entry as StructuredOpeningHoursEntry).closeTime)
   )
+}
+
+// Normalize the hours contract accepted by the CMS and Google Places once for
+// public display and reservation availability. No invented default time slots.
+export function normalizeOpeningHours(value: unknown): StructuredOpeningHoursEntry[] {
+  if (isStructuredOpeningHours(value)) return value
+  if (!value || typeof value !== 'object') return []
+  const record = value as { weekdayDescriptions?: unknown; periods?: unknown }
+  const periods = Array.isArray(value) ? value : record.periods
+  if (Array.isArray(periods) && periods.length) {
+    return periods.flatMap((period) => {
+      const time = (v: unknown): string | null => {
+        if (typeof v === 'string') return TIME_PATTERN.test(v) ? v : null
+        if (!v || typeof v !== 'object' || !('hours' in v)) return null
+        const hours = v.hours
+        const minutes = 'minutes' in v ? v.minutes : 0
+        if (typeof hours !== 'number' || typeof minutes !== 'number') return null
+        const result = `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`
+        return TIME_PATTERN.test(result) ? result : null
+      }
+      const openTime = time(period?.openTime)
+      const closeTime = time(period?.closeTime)
+      return typeof period?.openDay === 'string' && openTime && closeTime
+        ? [{ openDay: period.openDay, openTime, closeTime }] : []
+    })
+  }
+  if (!Array.isArray(record.weekdayDescriptions)) return []
+  const normalized: StructuredOpeningHoursEntry[] = []
+  for (const line of record.weekdayDescriptions) {
+    if (typeof line !== 'string') continue
+    const day = line.split(':', 1)[0]?.trim().toUpperCase() ?? ''
+    if (!WEEKDAY_BY_INDEX.includes(day)) continue
+    const range = line.replace(/^[^:]+:\s*/, '').trim()
+    if (/^closed$/i.test(range)) continue
+    if (/^open 24 hours$/i.test(range)) {
+      normalized.push({ openDay: day, openTime: '00:00', closeTime: '00:00' })
+      continue
+    }
+    for (const singleRangeStr of range.split(',')) {
+      const parts = singleRangeStr.trim().split(/\s*[–—-]\s*/)
+      if (parts.length !== 2) continue
+      const parseAmPm = (s: string): { hour: number; minute: number; ampm: string | null } | null => {
+        const m = s.trim().match(/^(\d{1,2})(?::(\d{2}))?\s*(AM|PM)?$/i)
+        if (!m) return null
+        const h = parseInt(m[1] ?? '0', 10)
+        const min = parseInt(m[2] ?? '0', 10)
+        const ampm = m[3]?.toUpperCase() || null
+        if (h > 23 || min > 59 || (ampm && (h < 1 || h > 12))) return null
+        return { hour: h, minute: min, ampm }
+      }
+
+      const openParsed = parseAmPm(parts[0] ?? '')
+      const closeParsed = parseAmPm(parts[1] ?? '')
+      if (!openParsed || !closeParsed) continue
+
+
+      const toMins = (h: number, min: number, ampm: string | null): number => {
+        let hour = h
+        if (ampm === 'PM' && hour < 12) hour += 12
+        else if (ampm === 'AM' && hour === 12) hour = 0
+        return hour * 60 + min
+      }
+
+      // Infer AM/PM using hour-based inference
+      let openAmpm = openParsed.ampm
+      let closeAmpm = closeParsed.ampm
+
+      if (!openAmpm && !closeAmpm) {
+        // Try both AM, start AM end PM, start PM end AM
+        const assignments = [
+          { open: 'AM', close: 'AM' },
+          { open: 'AM', close: 'PM' },
+          { open: 'PM', close: 'AM' },
+          { open: 'PM', close: 'PM' },
+        ]
+        let bestAssignment: typeof assignments[0] | null = null
+        let bestDuration = -1
+
+        for (const assignment of assignments) {
+          const openMins = toMins(openParsed.hour, openParsed.minute, assignment.open)
+          const closeMins = toMins(closeParsed.hour, closeParsed.minute, assignment.close)
+          let duration = closeMins - openMins
+          if (duration < 0) duration += 24 * 60 // Handle midnight crossing
+
+          // Prefer positive duration <= 12h, with preference for same-day daytime spans (AM→PM)
+          if (duration > 0 && duration <= 12 * 60) {
+            if (bestDuration < 0 || duration < bestDuration || (assignment.open === 'AM' && assignment.close === 'PM')) {
+              bestAssignment = assignment
+              bestDuration = duration
+            }
+          }
+        }
+
+        if (bestAssignment) {
+          openAmpm = bestAssignment.open
+          closeAmpm = bestAssignment.close
+        }
+      } else if (!openAmpm && closeAmpm) {
+        // Try assigning open the same marker as close
+        openAmpm = closeAmpm
+        const openMins = toMins(openParsed.hour, openParsed.minute, openAmpm)
+        const closeMins = toMins(closeParsed.hour, closeParsed.minute, closeAmpm)
+        let duration = closeMins - openMins
+        if (duration < 0) duration += 24 * 60
+
+        // If duration is negative or implausibly long (>12h), flip the inferred marker
+        if (duration <= 0 || duration > 12 * 60) {
+          openAmpm = closeAmpm === 'AM' ? 'PM' : 'AM'
+        }
+      } else if (!closeAmpm && openAmpm) {
+        // Try assigning close the same marker as open
+        closeAmpm = openAmpm
+        const openMins = toMins(openParsed.hour, openParsed.minute, openAmpm)
+        const closeMins = toMins(closeParsed.hour, closeParsed.minute, closeAmpm)
+        let duration = closeMins - openMins
+        if (duration < 0) duration += 24 * 60
+
+        // If duration is negative or implausibly long (>12h), flip the inferred marker
+        if (duration <= 0 || duration > 12 * 60) {
+          closeAmpm = openAmpm === 'AM' ? 'PM' : 'AM'
+        }
+      }
+
+      const openMins = toMins(openParsed.hour, openParsed.minute, openAmpm)
+      const closeMins = toMins(closeParsed.hour, closeParsed.minute, closeAmpm)
+
+      normalized.push({ openDay: day, openTime: toTimeString(openMins), closeTime: toTimeString(closeMins) })
+    }
+  }
+  return normalized
 }
 
 const toMinutes = (t: string) => {
@@ -75,10 +202,10 @@ export function generateReservationTimes(
   const slots: string[] = []
   for (const { openTime, closeTime } of todaysHours) {
     const open = toMinutes(openTime)
-    const close = toMinutes(closeTime)
+    const close = toMinutes(closeTime) <= open ? toMinutes(closeTime) + 1440 : toMinutes(closeTime)
     const lastSeating = close - lastSeatingBufferMinutes
     for (let t = open; t <= lastSeating; t += intervalMinutes) {
-      slots.push(toTimeString(t))
+      if (t < 1440) slots.push(toTimeString(t))
     }
   }
   return [...new Set(slots)].sort()

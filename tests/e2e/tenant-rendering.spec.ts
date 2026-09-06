@@ -150,9 +150,25 @@ test('Kikuzuki keeps customer identity, locations, and reservation entry point',
 })
 
 test('NCLS exposes header, footer, pricing, article, contact, taxonomy, and donation journeys', async ({ page, context }) => {
+  await page.setViewportSize({ width: 1920, height: 1080 })
   await openTenantPage(page, `${blawbyBaseURL}/`, blawbyExtraHeaders)
   for (const label of ['Legal Services Offered', 'Pricing and Fees', 'About Us', 'Contact Us', 'Our Blog', 'Support Equal Access to Justice'])
     await expect(page.locator('header').getByRole('link', { name: label, exact: true })).toBeVisible()
+  const navLinks = page.locator('header nav > div:last-child > div:first-child a')
+  for (const width of [1920, 1600]) {
+    await page.setViewportSize({ width, height: 1080 })
+    const tops = await navLinks.evaluateAll(links => links.map(link => Math.round(link.getBoundingClientRect().top)))
+    expect(new Set(tops).size).toBe(1)
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBe(true)
+  }
+  for (const width of [1440, 1024, 390]) {
+    await page.setViewportSize({ width, height: 900 })
+    await expect(navLinks.first()).toBeHidden()
+    await page.locator('header summary').click()
+    await expect(page.locator('header details').getByRole('link', { name: 'Legal Services Offered', exact: true })).toBeVisible()
+    await page.locator('header summary').click()
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBe(true)
+  }
   for (const label of ['Family law', 'Request a Legal Consultation', 'About Us', 'Privacy Policy'])
     await expect(page.locator('footer').getByRole('link', { name: label, exact: true })).toBeVisible()
   await Promise.all([

@@ -8,8 +8,8 @@
       :storage-key="`blawby-banner:${site.brand_name}:${site.banner_content}`"
     />
     <div class="blawby-container">
-      <nav class="relative z-50 flex justify-between py-2" :aria-label="t('blawby.navigation.main')">
-        <div class="flex items-center md:gap-x-12">
+      <nav class="relative z-50 flex items-center justify-between gap-4 py-2" :aria-label="t('blawby.navigation.main')">
+        <div class="flex shrink-0 items-center">
           <NuxtLink :to="localePath('/')" class="no-underline" :aria-label="`${brandName} home`">
             <img
               v-if="logoUrl"
@@ -17,7 +17,7 @@
               :alt="brandName"
               loading="eager"
               decoding="async"
-              class="max-h-16 w-min max-w-[160px] object-contain"
+              class="max-h-16 w-min max-w-[120px] object-contain sm:max-w-[160px]"
             >
             <span v-else class="blawby-display truncate text-lg text-[var(--blawby-primary)] sm:text-xl">
               {{ brandName }}
@@ -25,8 +25,8 @@
           </NuxtLink>
         </div>
 
-        <div class="flex items-center gap-x-1 font-semibold uppercase md:gap-x-6">
-          <div class="hidden text-[var(--blawby-primary)] md:block">
+        <div class="flex min-w-0 items-center gap-x-3 font-semibold uppercase">
+          <div class="hidden items-center whitespace-nowrap text-[var(--blawby-primary)] min-[1600px]:flex">
             <NuxtLink
               v-for="item in headerItems"
               :key="item.id"
@@ -48,7 +48,7 @@
             <span>{{ headerCtaLabel }}</span>
           </BlawbyButton>
 
-          <details ref="mobileNavDetails" class="relative -mr-1 md:hidden" @toggle="syncMobileNavState">
+          <details ref="mobileNavDetails" class="relative -mr-1 shrink-0 min-[1600px]:hidden" @toggle="syncMobileNavState">
             <summary
               class="relative z-10 flex size-8 list-none items-center justify-center text-[var(--blawby-primary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--blawby-primary)] [&::-webkit-details-marker]:hidden"
               :aria-label="t('blawby.navigation.toggle')"

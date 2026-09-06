@@ -85,7 +85,8 @@ button {
 }
 
 [data-blawby-critical-header] nav > div:last-child > div:first-child a {
-  display: inline-block;
+  display: block;
+  white-space: nowrap;
   border-radius: 0.5rem;
   padding: 0.25rem 0.5rem;
   color: inherit;
@@ -111,7 +112,7 @@ button {
 
 [data-blawby-critical-header] img {
   width: auto;
-  max-width: 160px;
+  max-width: 120px;
   max-height: 4rem;
   object-fit: contain;
 }
@@ -198,6 +199,10 @@ button {
 }
 
 @media (width >= 576px) {
+  [data-blawby-critical-header] img {
+    max-width: 160px;
+  }
+
   [data-blawby-critical-hero] h1 {
     font-size: 4.5rem;
   }
@@ -216,14 +221,6 @@ button {
     gap: 2rem;
   }
 
-  [data-blawby-critical-header] nav > div:last-child > div:first-child {
-    display: block;
-  }
-
-  [data-blawby-critical-header] nav > div:last-child > div:last-child {
-    display: none;
-  }
-
 }
 
 @media (width >= 992px) {
@@ -238,4 +235,25 @@ button {
   [data-blawby-critical-hero-actions] {
     width: 40%;
   }
+}
+
+@media (width >= 1600px) {
+  [data-blawby-critical-header] nav > div:last-child > div:first-child {
+    display: flex;
+    align-items: center;
+    white-space: nowrap;
+  }
+}
+
+[data-blawby-critical-header] .blawby-container {
+  max-width: 100rem;
+}
+
+[data-blawby-critical-header] nav {
+  align-items: center;
+  gap: 1rem;
+}
+
+[data-blawby-critical-header] nav > div:first-child {
+  flex-shrink: 0;
 }
