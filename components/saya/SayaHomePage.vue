@@ -40,7 +40,7 @@
           heading: productPresentation?.locationCollectionSegment === 'menu'
             ? t('saya.footer.menu')
             : t('saya.products.collection_title', { site: brandName }),
-          linkTarget: productPresentation?.collectionPath || null
+          linkTarget: productPresentation ? productPresentation.collectionPath : null
         }"
       />
 
@@ -534,7 +534,8 @@ const recentBlogPosts = computed(() =>
 
 const supplementalErrorMessage = computed(() => {
   const details = supplementalError.value && typeof supplementalError.value === 'object' && 'requestId' in supplementalError.value
-    ? String(supplementalError.value.requestId || '')
+    && typeof supplementalError.value.requestId === 'string'
+    ? supplementalError.value.requestId
     : ''
   return details
     ? `${t('saya.common.temporarily_unavailable')} (${details})`

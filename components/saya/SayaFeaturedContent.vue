@@ -68,7 +68,7 @@
         type="button"
         :disabled="activeIndex === 0"
         class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-default text-default transition hover:opacity-60 disabled:opacity-25"
-        aria-label="Previous"
+        :aria-label="t('saya.carousel.previous')"
         @click="scroll(-1)"
       >
         ←
@@ -80,7 +80,7 @@
           type="button"
           class="h-0.5 rounded-full transition-all duration-300"
           :class="i === activeIndex ? 'w-10 bg-inverted' : 'w-6 bg-inverted/30'"
-          :aria-label="`Go to item ${i + 1}`"
+          :aria-label="t('saya.carousel.go_to_item', { number: i + 1 })"
           @click="scrollToIndex(i)"
         />
       </div>
@@ -88,7 +88,7 @@
         type="button"
         :disabled="activeIndex >= items.length - 1"
         class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-default text-default transition hover:opacity-60 disabled:opacity-25"
-        aria-label="Next"
+        :aria-label="t('saya.carousel.next')"
         @click="scroll(1)"
       >
         →

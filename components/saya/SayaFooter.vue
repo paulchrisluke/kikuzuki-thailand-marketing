@@ -322,7 +322,7 @@ const locations = computed(() =>
 )
 
 function formatLocAddress(loc: PublicLocation) {
-  if (locale.value !== 'en') return loc.address_translated?.trim() || ''
+  if (locale.value !== 'en') return typeof loc.address_translated === 'string' ? loc.address_translated.trim() : ''
   if (!loc.address) return ''
   let addr: PublicLocation['address'] = loc.address
   if (typeof addr === 'string') {
@@ -343,9 +343,11 @@ function localizedHoursToday(loc: PublicLocation): string | null {
   if (!Array.isArray(loc.opening_hours_translated)) return null
   const weekday = new Intl.DateTimeFormat('en-US', {
     weekday: 'long',
-    timeZone: loc.timezone || undefined,
+    timeZone: typeof loc.timezone === 'string' ? loc.timezone : undefined,
   }).format(new Date()).toUpperCase()
   const index = ['MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY', 'SUNDAY'].indexOf(weekday)
-  return index >= 0 ? loc.opening_hours_translated[index] ?? null : null
+  if (index < 0) return null
+  const value = loc.opening_hours_translated[index]
+  return typeof value === 'string' ? value : null
 }
 </script>

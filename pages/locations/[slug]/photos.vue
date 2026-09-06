@@ -16,7 +16,7 @@
         </NuxtLink>
         
         <div class="flex flex-col gap-2">
-          <h1 class="saya-display-md text-default">{{ locale === 'en' ? 'Inside the room' : t('saya.subnav.photos') }}</h1>
+          <h1 class="saya-display-md text-default">{{ t('saya.photos.title') }}</h1>
           <p class="text-sm text-muted">
             {{ location?.title }}
           </p>
@@ -26,7 +26,6 @@
 
     <!-- Category filter tabs -->
     <SayaFilterTabs
-      v-if="locale === 'en'"
       v-model="activeCategory"
       :tabs="cats"
     />
@@ -35,8 +34,8 @@
       <div class="mx-auto max-w-7xl px-4 pt-12 pb-24 sm:px-6 lg:px-8">
         <!-- Empty -->
         <div v-if="sorted.length === 0" class="py-24 text-center">
-          <div class="saya-display saya-italic text-3xl text-default">{{ locale === 'en' ? 'No photos yet.' : t('saya.common.temporarily_unavailable') }}</div>
-          <p v-if="locale === 'en'" class="mt-2 text-sm text-muted">Photos added by the team will appear here.</p>
+          <div class="saya-display saya-italic text-3xl text-default">{{ t('saya.photos.empty_title') }}</div>
+          <p class="mt-2 text-sm text-muted">{{ t('saya.photos.empty_desc') }}</p>
         </div>
 
         <!-- Masonry -->
@@ -49,15 +48,15 @@
           >
             <UImage
               :src="photo.public_url"
-              :alt="photo.alt_text || ''"
+              :alt="typeof photo.alt_text === 'string' ? photo.alt_text : ''"
               loading="lazy"
               class="block w-full transition-opacity duration-200 group-hover:opacity-80"
             />
             <!-- If the sticky tab/header div is needed, move it here, outside the <img> -->
             <!-- <div class="sticky top-0 z-40 border-b border-default bg-default"> ... </div> -->
             <div class="absolute inset-0 flex items-end bg-linear-to-t from-black/60 to-transparent p-6 opacity-0 transition-opacity duration-300 group-hover:opacity-100">
-              <span v-if="locale === 'en'" class="saya-eyebrow rounded-full bg-white/25 px-4 py-1.5 text-[10px] font-bold tracking-widest text-white backdrop-blur-md border border-white/20">
-                {{ photo.category || 'Gallery' }}
+              <span class="saya-eyebrow rounded-full bg-white/25 px-4 py-1.5 text-[10px] font-bold tracking-widest text-white backdrop-blur-md border border-white/20">
+                {{ categoryLabel(photo.category) }}
               </span>
             </div>
           </button>
@@ -71,7 +70,7 @@
 </template>
 
 <script setup lang="ts">
-const { locale, localePath, t } = useI18n()
+const { localePath, t } = useI18n()
 definePageMeta({ layout: 'saya' })
 
 const route = useRoute()
@@ -83,15 +82,29 @@ const siteName = computed(() => String((site as ApiValue)?.brand_name ?? '').tri
 
 const { location, media: photos } = await usePublicPageData({ lazy: false })
 
-const cats = [
-  { key: 'ALL', label: 'All' },
-  { key: 'FOOD', label: 'Food' },
-  { key: 'INTERIOR', label: 'Interior' },
-  { key: 'EXTERIOR', label: 'Exterior' },
-  { key: 'MENU', label: 'Menu' },
-  { key: 'TEAM', label: 'Team' }
-]
+const photoCategoryKeys: Record<string, string> = {
+  FOOD: 'saya.photos.category_food',
+  INTERIOR: 'saya.photos.category_interior',
+  EXTERIOR: 'saya.photos.category_exterior',
+  MENU: 'saya.photos.category_menu',
+  TEAM: 'saya.photos.category_team',
+  OTHER: 'saya.photos.category_other',
+}
+const cats = computed(() => [
+  { key: 'ALL', label: t('saya.photos.category_all') },
+  { key: 'FOOD', label: t('saya.photos.category_food') },
+  { key: 'INTERIOR', label: t('saya.photos.category_interior') },
+  { key: 'EXTERIOR', label: t('saya.photos.category_exterior') },
+  { key: 'MENU', label: t('saya.photos.category_menu') },
+  { key: 'TEAM', label: t('saya.photos.category_team') }
+])
 const activeCategory = ref('ALL')
+
+function categoryLabel(category: unknown): string {
+  if (typeof category !== 'string') return t('saya.photos.category_other')
+  const key = photoCategoryKeys[category]
+  return typeof key === 'string' ? t(key) : t('saya.photos.category_other')
+}
 
 const sorted = computed(() => {
   const filtered = activeCategory.value === 'ALL'
@@ -116,7 +129,7 @@ const lightboxItems = computed(() =>
     url: p.public_url,
     kind: 'image' as const,
     description: p.alt_text,
-    alt: p.alt_text || p.category || ''
+    alt: typeof p.alt_text === 'string' ? p.alt_text : ''
   }))
 )
 
@@ -135,7 +148,7 @@ function toAbsoluteUrl(value?: string | null): string | null {
 
 useSocialMetadata(() => ({
   path: `/locations/${slug.value}/photos`,
-  title: locale.value === 'en' ? `Photos · ${location.value?.title || slug.value}` : t('saya.subnav.photos'),
+  title: t('saya.subnav.photos'),
   description: t('saya.photos.meta_description', {
     count: photos.value.length,
     location: location.value?.title || slug.value,
@@ -168,9 +181,9 @@ useSchemaOrg([
     '@type': 'BreadcrumbList',
     itemListElement: [
       { '@type': 'ListItem', position: 1, name: siteName.value, item: `${siteUrl}/` },
-      { '@type': 'ListItem', position: 2, name: 'Locations', item: `${siteUrl}/locations` },
+      { '@type': 'ListItem', position: 2, name: t('saya.header.locations'), item: `${siteUrl}/locations` },
       { '@type': 'ListItem', position: 3, name: location.value?.title ?? slug.value, item: `${siteUrl}/locations/${slug.value}` },
-      { '@type': 'ListItem', position: 4, name: 'Photos', item: `${siteUrl}/locations/${slug.value}/photos` }
+      { '@type': 'ListItem', position: 4, name: t('saya.subnav.photos'), item: `${siteUrl}/locations/${slug.value}/photos` }
     ]
   }))
 ])

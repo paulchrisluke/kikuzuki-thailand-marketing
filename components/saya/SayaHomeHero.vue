@@ -139,7 +139,7 @@ interface Props {
 const props = withDefaults(defineProps<Props>(), { data: () => ({}) })
 
 const hero = computed(() => props.data?.hero || {})
-const eyebrow = computed(() => props.data?.eyebrow || '')
+const eyebrow = computed(() => typeof props.data?.eyebrow === 'string' ? props.data.eyebrow : '')
 const locations = computed(() => props.data?.locations || [])
 const hasLocations = computed(() => locations.value.length > 0)
 const businessTitle = computed(() => props.data?.businessTitle || '')
