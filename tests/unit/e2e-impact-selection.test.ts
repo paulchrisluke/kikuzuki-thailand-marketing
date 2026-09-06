@@ -33,6 +33,7 @@ test('a Saya presentation change selects tenant-public coverage', () => {
   assert.equal(plan.scope, 'affected')
   assert.deepEqual(plan.groups, ['tenant-public'])
   assert.deepEqual(plan.specs, [
+    'tests/e2e/kikuzuki-localization.spec.ts',
     'tests/e2e/tenant-client-navigation.spec.ts',
     'tests/e2e/tenant-localization.spec.ts',
     'tests/e2e/tenant-rendering.spec.ts'
@@ -123,6 +124,7 @@ test('deleting a mapped runtime file still selects its preview coverage', async 
     assert.equal(plan.scope, 'affected')
     assert.deepEqual(plan.groups, ['tenant-public'])
     assert.deepEqual(plan.specs, [
+      'tests/e2e/kikuzuki-localization.spec.ts',
       'tests/e2e/tenant-client-navigation.spec.ts',
       'tests/e2e/tenant-localization.spec.ts',
       'tests/e2e/tenant-rendering.spec.ts'

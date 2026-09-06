@@ -29,13 +29,18 @@ export default defineNuxtPlugin((nuxtApp) => {
     messages: { en },
   })
 
-  watch([publicLocale, platformMessages], ([locale, messages]) => {
+  const setAppLocale = (locale: string, messages: Record<string, string> | null) => {
     if (locale !== 'en' && messages) {
       i18n.global.setLocaleMessage(locale, expandMessages(messages) as typeof en)
     }
     i18n.global.locale.value = locale as 'en'
+  }
+
+  watch([publicLocale, platformMessages], ([locale, messages]) => {
+    setAppLocale(locale, messages)
   }, { immediate: true })
 
   nuxtApp.vueApp.use(i18n)
   nuxtApp.provide('appLocale', i18n.global.locale)
+  nuxtApp.provide('setAppLocale', setAppLocale)
 })
