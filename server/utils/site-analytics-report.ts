@@ -1,3 +1,4 @@
+import { z } from 'zod'
 import { HTTPError } from 'nitro'
 import { executeBatch, queryAll, queryFirst, type DbClient } from '~/server/db'
 import {
@@ -51,9 +52,8 @@ const n = (value: unknown) => Number(value || 0)
 
 export async function resolveSiteAnalyticsContext(db: DbClient, siteId: string): Promise<SiteContext> {
   const row = await queryFirst<{ organization_id: string; analytics_data_start_at: string | null; timezone: string | null }>(db, `
-    SELECT s.organization_id, s.analytics_data_start_at, tz.value AS timezone
+    SELECT s.organization_id, s.analytics_data_start_at, json_extract(s.settings_json, '$.config.default_timezone') AS timezone
     FROM sites s
-    LEFT JOIN site_config tz ON tz.site_id = s.id AND tz.organization_id = s.organization_id AND tz.key = 'default_timezone'
     WHERE s.id = ? LIMIT 1
   `, [siteId])
   if (!row) throw new HTTPError({ statusCode: 404, statusMessage: 'Site not found' })
@@ -65,162 +65,117 @@ export async function resolveSiteAnalyticsContext(db: DbClient, siteId: string):
   }
 }
 
+const sessionFactsSql = `SELECT id, site_id, key session_id,
+  (payload_json ->> '$.visitor_id') visitor_id,
+  (payload_json ->> '$.started_at') started_at,
+  (payload_json ->> '$.last_seen_at') last_seen_at,
+  (payload_json ->> '$.duration_seconds') duration_seconds,
+  (payload_json ->> '$.attribution.source') source,
+  (payload_json ->> '$.attribution.medium') medium,
+  (payload_json ->> '$.attribution.campaign') campaign
+  FROM analytics_summaries WHERE kind = 'session'`
+
+const daySummariesSql = `WITH input AS (SELECT ? site_id, ? starts_at, ? ends_at),
+  views AS (
+    SELECT e.*, (payload_json ->> '$.country') country,
+      (payload_json ->> '$.region') region, (payload_json ->> '$.city') city,
+      (payload_json ->> '$.user_agent') user_agent, (payload_json ->> '$.referrer') referrer
+    FROM analytics_events e JOIN input i ON e.site_id = i.site_id
+    WHERE e.kind = 'pageview' AND e.created_at >= i.starts_at AND e.created_at < i.ends_at
+  ), sessions AS (SELECT * FROM (${sessionFactsSql}) WHERE site_id = (SELECT site_id FROM input)),
+  metrics AS (SELECT COUNT(*) page_views, COUNT(DISTINCT session_id) unique_sessions,
+    COUNT(DISTINCT visitor_id) unique_visitors FROM views),
+  dimensions AS (
+    SELECT 'country' dimension, CASE WHEN country GLOB '[A-Za-z][A-Za-z]' THEN upper(country) ELSE 'XX' END value, '' subvalue FROM views
+    UNION ALL SELECT 'city', COALESCE(NULLIF(city, ''), 'Unknown'),
+      COALESCE(region, '') || '|' || CASE WHEN country GLOB '[A-Za-z][A-Za-z]' THEN upper(country) ELSE 'XX' END FROM views
+    UNION ALL SELECT 'device', CASE
+      WHEN lower(user_agent) LIKE '%ipad%' OR lower(user_agent) LIKE '%tablet%' THEN 'Tablet'
+      WHEN lower(user_agent) LIKE '%mobile%' OR lower(user_agent) LIKE '%android%' THEN 'Mobile'
+      WHEN user_agent IS NULL OR user_agent = '' THEN 'Unknown' ELSE 'Desktop' END, '' FROM views
+    UNION ALL SELECT 'referrer', CASE
+      WHEN v.referrer IS NULL OR v.referrer = '' THEN 'Direct'
+      WHEN EXISTS (SELECT 1 FROM site_domains d WHERE d.site_id = v.site_id AND d.status = 'active' AND lower(d.domain) = lower(v.referrer)) THEN 'Internal'
+      ELSE lower(v.referrer) END, '' FROM views v
+  )
+  SELECT 'site_day' kind, '' key, json_object(
+    'page_views', page_views, 'unique_sessions', unique_sessions, 'unique_visitors', unique_visitors,
+    'returning_visitors', (SELECT COUNT(DISTINCT current.visitor_id) FROM views current WHERE EXISTS (
+      SELECT 1 FROM sessions previous WHERE previous.visitor_id = current.visitor_id
+        AND previous.session_id <> current.session_id AND previous.started_at < (SELECT starts_at FROM input))),
+    'avg_session_duration', COALESCE((SELECT ROUND(AVG(duration_seconds)) FROM sessions
+      WHERE started_at < (SELECT ends_at FROM input) AND last_seen_at >= (SELECT starts_at FROM input) AND duration_seconds > 0), 0),
+    'pages_per_session', CASE WHEN unique_sessions = 0 THEN 0 ELSE ROUND(CAST(page_views AS REAL) / unique_sessions, 2) END
+  ) payload_json FROM metrics
+  UNION ALL SELECT 'page_day', page_path, json_object('page_views', COUNT(*)) FROM views GROUP BY page_path
+  UNION ALL SELECT 'dimension_day', json_array(dimension, value, subvalue), json_object('page_views', COUNT(*))
+    FROM dimensions GROUP BY dimension, value, subvalue`
+
+interface AnalyticsSummaryRow {
+  kind: 'site_day' | 'page_day' | 'dimension_day'
+  date: string
+  key: string
+  payload_json: string
+}
+
+const dayMetricsSchema = z.object({
+  page_views: z.number().nonnegative(), unique_sessions: z.number().nonnegative(),
+  unique_visitors: z.number().nonnegative(), returning_visitors: z.number().nonnegative(),
+  avg_session_duration: z.number().nonnegative(), pages_per_session: z.number().nonnegative(),
+})
+const viewCountSchema = z.object({ page_views: z.number().nonnegative() })
+const dimensionKeySchema = z.tuple([z.enum(['country', 'city', 'device', 'referrer']), z.string(), z.string()])
+
+function dailySlice(date: string, rows: Omit<AnalyticsSummaryRow, 'date'>[]): DailySlice {
+  const summary = rows.find(row => row.kind === 'site_day')
+  if (!summary) throw new Error(`Analytics day summary missing: ${date}`)
+  const metrics = dayMetricsSchema.parse(JSON.parse(summary.payload_json))
+  return {
+    date, pageViews: metrics.page_views, sessions: metrics.unique_sessions, visitors: metrics.unique_visitors,
+    returningVisitors: metrics.returning_visitors, avgDuration: metrics.avg_session_duration, pagesPerSession: metrics.pages_per_session,
+    pages: rows.filter(row => row.kind === 'page_day').map(row => ({ value: row.key, views: viewCountSchema.parse(JSON.parse(row.payload_json)).page_views })),
+    dimensions: rows.filter(row => row.kind === 'dimension_day').map(row => {
+      const [dimension, value, subvalue] = dimensionKeySchema.parse(JSON.parse(row.key))
+      return { dimension, value, subvalue, views: viewCountSchema.parse(JSON.parse(row.payload_json)).page_views }
+    }),
+  }
+}
+
 export async function aggregateSiteAnalyticsDate(db: DbClient, siteId: string, date: string): Promise<void> {
   const context = await resolveSiteAnalyticsContext(db, siteId)
   const { start, end } = localDateBounds(date, context.timezone)
   const now = new Date().toISOString()
   await executeBatch(db, [
-    { query: 'DELETE FROM site_analytics_page_daily WHERE site_id = ? AND date = ?', params: [siteId, date] },
-    { query: 'DELETE FROM site_analytics_dimension_daily WHERE site_id = ? AND date = ?', params: [siteId, date] },
+    { query: "DELETE FROM analytics_summaries WHERE site_id = ? AND date = ? AND kind IN ('page_day', 'dimension_day')", params: [siteId, date] },
     {
-      query: `INSERT INTO site_analytics_daily (
-        id, organization_id, site_id, date, page_views, unique_sessions, unique_visitors,
-        returning_visitors, avg_session_duration, pages_per_session, created_at, updated_at
-      ) VALUES (
-        ?, ?, ?, ?,
-        (SELECT COUNT(*) FROM site_pageview_events WHERE site_id = ? AND created_at >= ? AND created_at < ?),
-        (SELECT COUNT(DISTINCT session_id) FROM site_pageview_events WHERE site_id = ? AND created_at >= ? AND created_at < ?),
-        (SELECT COUNT(DISTINCT visitor_id) FROM site_pageview_events WHERE site_id = ? AND created_at >= ? AND created_at < ?),
-        (SELECT COUNT(DISTINCT current.visitor_id) FROM site_pageview_events current
-          WHERE current.site_id = ? AND current.created_at >= ? AND current.created_at < ?
-          AND EXISTS (SELECT 1 FROM site_analytics_sessions previous WHERE previous.site_id = current.site_id
-            AND previous.visitor_id = current.visitor_id AND previous.session_id <> current.session_id
-            AND previous.started_at < ?)),
-        COALESCE((SELECT ROUND(AVG(duration_seconds)) FROM site_analytics_sessions
-          WHERE site_id = ? AND started_at < ? AND last_seen_at >= ? AND duration_seconds > 0), 0),
-        CASE WHEN (SELECT COUNT(DISTINCT session_id) FROM site_pageview_events WHERE site_id = ? AND created_at >= ? AND created_at < ?) = 0 THEN 0
-          ELSE ROUND(CAST((SELECT COUNT(*) FROM site_pageview_events WHERE site_id = ? AND created_at >= ? AND created_at < ?) AS REAL)
-            / (SELECT COUNT(DISTINCT session_id) FROM site_pageview_events WHERE site_id = ? AND created_at >= ? AND created_at < ?), 2) END,
-        ?, ?
-      ) ON CONFLICT(site_id, date) DO UPDATE SET
-        organization_id = excluded.organization_id, page_views = excluded.page_views,
-        unique_sessions = excluded.unique_sessions, unique_visitors = excluded.unique_visitors,
-        returning_visitors = excluded.returning_visitors, avg_session_duration = excluded.avg_session_duration,
-        pages_per_session = excluded.pages_per_session, updated_at = excluded.updated_at`,
-      params: [
-        crypto.randomUUID(), context.organizationId, siteId, date,
-        siteId, start, end, siteId, start, end, siteId, start, end,
-        siteId, start, end, start,
-        siteId, end, start,
-        siteId, start, end, siteId, start, end, siteId, start, end,
-        now, now,
-      ],
-    },
-    {
-      query: `INSERT INTO site_analytics_page_daily
-        (id, organization_id, site_id, date, page_path, page_views, created_at, updated_at)
-        SELECT lower(hex(randomblob(16))), ?, site_id, ?, page_path, COUNT(*), ?, ?
-        FROM site_pageview_events WHERE site_id = ? AND created_at >= ? AND created_at < ? GROUP BY page_path`,
-      params: [context.organizationId, date, now, now, siteId, start, end],
-    },
-    {
-      query: `INSERT INTO site_analytics_dimension_daily
-        (id, organization_id, site_id, date, dimension, value, subvalue, page_views, created_at, updated_at)
-        SELECT lower(hex(randomblob(16))), ?, site_id, ?, 'country',
-          CASE WHEN country GLOB '[A-Za-z][A-Za-z]' THEN upper(country) ELSE 'XX' END, '', COUNT(*), ?, ?
-        FROM site_pageview_events WHERE site_id = ? AND created_at >= ? AND created_at < ?
-        GROUP BY CASE WHEN country GLOB '[A-Za-z][A-Za-z]' THEN upper(country) ELSE 'XX' END`,
-      params: [context.organizationId, date, now, now, siteId, start, end],
-    },
-    {
-      query: `INSERT INTO site_analytics_dimension_daily
-        (id, organization_id, site_id, date, dimension, value, subvalue, page_views, created_at, updated_at)
-        SELECT lower(hex(randomblob(16))), ?, site_id, ?, 'city', COALESCE(NULLIF(city, ''), 'Unknown'),
-          COALESCE(region, '') || '|' || CASE WHEN country GLOB '[A-Za-z][A-Za-z]' THEN upper(country) ELSE 'XX' END,
-          COUNT(*), ?, ? FROM site_pageview_events
-        WHERE site_id = ? AND created_at >= ? AND created_at < ? GROUP BY 6, 7`,
-      params: [context.organizationId, date, now, now, siteId, start, end],
-    },
-    {
-      query: `INSERT INTO site_analytics_dimension_daily
-        (id, organization_id, site_id, date, dimension, value, subvalue, page_views, created_at, updated_at)
-        SELECT lower(hex(randomblob(16))), ?, site_id, ?, 'device', CASE
-          WHEN lower(user_agent) LIKE '%ipad%' OR lower(user_agent) LIKE '%tablet%' THEN 'Tablet'
-          WHEN lower(user_agent) LIKE '%mobile%' OR lower(user_agent) LIKE '%android%' THEN 'Mobile'
-          WHEN user_agent IS NULL OR user_agent = '' THEN 'Unknown' ELSE 'Desktop' END, '', COUNT(*), ?, ?
-        FROM site_pageview_events WHERE site_id = ? AND created_at >= ? AND created_at < ? GROUP BY 6`,
-      params: [context.organizationId, date, now, now, siteId, start, end],
-    },
-    {
-      query: `INSERT INTO site_analytics_dimension_daily
-        (id, organization_id, site_id, date, dimension, value, subvalue, page_views, created_at, updated_at)
-        SELECT lower(hex(randomblob(16))), ?, events.site_id, ?, 'referrer', CASE
-          WHEN events.referrer IS NULL OR events.referrer = '' THEN 'Direct'
-          WHEN EXISTS (SELECT 1 FROM site_domains domains WHERE domains.site_id = events.site_id AND domains.status = 'active' AND lower(domains.domain) = lower(events.referrer)) THEN 'Internal'
-          ELSE lower(events.referrer) END, '', COUNT(*), ?, ?
-        FROM site_pageview_events events WHERE events.site_id = ? AND events.created_at >= ? AND events.created_at < ? GROUP BY 6`,
-      params: [context.organizationId, date, now, now, siteId, start, end],
+      query: `INSERT INTO analytics_summaries (id, kind, organization_id, site_id, date, key, payload_json, created_at, updated_at)
+        SELECT lower(hex(randomblob(16))), kind, ?, ?, ?, key, payload_json, ?, ? FROM (${daySummariesSql}) WHERE true
+        ON CONFLICT(site_id, kind, date, key) DO UPDATE SET organization_id = excluded.organization_id,
+          payload_json = excluded.payload_json, updated_at = excluded.updated_at`,
+      params: [context.organizationId, siteId, date, now, now, siteId, start, end],
     },
   ], { operation: `aggregate analytics for ${siteId} ${date}` })
 }
 
-async function readRawDate(db: DbClient, siteId: string, date: string, timezone: string): Promise<DailySlice> {
-  const { start, end } = localDateBounds(date, timezone)
-  const [summary, pages, country, city, device, referrer] = await Promise.all([
-    queryFirst<Record<string, unknown>>(db, `SELECT COUNT(*) page_views, COUNT(DISTINCT session_id) sessions,
-      COUNT(DISTINCT visitor_id) visitors,
-      COALESCE((SELECT ROUND(AVG(duration_seconds)) FROM site_analytics_sessions WHERE site_id = ? AND started_at < ? AND last_seen_at >= ? AND duration_seconds > 0), 0) avg_duration
-      FROM site_pageview_events WHERE site_id = ? AND created_at >= ? AND created_at < ?`, [siteId, end, start, siteId, start, end]),
-    queryAll<{ value: string; views: number }>(db, `SELECT page_path value, COUNT(*) views FROM site_pageview_events WHERE site_id = ? AND created_at >= ? AND created_at < ? GROUP BY page_path`, [siteId, start, end]),
-    queryAll<{ value: string; subvalue: string; views: number }>(db, `SELECT CASE WHEN country GLOB '[A-Za-z][A-Za-z]' THEN upper(country) ELSE 'XX' END value, '' subvalue, COUNT(*) views FROM site_pageview_events WHERE site_id = ? AND created_at >= ? AND created_at < ? GROUP BY 1`, [siteId, start, end]),
-    queryAll<{ value: string; subvalue: string; views: number }>(db, `SELECT COALESCE(NULLIF(city,''),'Unknown') value, COALESCE(region,'') || '|' || CASE WHEN country GLOB '[A-Za-z][A-Za-z]' THEN upper(country) ELSE 'XX' END subvalue, COUNT(*) views FROM site_pageview_events WHERE site_id = ? AND created_at >= ? AND created_at < ? GROUP BY 1,2`, [siteId, start, end]),
-    queryAll<{ value: string; subvalue: string; views: number }>(db, `SELECT CASE WHEN lower(user_agent) LIKE '%ipad%' OR lower(user_agent) LIKE '%tablet%' THEN 'Tablet' WHEN lower(user_agent) LIKE '%mobile%' OR lower(user_agent) LIKE '%android%' THEN 'Mobile' WHEN user_agent IS NULL OR user_agent = '' THEN 'Unknown' ELSE 'Desktop' END value, '' subvalue, COUNT(*) views FROM site_pageview_events WHERE site_id = ? AND created_at >= ? AND created_at < ? GROUP BY 1`, [siteId, start, end]),
-    queryAll<{ value: string; subvalue: string; views: number }>(db, `SELECT CASE WHEN events.referrer IS NULL OR events.referrer = '' THEN 'Direct' WHEN EXISTS (SELECT 1 FROM site_domains d WHERE d.site_id = events.site_id AND d.status = 'active' AND lower(d.domain) = lower(events.referrer)) THEN 'Internal' ELSE lower(events.referrer) END value, '' subvalue, COUNT(*) views FROM site_pageview_events events WHERE events.site_id = ? AND events.created_at >= ? AND events.created_at < ? GROUP BY 1`, [siteId, start, end]),
-  ])
-  const sessions = n(summary?.sessions)
-  const pageViews = n(summary?.page_views)
-  return {
-    date, pageViews, sessions, visitors: n(summary?.visitors), returningVisitors: 0,
-    avgDuration: n(summary?.avg_duration), pagesPerSession: sessions ? Math.round(pageViews / sessions * 100) / 100 : 0,
-    pages: pages.map(row => ({ value: row.value, views: n(row.views) })),
-    dimensions: [
-      ...country.map(row => ({ dimension: 'country', ...row, views: n(row.views) })),
-      ...city.map(row => ({ dimension: 'city', ...row, views: n(row.views) })),
-      ...device.map(row => ({ dimension: 'device', ...row, views: n(row.views) })),
-      ...referrer.map(row => ({ dimension: 'referrer', ...row, views: n(row.views) })),
-    ],
-  }
-}
-
 async function loadSlices(db: DbClient, siteId: string, dates: string[], timezone: string, now: Date, cutoffDate: string | null): Promise<DailySlice[]> {
   if (dates.length === 0) return []
-  const startDate = dates[0]!
-  const endDate = dates.at(-1)!
-  const [daily, pages, dimensions] = await Promise.all([
-    queryAll<Record<string, unknown>>(db, 'SELECT * FROM site_analytics_daily WHERE site_id = ? AND date BETWEEN ? AND ?', [siteId, startDate, endDate]),
-    queryAll<Record<string, unknown>>(db, 'SELECT date, page_path, page_views FROM site_analytics_page_daily WHERE site_id = ? AND date BETWEEN ? AND ?', [siteId, startDate, endDate]),
-    queryAll<Record<string, unknown>>(db, 'SELECT date, dimension, value, subvalue, page_views FROM site_analytics_dimension_daily WHERE site_id = ? AND date BETWEEN ? AND ?', [siteId, startDate, endDate]),
-  ])
-  const byDate = new Map(daily.map(row => [String(row.date), row]))
+  const rows = await queryAll<AnalyticsSummaryRow>(db, `SELECT kind, date, key, payload_json FROM analytics_summaries
+    WHERE site_id = ? AND kind IN ('site_day', 'page_day', 'dimension_day') AND date BETWEEN ? AND ?`, [siteId, dates[0]!, dates.at(-1)!])
   const rawRetentionCutoff = new Date(now.getTime() - 90 * 86_400_000).toISOString()
   const result: DailySlice[] = []
   for (const date of dates) {
-    const row = byDate.get(date)
-    if (!row) {
-      if (cutoffDate && date < cutoffDate) {
-        result.push({ date, pageViews: 0, sessions: 0, visitors: 0, returningVisitors: 0, avgDuration: 0, pagesPerSession: 0, pages: [], dimensions: [] })
-        continue
-      }
-      if (localDateBounds(date, timezone).start < rawRetentionCutoff) {
-        throw new HTTPError({ statusCode: 500, statusMessage: `Analytics aggregate missing for retained date ${date}` })
-      }
-      result.push(await readRawDate(db, siteId, date, timezone))
+    const dayRows = rows.filter(row => row.date === date)
+    if (dayRows.some(row => row.kind === 'site_day')) {
+      result.push(dailySlice(date, dayRows))
       continue
     }
-    const sessions = n(row.unique_sessions)
-    result.push({
-      date,
-      pageViews: n(row.page_views),
-      sessions,
-      visitors: n(row.unique_visitors),
-      returningVisitors: n(row.returning_visitors),
-      avgDuration: n(row.avg_session_duration),
-      pagesPerSession: n(row.pages_per_session),
-      pages: pages.filter(page => page.date === date).map(page => ({ value: String(page.page_path), views: n(page.page_views) })),
-      dimensions: dimensions.filter(value => value.date === date).map(value => ({
-        dimension: String(value.dimension), value: String(value.value), subvalue: String(value.subvalue || ''), views: n(value.page_views),
-      })),
-    })
+    if (cutoffDate && date < cutoffDate) {
+      result.push({ date, pageViews: 0, sessions: 0, visitors: 0, returningVisitors: 0, avgDuration: 0, pagesPerSession: 0, pages: [], dimensions: [] })
+      continue
+    }
+    const { start, end } = localDateBounds(date, timezone)
+    if (start < rawRetentionCutoff) throw new HTTPError({ statusCode: 500, statusMessage: `Analytics aggregate missing for retained date ${date}` })
+    result.push(dailySlice(date, await queryAll<Omit<AnalyticsSummaryRow, 'date'>>(db, daySummariesSql, [siteId, start, end])))
   }
   return result
 }
@@ -239,18 +194,18 @@ export async function getSiteAnalyticsReport(db: DbClient, input: {
   const [sessionStats, returningStats, attributionRows, conversionRows, attributionConversions] = await Promise.all([
     queryFirst<Record<string, unknown>>(db, `SELECT COUNT(*) sessions, COUNT(DISTINCT visitor_id) visitors,
       COALESCE(ROUND(AVG(CASE WHEN duration_seconds > 0 THEN duration_seconds END)), 0) avg_duration
-      FROM site_analytics_sessions WHERE site_id = ? AND started_at < ? AND last_seen_at >= ?`, [input.siteId, end, start]),
-    queryFirst<{ count: number }>(db, `SELECT COUNT(DISTINCT current.visitor_id) count FROM site_analytics_sessions current
+      FROM (${sessionFactsSql}) WHERE site_id = ? AND started_at < ? AND last_seen_at >= ?`, [input.siteId, end, start]),
+    queryFirst<{ count: number }>(db, `SELECT COUNT(DISTINCT current.visitor_id) count FROM (${sessionFactsSql}) current
       WHERE current.site_id = ? AND current.started_at < ? AND current.last_seen_at >= ?
-      AND EXISTS (SELECT 1 FROM site_analytics_sessions previous WHERE previous.site_id = current.site_id
+      AND EXISTS (SELECT 1 FROM (${sessionFactsSql}) previous WHERE previous.site_id = current.site_id
         AND previous.visitor_id = current.visitor_id AND previous.session_id <> current.session_id
         AND previous.started_at < ?)`, [input.siteId, end, start, start]),
-    queryAll<Record<string, unknown>>(db, `SELECT last_touch_source source, last_touch_medium medium, last_touch_campaign campaign, COUNT(*) sessions
-      FROM site_analytics_sessions WHERE site_id = ? AND started_at < ? AND last_seen_at >= ? GROUP BY 1,2,3`, [input.siteId, end, start]),
-    queryAll<Record<string, unknown>>(db, `SELECT event_name, stage, COUNT(*) count FROM site_conversion_events
-      WHERE site_id = ? AND created_at >= ? AND created_at < ? GROUP BY event_name, stage ORDER BY count DESC`, [input.siteId, start, end]),
-    queryAll<Record<string, unknown>>(db, `SELECT source, medium, campaign, COUNT(*) conversions FROM site_conversion_events
-      WHERE site_id = ? AND created_at >= ? AND created_at < ? GROUP BY 1,2,3`, [input.siteId, start, end]),
+    queryAll<Record<string, unknown>>(db, `SELECT source, medium, campaign, COUNT(*) sessions
+      FROM (${sessionFactsSql}) WHERE site_id = ? AND started_at < ? AND last_seen_at >= ? GROUP BY 1,2,3`, [input.siteId, end, start]),
+    queryAll<Record<string, unknown>>(db, `SELECT (payload_json ->> '$.event_name') event_name, (payload_json ->> '$.stage') stage, COUNT(*) count FROM analytics_events
+      WHERE kind = 'conversion' AND site_id = ? AND created_at >= ? AND created_at < ? GROUP BY event_name, stage ORDER BY count DESC`, [input.siteId, start, end]),
+    queryAll<Record<string, unknown>>(db, `SELECT (payload_json ->> '$.attribution.source') source, (payload_json ->> '$.attribution.medium') medium, (payload_json ->> '$.attribution.campaign') campaign, COUNT(*) conversions FROM analytics_events
+      WHERE kind = 'conversion' AND site_id = ? AND created_at >= ? AND created_at < ? GROUP BY 1,2,3`, [input.siteId, start, end]),
   ])
   const uniqueSessions = n(sessionStats?.sessions)
   const previousStart = localDateBounds(range.previousStartDate, context.timezone).start
@@ -312,7 +267,7 @@ export async function getSiteAnalyticsReport(db: DbClient, input: {
 }
 
 export async function aggregatePreviousLocalDateForAllSites(db: DbClient, now = new Date()): Promise<string[]> {
-  const sites = await queryAll<{ id: string; timezone: string | null }>(db, `SELECT s.id, tz.value AS timezone FROM sites s LEFT JOIN site_config tz ON tz.site_id = s.id AND tz.organization_id = s.organization_id AND tz.key = 'default_timezone' WHERE s.status = 'active'`)
+  const sites = await queryAll<{ id: string; timezone: string | null }>(db, `SELECT s.id, json_extract(s.settings_json, '$.config.default_timezone') AS timezone FROM sites s WHERE s.status = 'active'`)
   const aggregated: string[] = []
   for (const site of sites) {
     if (!isValidTimeZone(site.timezone)) throw new Error(`Site ${site.id} default_timezone is missing or invalid`)
@@ -328,12 +283,11 @@ export async function cleanupTenantAnalytics(db: DbClient, now = new Date()): Pr
   const rawCutoff = new Date(now.getTime() - 90 * 86_400_000).toISOString()
   const retainedCutoff = new Date(now.getTime() - 740 * 86_400_000).toISOString()
   const sites = await queryAll<{ id: string; timezone: string | null }>(db, `
-    SELECT s.id, tz.value AS timezone FROM sites s
-    LEFT JOIN site_config tz ON tz.site_id = s.id AND tz.organization_id = s.organization_id AND tz.key = 'default_timezone'
+    SELECT s.id, json_extract(s.settings_json, '$.config.default_timezone') AS timezone FROM sites s
   `)
   const initialResults = await executeBatch(db, [
-    { query: 'DELETE FROM site_pageview_events WHERE created_at < ?', params: [rawCutoff] },
-    { query: 'DELETE FROM site_analytics_sessions WHERE last_seen_at < ?', params: [retainedCutoff] },
+    { query: "DELETE FROM analytics_events WHERE kind = 'pageview' AND created_at < ?", params: [rawCutoff] },
+    { query: "DELETE FROM analytics_summaries WHERE kind = 'session' AND (payload_json ->> '$.last_seen_at') < ?", params: [retainedCutoff] },
   ], { operation: 'clean retained tenant analytics events and sessions' })
   let changes = initialResults.reduce((sum, result) => sum + Number(result.meta?.changes ?? 0), 0)
   for (const site of sites) {
@@ -341,9 +295,7 @@ export async function cleanupTenantAnalytics(db: DbClient, now = new Date()): Pr
     const timezone = site.timezone
     const retainedDate = addLocalDays(localDateAt(now, timezone), -739)
     const results = await executeBatch(db, [
-      { query: 'DELETE FROM site_analytics_daily WHERE site_id = ? AND date < ?', params: [site.id, retainedDate] },
-      { query: 'DELETE FROM site_analytics_page_daily WHERE site_id = ? AND date < ?', params: [site.id, retainedDate] },
-      { query: 'DELETE FROM site_analytics_dimension_daily WHERE site_id = ? AND date < ?', params: [site.id, retainedDate] },
+      { query: "DELETE FROM analytics_summaries WHERE site_id = ? AND kind IN ('site_day', 'page_day', 'dimension_day') AND date < ?", params: [site.id, retainedDate] },
     ], { operation: `clean retained tenant analytics aggregates for ${site.id}` })
     changes += results.reduce((sum, result) => sum + Number(result.meta?.changes ?? 0), 0)
   }

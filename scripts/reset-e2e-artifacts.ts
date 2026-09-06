@@ -67,9 +67,8 @@ const E2E_FIXTURE_SITE_RETAINED_TABLES = [
   'notifications',
   'organization_events',
   'site_domain_events',
-  'site_conversion_events',
-  'site_pageview_events',
-  'site_analytics_daily',
+  'analytics_events',
+  'analytics_summaries',
   'work_requests',
 ] as const
 

@@ -182,33 +182,22 @@ function renderAnalyticsFixtureSeed() {
     const visitors = Math.round(sessions * 0.86)
     const dateSql = `date('now', '-${ago} days')`
 
-    daily.push(`  ('analytics-demo-daily-${ago}', 'org-demo', 'site-demo', ${dateSql}, ${views}, ${sessions}, ${120 + (ago % 5) * 11}, ${visitors}, 2.4, ${Math.round(visitors * 0.22)}, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`)
+    daily.push(`  ('analytics-demo-daily-${ago}', 'site_day', 'org-demo', 'site-demo', ${dateSql}, '', '${JSON.stringify({ page_views: views, unique_sessions: sessions, avg_session_duration: 120 + (ago % 5) * 11, unique_visitors: visitors, pages_per_session: 2.4, returning_visitors: Math.round(visitors * 0.22) })}', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`)
     for (const [path, share] of pagePaths) {
-      pages.push(`  ('analytics-demo-page-${ago}-${path.replace(/\W+/g, '') || 'home'}', 'org-demo', 'site-demo', ${dateSql}, '${path}', ${Math.max(1, Math.round(views * share))}, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`)
+      pages.push(`  ('analytics-demo-page-${ago}-${path.replace(/\W+/g, '') || 'home'}', 'page_day', 'org-demo', 'site-demo', ${dateSql}, '${path}', '${JSON.stringify({ page_views: Math.max(1, Math.round(views * share)) })}', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`)
     }
     for (const [dimension, value, subvalue, share] of dimensions) {
-      dims.push(`  ('analytics-demo-dim-${ago}-${dimension}-${value}', 'org-demo', 'site-demo', ${dateSql}, '${dimension}', '${value}', ${subvalue ? `'${subvalue}'` : 'NULL'}, ${Math.max(1, Math.round(views * share))}, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`)
+      dims.push(`  ('analytics-demo-dim-${ago}-${dimension}-${value}', 'dimension_day', 'org-demo', 'site-demo', ${dateSql}, '${escapeSql(JSON.stringify([dimension, value, subvalue ?? '']))}', '${JSON.stringify({ page_views: Math.max(1, Math.round(views * share)) })}', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`)
     }
   }
 
   return `-- Local-only rolling analytics for the dashboard Insights page.
 -- Stable IDs make this safe to re-run without accumulating fixture records.
 
-INSERT OR REPLACE INTO site_analytics_daily
-  (id, organization_id, site_id, date, page_views, unique_sessions, avg_session_duration,
-   unique_visitors, pages_per_session, returning_visitors, created_at, updated_at)
+INSERT OR REPLACE INTO analytics_summaries
+  (id, kind, organization_id, site_id, date, key, payload_json, created_at, updated_at)
 VALUES
-${daily.join(',\n')};
-
-INSERT OR REPLACE INTO site_analytics_page_daily
-  (id, organization_id, site_id, date, page_path, page_views, created_at, updated_at)
-VALUES
-${pages.join(',\n')};
-
-INSERT OR REPLACE INTO site_analytics_dimension_daily
-  (id, organization_id, site_id, date, dimension, value, subvalue, page_views, created_at, updated_at)
-VALUES
-${dims.join(',\n')};
+${[...daily, ...pages, ...dims].join(',\n')};
 `
 }
 
