@@ -36,14 +36,10 @@
               </div>
             </div>
             <div class="ml-auto">
-              <NuxtLink
+              <PlatformAccountCta
                 :to="template.ctaTo"
                 class="inline-flex min-h-10 items-center justify-center gap-2 whitespace-nowrap rounded-full bg-white px-4 text-[13px] font-semibold text-zinc-950 no-underline transition hover:bg-zinc-100 sm:px-5 sm:text-sm"
-              >
-                <span class="sm:hidden">{{ template.ctaLabel }}</span>
-                <span class="hidden sm:inline">{{ template.ctaLabel }}</span>
-                <PlatformIcon name="arrow-right" class="size-4" />
-              </NuxtLink>
+               :label="template.ctaLabel" />
             </div>
           </div>
         </div>
@@ -116,14 +112,11 @@
                 <PlatformIcon name="arrow-up-right" class="size-4" />
                 {{ isNclsShowcase ? 'Open customer site' : 'Open demo' }}
               </button>
-              <NuxtLink
+              <PlatformAccountCta
                 :to="template.ctaTo"
                 class="inline-flex min-h-9 items-center justify-center gap-2 whitespace-nowrap rounded-full px-4 text-sm font-semibold text-white no-underline transition hover:opacity-90"
                 style="background: linear-gradient(135deg, var(--kc-coral) 0%, #e0524c 100%); box-shadow: 0 3px 12px rgba(251,116,97,0.3);"
-              >
-                {{ template.ctaLabel }}
-                <PlatformIcon name="arrow-right" class="size-4" />
-              </NuxtLink>
+               :label="template.ctaLabel" />
             </div>
           </div>
           <p v-if="isNclsShowcase" class="mt-3 text-xs text-muted">
@@ -207,14 +200,11 @@
               <p class="mt-1 text-sm text-muted">{{ template.tagline }}</p>
 
               <div class="mt-6 space-y-3">
-                <NuxtLink
+                <PlatformAccountCta
                   :to="template.ctaTo"
                   class="flex w-full items-center justify-center gap-2 rounded-full px-5 py-3 text-sm font-semibold text-white no-underline transition hover:opacity-90"
                   style="background: linear-gradient(135deg, var(--kc-coral) 0%, #e0524c 100%); box-shadow: 0 4px 16px rgba(251,116,97,0.2);"
-                >
-                  {{ template.ctaLabel }}
-                  <PlatformIcon name="arrow-right" class="size-4" />
-                </NuxtLink>
+                 :label="template.ctaLabel" />
                 <button
                   type="button"
                   class="flex w-full items-center justify-center gap-2 rounded-full border border-default px-5 py-3 text-sm font-medium text-default no-underline transition hover:bg-elevated"

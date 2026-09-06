@@ -1,3 +1,4 @@
+import { dismissPreviewToolbar } from './helpers'
 import { createHmac } from 'node:crypto'
 import { expect, test, type APIRequestContext, type APIResponse } from '@playwright/test'
 import type {
@@ -217,16 +218,7 @@ test('Today uses the CMS patterns and sends one reservation change request', asy
   test.setTimeout(180_000)
   await loginAs(page.request, baseURL)
 
-  // Cloudflare injects its own preview toolbar outside the application bundle.
-  // Remove its empty modal container after every navigation so it cannot cover
-  // the application controls exercised by this preview-only journey.
-  await page.addInitScript(() => {
-    const removePreviewModal = () => {
-      document.querySelectorAll('.cf_modal_container').forEach(element => element.remove())
-    }
-    new MutationObserver(removePreviewModal).observe(document, { childList: true, subtree: true })
-    removePreviewModal()
-  })
+  await dismissPreviewToolbar(page)
 
   await page.goto(`${baseURL}/dashboard/ember-slice-demo`)
   const heading = page.getByRole('heading', { name: /^You have \d+ (?:bookings|reservations)$/ })

@@ -19,9 +19,7 @@
           Say goodbye to expensive agencies and clunky dashboards. KrabiClaw gives local businesses a high-converting site, direct bookings, and automated local SEO — managed through a ChatGPT conversation.
         </p>
         <div class="flex flex-wrap items-center justify-center gap-4 mt-2">
-          <PlatformButton to="/signup" size="lg" class="shadow-sm transition-transform hover:-translate-y-0.5">
-            Start Free Today
-          </PlatformButton>
+          <PlatformAccountCta label="Start Free Today" size="lg" class="shadow-sm transition-transform hover:-translate-y-0.5" />
           <PlatformButton to="/pricing" variant="outline" size="lg" class="transition-transform hover:-translate-y-0.5">
             View Pricing
           </PlatformButton>

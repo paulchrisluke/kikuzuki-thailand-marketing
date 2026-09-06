@@ -5,14 +5,19 @@ import { getQuery, redirect } from 'nitro/h3';
 import { cloudflareEnv } from '~/server/utils/api-response'
 import { getAuthSession } from '~/server/utils/auth'
 import { resolvePostLoginDestination } from '~/server/utils/post-login-routing'
-import { validatedInternalPath } from '~/shared/auth/return-target'
+import { NEW_SALE_PLAN_ID } from '~/shared/billing-model'
+import { buildLoginUrl, buildPostLoginUrl, validatedInternalPath } from '~/shared/auth/return-target'
 
 export default defineHandler(async (event) => {
   const env = cloudflareEnv(event)
   const db = env.DB
 
+  const plan = getQuery(event).plan
+  if (plan !== undefined && plan !== NEW_SALE_PLAN_ID) {
+    throw new HTTPError({ statusCode: 400, message: 'Unknown checkout plan' })
+  }
   const session = await getAuthSession(event, env)
-  if (!session?.user?.id) return redirect('/login', 302)
+  if (!session?.user?.id) return redirect(plan ? buildLoginUrl({ redirect: buildPostLoginUrl({ plan }) }) : '/login', 302)
 
   const redirectTarget = validatedInternalPath(getQuery(event).redirect)
   if (redirectTarget) return redirect(redirectTarget, 302)
@@ -23,8 +28,15 @@ export default defineHandler(async (event) => {
 
   try {
     const destination = await resolvePostLoginDestination(env, session.user)
+    if (plan) {
+      if (destination === '/admin' || destination === '/dashboard/onboarding') {
+        throw new HTTPError({ statusCode: 409, message: 'An organization is required before choosing a billing plan' })
+      }
+      return redirect(`${destination}/settings/billing?plan=${encodeURIComponent(plan)}`, 302)
+    }
     return redirect(destination, 302)
   } catch (error) {
+    if (error instanceof HTTPError) throw error
     console.error('Failed to resolve organization slug in post-login:', error)
     throw new HTTPError({ statusCode: 500, message: 'Failed to resolve dashboard destination' })
   }

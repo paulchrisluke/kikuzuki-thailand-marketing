@@ -11,9 +11,7 @@
       </div>
 
       <div class="flex items-center gap-1.5 shrink-0">
-        <NuxtLink to="/signup" class="hidden sm:inline-flex items-center rounded-lg bg-primary px-3 py-2 text-sm font-semibold text-white transition-colors hover:bg-primary/90 no-underline">
-          Start free
-        </NuxtLink>
+        <PlatformAccountCta account />
         <button
           type="button"
           class="flex size-8 items-center justify-center rounded-md text-muted transition-colors hover:bg-muted hover:text-default lg:hidden"
