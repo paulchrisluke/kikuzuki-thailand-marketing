@@ -110,6 +110,12 @@ test('Kikuzuki keeps its Thai shell and category translations on a hard load', a
     await page.getByRole('menuitem', { name: /🇹🇭/ }).click()
     await expect(page).toHaveURL(`${kikuzukiTestBaseUrl()}/th/menu`)
     await expectLocalizedMenu(page)
+
+    const contactResponse = await openTenantPage(page, `${kikuzukiTestBaseUrl()}/th/contact`, kikuzukiTestExtraHeaders())
+    expect(contactResponse?.status()).toBeLessThan(400)
+    await expect(page.locator('html')).toHaveAttribute('lang', locale)
+    await expect(page.getByText('ติดต่อเรา', { exact: true }).first()).toBeVisible()
+    await expect(page.getByRole('button', { name: /🇹🇭 th/ })).toBeVisible()
     expect(errors.filter(message => message.includes('Localized route representation was not found'))).toEqual([])
   } finally {
     await admin.dispose()
