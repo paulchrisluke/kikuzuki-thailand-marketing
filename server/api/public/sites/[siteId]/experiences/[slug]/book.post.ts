@@ -1,3 +1,4 @@
+import { publishGuestInboxThreadEvent } from '~/server/cloudflare/guest-inbox-events'
 import { readAvailability } from '~/server/utils/availability'
 import { cloudflareEnv, jsonResponse, cleanString, readRequiredBody } from '~/server/utils/api-response'
 import { isReservedTestDomain, shouldSendRealEmail } from '~/server/utils/email-delivery'
@@ -15,8 +16,6 @@ import { createReservationCancelToken, hashReservationCancelToken } from '~/serv
 import { deleteCustomerIfUnlinked, findOrCreateCustomer, recordCustomerBooking } from '~/server/utils/customers'
 import { getAuthSession } from '~/server/utils/auth'
 import { DEFAULT_EMAIL_DAILY_LIMIT as EMAIL_DAILY_LIMIT, DEFAULT_IP_HOURLY_LIMIT as IP_HOURLY_LIMIT, getClientIp, hashClientIp, hashIdentifier, incrementHourlyRateLimit } from '~/server/utils/hourly-rate-limit'
-import { experienceBookingAdapter } from '~/server/domain/guest-threads/adapters/experience-booking'
-import { ensureGuestThread } from '~/server/domain/guest-threads/repository'
 import { defineHandler } from 'nitro'
 import { getRouterParam } from 'nitro/h3'
 
@@ -130,7 +129,7 @@ export default defineHandler(async (event) => {
   }
   await recordCustomerBooking(db, customer.id, customerInput)
 
-  const thread = await ensureGuestThread(db, experienceBookingAdapter, booking.id, { publishEnv: env })
+  await publishGuestInboxThreadEvent(env, db, { threadId: booking.id, type: 'thread.created' })
 
   try {
     const [{ contactPhone, contactEmail }, ownerInboxUrl] = await Promise.all([
@@ -139,7 +138,7 @@ export default defineHandler(async (event) => {
         organizationId: site.organization_id,
         siteId,
         locationId: experience.location_id,
-        threadId: thread.id,
+        threadId: booking.id,
       }),
     ])
     const siteBaseUrl = site.public_url?.replace(/\/$/, '')

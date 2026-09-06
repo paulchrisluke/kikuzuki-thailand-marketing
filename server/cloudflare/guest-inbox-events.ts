@@ -22,7 +22,7 @@ export async function publishGuestInboxThreadEvent(
     location_id: string | null
   }>(db, `
     SELECT id, organization_id, site_id, location_id
-    FROM guest_threads
+    FROM requests
     WHERE id = ?
     LIMIT 1
   `, [input.threadId])

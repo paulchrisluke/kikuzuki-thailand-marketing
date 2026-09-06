@@ -233,7 +233,7 @@ export default definePlugin((nitroApp) => {
           AND bl.organization_id = p.organization_id
           AND bl.site_id = p.site_id
           AND bl.status = 'active'
-         WHERE p.site_id = ?
+         WHERE p.product_type = \'experience\' AND p.site_id = ?
            AND p.is_visible = 1
            AND (p.robots IS NULL OR p.robots NOT LIKE '%noindex%')
          ORDER BY p.location_id, p.sort_order, p.id`,
@@ -251,10 +251,9 @@ export default definePlugin((nitroApp) => {
       ),
       queryAll<ApiRecord>(
         db,
-        `SELECT p.slug, e.location_id, p.updated_at
-         FROM experiences e
-         JOIN products p ON p.id = e.id AND p.site_id = e.site_id AND p.organization_id = e.organization_id
-         WHERE e.site_id = ?
+        `SELECT p.slug, p.location_id, p.updated_at
+         FROM products p
+         WHERE p.product_type = \'experience\' AND p.site_id = ?
            AND p.is_visible = 1
            AND (p.robots IS NULL OR p.robots NOT LIKE '%noindex%')`,
         [siteId],

@@ -19,23 +19,18 @@ export default defineHandler(async (event) => {
   const since = query.since as string | undefined
   const limit = Math.min(Math.max(Number.parseInt(String(query.limit ?? '200'), 10) || 200, 1), 500)
 
-  // e2e inspection route for the canonical guest-thread ledger (issue #442). Joins
-  // guest_threads so specs that only know the source submission type/id (not the
-  // thread id) can still filter, the same way the old submission_messages table did.
   let sql = `
-    SELECT e.id, gt.submission_type, gt.submission_id, gt.organization_id, gt.site_id, e.actor_kind, e.channel, e.body, e.actor_user_id, e.dedupe_key, e.occurred_at, e.created_at
-    FROM guest_thread_entries e
-    JOIN guest_threads gt ON gt.id = e.thread_id
+    SELECT e.id, gt.kind AS submission_type, gt.id AS submission_id, gt.organization_id, gt.site_id, e.actor_kind, e.channel, e.body, e.actor_user_id, e.dedupe_key, e.occurred_at, e.created_at
+    FROM activity_entries e
+    JOIN requests gt ON gt.id = e.request_id
     WHERE e.kind = 'message'
   `
   const binds: string[] = []
 
-  if (submissionType) { sql += ' AND gt.submission_type = ?'; binds.push(submissionType) }
-  if (submissionId) { sql += ' AND gt.submission_id = ?'; binds.push(submissionId) }
+  if (submissionType) { sql += ' AND gt.kind = ?'; binds.push(submissionType) }
+  if (submissionId) { sql += ' AND gt.id = ?'; binds.push(submissionId) }
   if (siteId) { sql += ' AND gt.site_id = ?'; binds.push(siteId) }
   if (direction) {
-    // Legacy 'in'/'out' direction maps onto actor_kind: guest-authored messages are
-    // inbound, member-authored messages are outbound.
     sql += ' AND e.actor_kind = ?'
     binds.push(direction === 'in' ? 'guest' : 'member')
   }

@@ -111,13 +111,19 @@ interface UpsertBookingPolicyInput extends GetDirectBookingPolicyInput {
   patch: BookingPolicyPatch
 }
 
-const BOOKING_POLICY_SELECT = `
-  SELECT id, organization_id, site_id, policy_type, scope_type, location_id, experience_id,
-         advance_notice_minutes, free_cancellation_until_minutes, reschedule_allowed,
-         reschedule_cutoff_minutes, deposit_required, deposit_trigger_party_size,
-         minimum_guest_age, accessibility_contact_required, additional_notes_html, created_at, updated_at
-  FROM booking_policies
-`
+const policyFields = ['advance_notice_minutes', 'free_cancellation_until_minutes', 'reschedule_allowed', 'reschedule_cutoff_minutes', 'deposit_required', 'deposit_trigger_party_size', 'minimum_guest_age', 'accessibility_contact_required', 'additional_notes_html', 'created_at', 'updated_at'] as const
+
+const BOOKING_POLICY_SELECT = `SELECT owner_id AS id, organization_id, site_id, policy_type, scope_type, location_id, experience_id,
+  ${policyFields.map(field => `json_extract(policy, '$.${field}') AS ${field}`).join(', ')}
+  FROM (
+    SELECT id AS owner_id, organization_id, id AS site_id, 'experience' AS policy_type, 'site' AS scope_type, NULL AS location_id, NULL AS experience_id, json_extract(settings_json, '$.booking.experience') AS policy FROM sites
+    UNION ALL
+    SELECT id, organization_id, site_id, 'reservation', 'location', id, NULL, json_extract(booking_json, '$.reservation.policy') FROM business_locations
+    UNION ALL
+    SELECT id, organization_id, site_id, 'experience', 'location', id, NULL, json_extract(booking_json, '$.experience.policy') FROM business_locations
+    UNION ALL
+    SELECT id, organization_id, site_id, 'experience', 'experience', NULL, id, json_extract(experience_json, '$.policy') FROM products WHERE product_type = 'experience'
+  ) WHERE policy IS NOT NULL`
 
 const EMPTY_RESERVATION_POLICY: Omit<ResolvedBookingPolicy, 'id' | 'organization_id' | 'created_at' | 'updated_at' | 'source_scope'> = {
   site_id: '',
@@ -397,7 +403,7 @@ export async function getDirectBookingPolicy(
     const row = await queryFirst<BookingPolicyRow>(
       db,
       `${BOOKING_POLICY_SELECT}
-       WHERE site_id = ? AND policy_type = ? AND scope_type = 'site'
+       AND site_id = ? AND policy_type = ? AND scope_type = 'site'
        LIMIT 1`,
       [input.siteId, input.policyType],
     )
@@ -407,7 +413,7 @@ export async function getDirectBookingPolicy(
     const row = await queryFirst<BookingPolicyRow>(
       db,
       `${BOOKING_POLICY_SELECT}
-       WHERE site_id = ? AND policy_type = ? AND scope_type = 'location' AND location_id = ?
+       AND site_id = ? AND policy_type = ? AND scope_type = 'location' AND location_id = ?
        LIMIT 1`,
       [input.siteId, input.policyType, input.locationId!],
     )
@@ -416,7 +422,7 @@ export async function getDirectBookingPolicy(
   const row = await queryFirst<BookingPolicyRow>(
     db,
     `${BOOKING_POLICY_SELECT}
-     WHERE site_id = ? AND policy_type = 'experience' AND scope_type = 'experience' AND experience_id = ?
+     AND site_id = ? AND policy_type = 'experience' AND scope_type = 'experience' AND experience_id = ?
      LIMIT 1`,
     [input.siteId, input.experienceId!],
   )
@@ -502,7 +508,7 @@ export async function resolveBookingPolicyIndex(
   const rows = await queryAll<BookingPolicyRow>(
     db,
     `${BOOKING_POLICY_SELECT}
-     WHERE site_id = ? AND policy_type = ?`,
+     AND site_id = ? AND policy_type = ?`,
     [input.siteId, input.policyType],
   )
   const policies = (rows ?? []).map(rowToPolicy)
@@ -590,82 +596,29 @@ export function applyBookingPolicyPatch(
   return next
 }
 
-export async function upsertBookingPolicy(
-  db: DbClient,
-  input: UpsertBookingPolicyInput,
-): Promise<BookingPolicy> {
+export async function upsertBookingPolicy(db: DbClient, input: UpsertBookingPolicyInput): Promise<BookingPolicy> {
   validateBookingPolicyScope(input)
-  const existing = await getDirectBookingPolicy(db, input)
-  const patch = input.patch
+  const owner = input.scopeType === 'site'
+    ? { table: 'sites', column: 'settings_json', path: '$.booking.experience', id: input.siteId, scope: 'id = ?' }
+    : input.scopeType === 'location'
+      ? { table: 'business_locations', column: 'booking_json', path: `$.${input.policyType}.policy`, id: input.locationId, scope: 'site_id = ?' }
+      : { table: 'products', column: 'experience_json', path: '$.policy', id: input.experienceId, scope: "site_id = ? AND product_type = 'experience'" }
   const now = new Date().toISOString()
-
-  if (existing) {
-    const sets: string[] = []
-    const params: Array<string | number | null> = []
-    const patchEntries = Object.entries(patch).filter(([, value]) => value !== undefined)
-    for (const [key, value] of patchEntries) {
-      sets.push(`${key} = ?`)
-      if (typeof value === 'boolean') params.push(value ? 1 : 0)
-      else params.push(value as string | number | null)
-    }
-    sets.push('updated_at = ?')
-    params.push(now, existing.id)
-    await execute(db, `UPDATE booking_policies SET ${sets.join(', ')} WHERE id = ?`, params)
-    const updated = await getDirectBookingPolicy(db, input)
-    if (!updated) {
-      throw new HTTPError({ statusCode: 500, statusMessage: 'Failed to load updated booking policy' })
-    }
-    return updated
+  const seeded = seedDefaultsForScope(input.siteId, input.policyType, input.scopeType)
+  const defaults = Object.fromEntries(policyFields.map(field => [field, field === 'created_at' || field === 'updated_at' ? now : seeded[field]]))
+  if (input.scopeType !== 'site') {
+    defaults.reschedule_allowed = null
+    defaults.deposit_required = null
+    defaults.accessibility_contact_required = null
   }
-
-  const id = crypto.randomUUID()
-  const seeded = applyBookingPolicyPatch(seedDefaultsForScope(input.siteId, input.policyType, input.scopeType), patch)
-  // Experience site-scope rows store their established defaults. Location/experience-scope rows
-  // only store a concrete value for a boolean field when
-  // the caller's patch explicitly set it — otherwise it's persisted as NULL so applyPolicy's
-  // overlay leaves it inherited from the parent scope instead of silently resetting it to
-  // seedDefaultsForScope's placeholder default (see seedDefaultsForScope's own comment).
-  function insertableBoolean(field: BooleanBookingPolicyField): number | null {
-    if (input.policyType === 'experience' && input.scopeType === 'site') {
-      return seeded[field] ? 1 : 0
-    }
-    const value = patch[field]
-    if (value === undefined || value === null) return null
-    return seeded[field] ? 1 : 0
-  }
-  await execute(
-    db,
-    `INSERT INTO booking_policies (
-      id, organization_id, site_id, policy_type, scope_type, location_id, experience_id,
-      advance_notice_minutes, free_cancellation_until_minutes, reschedule_allowed,
-      reschedule_cutoff_minutes, deposit_required, deposit_trigger_party_size,
-      minimum_guest_age, accessibility_contact_required, additional_notes_html, created_at, updated_at
-    ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-    [
-      id,
-      input.organizationId,
-      input.siteId,
-      input.policyType,
-      input.scopeType,
-      input.locationId ?? null,
-      input.experienceId ?? null,
-      seeded.advance_notice_minutes,
-      seeded.free_cancellation_until_minutes,
-      insertableBoolean('reschedule_allowed'),
-      seeded.reschedule_cutoff_minutes,
-      insertableBoolean('deposit_required'),
-      seeded.deposit_trigger_party_size,
-      seeded.minimum_guest_age,
-      insertableBoolean('accessibility_contact_required'),
-      seeded.additional_notes_html,
-      now,
-      now,
-    ],
-  )
-
-  const created = await getDirectBookingPolicy(db, input)
-  if (!created) {
-    throw new HTTPError({ statusCode: 500, statusMessage: 'Failed to load created booking policy' })
-  }
-  return created
+  const changes = Object.entries(input.patch).filter(([, value]) => value !== undefined)
+  const paths = changes.map(([field]) => `'$.${field}', json(?)`)
+  const result = await execute(db, `UPDATE ${owner.table}
+    SET ${owner.column} = json_set(${owner.column}, ?, json_set(COALESCE(json_extract(${owner.column}, ?), json(?)), '$.updated_at', ?${paths.length ? ', ' + paths.join(', ') : ''})), updated_at = ?
+    WHERE id = ? AND organization_id = ? AND ${owner.scope}`,
+  [owner.path, owner.path, JSON.stringify(defaults), now, ...changes.map(([, value]) => JSON.stringify(value)), now, owner.id, input.organizationId, input.siteId])
+  if (!result.meta.changes) throw new HTTPError({ statusCode: 404, statusMessage: 'Booking policy owner not found' })
+  const policy = await getDirectBookingPolicy(db, input)
+  if (!policy) throw new Error('Booking policy write did not persist')
+  return policy
 }

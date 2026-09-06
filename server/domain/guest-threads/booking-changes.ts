@@ -9,8 +9,8 @@ import type { CloudflareEnv } from '~/server/utils/auth'
 import { notifyBookingChangeOwner } from '~/server/utils/notifications'
 import { appendEntry, findEntryByDedupeKey, getEntryById } from './entries'
 import { createDeliveryReceipt, deliverGuestThreadEmail } from './deliveries'
-import { ensureGuestThread, getGuestThreadById, updateThreadProjection } from './repository'
-import { getAdapter } from './adapters/registry'
+import { updateThreadProjection } from './repository'
+import { getGuestRequest, requestSummary } from '~/server/domain/requests'
 import type { GuestThreadRow } from './types'
 
 /**
@@ -19,9 +19,9 @@ import type { GuestThreadRow } from './types'
  * alone told a professional-services client's guest about their "booking" while
  * every screen their host saw said consultation.
  */
-async function bookingNoun(db: DbClient, thread: Pick<GuestThreadRow, 'site_id' | 'submission_type'>): Promise<string> {
+async function bookingNoun(db: DbClient, thread: Pick<GuestThreadRow, 'site_id' | 'kind'>): Promise<string> {
 	const site = await queryFirst<{ vertical: string }>(db, 'SELECT vertical FROM sites WHERE id = ? LIMIT 1', [thread.site_id])
-	const kind = thread.submission_type === 'reservation' ? 'reservation' : 'experience_booking'
+	const kind = thread.kind === 'reservation' ? 'reservation' : 'experience_booking'
 	return resolveBookingPresentation(kind, site?.vertical).noun
 }
 
@@ -41,27 +41,14 @@ type Source = Fields & { updatedAt: string; status: string; experienceId: string
 type ChangeEnv = CloudflareEnv
 
 async function sourceSummary(db: DbClient, thread: GuestThreadRow) {
-  const adapter = getAdapter(thread.submission_type)
-  const source = await adapter.loadSource({ db }, thread.submission_id)
-  if (!source) throw new HTTPError({ statusCode: 404, message: 'Reservation or booking not found' })
-  return adapter.summarize(source)
-}
-
-function sourceColumns(type: string) {
-  if (type === 'reservation') return { table: 'reservation_submissions', date: 'date', time: 'time', guests: 'guests' }
-  if (type === 'experience_booking') return { table: 'experience_bookings', date: 'booking_date', time: 'time_slot', guests: 'party_size' }
-  throw new HTTPError({ statusCode: 400, message: 'This conversation is not a reservation or booking' })
+  return requestSummary(db, thread)
 }
 
 async function loadSource(db: DbClient, thread: GuestThreadRow): Promise<Source> {
-  const c = sourceColumns(thread.submission_type)
-  const row = await queryFirst<Source>(db, `SELECT ${c.date} AS bookingDate, substr(${c.time}, 1, 5) AS bookingTime,
-    CAST(${c.guests} AS INTEGER) AS partySize, location_id AS locationId, updated_at AS updatedAt, status,
-    ${thread.submission_type === 'reservation' ? 'NULL' : 'experience_id'} AS experienceId,
-    ${thread.submission_type === 'reservation' ? 'NULL' : 'completed_at'} AS completedAt
-    FROM ${c.table} WHERE id = ? AND site_id = ? AND organization_id = ?`, [thread.submission_id, thread.site_id, thread.organization_id])
-  if (!row) throw new HTTPError({ statusCode: 404, message: 'Reservation or booking not found' })
-  return row
+  if (thread.kind === 'contact') throw new HTTPError({ statusCode: 400, message: 'This conversation is not a reservation or booking' })
+  if (!thread.location_id) throw new HTTPError({ statusCode: 409, message: 'Booking location is missing' })
+  return { bookingDate: thread.booking_date, bookingTime: thread.time_slot, partySize: thread.party_size, locationId: thread.location_id,
+    updatedAt: thread.updated_at, status: thread.status, experienceId: thread.product_id, completedAt: thread.payload.completion.at }
 }
 
 async function validateDestination(db: DbClient, thread: GuestThreadRow, before: Source, after: Fields) {
@@ -69,10 +56,10 @@ async function validateDestination(db: DbClient, thread: GuestThreadRow, before:
     `SELECT id, title FROM business_locations WHERE id = ? AND site_id = ? AND organization_id = ?`,
     [after.locationId, thread.site_id, thread.organization_id])
   if (!location) throw new HTTPError({ statusCode: 400, message: 'Choose a location belonging to this site' })
-  if (thread.submission_type !== 'reservation' && !before.experienceId) throw new HTTPError({ statusCode: 409, message: 'Experience is missing' })
+  if (thread.kind !== 'reservation' && !before.experienceId) throw new HTTPError({ statusCode: 409, message: 'Experience is missing' })
   const [snapshot] = await readAvailability(db, { siteId: thread.site_id,
-    owners: [thread.submission_type === 'reservation' ? { kind: 'location', locationId: after.locationId } : { kind: 'experience', experienceId: before.experienceId! }],
-    dates: [after.bookingDate], excludeBookingId: thread.submission_id,
+    owners: [thread.kind === 'reservation' ? { kind: 'location', locationId: after.locationId } : { kind: 'experience', experienceId: before.experienceId! }],
+    dates: [after.bookingDate], excludeBookingId: thread.id,
   })
   if (snapshot!.row.location_id !== after.locationId) throw new HTTPError({ statusCode: 409, message: 'This experience is only offered at its configured location' })
   const slot = snapshot!.days[0]!.slots.find(s => s.time_slot === after.bookingTime)
@@ -105,15 +92,15 @@ async function deliverEmail(db: DbClient, env: ChangeEnv, thread: GuestThreadRow
     fromName: site.brand_name,
     subject,
     body,
-    submissionType: thread.submission_type,
-    submissionId: thread.submission_id,
+    submissionType: thread.kind,
+    submissionId: thread.id,
   })
   if (sent.status === 'failed') throw new HTTPError({ statusCode: 502, message: sent.error || 'Guest email could not be sent' })
   if (sent.status === 'unknown') throw new HTTPError({ statusCode: 504, message: sent.error || 'Guest email outcome is unknown' })
   await notifyBookingChangeOwner(env, db, {
     organizationId: thread.organization_id, siteId: thread.site_id, siteName: site.brand_name,
     locationId: status === 'accepted' ? proposal.after.locationId : proposal.before.locationId,
-    threadId: thread.id, submissionType: thread.submission_type as 'reservation' | 'experience_booking', submissionId: thread.submission_id, sourceEntryId: entryId,
+    threadId: thread.id, submissionType: thread.kind as 'reservation' | 'experience_booking', submissionId: thread.id, sourceEntryId: entryId,
     guestName: summary.guestName, guestEmail: summary.guestEmail, status, noun,
     date: proposal.after.bookingDate, time: proposal.after.bookingTime, guests: proposal.after.partySize, locationTitle: proposal.locationTitle,
   })
@@ -126,7 +113,7 @@ export async function requestBookingChange(db: DbClient, env: CloudflareEnv, thr
   const after = fieldsSchema.parse(parsed.data)
   const before = await loadSource(db, thread)
   const summary = await sourceSummary(db, thread)
-  if (before.completedAt || !['new', 'pending', 'confirmed'].includes(before.status)) throw new HTTPError({ statusCode: 409, message: 'This reservation or booking can no longer be changed' })
+  if (before.completedAt || !['pending', 'confirmed'].includes(before.status)) throw new HTTPError({ statusCode: 409, message: 'This reservation or booking can no longer be changed' })
   const membership = await resolveOrganizationMembership(env, { organizationId: thread.organization_id, userId: actorUserId })
   if (!membership) throw new HTTPError({ statusCode: 403, message: 'Organization access required' })
   for (const locationId of new Set([before.locationId, after.locationId])) {
@@ -164,8 +151,8 @@ export async function respondToBookingChange(db: DbClient, env: ChangeEnv, input
   const expected = linkToken(env, input.threadId, input.requestId)
   if (!/^[a-f0-9]{64}$/.test(input.token) || !timingSafeEqual(Buffer.from(expected, 'hex'), Buffer.from(input.token, 'hex'))) throw new HTTPError({ statusCode: 404, message: 'Change request not found' })
   const entry = await getEntryById(db, input.requestId)
-  if (!entry || entry.thread_id !== input.threadId || entry.event_name !== 'booking_change.requested') throw new HTTPError({ statusCode: 404, message: 'Change request not found' })
-  const thread = await getGuestThreadById(db, entry.thread_id)
+  if (!entry || entry.request_id !== input.threadId || entry.event_name !== 'booking_change.requested') throw new HTTPError({ statusCode: 404, message: 'Change request not found' })
+  const thread = await getGuestRequest(db, entry.request_id)
   if (!thread) throw new HTTPError({ statusCode: 404, message: 'Change request not found' })
   const proposal = proposalSchema.parse(JSON.parse(entry.payload_json || '{}'))
   const resultId = `booking-change-decision:${entry.id}`
@@ -174,25 +161,24 @@ export async function respondToBookingChange(db: DbClient, env: ChangeEnv, input
   const current = await loadSource(db, thread)
   if (!result && current.updatedAt !== proposal.updatedAt) throw new HTTPError({ statusCode: 409, message: 'This reservation has changed since the request was sent. Ask your host for a new request.' })
   if (!result && input.decision) {
-    if (current.completedAt || !['new', 'pending', 'confirmed'].includes(current.status)) throw new HTTPError({ statusCode: 409, message: 'This reservation or booking can no longer be changed' })
+    if (current.completedAt || !['pending', 'confirmed'].includes(current.status)) throw new HTTPError({ statusCode: 409, message: 'This reservation or booking can no longer be changed' })
     const destination = input.decision === 'accept' ? await validateDestination(db, thread, current, proposal.after) : null
     const id = crypto.randomUUID()
-    const c = sourceColumns(thread.submission_type)
-    const condition = { sql: `source.id = ? AND source.site_id = ? AND source.updated_at = ? AND source.status IN ('new', 'pending', 'confirmed') ${thread.submission_type === 'experience_booking' ? 'AND source.completed_at IS NULL' : ''}`, params: [thread.submission_id, thread.site_id, proposal.updatedAt] as unknown[] }
+    const condition = { sql: `source.id = ? AND source.site_id = ? AND source.updated_at = ? AND source.status IN ('pending', 'confirmed') AND json_extract(source.payload_json, '$.completion.at') IS NULL`, params: [thread.id, thread.site_id, proposal.updatedAt] as unknown[] }
     if (destination) condition.sql += ' AND /* availability_claim */'
     const now = new Date().toISOString()
     const entryInsert: BatchQuery = {
-      query: `INSERT INTO guest_thread_entries
-        (id, thread_id, kind, actor_kind, event_name, body, payload_json, dedupe_key, sequence, occurred_at, created_at)
-        SELECT ?, ?, 'operation', 'guest', ?, ?, ?, ?,
-          (SELECT COALESCE(MAX(sequence), 0) + 1 FROM guest_thread_entries WHERE thread_id = ?), ?, ?
-        FROM ${c.table} source WHERE ${condition.sql}
+      query: `INSERT INTO activity_entries
+        (id, request_id, kind, scope_kind, actor_kind, event_name, body, payload_json, dedupe_key, sequence, occurred_at, created_at)
+        SELECT ?, ?, 'operation', 'request', 'guest', ?, ?, ?, ?,
+          (SELECT COALESCE(MAX(sequence), 0) + 1 FROM activity_entries WHERE request_id = ?), ?, ?
+        FROM requests source WHERE ${condition.sql}
         ON CONFLICT DO NOTHING`,
       params: [id, thread.id, `booking_change.${input.decision === 'accept' ? 'accepted' : 'declined'}`, `Guest ${input.decision === 'accept' ? 'accepted' : 'declined'} the requested changes.`, JSON.stringify({ requestId: entry.id }), resultId, thread.id, now, now, ...condition.params],
     }
     const queries: BatchQuery[] = [entryInsert]
-    if (input.decision === 'accept') queries.push({ query: `UPDATE ${c.table} SET ${c.date} = ?, ${c.time} = ?, ${c.guests} = ?, location_id = ?, updated_at = ?
-      WHERE id = ? AND site_id = ? AND EXISTS (SELECT 1 FROM guest_thread_entries WHERE id = ?)`, params: [proposal.after.bookingDate, proposal.after.bookingTime, thread.submission_type === 'reservation' ? String(proposal.after.partySize) : proposal.after.partySize, proposal.after.locationId, now, thread.submission_id, thread.site_id, id] })
+    if (input.decision === 'accept') queries.push({ query: `UPDATE requests SET booking_date = ?, time_slot = ?, party_size = ?, location_id = ?, updated_at = ?, payload_json = json_set(payload_json, '$.party_size_is_minimum', json('false'))
+      WHERE id = ? AND site_id = ? AND EXISTS (SELECT 1 FROM activity_entries WHERE id = ?)`, params: [proposal.after.bookingDate, proposal.after.bookingTime, proposal.after.partySize, proposal.after.locationId, now, thread.id, thread.site_id, id] })
     if (destination) await executeAvailabilityClaim(db, { snapshot: destination.snapshot, date: proposal.after.bookingDate, time: proposal.after.bookingTime, partySize: proposal.after.partySize, statement: entryInsert, following: queries.slice(1) })
     else await executeBatch(db, queries, { operation: 'respond to booking change' })
     result = await findEntryByDedupeKey(db, resultId)
@@ -206,9 +192,8 @@ export async function respondToBookingChange(db: DbClient, env: ChangeEnv, input
     const accepted = result.event_name === 'booking_change.accepted'
     await deliverEmail(db, env, thread, result.id, `Your ${noun} change was ${accepted ? 'accepted' : 'declined'}`,
       accepted ? `Your changes are confirmed: ${proposal.after.bookingDate} at ${proposal.after.bookingTime} for ${proposal.after.partySize} guests at ${proposal.locationTitle}.` : `You declined the requested changes. Your original ${noun} remains unchanged.`, accepted ? 'accepted' : 'declined', proposal, noun)
-    await ensureGuestThread(db, getAdapter(thread.submission_type), thread.submission_id)
     await updateThreadProjection(db, thread.id, { conversationState: 'resolved' })
   }
-  return { type: thread.submission_type, noun, guestName: summary.guestName, before: proposal.before, after: proposal.after, locationTitle: proposal.locationTitle,
+  return { type: thread.kind, noun, guestName: summary.guestName, before: proposal.before, after: proposal.after, locationTitle: proposal.locationTitle,
     originalLocationTitle: proposal.originalLocationTitle, status: result ? result.event_name === 'booking_change.accepted' ? 'accepted' : 'declined' : 'pending' }
 }

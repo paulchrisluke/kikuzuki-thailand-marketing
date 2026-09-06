@@ -247,12 +247,12 @@ async function loadLocationContentCounts(
          AND ma.status = 'active'
         WHERE mp.site_id = ? AND mp.owner_type = 'business_location' AND mp.owner_id = ?
           AND mp.slot IN ('hero', 'gallery') AND mp.status = 'active') AS photos,
-      (SELECT COUNT(*) FROM experiences WHERE site_id = ? AND location_id = ?) AS experiences,
+      (SELECT COUNT(*) FROM products WHERE product_type = 'experience' AND site_id = ? AND location_id = ?) AS experiences,
       (SELECT COUNT(*) FROM posts WHERE site_id = ? AND location_id = ? AND status = 'published') AS posts,
       (SELECT COUNT(*) FROM location_qa WHERE site_id = ? AND location_id = ?) AS qa,
-      (SELECT COUNT(*) FROM reservation_submissions
-        WHERE site_id = ? AND location_id = ? AND status IN ('new', 'confirmed')
-          AND date >= date('now')) AS upcoming_reservations
+      (SELECT COUNT(*) FROM requests
+        WHERE kind = 'reservation' AND site_id = ? AND location_id = ? AND status IN ('pending', 'confirmed')
+          AND booking_date >= date('now')) AS upcoming_reservations
   `, Array.from({ length: 5 }, () => [siteId, locationId]).flat())
   return {
     photos: row?.photos ?? 0,

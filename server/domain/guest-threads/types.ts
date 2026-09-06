@@ -1,4 +1,4 @@
-import type { DbClient } from '~/server/db'
+import type { GuestRequest } from '~/server/domain/requests'
 import type { MemberAccessPrincipal } from '~/server/utils/member-access'
 
 export interface OrganizationMemberAccessPrincipal {
@@ -24,22 +24,11 @@ export const CONVERSATION_STATE_LABELS: Record<ConversationState, string> = {
   resolved: 'Resolved',
 }
 
-export interface GuestThreadRow {
-  id: string
-  organization_id: string
-  site_id: string
-  location_id: string | null
-  submission_type: GuestThreadSubmissionType
-  submission_id: string
-  conversation_state: ConversationState
-  resolved_at: string | null
-  created_at: string
-  updated_at: string
-}
+export type GuestThreadRow = GuestRequest
 
 export interface GuestThreadEntryRow {
   id: string
-  thread_id: string
+  request_id: string
   kind: GuestThreadEntryKind
   actor_kind: GuestThreadActorKind
   actor_user_id: string | null
@@ -66,10 +55,6 @@ export interface GuestThreadDeliveryRow {
   updated_at: string
 }
 
-export interface AdapterLoadContext {
-  db: DbClient
-}
-
 export interface ThreadSummaryProjection {
   guestName: string
   guestEmail: string | null
@@ -91,17 +76,6 @@ export interface ThreadDetailSourceModel {
   fields: Record<string, unknown>
 }
 
-export interface GuestThreadSourceAdapter<TSource, TAction extends string> {
-  type: GuestThreadSubmissionType
-  loadSource(_ctx: AdapterLoadContext, _submissionId: string): Promise<TSource | null>
-  summarize(_source: TSource): ThreadSummaryProjection
-  getOperationalStatus(_source: TSource): string | null
-  getOperationalStatusLabel(_status: string): string | null
-  listAvailableActions(_source: TSource): TAction[]
-  buildCurrentDetail(_source: TSource): ThreadDetailSourceModel
-}
-
-export type AnyGuestThreadSourceAdapter = GuestThreadSourceAdapter<unknown, string>
 
 export interface GuestThreadListItemViewModel {
   id: string

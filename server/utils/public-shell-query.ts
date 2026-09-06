@@ -69,7 +69,7 @@ export function appendPublicShellQueries(
                  AND setting.key IN ('brand_color', 'press_email', 'partnerships_email', 'catering_email', 'careers_email', 'google_site_verification', 'default_timezone')
               UNION ALL
               SELECT '__experience_count',
-                     CAST((SELECT COUNT(*) FROM experiences e JOIN products p ON p.id = e.id WHERE e.site_id = ? AND p.is_visible = 1) AS TEXT)
+                     CAST((SELECT COUNT(*) FROM products p WHERE p.product_type = \'experience\' AND p.site_id = ? AND p.is_visible = 1) AS TEXT)
               `, [organizationId, siteId, siteId]),
     locales: push(`SELECT locale, label, is_source, status
                 FROM site_locales

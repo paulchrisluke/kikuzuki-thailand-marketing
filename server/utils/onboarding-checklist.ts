@@ -87,7 +87,7 @@ export async function loadOnboardingChecklist(
         WHERE mp.site_id = s.id AND mp.owner_type = 'business_location' AND mp.slot = 'hero' AND mp.status = 'active'
       ) AS has_hero,
       (SELECT COUNT(*) FROM products WHERE site_id = s.id AND is_visible = 1) AS products,
-      (SELECT COUNT(*) FROM experiences WHERE site_id = s.id) AS experiences,
+      (SELECT COUNT(*) FROM products WHERE product_type = 'experience' AND site_id = s.id) AS experiences,
       (SELECT COUNT(*) FROM offerings WHERE site_id = s.id) AS offerings,
       (
         SELECT COUNT(*)

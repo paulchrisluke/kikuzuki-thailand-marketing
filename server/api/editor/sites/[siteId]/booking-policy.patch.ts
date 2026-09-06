@@ -28,7 +28,7 @@ export default defineHandler(async (event) => {
   }
   if (experienceId) {
     const experience = await queryFirst<{ id: string; location_id: string }>(
-      db, `SELECT id, location_id FROM experiences WHERE id = ? AND site_id = ? LIMIT 1`, [experienceId, siteId], )
+      db, `SELECT id, location_id FROM products WHERE product_type = \'experience\' AND id = ? AND site_id = ? LIMIT 1`, [experienceId, siteId], )
     if (!experience) return jsonResponse({ error: 'experience_id must reference an experience on this site' }, { status: 400 })
     experienceLocationId = experience.location_id
   }

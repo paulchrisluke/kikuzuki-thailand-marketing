@@ -12,13 +12,14 @@ async function acknowledgeVisibleNotifications(
   selectionSql: string,
   selectionParams: unknown[],
 ): Promise<number> {
+  const command = crypto.randomUUID()
+  const now = new Date().toISOString()
   const result = await execute(db, `
-    INSERT INTO notification_reads (notification_id, user_id, read_at)
-    SELECT n.id, ?, ?
-    FROM notifications n
-    WHERE ${selectionSql} AND ${visibility.whereSql}
-    ON CONFLICT(notification_id, user_id) DO UPDATE SET read_at = excluded.read_at
-  `, [visibility.userId, new Date().toISOString(), ...selectionParams, ...visibility.whereParams])
+    INSERT INTO activity_entries (id, kind, scope_kind, organization_id, site_id, location_id, parent_id, actor_kind, actor_user_id, dedupe_key, occurred_at, created_at)
+    SELECT ? || ':' || n.id, 'acknowledgement', n.scope_kind, n.organization_id, n.site_id, n.location_id, n.id, 'member', ?, ? || ':' || n.id, ?, ?
+    FROM activity_entries n WHERE n.kind = 'notification' AND ${selectionSql} AND ${visibility.whereSql}
+    ON CONFLICT(dedupe_key) DO NOTHING
+  `, [command, visibility.userId, `ack:${command}`, now, now, ...selectionParams, ...visibility.whereParams])
   return Number(result?.meta?.changes ?? 0)
 }
 
@@ -45,7 +46,7 @@ export async function acknowledgeThreadNotifications(
   return await acknowledgeVisibleNotifications(
     db,
     visibility,
-    'n.source_entry_id IN (SELECT id FROM guest_thread_entries WHERE thread_id = ?)',
+    'n.parent_id IN (SELECT id FROM activity_entries WHERE request_id = ?)',
     [threadId],
   )
 }

@@ -160,8 +160,8 @@ export async function listContactSubmissions(
     params.push(d1JsonStringSet(opts.locationIds))
   }
   return await queryAll<Record<string, unknown>>(db, `
-    SELECT * FROM contact_submissions
-    WHERE site_id = ?
+    SELECT id, organization_id, site_id, location_id, product_id AS experience_id, json_extract(payload_json, '$.guest.name') AS name, json_extract(payload_json, '$.guest.email') AS email, json_extract(payload_json, '$.subject') AS subject, json_extract(payload_json, '$.message') AS message, created_at FROM requests
+    WHERE kind = 'contact' AND site_id = ?
       ${locationClause}
     ORDER BY created_at DESC
     LIMIT 200
@@ -174,7 +174,7 @@ export async function listReservationSubmissions(
   opts: { locationId?: string | null; sinceDays?: number | null } = {},
 ) {
   const params: (string | number)[] = [siteId]
-  let where = `rs.site_id = ?`
+  let where = `rs.kind = 'reservation' AND rs.site_id = ?`
   if (opts.locationId) {
     where += ` AND rs.location_id = ?`
     params.push(opts.locationId)
@@ -184,8 +184,8 @@ export async function listReservationSubmissions(
     params.push(`-${opts.sinceDays} days`)
   }
   return await queryAll<Record<string, unknown>>(db, `
-    SELECT rs.*, bl.title AS location_title
-    FROM reservation_submissions rs
+    SELECT rs.id, rs.organization_id, rs.site_id, rs.location_id, rs.customer_id, rs.status, rs.booking_date AS date, rs.time_slot AS time, CAST(rs.party_size AS TEXT) || CASE json_extract(rs.payload_json, '$.party_size_is_minimum') WHEN 1 THEN '+' ELSE '' END AS guests, json_extract(rs.payload_json, '$.guest.name') AS name, json_extract(rs.payload_json, '$.guest.email') AS email, json_extract(rs.payload_json, '$.guest.phone') AS phone, json_extract(rs.payload_json, '$.notes') AS requests, rs.created_at, rs.updated_at, bl.title AS location_title
+    FROM requests rs
     LEFT JOIN business_locations bl ON bl.id = rs.location_id
     WHERE ${where}
     ORDER BY rs.created_at DESC
@@ -199,7 +199,7 @@ export async function countReservationSubmissions(
   opts: { locationId?: string | null; sinceDays?: number | null } = {},
 ) {
   const params: (string | number)[] = [siteId]
-  let where = `rs.site_id = ?`
+  let where = `rs.kind = 'reservation' AND rs.site_id = ?`
   if (opts.locationId) {
     where += ` AND rs.location_id = ?`
     params.push(opts.locationId)
@@ -210,7 +210,7 @@ export async function countReservationSubmissions(
   }
   const row = await queryFirst<{ total: number }>(db, `
     SELECT COUNT(*) AS total
-    FROM reservation_submissions rs
+    FROM requests rs
     WHERE ${where}
   `, params);
   return row?.total ?? 0;
@@ -222,7 +222,7 @@ export async function getReservationSubmissionsByStatus(
   opts: { locationId?: string | null; sinceDays?: number | null } = {},
 ): Promise<Record<string, number>> {
   const params: (string | number)[] = [siteId]
-  let where = `rs.site_id = ?`
+  let where = `rs.kind = 'reservation' AND rs.site_id = ?`
   if (opts.locationId) {
     where += ` AND rs.location_id = ?`
     params.push(opts.locationId)
@@ -233,7 +233,7 @@ export async function getReservationSubmissionsByStatus(
   }
   const results = await queryAll<{ status: string; count: number }>(db, `
     SELECT status, COUNT(*) as count
-    FROM reservation_submissions rs
+    FROM requests rs
     WHERE ${where}
     GROUP BY status
   `, params);
@@ -251,7 +251,7 @@ export async function updateReservationSubmissionStatus(
   status: string,
   opts: { locationId?: string | null } = {},
 ) {
-  if (!["new", "confirmed", "cancelled", "completed"].includes(status)) {
+  if (!["pending", "confirmed", "cancelled", "completed"].includes(status)) {
     throw new Error("Invalid reservation submission status");
   }
 
@@ -259,17 +259,17 @@ export async function updateReservationSubmissionStatus(
   const params = [status, now]
   const sets = [`status = ?`, `updated_at = ?`]
   if (status === 'completed') {
-    sets.push(`completed_at = COALESCE(completed_at, ?)`, `completion_source = COALESCE(completion_source, 'manual')`)
+    sets.push(`payload_json = json_set(payload_json, '$.completion.at', COALESCE(json_extract(payload_json, '$.completion.at'), ?), '$.completion.source', COALESCE(json_extract(payload_json, '$.completion.source'), 'manual'))`)
     params.push(now)
   }
   params.push(submissionId, siteId)
-  let where = `id = ? AND site_id = ?`
+  let where = `kind = 'reservation' AND id = ? AND site_id = ?`
   if (opts.locationId) {
     where += ` AND location_id = ?`
     params.push(opts.locationId)
   }
   const result = await execute(db, `
-    UPDATE reservation_submissions
+    UPDATE requests
     SET ${sets.join(', ')}
     WHERE ${where}
   `, params);
@@ -328,9 +328,9 @@ export async function listWorkRequestsForOrganization(
   organizationId: string,
 ) {
   return await queryAll<Record<string, unknown>>(db, `
-    SELECT id, type, title, description, status, priority, source, notes, created_at, updated_at, completed_at
-    FROM work_requests
-    WHERE organization_id = ?
+    SELECT id, json_extract(payload_json, '$.type') AS type, json_extract(payload_json, '$.title') AS title, json_extract(payload_json, '$.description') AS description, status, priority, json_extract(payload_json, '$.source') AS source, json_extract(payload_json, '$.notes') AS notes, created_at, updated_at, json_extract(payload_json, '$.completed_at') AS completed_at
+    FROM requests
+    WHERE kind = 'work' AND organization_id = ?
     ORDER BY
       CASE status WHEN 'pending' THEN 0 WHEN 'in_progress' THEN 1 WHEN 'done' THEN 2 ELSE 3 END,
       CASE priority WHEN 'urgent' THEN 0 WHEN 'high' THEN 1 WHEN 'normal' THEN 2 ELSE 3 END,

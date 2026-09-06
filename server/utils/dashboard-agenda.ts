@@ -175,7 +175,7 @@ function scopeConditions(query: AgendaQuery, alias: string): string {
 
 function mediaUrlSelect(
   alias: string,
-  ownerType: 'business_location' | 'experience' | 'post' | 'site',
+  ownerType: 'business_location' | 'product' | 'post' | 'site',
   ownerId: string,
   slots: string[],
 ): string {
@@ -271,21 +271,21 @@ export async function listAgenda(
            NULL AS guest_image_url,
            ${enrichment.resourceImage ?? `COALESCE(${locationMediaUrlSelect(alias)}, ${siteMediaUrlSelect(alias)})`} AS resource_image_url,
            ${enrichment.resourceTitle ?? 'COALESCE(l.title, s.brand_name, s.subdomain, s.id)'} AS resource_title
-    FROM ${kind === 'reservation' ? 'reservation_submissions' : kind === 'experience_booking' ? 'experience_bookings' : 'posts'} ${alias}
+    FROM ${kind === 'post' ? 'posts' : 'requests'} ${alias}
     JOIN sites s ON s.id = ${alias}.site_id AND s.organization_id = ${alias}.organization_id
     LEFT JOIN business_locations l ON l.id = ${alias}.location_id AND l.site_id = ${alias}.site_id
     
     ${enrichment.joins ?? ''}
-    WHERE ${alias}.organization_id = ? ${scopeConditions(query, alias)}
+    WHERE ${kind === 'post' ? '' : `${alias}.kind = '${kind}' AND `}${alias}.organization_id = ? ${scopeConditions(query, alias)}
   `
   const params = () => scopeParams(organizationId, query)
 
-  if (requestedKinds.has('reservation')) sourceQueries.push(queryAll(db, `${commonSelect('r', 'reservation', `r.date AS local_date, r.time AS local_time, NULL AS starts_at, NULL AS ends_at,
-    r.name AS title, printf('%s guests', r.guests) AS subtitle, CAST(r.guests AS INTEGER) AS party_size, r.status`)} AND r.date BETWEEN ? AND ?`, [...params(), query.from, query.to]))
+  if (requestedKinds.has('reservation')) sourceQueries.push(queryAll(db, `${commonSelect('r', 'reservation', `r.booking_date AS local_date, r.time_slot AS local_time, NULL AS starts_at, NULL AS ends_at,
+    json_extract(r.payload_json, '$.guest.name') AS title, printf('%d%s guests', r.party_size, CASE json_extract(r.payload_json, '$.party_size_is_minimum') WHEN 1 THEN '+' ELSE '' END) AS subtitle, r.party_size, r.status`)} AND r.booking_date BETWEEN ? AND ?`, [...params(), query.from, query.to]))
   if (requestedKinds.has('experience_booking')) sourceQueries.push(queryAll(db, `${commonSelect('b', 'experience_booking', `b.booking_date AS local_date, b.time_slot AS local_time, NULL AS starts_at, NULL AS ends_at,
-    b.guest_name AS title, printf('%d guests', b.party_size) AS subtitle, b.party_size AS party_size, b.status`, {
-    joins: `LEFT JOIN products agenda_product ON agenda_product.id = b.experience_id AND agenda_product.organization_id = b.organization_id AND agenda_product.site_id = b.site_id`,
-    resourceImage: `COALESCE(${mediaUrlSelect('b', 'experience', 'b.experience_id', ['gallery'])}, ${locationMediaUrlSelect('b')}, ${siteMediaUrlSelect('b')})`,
+    json_extract(b.payload_json, '$.guest.name') AS title, printf('%d guests', b.party_size) AS subtitle, b.party_size AS party_size, b.status`, {
+    joins: `LEFT JOIN products agenda_product ON agenda_product.id = b.product_id AND agenda_product.organization_id = b.organization_id AND agenda_product.site_id = b.site_id`,
+    resourceImage: `COALESCE(${mediaUrlSelect('b', 'product', 'b.product_id', ['gallery'])}, ${locationMediaUrlSelect('b')}, ${siteMediaUrlSelect('b')})`,
     resourceTitle: 'COALESCE(agenda_product.name, l.title, s.brand_name, s.subdomain, s.id)',
   })} AND b.booking_date BETWEEN ? AND ?`, [...params(), query.from, query.to]))
   if (requestedKinds.has('post')) sourceQueries.push(queryAll(db, `${commonSelect('p', 'post', `NULL AS local_date, NULL AS local_time, CASE WHEN p.status = 'published' AND p.published_at IS NOT NULL THEN p.published_at ELSE COALESCE(p.scheduled_for, p.published_at) END AS starts_at, NULL AS ends_at,

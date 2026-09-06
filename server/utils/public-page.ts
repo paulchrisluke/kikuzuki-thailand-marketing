@@ -479,7 +479,7 @@ async function loadPublicPageSource(
           AND ma.organization_id = mp.organization_id
           AND ma.site_id = mp.site_id
           AND ma.status = 'active'
-        WHERE p.organization_id = ? AND p.site_id = ? AND p.is_visible = 1
+        WHERE p.product_type = 'experience' AND p.organization_id = ? AND p.site_id = ? AND p.is_visible = 1
           ${locationSlug ? 'AND p.location_id = ?' : ''}
           AND mp.owner_type = 'product' AND mp.slot IN ('image', 'gallery') AND mp.status = 'active'
         ORDER BY mp.owner_id, mp.slot, mp.sort_order, mp.id`,
@@ -494,22 +494,21 @@ async function loadPublicPageSource(
 
   if (needsExperiencesList) {
     const expParams: unknown[] = [orgId, siteId];
-    let expSql = `SELECT e.id, e.organization_id, e.site_id, e.location_id,
-                         p.name AS title, p.slug, e.tagline, p.description AS body, e.pricing_note,
+    let expSql = `SELECT p.id, p.organization_id, p.site_id, p.location_id,
+                         p.name AS title, p.slug, json_extract(p.experience_json, '$.tagline') AS tagline, p.description AS body, json_extract(p.experience_json, '$.pricing_note') AS pricing_note,
                          pr.id AS price_id, pr.amount_minor, pr.currency, pr.unit AS price_unit, pr.tax_behavior,
                          pr.compare_at_amount_minor, pr.valid_from, pr.valid_until, pr.provenance,
                          pr.created_by AS price_created_by, pr.created_at AS price_created_at,
-                         e.duration_minutes, e.max_capacity, e.recurring_slots,
-                         p.tags_json, p.details_json, e.included_items, e.what_to_bring, e.meeting_point,
+                         json_extract(p.experience_json, '$.duration_minutes') AS duration_minutes, json_extract(p.experience_json, '$.max_capacity') AS max_capacity, json_extract(p.experience_json, '$.recurring_slots') AS recurring_slots,
+                         p.tags_json, p.details_json, json_extract(p.experience_json, '$.included_items') AS included_items, json_extract(p.experience_json, '$.what_to_bring') AS what_to_bring, json_extract(p.experience_json, '$.meeting_point') AS meeting_point,
                          CASE WHEN p.available = 0 THEN 'sold_out' ELSE 'active' END AS status,
                          p.sort_order, p.featured, p.featured_sort_order,
                          p.seo_title, p.seo_description, p.canonical_url, p.robots, p.created_at, p.updated_at
-                  FROM experiences e
-                  JOIN products p ON p.id = e.id
+                  FROM products p
                   LEFT JOIN prices pr ON pr.product_id = p.id AND pr.valid_from <= strftime('%Y-%m-%dT%H:%M:%fZ', 'now') AND (pr.valid_until IS NULL OR pr.valid_until > strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
-                  WHERE e.organization_id = ? AND e.site_id = ? AND p.is_visible = 1`;
+                  WHERE p.product_type = 'experience' AND p.organization_id = ? AND p.site_id = ? AND p.is_visible = 1`;
     if (locationId) {
-      expSql += ` AND e.location_id = ?`;
+      expSql += ` AND p.location_id = ?`;
       expParams.push(locationId);
     }
     expSql += ` ORDER BY p.sort_order ASC, p.created_at ASC`;
@@ -519,20 +518,19 @@ async function loadPublicPageSource(
   if (requestedDatasets.has("experienceDetail") && experienceSlug) {
     const experienceWhere = localizedExperienceId ? 'p.id = ?' : 'p.slug = ?'
     idxExperienceDetail = push(
-      `SELECT e.id, e.organization_id, e.site_id, e.location_id,
-              p.name AS title, p.slug, e.tagline, p.description AS body, e.pricing_note,
+      `SELECT p.id, p.organization_id, p.site_id, p.location_id,
+              p.name AS title, p.slug, json_extract(p.experience_json, '$.tagline') AS tagline, p.description AS body, json_extract(p.experience_json, '$.pricing_note') AS pricing_note,
               pr.id AS price_id, pr.amount_minor, pr.currency, pr.unit AS price_unit, pr.tax_behavior,
               pr.compare_at_amount_minor, pr.valid_from, pr.valid_until, pr.provenance,
               pr.created_by AS price_created_by, pr.created_at AS price_created_at,
-              e.duration_minutes, e.max_capacity, e.recurring_slots,
-              p.tags_json, p.details_json, e.included_items, e.what_to_bring, e.meeting_point,
+              json_extract(p.experience_json, '$.duration_minutes') AS duration_minutes, json_extract(p.experience_json, '$.max_capacity') AS max_capacity, json_extract(p.experience_json, '$.recurring_slots') AS recurring_slots,
+              p.tags_json, p.details_json, json_extract(p.experience_json, '$.included_items') AS included_items, json_extract(p.experience_json, '$.what_to_bring') AS what_to_bring, json_extract(p.experience_json, '$.meeting_point') AS meeting_point,
               CASE WHEN p.is_visible = 0 THEN 'inactive' WHEN p.available = 0 THEN 'sold_out' ELSE 'active' END AS status,
               p.sort_order, p.featured, p.featured_sort_order,
               p.seo_title, p.seo_description, p.canonical_url, p.robots, p.created_at, p.updated_at
-       FROM experiences e
-       JOIN products p ON p.id = e.id
+       FROM products p
        LEFT JOIN prices pr ON pr.product_id = p.id AND pr.valid_from <= strftime('%Y-%m-%dT%H:%M:%fZ', 'now') AND (pr.valid_until IS NULL OR pr.valid_until > strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
-       WHERE e.organization_id = ? AND e.site_id = ? AND ${experienceWhere}
+       WHERE p.organization_id = ? AND p.site_id = ? AND ${experienceWhere}
        LIMIT 1`,
       [orgId, siteId, localizedExperienceId ?? experienceSlug],
     );

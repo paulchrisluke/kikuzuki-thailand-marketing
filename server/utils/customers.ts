@@ -281,8 +281,7 @@ export async function deleteCustomerIfUnlinked(db: DbClient, customerId: string)
   await execute(db, `
     DELETE FROM customers
     WHERE id = ?
-      AND NOT EXISTS (SELECT 1 FROM reservation_submissions WHERE customer_id = customers.id)
-      AND NOT EXISTS (SELECT 1 FROM experience_bookings WHERE customer_id = customers.id)
+      AND NOT EXISTS (SELECT 1 FROM requests WHERE customer_id = customers.id)
   `, [customerId])
 }
 

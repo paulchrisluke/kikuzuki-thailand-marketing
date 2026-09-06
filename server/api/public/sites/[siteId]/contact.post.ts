@@ -1,11 +1,11 @@
+import { requestInsertQueries } from '~/server/domain/requests'
+import { publishGuestInboxThreadEvent } from '~/server/cloudflare/guest-inbox-events'
 import { siteSupportsBlawbyTemplate } from '~/utils/template-registry'
-import { execute, queryFirst } from '~/server/db'
+import { executeBatch, queryFirst } from '~/server/db'
 import { cleanString, cloudflareEnv, jsonResponse } from '~/server/utils/api-response'
 import { notifyContactSubmitted } from '~/server/utils/notifications'
 import { DEFAULT_EMAIL_DAILY_LIMIT as EMAIL_DAILY_LIMIT, DEFAULT_IP_HOURLY_LIMIT as IP_HOURLY_LIMIT, getClientIp, hashClientIp, hashIdentifier, incrementHourlyRateLimit } from '~/server/utils/hourly-rate-limit'
 import { resolveContactSubmissionAssignment } from '~/server/utils/contact-assignment'
-import { contactAdapter } from '~/server/domain/guest-threads/adapters/contact'
-import { ensureGuestThread } from '~/server/domain/guest-threads/repository'
 import { recordSubmissionConversionSafe } from '~/server/utils/site-conversions'
 import { defineHandler } from 'nitro'
 import { getRouterParam, readBody } from 'nitro/h3'
@@ -73,12 +73,11 @@ export default defineHandler(async (event) => {
   }
 
   const consentAt = consentAcknowledged ? new Date().toISOString() : null
-  await execute(db, `
-    INSERT INTO contact_submissions (id, organization_id, site_id, location_id, name, email, subject, message, consent_at, ip_hash, experience_id)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `, [id, site.organization_id, siteId, assignedLocationId, name, email, subject || null, message, consentAt, ipHash, experience?.id ?? null])
-
-  await ensureGuestThread(db, contactAdapter, id, { publishEnv: env })
+  const now = new Date().toISOString()
+  await executeBatch(db, requestInsertQueries({ id, kind: 'contact', organization_id: site.organization_id, site_id: siteId, location_id: assignedLocationId,
+    product_id: experience?.id ?? null, customer_id: null, review_id: null, status: null, conversation_state: 'needs_attention', resolved_at: null,
+    payload: { guest: { name, email, phone: null }, subject: subject || null, message, consent_at: consentAt, ip_hash: ipHash }, created_at: now, updated_at: now }))
+  await publishGuestInboxThreadEvent(env, db, { threadId: id, type: 'thread.created' })
 
   try {
     await notifyContactSubmitted(env, db, {

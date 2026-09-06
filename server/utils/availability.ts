@@ -126,17 +126,17 @@ export async function resolveAvailabilityOwner(
       `, [organizationId, siteId, owner.locationId])
     : await queryFirst<AvailabilityOwnerRecord>(db, `
         SELECT id, location_id
-        FROM experiences
-        WHERE organization_id = ? AND site_id = ? AND id = ?
+        FROM products
+        WHERE product_type = 'experience' AND organization_id = ? AND site_id = ? AND id = ?
       `, [organizationId, siteId, owner.experienceId])
   if (!row) throw new HTTPError({ statusCode: 404, statusMessage: 'Availability owner not found' })
   return row
 }
 
-function ownerPredicate(owner: AvailabilityOwner): { sql: string; id: string } {
+function availabilityOwnerStorage(owner: AvailabilityOwner) {
   return owner.kind === 'location'
-    ? { sql: 'owner_type = \'location\' AND location_id = ?', id: owner.locationId }
-    : { sql: 'owner_type = \'experience\' AND experience_id = ?', id: owner.experienceId }
+    ? { table: 'business_locations', column: 'booking_json', path: '$.reservation.overrides', id: owner.locationId, predicate: '' }
+    : { table: 'products', column: 'experience_json', path: '$.overrides', id: owner.experienceId, predicate: " AND product_type = 'experience'" }
 }
 
 export async function listAvailabilityOverrides(
@@ -150,19 +150,15 @@ export async function listAvailabilityOverrides(
   if (range.from && range.to && range.from > range.to) {
     throw new HTTPError({ statusCode: 400, statusMessage: 'from must not be after to' })
   }
-  const predicate = ownerPredicate(owner)
-  const params: unknown[] = [siteId, predicate.id]
-  let sql = `SELECT * FROM availability_overrides WHERE site_id = ? AND ${predicate.sql}`
-  if (range.from) {
-    sql += ' AND override_date >= ?'
-    params.push(range.from)
-  }
-  if (range.to) {
-    sql += ' AND override_date <= ?'
-    params.push(range.to)
-  }
-  sql += ' ORDER BY override_date, time_slot, id'
-  return await queryAll<AvailabilityOverride>(db, sql, params)
+  const storage = availabilityOwnerStorage(owner)
+  return queryAll<AvailabilityOverride>(db, `SELECT day.key || '|' || slot.key AS id, o.organization_id, o.site_id, ? AS owner_type,
+    ${owner.kind === 'location' ? 'o.id' : 'NULL'} AS location_id, ${owner.kind === 'experience' ? 'o.id' : 'NULL'} AS experience_id,
+    day.key AS override_date, slot.key AS time_slot, json_extract(slot.value, '$.status') AS status,
+    json_extract(slot.value, '$.capacity_override') AS capacity_override, json_extract(slot.value, '$.note') AS note,
+    json_extract(slot.value, '$.created_at') AS created_at, json_extract(slot.value, '$.updated_at') AS updated_at, json_extract(slot.value, '$.created_by') AS created_by
+    FROM ${storage.table} o, json_each(json_extract(o.${storage.column}, ?)) day, json_each(day.value) slot
+    WHERE o.site_id = ? AND o.id = ?${storage.predicate} AND (? IS NULL OR day.key >= ?) AND (? IS NULL OR day.key <= ?)
+    ORDER BY day.key, slot.key`, [owner.kind, storage.path, siteId, storage.id, range.from ?? null, range.from ?? null, range.to ?? null, range.to ?? null])
 }
 
 function calendarDateKeys(from: string, to: string): string[] {
@@ -187,7 +183,7 @@ export async function readAvailabilityCalendar(db: DbClient, input: {
   const dates = calendarDateKeys(input.range.from, input.range.to)
   const owners = input.owner ? [input.owner] : [
     { kind: 'location', locationId: input.locationId } as const,
-    ...(await queryAll<{ id: string }>(db, 'SELECT id FROM experiences WHERE organization_id = ? AND site_id = ? AND location_id = ?', [input.organizationId, input.siteId, input.locationId])).map(row => ({ kind: 'experience', experienceId: row.id } as const)),
+    ...(await queryAll<{ id: string }>(db, "SELECT id FROM products WHERE product_type = 'experience' AND organization_id = ? AND site_id = ? AND location_id = ?", [input.organizationId, input.siteId, input.locationId])).map(row => ({ kind: 'experience', experienceId: row.id } as const)),
   ]
   const snapshots = await readAvailability(db, { siteId: input.siteId, owners, dates, includePast: true })
   if (snapshots.some(s => s.row.organization_id !== input.organizationId || s.row.location_id !== input.locationId)) throw new HTTPError({ statusCode: 404, statusMessage: 'Availability owner not found at this location' })
@@ -223,62 +219,18 @@ export async function setAvailability(
   await resolveAvailabilityOwner(db, input.organizationId, input.siteId, input.owner)
 
   const now = new Date().toISOString()
-  const setRows = input.changes.flatMap(change => change.directive === 'set' ? [{
-    id: crypto.randomUUID(),
-    override_date: change.override_date,
-    time_slot: change.time_slot,
-    status: change.status,
-    capacity_override: change.capacity_override ?? null,
-    note: change.note?.trim() || null,
-  }] : [])
-  const inheritRows = input.changes.flatMap(change => change.directive === 'inherit' ? [{
-    override_date: change.override_date,
-    time_slot: change.time_slot,
-  }] : [])
-  const owner = ownerPredicate(input.owner)
-  const ownerColumns = input.owner.kind === 'location'
-    ? { location: '?', experience: 'NULL', conflict: '(location_id, override_date, time_slot) WHERE owner_type = \'location\'' }
-    : { location: 'NULL', experience: '?', conflict: '(experience_id, override_date, time_slot) WHERE owner_type = \'experience\'' }
-  const writes: BatchQuery[] = []
-  if (setRows.length > 0) {
-    writes.push({
-      query: `
-        INSERT INTO availability_overrides (
-          id, organization_id, site_id, owner_type, location_id, experience_id,
-          override_date, time_slot, status, capacity_override, note, created_at, updated_at, created_by
-        )
-        SELECT
-          json_extract(value, '$.id'), ?, ?, ?, ${ownerColumns.location}, ${ownerColumns.experience},
-          json_extract(value, '$.override_date'), json_extract(value, '$.time_slot'),
-          json_extract(value, '$.status'), json_extract(value, '$.capacity_override'),
-          json_extract(value, '$.note'), ?, ?, ?
-        FROM json_each(?) WHERE 1
-        ON CONFLICT ${ownerColumns.conflict} DO UPDATE SET
-          status = excluded.status,
-          capacity_override = excluded.capacity_override,
-          note = excluded.note,
-          updated_at = excluded.updated_at
-      `,
-      params: [
-        input.organizationId, input.siteId, input.owner.kind, owner.id,
-        now, now, input.actorUserId, JSON.stringify(setRows),
-      ],
-    })
-  }
-  if (inheritRows.length > 0) {
-    writes.push({
-      query: `
-        DELETE FROM availability_overrides
-        WHERE site_id = ? AND ${owner.sql}
-          AND EXISTS (
-            SELECT 1 FROM json_each(?) change
-            WHERE json_extract(change.value, '$.override_date') = availability_overrides.override_date
-              AND json_extract(change.value, '$.time_slot') = availability_overrides.time_slot
-          )
-      `,
-      params: [input.siteId, owner.id, JSON.stringify(inheritRows)],
-    })
-  }
+  const storage = availabilityOwnerStorage(input.owner)
+  const writes = input.changes.map((change): BatchQuery => {
+    const path = `${storage.path}."${change.override_date}"."${change.time_slot}"`
+    if (change.directive === 'inherit') return {
+      query: `UPDATE ${storage.table} SET ${storage.column} = json_remove(${storage.column}, ?), updated_at = ? WHERE id = ? AND organization_id = ? AND site_id = ?${storage.predicate}`,
+      params: [path, now, storage.id, input.organizationId, input.siteId],
+    }
+    return {
+      query: `UPDATE ${storage.table} SET ${storage.column} = json_set(${storage.column}, ?, json_object('status', ?, 'capacity_override', ?, 'note', ?, 'created_at', COALESCE(json_extract(${storage.column}, ?), ?), 'updated_at', ?, 'created_by', COALESCE(json_extract(${storage.column}, ?), ?))), updated_at = ? WHERE id = ? AND organization_id = ? AND site_id = ?${storage.predicate}`,
+      params: [path, change.status, change.capacity_override ?? null, change.note?.trim() || null, `${path}.created_at`, now, now, `${path}.created_by`, input.actorUserId, now, storage.id, input.organizationId, input.siteId],
+    }
+  })
   await executeBatch(db, writes, { operation: 'Set availability' })
 
   const dates = input.changes.map(change => change.override_date).sort()
@@ -310,12 +262,12 @@ const scheduleSelect = `
     l.status AS location_status, NULL AS recurring_slots, l.max_capacity, NULL AS is_visible, NULL AS available
   FROM business_locations l WHERE l.site_id = ? AND l.id IN (SELECT value FROM json_each(?))
   UNION ALL
-  SELECT 'experience', e.id, e.organization_id, e.site_id, e.location_id, p.name,
+  SELECT 'experience', p.id, p.organization_id, p.site_id, p.location_id, p.name,
     l.opening_hours, l.special_hours, l.timezone,
-    l.status, e.recurring_slots, e.max_capacity, p.is_visible, p.available
-  FROM experiences e JOIN products p ON p.id = e.id AND p.site_id = e.site_id AND p.organization_id = e.organization_id
-  JOIN business_locations l ON l.id = e.location_id AND l.site_id = e.site_id AND l.organization_id = e.organization_id
-  WHERE e.site_id = ? AND e.id IN (SELECT value FROM json_each(?))`
+    l.status, json_extract(p.experience_json, '$.recurring_slots'), json_extract(p.experience_json, '$.max_capacity'), p.is_visible, p.available
+  FROM products p
+  JOIN business_locations l ON l.id = p.location_id AND l.site_id = p.site_id AND l.organization_id = p.organization_id
+  WHERE p.product_type = 'experience' AND p.site_id = ? AND p.id IN (SELECT value FROM json_each(?))`
 
 export async function readAvailability(db: DbClient, input: {
   siteId: string; owners: AvailabilityOwner[]; dates: string[] | { daysFromToday: number }; includePast?: boolean; excludeBookingId?: string
@@ -339,20 +291,19 @@ export async function readAvailability(db: DbClient, input: {
   })
   const dates = JSON.stringify([...new Set(snapshots.flatMap(s => s.days.map(d => d.date)))])
   const events = await queryAll<AvailabilityEvent>(db, `
-    SELECT 'override' AS kind, owner_type, COALESCE(location_id, experience_id) AS owner_id, id,
-      override_date AS date, time_slot, status, capacity_override, note, updated_at, 0 AS party_size, NULL AS label
-    FROM availability_overrides WHERE site_id = ? AND override_date IN (SELECT value FROM json_each(?))
-      AND ((owner_type = 'location' AND location_id IN (SELECT value FROM json_each(?))) OR (owner_type = 'experience' AND experience_id IN (SELECT value FROM json_each(?))))
+    SELECT 'override' AS kind, owner_type, owner_id, day.key || '|' || slot.key AS id, day.key AS date, slot.key AS time_slot,
+      json_extract(slot.value, '$.status') AS status, json_extract(slot.value, '$.capacity_override') AS capacity_override,
+      json_extract(slot.value, '$.note') AS note, json_extract(slot.value, '$.updated_at') AS updated_at, 0 AS party_size, NULL AS label
+    FROM (
+      SELECT 'location' AS owner_type, id AS owner_id, json_extract(booking_json, '$.reservation.overrides') AS overrides FROM business_locations WHERE site_id = ? AND id IN (SELECT value FROM json_each(?))
+      UNION ALL
+      SELECT 'experience', id, json_extract(experience_json, '$.overrides') FROM products WHERE site_id = ? AND product_type = 'experience' AND id IN (SELECT value FROM json_each(?))
+    ) owners, json_each(owners.overrides) day, json_each(day.value) slot WHERE day.key IN (SELECT value FROM json_each(?))
     UNION ALL
-    SELECT 'booking', 'location', location_id, id, date, time, status, NULL, NULL, updated_at,
-      CAST(REPLACE(guests, '+', '') AS INTEGER), name
-    FROM reservation_submissions WHERE site_id = ? AND location_id IN (SELECT value FROM json_each(?))
-      AND date IN (SELECT value FROM json_each(?)) AND status != 'cancelled' AND id IS NOT ?
-    UNION ALL
-    SELECT 'booking', 'experience', experience_id, id, booking_date, time_slot, status, NULL, NULL, updated_at, party_size, guest_name
-    FROM experience_bookings WHERE site_id = ? AND experience_id IN (SELECT value FROM json_each(?))
-      AND booking_date IN (SELECT value FROM json_each(?)) AND status IN ('pending', 'confirmed') AND id IS NOT ?
-  `, [input.siteId, dates, locationIds, experienceIds, input.siteId, locationIds, dates, input.excludeBookingId ?? null, input.siteId, experienceIds, dates, input.excludeBookingId ?? null])
+    SELECT 'booking', CASE kind WHEN 'reservation' THEN 'location' ELSE 'experience' END, COALESCE(product_id, location_id), id, booking_date, time_slot, status, NULL, NULL, updated_at, party_size, json_extract(payload_json, '$.guest.name')
+    FROM requests WHERE site_id = ? AND ((kind = 'reservation' AND location_id IN (SELECT value FROM json_each(?)) AND status != 'cancelled') OR (kind = 'experience_booking' AND product_id IN (SELECT value FROM json_each(?)) AND status IN ('pending', 'confirmed')))
+      AND booking_date IN (SELECT value FROM json_each(?)) AND id IS NOT ?
+  `, [input.siteId, locationIds, input.siteId, experienceIds, dates, input.siteId, locationIds, experienceIds, dates, input.excludeBookingId ?? null])
   for (const snapshot of snapshots) {
     snapshot.events = events.filter(e => e.owner_type === snapshot.row.owner_type && e.owner_id === snapshot.row.owner_id)
     snapshot.days = snapshot.days.map(({ date }) => calculateAvailabilityDay(snapshot, date, Boolean(input.includePast)))
@@ -399,26 +350,26 @@ function bookingClaimPredicate(snapshot: AvailabilitySnapshot, date: string, tim
   if (!slot || slot.is_closed || isTimeSlotInPast(date, time, snapshot.timezone) || !civilTimeExists(date, time, snapshot.timezone)) return { query: '0', params: [] }
   const experience = row.owner_type === 'experience'
   const override = snapshot.events.find(e => e.kind === 'override' && e.date === date && e.time_slot === time)
+  const path = `${experience ? '$.overrides' : '$.reservation.overrides'}."${date}"."${time}"`
+  const document = experience ? 'p.experience_json' : 'l.booking_json'
+  const capacity = experience ? "json_extract(p.experience_json, '$.max_capacity')" : 'l.max_capacity'
   return { query: `EXISTS (
     SELECT 1 FROM business_locations l
-    ${experience ? 'JOIN experiences e ON e.location_id = l.id AND e.site_id = l.site_id AND e.organization_id = l.organization_id JOIN products p ON p.id = e.id AND p.site_id = e.site_id AND p.organization_id = e.organization_id' : ''}
-    LEFT JOIN availability_overrides ao ON ao.site_id = l.site_id AND ao.owner_type = ? AND ao.${experience ? 'experience_id = e.id' : 'location_id = l.id'} AND ao.override_date = ? AND ao.time_slot = ?
+    ${experience ? "JOIN products p ON p.location_id = l.id AND p.site_id = l.site_id AND p.organization_id = l.organization_id AND p.product_type = 'experience'" : ''}
     WHERE l.id = ? AND l.site_id = ? AND l.organization_id = ?
       AND l.opening_hours IS ? AND l.special_hours IS ? AND l.timezone IS ? AND l.status IS ?
-      ${experience ? 'AND e.id = ? AND e.recurring_slots IS ? AND p.is_visible IS ? AND p.available IS ?' : ''}
-      AND ao.id IS ? AND ao.status IS ? AND ao.capacity_override IS ? AND ao.updated_at IS ?
-      AND (COALESCE(ao.capacity_override, ${experience ? 'e' : 'l'}.max_capacity) IS NULL OR
-        (SELECT COALESCE(SUM(${experience ? 'party_size' : "CAST(REPLACE(guests, '+', '') AS INTEGER)"}), 0)
-         FROM ${experience ? 'experience_bookings' : 'reservation_submissions'}
-         WHERE site_id = ? AND ${experience ? 'experience_id' : 'location_id'} = ?
-           AND ${experience ? 'booking_date' : 'date'} = ? AND ${experience ? 'time_slot' : 'time'} = ?
+      ${experience ? "AND p.id = ? AND json_extract(p.experience_json, '$.recurring_slots') IS ? AND p.is_visible IS ? AND p.available IS ?" : ''}
+      AND json_extract(${document}, ?) IS ? AND json_extract(${document}, ?) IS ? AND json_extract(${document}, ?) IS ?
+      AND (COALESCE(json_extract(${document}, ?), ${capacity}) IS NULL OR
+        (SELECT COALESCE(SUM(party_size), 0) FROM requests
+         WHERE site_id = ? AND kind = ? AND ${experience ? 'product_id' : 'location_id'} = ? AND booking_date = ? AND time_slot = ?
            AND ${experience ? "status IN ('pending', 'confirmed')" : "status != 'cancelled'"} AND id IS NOT ?
-        ) + ? <= COALESCE(ao.capacity_override, ${experience ? 'e' : 'l'}.max_capacity))
-  )`, params: [row.owner_type, date, time, row.location_id, row.site_id, row.organization_id,
-    row.opening_hours, row.special_hours, row.timezone, row.location_status,
+        ) + ? <= COALESCE(json_extract(${document}, ?), ${capacity}))
+  )`, params: [row.location_id, row.site_id, row.organization_id, row.opening_hours, row.special_hours, row.timezone, row.location_status,
     ...(experience ? [row.owner_id, row.recurring_slots, row.is_visible, row.available] : []),
-    override?.id ?? null, override?.status ?? null, override?.capacity_override ?? null, override?.updated_at ?? null,
-    row.site_id, row.owner_id, date, time, snapshot.excludeBookingId, partySize] }
+    `${path}.status`, override?.status ?? null, `${path}.capacity_override`, override?.capacity_override ?? null, `${path}.updated_at`, override?.updated_at ?? null,
+    `${path}.capacity_override`, row.site_id, experience ? 'experience_booking' : 'reservation', row.owner_id, date, time, snapshot.excludeBookingId, partySize, `${path}.capacity_override`] }
+
 }
 
 export async function executeAvailabilityClaim(db: DbClient, input: {

@@ -1,3 +1,5 @@
+import { bookingPayloadForGuest, requestInsertQueries } from '~/server/domain/requests'
+import { publishGuestInboxThreadEvent } from '~/server/cloudflare/guest-inbox-events'
 import { queryFirst } from '~/server/db'
 import { cleanString, cloudflareEnv, jsonResponse } from '~/server/utils/api-response'
 import { isReservedTestDomain, shouldSendRealEmail } from '~/server/utils/email-delivery'
@@ -13,8 +15,6 @@ import { deleteCustomerIfUnlinked, findOrCreateCustomer, recordCustomerBooking }
 import { getAuthSession } from '~/server/utils/auth'
 import { DEFAULT_EMAIL_DAILY_LIMIT as EMAIL_DAILY_LIMIT, DEFAULT_IP_HOURLY_LIMIT as IP_HOURLY_LIMIT, getClientIp, hashClientIp, hashIdentifier, incrementHourlyRateLimit } from '~/server/utils/hourly-rate-limit'
 import { parsePhone } from '~/utils/phone'
-import { reservationAdapter } from '~/server/domain/guest-threads/adapters/reservation'
-import { ensureGuestThread } from '~/server/domain/guest-threads/repository'
 import { recordSubmissionConversionSafe } from '~/server/utils/site-conversions'
 import { buildOwnerThreadInboxUrl } from '~/server/utils/dashboard-notification-links'
 import { defineHandler } from 'nitro'
@@ -124,14 +124,14 @@ export default defineHandler(async (event) => {
     organizationId: site.organization_id, siteId, name, email, phone, source: 'reservation', bookingAt: `${date}T${time}:00`, userId, } as const
   const customer = await findOrCreateCustomer(db, customerInput)
 
-  await executeAvailabilityClaim(db, { snapshot: snapshot!, date, time, partySize, statement: {
-    query: `INSERT INTO reservation_submissions (
-      id, organization_id, site_id, customer_id, name, email, phone, date, time, guests, status, requests, ip_hash, cancellation_token_hash, cancellation_token_expires_at, location_id
-    ) SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'confirmed', ?, ?, ?, ?, ? WHERE /* availability_claim */`,
-    params: [id, site.organization_id, siteId, customer.id, name, email, phone, date, time, guests,
-      requests || null, ipHash, cancellationTokenHash, cancellation.expiresAt, resolvedLocationId],
-  } })
-  const inserted = await queryFirst(db, 'SELECT id FROM reservation_submissions WHERE id = ?', [id])
+  const now = new Date().toISOString()
+  const payload = bookingPayloadForGuest({ name, email, phone, notes: requests, ipHash, partySizeIsMinimum: guests.endsWith('+') })
+  payload.cancellation = { token_hash: cancellationTokenHash, expires_at: cancellation.expiresAt, used_at: null }
+  const [statement, ...following] = requestInsertQueries({ id, kind: 'reservation', organization_id: site.organization_id, site_id: siteId, location_id: resolvedLocationId, product_id: null, customer_id: customer.id, review_id: null,
+    status: 'confirmed', booking_date: date, time_slot: time, party_size: partySize, conversation_state: 'needs_attention', resolved_at: null, payload, created_at: now, updated_at: now })
+  statement.query = statement.query.replace(/VALUES \(([^)]+)\)/, 'SELECT $1 WHERE /* availability_claim */')
+  await executeAvailabilityClaim(db, { snapshot: snapshot!, date, time, partySize, statement, following })
+  const inserted = await queryFirst(db, 'SELECT id FROM requests WHERE id = ?', [id])
 
   if (!inserted) {
     if (customer.created) await deleteCustomerIfUnlinked(db, customer.id)
@@ -139,7 +139,7 @@ export default defineHandler(async (event) => {
   }
   await recordCustomerBooking(db, customer.id, customerInput)
 
-  const thread = await ensureGuestThread(db, reservationAdapter, id, { publishEnv: env })
+  await publishGuestInboxThreadEvent(env, db, { threadId: id, type: 'thread.created' })
 
   // Build absolute cancel URL for the confirmation email
   const cancelUrl = `${siteBaseUrl}/reservations/cancel?id=${id}#${cancellation.token}`
@@ -151,7 +151,7 @@ export default defineHandler(async (event) => {
       organizationId: site.organization_id,
       siteId,
       locationId: resolvedLocationId,
-      threadId: thread.id,
+      threadId: id,
     }),
   ])
 

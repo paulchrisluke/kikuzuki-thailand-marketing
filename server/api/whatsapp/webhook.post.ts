@@ -4,8 +4,8 @@ import { parseMetaMsisdn } from '~/utils/phone'
 import {
   getWhatsAppWorkspaceState, patchWhatsAppWorkspaceState, type JsonSerializable, } from '~/server/utils/mcp-context'
 import { execute, queryAll, queryFirst } from '~/server/db'
-import { ensureGuestThread, getGuestThreadById, updateThreadProjectionIfLatestEntry } from '~/server/domain/guest-threads/repository'
-import { getAdapter } from '~/server/domain/guest-threads/adapters/registry'
+import { updateThreadProjectionIfLatestEntry } from '~/server/domain/guest-threads/repository'
+import { getGuestRequest, requestSummary } from '~/server/domain/requests'
 import { executeGuestThreadOperation } from '~/server/domain/guest-threads/operations'
 import { appendEntry, findEntryByDedupeKey } from '~/server/domain/guest-threads/entries'
 import { nextConversationState } from '~/server/domain/guest-threads/state-machine'
@@ -133,20 +133,17 @@ interface QuotedDeliveryMatch {
 async function resolveQuotedDelivery(
   db: D1Database, env: ApiRecord, providerMessageId: string, phone: string, ): Promise<QuotedDeliveryMatch | null> {
   const thread = await queryFirst<{
-    thread_id: string
+    request_id: string
     organization_id: string
     site_id: string
     location_id: string | null
     guest_email: string | null
   }>(db, `
-    SELECT gt.id AS thread_id, gt.organization_id, gt.site_id, gt.location_id,
-           COALESCE(rs.email, eb.guest_email, cs.email) AS guest_email
+    SELECT gt.id AS request_id, gt.organization_id, gt.site_id, gt.location_id,
+           json_extract(gt.payload_json, '$.guest.email') AS guest_email
     FROM guest_thread_deliveries d
-    JOIN guest_thread_entries e ON e.id = d.entry_id
-    JOIN guest_threads gt ON gt.id = e.thread_id
-    LEFT JOIN reservation_submissions rs ON gt.submission_type = 'reservation' AND rs.id = gt.submission_id
-    LEFT JOIN experience_bookings eb ON gt.submission_type = 'experience_booking' AND eb.id = gt.submission_id
-    LEFT JOIN contact_submissions cs ON gt.submission_type = 'contact' AND cs.id = gt.submission_id
+    JOIN activity_entries e ON e.id = d.entry_id
+    JOIN requests gt ON gt.id = e.request_id
     WHERE d.provider = 'meta' AND d.provider_message_id = ?
     LIMIT 1
   `, [providerMessageId])
@@ -157,7 +154,7 @@ async function resolveQuotedDelivery(
     phone, organizationId: thread.organization_id, siteId: thread.site_id, locationId: thread.location_id, requireSiteWide: false, })
   if (!authorized) return null
 
-  return { threadId: thread.thread_id, siteId: thread.site_id, organizationId: thread.organization_id, locationId: thread.location_id, guestEmail: thread.guest_email }
+  return { threadId: thread.request_id, siteId: thread.site_id, organizationId: thread.organization_id, locationId: thread.location_id, guestEmail: thread.guest_email }
 }
 
 async function listRecentGuestDeliveryCandidates(db: D1Database, env: ApiRecord, userId: string): Promise<DisambiguationCandidate[]> {
@@ -171,14 +168,11 @@ async function listRecentGuestDeliveryCandidates(db: D1Database, env: ApiRecord,
     submissionType: string
   }>(db, `
     SELECT gt.id AS threadId, gt.organization_id AS organizationId, gt.site_id AS siteId,
-           gt.location_id AS locationId, COALESCE(rs.name, eb.guest_name, cs.name) AS guestName,
-           gt.submission_type AS submissionType, MAX(d.created_at) AS createdAt
+           gt.location_id AS locationId, json_extract(gt.payload_json, '$.guest.name') AS guestName,
+           gt.kind AS submissionType, MAX(d.created_at) AS createdAt
     FROM guest_thread_deliveries d
-    JOIN guest_thread_entries e ON e.id = d.entry_id
-    JOIN guest_threads gt ON gt.id = e.thread_id
-    LEFT JOIN reservation_submissions rs ON gt.submission_type = 'reservation' AND rs.id = gt.submission_id
-    LEFT JOIN experience_bookings eb ON gt.submission_type = 'experience_booking' AND eb.id = gt.submission_id
-    LEFT JOIN contact_submissions cs ON gt.submission_type = 'contact' AND cs.id = gt.submission_id
+    JOIN activity_entries e ON e.id = d.entry_id
+    JOIN requests gt ON gt.id = e.request_id
     WHERE d.channel = 'whatsapp' AND d.created_at > ?
     GROUP BY gt.id
     ORDER BY createdAt DESC
@@ -406,10 +400,8 @@ async function routeManagerWhatsAppMessage(
         return
       }
 
-      const chosenThread = await getGuestThreadById(db, chosen.threadId, chosen.siteId)
-      const chosenAdapter = chosenThread ? getAdapter(chosenThread.submission_type) : null
-      const chosenSource = chosenThread && chosenAdapter ? await chosenAdapter.loadSource({ db }, chosenThread.submission_id) : null
-      const chosenGuestEmail = chosenSource && chosenAdapter ? chosenAdapter.summarize(chosenSource).guestEmail : null
+      const chosenThread = await getGuestRequest(db, chosen.threadId, chosen.siteId)
+      const chosenGuestEmail = chosenThread?.payload.guest.email ?? null
       if (!chosenGuestEmail) {
         await clearPending()
         await sendWhatsAppText(env, opts.toPhone, 'That guest has no email on file, so a reply cannot be sent.')
@@ -514,12 +506,12 @@ async function handleMessage(db: D1Database, env: ApiRecord, message: WhatsAppMe
     // open reservation/experience-booking thread rather than trying to talk to ChowBot.
     const existingEntry = await findEntryByDedupeKey(db, `whatsapp:${message.id}`)
     const existingThread = existingEntry
-      ? await getGuestThreadById(db, existingEntry.thread_id)
+      ? await getGuestRequest(db, existingEntry.request_id)
       : null
     const match = existingThread
       ? {
-          submissionType: existingThread.submission_type,
-          submissionId: existingThread.submission_id,
+          submissionType: existingThread.kind,
+          submissionId: existingThread.id,
           organizationId: existingThread.organization_id,
           siteId: existingThread.site_id,
         }
@@ -528,8 +520,9 @@ async function handleMessage(db: D1Database, env: ApiRecord, message: WhatsAppMe
       const text = messageText(message)
       if (text) {
         try {
-          const adapter = getAdapter(match.submissionType)
-          const thread = await ensureGuestThread(db, adapter, match.submissionId)
+          const thread = await getGuestRequest(db, match.submissionId, undefined, match.submissionType)
+
+          if (!thread) throw new Error('Submission not found')
           const entry = await appendEntry(db, {
             threadId: thread.id,
             kind: 'message',
@@ -540,9 +533,9 @@ async function handleMessage(db: D1Database, env: ApiRecord, message: WhatsAppMe
           const conversationState = nextConversationState(thread.conversation_state, { type: 'inbound_guest_message' })
           await updateThreadProjectionIfLatestEntry(db, thread.id, entry.id, { conversationState })
 
-          const source = await adapter.loadSource({ db }, match.submissionId)
+          const source = thread
           if (source) {
-            const summary = adapter.summarize(source)
+            const summary = await requestSummary(db, source)
             await notifyGuestThreadReply(env, db, {
               organizationId: match.organizationId,
               siteId: match.siteId,
@@ -604,10 +597,10 @@ async function handleStatus(db: D1Database, env: ApiRecord, status: WhatsAppStat
   if (!providerMessageId || !incomingStatus) return
   if (!['sent', 'delivered', 'read', 'failed'].includes(incomingStatus)) return
 
-  const delivery = await queryFirst<{ id: string; thread_id: string; status: string }>(db, `
-    SELECT d.id, e.thread_id, d.status
+  const delivery = await queryFirst<{ id: string; request_id: string; status: string }>(db, `
+    SELECT d.id, e.request_id, d.status
     FROM guest_thread_deliveries d
-    JOIN guest_thread_entries e ON e.id = d.entry_id
+    JOIN activity_entries e ON e.id = d.entry_id
     WHERE d.provider = 'meta' AND d.provider_message_id = ?
     LIMIT 1
   `, [providerMessageId])
@@ -649,7 +642,7 @@ async function handleStatus(db: D1Database, env: ApiRecord, status: WhatsAppStat
   }
 
   await publishGuestInboxThreadEvent(env, db, {
-    threadId: delivery.thread_id,
+    threadId: delivery.request_id,
     type: 'delivery.changed',
   })
 }

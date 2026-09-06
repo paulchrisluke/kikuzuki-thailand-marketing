@@ -1,9 +1,9 @@
+import { getGuestRequest } from '~/server/domain/requests'
 import type { McpExecutorContext } from './shared'
 import { createExperience, deleteExperience, getExperienceBookingsSummary, getExperienceById, listExperienceBookings, listExperienceBookingsForSite, listExperiences, updateBookingStatus, updateExperience, type CreateExperienceInput, type UpdateExperienceInput } from '~/server/utils/experiences'
 import { renderStructuredResponse } from '~/server/utils/mcp-render'
 import { paginateMcpCollection } from '~/server/utils/mcp-pagination'
 import { attachViewUrlToRecord, NOT_HANDLED, expandSlotGeneratorArgs, mutationContextPayload, omit, optionalDaysWindow, optionalString, requiredString } from './shared'
-import { getGuestThreadBySubmission } from '~/server/domain/guest-threads/repository'
 import { publishGuestInboxThreadEvent } from '~/server/cloudflare/guest-inbox-events'
 
 function attachExperienceViewUrl(experience: object, site: McpExecutorContext["site"]) {
@@ -147,7 +147,7 @@ export async function handleExperiencesTools(ctx: McpExecutorContext): Promise<u
         status,
       )
       if (updated) {
-        const thread = await getGuestThreadBySubmission(site.db, 'experience_booking', bookingId)
+        const thread = await getGuestRequest(site.db, bookingId, undefined, 'experience_booking')
         if (thread) {
           await publishGuestInboxThreadEvent(site.env, site.db, { threadId: thread.id, type: 'thread.changed' })
         }

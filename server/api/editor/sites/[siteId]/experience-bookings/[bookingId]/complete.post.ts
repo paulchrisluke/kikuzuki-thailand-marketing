@@ -1,10 +1,10 @@
+import { getGuestRequest } from '~/server/domain/requests'
 import { cloudflareEnv, jsonResponse } from '~/server/utils/api-response'
 import { getAuthSession } from '~/server/utils/auth'
 import { queryFirst } from '~/server/db'
 import { markBookingCompleted } from '~/server/utils/review-requests'
 import { assertResourceAccess } from '~/server/utils/member-access'
 import { loadMemberSiteRow } from '~/server/utils/location-access'
-import { getGuestThreadBySubmission } from '~/server/domain/guest-threads/repository'
 import { publishGuestInboxThreadEvent } from '~/server/cloudflare/guest-inbox-events'
 
 export default defineHandler(async (event) => {
@@ -23,8 +23,8 @@ export default defineHandler(async (event) => {
   if (!site) return jsonResponse({ error: 'Booking not found or access denied' }, { status: 404 })
 
   const booking = await queryFirst<{ id: string; location_id: string }>(db, `
-    SELECT id, location_id FROM experience_bookings
-    WHERE id = ? AND site_id = ?
+    SELECT id, location_id FROM requests
+    WHERE kind = 'experience_booking' AND id = ? AND site_id = ?
     LIMIT 1
   `, [bookingId, siteId])
   if (!booking) return jsonResponse({ error: 'Booking not found or access denied' }, { status: 404 })
@@ -35,7 +35,7 @@ export default defineHandler(async (event) => {
 
   const completed = await markBookingCompleted(db, 'experience_booking', bookingId, 'manual')
   if (!completed) return jsonResponse({ error: 'Only confirmed bookings can be completed' }, { status: 400 })
-  const thread = await getGuestThreadBySubmission(db, 'experience_booking', bookingId)
+  const thread = await getGuestRequest(db, bookingId, undefined, 'experience_booking')
   if (thread) {
     await publishGuestInboxThreadEvent(env, db, { threadId: thread.id, type: 'thread.changed' })
   }

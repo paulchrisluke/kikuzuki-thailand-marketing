@@ -339,8 +339,8 @@ async function copyProducts(
     const categoryOffset = productCountByCategory.get(targetCategoryId) ?? 0
     productCountByCategory.set(targetCategoryId, categoryOffset + 1)
     statements.push({
-      query: `INSERT INTO products (id, organization_id, site_id, location_id, product_type, category_id, name, slug, description, order_url, is_visible, available, featured, featured_sort_order, sort_order, tags_json, details_json, seo_title, seo_description, canonical_url, robots, source, created_at, updated_at, created_by, updated_by)
-        SELECT ?, organization_id, site_id, ?, product_type, ?, name, ?, description, order_url, is_visible, available, featured, featured_sort_order, ?, tags_json, details_json, seo_title, seo_description, canonical_url, robots, 'copy', ?, ?, ?, ? FROM products WHERE id = ? AND organization_id = ? AND site_id = ? AND location_id = ?`,
+      query: `INSERT INTO products (id, organization_id, site_id, location_id, product_type, category_id, name, slug, description, order_url, is_visible, available, featured, featured_sort_order, sort_order, tags_json, details_json, experience_json, seo_title, seo_description, canonical_url, robots, source, created_at, updated_at, created_by, updated_by)
+        SELECT ?, organization_id, site_id, ?, product_type, ?, name, ?, description, order_url, is_visible, available, featured, featured_sort_order, ?, tags_json, details_json, json_remove(experience_json, '$.overrides'), seo_title, seo_description, canonical_url, robots, 'copy', ?, ?, ?, ? FROM products WHERE id = ? AND organization_id = ? AND site_id = ? AND location_id = ?`,
       params: [newId, targetLocationId, targetCategoryId, newSlug, categoryOffset, now, now, userId, userId, product.id, organizationId, siteId, sourceLocationId],
     })
     const priceRows = await queryAll<{ id: string }>(db, `SELECT id FROM prices WHERE product_id = ? ORDER BY valid_from, id`, [product.id])
@@ -405,41 +405,18 @@ async function copyLocationPolicies(
   now: string,
   statements: BatchQuery[],
 ) {
-  const locationPolicies = await queryAll<{ policy_type: 'reservation' | 'experience' }>(
-    db,
-    `
-    SELECT policy_type
-    FROM booking_policies
-    WHERE organization_id = ? AND site_id = ? AND scope_type = 'location' AND location_id = ?
-    `,
-    [organizationId, siteId, sourceLocationId],
-  )
-
-  for (const policy of locationPolicies) {
+  for (const kind of ['reservation', 'experience']) {
+    const path = `$.${kind}.policy`
     statements.push({
-      query: `
-        INSERT INTO booking_policies (
-          id, organization_id, site_id, policy_type, scope_type, location_id, experience_id,
-          advance_notice_minutes, free_cancellation_until_minutes, reschedule_allowed,
-          reschedule_cutoff_minutes, deposit_required, deposit_trigger_party_size,
-          minimum_guest_age, accessibility_contact_required, created_at, updated_at
-        )
-        SELECT lower(hex(randomblob(16))), organization_id, site_id, policy_type, scope_type, ?, NULL,
-               advance_notice_minutes, free_cancellation_until_minutes, reschedule_allowed,
-               reschedule_cutoff_minutes, deposit_required, deposit_trigger_party_size,
-               minimum_guest_age, accessibility_contact_required, ?, ?
-        FROM booking_policies
-        WHERE organization_id = ? AND site_id = ? AND scope_type = 'location' AND location_id = ? AND policy_type = ?
-          AND NOT EXISTS (
-            SELECT 1
-            FROM booking_policies existing
-            WHERE existing.site_id = booking_policies.site_id
-              AND existing.scope_type = 'location'
-              AND existing.location_id = ?
-              AND existing.policy_type = booking_policies.policy_type
-          )
-      `,
-      params: [targetLocationId, now, now, organizationId, siteId, sourceLocationId, policy.policy_type, targetLocationId],
+      query: `UPDATE business_locations SET booking_json = json_set(booking_json, ?, (
+        SELECT json_extract(booking_json, ?) FROM business_locations
+        WHERE id = ? AND organization_id = ? AND site_id = ?
+      )), updated_at = ? WHERE id = ? AND organization_id = ? AND site_id = ?
+        AND json_type(booking_json, ?) IS NULL AND EXISTS (
+          SELECT 1 FROM business_locations WHERE id = ? AND organization_id = ? AND site_id = ?
+            AND json_type(booking_json, ?) = 'object')`,
+      params: [path, path, sourceLocationId, organizationId, siteId, now, targetLocationId, organizationId, siteId,
+        path, sourceLocationId, organizationId, siteId, path],
     })
   }
 }
@@ -543,7 +520,7 @@ async function copyExperiences(
 ) {
   const experiences = await queryAll<{ id: string; slug: string }>(
     db,
-    'SELECT e.id, p.slug FROM experiences e JOIN products p ON p.id = e.id WHERE e.location_id = ? AND e.organization_id = ? AND e.site_id = ?',
+    "SELECT id, slug FROM products WHERE product_type = 'experience' AND location_id = ? AND organization_id = ? AND site_id = ?",
     [sourceLocationId, organizationId, siteId],
   )
   const targetExperienceCount = Number((await queryFirst<{ count: number }>(db, `SELECT COUNT(*) AS count FROM products WHERE site_id = ? AND location_id = ? AND product_type = 'experience'`, [siteId, targetLocationId]))?.count ?? 0)
@@ -560,17 +537,9 @@ async function copyExperiences(
     const newSlug = await uniqueSlug(db, siteId, exp.slug)
 
     statements.push({
-      query: `INSERT INTO products (id, organization_id, site_id, location_id, product_type, category_id, name, slug, description, order_url, is_visible, available, featured, featured_sort_order, sort_order, tags_json, details_json, seo_title, seo_description, canonical_url, robots, source, created_at, updated_at, created_by, updated_by)
-        SELECT ?, organization_id, site_id, ?, 'experience', ?, name, ?, description, order_url, is_visible, available, featured, featured_sort_order, ?, tags_json, details_json, seo_title, seo_description, canonical_url, robots, 'copy', ?, ?, created_by, updated_by FROM products WHERE id = ?`,
+      query: `INSERT INTO products (id, organization_id, site_id, location_id, product_type, category_id, name, slug, description, order_url, is_visible, available, featured, featured_sort_order, sort_order, tags_json, details_json, experience_json, seo_title, seo_description, canonical_url, robots, source, created_at, updated_at, created_by, updated_by)
+        SELECT ?, organization_id, site_id, ?, 'experience', ?, name, ?, description, order_url, is_visible, available, featured, featured_sort_order, ?, tags_json, details_json, json_remove(experience_json, '$.overrides'), seo_title, seo_description, canonical_url, robots, 'copy', ?, ?, created_by, updated_by FROM products WHERE id = ?`,
       params: [newId, targetLocationId, targetExperienceCategoryId, newSlug, targetExperienceCount + experienceIndex, now, now, exp.id],
-    })
-    statements.push({
-      query: `
-        INSERT INTO experiences (id, organization_id, site_id, location_id, tagline, pricing_note, duration_minutes, max_capacity, recurring_slots, created_at, updated_at, included_items, what_to_bring, meeting_point, cancellation_policy)
-        SELECT ?, organization_id, site_id, ?, tagline, pricing_note, duration_minutes, max_capacity, recurring_slots, ?, updated_at, included_items, what_to_bring, meeting_point, cancellation_policy
-        FROM experiences WHERE id = ?
-      `,
-      params: [newId, targetLocationId, now, exp.id],
     })
     const priceRows = await queryAll<{ id: string }>(db, `SELECT id FROM prices WHERE product_id = ? ORDER BY valid_from, id`, [exp.id])
     for (const price of priceRows) statements.push({
@@ -583,35 +552,18 @@ async function copyExperiences(
       db,
       `SELECT asset_id, sort_order
          FROM media_placements
-        WHERE organization_id = ? AND site_id = ? AND owner_type = 'experience' AND owner_id = ? AND slot = 'gallery' AND status = 'active'
+        WHERE organization_id = ? AND site_id = ? AND owner_type = 'product' AND owner_id = ? AND slot = 'gallery' AND status = 'active'
         ORDER BY sort_order ASC`,
       [organizationId, siteId, exp.id],
     )
     for (const item of experienceMedia) {
       const newAssetId = idMappings[item.asset_id] ?? item.asset_id
       statements.push(buildMediaPlacementInsertQuery({
-        organizationId, siteId, ownerType: 'experience', ownerId: newId, slot: 'gallery',
+        organizationId, siteId, ownerType: 'product', ownerId: newId, slot: 'gallery',
         assetId: newAssetId, sortOrder: item.sort_order, createdAt: now, updatedAt: now,
       }))
     }
 
-    statements.push({
-      query: `
-        INSERT INTO booking_policies (
-          id, organization_id, site_id, policy_type, scope_type, location_id, experience_id,
-          advance_notice_minutes, free_cancellation_until_minutes, reschedule_allowed,
-          reschedule_cutoff_minutes, deposit_required, deposit_trigger_party_size,
-          minimum_guest_age, accessibility_contact_required, created_at, updated_at
-        )
-        SELECT lower(hex(randomblob(16))), organization_id, site_id, policy_type, scope_type, ?, ?,
-               advance_notice_minutes, free_cancellation_until_minutes, reschedule_allowed,
-               reschedule_cutoff_minutes, deposit_required, deposit_trigger_party_size,
-               minimum_guest_age, accessibility_contact_required, ?, ?
-        FROM booking_policies
-        WHERE organization_id = ? AND site_id = ? AND scope_type = 'experience' AND experience_id = ?
-      `,
-      params: [targetLocationId, newId, now, now, organizationId, siteId, exp.id],
-    })
 
     manifest.entities.experiences.copied++
   }

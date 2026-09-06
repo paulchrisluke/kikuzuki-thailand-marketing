@@ -102,75 +102,17 @@ export async function getReviewBookingContext(
   bookingType: ReviewBookingType,
   bookingId: string,
 ): Promise<ReviewBookingContext | null> {
-  if (bookingType === 'reservation') {
-    return await queryFirst<ReviewBookingContext>(db, `
-      SELECT
-        'reservation' AS booking_type,
-        rs.id AS booking_id,
-        rs.organization_id,
-        rs.site_id,
-        rs.location_id,
-        rs.customer_id,
-        c.name AS customer_name,
-        c.email AS customer_email,
-        c.review_request_opted_out_at AS customer_opted_out_at,
-        rs.name AS guest_name,
-        rs.email AS guest_email,
-        rs.status,
-        rs.completed_at,
-        rs.review_request_sent_at,
-        rs.review_reminder_sent_at,
-        rs.review_submitted_at,
-        rs.review_id,
-        s.brand_name AS site_name,
-        (SELECT 'https://' || domain FROM site_domains WHERE site_id = s.id AND role = 'canonical' AND status = 'active') AS site_public_url,
-        s.subdomain AS site_subdomain,
-        bl.slug AS location_slug,
-        bl.title AS location_title,
-        bl.google_place_id,
-        bl.google_review_url
-      FROM reservation_submissions rs
-      JOIN sites s ON s.id = rs.site_id
-      LEFT JOIN customers c ON c.id = rs.customer_id
-      LEFT JOIN business_locations bl ON bl.id = rs.location_id
-      WHERE rs.id = ?
-      LIMIT 1
-    `, [bookingId]) ?? null
-  }
-
-  return await queryFirst<ReviewBookingContext>(db, `
-    SELECT
-      'experience_booking' AS booking_type,
-      eb.id AS booking_id,
-      eb.organization_id,
-      eb.site_id,
-      eb.location_id,
-      eb.customer_id,
-      c.name AS customer_name,
-      c.email AS customer_email,
-      c.review_request_opted_out_at AS customer_opted_out_at,
-      eb.guest_name,
-      eb.guest_email,
-      eb.status,
-      eb.completed_at,
-      eb.review_request_sent_at,
-      eb.review_reminder_sent_at,
-      eb.review_submitted_at,
-      eb.review_id,
-      s.brand_name AS site_name,
-      (SELECT 'https://' || domain FROM site_domains WHERE site_id = s.id AND role = 'canonical' AND status = 'active') AS site_public_url,
-      s.subdomain AS site_subdomain,
-      bl.slug AS location_slug,
-      bl.title AS location_title,
-      bl.google_place_id,
-      bl.google_review_url
-    FROM experience_bookings eb
-    JOIN sites s ON s.id = eb.site_id
-    LEFT JOIN customers c ON c.id = eb.customer_id
-    LEFT JOIN business_locations bl ON bl.id = eb.location_id
-    WHERE eb.id = ?
-    LIMIT 1
-  `, [bookingId]) ?? null
+  return queryFirst<ReviewBookingContext>(db, `SELECT r.kind AS booking_type, r.id AS booking_id, r.organization_id, r.site_id, r.location_id, r.customer_id,
+    c.name AS customer_name, c.email AS customer_email, c.review_request_opted_out_at AS customer_opted_out_at,
+    json_extract(r.payload_json, '$.guest.name') AS guest_name, json_extract(r.payload_json, '$.guest.email') AS guest_email, r.status,
+    json_extract(r.payload_json, '$.completion.at') AS completed_at,
+    json_extract(r.payload_json, '$.review.request_sent_at') AS review_request_sent_at,
+    json_extract(r.payload_json, '$.review.reminder_sent_at') AS review_reminder_sent_at,
+    json_extract(r.payload_json, '$.review.submitted_at') AS review_submitted_at, r.review_id,
+    s.brand_name AS site_name, (SELECT 'https://' || domain FROM site_domains WHERE site_id = s.id AND role = 'canonical' AND status = 'active') AS site_public_url,
+    s.subdomain AS site_subdomain, bl.slug AS location_slug, bl.title AS location_title, bl.google_place_id, bl.google_review_url
+    FROM requests r JOIN sites s ON s.id = r.site_id LEFT JOIN customers c ON c.id = r.customer_id LEFT JOIN business_locations bl ON bl.id = r.location_id
+    WHERE r.id = ? AND r.kind = ?`, [bookingId, bookingType])
 }
 
 export async function getReviewRequestByToken(
@@ -214,28 +156,10 @@ export async function markBookingCompleted(
   source: CompletionSource,
   completedAt = new Date().toISOString(),
 ): Promise<boolean> {
-  if (bookingType === 'reservation') {
-    const result = await execute(db, `
-      UPDATE reservation_submissions
-      SET status = 'completed',
-          completed_at = COALESCE(completed_at, ?),
-          completion_source = COALESCE(completion_source, ?),
-          updated_at = ?
-      WHERE id = ?
-        AND status != 'cancelled'
-    `, [completedAt, source, new Date().toISOString(), bookingId])
-    return Number(result.meta.changes ?? 0) > 0
-  }
-
-  const result = await execute(db, `
-    UPDATE experience_bookings
-    SET completed_at = COALESCE(completed_at, ?),
-        completion_source = COALESCE(completion_source, ?),
-        updated_at = ?
-    WHERE id = ?
-      AND status = 'confirmed'
-  `, [completedAt, source, new Date().toISOString(), bookingId])
-  return Number(result.meta.changes ?? 0) > 0
+  const result = await execute(db, `UPDATE requests SET status = 'completed',
+    payload_json = json_set(payload_json, '$.completion.at', COALESCE(json_extract(payload_json, '$.completion.at'), ?), '$.completion.source', COALESCE(json_extract(payload_json, '$.completion.source'), ?)), updated_at = ?
+    WHERE id = ? AND kind = ? AND status IN ('confirmed', 'completed')`, [completedAt, source, new Date().toISOString(), bookingId, bookingType])
+  return Number(result.meta.changes) > 0
 }
 
 export async function revokeReviewRequestForBooking(
@@ -359,13 +283,12 @@ export async function markBookingReviewRequestSent(
   kind: 'first' | 'reminder',
   sentAt = new Date().toISOString(),
 ): Promise<void> {
-  const table = bookingType === 'reservation' ? 'reservation_submissions' : 'experience_bookings'
-  const column = kind === 'first' ? 'review_request_sent_at' : 'review_reminder_sent_at'
+  const path = kind === 'first' ? '$.review.request_sent_at' : '$.review.reminder_sent_at'
   await execute(db, `
-    UPDATE ${table}
-    SET ${column} = COALESCE(${column}, ?), updated_at = ?
-    WHERE id = ?
-  `, [sentAt, sentAt, bookingId])
+    UPDATE requests
+    SET payload_json = json_set(payload_json, ?, COALESCE(json_extract(payload_json, ?), ?)), updated_at = ?
+    WHERE id = ? AND kind = ?
+  `, [path, path, sentAt, sentAt, bookingId, bookingType])
 }
 
 export async function markReviewRequestSendFailure(
@@ -393,10 +316,9 @@ export async function markReviewSubmittedForRequest(
     WHERE id = ? AND submitted_at IS NULL
   `, [submittedAt, submittedAt, request.id])
 
-  const table = request.booking_type === 'reservation' ? 'reservation_submissions' : 'experience_bookings'
   await execute(db, `
-    UPDATE ${table}
-    SET review_submitted_at = COALESCE(review_submitted_at, ?),
+    UPDATE requests
+    SET payload_json = json_set(payload_json, '$.review.submitted_at', COALESCE(json_extract(payload_json, '$.review.submitted_at'), ?)),
         review_id = COALESCE(review_id, ?),
         updated_at = ?
     WHERE id = ?

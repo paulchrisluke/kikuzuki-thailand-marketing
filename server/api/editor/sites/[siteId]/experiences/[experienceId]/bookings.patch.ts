@@ -1,8 +1,8 @@
+import { getGuestRequest } from '~/server/domain/requests'
 import { jsonResponse, readRequiredBody } from '~/server/utils/api-response'
 import { updateBookingStatus } from '~/server/utils/experiences'
 import { assertResourceAccess } from '~/server/utils/member-access'
 import { queryFirst } from '~/server/db'
-import { getGuestThreadBySubmission } from '~/server/domain/guest-threads/repository'
 import { publishGuestInboxThreadEvent } from '~/server/cloudflare/guest-inbox-events'
 import { requireSiteAccess } from '~/server/utils/location-access'
 
@@ -13,7 +13,7 @@ export default defineHandler(async (event) => {
 
   const { env, db, site } = await requireSiteAccess(event, siteId, 'context')
 
-  const experience = await queryFirst<{ location_id: string }>(db, `SELECT location_id FROM experiences WHERE id = ? AND site_id = ? LIMIT 1`, [experienceId, siteId])
+  const experience = await queryFirst<{ location_id: string }>(db, `SELECT location_id FROM products WHERE product_type = \'experience\' AND id = ? AND site_id = ? LIMIT 1`, [experienceId, siteId])
   if (!experience) return jsonResponse({ error: 'Experience not found' }, { status: 404 })
 
   await assertResourceAccess(db, {
@@ -28,7 +28,7 @@ export default defineHandler(async (event) => {
 
   const ok = await updateBookingStatus(db, siteId, experienceId, body.booking_id, body.status as 'pending' | 'confirmed' | 'cancelled')
   if (!ok) return jsonResponse({ error: 'Booking not found' }, { status: 404 })
-  const thread = await getGuestThreadBySubmission(db, 'experience_booking', body.booking_id)
+  const thread = await getGuestRequest(db, body.booking_id, undefined, 'experience_booking')
   if (thread) {
     await publishGuestInboxThreadEvent(env, db, { threadId: thread.id, type: 'thread.changed' })
   }

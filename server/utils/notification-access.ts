@@ -19,17 +19,18 @@ export interface NotificationVisibilityPrincipal {
 
 export function buildNotificationVisibilityFilter(principal: NotificationVisibilityPrincipal) {
   const clauses = [
+    "n.kind = 'notification'",
     `(n.target_user_id IS NULL OR n.target_user_id = ?)`,
   ]
   const params: unknown[] = [principal.userId]
   const visibilityClauses: string[] = []
 
-  if (principal.platformAdmin) visibilityClauses.push(`n.scope = 'platform'`)
+  if (principal.platformAdmin) visibilityClauses.push(`json_extract(n.payload_json, '$.visibility_scope') = 'platform'`)
 
   if (principal.organization) {
     const organizationWide = isOrganizationWideRole(principal.organization.role)
     if (organizationWide) {
-      visibilityClauses.push(`(n.scope IN ('organization', 'site') AND n.organization_id = ?)`)
+      visibilityClauses.push(`(json_extract(n.payload_json, '$.visibility_scope') IN ('organization', 'site') AND n.organization_id = ?)`)
       params.push(principal.organization.id)
     } else {
       const accessClauses: string[] = []
@@ -40,7 +41,7 @@ export function buildNotificationVisibilityFilter(principal: NotificationVisibil
         accessClauses.push(`n.location_id IN (SELECT value FROM json_each(?))`)
       }
       if (accessClauses.length) {
-        visibilityClauses.push(`(n.scope = 'site' AND n.organization_id = ? AND (${accessClauses.join(' OR ')}))`)
+        visibilityClauses.push(`(json_extract(n.payload_json, '$.visibility_scope') = 'site' AND n.organization_id = ? AND (${accessClauses.join(' OR ')}))`)
         params.push(
           principal.organization.id,
           ...(principal.siteWideSiteIds?.length ? [d1JsonStringSet(principal.siteWideSiteIds)] : []),

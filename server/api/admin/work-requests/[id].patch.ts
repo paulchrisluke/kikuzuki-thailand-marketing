@@ -62,7 +62,7 @@ export default defineHandler(async (event) => {
   }
 
   const existing = await queryFirst<{ status: string; organization_id: string; site_id: string | null }>(db, `
-    SELECT status, organization_id, site_id FROM work_requests WHERE id = ?
+    SELECT status, organization_id, site_id FROM requests WHERE kind = 'work' AND id = ?
   `, [id]);
 
   const now = new Date().toISOString();
@@ -70,15 +70,10 @@ export default defineHandler(async (event) => {
     body.status === "done" ? now : body.status ? null : undefined;
 
   const result = await execute(db, `
-    UPDATE work_requests SET
-      status = COALESCE(?, status), priority = COALESCE(?, priority), notes = COALESCE(?, notes), assigned_to = CASE WHEN ? = 1 THEN ? ELSE assigned_to END, completed_at = CASE
-        WHEN ? = 'done' THEN ?
-        WHEN ? IS NOT NULL AND ? != 'done' THEN NULL
-        ELSE completed_at
-      END, updated_at = ?
-    WHERE id = ?
-  `, [
-    body.status ?? null, body.priority ?? null, body.notes ?? null, "assigned_to" in body ? 1 : 0, body.assigned_to ?? null, body.status ?? null, completedAt ?? null, body.status ?? null, body.status ?? null, now, id, ]);
+    UPDATE requests SET status = COALESCE(?, status), priority = COALESCE(?, priority),
+      payload_json = json_set(payload_json, '$.notes', COALESCE(?, json_extract(payload_json, '$.notes')), '$.completed_at', CASE WHEN ? = 'done' THEN ? WHEN ? IS NOT NULL THEN NULL ELSE json_extract(payload_json, '$.completed_at') END),
+      assigned_to = CASE WHEN ? = 1 THEN ? ELSE assigned_to END, updated_at = ? WHERE kind = 'work' AND id = ?
+  `, [body.status ?? null, body.priority ?? null, body.notes ?? null, body.status ?? null, completedAt ?? null, body.status ?? null, "assigned_to" in body ? 1 : 0, body.assigned_to ?? null, now, id]);
 
   if (result.meta.changes === 0)
     return jsonResponse({ error: "Request not found" }, { status: 404 });

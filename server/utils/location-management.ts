@@ -848,21 +848,17 @@ export async function deleteLocation(
   const statements = [
     ...resourceLocalizationDeletionQueries('business_location', { query: 'SELECT id FROM business_locations WHERE id = ? AND site_id = ?', params: [locationId, siteId] }),
     ...([
-      ['product', 'products'], ['product_category', 'product_categories'], ['experience', 'experiences'],
-      ['site_post', 'posts'], ['location_qa', 'location_qa'], ['booking_policy', 'booking_policies'],
+      ['product', 'products'], ['product_category', 'product_categories'],
+      ['site_post', 'posts'], ['location_qa', 'location_qa'],
     ] as const).flatMap(([type, table]) => resourceLocalizationDeletionQueries(type, {
       query: `SELECT id FROM ${table} WHERE location_id = ? AND site_id = ?`, params: [locationId, siteId],
     })),
     { query: `DELETE FROM media_placements WHERE site_id = ? AND (
         (owner_type = 'product' AND owner_id IN (SELECT id FROM products WHERE location_id = ?)) OR
-        (owner_type = 'experience' AND owner_id IN (SELECT id FROM experiences WHERE location_id = ?)) OR
         (owner_type = 'post' AND owner_id IN (SELECT id FROM posts WHERE location_id = ?)) OR
         (owner_type = 'review' AND owner_id IN (SELECT id FROM reviews WHERE location_id = ?))
-      )`, params: [siteId, locationId, locationId, locationId, locationId] },
-    { query: `UPDATE review_requests SET revoked_at = ?, updated_at = ? WHERE site_id = ? AND revoked_at IS NULL AND (
-        (booking_type = 'reservation' AND booking_id IN (SELECT id FROM reservation_submissions WHERE location_id = ?)) OR
-        (booking_type = 'experience_booking' AND booking_id IN (SELECT id FROM experience_bookings WHERE location_id = ?))
-      )`, params: [now, now, siteId, locationId, locationId] },
+      )`, params: [siteId, locationId, locationId, locationId] },
+    { query: `UPDATE review_requests SET revoked_at = ?, updated_at = ? WHERE site_id = ? AND revoked_at IS NULL AND booking_id IN (SELECT id FROM requests WHERE location_id = ? AND kind IN ('reservation', 'experience_booking'))`, params: [now, now, siteId, locationId] },
     { query: 'DELETE FROM reviews WHERE location_id = ? AND site_id = ?', params: [locationId, siteId] },
     {
       query: `
@@ -882,18 +878,9 @@ export async function deleteLocation(
     },
     {
       query: `
-      DELETE FROM guest_threads
-      WHERE organization_id = ? AND site_id = ?
-        AND (
-          (submission_type = 'reservation' AND submission_id IN (
-            SELECT id FROM reservation_submissions WHERE location_id = ?
-          ))
-          OR (submission_type = 'experience_booking' AND submission_id IN (
-            SELECT id FROM experience_bookings WHERE location_id = ?
-          ))
-        )
+      DELETE FROM requests WHERE organization_id = ? AND site_id = ? AND location_id = ? AND kind IN ('reservation', 'experience_booking')
     `,
-      params: [organizationId, siteId, locationId, locationId],
+      params: [organizationId, siteId, locationId],
     },
     {
       query: `

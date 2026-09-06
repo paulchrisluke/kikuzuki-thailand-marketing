@@ -1,3 +1,4 @@
+import { bookingPayloadForGuest, requestInsertQueries } from '~/server/domain/requests'
 import { parseRecurringSlots, type RecurringSlots, type Weekday } from '~/shared/reservation-hours'
 import { resourceLocalizationDeletionQueries } from '~/server/utils/localization'
 import { HTTPError } from 'nitro';
@@ -66,7 +67,7 @@ export interface Experience {
   created_at: string
   updated_at: string
   // Only present once attachAvailabilitySummaries has run (public list/detail/bootstrap
-  // responses) — absent on raw rows from create/update/CMS/MCP paths.
+  // responses) â€” absent on raw rows from create/update/CMS/MCP paths.
   availability_state?: AvailabilityState
   next_available_date?: string | null
   next_available_time?: string | null
@@ -156,7 +157,7 @@ function parseRow(row: ExperienceRow): Experience {
 }
 
 export async function attachExperienceMedia<T extends Experience>(db: DbClient, siteId: string, experiences: T[]): Promise<T[]> {
-  const mediaByExperience = await loadPublicSocialMedia(db, siteId, 'experience', experiences.map(experience => experience.id))
+  const mediaByExperience = await loadPublicSocialMedia(db, siteId, 'product', experiences.map(experience => experience.id))
   return experiences.map(experience => ({
     ...experience,
     media: mediaByExperience.get(experience.id)?.media ?? [],
@@ -165,18 +166,17 @@ export async function attachExperienceMedia<T extends Experience>(db: DbClient, 
 }
 
 const SELECT = `
-  SELECT e.id, e.organization_id, e.site_id, e.location_id,
-         p.name AS title, p.slug, e.tagline, p.description AS body, e.pricing_note,
+  SELECT p.id, p.organization_id, p.site_id, p.location_id,
+         p.name AS title, p.slug, json_extract(p.experience_json, '$.tagline') AS tagline, p.description AS body, json_extract(p.experience_json, '$.pricing_note') AS pricing_note,
          pr.id AS price_id, pr.amount_minor, pr.currency, pr.unit AS price_unit,
          pr.tax_behavior, pr.compare_at_amount_minor, pr.valid_from, pr.valid_until,
          pr.provenance, pr.created_by AS price_created_by, pr.created_at AS price_created_at,
-         e.duration_minutes, e.max_capacity, e.recurring_slots,
-         p.tags_json, p.details_json, e.included_items, e.what_to_bring, e.meeting_point,
+         json_extract(p.experience_json, '$.duration_minutes') AS duration_minutes, json_extract(p.experience_json, '$.max_capacity') AS max_capacity, json_extract(p.experience_json, '$.recurring_slots') AS recurring_slots,
+         p.tags_json, p.details_json, json_extract(p.experience_json, '$.included_items') AS included_items, json_extract(p.experience_json, '$.what_to_bring') AS what_to_bring, json_extract(p.experience_json, '$.meeting_point') AS meeting_point,
          CASE WHEN p.is_visible = 0 THEN 'inactive' WHEN p.available = 0 THEN 'sold_out' ELSE 'active' END AS status,
          p.sort_order, p.featured, p.featured_sort_order,
          p.seo_title, p.seo_description, p.canonical_url, p.robots, p.created_at, p.updated_at
-  FROM experiences e
-  JOIN products p ON p.id = e.id AND p.site_id = e.site_id AND p.organization_id = e.organization_id
+  FROM products p
   LEFT JOIN prices pr ON pr.product_id = p.id AND pr.organization_id = p.organization_id
     AND pr.site_id = p.site_id AND pr.valid_from <= strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
     AND (pr.valid_until IS NULL OR pr.valid_until > strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
@@ -187,16 +187,16 @@ export async function listExperiences(
   siteId: string,
   opts: { activeOnly?: boolean; locationId?: string } = {},
 ): Promise<Experience[]> {
-  let sql = SELECT + ` WHERE e.site_id = ?`
+  let sql = SELECT + ` WHERE p.product_type = 'experience' AND p.site_id = ?`
   const params: (string | number)[] = [siteId]
 
   if (opts.activeOnly) {
-    // "active-only" means publicly visible, not "bookable" — sold_out experiences
+    // "active-only" means publicly visible, not "bookable" â€” sold_out experiences
     // stay visible with sold-out messaging; inactive experiences are hidden.
     sql += ` AND p.is_visible = 1`
   }
   if (opts.locationId) {
-    sql += ` AND e.location_id = ?`
+    sql += ` AND p.location_id = ?`
     params.push(opts.locationId)
   }
   sql += ` ORDER BY p.sort_order ASC, p.created_at ASC`
@@ -210,7 +210,7 @@ export async function getExperienceBySlug(
   siteId: string,
   slug: string,
 ): Promise<Experience | null> {
-  const row = await queryFirst<ExperienceRow>(db, SELECT + ` WHERE e.site_id = ? AND p.slug = ? LIMIT 1`, [siteId, slug])
+  const row = await queryFirst<ExperienceRow>(db, SELECT + ` WHERE p.product_type = 'experience' AND p.site_id = ? AND p.slug = ? LIMIT 1`, [siteId, slug])
   if (!row) return null
   const [experience] = await attachExperienceMedia(db, siteId, [parseRow(row)])
   return experience ?? null
@@ -223,12 +223,12 @@ export async function getExperienceById(
 ): Promise<Experience | null> {
   // Check id first so a slug that happens to collide with another row's id can
   // never shadow the row actually addressed by that id.
-  const byId = await queryFirst<ExperienceRow>(db, SELECT + ` WHERE e.site_id = ? AND e.id = ? LIMIT 1`, [siteId, idOrSlug])
+  const byId = await queryFirst<ExperienceRow>(db, SELECT + ` WHERE p.product_type = 'experience' AND p.site_id = ? AND p.id = ? LIMIT 1`, [siteId, idOrSlug])
   if (byId) {
     const [experience] = await attachExperienceMedia(db, siteId, [parseRow(byId)])
     return experience ? attachScheduledPrices(db, experience) : null
   }
-  const bySlug = await queryFirst<ExperienceRow>(db, SELECT + ` WHERE e.site_id = ? AND p.slug = ? LIMIT 1`, [siteId, idOrSlug])
+  const bySlug = await queryFirst<ExperienceRow>(db, SELECT + ` WHERE p.product_type = 'experience' AND p.site_id = ? AND p.slug = ? LIMIT 1`, [siteId, idOrSlug])
   if (!bySlug) return null
   const [experience] = await attachExperienceMedia(db, siteId, [parseRow(bySlug)])
   return experience ? attachScheduledPrices(db, experience) : null
@@ -257,12 +257,12 @@ async function attachScheduledPrices(db: DbClient, experience: Experience): Prom
 }
 
 // Used by callers (update/delete/bookings) that need the canonical row id before
-// running their own queries against other tables — getExperienceById/BySlug above
+// running their own queries against other tables â€” getExperienceById/BySlug above
 // already accept either form directly for reads of the experience itself.
 async function resolveExperienceId(db: DbClient, siteId: string, idOrSlug: string): Promise<string | null> {
-  const byId = await queryFirst<{ id: string }>(db, `SELECT id FROM experiences WHERE site_id = ? AND id = ? LIMIT 1`, [siteId, idOrSlug])
+  const byId = await queryFirst<{ id: string }>(db, `SELECT id FROM products WHERE product_type = 'experience' AND site_id = ? AND id = ? LIMIT 1`, [siteId, idOrSlug])
   if (byId) return byId.id
-  const bySlug = await queryFirst<{ id: string }>(db, `SELECT p.id FROM products p JOIN experiences e ON e.id = p.id WHERE p.site_id = ? AND p.slug = ? LIMIT 1`, [siteId, idOrSlug])
+  const bySlug = await queryFirst<{ id: string }>(db, `SELECT p.id FROM products p WHERE p.product_type = 'experience' AND p.site_id = ? AND p.slug = ? LIMIT 1`, [siteId, idOrSlug])
   return bySlug?.id ?? null
 }
 
@@ -381,7 +381,7 @@ export function generateSlots(startTime: string, endTime: string, intervalMinute
     const m = (t % 60).toString().padStart(2, '0')
     slots.push(`${h}:${m}`)
     if (slots.length > MAX_TOTAL_SLOTS) {
-      throw new HTTPError({ statusCode: 400, statusMessage: `interval is too small — generated more than ${MAX_TOTAL_SLOTS} slots` })
+      throw new HTTPError({ statusCode: 400, statusMessage: `interval is too small â€” generated more than ${MAX_TOTAL_SLOTS} slots` })
     }
   }
   return slots
@@ -430,36 +430,20 @@ export async function createExperience(
       query: `INSERT INTO products
        (id, organization_id, site_id, location_id, product_type, category_id, name, slug,
         description, order_url, is_visible, available, featured, featured_sort_order,
-        sort_order, tags_json, details_json, seo_title, seo_description, canonical_url,
+        sort_order, tags_json, details_json, experience_json, seo_title, seo_description, canonical_url,
         robots, source, created_at, updated_at, created_by, updated_by)
-        VALUES (?,?,?,?, 'experience', ?, ?,?,?, NULL,?,?,?,?,?,?,?,?,?,?,?, 'manual',?,?,?,?)`,
+        VALUES (?,?,?,?, 'experience', ?, ?,?,?, NULL,?,?,?,?,?,?,?,?,?,?,?,?, 'manual',?,?,?,?)`,
       params: [
         id, organizationId, siteId, input.location_id, experienceCategoryId, input.title, slug, input.body ?? '',
         status === 'inactive' ? 0 : 1, status === 'sold_out' ? 0 : 1,
         input.featured ? 1 : 0, input.featured_sort_order ?? 0, input.sort_order ?? 0,
         JSON.stringify(tags), JSON.stringify(details),
+        JSON.stringify({ tagline: input.tagline ?? null, pricing_note: normalizedPrice ? null : input.pricing_note?.trim() || null, duration_minutes: input.duration_minutes ?? null, max_capacity: input.max_capacity ?? null, recurring_slots: recurringSlotsJson ? JSON.parse(recurringSlotsJson) : null, included_items: includedItemsJson ? JSON.parse(includedItemsJson) : null, what_to_bring: whatToBringJson ? JSON.parse(whatToBringJson) : null, meeting_point: input.meeting_point ?? null, cancellation_policy: null, created_at: now, updated_at: now }),
         input.seo_title ?? null, input.seo_description ?? null, input.canonical_url ?? null, input.robots ?? null,
         now, now, userId, userId,
       ],
     },
-    {
-      query: `INSERT INTO experiences
-       (id, organization_id, site_id, location_id, tagline, pricing_note,
-        duration_minutes, max_capacity, recurring_slots,
-        included_items, what_to_bring, meeting_point, created_at, updated_at)
-       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-      params: [
-        id, organizationId, siteId, input.location_id,
-        input.tagline ?? null,
-        normalizedPrice ? null : input.pricing_note?.trim() || null,
-        input.duration_minutes ?? null,
-        input.max_capacity ?? null,
-        recurringSlotsJson,
-        includedItemsJson,
-        whatToBringJson,
-        input.meeting_point ?? null, now, now,
-      ],
-    },
+
   ]
   if (normalizedPrice) {
     queries.push({
@@ -477,7 +461,7 @@ export async function createExperience(
     queries.push(...insertInitialMediaPlacements({
       organizationId,
       siteId,
-      placement: { owner_type: 'experience', owner_id: id, slot: 'gallery' },
+      placement: { owner_type: 'product', owner_id: id, slot: 'gallery' },
       media,
       now,
     }))
@@ -507,7 +491,7 @@ export async function createExperience(
       status: created.status,
     },
   })
-  await refreshSocialCard({ db, env, owner: { owner_type: 'experience', owner_id: id }, actorId: userId })
+  await refreshSocialCard({ db, env, owner: { owner_type: 'product', owner_id: id }, actorId: userId })
   return created
 }
 
@@ -523,8 +507,8 @@ export async function updateExperience(
   assertFiniteNonNegative(input.duration_minutes, 'duration_minutes')
   const owner = await queryFirst<{ organization_id: string; location_id: string; updated_by: string }>(db, `
     SELECT p.organization_id, p.location_id, p.updated_by
-      FROM products p JOIN experiences e ON e.id = p.id
-     WHERE p.site_id = ? AND p.id = ? LIMIT 1
+      FROM products p
+     WHERE p.product_type = 'experience' AND p.site_id = ? AND p.id = ? LIMIT 1
   `, [siteId, id])
   if (!owner) return null
   const activePrice = await queryFirst<{ id: string }>(db, `
@@ -593,7 +577,7 @@ export async function updateExperience(
   }
   if (experienceSets.length) {
     experienceSets.push('updated_at = ?')
-    queries.push({ query: `UPDATE experiences SET ${experienceSets.join(', ')} WHERE organization_id = ? AND site_id = ? AND id = ?`, params: [...experienceParams, now, owner.organization_id, siteId, id] })
+    queries.push({ query: `UPDATE products SET experience_json = json_set(experience_json, ${experienceSets.map(set => `'$.${set.split(' = ')[0]}', ${['recurring_slots', 'included_items', 'what_to_bring'].includes(set.split(' = ')[0]!) ? 'json(?)' : '?'}`).join(', ')}), updated_at = ? WHERE organization_id = ? AND site_id = ? AND id = ? AND product_type = 'experience'`, params: [...experienceParams, now, now, owner.organization_id, siteId, id] })
   }
   if (input.price !== undefined) {
     const replacement = input.price ? await normalizeExperiencePrice(db, owner.organization_id, siteId, input.price) : null
@@ -611,7 +595,7 @@ export async function updateExperience(
   if (!queries.length) return getExperienceById(db, siteId, id)
   await executeBatch(db, queries)
   const updated = await getExperienceById(db, siteId, id)
-  await refreshSocialCard({ db, env, owner: { owner_type: 'experience', owner_id: id } })
+  await refreshSocialCard({ db, env, owner: { owner_type: 'product', owner_id: id } })
   return updated
 }
 
@@ -629,27 +613,20 @@ export async function deleteExperience(
     params.push(opts.locationId)
   }
   const results = await executeBatch(db, [
-    ...resourceLocalizationDeletionQueries('experience', { query: `SELECT id FROM experiences WHERE ${where}`, params }),
-    ...resourceLocalizationDeletionQueries('product', { query: `SELECT id FROM experiences WHERE ${where}`, params }),
-    { query: `DELETE FROM media_placements WHERE owner_type = 'review' AND owner_id IN (SELECT id FROM reviews WHERE product_id IN (SELECT id FROM experiences WHERE ${where}))`, params },
-    { query: `DELETE FROM media_placements WHERE owner_type = 'product' AND owner_id IN (SELECT id FROM experiences WHERE ${where})`, params },
-    { query: `DELETE FROM reviews WHERE product_id IN (SELECT id FROM experiences WHERE ${where})`, params },
-    ...resourceLocalizationDeletionQueries('booking_policy', { query: `SELECT id FROM booking_policies WHERE experience_id IN (SELECT id FROM experiences WHERE ${where})`, params }),
-    { query: `UPDATE review_requests SET revoked_at = ?, updated_at = ? WHERE booking_type = 'experience_booking' AND booking_id IN (SELECT id FROM experience_bookings WHERE experience_id IN (SELECT id FROM experiences WHERE ${where})) AND revoked_at IS NULL`, params: [new Date().toISOString(), new Date().toISOString(), ...params] },
+    ...resourceLocalizationDeletionQueries('product', { query: `SELECT id FROM products WHERE product_type = 'experience' AND ${where}`, params }),
+    { query: `DELETE FROM media_placements WHERE owner_type = 'review' AND owner_id IN (SELECT id FROM reviews WHERE product_id IN (SELECT id FROM products WHERE product_type = 'experience' AND ${where}))`, params },
+    { query: `DELETE FROM media_placements WHERE owner_type = 'product' AND owner_id IN (SELECT id FROM products WHERE product_type = 'experience' AND ${where})`, params },
+    { query: `DELETE FROM reviews WHERE product_id IN (SELECT id FROM products WHERE product_type = 'experience' AND ${where})`, params },
+    { query: `UPDATE review_requests SET revoked_at = ?, updated_at = ? WHERE booking_type = 'experience_booking' AND booking_id IN (SELECT id FROM requests WHERE kind = 'experience_booking' AND product_id IN (SELECT id FROM products WHERE product_type = 'experience' AND ${where})) AND revoked_at IS NULL`, params: [new Date().toISOString(), new Date().toISOString(), ...params] },
     {
-      query: `DELETE FROM media_placements WHERE owner_type = 'experience' AND owner_id IN (SELECT id FROM experiences WHERE ${where})`,
+      query: `DELETE FROM media_placements WHERE owner_type = 'experience' AND owner_id IN (SELECT id FROM products WHERE product_type = 'experience' AND ${where})`,
       params,
     },
     {
-      query: `DELETE FROM guest_threads
-        WHERE submission_type = 'experience_booking'
-          AND submission_id IN (
-            SELECT id FROM experience_bookings
-            WHERE experience_id IN (SELECT id FROM experiences WHERE ${where})
-          )`,
+      query: `DELETE FROM requests WHERE kind = 'experience_booking' AND product_id IN (SELECT id FROM products WHERE product_type = 'experience' AND ${where})`,
       params,
     },
-    { query: `DELETE FROM products WHERE id IN (SELECT id FROM experiences WHERE ${where})`, params },
+    { query: `DELETE FROM products WHERE id IN (SELECT id FROM products WHERE product_type = 'experience' AND ${where})`, params },
   ])
   return Boolean(results.at(-1)?.meta.changes)
 }
@@ -669,7 +646,7 @@ export interface ExperienceBooking {
   party_size: number
   booking_date: string
   time_slot: string
-  status: 'pending' | 'confirmed' | 'cancelled'
+  status: 'pending' | 'confirmed' | 'cancelled' | 'completed'
   notes: string | null
   cancellation_token_hash?: string | null
   cancellation_token_expires_at?: string | null
@@ -691,18 +668,14 @@ export async function createExperienceBookingClaimingCapacity(
   const now = new Date().toISOString()
   const [snapshot] = await readAvailability(db, { siteId: input.site_id, owners: [{ kind: 'experience', experienceId: input.experience_id }], dates: [input.booking_date] })
   if (snapshot!.row.organization_id !== input.organization_id || snapshot!.row.location_id !== input.location_id) return null
-  await executeAvailabilityClaim(db, { snapshot: snapshot!, date: input.booking_date, time: input.time_slot, partySize: input.party_size, statement: {
-    query: `INSERT INTO experience_bookings
-       (id, experience_id, organization_id, site_id, customer_id, location_id, guest_name, guest_email, guest_phone,
-        party_size, booking_date, time_slot, status, notes, ip_hash,
-        cancellation_token_hash, cancellation_token_expires_at, created_at, updated_at)
-     SELECT ?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,? WHERE /* availability_claim */`,
-    params: [id, input.experience_id, input.organization_id, input.site_id, input.customer_id ?? null, input.location_id,
-      input.guest_name, input.guest_email, input.guest_phone ?? null, input.party_size, input.booking_date, input.time_slot,
-      input.status ?? 'pending', input.notes ?? null, input.ip_hash ?? null, input.cancellation_token_hash ?? null,
-      input.cancellation_token_expires_at ?? null, now, now],
-  } })
-  if (!await queryFirst(db, 'SELECT id FROM experience_bookings WHERE id = ?', [id])) return null
+  const payload = bookingPayloadForGuest({ name: input.guest_name, email: input.guest_email, phone: input.guest_phone, notes: input.notes, ipHash: input.ip_hash })
+  payload.cancellation = { token_hash: input.cancellation_token_hash ?? null, expires_at: input.cancellation_token_expires_at ?? null, used_at: null }
+  const [statement, ...following] = requestInsertQueries({ id, kind: 'experience_booking', organization_id: input.organization_id, site_id: input.site_id, location_id: input.location_id,
+    product_id: input.experience_id, customer_id: input.customer_id ?? null, review_id: input.review_id ?? null, status: input.status, booking_date: input.booking_date, time_slot: input.time_slot, party_size: input.party_size,
+    conversation_state: 'needs_attention', resolved_at: null, payload, created_at: now, updated_at: now })
+  statement.query = statement.query.replace(/VALUES \(([^)]+)\)/, 'SELECT $1 WHERE /* availability_claim */')
+  await executeAvailabilityClaim(db, { snapshot: snapshot!, date: input.booking_date, time: input.time_slot, partySize: input.party_size, statement, following })
+  if (!await queryFirst(db, 'SELECT id FROM requests WHERE id = ?', [id])) return null
 
   return { ...input, id, status: (input.status ?? 'pending') as ExperienceBooking['status'], created_at: now, updated_at: now }
 }
@@ -717,28 +690,28 @@ export async function listExperienceBookings(
   if (opts.locationId) {
     const experience = await queryFirst<{ id: string }>(
       db,
-      `SELECT id FROM experiences WHERE site_id = ? AND id = ? AND location_id = ? LIMIT 1`,
+      `SELECT id FROM products WHERE product_type = 'experience' AND site_id = ? AND id = ? AND location_id = ? LIMIT 1`,
       [siteId, experienceId, opts.locationId],
     )
     if (!experience) return []
   }
   const params = [siteId, experienceId]
-  let where = `eb.site_id = ? AND eb.experience_id = ?`
+  let where = `eb.kind = 'experience_booking' AND eb.site_id = ? AND eb.product_id = ?`
   if (opts.locationId) {
     where += ` AND eb.location_id = ?`
     params.push(opts.locationId)
   }
   const results = await queryAll<ExperienceBooking>(
     db,
-    `SELECT eb.id, eb.experience_id, eb.organization_id, eb.site_id,
+    `SELECT eb.id, eb.product_id AS experience_id, eb.organization_id, eb.site_id,
               eb.location_id,
               bl.title AS location_title,
-              eb.guest_name, eb.guest_email,
-              eb.guest_phone, eb.party_size, eb.booking_date, eb.time_slot,
-              eb.status, eb.notes, eb.completed_at, eb.completion_source,
-              eb.review_request_sent_at, eb.review_reminder_sent_at,
-              eb.review_submitted_at, eb.review_id, eb.created_at, eb.updated_at
-	       FROM experience_bookings eb
+              json_extract(eb.payload_json, '$.guest.name') AS guest_name, json_extract(eb.payload_json, '$.guest.email') AS guest_email,
+              json_extract(eb.payload_json, '$.guest.phone') AS guest_phone, eb.party_size, eb.booking_date, eb.time_slot,
+              eb.status, json_extract(eb.payload_json, '$.notes') AS notes, json_extract(eb.payload_json, '$.completion.at') AS completed_at, json_extract(eb.payload_json, '$.completion.source') AS completion_source,
+              json_extract(eb.payload_json, '$.review.request_sent_at') AS review_request_sent_at, json_extract(eb.payload_json, '$.review.reminder_sent_at') AS review_reminder_sent_at,
+              json_extract(eb.payload_json, '$.review.submitted_at') AS review_submitted_at, eb.review_id, eb.created_at, eb.updated_at
+	       FROM requests eb
 	       LEFT JOIN business_locations bl ON bl.id = eb.location_id
 	       WHERE ${where}
 	       ORDER BY eb.booking_date ASC, eb.time_slot ASC, eb.created_at ASC`,
@@ -753,7 +726,7 @@ export async function listExperienceBookingsForSite(
   opts: { locationId?: string | null; sinceDays?: number | null; limit?: number | null } = {},
 ): Promise<Array<ExperienceBooking & { experience_title?: string | null }>> {
   const params: (string | number)[] = [siteId]
-  let where = `eb.site_id = ?`
+  let where = `eb.kind = 'experience_booking' AND eb.site_id = ?`
   const limit = Math.max(1, Math.min(opts.limit ?? 200, 500))
   if (opts.locationId) {
     where += ` AND eb.location_id = ?`
@@ -765,18 +738,18 @@ export async function listExperienceBookingsForSite(
   }
   const results = await queryAll<ExperienceBooking & { experience_title?: string | null }>(
     db,
-    `SELECT eb.id, eb.experience_id, eb.organization_id, eb.site_id,
+    `SELECT eb.id, eb.product_id AS experience_id, eb.organization_id, eb.site_id,
               eb.location_id,
               bl.title AS location_title,
               p.name AS experience_title,
-              eb.guest_name, eb.guest_email,
-              eb.guest_phone, eb.party_size, eb.booking_date, eb.time_slot,
-              eb.status, eb.notes, eb.completed_at, eb.completion_source,
-              eb.review_request_sent_at, eb.review_reminder_sent_at,
-              eb.review_submitted_at, eb.review_id, eb.created_at, eb.updated_at
-	       FROM experience_bookings eb
+              json_extract(eb.payload_json, '$.guest.name') AS guest_name, json_extract(eb.payload_json, '$.guest.email') AS guest_email,
+              json_extract(eb.payload_json, '$.guest.phone') AS guest_phone, eb.party_size, eb.booking_date, eb.time_slot,
+              eb.status, json_extract(eb.payload_json, '$.notes') AS notes, json_extract(eb.payload_json, '$.completion.at') AS completed_at, json_extract(eb.payload_json, '$.completion.source') AS completion_source,
+              json_extract(eb.payload_json, '$.review.request_sent_at') AS review_request_sent_at, json_extract(eb.payload_json, '$.review.reminder_sent_at') AS review_reminder_sent_at,
+              json_extract(eb.payload_json, '$.review.submitted_at') AS review_submitted_at, eb.review_id, eb.created_at, eb.updated_at
+	       FROM requests eb
 	       LEFT JOIN business_locations bl ON bl.id = eb.location_id
-	       LEFT JOIN products p ON p.id = eb.experience_id
+	       LEFT JOIN products p ON p.id = eb.product_id
 	       WHERE ${where}
 	       ORDER BY eb.created_at DESC
 	       LIMIT ?`,
@@ -791,7 +764,7 @@ export async function getExperienceBookingsSummary(
   opts: { locationId?: string | null; sinceDays?: number | null } = {},
 ): Promise<BookingsSummary> {
   const params: (string | number)[] = [siteId]
-  let where = `eb.site_id = ?`
+  let where = `eb.kind = 'experience_booking' AND eb.site_id = ?`
   if (opts.locationId) {
     where += ` AND eb.location_id = ?`
     params.push(opts.locationId)
@@ -804,21 +777,21 @@ export async function getExperienceBookingsSummary(
   const [totalResult, statusResults, experienceResults] = await Promise.all([
     queryFirst<{ count: number }>(
       db,
-      `SELECT COUNT(*) as count FROM experience_bookings eb WHERE ${where}`,
+      `SELECT COUNT(*) as count FROM requests eb WHERE ${where}`,
       params,
     ),
     queryAll<{ status: string; count: number }>(
       db,
-      `SELECT status, COUNT(*) as count FROM experience_bookings eb WHERE ${where} GROUP BY status`,
+      `SELECT status, COUNT(*) as count FROM requests eb WHERE ${where} GROUP BY status`,
       params,
     ),
     queryAll<{ experience_id: string; experience_title: string | null; count: number }>(
       db,
-      `SELECT eb.experience_id, p.name AS experience_title, COUNT(*) as count
-       FROM experience_bookings eb
-       LEFT JOIN products p ON p.id = eb.experience_id
+      `SELECT eb.product_id AS experience_id, p.name AS experience_title, COUNT(*) as count
+       FROM requests eb
+       LEFT JOIN products p ON p.id = eb.product_id
        WHERE ${where}
-       GROUP BY eb.experience_id, p.name
+       GROUP BY eb.product_id, p.name
        ORDER BY count DESC`,
       params,
     ),
@@ -865,13 +838,13 @@ export async function updateBookingStatus(
   siteId: string,
   experienceIdOrSlug: string,
   bookingId: string,
-  status: 'pending' | 'confirmed' | 'cancelled',
+  status: 'pending' | 'confirmed' | 'cancelled' | 'completed',
 ): Promise<boolean> {
   const experienceId = (await resolveExperienceId(db, siteId, experienceIdOrSlug)) ?? experienceIdOrSlug
   const result = await execute(
     db,
-    `UPDATE experience_bookings SET status = ?, updated_at = ?
-       WHERE site_id = ? AND experience_id = ? AND id = ?`,
+    `UPDATE requests SET status = ?, updated_at = ?
+       WHERE kind = 'experience_booking' AND site_id = ? AND product_id = ? AND id = ?`,
     [status, new Date().toISOString(), siteId, experienceId, bookingId],
   )
   if (status === 'cancelled' && result.meta.changes) {
@@ -884,12 +857,12 @@ export async function updateBookingStatusForSite(
   db: DbClient,
   siteId: string,
   bookingId: string,
-  status: 'pending' | 'confirmed' | 'cancelled',
+  status: 'pending' | 'confirmed' | 'cancelled' | 'completed',
 ): Promise<boolean> {
   const result = await execute(
     db,
-    `UPDATE experience_bookings SET status = ?, updated_at = ?
-       WHERE site_id = ? AND id = ?`,
+    `UPDATE requests SET status = ?, updated_at = ?
+       WHERE kind = 'experience_booking' AND site_id = ? AND id = ?`,
     [status, new Date().toISOString(), siteId, bookingId],
   )
   if (status === 'cancelled' && result.meta.changes) {
@@ -903,12 +876,12 @@ export const PUBLIC_BOOKING_WINDOW_DAYS = 31
 const AVAILABILITY_SUMMARY_WINDOW_DAYS = 14
 const LIMITED_REMAINING_THRESHOLD = 2
 
-// ── Availability summary (public cards/detail) ──────────────────────────────
+// â”€â”€ Availability summary (public cards/detail) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // Canonical status/booking-status mapping, since this schema keeps a single
 // `status` column rather than splitting publication vs. booking state:
-//   - 'inactive'  → never public, never bookable (excluded upstream by all list/detail queries).
-//   - 'sold_out'  → public, but globally not bookable (owner-set, independent of real slot math).
-//   - 'active'    → public; bookability is derived from real slots/bookings/overrides below.
+//   - 'inactive'  â†’ never public, never bookable (excluded upstream by all list/detail queries).
+//   - 'sold_out'  â†’ public, but globally not bookable (owner-set, independent of real slot math).
+//   - 'active'    â†’ public; bookability is derived from real slots/bookings/overrides below.
 export type AvailabilityState =
   | 'available'
   | 'limited'
@@ -927,7 +900,7 @@ export interface AvailabilitySummary {
 
 export async function attachAvailabilitySummaries<T extends Experience>(db: DbClient, siteId: string, list: T[]): Promise<Array<T & AvailabilitySummary>> {
   if (!list.length) return []
-  const snapshots = await readAvailability(db, { siteId, owners: list.map(e => ({ kind: 'experience', experienceId: e.id })), dates: { daysFromToday: AVAILABILITY_SUMMARY_WINDOW_DAYS } })
+  const snapshots = await readAvailability(db, { siteId, owners: list.map(experience => ({ kind: 'experience', experienceId: experience.id })), dates: { daysFromToday: AVAILABILITY_SUMMARY_WINDOW_DAYS } })
   return list.map(experience => {
     const snapshot = snapshots.find(s => s.row.owner_id === experience.id)!
     const none = { next_available_date: null, next_available_time: null }

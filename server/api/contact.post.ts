@@ -178,7 +178,7 @@ export default defineHandler(async (event) => {
     if (db) {
       try {
         await execute(
-          db, `INSERT INTO platform_contact_submissions (id, name, email, topic, message, source, route_context, suggested_summary, agent_metadata_json, ip_hash, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, [id, name, email, normalizedTopic, message, source, routeContext, suggestedSummary, agentMetadataJson, ipHash, now]
+          db, `INSERT INTO requests (id, kind, payload_json, created_at, updated_at) VALUES (?, 'platform_contact', ?, ?, ?)`, [id, JSON.stringify({ guest: { name, email, phone: null }, topic: normalizedTopic, message, source, route_context: routeContext, suggested_summary: suggestedSummary, agent_metadata: agentMetadataJson ? JSON.parse(agentMetadataJson) : null, ip_hash: ipHash }), now, now]
         )
       } catch (err) {
         console.error('Failed to store contact submission:', err)

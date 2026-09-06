@@ -8,8 +8,6 @@ import { getAuthSession } from '~/server/utils/auth'
 import { assertResourceAccess } from '~/server/utils/member-access'
 import { loadMemberSiteRow } from '~/server/utils/location-access'
 import { queryFirst } from '~/server/db'
-import { experienceBookingAdapter } from '~/server/domain/guest-threads/adapters/experience-booking'
-import { ensureGuestThread } from '~/server/domain/guest-threads/repository'
 import { executeGuestThreadOperation } from '~/server/domain/guest-threads/operations'
 import { publishDashboardInvalidation } from '~/server/cloudflare/guest-inbox-events'
 
@@ -31,7 +29,7 @@ export default defineHandler(async (event) => {
   const site = await loadMemberSiteRow(db, env, siteId, session.user.id)
   if (!site) return jsonResponse({ error: 'Site not found or access denied' }, { status: 404 })
 
-  const booking = await queryFirst<{ location_id: string; status: string; updated_at: string }>(db, `SELECT location_id, status, updated_at FROM experience_bookings WHERE id = ? AND site_id = ? LIMIT 1`, [bookingId, siteId])
+  const booking = await queryFirst<{ location_id: string; status: string; updated_at: string }>(db, `SELECT location_id, status, updated_at FROM requests WHERE kind = \'experience_booking\' AND id = ? AND site_id = ? LIMIT 1`, [bookingId, siteId])
   if (!booking) return jsonResponse({ error: 'Booking not found' }, { status: 404 })
 
   await assertResourceAccess(db, {
@@ -45,10 +43,9 @@ export default defineHandler(async (event) => {
     return jsonResponse({ error: 'Invalid status. Must be one of: confirmed, cancelled' }, { status: 400 })
   }
 
-  const thread = await ensureGuestThread(db, experienceBookingAdapter, bookingId)
 
   const outcome = await executeGuestThreadOperation(db, {
-    threadId: thread.id, siteId, action, actorUserId: session.user.id, env, idempotencyKey: `editor:experience-booking:${bookingId}:${booking.status}:${booking.updated_at}:${action}`, })
+    threadId: bookingId, siteId, action, actorUserId: session.user.id, env, idempotencyKey: `editor:experience-booking:${bookingId}:${booking.status}:${booking.updated_at}:${action}`, })
 
   if (!outcome.ok) {
     if (outcome.reason === 'thread_not_found' || outcome.reason === 'source_not_found') {

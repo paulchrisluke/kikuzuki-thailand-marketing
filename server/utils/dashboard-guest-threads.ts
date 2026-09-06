@@ -1,7 +1,7 @@
+import { getGuestRequest } from '~/server/domain/requests'
 import { HTTPError, type H3Event } from 'nitro'
 import { getGuestThreadDetail } from '~/server/domain/guest-threads/detail'
 import {
-  getGuestThreadById,
   getGuestThreadOperationSummary,
   listGuestThreads,
   listOrganizationGuestThreads,
@@ -74,7 +74,7 @@ export async function loadDashboardGuestThread(
   threadId: string,
 ) {
   const { db, env, site } = await requireSiteAccess(event, siteId, 'context')
-  const thread = await getGuestThreadById(db, threadId, siteId)
+  const thread = await getGuestRequest(db, threadId, siteId)
   if (!thread) {
     throw new HTTPError({ statusCode: 404, statusMessage: 'Thread not found' })
   }

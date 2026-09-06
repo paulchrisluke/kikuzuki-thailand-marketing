@@ -26,16 +26,16 @@ export default defineHandler(async (event) => {
 
   const [rows, count] = await Promise.all([
     queryAll<NotificationRow>(access.db, `
-      SELECT n.id, n.scope, n.template, n.severity, n.organization_id, n.site_id, n.location_id, n.target_user_id, n.title, n.message, n.deep_link, n.created_at, nr.read_at
-      FROM notifications n
-      LEFT JOIN notification_reads nr ON nr.notification_id = n.id AND nr.user_id = ?
+      SELECT n.id, json_extract(n.payload_json, '$.visibility_scope') AS scope, n.event_name AS template, json_extract(n.payload_json, '$.severity') AS severity, n.organization_id, n.site_id, n.location_id, n.target_user_id, json_extract(n.payload_json, '$.title') AS title, n.body AS message, json_extract(n.payload_json, '$.deep_link') AS deep_link, n.created_at, nr.read_at
+      FROM activity_entries n
+      LEFT JOIN (SELECT parent_id, MAX(occurred_at) AS read_at FROM activity_entries WHERE kind = 'acknowledgement' AND actor_user_id = ? GROUP BY parent_id) nr ON nr.parent_id = n.id
       WHERE ${access.whereSql}
       ORDER BY n.created_at DESC, n.id DESC
       LIMIT ?
     `, [access.userId, ...access.whereParams, limit]), queryFirst<{ count: number }>(access.db, `
       SELECT COUNT(*) AS count
-      FROM notifications n
-      LEFT JOIN notification_reads nr ON nr.notification_id = n.id AND nr.user_id = ?
+      FROM activity_entries n
+      LEFT JOIN (SELECT parent_id, MAX(occurred_at) AS read_at FROM activity_entries WHERE kind = 'acknowledgement' AND actor_user_id = ? GROUP BY parent_id) nr ON nr.parent_id = n.id
       WHERE ${access.whereSql} AND nr.read_at IS NULL
     `, [access.userId, ...access.whereParams]), ])
 

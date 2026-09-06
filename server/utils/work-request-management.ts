@@ -66,23 +66,8 @@ export async function createWorkRequest(
 
   const id = crypto.randomUUID()
   const now = new Date().toISOString()
-  await execute(db, `
-    INSERT INTO work_requests (
-      id, organization_id, site_id, type, title, description, priority, source, created_at, updated_at
-    )
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `, [
-    id,
-    organizationId,
-    siteId,
-    type,
-    title,
-    description,
-    priority,
-    source,
-    now,
-    now,
-  ])
+  await execute(db, `INSERT INTO requests (id, kind, organization_id, site_id, status, priority, payload_json, created_at, updated_at)
+    VALUES (?, 'work', ?, ?, 'pending', ?, ?, ?, ?)`, [id, organizationId, siteId, priority, JSON.stringify({ type, title, description, source, notes: null, completed_at: null }), now, now])
 
   return { status: 201, data: { success: true, id } }
 }
