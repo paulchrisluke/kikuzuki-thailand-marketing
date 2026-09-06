@@ -17,7 +17,9 @@ export function useOrganizationSettingsNavigation() {
     { id: 'appearance', label: 'Appearance', summary: `${preference.value.charAt(0).toUpperCase()}${preference.value.slice(1)} theme`, to: `${settingsPath.value}/appearance` },
     { id: 'members', label: 'Members', summary: 'People and organization access', to: `${settingsPath.value}/members` },
     { id: 'billing', label: 'Billing', summary: 'Plans, payments, and credits', to: `${settingsPath.value}/billing` },
-    { id: 'analytics', label: 'Analytics', summary: 'Google Analytics and Search Console', to: `${settingsPath.value}/analytics` },
+    // Named for what it is — connecting Google's tools — so it does not read as
+    // a second copy of Insights, which is where the figures actually live.
+    { id: 'analytics', label: 'Google Analytics', summary: 'Connect Google Analytics and Search Console', to: `${settingsPath.value}/analytics` },
     { id: 'chatgpt', label: 'ChatGPT', summary: 'Organization ChatGPT connection', to: `${settingsPath.value}/chatgpt` },
   ])
 

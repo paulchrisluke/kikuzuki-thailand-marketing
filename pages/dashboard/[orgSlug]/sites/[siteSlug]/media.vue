@@ -1,136 +1,125 @@
 <template>
-  <UDashboardPanel id="site-media">
-    <template #header>
-      <UDashboardNavbar title="Media library">
-        <template #leading>
-          <DashboardNavbarLeading v-if="sitePaths" :to="sitePaths.site" label="Site" />
-        </template>
-      </UDashboardNavbar>
-    </template>
-
-    <template #body>
-      <DashboardGridEditor
-        v-model:selecting="selecting"
-        v-model:selected="selectedIds"
-        title="Media library"
-        description="Site-wide library for page media, posts, galleries, and reusable assets."
-        :items="gridItems"
-        :pending="loading"
-        :error="loadError"
-        :empty-title="search || kindFilter ? 'No matches' : 'No media yet'"
-        :empty-icon="search || kindFilter ? 'i-lucide-search-x' : 'i-lucide-image'"
-        add-label="Upload media"
-        selection-title="Select media"
-        grid-class="grid grid-cols-4 gap-3 sm:grid-cols-5 lg:grid-cols-7"
-        :removing="deleting"
-        @add="openUploadPicker"
-        @open="openEditById"
-        @remove-many="deleteMany"
-      >
-        <template #filters>
-          <div class="flex flex-wrap items-center gap-2">
-            <UInput v-model="search" placeholder="Search files…" icon="i-lucide-search" size="sm" />
-            <div class="flex gap-1">
-              <UButton
-                v-for="k in kindTabs"
-                :key="k.value"
-                size="sm"
-                :variant="kindFilter === k.value ? 'soft' : 'ghost'"
-                color="neutral"
-                @click="kindFilter = k.value; load()"
-              >
-                {{ k.label }}
-              </UButton>
-            </div>
-          </div>
-
-          <div
-            class="mt-4 flex cursor-pointer flex-col items-center justify-center gap-3 rounded-lg border-2 border-dashed px-6 py-8 transition-colors"
-            :class="[isDragging ? 'border-primary bg-primary/5' : 'border-default hover:border-accented', uploadLoading ? 'pointer-events-none opacity-60' : '']"
-            @dragenter.prevent="handleDragEnter"
-            @dragover.prevent="handleDragOver"
-            @dragleave.prevent="handleDragLeave"
-            @drop.prevent="handleDrop"
-            @click="openUploadPicker"
+  <div class="space-y-6">
+  <DashboardGridEditor
+    v-model:selecting="selecting"
+    v-model:selected="selectedIds"
+    title="Media library"
+    description="Site-wide library for page media, posts, galleries, and reusable assets."
+    :items="gridItems"
+    :pending="loading"
+    :error="loadError"
+    :empty-title="search || kindFilter ? 'No matches' : 'No media yet'"
+    :empty-icon="search || kindFilter ? 'i-lucide-search-x' : 'i-lucide-image'"
+    add-label="Upload media"
+    selection-title="Select media"
+    grid-class="grid grid-cols-4 gap-3 sm:grid-cols-5 lg:grid-cols-7"
+    :removing="deleting"
+    @add="openUploadPicker"
+    @open="openEditById"
+    @remove-many="deleteMany"
+  >
+    <template #filters>
+      <div class="flex flex-wrap items-center gap-2">
+        <UInput v-model="search" placeholder="Search files…" icon="i-lucide-search" size="sm" />
+        <div class="flex gap-1">
+          <UButton
+            v-for="k in kindTabs"
+            :key="k.value"
+            size="sm"
+            :variant="kindFilter === k.value ? 'soft' : 'ghost'"
+            color="neutral"
+            @click="kindFilter = k.value; load()"
           >
-            <UIcon name="i-lucide-upload" class="size-7 text-muted" />
-            <p class="text-sm text-muted">Drag and drop images or videos here, or <span class="cursor-pointer text-primary">click to browse</span></p>
-            <p class="text-xs text-muted">Images up to {{ formatSize(IMAGE_MAX_SIZE_BYTES) }} via Cloudflare Images · Videos up to {{ formatSize(VIDEO_MAX_SIZE_BYTES) }} via R2</p>
-          </div>
-
-          <UInput ref="fileInput" type="file" accept="image/*,video/*" class="hidden" :disabled="uploadLoading" @change="onFileSelect" />
-
-          <UAlert v-if="uploadError" color="error" variant="soft" :description="uploadError" icon="i-lucide-triangle-alert" class="mt-4" />
-          <div v-if="pendingRetryFile" class="mt-4">
-            <UButton size="sm" color="neutral" variant="soft" :loading="uploadLoading" :disabled="uploadLoading" @click="retryPendingUpload">
-              Retry confirm
-            </UButton>
-          </div>
-        </template>
-
-        <template #tile="{ item }">
-          <img
-            v-if="item.row.thumbnail_url || (item.row.kind === 'image' && item.row.public_url)"
-            :src="item.row.thumbnail_url || item.row.public_url || undefined"
-            :alt="item.row.alt_text || item.row.file_name || ''"
-            class="h-full w-full object-cover"
-            loading="lazy"
-          >
-          <div v-else class="flex h-full w-full items-center justify-center bg-elevated">
-            <UIcon :name="item.row.kind === 'video' ? 'i-lucide-film' : 'i-lucide-file'" class="size-6 text-muted" />
-          </div>
-
-          <UBadge :label="item.row.kind" size="xs" color="neutral" variant="solid" class="absolute right-1.5 top-1.5 uppercase opacity-0 transition-opacity group-hover:opacity-100" />
-
-          <div class="absolute inset-x-0 bottom-0 translate-y-full bg-black/70 px-2 py-1.5 transition-transform group-hover:translate-y-0">
-            <p class="truncate text-xs text-white">{{ item.row.file_name || item.row.kind }}</p>
-            <p v-if="item.row.file_size" class="text-xs text-white/60">{{ formatSize(item.row.file_size) }}</p>
-          </div>
-        </template>
-      </DashboardGridEditor>
-
-      <!-- Edit alt text / translations -->
-      <UModal v-model:open="editOpen" title="Edit media details" :ui="{ content: 'max-w-lg' }">
-        <template #body>
-          <div v-if="editingAsset" class="space-y-5">
-            <img
-              v-if="editingAsset.thumbnail_url || (editingAsset.kind === 'image' && editingAsset.public_url)"
-              :src="editingAsset.thumbnail_url || editingAsset.public_url || undefined"
-              :alt="editAltText || editingAsset.file_name || ''"
-              class="mx-auto h-32 w-32 rounded-lg object-cover"
-            >
-            <label class="block text-sm">Alt text (English)
-              <input v-model="editAltText" class="mt-1 w-full rounded-lg border border-default bg-default px-3 py-2" placeholder="Describe this image">
-            </label>
-            <p v-if="editError" class="text-sm text-error">{{ editError }}</p>
-            <UButton size="sm" :loading="editSaving" @click="saveAltText">Save</UButton>
-
-            <div v-if="translationLocales.length" class="space-y-3 rounded-lg border border-default p-4">
-              <div class="flex items-center justify-between gap-4">
-                <h3 class="text-sm font-semibold">Translations</h3>
-                <select v-model="translationLocale" aria-label="Field language" class="rounded-lg border border-default bg-default px-2 py-1 text-sm">
-                  <option v-for="option in translationLocales" :key="option" :value="option">{{ option }}</option>
-                </select>
-              </div>
-              <label class="block text-sm">Alt text ({{ translationLocale }})
-                <input v-model="translationAltText" class="mt-1 w-full rounded-lg border border-default bg-default px-3 py-2">
-              </label>
-              <p v-if="translationError" class="text-sm text-error">{{ translationError }}</p>
-              <UButton size="sm" variant="soft" :loading="translationSaving" :disabled="!translationAltText.trim()" @click="saveTranslation">
-                Save translation
-              </UButton>
-            </div>
-          </div>
-        </template>
-      </UModal>
-
-      <!-- Load more -->
-      <div v-if="hasMore" class="mt-6 text-center">
-        <UButton color="neutral" variant="ghost" :loading="loadingMore" @click="loadMore">Load more</UButton>
+            {{ k.label }}
+          </UButton>
+        </div>
       </div>
 
+      <div
+        class="mt-4 flex cursor-pointer flex-col items-center justify-center gap-3 rounded-lg border-2 border-dashed px-6 py-8 transition-colors"
+        :class="[isDragging ? 'border-primary bg-primary/5' : 'border-default hover:border-accented', uploadLoading ? 'pointer-events-none opacity-60' : '']"
+        @dragenter.prevent="handleDragEnter"
+        @dragover.prevent="handleDragOver"
+        @dragleave.prevent="handleDragLeave"
+        @drop.prevent="handleDrop"
+        @click="openUploadPicker"
+      >
+        <UIcon name="i-lucide-upload" class="size-7 text-muted" />
+        <p class="text-sm text-muted">Drag and drop images or videos here, or <span class="cursor-pointer text-primary">click to browse</span></p>
+        <p class="text-xs text-muted">Images up to {{ formatSize(IMAGE_MAX_SIZE_BYTES) }} via Cloudflare Images · Videos up to {{ formatSize(VIDEO_MAX_SIZE_BYTES) }} via R2</p>
+      </div>
+
+      <UInput ref="fileInput" type="file" accept="image/*,video/*" class="hidden" :disabled="uploadLoading" @change="onFileSelect" />
+
+      <UAlert v-if="uploadError" color="error" variant="soft" :description="uploadError" icon="i-lucide-triangle-alert" class="mt-4" />
+      <div v-if="pendingRetryFile" class="mt-4">
+        <UButton size="sm" color="neutral" variant="soft" :loading="uploadLoading" :disabled="uploadLoading" @click="retryPendingUpload">
+          Retry confirm
+        </UButton>
+      </div>
     </template>
-  </UDashboardPanel>
+
+    <template #tile="{ item }">
+      <img
+        v-if="item.row.thumbnail_url || (item.row.kind === 'image' && item.row.public_url)"
+        :src="item.row.thumbnail_url || item.row.public_url || undefined"
+        :alt="item.row.alt_text || item.row.file_name || ''"
+        class="h-full w-full object-cover"
+        loading="lazy"
+      >
+      <div v-else class="flex h-full w-full items-center justify-center bg-elevated">
+        <UIcon :name="item.row.kind === 'video' ? 'i-lucide-film' : 'i-lucide-file'" class="size-6 text-muted" />
+      </div>
+
+      <UBadge :label="item.row.kind" size="xs" color="neutral" variant="solid" class="absolute right-1.5 top-1.5 uppercase opacity-0 transition-opacity group-hover:opacity-100" />
+
+      <div class="absolute inset-x-0 bottom-0 translate-y-full bg-black/70 px-2 py-1.5 transition-transform group-hover:translate-y-0">
+        <p class="truncate text-xs text-white">{{ item.row.file_name || item.row.kind }}</p>
+        <p v-if="item.row.file_size" class="text-xs text-white/60">{{ formatSize(item.row.file_size) }}</p>
+      </div>
+    </template>
+  </DashboardGridEditor>
+
+  <!-- Edit alt text / translations -->
+  <UModal v-model:open="editOpen" title="Edit media details" :ui="{ content: 'max-w-lg' }">
+    <template #body>
+      <div v-if="editingAsset" class="space-y-5">
+        <img
+          v-if="editingAsset.thumbnail_url || (editingAsset.kind === 'image' && editingAsset.public_url)"
+          :src="editingAsset.thumbnail_url || editingAsset.public_url || undefined"
+          :alt="editAltText || editingAsset.file_name || ''"
+          class="mx-auto h-32 w-32 rounded-lg object-cover"
+        >
+        <label class="block text-sm">Alt text (English)
+          <input v-model="editAltText" class="mt-1 w-full rounded-lg border border-default bg-default px-3 py-2" placeholder="Describe this image">
+        </label>
+        <p v-if="editError" class="text-sm text-error">{{ editError }}</p>
+        <UButton size="sm" :loading="editSaving" @click="saveAltText">Save</UButton>
+
+        <div v-if="translationLocales.length" class="space-y-3 rounded-lg border border-default p-4">
+          <div class="flex items-center justify-between gap-4">
+            <h3 class="text-sm font-semibold">Translations</h3>
+            <select v-model="translationLocale" aria-label="Field language" class="rounded-lg border border-default bg-default px-2 py-1 text-sm">
+              <option v-for="option in translationLocales" :key="option" :value="option">{{ option }}</option>
+            </select>
+          </div>
+          <label class="block text-sm">Alt text ({{ translationLocale }})
+            <input v-model="translationAltText" class="mt-1 w-full rounded-lg border border-default bg-default px-3 py-2">
+          </label>
+          <p v-if="translationError" class="text-sm text-error">{{ translationError }}</p>
+          <UButton size="sm" variant="soft" :loading="translationSaving" :disabled="!translationAltText.trim()" @click="saveTranslation">
+            Save translation
+          </UButton>
+        </div>
+      </div>
+    </template>
+  </UModal>
+
+  <!-- Load more -->
+  <div v-if="hasMore" class="mt-6 text-center">
+    <UButton color="neutral" variant="ghost" :loading="loadingMore" @click="loadMore">Load more</UButton>
+  </div>
+  </div>
 </template>
 
 <script setup lang="ts">
@@ -139,7 +128,6 @@ import DashboardGridEditor from '~/components/dashboard/DashboardGridEditor.vue'
 const dashboardApi = useDashboardApi()
 definePageMeta({ layout: 'dashboard', cmsCapabilityKey: 'site.media' })
 
-const { sitePaths } = useDashboardSiteLinks()
 
 import { IMAGE_MAX_SIZE_BYTES, VIDEO_MAX_SIZE_BYTES } from '~/composables/useMediaUpload'
 import { getErrorMessage } from '~/utils/errors'

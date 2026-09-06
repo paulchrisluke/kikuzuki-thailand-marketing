@@ -1,143 +1,127 @@
 <template>
-  <UDashboardPanel id="location-photos">
-    <template #header>
-      <!--
-        The navbar carries the way out of the level and nothing else. Its filter,
-        Upload, Attach and Refresh all now live on the screen they act on, and
-        keeping a second copy here is how two sets of controls drift apart.
-      -->
-      <UDashboardNavbar title="Location" :toggle="false">
-        <template #leading>
-          <DashboardNavbarLeading v-if="locationPaths" :to="locationPaths.location" label="Location" />
-        </template>
-      </UDashboardNavbar>
+  <div class="space-y-6">
+
+  <DashboardGridEditor
+    v-model:selecting="selecting"
+    v-model:selected="selectedIds"
+    title="Photos"
+    description="Upload images or videos here, or attach existing media to this location."
+    :items="gridItems"
+    :pending="loading"
+    :error="loadError"
+    empty-title="No location media yet"
+    empty-icon="i-lucide-image"
+    add-label="Add photos"
+    selection-title="Select photos"
+    grid-class="grid grid-cols-3 gap-3 sm:grid-cols-5 xl:grid-cols-7"
+    :removing="galleryMutating"
+    @add="openAttachModal"
+    @open="openPhoto"
+    @remove-many="detachMany"
+  >
+    <template #actions>
+      <UButton icon="i-lucide-upload" color="neutral" variant="soft" :loading="uploading" aria-label="Upload a file" square @click="openUploadPicker" />
     </template>
 
-    <template #body>
-
-      <DashboardGridEditor
-        v-model:selecting="selecting"
-        v-model:selected="selectedIds"
-        title="Photos"
-        description="Upload images or videos here, or attach existing media to this location."
-        :items="gridItems"
-        :pending="loading"
-        :error="loadError"
-        empty-title="No location media yet"
-        empty-icon="i-lucide-image"
-        add-label="Add photos"
-        selection-title="Select photos"
-        grid-class="grid grid-cols-3 gap-3 sm:grid-cols-5 xl:grid-cols-7"
-        :removing="galleryMutating"
-        @add="openAttachModal"
-        @open="openPhoto"
-        @remove-many="detachMany"
-      >
-        <template #actions>
-          <UButton icon="i-lucide-upload" color="neutral" variant="soft" :loading="uploading" aria-label="Upload a file" square @click="openUploadPicker" />
-        </template>
-
-        <template #filters>
-          <div class="flex flex-wrap items-center gap-2">
-            <UButton
-              v-for="item in categoryItems"
-              :key="item.id"
-              size="sm"
-              color="neutral"
-              :variant="categoryFilter === item.id ? 'soft' : 'ghost'"
-              @click="categoryFilter = item.id"
-            >
-              {{ item.label }}
-            </UButton>
-          </div>
-
-          <div v-if="pendingRetryFile" class="mt-4">
-            <UButton size="sm" color="neutral" variant="soft" :loading="uploading" :disabled="uploading" @click="retryPendingUpload">
-              Retry confirm
-            </UButton>
-          </div>
-          <UAlert v-if="uploadError" color="error" variant="soft" :description="uploadError" icon="i-lucide-triangle-alert" class="mt-4" />
-          <UInput ref="fileInput" type="file" accept="image/*,video/*" class="hidden" :disabled="uploading" @change="onFileSelect" />
-        </template>
-
-        <template #tile="{ item }">
-          <img
-            v-if="item.row.thumbnail_url || item.row.public_url"
-            :src="item.row.thumbnail_url || item.row.public_url || undefined"
-            :alt="item.row.alt_text || item.row.file_name || ''"
-            class="h-full w-full object-cover"
-            loading="lazy"
-          >
-          <div v-else class="flex h-full w-full items-center justify-center bg-elevated">
-            <UIcon name="i-lucide-film" class="size-6 text-muted" />
-          </div>
-          <div class="absolute inset-x-0 bottom-0 bg-black/65 px-2 py-1 opacity-0 transition group-hover:opacity-100">
-            <p class="truncate text-xs text-white">{{ item.row.file_name || item.row.kind }}</p>
-            <p class="truncate text-xs text-white/70">{{ categoryLabel(item.row.category) }}</p>
-          </div>
-        </template>
-      </DashboardGridEditor>
-
-      <DashboardListItemDialog
-        v-model:open="photoOpen"
-        :title="openPhotoAsset?.file_name || 'Photo'"
-        removable
-        :saving="galleryMutating"
-        :removing="galleryMutating"
-        @save="savePhoto"
-        @remove="detachOpenPhoto"
-      >
-        <img
-          v-if="openPhotoAsset && (openPhotoAsset.thumbnail_url || openPhotoAsset.public_url)"
-          :src="openPhotoAsset.thumbnail_url || openPhotoAsset.public_url || undefined"
-          :alt="openPhotoAsset.alt_text || openPhotoAsset.file_name || ''"
-          class="mx-auto max-h-64 rounded-lg object-contain"
+    <template #filters>
+      <div class="flex flex-wrap items-center gap-2">
+        <UButton
+          v-for="item in categoryItems"
+          :key="item.id"
+          size="sm"
+          color="neutral"
+          :variant="categoryFilter === item.id ? 'soft' : 'ghost'"
+          @click="categoryFilter = item.id"
         >
-        <UFormField label="Category">
-          <USelect v-model="photoCategory" :items="assignableCategories" value-key="id" label-key="label" class="w-full" />
-        </UFormField>
-      </DashboardListItemDialog>
+          {{ item.label }}
+        </UButton>
+      </div>
 
-      <UModal v-model:open="attachOpen" :ui="{ content: 'max-w-4xl' }">
-        <template #content>
-          <div class="p-6">
-            <div class="flex items-center justify-between gap-4">
-              <div>
-                <h2 class="text-lg font-semibold text-highlighted">Attach existing media</h2>
-                <p class="mt-1 text-sm text-muted">Choose images or videos from the site media library for this location gallery.</p>
-              </div>
-              <UButton icon="i-lucide-refresh-cw" color="neutral" variant="ghost" :loading="attachLoading" @click="loadAttachableMedia" />
-            </div>
-            <div v-if="attachLoading" class="mt-5 grid grid-cols-3 gap-3 sm:grid-cols-5">
-              <USkeleton v-for="i in 10" :key="i" class="aspect-square rounded-lg" />
-            </div>
-            <div v-else class="mt-5 grid max-h-[60vh] grid-cols-3 gap-3 overflow-y-auto sm:grid-cols-5">
-              <button
-                v-for="asset in attachableAssets"
-                :key="asset.id"
-                type="button"
-                class="group relative aspect-square overflow-hidden rounded-lg border border-default bg-elevated text-left"
-                :disabled="galleryMutating"
-                @click="attachPhoto(asset)"
-              >
-                <img
-                  v-if="asset.thumbnail_url || asset.public_url"
-                  :src="asset.thumbnail_url || asset.public_url || undefined"
-                  :alt="asset.alt_text || asset.file_name || ''"
-                  class="h-full w-full object-cover"
-                  loading="lazy"
-                />
-                <span class="absolute inset-x-0 bottom-0 bg-black/65 px-2 py-1 text-xs text-white opacity-0 transition group-hover:opacity-100">
-                  Attach
-                </span>
-              </button>
-            </div>
-          </div>
-        </template>
-      </UModal>
-
+      <div v-if="pendingRetryFile" class="mt-4">
+        <UButton size="sm" color="neutral" variant="soft" :loading="uploading" :disabled="uploading" @click="retryPendingUpload">
+          Retry confirm
+        </UButton>
+      </div>
+      <UAlert v-if="uploadError" color="error" variant="soft" :description="uploadError" icon="i-lucide-triangle-alert" class="mt-4" />
+      <UInput ref="fileInput" type="file" accept="image/*,video/*" class="hidden" :disabled="uploading" @change="onFileSelect" />
     </template>
-  </UDashboardPanel>
+
+    <template #tile="{ item }">
+      <img
+        v-if="item.row.thumbnail_url || item.row.public_url"
+        :src="item.row.thumbnail_url || item.row.public_url || undefined"
+        :alt="item.row.alt_text || item.row.file_name || ''"
+        class="h-full w-full object-cover"
+        loading="lazy"
+      >
+      <div v-else class="flex h-full w-full items-center justify-center bg-elevated">
+        <UIcon name="i-lucide-film" class="size-6 text-muted" />
+      </div>
+      <div class="absolute inset-x-0 bottom-0 bg-black/65 px-2 py-1 opacity-0 transition group-hover:opacity-100">
+        <p class="truncate text-xs text-white">{{ item.row.file_name || item.row.kind }}</p>
+        <p class="truncate text-xs text-white/70">{{ categoryLabel(item.row.category) }}</p>
+      </div>
+    </template>
+  </DashboardGridEditor>
+
+  <DashboardListItemDialog
+    v-model:open="photoOpen"
+    :title="openPhotoAsset?.file_name || 'Photo'"
+    removable
+    :saving="galleryMutating"
+    :removing="galleryMutating"
+    @save="savePhoto"
+    @remove="detachOpenPhoto"
+  >
+    <img
+      v-if="openPhotoAsset && (openPhotoAsset.thumbnail_url || openPhotoAsset.public_url)"
+      :src="openPhotoAsset.thumbnail_url || openPhotoAsset.public_url || undefined"
+      :alt="openPhotoAsset.alt_text || openPhotoAsset.file_name || ''"
+      class="mx-auto max-h-64 rounded-lg object-contain"
+    >
+    <UFormField label="Category">
+      <USelect v-model="photoCategory" :items="assignableCategories" value-key="id" label-key="label" class="w-full" />
+    </UFormField>
+  </DashboardListItemDialog>
+
+  <UModal v-model:open="attachOpen" :ui="{ content: 'max-w-4xl' }">
+    <template #content>
+      <div class="p-6">
+        <div class="flex items-center justify-between gap-4">
+          <div>
+            <h2 class="text-lg font-semibold text-highlighted">Attach existing media</h2>
+            <p class="mt-1 text-sm text-muted">Choose images or videos from the site media library for this location gallery.</p>
+          </div>
+          <UButton icon="i-lucide-refresh-cw" color="neutral" variant="ghost" :loading="attachLoading" @click="loadAttachableMedia" />
+        </div>
+        <div v-if="attachLoading" class="mt-5 grid grid-cols-3 gap-3 sm:grid-cols-5">
+          <USkeleton v-for="i in 10" :key="i" class="aspect-square rounded-lg" />
+        </div>
+        <div v-else class="mt-5 grid max-h-[60vh] grid-cols-3 gap-3 overflow-y-auto sm:grid-cols-5">
+          <button
+            v-for="asset in attachableAssets"
+            :key="asset.id"
+            type="button"
+            class="group relative aspect-square overflow-hidden rounded-lg border border-default bg-elevated text-left"
+            :disabled="galleryMutating"
+            @click="attachPhoto(asset)"
+          >
+            <img
+              v-if="asset.thumbnail_url || asset.public_url"
+              :src="asset.thumbnail_url || asset.public_url || undefined"
+              :alt="asset.alt_text || asset.file_name || ''"
+              class="h-full w-full object-cover"
+              loading="lazy"
+            />
+            <span class="absolute inset-x-0 bottom-0 bg-black/65 px-2 py-1 text-xs text-white opacity-0 transition group-hover:opacity-100">
+              Attach
+            </span>
+          </button>
+        </div>
+      </div>
+    </template>
+  </UModal>
+  </div>
 </template>
 
 <script setup lang="ts">
@@ -147,7 +131,6 @@ import DashboardListItemDialog from '~/components/dashboard/DashboardListItemDia
 const dashboardApi = useDashboardApi()
 definePageMeta({ layout: 'dashboard', cmsCapabilityKey: 'location.photos' })
 
-const { locationPaths } = useDashboardSiteLinks()
 
 
 interface MediaAsset {

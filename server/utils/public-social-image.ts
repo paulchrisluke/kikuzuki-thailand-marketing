@@ -49,7 +49,7 @@ export function parsePublicMediaPlacements(mediaJson: string): PublicMediaPlacem
 
 export function publicSocialMediaFromJson(mediaJson: string) {
   const placements = parsePublicMediaPlacements(mediaJson)
-  return publicSocialMediaFromPlacements(placements, placements)
+  return publicSocialMediaFromPlacements(placements)
 }
 
 export async function loadPublicSocialMedia(
@@ -60,15 +60,11 @@ export async function loadPublicSocialMedia(
 ): Promise<Map<string, PublicSocialMedia>> {
   if (!ownerIds.length) return new Map()
   const uniqueOwnerIds = [...new Set(ownerIds)]
-  const [ownerPlacements, sitePlacements] = await Promise.all([
-    readMediaPlacements(db, { siteId, ownerType, ownerIds: uniqueOwnerIds }),
-    ownerType === 'site' && uniqueOwnerIds.length === 1 && uniqueOwnerIds[0] === siteId
-      ? Promise.resolve(null)
-      : readMediaPlacements(db, { siteId, ownerType: 'site', ownerIds: [siteId] }),
-  ])
-  const siteMedia = sitePlacements?.get(siteId) ?? ownerPlacements.get(siteId) ?? []
-  return new Map(uniqueOwnerIds.map(ownerId => {
-    const ownerMedia = ownerPlacements.get(ownerId) ?? []
-    return [ownerId, publicSocialMediaFromPlacements(ownerMedia, siteMedia)]
-  }))
+  // Only the owner's own placements are read. The second query fetched the
+  // site's media purely to fall back to its logo, which hid missing cards.
+  const ownerPlacements = await readMediaPlacements(db, { siteId, ownerType, ownerIds: uniqueOwnerIds })
+  return new Map(uniqueOwnerIds.map(ownerId => [
+    ownerId,
+    publicSocialMediaFromPlacements(ownerPlacements.get(ownerId) ?? []),
+  ]))
 }

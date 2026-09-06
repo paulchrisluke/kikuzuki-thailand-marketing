@@ -70,7 +70,7 @@
           <div class="min-h-0 flex-1 overflow-y-auto px-5 py-8 sm:px-8 lg:px-10 lg:py-10">
             <div class="mx-auto w-full" :class="wideDetail ? 'max-w-5xl' : 'max-w-2xl'">
               <h2
-                v-if="detailTitle"
+                v-if="detailTitle && !hideDetailHeading"
                 class="mb-6 hidden text-2xl font-semibold text-highlighted lg:block"
               >
                 {{ detailTitle }}
@@ -107,6 +107,12 @@ defineProps<{
   detailTitle?: string
   /** Where the sheet's close control goes: one level up, never back to itself. */
   dismissTo?: string
+  /**
+   * Drops the pane's own heading at `lg` for details that already title
+   * themselves. The sheet's bar still uses `detailTitle`, because below `lg`
+   * the detail covers the index and nothing else names what is open.
+   */
+  hideDetailHeading?: boolean
 }>()
 
 defineEmits<{

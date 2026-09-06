@@ -25,8 +25,8 @@
       -->
       <div v-if="pending" class="space-y-6">
         <USkeleton class="h-9 w-40 rounded-lg" />
-        <div class="grid grid-cols-[repeat(auto-fit,minmax(min(100%,34rem),1fr))] gap-6">
-          <USkeleton v-for="i in 2" :key="i" class="aspect-[4/3] rounded-2xl sm:aspect-[16/10]" />
+        <div class="grid grid-cols-[repeat(auto-fill,minmax(min(100%,18rem),1fr))] gap-6">
+          <USkeleton v-for="i in 2" :key="i" class="aspect-[20/19] rounded-2xl" />
         </div>
       </div>
 
@@ -67,10 +67,17 @@ const pending = dashboard.pending
 
 const sites = computed(() => dashboard.sites.value)
 const canManageOrganization = computed(() => ['owner', 'admin'].includes(dashboard.organization.value?.role ?? ''))
+/**
+ * A site has no photograph of itself, so its tile shows its logo, centred
+ * rather than cropped. The generated social card cannot serve here: its name
+ * and description are composed into a 1200x630 frame, and the tile crops to
+ * near square, which cut the words off at both edges.
+ */
 const selectorItems = computed(() => sites.value.map(site => ({
   id: site.id,
   label: site.brand_name ?? site.subdomain ?? site.id,
-  imageUrl: site.social_image?.url ?? null,
+  imageUrl: site.media?.find(item => item.slot === 'logo')?.public_url ?? null,
+  imageFit: 'contain' as const,
   eyebrow: verticalLabel(site.vertical),
   summary: site.subdomain ? `${site.subdomain}.krabiclaw.com` : 'Website setup in progress',
   to: siteDashboardPath(site),

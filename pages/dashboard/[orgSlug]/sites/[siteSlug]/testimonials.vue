@@ -1,67 +1,57 @@
 <template>
-  <UDashboardPanel id="site-testimonials">
-    <template #header>
-      <UDashboardNavbar title="Site" :toggle="false">
-        <template #leading>
-          <DashboardNavbarLeading v-if="sitePaths" :to="sitePaths.site" label="Site" />
-        </template>
-      </UDashboardNavbar>
+  <div class="space-y-6">
+  <DashboardListEditor
+    v-model:editing="editing"
+    title="Testimonials"
+    description="Owner-entered testimonials require provenance and publication authorization."
+    :items="listItems"
+    :pending="pending"
+    empty-title="No testimonials yet"
+    empty-icon="i-lucide-star"
+    add-label="Add a testimonial"
+    :removing-id="removingId"
+    @add="openNew"
+    @open="openExisting"
+    @remove="removeItem"
+  >
+    <template #item="{ item }">
+      <div class="flex flex-wrap items-center gap-2">
+        <strong class="text-sm text-highlighted">{{ item.row.author_name }}</strong>
+        <UBadge color="warning" variant="soft">{{ item.row.rating }} stars</UBadge>
+        <UBadge :color="item.row.status === 'approved' ? 'success' : 'neutral'" variant="soft">{{ item.row.status }}</UBadge>
+        <UBadge color="neutral" variant="subtle">{{ methodLabel(item.row.collection_method) }}</UBadge>
+      </div>
+      <p v-if="item.row.title" class="mt-2 text-sm font-semibold text-highlighted">{{ item.row.title }}</p>
+      <p class="mt-1 line-clamp-2 text-sm text-muted">{{ item.row.content }}</p>
     </template>
+  </DashboardListEditor>
 
-    <template #body>
-      <DashboardListEditor
-        v-model:editing="editing"
-        title="Testimonials"
-        description="Owner-entered testimonials require provenance and publication authorization."
-        :items="listItems"
-        :pending="pending"
-        empty-title="No testimonials yet"
-        empty-icon="i-lucide-star"
-        add-label="Add a testimonial"
-        :removing-id="removingId"
-        @add="openNew"
-        @open="openExisting"
-        @remove="removeItem"
-      >
-        <template #item="{ item }">
-          <div class="flex flex-wrap items-center gap-2">
-            <strong class="text-sm text-highlighted">{{ item.row.author_name }}</strong>
-            <UBadge color="warning" variant="soft">{{ item.row.rating }} stars</UBadge>
-            <UBadge :color="item.row.status === 'approved' ? 'success' : 'neutral'" variant="soft">{{ item.row.status }}</UBadge>
-            <UBadge color="neutral" variant="subtle">{{ methodLabel(item.row.collection_method) }}</UBadge>
-          </div>
-          <p v-if="item.row.title" class="mt-2 text-sm font-semibold text-highlighted">{{ item.row.title }}</p>
-          <p class="mt-1 line-clamp-2 text-sm text-muted">{{ item.row.content }}</p>
-        </template>
-      </DashboardListEditor>
-
-      <DashboardListItemDialog
-        v-model:open="dialogOpen"
-        :title="editingId ? 'Edit testimonial' : 'Add a testimonial'"
-        :removable="Boolean(editingId)"
-        :saving="saving"
-        :removing="removingId === editingId"
-        :save-disabled="!canSave"
-        @save="save"
-        @remove="removeEditing"
-      >
-        <div class="grid grid-cols-2 gap-3">
-          <UFormField label="Reviewer"><UInput v-model="form.author_name" class="w-full" /></UFormField>
-          <UFormField label="Rating"><UInputNumber v-model="form.rating" :min="1" :max="5" :step="1" class="w-full" /></UFormField>
-        </div>
-        <UFormField label="Title"><UInput v-model="form.title" class="w-full" /></UFormField>
-        <UFormField label="Testimonial"><UTextarea v-model="form.content" :rows="5" class="w-full" /></UFormField>
-        <UFormField label="Collected through">
-          <USelect v-model="form.collection_method" :items="collectionMethods" value-key="value" label-key="label" class="w-full" />
-        </UFormField>
-        <UFormField label="Original date"><UInput v-model="form.original_review_date" type="date" class="w-full" /></UFormField>
-        <UFormField label="Reference"><UInput v-model="form.original_reference" placeholder="Email thread, intake note, or migration source" class="w-full" /></UFormField>
-        <UFormField label="Status"><USelect v-model="form.status" :items="statusItems" class="w-full" /></UFormField>
-        <UCheckbox v-model="form.publication_authorized" label="I confirm the reviewer authorized publication" />
-        <p class="text-xs text-muted">Owner-entered testimonial · Not KrabiClaw verified</p>
-      </DashboardListItemDialog>
-    </template>
-  </UDashboardPanel>
+  <DashboardListItemDialog
+    v-model:open="dialogOpen"
+    :title="editingId ? 'Edit testimonial' : 'Add a testimonial'"
+    :removable="Boolean(editingId)"
+    :saving="saving"
+    :removing="removingId === editingId"
+    :save-disabled="!canSave"
+    @save="save"
+    @remove="removeEditing"
+  >
+    <div class="grid grid-cols-2 gap-3">
+      <UFormField label="Reviewer"><UInput v-model="form.author_name" class="w-full" /></UFormField>
+      <UFormField label="Rating"><UInputNumber v-model="form.rating" :min="1" :max="5" :step="1" class="w-full" /></UFormField>
+    </div>
+    <UFormField label="Title"><UInput v-model="form.title" class="w-full" /></UFormField>
+    <UFormField label="Testimonial"><UTextarea v-model="form.content" :rows="5" class="w-full" /></UFormField>
+    <UFormField label="Collected through">
+      <USelect v-model="form.collection_method" :items="collectionMethods" value-key="value" label-key="label" class="w-full" />
+    </UFormField>
+    <UFormField label="Original date"><UInput v-model="form.original_review_date" type="date" class="w-full" /></UFormField>
+    <UFormField label="Reference"><UInput v-model="form.original_reference" placeholder="Email thread, intake note, or migration source" class="w-full" /></UFormField>
+    <UFormField label="Status"><USelect v-model="form.status" :items="statusItems" class="w-full" /></UFormField>
+    <UCheckbox v-model="form.publication_authorized" label="I confirm the reviewer authorized publication" />
+    <p class="text-xs text-muted">Owner-entered testimonial · Not KrabiClaw verified</p>
+  </DashboardListItemDialog>
+  </div>
 </template>
 
 <script setup lang="ts">
@@ -71,7 +61,6 @@ import DashboardListItemDialog from '~/components/dashboard/DashboardListItemDia
 const dashboardApi = useDashboardApi()
 definePageMeta({ layout: 'dashboard', cmsCapabilityKey: 'site.testimonials' })
 
-const { sitePaths } = useDashboardSiteLinks()
 useSeoMeta({ title: 'Testimonials | KrabiClaw Dashboard', robots: 'noindex, nofollow' })
 const requestEvent = useRequestEvent()
 

@@ -95,7 +95,6 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           persist-credentials: false
-          ref: ${{ github.event.pull_request.head.sha }}
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
         with:
           node-version: "24.18.1"
@@ -110,7 +109,7 @@ jobs:
       - run: yarn build
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
-          name: preview-worker-${{ github.event.pull_request.head.sha }}
+          name: preview-worker-${{ github.sha }}
           path: .output
           include-hidden-files: true
           retention-days: 2
@@ -166,7 +165,7 @@ jobs:
       - run: corepack yarn playwright install chromium
       - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
         with:
-          name: preview-worker-${{ github.event.pull_request.head.sha }}
+          name: preview-worker-${{ github.sha }}
           path: .output
       - name: Generate ephemeral test credentials
         shell: bash

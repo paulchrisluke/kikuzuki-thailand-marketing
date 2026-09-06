@@ -30,6 +30,23 @@
       @click="$emit('search')"
     />
 
+    <!--
+      Insights is organization-wide with its own site filter, so it belongs to
+      the organization-scoped menu rather than to any one site.
+    -->
+    <NuxtLink
+      v-if="insightsPath"
+      :to="insightsPath"
+      class="block rounded-2xl border border-default bg-elevated p-5 transition-colors hover:bg-accented"
+      data-testid="dashboard-menu-insights"
+    >
+      <div class="flex items-center justify-between gap-3">
+        <p class="text-[15px] font-semibold text-highlighted">Insights</p>
+        <UIcon name="i-lucide-chart-no-axes-column" class="size-5 text-muted" />
+      </div>
+      <p class="mt-1 text-sm text-muted">Traffic, sources and conversions across your sites.</p>
+    </NuxtLink>
+
     <EditorNavigationList :groups="groups" :active-item="activeItem" />
   </div>
 </template>
@@ -41,6 +58,9 @@ import EditorNavigationList from '~/components/dashboard/EditorNavigationList.vu
 // Rendered by both the desktop slideover and the mobile menu page, off one
 // model, so the two surfaces cannot show different menus.
 const { groups, activeItem, scopeModel } = useDashboardMenu()
+const { orgPaths } = useDashboardSiteLinks()
+
+const insightsPath = computed(() => (orgPaths.value.org === '/dashboard' ? null : `${orgPaths.value.org}/insights`))
 
 defineEmits<{ search: [] }>()
 

@@ -5,7 +5,44 @@
         {{ group.label }}
       </h2>
 
+      <!--
+        Cards: one surface per item, stacked, no chevron and no icon. A hub is
+        read by scanning what each thing currently holds, and a column of
+        chevrons adds a repeated mark to every row that says only "this is a
+        link" — which the whole list already says.
+      -->
+      <div v-if="variant === 'cards'" class="space-y-3">
+        <NuxtLink
+          v-for="item in group.items"
+          :key="item.id"
+          :to="item.to"
+          class="block rounded-2xl bg-elevated p-5 transition-colors hover:bg-accented focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+          :class="item.id === activeItem ? 'ring-2 ring-primary' : ''"
+          :aria-current="item.id === activeItem ? 'page' : undefined"
+        >
+          <span class="block text-[15px] font-semibold text-highlighted">{{ item.label }}</span>
+          <span v-if="item.summary" class="mt-1 line-clamp-2 block text-sm text-muted">{{ item.summary }}</span>
+
+          <!--
+            A card for the thing a tenant opens most shows what is inside it,
+            the way the listing editor's photo card shows the photographs. Text
+            alone makes the most important row look like the least.
+          -->
+          <span v-if="item.previews?.length" class="mt-4 flex gap-2">
+            <span
+              v-for="(preview, index) in item.previews.slice(0, 4)"
+              :key="index"
+              class="aspect-[20/19] w-full max-w-24 overflow-hidden rounded-xl bg-default"
+            >
+              <img :src="preview" alt="" class="size-full object-cover" loading="lazy" decoding="async">
+            </span>
+          </span>
+        </NuxtLink>
+      </div>
+
+      <!-- Rows: settings, where the chevron marks a push into a deeper screen. -->
       <UCard
+        v-else
         variant="subtle"
         class="overflow-hidden rounded-2xl"
         :ui="{ body: 'p-0! sm:p-0!' }"
@@ -39,6 +76,8 @@ export interface EditorNavigationItem {
   summary?: string
   icon?: string
   to: string
+  /** Thumbnails of what the section holds. Cards variant only. */
+  previews?: string[]
 }
 
 export interface EditorNavigationGroup {
@@ -47,8 +86,10 @@ export interface EditorNavigationGroup {
   items: EditorNavigationItem[]
 }
 
-defineProps<{
+withDefaults(defineProps<{
   groups: EditorNavigationGroup[]
   activeItem?: string | null
-}>()
+  /** 'cards' for an editor hub, 'rows' for a settings list. */
+  variant?: 'cards' | 'rows'
+}>(), { variant: 'rows' })
 </script>

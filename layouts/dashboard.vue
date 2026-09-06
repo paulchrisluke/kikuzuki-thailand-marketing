@@ -382,11 +382,12 @@ const scopeHeaderModel = computed<DashboardScopeHeaderModel>(() => {
 // hardcoded string, so a professional_service site correctly reads "Offices / Service
 // Areas" instead of "Locations".
 const locationsNavLabel = computed(() => capabilities.value?.locationVocabulary === 'office/service area' ? 'Offices / Service Areas' : 'Locations')
+// Nav goes to the list, never into a location the user did not choose. Picking
+// `locations[0]` here meant a multi-location tenant had the app decide which one
+// they meant, and no screen anywhere showed them all.
 const locationsNavTarget = computed(() => {
   if (!locationsBase.value) return null
-  if (scope.value === 'location') return locationBase.value
-  const firstLocation = dashboard.locations.value[0]
-  return firstLocation?.slug ? `${locationsBase.value}/${firstLocation.slug}` : `${locationsBase.value}/new`
+  return scope.value === 'location' ? locationBase.value : locationsBase.value
 })
 
 provide(dashboardScopeHeaderModelKey, scopeHeaderModel)

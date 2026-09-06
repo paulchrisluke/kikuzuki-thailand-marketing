@@ -23,7 +23,7 @@ export interface DashboardHomeLocation {
   latitude: number | null
   longitude: number | null
   map_embed_url: string | null
-  media: Array<{ asset_id: string; slot: 'hero'; public_url: string; thumbnail_url: string | null; kind: string | null }>
+  media: Array<{ asset_id: string; slot: 'social_card'; public_url: string; thumbnail_url: string | null; kind: string | null }>
 }
 
 export interface DashboardHomeEvent {
@@ -102,19 +102,21 @@ export async function getDashboardHomeData(
       is_primary: number; status: string; updated_at: string
       address: string | null; maps_url: string | null
       latitude: number | null; longitude: number | null
-      hero_asset_id: string | null; hero_kind: string | null; hero_media_public_url: string | null
-      hero_media_thumbnail_url: string | null
+      card_asset_id: string | null; card_kind: string | null; card_public_url: string | null
+      card_thumbnail_url: string | null
     }>(db, `
       SELECT bl.id, bl.slug, bl.title, bl.city, bl.rating, bl.review_count,
              bl.address, bl.maps_url, bl.latitude, bl.longitude,
              bl.is_primary, bl.status, bl.updated_at,
-             ma_hero.id AS hero_asset_id, ma_hero.kind AS hero_kind,
-             ma_hero.public_url AS hero_media_public_url,
-             ma_hero.thumbnail_url AS hero_media_thumbnail_url
+             ma_card.id AS card_asset_id, ma_card.kind AS card_kind,
+             ma_card.public_url AS card_public_url,
+             ma_card.thumbnail_url AS card_thumbnail_url
       FROM business_locations bl
-      LEFT JOIN media_placements mp_hero ON mp_hero.owner_type = 'business_location' AND mp_hero.owner_id = bl.id AND mp_hero.slot = 'hero' AND mp_hero.status = 'active'
-      LEFT JOIN media_assets ma_hero ON ma_hero.id = mp_hero.asset_id
-        AND ma_hero.organization_id = bl.organization_id AND ma_hero.site_id = bl.site_id AND ma_hero.status = 'active'
+      -- The generated social card, the same image the locations list and the
+      -- public page use, so the three cannot show a location differently.
+      LEFT JOIN media_placements mp_card ON mp_card.owner_type = 'business_location' AND mp_card.owner_id = bl.id AND mp_card.slot = 'social_card' AND mp_card.status = 'active'
+      LEFT JOIN media_assets ma_card ON ma_card.id = mp_card.asset_id
+        AND ma_card.organization_id = bl.organization_id AND ma_card.site_id = bl.site_id AND ma_card.status = 'active'
       WHERE bl.organization_id = ? AND bl.site_id = ?
       ${locationScopeClause}
       ORDER BY bl.is_primary DESC, bl.title ASC
@@ -152,12 +154,12 @@ export async function getDashboardHomeData(
   return {
     locations: locations.map((l) => {
       const address = parseLocationAddress(l.address)
-      const { hero_asset_id, hero_kind, hero_media_public_url, hero_media_thumbnail_url, ...location } = l
+      const { card_asset_id, card_kind, card_public_url, card_thumbnail_url, ...location } = l
       return {
         ...location,
         is_primary: Boolean(l.is_primary),
         address,
-        media: hero_asset_id && hero_media_public_url ? [{ asset_id: hero_asset_id, slot: 'hero', public_url: hero_media_public_url, thumbnail_url: hero_media_thumbnail_url, kind: hero_kind }] : [],
+        media: card_asset_id && card_public_url ? [{ asset_id: card_asset_id, slot: 'social_card' as const, public_url: card_public_url, thumbnail_url: card_thumbnail_url, kind: card_kind }] : [],
         map_embed_url: calculateMapEmbedUrl({ ...l, address: address?.addressLines?.[0] ?? null }),
       }
     }),

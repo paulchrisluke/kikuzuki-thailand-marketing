@@ -1,60 +1,50 @@
 <template>
-  <UDashboardPanel id="location-products">
-    <template #header>
-      <UDashboardNavbar :title="presentation.collectionLabel" :toggle="false">
-        <template #leading>
-          <DashboardNavbarLeading v-if="locationPaths" :to="locationPaths.location" label="Location" />
-        </template>
-      </UDashboardNavbar>
+  <div class="space-y-6">
+  <DashboardListEditor
+    v-model:editing="editing"
+    :title="presentation.collectionLabel"
+    :description="`Group ${presentation.itemLabelPlural.toLowerCase()} into ${presentation.categoryLabelPlural.toLowerCase()}. Customers see them in this order.`"
+    :items="listItems"
+    :pending="pending"
+    :error="loadError"
+    :empty-title="`No ${presentation.categoryLabelPlural.toLowerCase()} yet`"
+    empty-icon="i-lucide-layout-list"
+    :add-label="`Add a ${presentation.categoryLabel.toLowerCase()}`"
+    reorderable
+    :removing-id="removingId"
+    @add="openNew"
+    @open="openExisting"
+    @remove="removeCategory"
+    @move="moveCategory"
+  >
+    <template #item="{ item }">
+      <!--
+        The row body is the way in. Reordering and renaming live in the edit
+        state beside it, so browsing never has to step around edit controls.
+      -->
+      <NuxtLink :to="`${productsPath}/${item.id}`" class="flex items-center gap-4 no-underline" :data-testid="`product-category-${item.id}`">
+        <DashboardMediaThumb :asset="item.row.cover" :label="item.row.name" fallback-icon="i-lucide-layout-list" />
+        <span class="min-w-0 flex-1">
+        <p class="truncate text-sm font-semibold text-highlighted">{{ item.row.name }}</p>
+        <p class="mt-1 text-sm text-muted">{{ item.row.product_count === 1 ? `1 ${presentation.itemLabel.toLowerCase()}` : `${item.row.product_count} ${presentation.itemLabelPlural.toLowerCase()}` }}</p>
+        </span>
+      </NuxtLink>
     </template>
+  </DashboardListEditor>
 
-    <template #body>
-      <DashboardListEditor
-        v-model:editing="editing"
-        :title="presentation.collectionLabel"
-        :description="`Group ${presentation.itemLabelPlural.toLowerCase()} into ${presentation.categoryLabelPlural.toLowerCase()}. Customers see them in this order.`"
-        :items="listItems"
-        :pending="pending"
-        :error="loadError"
-        :empty-title="`No ${presentation.categoryLabelPlural.toLowerCase()} yet`"
-        empty-icon="i-lucide-layout-list"
-        :add-label="`Add a ${presentation.categoryLabel.toLowerCase()}`"
-        reorderable
-        :removing-id="removingId"
-        @add="openNew"
-        @open="openExisting"
-        @remove="removeCategory"
-        @move="moveCategory"
-      >
-        <template #item="{ item }">
-          <!--
-            The row body is the way in. Reordering and renaming live in the edit
-            state beside it, so browsing never has to step around edit controls.
-          -->
-          <NuxtLink :to="`${productsPath}/${item.id}`" class="flex items-center gap-4 no-underline" :data-testid="`product-category-${item.id}`">
-            <DashboardMediaThumb :asset="item.row.cover" :label="item.row.name" fallback-icon="i-lucide-layout-list" />
-            <span class="min-w-0 flex-1">
-            <p class="truncate text-sm font-semibold text-highlighted">{{ item.row.name }}</p>
-            <p class="mt-1 text-sm text-muted">{{ item.row.product_count === 1 ? `1 ${presentation.itemLabel.toLowerCase()}` : `${item.row.product_count} ${presentation.itemLabelPlural.toLowerCase()}` }}</p>
-            </span>
-          </NuxtLink>
-        </template>
-      </DashboardListEditor>
-
-      <DashboardListItemDialog
-        v-model:open="dialogOpen"
-        :title="editingId ? `Rename ${presentation.categoryLabel.toLowerCase()}` : `Add a ${presentation.categoryLabel.toLowerCase()}`"
-        :removable="false"
-        :saving="saving"
-        :save-disabled="!name.trim()"
-        @save="saveCategory"
-      >
-        <UFormField label="Name">
-          <UInput v-model="name" :placeholder="presentation.categoryLabel === 'Section' ? 'Appetizers' : 'Accessories'" autofocus class="w-full" />
-        </UFormField>
-      </DashboardListItemDialog>
-    </template>
-  </UDashboardPanel>
+  <DashboardListItemDialog
+    v-model:open="dialogOpen"
+    :title="editingId ? `Rename ${presentation.categoryLabel.toLowerCase()}` : `Add a ${presentation.categoryLabel.toLowerCase()}`"
+    :removable="false"
+    :saving="saving"
+    :save-disabled="!name.trim()"
+    @save="saveCategory"
+  >
+    <UFormField label="Name">
+      <UInput v-model="name" :placeholder="presentation.categoryLabel === 'Section' ? 'Appetizers' : 'Accessories'" autofocus class="w-full" />
+    </UFormField>
+  </DashboardListItemDialog>
+  </div>
 </template>
 
 <script setup lang="ts">

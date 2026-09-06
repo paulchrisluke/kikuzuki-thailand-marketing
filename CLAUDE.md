@@ -14,6 +14,45 @@ Custom database migrations are prohibited. If an LLM proposes, generates, or edi
 - Do not hand-mutate staging or production data or schema to mask application failures.
 - Do not broaden the task to adjacent defects. Report them unless they directly block the requested change; if they block it, fix them through the same canonical path rather than creating another mechanism.
 
+## No fallbacks
+
+Every value has exactly one source. Every surface declares which source it reads.
+When that source is empty, the surface shows an explicit empty or error state.
+
+Never substitute a second source. No `a ?? b`, no `a || b`, no
+`find(...) ?? items[0]`, no "if this is missing, use that instead" anywhere —
+schema, API, domain utility, composable, or component. A `??` guarding a genuinely
+optional value against `null`/`undefined` is fine; a `??` that reaches for
+different data is not.
+
+Also banned, as the same thing in other clothes:
+
+- Ordering a query so a `LIMIT 1` picks something — `ORDER BY is_primary DESC`.
+  Sorting for presentation is fine; sorting to make a choice is not.
+- A `primary` / `default` / `main` flag added so a surface has something to show
+  when it was given nothing. Build the selector instead.
+- Inferring a target the caller did not pass: the current site, the last-used
+  item, the one row that happens to exist today.
+- Placeholder or example content standing in for absent tenant data.
+
+**A fallback is not a safety net. It is a bug report you decided not to file.**
+Everything after the `??` runs precisely when something upstream is broken, and
+it makes the failure invisible at exactly the moment it needs to be loud. Two
+examples from this repository:
+
+- The ChatGPT MCP app edited the wrong products in production because a tool
+  resolved an ambiguous target instead of refusing it.
+- Location social cards are not being generated. Nobody knew, because
+  `resolveSocialImageFromMedia` fell through to the site logo, so every location
+  rendered a plausible-looking image and the missing Satori card never surfaced.
+
+If a value is missing, the correct outcomes are: fail the request, render an
+empty state that names what is absent, or fix the source. Never paper over it.
+
+Breaking a surface that currently depends on a fallback is the intended outcome
+of removing it, not a regression to patch. The surface was already broken; the
+fallback was hiding it. Carrying these across epochs is how the schema drifted.
+
 ## Complexity control
 
 Default order: delete, reuse, modify, add.

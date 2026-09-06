@@ -1,80 +1,71 @@
 <template>
-  <UDashboardPanel id="site-orders">
-    <template #header>
-      <UDashboardNavbar title="Orders">
-        <template #leading>
-          <DashboardNavbarLeading v-if="sitePaths" :to="sitePaths.site" label="Site" />
-        </template>
-      </UDashboardNavbar>
-    </template>
+  <div class="space-y-6">
+  <div v-if="loading" class="space-y-3">
+    <USkeleton v-for="i in 3" :key="i" class="h-48 rounded-lg" />
+  </div>
 
-    <template #body>
-      <div v-if="loading" class="space-y-3">
-        <USkeleton v-for="i in 3" :key="i" class="h-48 rounded-lg" />
-      </div>
+  <div v-else-if="loadError" class="space-y-3">
+    <UAlert color="error" variant="soft" title="Ordering links unavailable" :description="loadError" />
+    <UButton color="neutral" variant="soft" @click="loadOrder">Try again</UButton>
+  </div>
 
-      <div v-else-if="loadError" class="space-y-3">
-        <UAlert color="error" variant="soft" title="Ordering links unavailable" :description="loadError" />
-        <UButton color="neutral" variant="soft" @click="loadOrder">Try again</UButton>
-      </div>
+  <div v-else-if="locations.length === 0" class="rounded-lg border border-dashed border-default px-6 py-12 text-center">
+    <UIcon name="i-lucide-map-pin" class="mx-auto size-9 text-muted" />
+    <p class="mt-3 text-sm font-medium text-highlighted">Add a location before configuring orders</p>
+    <UButton v-if="sitePaths" class="mt-5" :to="`${sitePaths.locations}/new`" icon="i-lucide-plus">Add location</UButton>
+  </div>
 
-      <div v-else-if="locations.length === 0" class="rounded-lg border border-dashed border-default px-6 py-12 text-center">
-        <UIcon name="i-lucide-map-pin" class="mx-auto size-9 text-muted" />
-        <p class="mt-3 text-sm font-medium text-highlighted">Add a location before configuring orders</p>
-        <UButton v-if="sitePaths" class="mt-5" :to="`${sitePaths.locations}/new`" icon="i-lucide-plus">Add location</UButton>
-      </div>
-
-      <div v-else class="space-y-4">
-        <UCard v-for="location in locations" :key="location.id" variant="soft">
-          <template #header>
-            <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-              <div>
-                <h2 class="font-semibold text-highlighted">{{ location.title }}</h2>
-                <p class="text-sm text-muted">{{ location.city || location.addressText || 'Location ordering links' }}</p>
-              </div>
-              <UButton v-if="sitePaths" size="sm" color="neutral" variant="soft" icon="i-lucide-map-pin" :to="`${sitePaths.locations}/${location.slug}`">Location details</UButton>
-            </div>
-          </template>
-
-          <div class="grid gap-4 sm:grid-cols-3">
-            <UFormField label="Grab" :error="urlError(location.form.grab_url)">
-              <UInput v-model="location.form.grab_url" type="url" placeholder="https://grab.onelink.me/..." />
-            </UFormField>
-            <UFormField label="Uber Eats" :error="urlError(location.form.uber_eats_url)">
-              <UInput v-model="location.form.uber_eats_url" type="url" placeholder="https://ubereats.com/..." />
-            </UFormField>
-            <UFormField label="Foodpanda" :error="urlError(location.form.foodpanda_url)">
-              <UInput v-model="location.form.foodpanda_url" type="url" placeholder="https://foodpanda.co.th/..." />
-            </UFormField>
+  <div v-else class="space-y-4">
+    <UCard v-for="location in locations" :key="location.id" variant="soft">
+      <template #header>
+        <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h2 class="font-semibold text-highlighted">{{ location.title }}</h2>
+            <p class="text-sm text-muted">{{ location.city || location.addressText || 'Location ordering links' }}</p>
           </div>
+          <UButton v-if="sitePaths" size="sm" color="neutral" variant="soft" icon="i-lucide-map-pin" :to="`${sitePaths.locations}/${location.slug}`">Location details</UButton>
+        </div>
+      </template>
 
-          <div class="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div class="flex flex-wrap gap-2">
-              <UButton
-                v-for="link in previewLinks(location)"
-                :key="link.label"
-                :to="link.to"
-                target="_blank"
-                external
-                size="sm"
-                color="neutral"
-                variant="soft"
-                icon="i-lucide-external-link"
-              >
-                {{ link.label }}
-              </UButton>
-              <p v-if="previewLinks(location).length === 0" class="text-sm text-muted">No public ordering links configured.</p>
-            </div>
-            <UButton :loading="savingId === location.id" :disabled="!canSaveLocation(location)" icon="i-lucide-check" @click="saveLocation(location)">Save links</UButton>
-          </div>
-        </UCard>
+      <div class="grid gap-4 sm:grid-cols-3">
+        <UFormField label="Grab" :error="urlError(location.form.grab_url)">
+          <UInput v-model="location.form.grab_url" type="url" placeholder="https://grab.onelink.me/..." />
+        </UFormField>
+        <UFormField label="Uber Eats" :error="urlError(location.form.uber_eats_url)">
+          <UInput v-model="location.form.uber_eats_url" type="url" placeholder="https://ubereats.com/..." />
+        </UFormField>
+        <UFormField label="Foodpanda" :error="urlError(location.form.foodpanda_url)">
+          <UInput v-model="location.form.foodpanda_url" type="url" placeholder="https://foodpanda.co.th/..." />
+        </UFormField>
       </div>
-    </template>
-  </UDashboardPanel>
+
+      <div class="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div class="flex flex-wrap gap-2">
+          <UButton
+            v-for="link in previewLinks(location)"
+            :key="link.label"
+            :to="link.to"
+            target="_blank"
+            external
+            size="sm"
+            color="neutral"
+            variant="soft"
+            icon="i-lucide-external-link"
+          >
+            {{ link.label }}
+          </UButton>
+          <p v-if="previewLinks(location).length === 0" class="text-sm text-muted">No public ordering links configured.</p>
+        </div>
+        <UButton :loading="savingId === location.id" :disabled="!canSaveLocation(location)" icon="i-lucide-check" @click="saveLocation(location)">Save links</UButton>
+      </div>
+    </UCard>
+  </div>
+  </div>
 </template>
 
 <script setup lang="ts">
 const dashboardApi = useDashboardApi()
+const { sitePaths } = useDashboardSiteLinks()
 definePageMeta({ layout: 'dashboard', cmsCapabilityKey: 'site.ordering' })
 
 
@@ -101,7 +92,6 @@ const locations = ref<Array<LocationRow & { addressText: string; form: OrderForm
 const loading = ref(true)
 const loadError = ref<string | null>(null)
 const savingId = ref<string | null>(null)
-const { sitePaths } = useDashboardSiteLinks()
 
 function addressText(address: LocationRow['address']) {
   return address?.addressLines?.filter(Boolean).join(', ') ?? ''

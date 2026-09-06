@@ -138,6 +138,85 @@ ${tenantPages}
 ${selectionSite}`
 }
 
+/**
+ * Thirty rolling days of traffic for the demo site.
+ *
+ * Insights reads the daily rollups rather than the raw event tables, so a local
+ * database with events but no rollups reports zeros — which is what every
+ * number on that page showed before this existed. Dates are relative, so the
+ * range presets land on real data whenever setup is run.
+ *
+ * Numbers are shaped, not random: weekends run higher than weekdays, so the
+ * trend line has something to show.
+ */
+function renderAnalyticsFixtureSeed() {
+  const days = Array.from({ length: 30 }, (_, index) => 29 - index)
+  const pagePaths = [
+    ['/', 0.42],
+    ['/menu', 0.24],
+    ['/reservations', 0.16],
+    ['/experiences', 0.11],
+    ['/contact', 0.07],
+  ] as const
+  const dimensions = [
+    ['country', 'US', null, 0.58],
+    ['country', 'CA', null, 0.16],
+    ['country', 'GB', null, 0.14],
+    ['country', 'TH', null, 0.12],
+    ['city', 'Brooklyn', 'US', 0.34],
+    ['city', 'Toronto', 'CA', 0.16],
+    ['city', 'London', 'GB', 0.14],
+    ['device', 'mobile', null, 0.63],
+    ['device', 'desktop', null, 0.31],
+    ['device', 'tablet', null, 0.06],
+    ['referrer', 'google', null, 0.47],
+    ['referrer', 'direct', null, 0.33],
+    ['referrer', 'instagram', null, 0.2],
+  ] as const
+
+  const daily: string[] = []
+  const pages: string[] = []
+  const dims: string[] = []
+
+  for (const ago of days) {
+    // Day of week from the offset, so the weekend lift follows real dates.
+    const date = new Date(Date.now() - ago * 86_400_000)
+    const isWeekend = [0, 6].includes(date.getUTCDay())
+    const views = Math.round((isWeekend ? 240 : 150) + (ago % 7) * 9)
+    const sessions = Math.round(views / 2.4)
+    const visitors = Math.round(sessions * 0.86)
+    const dateSql = `date('now', '-${ago} days')`
+
+    daily.push(`  ('analytics-demo-daily-${ago}', 'org-demo', 'site-demo', ${dateSql}, ${views}, ${sessions}, ${120 + (ago % 5) * 11}, ${visitors}, 2.4, ${Math.round(visitors * 0.22)}, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`)
+    for (const [path, share] of pagePaths) {
+      pages.push(`  ('analytics-demo-page-${ago}-${path.replace(/\W+/g, '') || 'home'}', 'org-demo', 'site-demo', ${dateSql}, '${path}', ${Math.max(1, Math.round(views * share))}, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`)
+    }
+    for (const [dimension, value, subvalue, share] of dimensions) {
+      dims.push(`  ('analytics-demo-dim-${ago}-${dimension}-${value}', 'org-demo', 'site-demo', ${dateSql}, '${dimension}', '${value}', ${subvalue ? `'${subvalue}'` : 'NULL'}, ${Math.max(1, Math.round(views * share))}, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`)
+    }
+  }
+
+  return `-- Local-only rolling analytics for the dashboard Insights page.
+-- Stable IDs make this safe to re-run without accumulating fixture records.
+
+INSERT OR REPLACE INTO site_analytics_daily
+  (id, organization_id, site_id, date, page_views, unique_sessions, avg_session_duration,
+   unique_visitors, pages_per_session, returning_visitors, created_at, updated_at)
+VALUES
+${daily.join(',\n')};
+
+INSERT OR REPLACE INTO site_analytics_page_daily
+  (id, organization_id, site_id, date, page_path, page_views, created_at, updated_at)
+VALUES
+${pages.join(',\n')};
+
+INSERT OR REPLACE INTO site_analytics_dimension_daily
+  (id, organization_id, site_id, date, dimension, value, subvalue, page_views, created_at, updated_at)
+VALUES
+${dims.join(',\n')};
+`
+}
+
 function renderTodayFixtureSeed() {
   return `-- Local-only rolling data for the dashboard Today page.
 -- Stable IDs make this safe to re-run without accumulating fixture records.
@@ -301,6 +380,8 @@ ${renderCompiledDemoTenantPagesBlock()}
 ${renderCompiledDemoBillingBlock()}
 
 ${renderTodayFixtureSeed()}
+
+${renderAnalyticsFixtureSeed()}
 `
 
 if (isStdout) {

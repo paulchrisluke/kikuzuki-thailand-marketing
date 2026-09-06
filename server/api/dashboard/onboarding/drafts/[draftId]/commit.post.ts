@@ -300,8 +300,10 @@ export default defineHandler(async (event) => {
     draftCommitted = true
 
     // The homepage and its media are now committed: generate the site card once
-    // so its first real card uses the homepage hero when available. This is a
-    // single site-owner refresh, not a whole-site regeneration.
+    // so its first real card uses the homepage hero when available. Deliberately
+    // one owner, not the whole site — rendering and uploading a card per product
+    // would run for minutes inside this request. Everything else is picked up by
+    // the social-card-backfill task.
     try {
       await refreshSocialCard({ db, env, owner: { owner_type: 'site', owner_id: siteId }, actorId: session.user.id })
     } catch (cardError) {

@@ -387,7 +387,7 @@ export async function getDashboardContext(event: H3Event, options: DashboardCont
         ...rawSite,
         effective_plan: (await getOrganizationBillingProjection(db, organization.id)).effectivePlan,
         media: siteSocialMedia,
-        social_image: resolveSocialImageFromMedia(siteSocialMedia, siteSocialMedia),
+        social_image: resolveSocialImageFromMedia(siteSocialMedia),
       }
     : null
 
@@ -457,7 +457,7 @@ export async function listOrganizationSites(
       ...row,
       effective_plan: effectivePlan,
       media,
-      social_image: resolveSocialImageFromMedia(media, media),
+      social_image: resolveSocialImageFromMedia(media),
     }
   })
 }
@@ -565,21 +565,9 @@ export async function listDashboardLocations(
     ORDER BY is_primary DESC, title ASC
   `, scopedTeamIdsJson ? [organizationId, siteId, scopedTeamIdsJson, scopedTeamIdsJson] : [organizationId, siteId])
 
-  // Locations resolve their card image the same way public location pages do:
-  // the location's own social_card first, then the site's. Same resolver, so a
-  // location card in the CMS and its public page never disagree.
-  const siteMedia = await queryAll<{ slot: string, public_url: string, thumbnail_url: string | null, kind: string | null }>(db, `
-    SELECT mp.slot, ma.public_url, ma.thumbnail_url, ma.kind
-      FROM media_placements mp
-      JOIN media_assets ma
-        ON ma.id = mp.asset_id AND ma.status = 'active'
-       AND ma.organization_id = mp.organization_id AND ma.site_id = mp.site_id
-     WHERE mp.organization_id = ? AND mp.site_id = ?
-       AND mp.owner_type = 'site' AND mp.status = 'active'
-       AND mp.slot IN ('social_card', 'social_share', 'logo')
-     ORDER BY mp.sort_order ASC
-  `, [organizationId, siteId])
-
+  // A location's card image is the location's own social_card. The site-media
+  // query that used to sit here existed only to fall back to the site logo,
+  // which made every location on a site look identical.
   return locations.map((location) => {
     const { hero_asset_id, hero_kind, hero_media_public_url, hero_media_thumbnail_url,
       social_asset_id, social_kind, social_public_url, social_thumbnail_url, ...fields } = location
@@ -602,7 +590,7 @@ export async function listDashboardLocations(
       address: parseLocationAddress(location.address),
       feature_overrides: location.feature_overrides,
       media: ownerMedia,
-      social_image: resolveSocialImageFromMedia(ownerMedia, siteMedia),
+      social_image: resolveSocialImageFromMedia(ownerMedia),
     }
   })
 }
