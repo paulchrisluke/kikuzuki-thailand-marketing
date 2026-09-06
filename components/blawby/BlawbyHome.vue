@@ -134,7 +134,13 @@ function asOptionalString(value: unknown) {
 function mediaUrl(value: ApiRecord | null | undefined, slot: string) {
   const media = value?.media
   const item = media?.find((candidate: unknown) => candidate && typeof candidate === 'object' && (candidate as ApiRecord).slot === slot) as ApiRecord | undefined
-  return typeof item?.public_url === 'string' ? item.public_url : null
+  if (typeof item?.public_url === 'string' && item.public_url) return item.public_url
+  const direct = value?.[slot]
+  if (typeof direct === 'string' && direct) return direct
+  if (direct && typeof direct === 'object' && typeof (direct as ApiRecord).url === 'string' && (direct as ApiRecord).url) {
+    return (direct as ApiRecord).url as string
+  }
+  return null
 }
 
 const heroBlock = block('home_hero')
@@ -161,14 +167,34 @@ const heroTitle = computed(() => {
     ? { before: title.slice(0, index), accent, after: title.slice(index + accent.length) }
     : { before: title, accent: '', after: '' }
 })
-const videoFeatures = computed(() => Array.isArray(videoFeature.value?.features)
-  ? videoFeature.value.features.map((item: ApiRecord) => ({ name: String(item.name || ''), desc: String(item.desc || '') }))
-  : [])
-const videoImages = computed(() => (Array.isArray(videoFeature.value?.media) ? videoFeature.value.media : [])
-  .filter((item: unknown): item is ApiRecord => Boolean(item && typeof item === 'object' && String((item as ApiRecord).slot).startsWith('images.')))
-  .sort((a: ApiRecord, b: ApiRecord) => String(a.slot).localeCompare(String(b.slot), undefined, { numeric: true }))
-  .map((item: ApiRecord) => ({ url: typeof item.public_url === 'string' ? item.public_url : '', alt: asOptionalString(item.alt_text) }))
-  .filter((item: { url: string }) => item.url))
+const videoFeatures = computed(() => {
+  const raw = videoFeature.value?.features ?? videoFeature.value?.items
+  return Array.isArray(raw)
+    ? raw.map((item: ApiRecord) => ({
+        name: String(item.name ?? item.title ?? ''),
+        desc: String(item.desc ?? item.description ?? ''),
+      }))
+    : []
+})
+const videoImages = computed(() => {
+  const mediaList = Array.isArray(videoFeature.value?.media) ? videoFeature.value.media : []
+  const placed = mediaList
+    .filter((item: unknown): item is ApiRecord => Boolean(item && typeof item === 'object' && String((item as ApiRecord).slot).startsWith('images.')))
+    .sort((a: ApiRecord, b: ApiRecord) => String(a.slot).localeCompare(String(b.slot), undefined, { numeric: true }))
+    .map((item: ApiRecord) => ({ url: typeof item.public_url === 'string' ? item.public_url : '', alt: asOptionalString(item.alt_text) }))
+    .filter((item: { url: string }) => item.url)
+  if (placed.length) return placed
+
+  const directImages = Array.isArray(videoFeature.value?.images) ? videoFeature.value.images : []
+  return directImages
+    .map((item: unknown) => {
+      if (!item || typeof item !== 'object') return null
+      const rec = item as ApiRecord
+      const url = typeof rec.url === 'string' ? rec.url : typeof rec.public_url === 'string' ? rec.public_url : ''
+      return url ? { url, alt: asOptionalString(rec.alt ?? rec.alt_text) } : null
+    })
+    .filter((item: { url: string } | null): item is { url: string; alt: string | null } => Boolean(item?.url))
+})
 const reviewsDescription = computed(() => String(reviewsBlock.value?.description || ''))
 
 const { trackConsultationClick } = useSiteConversionTracking(consultation)
