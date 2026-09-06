@@ -52,7 +52,9 @@ export default defineNuxtRouteMiddleware(async (to) => {
      LIMIT 1
   `, [siteId, candidate])
   if (!locale) return
-  await assertPublicSiteLanguageEntitlement(db, locale.organization_id, siteId, locale.locale)
+  const entitlement = await assertPublicSiteLanguageEntitlement(db, locale.organization_id, siteId, locale.locale)
+  const messages = entitlement.platform_messages ?? {}
   state.value = locale.locale
-  setAppLocale(locale.locale, null)
+  useState<Record<string, string> | null>('platform-locale-messages', () => null).value = messages
+  setAppLocale(locale.locale, messages)
 })
