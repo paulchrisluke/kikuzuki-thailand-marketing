@@ -155,7 +155,7 @@ export function postActionUrl(action: PostAction | null, phone: string | null): 
 export function postEventDescription(event: PostEvent, locale = 'en'): string {
   const schedule = event.schedule
   const formatDate = (value: string) => new Intl.DateTimeFormat(locale, { dateStyle: 'medium', timeZone: 'UTC' }).format(new Date(`${value}T00:00:00Z`))
-  const range = `${formatDate(schedule.start_date)} ${schedule.start_time} – ${formatDate(schedule.end_date)} ${schedule.end_time}`
+  const range = `${formatDate(schedule.start_date)} ${schedule.start_time.replace(/:00(?:\.0+)?$/, '')} – ${formatDate(schedule.end_date)} ${schedule.end_time.replace(/:00(?:\.0+)?$/, '')}`
   const rule = event.recurrence_info
   if (!rule) return range
   const weekdayName = (day: typeof POST_WEEKDAYS[number]) => new Intl.DateTimeFormat(locale, { weekday: 'long', timeZone: 'UTC' }).format(new Date(Date.UTC(2026, 8, 6 + POST_WEEKDAYS.indexOf(day))))
