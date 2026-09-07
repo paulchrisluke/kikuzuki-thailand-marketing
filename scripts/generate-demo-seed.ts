@@ -11,10 +11,12 @@ import {
   renderCompiledDemoProductsBlock,
   renderCompiledDemoPostsBlock,
   renderCompiledDemoBlogBlock,
+  renderCompiledDemoArticlesBlock,
   renderCompiledDemoQaBlock,
   renderCompiledDemoReviewsBlock,
   renderCompiledDemoBillingBlock,
   renderCompiledDemoInboxBlock,
+  renderCompiledDemoResourceLocalizationsBlock,
   renderDemoExperienceSeedBlock,
 } from '../seed-definitions/demo.ts'
 import { renderCanonicalBillingSql } from '../seed-definitions/billing-sql.ts'
@@ -292,11 +294,15 @@ ${renderCompiledDemoReviewsBlock()}
 
 ${renderCompiledDemoProductsBlock()}
 
+${renderCompiledDemoResourceLocalizationsBlock()}
+
 ${renderCompiledDemoQaBlock()}
 
 ${renderCompiledDemoPostsBlock()}
 
 ${renderCompiledDemoBlogBlock()}
+
+${renderCompiledDemoArticlesBlock()}
 
 ${renderDemoExperienceSeedBlock()}
 

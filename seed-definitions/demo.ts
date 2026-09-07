@@ -65,7 +65,7 @@ export const demoFixture: CuratedSiteDefinition = {
       locale: 'th',
       label: 'ไทย',
       isSource: false,
-      status: 'disabled',
+      status: 'published',
     },
   ],
   siteDomains: [
@@ -175,12 +175,12 @@ export const demoFixture: CuratedSiteDefinition = {
       id: 'media-demo-logo',
       provider: 'cloudflare_images',
       source: 'uploaded',
-      cloudflareImageId: '970e5c03-f00d-4e30-fa27-0278251cfd00',
-      publicUrl: 'https://imagedelivery.net/Frxyb2_d_vGyiaXhS5xqCg/970e5c03-f00d-4e30-fa27-0278251cfd00/public',
-      thumbnailUrl: 'https://imagedelivery.net/Frxyb2_d_vGyiaXhS5xqCg/970e5c03-f00d-4e30-fa27-0278251cfd00/thumbnail',
+      cloudflareImageId: 'ce8fc9b5-9e87-4bbd-2ac0-120d1c544000',
+      publicUrl: 'https://imagedelivery.net/Frxyb2_d_vGyiaXhS5xqCg/ce8fc9b5-9e87-4bbd-2ac0-120d1c544000/public',
+      thumbnailUrl: 'https://imagedelivery.net/Frxyb2_d_vGyiaXhS5xqCg/ce8fc9b5-9e87-4bbd-2ac0-120d1c544000/thumbnail',
       mimeType: 'image/png',
-      fileName: 'saya-logo.png',
-      altText: 'Saya theme logo',
+      fileName: 'ember-slice-logo.png',
+      altText: 'Ember & Slice logo',
       category: 'other',
     },
     // Loc-demo: hero + video assets
@@ -360,6 +360,66 @@ export const demoFixture: CuratedSiteDefinition = {
       altText: 'Garlic knots with marinara',
       category: 'food',
     },
+    {
+      id: 'media-demo-soppressata',
+      provider: 'cloudflare_images',
+      source: 'uploaded',
+      cloudflareImageId: '65efc617-c59b-46cb-6165-2c55217ef200',
+      publicUrl: 'https://imagedelivery.net/Frxyb2_d_vGyiaXhS5xqCg/65efc617-c59b-46cb-6165-2c55217ef200/public',
+      thumbnailUrl: 'https://imagedelivery.net/Frxyb2_d_vGyiaXhS5xqCg/65efc617-c59b-46cb-6165-2c55217ef200/thumbnail',
+      mimeType: 'image/jpeg',
+      fileName: 'soppressata-hot-honey.jpg',
+      altText: 'Soppressata hot honey pizza',
+      category: 'food',
+    },
+    {
+      id: 'media-demo-caesar',
+      provider: 'cloudflare_images',
+      source: 'uploaded',
+      cloudflareImageId: 'cc5c1e78-a0d0-4a87-e56c-fd9f36645d00',
+      publicUrl: 'https://imagedelivery.net/Frxyb2_d_vGyiaXhS5xqCg/cc5c1e78-a0d0-4a87-e56c-fd9f36645d00/public',
+      thumbnailUrl: 'https://imagedelivery.net/Frxyb2_d_vGyiaXhS5xqCg/cc5c1e78-a0d0-4a87-e56c-fd9f36645d00/thumbnail',
+      mimeType: 'image/jpeg',
+      fileName: 'little-gem-caesar.jpg',
+      altText: 'Little gem Caesar salad',
+      category: 'food',
+    },
+    {
+      id: 'media-demo-rigatoni',
+      provider: 'cloudflare_images',
+      source: 'uploaded',
+      cloudflareImageId: 'b3fdb896-a13b-4fc2-1f28-9a3611e9a100',
+      publicUrl: 'https://imagedelivery.net/Frxyb2_d_vGyiaXhS5xqCg/b3fdb896-a13b-4fc2-1f28-9a3611e9a100/public',
+      thumbnailUrl: 'https://imagedelivery.net/Frxyb2_d_vGyiaXhS5xqCg/b3fdb896-a13b-4fc2-1f28-9a3611e9a100/thumbnail',
+      mimeType: 'image/jpeg',
+      fileName: 'rigatoni-pomodoro.jpg',
+      altText: 'Rigatoni pomodoro',
+      category: 'food',
+    },
+    {
+      id: 'media-demo-lemonade',
+      provider: 'cloudflare_images',
+      source: 'uploaded',
+      cloudflareImageId: '9756adb3-1ef3-46cf-aa93-f80495979b00',
+      publicUrl: 'https://imagedelivery.net/Frxyb2_d_vGyiaXhS5xqCg/9756adb3-1ef3-46cf-aa93-f80495979b00/public',
+      thumbnailUrl: 'https://imagedelivery.net/Frxyb2_d_vGyiaXhS5xqCg/9756adb3-1ef3-46cf-aa93-f80495979b00/thumbnail',
+      mimeType: 'image/jpeg',
+      fileName: 'sparkling-lemonade.jpg',
+      altText: 'Sparkling lemonade',
+      category: 'food',
+    },
+    {
+      id: 'media-demo-italian-soda',
+      provider: 'cloudflare_images',
+      source: 'uploaded',
+      cloudflareImageId: 'de02de1d-a1cb-48a1-9cbe-c3c383cc9000',
+      publicUrl: 'https://imagedelivery.net/Frxyb2_d_vGyiaXhS5xqCg/de02de1d-a1cb-48a1-9cbe-c3c383cc9000/public',
+      thumbnailUrl: 'https://imagedelivery.net/Frxyb2_d_vGyiaXhS5xqCg/de02de1d-a1cb-48a1-9cbe-c3c383cc9000/thumbnail',
+      mimeType: 'image/jpeg',
+      fileName: 'italian-soda.jpg',
+      altText: 'Italian soda',
+      category: 'food',
+    },
     // Loc-demo: post images
     {
       id: 'media-demo-post1',
@@ -457,6 +517,43 @@ export const demoFixture: CuratedSiteDefinition = {
       mimeType: 'image/jpeg',
       fileName: 'family-pizza-night.jpg',
       altText: 'Family-style dinner table set for pizza night',
+      category: 'interior',
+    },
+    // Article cover images
+    {
+      id: 'media-demo-article-sourdough',
+      provider: 'cloudflare_images',
+      source: 'uploaded',
+      cloudflareImageId: '76012754-2517-4fc5-0885-e61c23a27900',
+      publicUrl: 'https://imagedelivery.net/Frxyb2_d_vGyiaXhS5xqCg/76012754-2517-4fc5-0885-e61c23a27900/public',
+      thumbnailUrl: 'https://imagedelivery.net/Frxyb2_d_vGyiaXhS5xqCg/76012754-2517-4fc5-0885-e61c23a27900/thumbnail',
+      mimeType: 'image/jpeg',
+      fileName: 'article-sourdough-dough.jpg',
+      altText: 'Pizza dough being prepared',
+      category: 'food',
+    },
+    {
+      id: 'media-demo-article-wine',
+      provider: 'cloudflare_images',
+      source: 'uploaded',
+      cloudflareImageId: '6a78b1d1-5afc-4b27-ff79-801cdf5b2e00',
+      publicUrl: 'https://imagedelivery.net/Frxyb2_d_vGyiaXhS5xqCg/6a78b1d1-5afc-4b27-ff79-801cdf5b2e00/public',
+      thumbnailUrl: 'https://imagedelivery.net/Frxyb2_d_vGyiaXhS5xqCg/6a78b1d1-5afc-4b27-ff79-801cdf5b2e00/thumbnail',
+      mimeType: 'image/jpeg',
+      fileName: 'article-wine-pizza.jpg',
+      altText: 'Wine and pizza pairing',
+      category: 'food',
+    },
+    {
+      id: 'media-demo-article-oven',
+      provider: 'cloudflare_images',
+      source: 'uploaded',
+      cloudflareImageId: '40f35c96-bb6c-4486-8599-998ecc092f00',
+      publicUrl: 'https://imagedelivery.net/Frxyb2_d_vGyiaXhS5xqCg/40f35c96-bb6c-4486-8599-998ecc092f00/public',
+      thumbnailUrl: 'https://imagedelivery.net/Frxyb2_d_vGyiaXhS5xqCg/40f35c96-bb6c-4486-8599-998ecc092f00/thumbnail',
+      mimeType: 'image/jpeg',
+      fileName: 'article-wood-oven-restaurant.jpg',
+      altText: 'Wood-fired oven restaurant interior',
       category: 'interior',
     },
   ],
@@ -758,6 +855,61 @@ export const demoFixture: CuratedSiteDefinition = {
       status: 'approved',
       source: 'google',
     },
+    {
+      id: 'rev-demo-7',
+      locationId: 'loc-demo',
+      authorName: 'Sarah K.',
+      rating: 5,
+      content: 'The sourdough crust here is absolutely incredible—perfect char, airy texture, and that distinctive flavor that only comes from proper fermentation. Best pizza in Brooklyn, hands down.',
+      ownerReply: null,
+      ownerReplyAt: null,
+      status: 'approved',
+      source: 'google',
+    },
+    {
+      id: 'rev-demo-8',
+      locationId: 'loc-demo',
+      authorName: 'David M.',
+      rating: 5,
+      content: 'From the moment we walked in, the hospitality was exceptional. The team made us feel like regulars even on our first visit. That warmth combined with incredible food makes this place special.',
+      ownerReply: 'Thank you David! There is nothing we love more than making new guests feel at home. Come back soon!',
+      ownerReplyAt: '2026-04-28T14:20:00.000Z',
+      status: 'approved',
+      source: 'google',
+    },
+    {
+      id: 'rev-demo-9',
+      locationId: 'loc-demo',
+      authorName: 'Jennifer L.',
+      rating: 5,
+      content: 'The natural wine pairing recommendations were spot on. Our server guided us through three different bottles that perfectly complemented each course. It elevated the whole experience.',
+      ownerReply: null,
+      ownerReplyAt: null,
+      status: 'approved',
+      source: 'google',
+    },
+    {
+      id: 'rev-demo-10',
+      locationId: 'loc-demo',
+      authorName: 'Robert H.',
+      rating: 4,
+      content: 'The atmosphere is perfect—cozy but energetic, great music, and that open oven creates such a warm focal point for the room. It feels like a neighborhood gem that genuinely cares about quality.',
+      ownerReply: null,
+      ownerReplyAt: null,
+      status: 'approved',
+      source: 'google',
+    },
+    {
+      id: 'rev-demo-11',
+      locationId: 'loc-demo',
+      authorName: 'Amanda T.',
+      rating: 5,
+      content: 'This has become our go-to spot for date night. We live a few blocks away and find ourselves here at least once a week. The consistency is remarkable—always delicious, always welcoming.',
+      ownerReply: 'Amanda, neighbors like you are why we do this. Thank you for being part of our neighborhood!',
+      ownerReplyAt: '2026-04-20T16:45:00.000Z',
+      status: 'approved',
+      source: 'google',
+    },
   ],
   products: [
     ...productsAtLocation('loc-demo', [
@@ -776,6 +928,8 @@ export const demoFixture: CuratedSiteDefinition = {
           dietaryNotes: '["Vegetarian"]',
           available: true,
           sortOrder: 1,
+          featured: true,
+          featuredSortOrder: 1,
         },
         {
           id: 'mi-2',
@@ -789,6 +943,8 @@ export const demoFixture: CuratedSiteDefinition = {
           dietaryNotes: null,
           available: true,
           sortOrder: 2,
+          featured: true,
+          featuredSortOrder: 2,
         },
         {
           id: 'mi-3',
@@ -810,7 +966,7 @@ export const demoFixture: CuratedSiteDefinition = {
           slug: 'soppressata-hot-honey',
           description: 'Spicy soppressata, tomato, mozzarella, pickled Fresno chile, Brooklyn hot honey',
           priceAmount: 23,
-          media: [],
+          media: [{ asset_id: 'media-demo-soppressata', slot: 'gallery' }],
           allergens: '["Gluten", "Dairy"]',
           dietaryNotes: null,
           available: true,
@@ -828,6 +984,8 @@ export const demoFixture: CuratedSiteDefinition = {
           dietaryNotes: '["Vegetarian"]',
           available: true,
           sortOrder: 1,
+          featured: true,
+          featuredSortOrder: 3,
         },
         {
           id: 'mi-6',
@@ -849,7 +1007,7 @@ export const demoFixture: CuratedSiteDefinition = {
           slug: 'little-gem-caesar',
           description: 'Little gem lettuce, anchovy dressing, sourdough crumbs, shaved pecorino',
           priceAmount: 14,
-          media: [],
+          media: [{ asset_id: 'media-demo-caesar', slot: 'gallery' }],
           allergens: '["Gluten", "Dairy", "Fish"]',
           dietaryNotes: null,
           available: true,
@@ -862,7 +1020,7 @@ export const demoFixture: CuratedSiteDefinition = {
           slug: 'rigatoni-pomodoro',
           description: 'Rigatoni, slow tomato sauce, basil, parmesan',
           priceAmount: 19,
-          media: [],
+          media: [{ asset_id: 'media-demo-rigatoni', slot: 'gallery' }],
           allergens: '["Gluten", "Dairy"]',
           dietaryNotes: '["Vegetarian"]',
           available: true,
@@ -875,7 +1033,7 @@ export const demoFixture: CuratedSiteDefinition = {
           slug: 'sparkling-lemonade',
           description: 'House lemon cordial, soda, rosemary',
           priceAmount: 6,
-          media: [],
+          media: [{ asset_id: 'media-demo-lemonade', slot: 'gallery' }],
           allergens: null,
           dietaryNotes: '["Vegan", "Gluten-free"]',
           available: true,
@@ -888,7 +1046,7 @@ export const demoFixture: CuratedSiteDefinition = {
           slug: 'italian-soda',
           description: 'Blood orange, grapefruit, or limonata',
           priceAmount: 5,
-          media: [],
+          media: [{ asset_id: 'media-demo-italian-soda', slot: 'gallery' }],
           allergens: null,
           dietaryNotes: '["Vegan", "Gluten-free"]',
           available: true,
@@ -911,6 +1069,8 @@ export const demoFixture: CuratedSiteDefinition = {
           dietaryNotes: '["Vegetarian"]',
           available: true,
           sortOrder: 1,
+          featured: true,
+          featuredSortOrder: 1,
         },
         {
           id: 'mi-demo2-2',
@@ -924,6 +1084,8 @@ export const demoFixture: CuratedSiteDefinition = {
           dietaryNotes: null,
           available: true,
           sortOrder: 2,
+          featured: true,
+          featuredSortOrder: 2,
         },
         {
           id: 'mi-demo2-3',
@@ -937,6 +1099,8 @@ export const demoFixture: CuratedSiteDefinition = {
           dietaryNotes: '["Vegetarian"]',
           available: true,
           sortOrder: 1,
+          featured: true,
+          featuredSortOrder: 3,
         },
         {
           id: 'mi-demo2-4',
@@ -945,7 +1109,7 @@ export const demoFixture: CuratedSiteDefinition = {
           slug: 'sparkling-lemonade',
           description: 'House lemon cordial, soda, rosemary',
           priceAmount: 6,
-          media: [],
+          media: [{ asset_id: 'media-demo-lemonade', slot: 'gallery' }],
           allergens: null,
           dietaryNotes: '["Vegan", "Gluten-free"]',
           available: true,
@@ -1044,6 +1208,76 @@ export const demoFixture: CuratedSiteDefinition = {
       source: 'manual',
       status: 'published',
       sortOrder: 2,
+    },
+  ],
+  qaTranslations: [
+    {
+      id: 'qa-demo-1-th',
+      originalId: 'qa-demo-1',
+      question: 'คุณรับจองโต๊ะไหม',
+      answer: 'ใช่ เราจัดที่ว่างสำหรับลูกค้าเดินเข้ามา แต่ขอแนะนำให้จองสำหรับมื้อเย็นและวันหยุด',
+    },
+    {
+      id: 'qa-demo-2-th',
+      originalId: 'qa-demo-2',
+      question: 'คุณมีแป้งไร์กลูเตนฟรีไหม',
+      answer: 'ยังไม่ ห้องผสมแป้งของเราใช้แป้งสาลีตลอดทั้งวัน ดังนั้นเราไม่สามารถรับประกันแป้งไร์กลูเตนฟรีได้อย่างปลอดภัย',
+    },
+    {
+      id: 'qa-demo-3-th',
+      originalId: 'qa-demo-3',
+      question: 'ฉันสามารถสั่งทานบ้านได้ไหม',
+      answer: 'ใช่ โทรหาเราโดยตรงเพื่อรับของ พิซซ่าเตาฟืนเดินทางได้ดีที่สุดเมื่อหยิบใกล้เวลาย่าง',
+    },
+    {
+      id: 'qa-demo-4-th',
+      originalId: 'qa-demo-4',
+      question: 'เวลาที่แออัดที่สุดคือเมื่อไร',
+      answer: 'วันศุกร์และวันเสาร์ตั้งแต่ 7 ถึง 9 โมงเย็นคือช่วงพีค มื้อเย็นตั้งแต่ต้นหรืออาหารกลางวันวันอาทิตย์จะสงบกว่า',
+    },
+    {
+      id: 'qa-demo-5-th',
+      originalId: 'qa-demo-5',
+      question: 'คุณมีตัวเลือกมังสวิรัติไหม',
+      answer: 'แน่นอน มาร์เกอริต้า ฟันจี บิองโก บูร์ราตา การ์ลิกน็อต และริกาโตนีโปโมโดโรเป็นมังสวิรัติ',
+    },
+    {
+      id: 'qa-demo2-1-th',
+      originalId: 'qa-demo2-1',
+      question: 'คุณมีที่นั่งกลางแจ้งไหม',
+      answer: 'แน่นอน! เรามีการจัดเตรียมพาทิโอที่สวยงามสำหรับเดือนที่อบอุ่น',
+    },
+    {
+      id: 'qa-demo2-2-th',
+      originalId: 'qa-demo2-2',
+      question: 'คุณเสนอแป้งไร์กลูเตนฟรีไหม',
+      answer: 'ใช่ เราเสนอแป้งไร์กลูเตนฟรีสำหรับพิซซ่าเตาฟืนทุกชนิดโดยเสียค่าใช้จ่ายเพิ่มเติม',
+    },
+  ],
+  postTranslations: [
+    {
+      id: 'post-demo-1-th',
+      originalId: 'post-demo-1',
+      title: 'อาหารกลางวันวันหยุดเริ่มตั้งแต่ 11 โมง',
+      body: 'เตาจะติดไฟเร็วขึ้นในวันเสาร์และวันอาทิตย์ มาทานพิซซ่ากลางวัน การ์ลิกน็อต และสปริตซ์ตั้งแต่ 11 โมงเช้า',
+    },
+    {
+      id: 'post-demo-2-th',
+      originalId: 'post-demo-2',
+      title: null,
+      body: 'ฟันจี บิองโกของเรากลับมาแล้วด้วยเห็ดย่าง ครีมริคอตต้า ใบสะระแหน่ และหิมะเปคโคริโนเล็กน้อยที่เคาน์เตอร์',
+    },
+    {
+      id: 'post-demo-3-th',
+      originalId: 'post-demo-3',
+      title: 'มาร์เกอริต้าวันจันทร์',
+      body: 'ทุกวันจันทร์ในเดือนพฤษภาคม: พิซซ่ามาร์เกอริต้าราคา 14 ดอลลาร์ตั้งแต่เปิดถึงปิด ทานในร้านเท่านั้น หนึ่งต่อคน',
+    },
+    {
+      id: 'post-demo-4-th',
+      originalId: 'post-demo-4',
+      title: 'มื้ออาหารโต๊ะยาวเก็บเกี่ยว',
+      body: 'ร่วมกับเราสำหรับมื้ออาหารครอบครัวแบบครั้งเดียวที่สร้างขึ้นรอบผลผลิตปลายฤดูร้อนและเตาฟืนไม้',
     },
   ],
   posts: [
@@ -1161,6 +1395,86 @@ export const demoFixture: CuratedSiteDefinition = {
       translatedAt: '2026-05-01T00:00:00.000Z',
       reviewedAt: '2026-05-01T00:00:00.000Z',
     },
+    {
+      id: 'sct-demo-th-journey',
+      locationId: null,
+      locale: 'th',
+      page: 'about',
+      field: 'journey.body',
+      content: 'เราหมักแป้งในอุณหภูมิต่ำ ยืดแป้งทุกแผ่นตามออเดอร์ และย่างในอุณหภูมิสูงพอที่จะได้ขอบกรอบและศูนย์กลางที่นุ่ม เมนูเปลี่ยนไปตามตลาด แต่มาร์เกอริต้าจะไม่หายไปจากเมนู\n\nเตาอบเป็นใจกลางของห้อง ทุกอย่างหมุนรอบเตาอบ',
+      heroTitle: null,
+      heroSubtitle: null,
+      value: 'เราหมักแป้งในอุณหภูมิต่ำ ยืดแป้งทุกแผ่นตามออเดอร์ และย่างในอุณหภูมิสูงพอที่จะได้ขอบกรอบและศูนย์กลางที่นุ่ม เมนูเปลี่ยนไปตามตลาด แต่มาร์เกอริต้าจะไม่หายไปจากเมนู',
+      type: 'textarea',
+      status: 'published',
+      sourceHash: 'demo-pizza-journey-v1',
+      translatedAt: '2026-05-01T00:00:00.000Z',
+      reviewedAt: '2026-05-01T00:00:00.000Z',
+    },
+    {
+      id: 'sct-demo-th-experience',
+      locationId: null,
+      locale: 'th',
+      page: 'about',
+      field: 'experience.body',
+      content: 'มาทานพิซซ่าแผ่นเดียวจากเคาน์เตอร์ หรืออยู่ต่อกับแอนติพาสติและเครื่องดื่มอีกแก้ว หรือพากลุ่มมาและปล่อยให้โต๊ะเต็มไปด้วยตัวเอง Ember & Slice ออกแบบมาให้เป็นกันเอง แต่รายละเอียดสำคัญ\n\nมะเขือเทศดี แป้งดี ไฟดี ไม่มีทางลัด',
+      heroTitle: null,
+      heroSubtitle: null,
+      value: 'มาทานพิซซ่าแผ่นเดียวจากเคาน์เตอร์ หรืออยู่ต่อกับแอนติพาสติและเครื่องดื่มอีกแก้ว หรือพากลุ่มมาและปล่อยให้โต๊ะเต็มไปด้วยตัวเอง Ember & Slice ออกแบบมาให้เป็นกันเอง แต่รายละเอียดสำคัญ',
+      type: 'textarea',
+      status: 'published',
+      sourceHash: 'demo-pizza-experience-v1',
+      translatedAt: '2026-05-01T00:00:00.000Z',
+      reviewedAt: '2026-05-01T00:00:00.000Z',
+    },
+    {
+      id: 'sct-demo-th-exp-kicker',
+      locationId: null,
+      locale: 'th',
+      page: 'experiences',
+      field: 'hero.kicker',
+      content: 'ประสบการณ์',
+      heroTitle: null,
+      heroSubtitle: null,
+      value: 'ประสบการณ์',
+      type: 'text',
+      status: 'published',
+      sourceHash: 'demo-pizza-exp-kicker-v1',
+      translatedAt: '2026-05-01T00:00:00.000Z',
+      reviewedAt: '2026-05-01T00:00:00.000Z',
+    },
+    {
+      id: 'sct-demo-th-exp-title',
+      locationId: null,
+      locale: 'th',
+      page: 'experiences',
+      field: 'hero.title',
+      content: 'คลาสทำพิซซ่า ค่ำคืนวิญญาณ และมื้ออาหารแบบโต๊ะยาว',
+      heroTitle: null,
+      heroSubtitle: null,
+      value: 'คลาสทำพิซซ่า ค่ำคืนวิญญาณ และมื้ออาหารแบบโต๊ะยาว',
+      type: 'text',
+      status: 'published',
+      sourceHash: 'demo-pizza-exp-title-v1',
+      translatedAt: '2026-05-01T00:00:00.000Z',
+      reviewedAt: '2026-05-01T00:00:00.000Z',
+    },
+    {
+      id: 'sct-demo-th-exp-subtitle',
+      locationId: null,
+      locale: 'th',
+      page: 'experiences',
+      field: 'hero.subtitle',
+      content: 'จองคลาสทำพิซซ่าแบบลงมือทำ ค่ำคืนคู่วิญญาณ หรือมื้ออาหารแบบครอบครัวรอบเตาอบ',
+      heroTitle: null,
+      heroSubtitle: null,
+      value: 'จองคลาสทำพิซซ่าแบบลงมือทำ ค่ำคืนคู่วิญญาณ หรือมื้ออาหารแบบครอบครัวรอบเตาอบ',
+      type: 'textarea',
+      status: 'published',
+      sourceHash: 'demo-pizza-exp-subtitle-v1',
+      translatedAt: '2026-05-01T00:00:00.000Z',
+      reviewedAt: '2026-05-01T00:00:00.000Z',
+    },
   ],
   businessLocationTranslations: [
     {
@@ -1176,6 +1490,115 @@ export const demoFixture: CuratedSiteDefinition = {
       sourceHash: 'demo-pizza-location-v1',
       translatedAt: '2026-05-01T00:00:00.000Z',
       reviewedAt: '2026-05-01T00:00:00.000Z',
+    },
+    {
+      id: 'blt-demo-th-loc-2',
+      locationId: 'loc-demo-2',
+      locale: 'th',
+      title: 'Ember & Slice เวสต์วิลเลจ',
+      address: '100 7th Ave S',
+      city: 'นิวยอร์ก',
+      description: 'พิซซ่าเตาฟืนลายเซ็นและการต้อนรับที่อบอุ่น นำมาสู่ใจกลางของเวสต์วิลเลจ',
+      shortDescription: 'พิซซ่าเตาฟืน แอนติพาสติตามฤดูกาล และการต้อนรับแบบเพื่อนบ้านในเวสต์วิลเลจ',
+      status: 'published',
+      sourceHash: 'demo-pizza-location-2-v1',
+      translatedAt: '2026-05-01T00:00:00.000Z',
+      reviewedAt: '2026-05-01T00:00:00.000Z',
+    },
+  ],
+  resourceLocalizations: [
+    // Product resource localizations
+    {
+      id: 'rl-demo-th-margherita',
+      resourceType: 'product',
+      resourceId: 'mi-1',
+      locale: 'th',
+      valuesJson: { name: 'มาร์เกอริต้า', description: 'มะเขือเทศซานมาร์นา ฟิออร์ดีลาตเต้ ใบบาซิลิก น้ำมันมะกอกคั่นเย็น และเกลือทะเล' },
+    },
+    {
+      id: 'rl-demo-th-pepperoni',
+      resourceType: 'product',
+      resourceId: 'mi-2',
+      locale: 'th',
+      valuesJson: { name: 'เป็ปเปอโรนีคาลาเบรเซ', description: 'มะเขือเทศ มอซซาเรลล่า เป็ปเปอโรนีคัพปิ้ง พริกแคลเบรเซียน และโอริกาโน' },
+    },
+    {
+      id: 'rl-demo-th-funghi',
+      resourceType: 'product',
+      resourceId: 'mi-3',
+      locale: 'th',
+      valuesJson: { name: 'ฟันจี บิองโก', description: 'เห็ดย่าง ครีมริคอตต้า กระเทียม ใบสะระแหน่ มอซซาเรลล่า และเปคโคริโน' },
+    },
+    {
+      id: 'rl-demo-th-soppressata',
+      resourceType: 'product',
+      resourceId: 'mi-4',
+      locale: 'th',
+      valuesJson: { name: 'ซอปเปรสซาตาฮอนนี่ฮันนี่', description: 'ซอปเปรสซาตาเผ็ด มะเขือเทศ มอซซาเรลล่า พริกเฟรสโน่ดอง และฮอนนี่ฮันนี่บรูคลิน' },
+    },
+    {
+      id: 'rl-demo-th-burrata',
+      resourceType: 'product',
+      resourceId: 'mi-5',
+      locale: 'th',
+      valuesJson: { name: 'บูร์ราตา', description: 'บูร์ราตาเนียนครีม มะเขือเทศย่าง น้ำมันใบบาซิลิก และขนมปังซาวโดว์ย่าง' },
+    },
+    {
+      id: 'rl-demo-th-knots',
+      resourceType: 'product',
+      resourceId: 'mi-6',
+      locale: 'th',
+      valuesJson: { name: 'การ์ลิกน็อต', description: 'ขนมปังซาวโดว์ผูกมัด พร้อมซอสมะเขือเทศมารินารา' },
+    },
+    {
+      id: 'rl-demo-th-caesar',
+      resourceType: 'product',
+      resourceId: 'mi-7',
+      locale: 'th',
+      valuesJson: { name: 'ซีซาร์เล็ตเทอซิทเจม', description: 'ผักเล็ตเทอซิท ซอสแอนโชวี่ ครัมบ์ขนมปังซาวโดว์ และเปคโคริโนขูด' },
+    },
+    {
+      id: 'rl-demo-th-rigatoni',
+      resourceType: 'product',
+      resourceId: 'mi-8',
+      locale: 'th',
+      valuesJson: { name: 'ริกาโตนีโปโมโดโร', description: 'ริกาโตนี ซอสมะเขือเทศสูตรช้า ใบบาซิลิก และพาร์เมซาน' },
+    },
+    {
+      id: 'rl-demo-th-lemonade',
+      resourceType: 'product',
+      resourceId: 'mi-9',
+      locale: 'th',
+      valuesJson: { name: 'สปาร์กกลิ้งเลมอเนด', description: 'คอร์ดเดิลเลมอนบ้าน โซดา และโรสแมรี่' },
+    },
+    {
+      id: 'rl-demo-th-italian-soda',
+      resourceType: 'product',
+      resourceId: 'mi-10',
+      locale: 'th',
+      valuesJson: { name: 'อิตาเลียนโซดา', description: 'ส้มแดง เกรปฟรูต หรือลิโมนาตา' },
+    },
+    // Experience resource localizations
+    {
+      id: 'rl-demo-th-pizza-class',
+      resourceType: 'product',
+      resourceId: 'exp-demo-pizza-class',
+      locale: 'th',
+      valuesJson: { name: 'คลาสทำพิซซ่า', tagline: 'ยืดแป้ง ตกแต่งพิซซ่า และย่างเอง' },
+    },
+    {
+      id: 'rl-demo-th-wine-night',
+      resourceType: 'product',
+      resourceId: 'exp-demo-wine-night',
+      locale: 'th',
+      valuesJson: { name: 'ค่ำคืนไวน์ธรรมชาติและพิซซ่า', tagline: 'เสิร์ฟเล็กน้อย พิซซ่าร้อน และบรรยากาศโต๊ะยาว' },
+    },
+    {
+      id: 'rl-demo-th-family-night',
+      resourceType: 'product',
+      resourceId: 'exp-demo-family-night',
+      locale: 'th',
+      valuesJson: { name: 'ค่ำคืนพิซซ่าครอบครัว', tagline: 'มื้ออาหารโต๊ะยาว เวลาผ่อนคลาย และพิซซ่าสำหรับทุกวัย' },
     },
   ],
   aiCredits: {
@@ -1486,19 +1909,31 @@ export function renderCompiledDemoQaBlock(): string {
       sqlValue(qa.question),
       sqlValue(qa.answer),
       sqlValue('qa'), sqlValue('root'), sqlValue('en'),
-      sqlJson({ question_author: qa.questionAuthor, answer_author: qa.answerAuthor, is_owner_answer: Boolean(qa.isOwnerAnswer), upvote_count: qa.upvoteCount }),
+      sqlJson({ question_author: qa.questionAuthor, answer_author: qa.answerAuthor, is_owner_answer: Number(qa.isOwnerAnswer), upvote_count: qa.upvoteCount }),
       sqlValue(qa.source),
       sqlValue(qa.status),
       sqlValue(qa.sortOrder),
     ].join(', ')})`)
     .join(',\n')
 
+  const qaTranslations = compiledDemoSeed.qaTranslations?.map((qa) => {
+    const originalQa = compiledDemoSeed.locationQa.find(q => q.id === qa.originalId)
+    if (!originalQa) throw new Error(`Original Q&A not found: ${qa.originalId}`)
+    return `INSERT INTO content_documents
+  (id, organization_id, site_id, title, summary, kind, row_role, locale, root_id, root_role, source, status, visibility)
+VALUES (${sqlValue(qa.id)}, ${sqlValue(originalQa.organizationId)}, ${sqlValue(originalQa.siteId)},
+  ${sqlValue(qa.question)}, ${sqlValue(qa.answer)}, 'qa', 'representation', 'th',
+  ${sqlValue(originalQa.id)}, 'root', NULL, NULL, NULL);`
+  }).join('\n') ?? ''
+
   return `-- BEGIN GENERATED: demo_qa
 -- Location Q&A for the demo tenant.
-INSERT OR IGNORE INTO content_documents
+INSERT INTO content_documents
   (id, organization_id, site_id, location_id, title, summary, kind, row_role, locale, metadata_json, source, status, sort_order)
 VALUES
 ${qaRows};
+
+${qaTranslations}
 -- END GENERATED: demo_qa`
 }
 
@@ -1522,8 +1957,19 @@ export function renderCompiledDemoPostsBlock(): string {
     sqlValue(`placement-post-${post.id}-${media.slot}-${index}`), sqlValue(post.organizationId), sqlValue(post.siteId),
     sqlValue('content_document'), sqlValue(post.id), sqlValue(media.slot), sqlValue(media.asset_id), index, sqlValue('active'),
   ].join(', ')})`)).join(',\n')
+
+  const postTranslations = compiledDemoSeed.postTranslations?.map((post) => {
+    const originalPost = compiledDemoSeed.posts.find(p => p.id === post.originalId)
+    if (!originalPost) throw new Error(`Original post not found: ${post.originalId}`)
+    return `INSERT INTO content_documents
+  (id, organization_id, site_id, title, summary, kind, row_role, locale, root_id, root_role, source, status, visibility)
+VALUES (${sqlValue(post.id)}, ${sqlValue(originalPost.organizationId)}, ${sqlValue(originalPost.siteId)},
+  ${sqlValue(post.title)}, ${sqlValue(post.body)}, 'social_post', 'representation', 'th',
+  ${sqlValue(originalPost.id)}, 'root', NULL, NULL, NULL);`
+  }).join('\n') ?? ''
+
   return `-- BEGIN GENERATED: demo_posts
-INSERT OR IGNORE INTO content_documents
+INSERT INTO content_documents
   (id, organization_id, site_id, location_id, title, summary, kind, row_role, locale, source, metadata_json, status, published_at, created_by)
 VALUES
 ${postRows};
@@ -1533,7 +1979,30 @@ ${postMediaRows ? `INSERT OR REPLACE INTO media_placements
 VALUES
 ${postMediaRows};` : ''}
 
+${postTranslations}
 -- END GENERATED: demo_posts`
+}
+
+export function renderCompiledDemoResourceLocalizationsBlock(): string {
+  const resourceRows = compiledDemoSeed.resourceLocalizations?.map((rl) => `  (${[
+    sqlValue(rl.id),
+    sqlValue(compiledDemoSeed.identity.organizationId),
+    sqlValue(compiledDemoSeed.identity.siteId),
+    sqlValue(rl.resourceType),
+    sqlValue(rl.resourceId),
+    sqlValue(rl.locale),
+    sqlJson(rl.valuesJson),
+    sqlValue('seed:demo'),
+    sqlValue('seed:demo'),
+  ].join(', ')})`).join(',\n') || ''
+
+  return `-- BEGIN GENERATED: demo_resource_localizations
+-- Resource localizations for the demo tenant.
+INSERT OR IGNORE INTO resource_localizations
+  (id, organization_id, site_id, resource_type, resource_id, locale, values_json, created_by_user_id, updated_by_user_id)
+VALUES
+${resourceRows};
+-- END GENERATED: demo_resource_localizations`
 }
 
 export function renderCompiledDemoBlogBlock(): string {
@@ -1559,7 +2028,7 @@ We want the room to feel energetic but never rushed, whether you come in for one
 
   return `-- BEGIN GENERATED: demo_blog
 -- Tenant blog post for local demo verification.
-INSERT OR IGNORE INTO content_documents
+INSERT INTO content_documents
   (id, organization_id, site_id, title, slug, summary, metadata_json, status,
    author_id, published_at, created_at, updated_at,
    seo_description, seo_keywords, canonical_url, robots, kind, row_role, locale, visibility)
@@ -1592,6 +2061,354 @@ INSERT OR REPLACE INTO content_blocks
   (id, document_id, parent_block_id, type, position, level, data_json, created_at, updated_at)
 VALUES (${sqlValue(blockId)}, ${sqlValue(postId)}, NULL, 'markdown', 0, NULL, ${sqlJson(blockData)}, ${sqlValue(publishedAt)}, ${sqlValue(publishedAt)});
 -- END GENERATED: demo_blog`
+}
+
+export function renderCompiledDemoArticlesBlock(): string {
+  const publishedAt = '2026-07-08T00:00:00.000Z'
+  const article1Id = 'article-demo-sourdough-crust'
+  const article1BlockId = 'content-block-demo-sourdough-crust'
+  const article1Body = `# The Secret to Our 72-Hour Sourdough Crust
+
+At Ember & Slice, we believe that great pizza starts with great dough. Our 72-hour sourdough process is the foundation of every pie that comes out of our wood-fired oven.
+
+## The Science of Slow Fermentation
+
+Our dough begins with a simple formula: flour, water, salt, and our active sourdough starter. But the magic happens in the timing. We cold-ferment our dough for 72 hours, a process that develops complex flavors and creates the texture our customers love.
+
+During this extended fermentation, natural enzymes break down complex carbohydrates, making the dough more digestible and developing subtle tangy notes that you won't find in commercial yeast doughs. The long rest also allows the gluten structure to strengthen naturally, giving us that perfect balance of chew and crisp.
+
+## Cold Proofing for Texture
+
+After mixing, our dough goes straight into cold proofing. This slow, cold fermentation is key to achieving the open, airy crumb structure that makes our crust so distinctive. The cold environment keeps yeast activity slow and steady, preventing over-fermentation while allowing flavor development to continue uninterrupted.
+
+## Hand-Stretching for Perfection
+
+When we stretch your pizza, we're not just shaping dough—we're preserving the carbon dioxide bubbles created during fermentation. This careful hand-stretching technique, rather than mechanical rolling, maintains the delicate structure that gives our crust its characteristic leopard-spotted char and tender interior.
+
+## High-Temperature Wood-Fired Baking
+
+Our oven runs at 700-800°F, cooking each pizza in 60-90 seconds. This intense heat is necessary to achieve the contrast we're known for: a crisp, leopard-spotted crust with a tender, airy interior. The quick bake locks in the flavors developed during those 72 hours of fermentation.
+
+## Why It Matters
+
+Every element of our process serves a purpose. The 72-hour fermentation isn't just tradition—it's the foundation of the flavor, texture, and digestibility that make Ember & Slice pizzas unique. When you bite into that first slice, you're tasting three days of careful timing, temperature control, and patience.`
+
+  const article1Data = { markdown: article1Body, editor_mode: 'source' }
+
+  const article2Id = 'article-demo-natural-wine-pairing'
+  const article2BlockId = 'content-block-demo-natural-wine-pairing'
+  const article2Body = `# Why We Only Pair Natural Wines with Wood-Fired Pizza
+
+Walk into Ember & Slice and you'll notice something immediately: our wine list is exclusively natural. This isn't a trend or a marketing angle—it's a deliberate philosophical choice that shapes how we think about food and wine pairing.
+
+## Low-Intervention Philosophy
+
+Natural wines are made with minimal intervention in both the vineyard and the cellar. No synthetic pesticides or herbicides, no added yeast or bacteria, no fining or filtration. The result is wine that expresses its terroir honestly—wines that are alive, vibrant, and constantly evolving.
+
+This approach mirrors our food philosophy. Just as we source high-quality, seasonal ingredients and let them speak for themselves on our pizzas, we seek wines that are authentic expressions of their origin.
+
+## Acidity and Freshness
+
+Wood-fired pizza, with its high-heat cooking and charred crust, has inherent richness and intensity. Natural wines, with their bright acidity and fresh fruit profiles, provide the perfect counterpoint. The acidity cuts through the cheese and char, while the fresh fruit complements the seasonal toppings we use throughout the year.
+
+## Practical Pairing Examples
+
+**Margherita:** A crisp, mineral-driven white wine with citrus notes enhances the fresh basil and San Marzano tomatoes while cutting through the richness of the fior di latte.
+
+**Pepperoni Calabrese:** A light-bodied red with bright red fruit and gentle tannins stands up to the spicy pepperoni without overwhelming the dish.
+
+**Funghi Bianco:** An orange wine with good texture and earthy notes complements the roasted mushrooms and ricotta crema beautifully.
+
+## Beyond Pairing—Creating an Experience
+
+Natural wines are conversation starters. They have stories—about the winemaker, the vineyard, the vintage. When you share a bottle at Ember & Slice, you're not just getting a beverage pairing—you're participating in a broader story of small-scale agriculture, traditional methods, and respect for ingredients.
+
+This aligns perfectly with our mission: to create a dining experience that's connected, thoughtful, and rooted in quality. Every element of what we serve, from the dough to the wine, is chosen with intention and care.`
+
+  const article2Data = { markdown: article2Body, editor_mode: 'source' }
+
+  const article3Id = 'article-demo-ember-slice-story'
+  const article3BlockId = 'content-block-demo-ember-slice-story'
+  const article3Body = `# From Pop-Up to Brooklyn Staple: The Ember & Slice Story
+
+Ember & Slice didn't start with a grand business plan or venture capital. It started with a sourdough starter, a borrowed mixer, and a simple idea: Brooklyn deserved great wood-fired pizza served with genuine hospitality.
+
+## The Pop-Up Days
+
+In the summer of 2019, we set up a temporary wood-fired oven behind a Brooklyn wine bar. The concept was simple: make great pizza, serve it with natural wine, create a warm atmosphere. We had no idea if it would work.
+
+The first weekend, we sold out before sunset. The next weekend, the same. Then the weekend after that. People kept coming back—neighborhood regulars, curious foodies, people who just wanted a great pie and a welcoming place to eat it.
+
+## Building the Foundation
+
+During those pop-up months, we refined our dough. We experimented with fermentation times, flour blends, and hydration levels. We learned that 72 hours of cold fermentation gave us the crust we were looking for—airy, crisp, with complex flavor development.
+
+We also learned something about hospitality: people wanted more than just good food. They wanted connection. They wanted to feel seen and welcomed. They wanted a place that felt like home, even if they'd never been there before.
+
+## The Permanent Space
+
+When we found our permanent location on Wythe Avenue, we knew we wanted to build around the oven. The oven isn't just equipment—it's the heart of the restaurant. The menu, the layout, the flow of service—all of it revolves around that open flame.
+
+We opened the doors in 2020, and the neighborhood embraced us. The people who had followed us from the pop-up days brought their friends. New neighbors discovered us. We became part of the fabric of Williamsburg.
+
+## Growing with the Community
+
+As we grew, we stayed true to our founding principles. We kept the 72-hour dough. We kept the wood-fired oven. We kept the natural wine focus. We kept the warm, unpretentious hospitality.
+
+We also expanded our experiences. The pizza making classes, the natural wine nights, the family pizza nights—these all grew out of requests from our community. People wanted to learn from us, celebrate with us, share special moments with us.
+
+## Looking Forward
+
+Today, Ember & Slice is a Brooklyn staple, but we still operate like a pop-up in spirit. We're still experimental, still refining, still listening to our community. The oven still anchors the room, and we still believe that great pizza and genuine hospitality can transform an ordinary evening into something special.
+
+This is our story. We're grateful you're part of it.`
+
+  const article3Data = { markdown: article3Body, editor_mode: 'source' }
+
+  const thaiTranslations = [
+    {
+      id: 'article-demo-sourdough-crust-th',
+      originalId: article1Id,
+      title: 'ความลับของแป้งซาวโดว์ 72 ชั่วโมงของเรา',
+      slug: '72-hour-sourdough-crust-secret',
+      summary: 'เริ่มต้นด้วยสูตรง่ายๆ: แป้ง น้ำ เกลือ และสตาร์ทเซอร์โดว์ที่เป็นชีวิตของเรา แต่ความมหัศจรรย์อยู่ที่เวลา',
+      body: `# ความลับของแป้งซาวโดว์ 72 ชั่วโมงของเรา
+
+ที่ Ember & Slice เราเชื่อว่าพิซซ่าที่ดีต้องเริ่มต้นด้วยแป้งที่ดี กระบวนการแป้งซาวโดว์ 72 ชั่วโมงของเราเป็นรากฐานของพิซซ่าทุกแผ่นที่ออกจากเตาฟืนไม้ของเรา
+
+## วิทยาศาสตร์ของการหมักช้า
+
+แป้งของเราเริ่มต้นด้วยสูตรง่ายๆ: แป้ง น้ำ เกลือ และสตาร์ทเซอร์โดว์ที่เป็นชีวิตของเรา แต่ความมหัศจรรย์อยู่ที่เวลา เราหมักแป้งในอุณหภูมิต่ำเป็นเวลา 72 ชั่วโมง ซึ่งเป็นกระบวนการที่พัฒนารสชาติที่ซับซ้อนและสร้างเนื้อสัมผัสที่ลูกค้ารัก
+
+ระหว่างการหมักที่ยาวนานนี้ เอนไซม์ตามธรรมชาติย่อยสลายคาร์โบไฮเดรตที่ซับซ้อน ทำให้แป้งย่อยย่อยได้ง่ายขึ้นและพัฒนารสเปรี้ยวที่ละเอียดซึ่งคุณจะไม่พบในแป้งยีสต์เชิงพาณิชย์ การพักผ่อนที่ยาวนานยังช่วยให้โครงสร้างกลูเตนแข็งแรงขึ้นตามธรรมชาติ ทำให้เราได้ความสมดุลที่สมบูรณ์แบบของเคี้ยวและกรอบ
+
+## การหมักเย็นเพื่อเนื้อสัมผัส
+
+หลังจากผสม แป้งของเราจะเข้าสู่การหมักเย็นทันที การหมักช้าในอุณหภูมิต่ำนี้เป็นกุญแจในการสร้างโครงสร้างครัมบ์ที่เปิดและโฟมกลางที่ทำให้ขอบของเราโดดเด่น สภาพแวดล้อมที่เย็นช่วยคงกิจกรรมของยีสต์ให้ช้าและสม่ำเสมอ ป้องกันการหมักเกินขณะที่ยังอนุญาตให้การพัฒนารสชาติดำเนินต่อไปโดยไม่ขัดจังหวะ
+
+## การยืดแป้งด้วยมือเพื่อความสมบูรณ์แบบ
+
+เมื่อเรายืดพิซซ่าของคุณ เราไม่ได้เพียงแค่รูปแบบแป้ง—เรากำลังรักษาฟองคาร์บอนไดอกไซด์ที่เกิดขึ้นระหว่างการหมัก เทคนิคการยืดด้วยมืออย่างระมัดระวังนี้ แทนที่จะใช้การม้วนกลไฟฟ้า ช่วยรักษาโครงสร้างที่บอบบางที่ให้ขอบของเรามีลายเสือดำและด้านในที่นุ่มนวล
+
+## การอบด้วยไฟไม้ที่อุณหภูมิสูง
+
+เตาของเราทำงานที่ 700-800°F อบพิซซ่าแต่ละแผ่นใน 60-90 วินาที ความร้อนที่รุนแรงนี้จำเป็นเพื่อให้ได้ความตัดกันที่เรามีชื่อ: ขอบกรอบที่กรอบและมีลายเสือดำกับด้านในที่นุ่มอบอุ่น การอบที่รวดเร็วล็อกรสชาติที่พัฒนาขึ้นในช่วง 72 ชั่วโมงของการหมัก
+
+## ทำไมมันสำคัญ
+
+ทุกองค์ประกอบของกระบวนการของเรามีจุดประสงค์ การหมัก 72 ชั่วโมงไม่ใช่แค่ประเพณี—มันเป็นรากฐานของรสชาติ เนื้อสัมผัส และการย่อยย่อยที่ทำให้พิซซ่า Ember & Slice โดดเด่น เมื่อคุณกัดชิ้นแรก คุณรสชาติได้ถึงสามวันของการจัดการเวลาอย่างระมัดระวัง การควบคุมอุณหภูมิ และความอดทน`,
+    },
+    {
+      id: 'article-demo-natural-wine-pairing-th',
+      originalId: article2Id,
+      title: 'ทำไมเราจึงจับคู่ไวน์ธรรมชาติกับพิซซ่าเตาฟืนไม้เท่านั้น',
+      slug: 'natural-wine-pizza-pairing-guide',
+      summary: 'เดินเข้ามาใน Ember & Slice และคุณจะสังเกตสิ่งหนึ่งทันที: รายการไวน์ของเราเป็นไวน์ธรรมชาติโดยเฉพาะ นี่ไม่ใช่เทรนด์หรือมุมการตลาด—มันเป็นทางเลือกทางปรัชญาที่เจาะจงที่กำหนดวิธีที่เราคิดเกี่ยวกับการจับคู่อาหารและไวน์',
+      body: `# ทำไมเราจึงจับคู่ไวน์ธรรมชาติกับพิซซ่าเตาฟืนไม้เท่านั้น
+
+เดินเข้ามาใน Ember & Slice และคุณจะสังเกตสิ่งหนึ่งทันที: รายการไวน์ของเราเป็นไวน์ธรรมชาติโดยเฉพาะ นี่ไม่ใช่เทรนด์หรือมุมการตลาด—มันเป็นทางเลือกทางปรัชญาที่เจาะจงที่กำหนดวิธีที่เราคิดเกี่ยวกับการจับคู่อาหารและไวน์
+
+## ปรัชญาการแทรกแซงต่ำ
+
+ไวน์ธรรมชาติทำขึ้นด้วยการแทรกแซงขั้นต่ำทั้งในไร่องุ่นและในห้องเก็บ ไม่มีสารกำจัดศัตรูพืชหรือสารเคมีเสริม ไม่มีการเติมยีสต์หรือแบคทีเรีย ไม่มีการใส่สีหรือการกรอง ผลลัพธ์คือไวน์ที่แสดงถึงแหล่งกำเนิดอย่างซื่อตรง—ไวน์ที่มีชีวิต สดใส และพัฒนาอย่างต่อเนื่อง
+
+แนวทางนี้สะท้อนปรัชญาอาหารของเรา เช่นเดียวกับที่เราซื้อวัตถุดิบคุณภาพสูงตามฤดูกาลและปล่อยให้พวกมันพูดเล่าเองบนพิซซ่าของเรา เรามองหาไวน์ที่เป็นการแสดงออกที่ซื่อตรงของแหล่งกำเนิด
+
+## ความเปรี้ยวและความสดใส
+
+พิซซ่าเตาฟืนไม้ ด้วยการอบด้วยความร้อนสูงและขอบที่ไหม้ มีความอุดมและความเข้มโดยธรรมชาติ ไวน์ธรรมชาติ ด้วยความเปรี้ยวสดใสและโปรไฟล์ผลไม้สด ให้ความตัดกันที่สมบูรณ์แบบ ความเปรี้ยวตัดผ่านชีสและลายไหม้ ในขณะที่ผลไม้สดเสริมท็อปปิ้งตามฤดูกาลที่เราใช้ตลอดทั้งปี
+
+## ตัวอย่างการจับคู่ในทางปฏิบัติ
+
+**มาร์เกอริต้า:** ไวน์ขาวที่มีความเปรี้ยวและแร่นแร่ด้วยบันทึกส้มช่วยเติมเต็มใบซ่าโซมและมะเขือเทศซานมาร์นาโนในขณะที่ตัดผ่านความอุดมของฟิอร์ดีลาตเต้
+
+**เป็ปเปอโรนีคาลาเบรเซ:** ไวน์แดงตัวเบาที่มีผลไม้แดงสดใสและแทนนินที่อ่อนๆ ยืนหน้าเป็ปเปอโรนีเผ็ดโดยไม่เด่นเกินไป
+
+**ฟันจี บิองโก:** ไวน์ส้มที่มีเนื้อสัมผัสดีและรสชาติดินช่วยเติมเต็มเห็ดที่ย่างและครีมริคอตต้าได้อย่างสวยงาม
+
+## นอกเหนือการจับคู่—สร้างประสบการณ์
+
+ไวน์ธรรมชาติเป็นจุดเริ่มต้นของการสนทนา พวกมันมีเรื่องราว—เกี่ยวกับผู้ผลิตไวน์ ไร่องุ่น และปีที่ผลิต เมื่อคุณแบ่งขวงที่ Ember & Slice คุณไม่ได้รับเพียงเครื่องดื่มที่จับคู่—คุณมีส่วนร่วมในเรื่องราวที่กว้างขึ้นของการเกษตรขนาดเล็ก วิธีการแบบดั้งเดิม และความเคารพต่อวัตถุดิบ
+
+สิ่งนี้สอดคล้องกับภารกิจของเรา: การสร้างประสบการณ์การรับประทานอาหารที่เชื่อมโยง มีความคิด และตั้งอยู่บนคุณภาพ ทุกองค์ประกอบของสิ่งที่เราเสิร์ฟ ตั้งแต่แป้งไปจนถึงไวน์ ถูกเลือกด้วยเจตนาและความเอาใจ`,
+    },
+    {
+      id: 'article-demo-ember-slice-story-th',
+      originalId: article3Id,
+      title: 'จากป๊อปอัพสู่สัญลักษณ์ของบรูคลิน: เรื่องราวของ Ember & Slice',
+      slug: 'ember-and-slice-brooklyn-story',
+      summary: 'Ember & Slice ไม่ได้เริ่มต้นด้วยแผนธุรกิจที่ยิ่งใหญ่หรือเงินทุนจากเวนเจอร์แคปิตอล มันเริ่มต้นด้วยสตาร์ทเซอร์โดว์ เครื่องผสมที่ยืมมา และแนวคิดง่ายๆ: บรูคลินสมควรได้พิซซ่าเตาฟืนไม้ที่ดีพร้อมการต้อนรับที่จริงใจ',
+      body: `# จากป๊อปอัพสู่สัญลักษณ์ของบรูคลิน: เรื่องราวของ Ember & Slice
+
+Ember & Slice ไม่ได้เริ่มต้นด้วยแผนธุรกิจที่ยิ่งใหญ่หรือเงินทุนจากเวนเจอร์แคปิตอล มันเริ่มต้นด้วยสตาร์ทเซอร์โดว์ เครื่องผสมที่ยืมมา และแนวคิดง่ายๆ: บรูคลินสมควรได้พิซซ่าเตาฟืนไม้ที่ดีพร้อมการต้อนรับที่จริงใจ
+
+## วันป๊อปอัพ
+
+ในฤดูร้อนปี 2019 เราติดตั้งเตาฟืนไม้ชั่วคราวไว้หลังบาร์ไวน์แห่งหนึ่งในบรูคลิน แนวคิดง่ายๆ: ทำพิซซ่าที่ดี เสิร์ฟพร้อมไวน์ธรรมชาติ สร้างบรรยากาศที่อบอุ่น เราไม่รู้ว่ามันจะทำงานได้หรือไม่
+
+สุดสัปดาห์แรก เราขายหมดก่อนพระอาทิตย์ตก สุดสัปดาห์ถัดมา เหมือนกัน แล้วก็อีกสุดสัปดาห์หลังจากนั้น คนกลับมาซ้ำ—ลูกค้าประจำในละแวก นักกินที่สนใจอาหาร และคนที่แค่อยากได้พิซซ่าที่ดีและสถานที่ต้อนรับที่อบอุ่น
+
+## การสร้างรากฐาน
+
+ระหว่างเดือนป๊อปอัพ เราปรับปรุงแป้งของเรา เราทดลองเวลาการหมัก ส่วนผสมแป้ง และระดับความชื้น เราเรียนรู้ว่าการหมักเย็น 72 ชั่วโมงให้เราได้ขอบที่เราตามหา—โฟมกลางที่โล่งและกรอบ พร้อมการพัฒนารสชาติที่ซับซ้อน
+
+เรายังเรียนรู้สิ่งหนึ่งเกี่ยวกับการต้อนรับ: คนต้องการมากกว่าอาหารที่ดี พวกเขาต้องการการเชื่อมโยง พวกเขาต้องการรู้สึกว่าเห็นและต้อนรับอย่างอบอุ่น พวกเขาต้องการสถานที่ที่รู้สึกเหมือนบ้าน แม้ว่าพวกเขาจะไม่เคยมาที่นี่มาก่อน
+
+## สถานที่ถาวร
+
+เมื่อเราพบสถานที่ถาวรบน Wythe Avenue เรารู้ว่าเราต้องการสร้างรอบเตาอบ เตาอบไม่ใช่แค่อุปกรณ์—มันเป็นหัวใจของร้านอาหาร เมนู การจัดวาง การไหลของการบริการ—ทุกอย่างหมุนรอบเปลวไฟที่เปิดนั้น
+
+เราเปิดประตูในปี 2020 และชุมชนยอมรับเรา คนที่ติดตามเรามาจากวันป๊อปอัพพาเพื่อนมาด้วย ลูกค้าบ้านใหม่ค้นพบเรา เรากลายเป็นส่วนหนึ่งของพื้นที่ของ Williamsburg
+
+## เติบโตไปกับชุมชน
+
+เมื่อเราเติบโต เรายังคงรักษาหลักการพื้นฐานของเรา เรายังคงแป้ง 72 ชั่วโมง เรายังคงเตาฟืนไม้ เรายังคงความโฟกัสไวน์ธรรมชาติ เรายังคงการต้อนรับที่อบอุ่นและเรียบง่าย
+
+เรายังขยายประสบการณ์ของเรา คลาสทำพิซซ่า ค่ำคืนไวน์ธรรมชาติ ค่ำคืนพิซซ่าครอบครัว—สิ่งเหล่านี้ทั้งหมดเติบโตจากคำขอจากชุมชนของเรา คนต้องการเรียนรู้จากเรา เฉลิมฉลองกับเรา แบ่งปันช่วงเวลาพิเศษกับเรา
+
+## มองไปข้างหน้า
+
+วันนี้ Ember & Slice เป็นสัญลักษณ์ของบรูคลิน แต่เรายังดำเนินงานเหมือนป๊อปอัพในด้านจิตวิญญาณ เรายังทดลอง ยังปรับปรุง ยังฟังชุมชนของเรา เตาอบยังเป็นจุดศูนย์กลางของห้อง และเรายังเชื่อว่าพิซซ่าที่ดีและการต้อนรับที่จริงใจสามารถแปลงค่ำคืนธรรมดาให้กลายเป็นสิ่งพิเศษได้
+
+นี่คือเรื่องราวของเรา เราขอบคุณที่เป็นส่วนหนึ่งของมัน`,
+    },
+  ]
+
+  const thaiSql = thaiTranslations.map((th) => {
+    const thaiBlockId = `content-block-${th.id}`
+    const thaiBlockData = { markdown: th.body, editor_mode: 'source' }
+    const englishBlockId = th.originalId === article1Id ? article1BlockId : th.originalId === article2Id ? article2BlockId : article3BlockId
+    return `INSERT INTO content_documents
+  (id, organization_id, site_id, title, slug, summary, metadata_json, status,
+   author_id, published_at, created_at, updated_at,
+   seo_description, seo_keywords, canonical_url, robots, kind, row_role, locale, visibility,
+   root_id, root_role, source)
+VALUES (
+  ${sqlValue(th.id)},
+  ${sqlValue('org-demo')},
+  ${sqlValue('site-demo')},
+  ${sqlValue(th.title)},
+  ${sqlValue(th.slug)},
+  ${sqlValue(th.summary)},
+  ${sqlJson({ category: 'Article', hide_from_nav: false })},
+  NULL,
+  NULL,
+  NULL,
+  ${sqlValue(publishedAt)},
+  ${sqlValue(publishedAt)},
+  ${sqlValue(th.summary)},
+  ${sqlValue('pizza, restaurant blog, brooklyn pizza, article')},
+  ${sqlValue(`/blog/${th.slug}`)},
+  ${sqlValue('index,follow')},
+  'article', 'representation', 'th', NULL,
+  ${sqlValue(th.originalId)},
+  'root', NULL
+);
+
+INSERT OR IGNORE INTO content_blocks
+  (id, document_id, parent_block_id, type, position, level, data_json, created_at, updated_at, source_block_id)
+VALUES (${sqlValue(thaiBlockId)}, ${sqlValue(th.id)}, NULL, 'markdown', 0, NULL, ${sqlJson(thaiBlockData)}, ${sqlValue(publishedAt)}, ${sqlValue(publishedAt)}, ${sqlValue(englishBlockId)});`
+  }).join('\n')
+
+  return `-- BEGIN GENERATED: demo_articles
+-- Editorial articles for the demo tenant.
+INSERT INTO content_documents
+  (id, organization_id, site_id, title, slug, summary, metadata_json, status,
+   author_id, published_at, created_at, updated_at,
+   seo_description, seo_keywords, canonical_url, robots, kind, row_role, locale, visibility)
+VALUES (
+  ${sqlValue(article1Id)},
+  ${sqlValue('org-demo')},
+  ${sqlValue('site-demo')},
+  ${sqlValue('The Secret to Our 72-Hour Sourdough Crust')},
+  ${sqlValue('72-hour-sourdough-crust-secret')},
+  ${sqlValue('Our 72-hour sourdough process creates the foundation for every wood-fired pie at Ember & Slice.')},
+  ${sqlJson({ category: 'Behind the scenes', hide_from_nav: false })},
+  'published',
+  ${sqlValue('user-demo')},
+  ${sqlValue(publishedAt)},
+  ${sqlValue(publishedAt)},
+  ${sqlValue(publishedAt)},
+  ${sqlValue('Learn about Ember & Slice\'s 72-hour sourdough fermentation process and how it creates our signature crust.')},
+  ${sqlValue('sourdough pizza, fermentation, crust, brooklyn pizza, wood-fired')},
+  ${sqlValue('/blog/72-hour-sourdough-crust-secret')},
+  ${sqlValue('index,follow')},
+  'article', 'root', 'en', 'public'
+);
+
+INSERT OR REPLACE INTO media_placements
+  (id, organization_id, site_id, owner_type, owner_id, slot, asset_id, sort_order, status)
+VALUES ('placement-article-sourdough-featured', 'org-demo', 'site-demo', 'content_document', ${sqlValue(article1Id)}, 'featured', 'media-demo-article-sourdough', 0, 'active');
+
+INSERT OR REPLACE INTO content_blocks
+  (id, document_id, parent_block_id, type, position, level, data_json, created_at, updated_at)
+VALUES (${sqlValue(article1BlockId)}, ${sqlValue(article1Id)}, NULL, 'markdown', 0, NULL, ${sqlJson(article1Data)}, ${sqlValue(publishedAt)}, ${sqlValue(publishedAt)});
+
+INSERT INTO content_documents
+  (id, organization_id, site_id, title, slug, summary, metadata_json, status,
+   author_id, published_at, created_at, updated_at,
+   seo_description, seo_keywords, canonical_url, robots, kind, row_role, locale, visibility)
+VALUES (
+  ${sqlValue(article2Id)},
+  ${sqlValue('org-demo')},
+  ${sqlValue('site-demo')},
+  ${sqlValue('Why We Only Pair Natural Wines with Wood-Fired Pizza')},
+  ${sqlValue('natural-wine-pizza-pairing-guide')},
+  ${sqlValue('Discover why Ember & Slice exclusively pairs natural wines with wood-fired pizza.')},
+  ${sqlJson({ category: 'Wine & Pairing', hide_from_nav: false })},
+  'published',
+  ${sqlValue('user-demo')},
+  ${sqlValue(publishedAt)},
+  ${sqlValue(publishedAt)},
+  ${sqlValue(publishedAt)},
+  ${sqlValue('Our guide to natural wine and wood-fired pizza pairings at Ember & Slice.')},
+  ${sqlValue('natural wine, pizza pairing, brooklyn wine, restaurant wine list')},
+  ${sqlValue('/blog/natural-wine-pizza-pairing-guide')},
+  ${sqlValue('index,follow')},
+  'article', 'root', 'en', 'public'
+);
+
+INSERT OR REPLACE INTO media_placements
+  (id, organization_id, site_id, owner_type, owner_id, slot, asset_id, sort_order, status)
+VALUES ('placement-article-wine-featured', 'org-demo', 'site-demo', 'content_document', ${sqlValue(article2Id)}, 'featured', 'media-demo-article-wine', 0, 'active');
+
+INSERT OR REPLACE INTO content_blocks
+  (id, document_id, parent_block_id, type, position, level, data_json, created_at, updated_at)
+VALUES (${sqlValue(article2BlockId)}, ${sqlValue(article2Id)}, NULL, 'markdown', 0, NULL, ${sqlJson(article2Data)}, ${sqlValue(publishedAt)}, ${sqlValue(publishedAt)});
+
+INSERT INTO content_documents
+  (id, organization_id, site_id, title, slug, summary, metadata_json, status,
+   author_id, published_at, created_at, updated_at,
+   seo_description, seo_keywords, canonical_url, robots, kind, row_role, locale, visibility)
+VALUES (
+  ${sqlValue(article3Id)},
+  ${sqlValue('org-demo')},
+  ${sqlValue('site-demo')},
+  ${sqlValue('From Pop-Up to Brooklyn Staple: The Ember & Slice Story')},
+  ${sqlValue('ember-and-slice-brooklyn-story')},
+  ${sqlValue('The story of how Ember & Slice grew from a pop-up to a beloved Brooklyn institution.')},
+  ${sqlJson({ category: 'Our Story', hide_from_nav: false })},
+  'published',
+  ${sqlValue('user-demo')},
+  ${sqlValue(publishedAt)},
+  ${sqlValue(publishedAt)},
+  ${sqlValue(publishedAt)},
+  ${sqlValue('From pop-up to Brooklyn staple: the Ember & Slice origin story.')},
+  ${sqlValue('brooklyn restaurant, pizza story, small business, ember and slice')},
+  ${sqlValue('/blog/ember-and-slice-brooklyn-story')},
+  ${sqlValue('index,follow')},
+  'article', 'root', 'en', 'public'
+);
+
+INSERT OR REPLACE INTO media_placements
+  (id, organization_id, site_id, owner_type, owner_id, slot, asset_id, sort_order, status)
+VALUES ('placement-article-oven-featured', 'org-demo', 'site-demo', 'content_document', ${sqlValue(article3Id)}, 'featured', 'media-demo-article-oven', 0, 'active');
+
+INSERT OR REPLACE INTO content_blocks
+  (id, document_id, parent_block_id, type, position, level, data_json, created_at, updated_at)
+VALUES (${sqlValue(article3BlockId)}, ${sqlValue(article3Id)}, NULL, 'markdown', 0, NULL, ${sqlJson(article3Data)}, ${sqlValue(publishedAt)}, ${sqlValue(publishedAt)});
+${thaiSql}
+-- END GENERATED: demo_articles`
 }
 
 export function renderDemoExperienceSeedBlock(): string {
