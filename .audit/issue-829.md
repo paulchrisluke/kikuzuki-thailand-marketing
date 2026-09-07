@@ -1,3 +1,5 @@
+> Historical issue specification captured before the final consolidation and PR-only steering. Implementation scope remains comprehensive; the latest instruction stops at PR #848 ready for review. No staging/production merge, deployment, initialization or further staging writes are authorized. See the [53-table consolidation contract](../docs/database/epoch-5-consolidation.md) and [current checklist](829-checklist.md).
+
 ## Outcome
 
 Finish the comprehensive schema simplification that Epoch 4 was intended to deliver. Audit and resolve the entire current schema, remove obsolete tables/columns and replaced runtime paths, correct posts and all hours/availability contracts, and qualify the result through MCP, CMS, public journeys, and the normal staging-to-main release flow. Use a controlled Epoch 5 replacement where the canonical migration rules require it. Do not ship another partial cleanup that leaves the named work for a later epoch.

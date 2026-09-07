@@ -1,4 +1,16 @@
-# Integration findings and verified dispositions
+# Current integration findings
+
+The generated Epoch 5 baseline inspected at root revision `097aec98` contains **53 tables and 826 columns**. The [53-table consolidation contract](../docs/database/epoch-5-consolidation.md) explains every retained table and the replacement of 48 source tables with five new tables. The audited Epoch 4 source remains 96 tables and 1,373 columns. The regenerated [target schema](829-target-schema.json) and [column census](829-target-columns.tsv) describe current storage; the older source disposition matrices do not describe current ownership.
+
+The [current sanitized transfer summary](829-transfer-summary.json) records **41,544 target rows** across all 53 tables, matching projected/actual and retained-column hashes. Its baseline hash matches the current generated baseline. A read-only recheck of the private candidate verified every table row count, zero foreign-key violations and SQLite integrity. The manifest records nine zero-violation invariants and the external archive of all 96 source tables. Raw rows and per-row disposition evidence remain private.
+
+Current content roots and translated representations share `content_documents`; non-document translations remain in `resource_localizations`. Historical ChowBot/canary facts are retained in the external source archive. The 94-table design's separate transcript and content sidecar claims below are superseded.
+
+Application runtime, Codex browser and exact-head CI qualification are separate from this census/transfer check. Root owns the remaining [checklist](829-checklist.md) gates. Authorization stops at PR #848 ready for review; no staging or production action is authorized.
+
+## Superseded 94-table findings
+
+The following records the earlier audit's evidence and attribution. Counts, ownership decisions, test results and release instructions in this section apply only to that rejected proposal and are superseded by the current contract above.
 
 The generated Epoch 5 baseline contains 94 tables and 1,331 columns. The audit accounts for all 96 source tables, 1,373 source columns, 49 removed fields, seven additions, and 328 source indexes. Inventory coverage is separate from SQL preparation and runtime qualification.
 

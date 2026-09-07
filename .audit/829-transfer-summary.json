@@ -1,17 +1,20 @@
 {
   "epoch": 5,
-  "generated_at": "2026-09-06T15:47:59.652Z",
+  "status": "current_53_table_candidate",
+  "consolidation_contract": "../docs/database/epoch-5-consolidation.md",
+  "qualification": "Transfer evidence for the recorded baseline only; does not qualify application behavior, CI, or deployment.",
+  "generated_at": "2026-09-06T23:28:40.295Z",
   "source_schema_sha256": "cd62201f995370ec67f94cfa3ab322caa3434ebde0dac2bafe6521bc07fc2b7e",
-  "target_schema_sha256": "644c52a0e26493f6b146d9e6269f3a59e02fe78ba18ac0359428457ef39f9a57",
+  "target_schema_sha256": "f68ea206bf79c747723455b02822781fe9ccd013e50e29162af9122061ea2301",
   "baseline": [
     {
       "name": "0000_epoch_5_baseline.sql",
-      "sha256": "39b1dd983b6e6c615edad5ced75630785fc8af2b6c4cabbb101834d4c00ec010"
+      "sha256": "dee2b633866e7cf0701a6d7df7dd5b08f6f37de3a68759a16d6788d71445b3a7"
     }
   ],
   "evidence_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
-  "table_count": 94,
-  "target_rows": 42244,
+  "table_count": 53,
+  "target_rows": 41544,
   "tables": [
     {
       "table": "account",
@@ -53,170 +56,75 @@
       "unchanged_target_hash": "53dcdf9023e46a2046b1c9dd3616c0140f1982beea2a09c85356ffb7d17f27c7"
     },
     {
-      "table": "availability_overrides",
-      "source_count": 0,
-      "target_count": 0,
+      "table": "activity_entries",
+      "target_count": 437,
       "columns": [
-        "capacity_override",
+        "actor_kind",
+        "actor_user_id",
+        "body",
+        "channel",
+        "context_site_id",
         "created_at",
-        "created_by",
-        "experience_id",
+        "dedupe_key",
+        "event_name",
         "id",
+        "kind",
         "location_id",
-        "note",
+        "occurred_at",
         "organization_id",
-        "override_date",
-        "owner_type",
+        "parent_id",
+        "payload_json",
+        "request_id",
+        "scope_kind",
+        "sequence",
         "site_id",
-        "status",
-        "time_slot",
-        "updated_at"
+        "target_user_id"
       ],
-      "projected_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-      "actual_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-      "unchanged_columns": [
-        "capacity_override",
-        "created_at",
-        "created_by",
-        "experience_id",
-        "id",
-        "location_id",
-        "note",
-        "organization_id",
-        "override_date",
-        "owner_type",
-        "site_id",
-        "status",
-        "time_slot",
-        "updated_at"
-      ],
-      "unchanged_source_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-      "unchanged_target_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      "projected_hash": "b8c27a0499668c65f24e289d6990bee9b3cdc15c45e81257687cc2fb98e8b65d",
+      "actual_hash": "b8c27a0499668c65f24e289d6990bee9b3cdc15c45e81257687cc2fb98e8b65d"
     },
     {
-      "table": "blog_posts",
-      "source_count": 26,
-      "target_count": 26,
+      "table": "analytics_events",
+      "target_count": 31574,
       "columns": [
-        "author_id",
-        "canonical_url",
-        "category",
         "created_at",
-        "excerpt",
-        "featured_order",
-        "first_published_at",
-        "hide_from_nav",
+        "duration_seconds",
         "id",
-        "nav_order",
-        "nav_section",
-        "nav_section_order",
-        "nav_title",
+        "kind",
+        "location_id",
         "organization_id",
-        "published_at",
-        "robots",
-        "scheduled_for",
-        "seo_description",
-        "seo_keywords",
-        "seo_title",
+        "page_path",
+        "payload_json",
+        "session_id",
         "site_id",
-        "slug",
-        "slug_manually_overridden",
-        "status",
-        "tags_json",
-        "title",
-        "updated_at",
-        "visibility"
+        "visitor_id"
       ],
-      "projected_hash": "f17647e4f84f1df4d1c0e087572680292ca1cdc969f610caca65240510a4f1f1",
-      "actual_hash": "f17647e4f84f1df4d1c0e087572680292ca1cdc969f610caca65240510a4f1f1",
-      "unchanged_columns": [
-        "author_id",
-        "canonical_url",
-        "category",
-        "created_at",
-        "excerpt",
-        "featured_order",
-        "first_published_at",
-        "hide_from_nav",
-        "id",
-        "nav_order",
-        "nav_section",
-        "nav_section_order",
-        "nav_title",
-        "organization_id",
-        "published_at",
-        "robots",
-        "scheduled_for",
-        "seo_description",
-        "seo_keywords",
-        "seo_title",
-        "site_id",
-        "slug",
-        "slug_manually_overridden",
-        "status",
-        "tags_json",
-        "title",
-        "updated_at",
-        "visibility"
-      ],
-      "unchanged_source_hash": "f17647e4f84f1df4d1c0e087572680292ca1cdc969f610caca65240510a4f1f1",
-      "unchanged_target_hash": "f17647e4f84f1df4d1c0e087572680292ca1cdc969f610caca65240510a4f1f1"
+      "projected_hash": "089b6e8a1de9e92552e22cc0cd7cf8d5a72b66b85ef3b3a9a11e6c8ceac1e9ff",
+      "actual_hash": "089b6e8a1de9e92552e22cc0cd7cf8d5a72b66b85ef3b3a9a11e6c8ceac1e9ff"
     },
     {
-      "table": "booking_policies",
-      "source_count": 11,
-      "target_count": 11,
+      "table": "analytics_summaries",
+      "target_count": 2070,
       "columns": [
-        "accessibility_contact_required",
-        "additional_notes_html",
-        "advance_notice_minutes",
         "created_at",
-        "deposit_required",
-        "deposit_trigger_party_size",
-        "experience_id",
-        "free_cancellation_until_minutes",
+        "date",
         "id",
-        "location_id",
-        "minimum_guest_age",
+        "key",
+        "kind",
         "organization_id",
-        "policy_type",
-        "reschedule_allowed",
-        "reschedule_cutoff_minutes",
-        "scope_type",
+        "payload_json",
         "site_id",
         "updated_at"
       ],
-      "projected_hash": "9ec67731444fed7acb8834c493ba20d6f8f281846f7afad25f1364807e5345ed",
-      "actual_hash": "9ec67731444fed7acb8834c493ba20d6f8f281846f7afad25f1364807e5345ed",
-      "unchanged_columns": [
-        "accessibility_contact_required",
-        "additional_notes_html",
-        "advance_notice_minutes",
-        "created_at",
-        "deposit_required",
-        "deposit_trigger_party_size",
-        "experience_id",
-        "free_cancellation_until_minutes",
-        "id",
-        "location_id",
-        "minimum_guest_age",
-        "organization_id",
-        "policy_type",
-        "reschedule_allowed",
-        "reschedule_cutoff_minutes",
-        "scope_type",
-        "site_id",
-        "updated_at"
-      ],
-      "unchanged_source_hash": "9ec67731444fed7acb8834c493ba20d6f8f281846f7afad25f1364807e5345ed",
-      "unchanged_target_hash": "9ec67731444fed7acb8834c493ba20d6f8f281846f7afad25f1364807e5345ed"
+      "projected_hash": "b0cb7261544953673dcf719b42d11421431c482fc82572914c2f22124094f8e6",
+      "actual_hash": "b0cb7261544953673dcf719b42d11421431c482fc82572914c2f22124094f8e6"
     },
     {
       "table": "business_locations",
-      "source_count": 13,
       "target_count": 13,
       "columns": [
         "address",
+        "booking_json",
         "canonical_url",
         "categories",
         "city",
@@ -261,219 +169,11 @@
         "updated_at",
         "website_url"
       ],
-      "projected_hash": "2a308defba78ba13f925baeea42613e9d0519edba2565d1b024e90710798756b",
-      "actual_hash": "2a308defba78ba13f925baeea42613e9d0519edba2565d1b024e90710798756b",
-      "unchanged_columns": [
-        "address",
-        "canonical_url",
-        "categories",
-        "city",
-        "created_at",
-        "description",
-        "description_provenance",
-        "email",
-        "facebook_url",
-        "feature_overrides",
-        "foodpanda_url",
-        "google_place_id",
-        "google_review_url",
-        "grab_url",
-        "id",
-        "instagram_url",
-        "last_synced_at",
-        "latitude",
-        "longitude",
-        "maps_url",
-        "max_capacity",
-        "neighborhood",
-        "notification_phone",
-        "organization_id",
-        "phone",
-        "price_level",
-        "rating",
-        "review_count",
-        "robots",
-        "seo_description",
-        "seo_title",
-        "short_description",
-        "site_id",
-        "slug",
-        "special_hours",
-        "status",
-        "team_id",
-        "tiktok_url",
-        "timezone",
-        "title",
-        "uber_eats_url",
-        "updated_at",
-        "website_url"
-      ],
-      "unchanged_source_hash": "1b6d9244eab45fb6c651fff3d7ae356b13c855d989e7b38237d8724320631068",
-      "unchanged_target_hash": "1b6d9244eab45fb6c651fff3d7ae356b13c855d989e7b38237d8724320631068"
-    },
-    {
-      "table": "canary_runs",
-      "source_count": 188,
-      "target_count": 188,
-      "columns": [
-        "created_at",
-        "details_json",
-        "environment",
-        "id",
-        "organization_id",
-        "run_type",
-        "site_id",
-        "status"
-      ],
-      "projected_hash": "11a77cd9a17d5ca0c38e47e41b35651552409d4c5eb75cd79c97d64efe44bd40",
-      "actual_hash": "11a77cd9a17d5ca0c38e47e41b35651552409d4c5eb75cd79c97d64efe44bd40",
-      "unchanged_columns": [
-        "created_at",
-        "environment",
-        "id",
-        "organization_id",
-        "run_type",
-        "site_id",
-        "status"
-      ],
-      "unchanged_source_hash": "8eb85825af64d0c69840ce45ff4e816ef900e684bb261b3c134d488acbbbd3e4",
-      "unchanged_target_hash": "8eb85825af64d0c69840ce45ff4e816ef900e684bb261b3c134d488acbbbd3e4"
-    },
-    {
-      "table": "chowbot_channel_state",
-      "source_count": 3,
-      "target_count": 3,
-      "columns": [
-        "channel",
-        "last_inbound_id",
-        "pending_confirmation",
-        "updated_at",
-        "user_id"
-      ],
-      "projected_hash": "6abba6f80523e59e01c15c83b125983c792f5fcb2201e80fc0789fc6e929f2ce",
-      "actual_hash": "6abba6f80523e59e01c15c83b125983c792f5fcb2201e80fc0789fc6e929f2ce",
-      "unchanged_columns": [
-        "channel",
-        "last_inbound_id",
-        "pending_confirmation",
-        "updated_at",
-        "user_id"
-      ],
-      "unchanged_source_hash": "6abba6f80523e59e01c15c83b125983c792f5fcb2201e80fc0789fc6e929f2ce",
-      "unchanged_target_hash": "6abba6f80523e59e01c15c83b125983c792f5fcb2201e80fc0789fc6e929f2ce"
-    },
-    {
-      "table": "chowbot_conversations",
-      "source_count": 13,
-      "target_count": 13,
-      "columns": [
-        "active_channel",
-        "created_at",
-        "id",
-        "organization_id",
-        "selected_location_id",
-        "site_id",
-        "status",
-        "title",
-        "updated_at",
-        "user_id"
-      ],
-      "projected_hash": "3398bfbba7f446402443dfc083a6beb5d5e564114225bfb837b7ae761a94ea1f",
-      "actual_hash": "3398bfbba7f446402443dfc083a6beb5d5e564114225bfb837b7ae761a94ea1f",
-      "unchanged_columns": [
-        "active_channel",
-        "created_at",
-        "id",
-        "organization_id",
-        "selected_location_id",
-        "site_id",
-        "status",
-        "title",
-        "updated_at",
-        "user_id"
-      ],
-      "unchanged_source_hash": "3398bfbba7f446402443dfc083a6beb5d5e564114225bfb837b7ae761a94ea1f",
-      "unchanged_target_hash": "3398bfbba7f446402443dfc083a6beb5d5e564114225bfb837b7ae761a94ea1f"
-    },
-    {
-      "table": "chowbot_messages",
-      "source_count": 42,
-      "target_count": 42,
-      "columns": [
-        "channel",
-        "content",
-        "conversation_id",
-        "created_at",
-        "error",
-        "id",
-        "meta_message_id",
-        "organization_id",
-        "role",
-        "site_id",
-        "status",
-        "tool_calls",
-        "user_id"
-      ],
-      "projected_hash": "2f4adff49192a535816c77d4f8e73bc5f16ec2850c8cc166cd4800502d272030",
-      "actual_hash": "2f4adff49192a535816c77d4f8e73bc5f16ec2850c8cc166cd4800502d272030",
-      "unchanged_columns": [
-        "channel",
-        "content",
-        "conversation_id",
-        "created_at",
-        "error",
-        "id",
-        "meta_message_id",
-        "organization_id",
-        "role",
-        "site_id",
-        "status",
-        "tool_calls",
-        "user_id"
-      ],
-      "unchanged_source_hash": "2f4adff49192a535816c77d4f8e73bc5f16ec2850c8cc166cd4800502d272030",
-      "unchanged_target_hash": "2f4adff49192a535816c77d4f8e73bc5f16ec2850c8cc166cd4800502d272030"
-    },
-    {
-      "table": "contact_submissions",
-      "source_count": 6,
-      "target_count": 6,
-      "columns": [
-        "consent_at",
-        "created_at",
-        "email",
-        "experience_id",
-        "id",
-        "ip_hash",
-        "location_id",
-        "message",
-        "name",
-        "organization_id",
-        "site_id",
-        "subject"
-      ],
-      "projected_hash": "5e81206f652ad11884122ccd2e5f7e8fcfc32b9fb1379dcda4d8260741deda02",
-      "actual_hash": "5e81206f652ad11884122ccd2e5f7e8fcfc32b9fb1379dcda4d8260741deda02",
-      "unchanged_columns": [
-        "consent_at",
-        "created_at",
-        "email",
-        "experience_id",
-        "id",
-        "ip_hash",
-        "location_id",
-        "message",
-        "name",
-        "organization_id",
-        "site_id",
-        "subject"
-      ],
-      "unchanged_source_hash": "5e81206f652ad11884122ccd2e5f7e8fcfc32b9fb1379dcda4d8260741deda02",
-      "unchanged_target_hash": "5e81206f652ad11884122ccd2e5f7e8fcfc32b9fb1379dcda4d8260741deda02"
+      "projected_hash": "e7177ea4e552c1b6b7864d137c1563916e3eb24c3ddbce1ce282e2d4f49cd43a",
+      "actual_hash": "e7177ea4e552c1b6b7864d137c1563916e3eb24c3ddbce1ce282e2d4f49cd43a"
     },
     {
       "table": "content_blocks",
-      "source_count": 679,
       "target_count": 679,
       "columns": [
         "created_at",
@@ -483,48 +183,52 @@
         "level",
         "parent_block_id",
         "position",
+        "source_block_id",
         "type",
         "updated_at"
       ],
-      "projected_hash": "66eaf59a29af148deafeb57ad4c26c84e4c5f8964ed1225510770ac9beede46a",
-      "actual_hash": "66eaf59a29af148deafeb57ad4c26c84e4c5f8964ed1225510770ac9beede46a",
-      "unchanged_columns": [
-        "created_at",
-        "data_json",
-        "document_id",
-        "id",
-        "level",
-        "parent_block_id",
-        "position",
-        "type",
-        "updated_at"
-      ],
-      "unchanged_source_hash": "66eaf59a29af148deafeb57ad4c26c84e4c5f8964ed1225510770ac9beede46a",
-      "unchanged_target_hash": "66eaf59a29af148deafeb57ad4c26c84e4c5f8964ed1225510770ac9beede46a"
+      "projected_hash": "9ba3d4794936f0a7988216b0204b42e2e5ff6cfcace86439a6eb262f045477b5",
+      "actual_hash": "9ba3d4794936f0a7988216b0204b42e2e5ff6cfcace86439a6eb262f045477b5"
     },
     {
       "table": "content_documents",
-      "source_count": 60,
-      "target_count": 60,
+      "target_count": 111,
       "columns": [
+        "author_id",
+        "canonical_url",
         "created_at",
+        "created_by",
+        "first_published_at",
         "id",
-        "owner_id",
-        "owner_type",
+        "kind",
+        "locale",
+        "location_id",
+        "metadata_json",
+        "organization_id",
+        "path",
+        "published_at",
+        "robots",
+        "root_id",
+        "root_role",
+        "row_role",
+        "scheduled_for",
+        "scope_path",
+        "seo_description",
+        "seo_keywords",
+        "seo_title",
         "site_id",
-        "updated_at"
+        "slug",
+        "sort_order",
+        "source",
+        "status",
+        "summary",
+        "title",
+        "updated_at",
+        "updated_by",
+        "visibility"
       ],
-      "projected_hash": "ab598448e677450dca4ac9c221f7c614556ab07b2843595f22648dac7a1d9405",
-      "actual_hash": "ab598448e677450dca4ac9c221f7c614556ab07b2843595f22648dac7a1d9405",
-      "unchanged_columns": [
-        "created_at",
-        "id",
-        "owner_id",
-        "owner_type",
-        "updated_at"
-      ],
-      "unchanged_source_hash": "e47efab05844a04296422c9f3429af651a66657e27fa7e97bb4b6dff1e0a8509",
-      "unchanged_target_hash": "e47efab05844a04296422c9f3429af651a66657e27fa7e97bb4b6dff1e0a8509"
+      "projected_hash": "ad1b5abd615a3a3dcd9c294f49b500c9f93d5390e68dc9e103a3363778dd7184",
+      "actual_hash": "ad1b5abd615a3a3dcd9c294f49b500c9f93d5390e68dc9e103a3363778dd7184"
     },
     {
       "table": "customers",
@@ -578,228 +282,6 @@
       "unchanged_target_hash": "4d266883ca693e6a910a50dbaeabfae68b23669e22d1bbc963c9eea2276f44f8"
     },
     {
-      "table": "domain_reconciliation_jobs",
-      "source_count": 4,
-      "target_count": 4,
-      "columns": [
-        "attempts",
-        "created_at",
-        "domain_id",
-        "id",
-        "last_error",
-        "run_after",
-        "status",
-        "updated_at"
-      ],
-      "projected_hash": "aafa9f04bf76bd717f67156f56f187b8006bb363b17ec9d76cf64f7f22f83fee",
-      "actual_hash": "aafa9f04bf76bd717f67156f56f187b8006bb363b17ec9d76cf64f7f22f83fee",
-      "unchanged_columns": [
-        "attempts",
-        "created_at",
-        "domain_id",
-        "id",
-        "last_error",
-        "run_after",
-        "status",
-        "updated_at"
-      ],
-      "unchanged_source_hash": "aafa9f04bf76bd717f67156f56f187b8006bb363b17ec9d76cf64f7f22f83fee",
-      "unchanged_target_hash": "aafa9f04bf76bd717f67156f56f187b8006bb363b17ec9d76cf64f7f22f83fee"
-    },
-    {
-      "table": "experience_bookings",
-      "source_count": 3,
-      "target_count": 3,
-      "columns": [
-        "booking_date",
-        "cancellation_token_expires_at",
-        "cancellation_token_hash",
-        "cancellation_token_used_at",
-        "completed_at",
-        "completion_source",
-        "created_at",
-        "customer_id",
-        "experience_id",
-        "guest_email",
-        "guest_name",
-        "guest_phone",
-        "id",
-        "ip_hash",
-        "location_id",
-        "notes",
-        "organization_id",
-        "party_size",
-        "review_id",
-        "review_reminder_sent_at",
-        "review_request_sent_at",
-        "review_submitted_at",
-        "site_id",
-        "status",
-        "time_slot",
-        "updated_at"
-      ],
-      "projected_hash": "72f6b76eef3c65e5897a81ae2a8c2fee2cbce473547c140f791124f0c1d42864",
-      "actual_hash": "72f6b76eef3c65e5897a81ae2a8c2fee2cbce473547c140f791124f0c1d42864",
-      "unchanged_columns": [
-        "booking_date",
-        "cancellation_token_expires_at",
-        "cancellation_token_hash",
-        "cancellation_token_used_at",
-        "completed_at",
-        "completion_source",
-        "created_at",
-        "customer_id",
-        "experience_id",
-        "guest_email",
-        "guest_name",
-        "guest_phone",
-        "id",
-        "ip_hash",
-        "location_id",
-        "notes",
-        "organization_id",
-        "party_size",
-        "review_id",
-        "review_reminder_sent_at",
-        "review_request_sent_at",
-        "review_submitted_at",
-        "site_id",
-        "status",
-        "time_slot",
-        "updated_at"
-      ],
-      "unchanged_source_hash": "72f6b76eef3c65e5897a81ae2a8c2fee2cbce473547c140f791124f0c1d42864",
-      "unchanged_target_hash": "72f6b76eef3c65e5897a81ae2a8c2fee2cbce473547c140f791124f0c1d42864"
-    },
-    {
-      "table": "experiences",
-      "source_count": 12,
-      "target_count": 12,
-      "columns": [
-        "cancellation_policy",
-        "created_at",
-        "duration_minutes",
-        "id",
-        "included_items",
-        "location_id",
-        "max_capacity",
-        "meeting_point",
-        "organization_id",
-        "pricing_note",
-        "recurring_slots",
-        "site_id",
-        "tagline",
-        "updated_at",
-        "what_to_bring"
-      ],
-      "projected_hash": "eef67a1bbccce5b6835b27012eae1b79389376269828f5052c25e42710a3eb77",
-      "actual_hash": "eef67a1bbccce5b6835b27012eae1b79389376269828f5052c25e42710a3eb77",
-      "unchanged_columns": [
-        "cancellation_policy",
-        "created_at",
-        "duration_minutes",
-        "id",
-        "included_items",
-        "location_id",
-        "max_capacity",
-        "meeting_point",
-        "organization_id",
-        "pricing_note",
-        "site_id",
-        "tagline",
-        "updated_at",
-        "what_to_bring"
-      ],
-      "unchanged_source_hash": "4a4b34364ab979ba82ff51cbf805d211cde57353a9505baaa9cb9bead2fe6d4f",
-      "unchanged_target_hash": "4a4b34364ab979ba82ff51cbf805d211cde57353a9505baaa9cb9bead2fe6d4f"
-    },
-    {
-      "table": "facebook_pages_connections",
-      "source_count": 0,
-      "target_count": 0,
-      "columns": [
-        "connected_by_user_id",
-        "created_at",
-        "encrypted_page_token",
-        "encrypted_user_token",
-        "facebook_page_id",
-        "facebook_page_name",
-        "facebook_user_id",
-        "id",
-        "organization_id",
-        "scopes",
-        "site_id",
-        "status",
-        "updated_at",
-        "user_token_expires_at"
-      ],
-      "projected_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-      "actual_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-      "unchanged_columns": [
-        "connected_by_user_id",
-        "created_at",
-        "encrypted_page_token",
-        "encrypted_user_token",
-        "facebook_page_id",
-        "facebook_page_name",
-        "facebook_user_id",
-        "id",
-        "organization_id",
-        "scopes",
-        "site_id",
-        "status",
-        "updated_at",
-        "user_token_expires_at"
-      ],
-      "unchanged_source_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-      "unchanged_target_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
-    },
-    {
-      "table": "google_analytics_connections",
-      "source_count": 1,
-      "target_count": 1,
-      "columns": [
-        "connected_by_user_id",
-        "created_at",
-        "encrypted_access_token",
-        "encrypted_refresh_token",
-        "expires_at",
-        "ga4_measurement_id",
-        "ga4_property_id",
-        "ga4_property_name",
-        "id",
-        "organization_id",
-        "provider_account_email",
-        "scopes",
-        "search_console_site_url",
-        "site_id",
-        "status",
-        "updated_at"
-      ],
-      "projected_hash": "0c59d3512bc30f943f1b7d9c55980e310775328946d42c0379be466fd8b61307",
-      "actual_hash": "0c59d3512bc30f943f1b7d9c55980e310775328946d42c0379be466fd8b61307",
-      "unchanged_columns": [
-        "connected_by_user_id",
-        "created_at",
-        "encrypted_access_token",
-        "encrypted_refresh_token",
-        "expires_at",
-        "ga4_measurement_id",
-        "ga4_property_id",
-        "ga4_property_name",
-        "id",
-        "organization_id",
-        "provider_account_email",
-        "scopes",
-        "search_console_site_url",
-        "site_id",
-        "status",
-        "updated_at"
-      ],
-      "unchanged_source_hash": "0c59d3512bc30f943f1b7d9c55980e310775328946d42c0379be466fd8b61307",
-      "unchanged_target_hash": "0c59d3512bc30f943f1b7d9c55980e310775328946d42c0379be466fd8b61307"
-    },
-    {
       "table": "guest_thread_deliveries",
       "source_count": 0,
       "target_count": 0,
@@ -827,78 +309,6 @@
         "provider_message_id",
         "purpose",
         "status",
-        "updated_at"
-      ],
-      "unchanged_source_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-      "unchanged_target_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
-    },
-    {
-      "table": "guest_thread_entries",
-      "source_count": 0,
-      "target_count": 0,
-      "columns": [
-        "actor_kind",
-        "actor_user_id",
-        "body",
-        "channel",
-        "created_at",
-        "dedupe_key",
-        "event_name",
-        "id",
-        "kind",
-        "occurred_at",
-        "payload_json",
-        "sequence",
-        "thread_id"
-      ],
-      "projected_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-      "actual_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-      "unchanged_columns": [
-        "actor_kind",
-        "actor_user_id",
-        "body",
-        "channel",
-        "created_at",
-        "dedupe_key",
-        "event_name",
-        "id",
-        "kind",
-        "occurred_at",
-        "payload_json",
-        "sequence",
-        "thread_id"
-      ],
-      "unchanged_source_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-      "unchanged_target_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
-    },
-    {
-      "table": "guest_threads",
-      "source_count": 0,
-      "target_count": 0,
-      "columns": [
-        "conversation_state",
-        "created_at",
-        "id",
-        "location_id",
-        "organization_id",
-        "resolved_at",
-        "site_id",
-        "submission_id",
-        "submission_type",
-        "updated_at"
-      ],
-      "projected_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-      "actual_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-      "unchanged_columns": [
-        "conversation_state",
-        "created_at",
-        "id",
-        "location_id",
-        "organization_id",
-        "resolved_at",
-        "site_id",
-        "submission_id",
-        "submission_type",
         "updated_at"
       ],
       "unchanged_source_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
@@ -961,55 +371,6 @@
       ],
       "unchanged_source_hash": "9d8ed3584cd580a26ad096e5d0c1bdae386eec0c483d69fbf7099e474d845432",
       "unchanged_target_hash": "9d8ed3584cd580a26ad096e5d0c1bdae386eec0c483d69fbf7099e474d845432"
-    },
-    {
-      "table": "location_qa",
-      "source_count": 34,
-      "target_count": 34,
-      "columns": [
-        "answer",
-        "answer_author",
-        "answer_date",
-        "created_at",
-        "id",
-        "is_owner_answer",
-        "location_id",
-        "organization_id",
-        "page_path",
-        "question",
-        "question_author",
-        "question_date",
-        "site_id",
-        "sort_order",
-        "source",
-        "status",
-        "updated_at",
-        "upvote_count"
-      ],
-      "projected_hash": "d349ea1793834faf77be26b3f5909ad44cfd00a5dfa05603ef81345d59d989a8",
-      "actual_hash": "d349ea1793834faf77be26b3f5909ad44cfd00a5dfa05603ef81345d59d989a8",
-      "unchanged_columns": [
-        "answer",
-        "answer_author",
-        "answer_date",
-        "created_at",
-        "id",
-        "is_owner_answer",
-        "location_id",
-        "organization_id",
-        "page_path",
-        "question",
-        "question_author",
-        "question_date",
-        "site_id",
-        "sort_order",
-        "source",
-        "status",
-        "updated_at",
-        "upvote_count"
-      ],
-      "unchanged_source_hash": "d349ea1793834faf77be26b3f5909ad44cfd00a5dfa05603ef81345d59d989a8",
-      "unchanged_target_hash": "d349ea1793834faf77be26b3f5909ad44cfd00a5dfa05603ef81345d59d989a8"
     },
     {
       "table": "mcp_tool_call_events",
@@ -1080,31 +441,6 @@
       "unchanged_target_hash": "4347daa883c555818449fcbd50135a5c5670ed7cb5922eaa241bac619fe94b32"
     },
     {
-      "table": "mcp_workspace_preferences",
-      "source_count": 7,
-      "target_count": 7,
-      "columns": [
-        "created_at",
-        "location_id",
-        "organization_id",
-        "site_id",
-        "updated_at",
-        "user_id"
-      ],
-      "projected_hash": "897cc5cb662279f7916158536d5b7b14cddb04191323c03793fa28699fafcd7b",
-      "actual_hash": "897cc5cb662279f7916158536d5b7b14cddb04191323c03793fa28699fafcd7b",
-      "unchanged_columns": [
-        "created_at",
-        "location_id",
-        "organization_id",
-        "site_id",
-        "updated_at",
-        "user_id"
-      ],
-      "unchanged_source_hash": "897cc5cb662279f7916158536d5b7b14cddb04191323c03793fa28699fafcd7b",
-      "unchanged_target_hash": "897cc5cb662279f7916158536d5b7b14cddb04191323c03793fa28699fafcd7b"
-    },
-    {
       "table": "media_assets",
       "source_count": 339,
       "target_count": 339,
@@ -1165,7 +501,6 @@
     },
     {
       "table": "media_placements",
-      "source_count": 705,
       "target_count": 675,
       "columns": [
         "asset_id",
@@ -1180,23 +515,8 @@
         "status",
         "updated_at"
       ],
-      "projected_hash": "4b961eedded95b981703f5f6b55580c634d52f1c1c5c5a37ef74c7f3a40d9402",
-      "actual_hash": "4b961eedded95b981703f5f6b55580c634d52f1c1c5c5a37ef74c7f3a40d9402",
-      "unchanged_columns": [
-        "asset_id",
-        "created_at",
-        "id",
-        "organization_id",
-        "owner_id",
-        "owner_type",
-        "site_id",
-        "slot",
-        "sort_order",
-        "status",
-        "updated_at"
-      ],
-      "unchanged_source_hash": "4b961eedded95b981703f5f6b55580c634d52f1c1c5c5a37ef74c7f3a40d9402",
-      "unchanged_target_hash": "4b961eedded95b981703f5f6b55580c634d52f1c1c5c5a37ef74c7f3a40d9402"
+      "projected_hash": "947e9392b5df3c2af8abbc1184306a423ae06a9250a633b57aa3b4b037acfc27",
+      "actual_hash": "947e9392b5df3c2af8abbc1184306a423ae06a9250a633b57aa3b4b037acfc27"
     },
     {
       "table": "member",
@@ -1220,64 +540,6 @@
       ],
       "unchanged_source_hash": "16300457500d707d787b1d379843505002de21b6d70911b58eb4c24aab81c047",
       "unchanged_target_hash": "16300457500d707d787b1d379843505002de21b6d70911b58eb4c24aab81c047"
-    },
-    {
-      "table": "notification_reads",
-      "source_count": 0,
-      "target_count": 0,
-      "columns": [
-        "notification_id",
-        "read_at",
-        "user_id"
-      ],
-      "projected_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-      "actual_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-      "unchanged_columns": [
-        "notification_id",
-        "read_at",
-        "user_id"
-      ],
-      "unchanged_source_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-      "unchanged_target_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
-    },
-    {
-      "table": "notifications",
-      "source_count": 2,
-      "target_count": 2,
-      "columns": [
-        "created_at",
-        "deep_link",
-        "id",
-        "location_id",
-        "message",
-        "organization_id",
-        "scope",
-        "severity",
-        "site_id",
-        "source_entry_id",
-        "target_user_id",
-        "template",
-        "title"
-      ],
-      "projected_hash": "030e24d0efc2033156857feffca59d380005f49b64e32c7b9650f9e953ce0d67",
-      "actual_hash": "030e24d0efc2033156857feffca59d380005f49b64e32c7b9650f9e953ce0d67",
-      "unchanged_columns": [
-        "created_at",
-        "deep_link",
-        "id",
-        "location_id",
-        "message",
-        "organization_id",
-        "scope",
-        "severity",
-        "site_id",
-        "source_entry_id",
-        "target_user_id",
-        "template",
-        "title"
-      ],
-      "unchanged_source_hash": "030e24d0efc2033156857feffca59d380005f49b64e32c7b9650f9e953ce0d67",
-      "unchanged_target_hash": "030e24d0efc2033156857feffca59d380005f49b64e32c7b9650f9e953ce0d67"
     },
     {
       "table": "oauthAccessToken",
@@ -1728,265 +990,6 @@
       "unchanged_target_hash": "703dc5810d79d93ee2989026cba47a86b48d382105268bd40e5c30d9a468dce5"
     },
     {
-      "table": "organization_events",
-      "source_count": 390,
-      "target_count": 390,
-      "columns": [
-        "actor_id",
-        "created_at",
-        "entity_id",
-        "entity_type",
-        "event_type",
-        "id",
-        "location_id",
-        "metadata",
-        "organization_id",
-        "site_id"
-      ],
-      "projected_hash": "1f63b5e0e3addd99ffbb42319eb2a9f54bfa27cb2bec7323ad524575c30ae833",
-      "actual_hash": "1f63b5e0e3addd99ffbb42319eb2a9f54bfa27cb2bec7323ad524575c30ae833",
-      "unchanged_columns": [
-        "actor_id",
-        "created_at",
-        "entity_id",
-        "entity_type",
-        "event_type",
-        "id",
-        "location_id",
-        "metadata",
-        "organization_id",
-        "site_id"
-      ],
-      "unchanged_source_hash": "1f63b5e0e3addd99ffbb42319eb2a9f54bfa27cb2bec7323ad524575c30ae833",
-      "unchanged_target_hash": "1f63b5e0e3addd99ffbb42319eb2a9f54bfa27cb2bec7323ad524575c30ae833"
-    },
-    {
-      "table": "platform_contact_submissions",
-      "source_count": 0,
-      "target_count": 0,
-      "columns": [
-        "agent_metadata_json",
-        "created_at",
-        "email",
-        "id",
-        "ip_hash",
-        "message",
-        "name",
-        "route_context",
-        "source",
-        "suggested_summary",
-        "topic"
-      ],
-      "projected_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-      "actual_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-      "unchanged_columns": [
-        "agent_metadata_json",
-        "created_at",
-        "email",
-        "id",
-        "ip_hash",
-        "message",
-        "name",
-        "route_context",
-        "source",
-        "suggested_summary",
-        "topic"
-      ],
-      "unchanged_source_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-      "unchanged_target_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
-    },
-    {
-      "table": "platform_docs",
-      "source_count": 9,
-      "target_count": 9,
-      "columns": [
-        "author_id",
-        "canonical_url",
-        "category",
-        "created_at",
-        "difficulty_level",
-        "excerpt",
-        "featured_order",
-        "hide_from_nav",
-        "id",
-        "nav_group",
-        "nav_group_order",
-        "nav_order",
-        "nav_section",
-        "nav_section_order",
-        "nav_title",
-        "robots",
-        "seo_description",
-        "seo_keywords",
-        "slug",
-        "sort_order",
-        "title",
-        "updated_at"
-      ],
-      "projected_hash": "4188306d8c285be4936f205a713dcfed41a07dc531caf940a7f6bc6dcd92f739",
-      "actual_hash": "4188306d8c285be4936f205a713dcfed41a07dc531caf940a7f6bc6dcd92f739",
-      "unchanged_columns": [
-        "author_id",
-        "canonical_url",
-        "category",
-        "created_at",
-        "difficulty_level",
-        "excerpt",
-        "featured_order",
-        "hide_from_nav",
-        "id",
-        "nav_group",
-        "nav_group_order",
-        "nav_order",
-        "nav_section",
-        "nav_section_order",
-        "nav_title",
-        "robots",
-        "seo_description",
-        "seo_keywords",
-        "slug",
-        "sort_order",
-        "title",
-        "updated_at"
-      ],
-      "unchanged_source_hash": "4188306d8c285be4936f205a713dcfed41a07dc531caf940a7f6bc6dcd92f739",
-      "unchanged_target_hash": "4188306d8c285be4936f205a713dcfed41a07dc531caf940a7f6bc6dcd92f739"
-    },
-    {
-      "table": "platform_locale_catalogs",
-      "source_count": 1,
-      "target_count": 1,
-      "columns": [
-        "available_at",
-        "available_by_user_id",
-        "created_at",
-        "created_by_user_id",
-        "direction",
-        "label",
-        "locale",
-        "source_manifest_hash",
-        "status",
-        "updated_at",
-        "updated_by_user_id"
-      ],
-      "projected_hash": "5d2e3cd24a0265e177ac4c1d4c2d0b9392f28996ce2a5cff34ba0f126e3af070",
-      "actual_hash": "5d2e3cd24a0265e177ac4c1d4c2d0b9392f28996ce2a5cff34ba0f126e3af070",
-      "unchanged_columns": [
-        "available_by_user_id",
-        "created_at",
-        "created_by_user_id",
-        "direction",
-        "label",
-        "locale",
-        "source_manifest_hash",
-        "status",
-        "updated_by_user_id"
-      ],
-      "unchanged_source_hash": "da945e151668afef31e44c62b3210e8086d1c630359dc0196f2eb4f66e8cae9c",
-      "unchanged_target_hash": "da945e151668afef31e44c62b3210e8086d1c630359dc0196f2eb4f66e8cae9c"
-    },
-    {
-      "table": "platform_locale_messages",
-      "source_count": 333,
-      "target_count": 333,
-      "columns": [
-        "locale",
-        "message_key",
-        "message_value",
-        "updated_at",
-        "updated_by_user_id"
-      ],
-      "projected_hash": "e51ab76256a63537a488be71f527629219055c4c848aa0ddb295165f512adfd7",
-      "actual_hash": "e51ab76256a63537a488be71f527629219055c4c848aa0ddb295165f512adfd7",
-      "unchanged_columns": [
-        "locale",
-        "message_key",
-        "message_value",
-        "updated_by_user_id"
-      ],
-      "unchanged_source_hash": "ab0cb2419eea2487ec6dda6e105cc4ad948901a582ae3b92a96936cffad86b43",
-      "unchanged_target_hash": "ab0cb2419eea2487ec6dda6e105cc4ad948901a582ae3b92a96936cffad86b43"
-    },
-    {
-      "table": "post_channel_jobs",
-      "source_count": 0,
-      "target_count": 0,
-      "columns": [
-        "channel",
-        "created_at",
-        "error",
-        "id",
-        "post_id",
-        "provider_post_id",
-        "published_at",
-        "status"
-      ],
-      "projected_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-      "actual_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-      "unchanged_columns": [
-        "channel",
-        "created_at",
-        "error",
-        "id",
-        "post_id",
-        "provider_post_id",
-        "published_at",
-        "status"
-      ],
-      "unchanged_source_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-      "unchanged_target_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
-    },
-    {
-      "table": "posts",
-      "source_count": 15,
-      "target_count": 15,
-      "columns": [
-        "alert_type",
-        "body",
-        "call_to_action",
-        "created_at",
-        "created_by",
-        "event",
-        "id",
-        "location_id",
-        "offer",
-        "organization_id",
-        "post_type",
-        "published_at",
-        "scheduled_for",
-        "seo_description",
-        "seo_title",
-        "site_id",
-        "slug",
-        "source",
-        "status",
-        "title",
-        "updated_at"
-      ],
-      "projected_hash": "0a8d8da6d9e9277015ba341886f29f82ec086968b228b30ed36c95108408bc4f",
-      "actual_hash": "0a8d8da6d9e9277015ba341886f29f82ec086968b228b30ed36c95108408bc4f",
-      "unchanged_columns": [
-        "body",
-        "created_at",
-        "created_by",
-        "id",
-        "location_id",
-        "organization_id",
-        "published_at",
-        "scheduled_for",
-        "seo_description",
-        "seo_title",
-        "site_id",
-        "slug",
-        "source",
-        "status",
-        "title",
-        "updated_at"
-      ],
-      "unchanged_source_hash": "2b32e27b22778a85c15ba3e7258eb8e1c2db0678bc236cc537f90ef61bee9d37",
-      "unchanged_target_hash": "2b32e27b22778a85c15ba3e7258eb8e1c2db0678bc236cc537f90ef61bee9d37"
-    },
-    {
       "table": "prices",
       "source_count": 629,
       "target_count": 629,
@@ -2068,7 +1071,6 @@
     },
     {
       "table": "products",
-      "source_count": 492,
       "target_count": 492,
       "columns": [
         "available",
@@ -2078,6 +1080,7 @@
         "created_by",
         "description",
         "details_json",
+        "experience_json",
         "featured",
         "featured_sort_order",
         "id",
@@ -2098,38 +1101,8 @@
         "updated_at",
         "updated_by"
       ],
-      "projected_hash": "725ec46aa91bcbdf8e9873b82ad42758fc958242d9f871ad4596835a002bacd4",
-      "actual_hash": "725ec46aa91bcbdf8e9873b82ad42758fc958242d9f871ad4596835a002bacd4",
-      "unchanged_columns": [
-        "available",
-        "canonical_url",
-        "category_id",
-        "created_at",
-        "created_by",
-        "description",
-        "details_json",
-        "featured",
-        "featured_sort_order",
-        "id",
-        "is_visible",
-        "location_id",
-        "name",
-        "order_url",
-        "organization_id",
-        "product_type",
-        "robots",
-        "seo_description",
-        "seo_title",
-        "site_id",
-        "slug",
-        "sort_order",
-        "source",
-        "tags_json",
-        "updated_at",
-        "updated_by"
-      ],
-      "unchanged_source_hash": "725ec46aa91bcbdf8e9873b82ad42758fc958242d9f871ad4596835a002bacd4",
-      "unchanged_target_hash": "725ec46aa91bcbdf8e9873b82ad42758fc958242d9f871ad4596835a002bacd4"
+      "projected_hash": "645cd8492c302c95eadaea2a40b629bb0aa4ea7c235b721db952bdca1896cbe7",
+      "actual_hash": "645cd8492c302c95eadaea2a40b629bb0aa4ea7c235b721db952bdca1896cbe7"
     },
     {
       "table": "public_resource_cache_invalidations",
@@ -2184,76 +1157,38 @@
       "unchanged_target_hash": "45dba6a1e83cc79cf77ae5671132deffee80b88d6b55ad8d234af4417bf675cf"
     },
     {
-      "table": "reservation_submissions",
-      "source_count": 15,
-      "target_count": 15,
+      "table": "requests",
+      "target_count": 24,
       "columns": [
-        "cancellation_token_expires_at",
-        "cancellation_token_hash",
-        "cancellation_token_used_at",
-        "completed_at",
-        "completion_source",
+        "assigned_to",
+        "booking_date",
+        "conversation_state",
         "created_at",
         "customer_id",
-        "date",
-        "email",
-        "guests",
         "id",
-        "ip_hash",
+        "kind",
         "location_id",
-        "name",
         "organization_id",
-        "phone",
-        "requests",
+        "party_size",
+        "payload_json",
+        "priority",
+        "product_id",
+        "resolved_at",
         "review_id",
-        "review_reminder_sent_at",
-        "review_request_sent_at",
-        "review_submitted_at",
         "site_id",
         "status",
-        "time",
+        "time_slot",
         "updated_at"
       ],
-      "projected_hash": "7527f4d8739983211071630d00f874ffd37d9757b1b71b7474b703a9a7c47a74",
-      "actual_hash": "7527f4d8739983211071630d00f874ffd37d9757b1b71b7474b703a9a7c47a74",
-      "unchanged_columns": [
-        "cancellation_token_expires_at",
-        "cancellation_token_hash",
-        "cancellation_token_used_at",
-        "completed_at",
-        "completion_source",
-        "created_at",
-        "customer_id",
-        "date",
-        "email",
-        "guests",
-        "id",
-        "ip_hash",
-        "location_id",
-        "name",
-        "organization_id",
-        "phone",
-        "requests",
-        "review_id",
-        "review_reminder_sent_at",
-        "review_request_sent_at",
-        "review_submitted_at",
-        "site_id",
-        "status",
-        "time",
-        "updated_at"
-      ],
-      "unchanged_source_hash": "7527f4d8739983211071630d00f874ffd37d9757b1b71b7474b703a9a7c47a74",
-      "unchanged_target_hash": "7527f4d8739983211071630d00f874ffd37d9757b1b71b7474b703a9a7c47a74"
+      "projected_hash": "24483a5b50c11c1a2b763b85aa962bd5556f2b71488e8fa8ded30a0326a474bf",
+      "actual_hash": "24483a5b50c11c1a2b763b85aa962bd5556f2b71488e8fa8ded30a0326a474bf"
     },
     {
       "table": "resource_localizations",
-      "source_count": 597,
-      "target_count": 597,
+      "target_count": 595,
       "columns": [
         "created_at",
         "created_by_user_id",
-        "document_id",
         "id",
         "locale",
         "organization_id",
@@ -2265,22 +1200,8 @@
         "updated_by_user_id",
         "values_json"
       ],
-      "projected_hash": "3380e991faa27282e4b2eb1a647023085099fe445145d6793b5e521388a704c4",
-      "actual_hash": "3380e991faa27282e4b2eb1a647023085099fe445145d6793b5e521388a704c4",
-      "unchanged_columns": [
-        "created_by_user_id",
-        "document_id",
-        "id",
-        "locale",
-        "organization_id",
-        "resource_id",
-        "resource_type",
-        "route_path",
-        "site_id",
-        "updated_by_user_id"
-      ],
-      "unchanged_source_hash": "dacd11b3d30901a03bece20160fdeadada4ca515e2f320d3e6e3e2eff48cc568",
-      "unchanged_target_hash": "dacd11b3d30901a03bece20160fdeadada4ca515e2f320d3e6e3e2eff48cc568"
+      "projected_hash": "0542f5329bda0a2eb4c3d0da0aa1c5876fb0bab7aa8f2a102de30a67693b70dd",
+      "actual_hash": "0542f5329bda0a2eb4c3d0da0aa1c5876fb0bab7aa8f2a102de30a67693b70dd"
     },
     {
       "table": "review_requests",
@@ -2442,337 +1363,8 @@
       "unchanged_target_hash": "84c2137172ac37b8713066746410b77c93a871221ad0312a6ac115a75556eee1"
     },
     {
-      "table": "site_analytics_daily",
-      "source_count": 99,
-      "target_count": 99,
-      "columns": [
-        "avg_session_duration",
-        "created_at",
-        "date",
-        "id",
-        "organization_id",
-        "page_views",
-        "pages_per_session",
-        "returning_visitors",
-        "site_id",
-        "unique_sessions",
-        "unique_visitors",
-        "updated_at"
-      ],
-      "projected_hash": "7ba8df90eaf4fee5560d8d41b24eff7a080aedc6c12b04273e330eaed6e8fe79",
-      "actual_hash": "7ba8df90eaf4fee5560d8d41b24eff7a080aedc6c12b04273e330eaed6e8fe79",
-      "unchanged_columns": [
-        "avg_session_duration",
-        "created_at",
-        "date",
-        "id",
-        "organization_id",
-        "page_views",
-        "pages_per_session",
-        "returning_visitors",
-        "site_id",
-        "unique_sessions",
-        "unique_visitors",
-        "updated_at"
-      ],
-      "unchanged_source_hash": "7ba8df90eaf4fee5560d8d41b24eff7a080aedc6c12b04273e330eaed6e8fe79",
-      "unchanged_target_hash": "7ba8df90eaf4fee5560d8d41b24eff7a080aedc6c12b04273e330eaed6e8fe79"
-    },
-    {
-      "table": "site_analytics_dimension_daily",
-      "source_count": 436,
-      "target_count": 436,
-      "columns": [
-        "created_at",
-        "date",
-        "dimension",
-        "id",
-        "organization_id",
-        "page_views",
-        "site_id",
-        "subvalue",
-        "updated_at",
-        "value"
-      ],
-      "projected_hash": "a91255525fedcf1211da11334e09cdb548b3ee01164b81c2a9431fbdd1dc9e57",
-      "actual_hash": "a91255525fedcf1211da11334e09cdb548b3ee01164b81c2a9431fbdd1dc9e57",
-      "unchanged_columns": [
-        "created_at",
-        "date",
-        "dimension",
-        "id",
-        "organization_id",
-        "page_views",
-        "site_id",
-        "subvalue",
-        "updated_at",
-        "value"
-      ],
-      "unchanged_source_hash": "a91255525fedcf1211da11334e09cdb548b3ee01164b81c2a9431fbdd1dc9e57",
-      "unchanged_target_hash": "a91255525fedcf1211da11334e09cdb548b3ee01164b81c2a9431fbdd1dc9e57"
-    },
-    {
-      "table": "site_analytics_page_daily",
-      "source_count": 364,
-      "target_count": 364,
-      "columns": [
-        "created_at",
-        "date",
-        "id",
-        "organization_id",
-        "page_path",
-        "page_views",
-        "site_id",
-        "updated_at"
-      ],
-      "projected_hash": "f9c069b90d30bfe7ea193c2f0c288b263ff8a2c7e6583b83148a64f06514825a",
-      "actual_hash": "f9c069b90d30bfe7ea193c2f0c288b263ff8a2c7e6583b83148a64f06514825a",
-      "unchanged_columns": [
-        "created_at",
-        "date",
-        "id",
-        "organization_id",
-        "page_path",
-        "page_views",
-        "site_id",
-        "updated_at"
-      ],
-      "unchanged_source_hash": "f9c069b90d30bfe7ea193c2f0c288b263ff8a2c7e6583b83148a64f06514825a",
-      "unchanged_target_hash": "f9c069b90d30bfe7ea193c2f0c288b263ff8a2c7e6583b83148a64f06514825a"
-    },
-    {
-      "table": "site_analytics_sessions",
-      "source_count": 1171,
-      "target_count": 1171,
-      "columns": [
-        "created_at",
-        "duration_seconds",
-        "id",
-        "landing_path",
-        "last_seen_at",
-        "last_touch_at",
-        "last_touch_campaign",
-        "last_touch_content",
-        "last_touch_fbclid",
-        "last_touch_gbraid",
-        "last_touch_gclid",
-        "last_touch_medium",
-        "last_touch_msclkid",
-        "last_touch_referrer_host",
-        "last_touch_source",
-        "last_touch_term",
-        "last_touch_wbraid",
-        "organization_id",
-        "session_id",
-        "site_id",
-        "started_at",
-        "updated_at",
-        "visitor_id"
-      ],
-      "projected_hash": "f6b0d5903963ed9eee49006da7bc546d6716652a746d453775d97a7b82aeab26",
-      "actual_hash": "f6b0d5903963ed9eee49006da7bc546d6716652a746d453775d97a7b82aeab26",
-      "unchanged_columns": [
-        "created_at",
-        "duration_seconds",
-        "id",
-        "landing_path",
-        "last_seen_at",
-        "last_touch_at",
-        "last_touch_campaign",
-        "last_touch_content",
-        "last_touch_fbclid",
-        "last_touch_gbraid",
-        "last_touch_gclid",
-        "last_touch_medium",
-        "last_touch_msclkid",
-        "last_touch_referrer_host",
-        "last_touch_source",
-        "last_touch_term",
-        "last_touch_wbraid",
-        "organization_id",
-        "session_id",
-        "site_id",
-        "started_at",
-        "updated_at",
-        "visitor_id"
-      ],
-      "unchanged_source_hash": "f6b0d5903963ed9eee49006da7bc546d6716652a746d453775d97a7b82aeab26",
-      "unchanged_target_hash": "f6b0d5903963ed9eee49006da7bc546d6716652a746d453775d97a7b82aeab26"
-    },
-    {
-      "table": "site_config",
-      "source_count": 16,
-      "target_count": 27,
-      "columns": [
-        "key",
-        "organization_id",
-        "site_id",
-        "updated_at",
-        "value"
-      ],
-      "projected_hash": "b9335031fd882eeadec9e37d71c66e6fb66602293009ae0ef5f9f4e403dfd53f",
-      "actual_hash": "b9335031fd882eeadec9e37d71c66e6fb66602293009ae0ef5f9f4e403dfd53f",
-      "unchanged_columns": [
-        "key",
-        "organization_id",
-        "site_id",
-        "updated_at",
-        "value"
-      ],
-      "unchanged_source_hash": "94acdb9e982f29243d8e0a959c1fe48d56f053c95f730e6a690d3effcfa90a86",
-      "unchanged_target_hash": "94acdb9e982f29243d8e0a959c1fe48d56f053c95f730e6a690d3effcfa90a86"
-    },
-    {
-      "table": "site_consultation_settings",
-      "source_count": 1,
-      "target_count": 1,
-      "columns": [
-        "confirmation_path",
-        "created_at",
-        "cta_label",
-        "external_url",
-        "id",
-        "metadata_json",
-        "mode",
-        "organization_id",
-        "schedule_path",
-        "site_id",
-        "tracking_enabled",
-        "updated_at",
-        "updated_by"
-      ],
-      "projected_hash": "c2721c79c6f700468897333af95e3b0447e1ebf53e33e93914566d6ae0a061f1",
-      "actual_hash": "c2721c79c6f700468897333af95e3b0447e1ebf53e33e93914566d6ae0a061f1",
-      "unchanged_columns": [
-        "confirmation_path",
-        "created_at",
-        "cta_label",
-        "external_url",
-        "id",
-        "metadata_json",
-        "mode",
-        "organization_id",
-        "schedule_path",
-        "site_id",
-        "tracking_enabled",
-        "updated_at",
-        "updated_by"
-      ],
-      "unchanged_source_hash": "c2721c79c6f700468897333af95e3b0447e1ebf53e33e93914566d6ae0a061f1",
-      "unchanged_target_hash": "c2721c79c6f700468897333af95e3b0447e1ebf53e33e93914566d6ae0a061f1"
-    },
-    {
-      "table": "site_conversion_events",
-      "source_count": 129,
-      "target_count": 129,
-      "columns": [
-        "attributed_at",
-        "campaign",
-        "content",
-        "created_at",
-        "cta_destination",
-        "entity_id",
-        "entity_type",
-        "event_name",
-        "fbclid",
-        "gbraid",
-        "gclid",
-        "id",
-        "ip_hash",
-        "location_id",
-        "medium",
-        "metadata_json",
-        "msclkid",
-        "organization_id",
-        "page_path",
-        "page_type",
-        "referrer_host",
-        "session_id",
-        "site_id",
-        "source",
-        "stage",
-        "term",
-        "user_agent",
-        "visitor_id",
-        "wbraid"
-      ],
-      "projected_hash": "005a1b97c8dd3537fbeab66683a054349ddf63acd5ad4a722fbb388b4043f2b8",
-      "actual_hash": "005a1b97c8dd3537fbeab66683a054349ddf63acd5ad4a722fbb388b4043f2b8",
-      "unchanged_columns": [
-        "attributed_at",
-        "campaign",
-        "content",
-        "created_at",
-        "cta_destination",
-        "entity_id",
-        "entity_type",
-        "event_name",
-        "fbclid",
-        "gbraid",
-        "gclid",
-        "id",
-        "ip_hash",
-        "location_id",
-        "medium",
-        "metadata_json",
-        "msclkid",
-        "organization_id",
-        "page_path",
-        "page_type",
-        "referrer_host",
-        "session_id",
-        "site_id",
-        "source",
-        "stage",
-        "term",
-        "user_agent",
-        "visitor_id",
-        "wbraid"
-      ],
-      "unchanged_source_hash": "005a1b97c8dd3537fbeab66683a054349ddf63acd5ad4a722fbb388b4043f2b8",
-      "unchanged_target_hash": "005a1b97c8dd3537fbeab66683a054349ddf63acd5ad4a722fbb388b4043f2b8"
-    },
-    {
-      "table": "site_domain_events",
-      "source_count": 21,
-      "target_count": 21,
-      "columns": [
-        "actor_id",
-        "actor_type",
-        "after_state",
-        "before_state",
-        "created_at",
-        "domain_id",
-        "event_type",
-        "id",
-        "message",
-        "metadata",
-        "organization_id",
-        "site_id"
-      ],
-      "projected_hash": "a8bbe40bbe5914e0a0fa33671e005179c0d2c5219bba4fd0c487ed1008a1522d",
-      "actual_hash": "a8bbe40bbe5914e0a0fa33671e005179c0d2c5219bba4fd0c487ed1008a1522d",
-      "unchanged_columns": [
-        "actor_id",
-        "actor_type",
-        "after_state",
-        "before_state",
-        "created_at",
-        "domain_id",
-        "event_type",
-        "id",
-        "message",
-        "metadata",
-        "organization_id",
-        "site_id"
-      ],
-      "unchanged_source_hash": "a8bbe40bbe5914e0a0fa33671e005179c0d2c5219bba4fd0c487ed1008a1522d",
-      "unchanged_target_hash": "a8bbe40bbe5914e0a0fa33671e005179c0d2c5219bba4fd0c487ed1008a1522d"
-    },
-    {
       "table": "site_domains",
-      "source_count": 16,
-      "target_count": 16,
+      "target_count": 12,
       "columns": [
         "activated_at",
         "certificate_expires_at",
@@ -2784,12 +1376,14 @@
         "dcv_delegation_name",
         "dcv_delegation_type",
         "dcv_delegation_value",
+        "desired_state",
         "dns_last_resolved_at",
         "dns_resolved_target",
         "dns_status",
         "dns_target",
         "domain",
         "error_message",
+        "former_site_id",
         "id",
         "last_synced_at",
         "metadata",
@@ -2798,8 +1392,11 @@
         "ownership_validation_name",
         "ownership_validation_type",
         "ownership_validation_value",
+        "reconciliation_expires_at",
+        "reconciliation_token",
         "renewal_issue_started_at",
         "renewal_notification_sent_at",
+        "retired_at",
         "retry_count",
         "role",
         "site_id",
@@ -2810,175 +1407,21 @@
         "ssl_validation_value",
         "ssl_validation_value_2",
         "status",
+        "successor_domain",
         "type",
         "updated_at",
         "validation_strategy"
       ],
-      "projected_hash": "dfa60efe501968a2694199aa7f282dce3c9f79102d388d41e7c1ecf5341b72a1",
-      "actual_hash": "dfa60efe501968a2694199aa7f282dce3c9f79102d388d41e7c1ecf5341b72a1",
-      "unchanged_columns": [
-        "activated_at",
-        "certificate_expires_at",
-        "certificate_last_active_at",
-        "cloudflare_hostname_id",
-        "cloudflare_hostname_status",
-        "cloudflare_ssl_status",
-        "created_at",
-        "dcv_delegation_name",
-        "dcv_delegation_type",
-        "dcv_delegation_value",
-        "dns_last_resolved_at",
-        "dns_resolved_target",
-        "dns_status",
-        "dns_target",
-        "domain",
-        "error_message",
-        "id",
-        "last_synced_at",
-        "metadata",
-        "next_check_at",
-        "organization_id",
-        "ownership_validation_name",
-        "ownership_validation_type",
-        "ownership_validation_value",
-        "renewal_issue_started_at",
-        "renewal_notification_sent_at",
-        "retry_count",
-        "role",
-        "site_id",
-        "ssl_validation_name",
-        "ssl_validation_name_2",
-        "ssl_validation_type",
-        "ssl_validation_type_2",
-        "ssl_validation_value",
-        "ssl_validation_value_2",
-        "status",
-        "type",
-        "updated_at",
-        "validation_strategy"
-      ],
-      "unchanged_source_hash": "dfa60efe501968a2694199aa7f282dce3c9f79102d388d41e7c1ecf5341b72a1",
-      "unchanged_target_hash": "dfa60efe501968a2694199aa7f282dce3c9f79102d388d41e7c1ecf5341b72a1"
-    },
-    {
-      "table": "site_language_licenses",
-      "source_count": 1,
-      "target_count": 1,
-      "columns": [
-        "activated_at",
-        "created_at",
-        "disabled_at",
-        "id",
-        "last_error_code",
-        "last_provider_quantity",
-        "locale",
-        "operation_id",
-        "organization_id",
-        "provider_idempotency_key",
-        "site_id",
-        "status",
-        "stripe_subscription_id",
-        "stripe_subscription_item_id",
-        "updated_at"
-      ],
-      "projected_hash": "db9506449a62d3e47ad583269e873d11ea9db372fbdec2605a323ad2a1d4cb5c",
-      "actual_hash": "db9506449a62d3e47ad583269e873d11ea9db372fbdec2605a323ad2a1d4cb5c",
-      "unchanged_columns": [
-        "activated_at",
-        "created_at",
-        "disabled_at",
-        "id",
-        "last_error_code",
-        "last_provider_quantity",
-        "locale",
-        "operation_id",
-        "organization_id",
-        "provider_idempotency_key",
-        "site_id",
-        "status",
-        "stripe_subscription_id",
-        "stripe_subscription_item_id",
-        "updated_at"
-      ],
-      "unchanged_source_hash": "db9506449a62d3e47ad583269e873d11ea9db372fbdec2605a323ad2a1d4cb5c",
-      "unchanged_target_hash": "db9506449a62d3e47ad583269e873d11ea9db372fbdec2605a323ad2a1d4cb5c"
-    },
-    {
-      "table": "site_link_items",
-      "source_count": 0,
-      "target_count": 0,
-      "columns": [
-        "created_at",
-        "destination",
-        "id",
-        "label",
-        "link_page_id",
-        "organization_id",
-        "site_id",
-        "sort_order",
-        "status",
-        "updated_at",
-        "updated_by"
-      ],
-      "projected_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-      "actual_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-      "unchanged_columns": [
-        "created_at",
-        "destination",
-        "id",
-        "label",
-        "link_page_id",
-        "organization_id",
-        "site_id",
-        "sort_order",
-        "status",
-        "updated_at",
-        "updated_by"
-      ],
-      "unchanged_source_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-      "unchanged_target_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
-    },
-    {
-      "table": "site_link_pages",
-      "source_count": 0,
-      "target_count": 0,
-      "columns": [
-        "created_at",
-        "id",
-        "organization_id",
-        "path",
-        "robots",
-        "seo_description",
-        "seo_title",
-        "site_id",
-        "title",
-        "updated_at",
-        "updated_by"
-      ],
-      "projected_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-      "actual_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-      "unchanged_columns": [
-        "created_at",
-        "id",
-        "organization_id",
-        "path",
-        "robots",
-        "seo_description",
-        "seo_title",
-        "site_id",
-        "title",
-        "updated_at",
-        "updated_by"
-      ],
-      "unchanged_source_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-      "unchanged_target_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      "projected_hash": "f6572091bfb8df8d34cb3dcec6bba637b769f7b8a59fe77e33a6d994d2dc0e7c",
+      "actual_hash": "f6572091bfb8df8d34cb3dcec6bba637b769f7b8a59fe77e33a6d994d2dc0e7c"
     },
     {
       "table": "site_locales",
-      "source_count": 12,
       "target_count": 12,
       "columns": [
+        "activated_at",
         "created_at",
+        "disabled_at",
         "id",
         "is_source",
         "label",
@@ -2988,76 +1431,11 @@
         "status",
         "updated_at"
       ],
-      "projected_hash": "274e0edc774e4ef5c3efae6c36ce882a91831f04c81c5041b94c4eaf335598fb",
-      "actual_hash": "274e0edc774e4ef5c3efae6c36ce882a91831f04c81c5041b94c4eaf335598fb",
-      "unchanged_columns": [
-        "created_at",
-        "id",
-        "is_source",
-        "label",
-        "locale",
-        "organization_id",
-        "site_id",
-        "status",
-        "updated_at"
-      ],
-      "unchanged_source_hash": "274e0edc774e4ef5c3efae6c36ce882a91831f04c81c5041b94c4eaf335598fb",
-      "unchanged_target_hash": "274e0edc774e4ef5c3efae6c36ce882a91831f04c81c5041b94c4eaf335598fb"
-    },
-    {
-      "table": "site_pageview_events",
-      "source_count": 31445,
-      "target_count": 31445,
-      "columns": [
-        "city",
-        "country",
-        "created_at",
-        "duration_seconds",
-        "id",
-        "ip_hash",
-        "locale",
-        "location_id",
-        "page_id",
-        "page_path",
-        "page_type",
-        "recipe",
-        "referrer",
-        "region",
-        "revision_id",
-        "session_id",
-        "site_id",
-        "user_agent",
-        "visitor_id"
-      ],
-      "projected_hash": "dd0c5b6604e80fb33414f19a9d18362ab8266df95dc12d0d14d15b820d32aec2",
-      "actual_hash": "dd0c5b6604e80fb33414f19a9d18362ab8266df95dc12d0d14d15b820d32aec2",
-      "unchanged_columns": [
-        "city",
-        "country",
-        "created_at",
-        "duration_seconds",
-        "id",
-        "ip_hash",
-        "locale",
-        "location_id",
-        "page_id",
-        "page_path",
-        "page_type",
-        "recipe",
-        "referrer",
-        "region",
-        "revision_id",
-        "session_id",
-        "site_id",
-        "user_agent",
-        "visitor_id"
-      ],
-      "unchanged_source_hash": "dd0c5b6604e80fb33414f19a9d18362ab8266df95dc12d0d14d15b820d32aec2",
-      "unchanged_target_hash": "dd0c5b6604e80fb33414f19a9d18362ab8266df95dc12d0d14d15b820d32aec2"
+      "projected_hash": "3d2ec0f0e6c893875dca51cf69bfd2a06933fee66ea36a55c3e098f0f5042fc6",
+      "actual_hash": "3d2ec0f0e6c893875dca51cf69bfd2a06933fee66ea36a55c3e098f0f5042fc6"
     },
     {
       "table": "site_redirects",
-      "source_count": 8,
       "target_count": 8,
       "columns": [
         "behavior",
@@ -3076,56 +1454,7 @@
         "updated_at"
       ],
       "projected_hash": "abe9fb6334a03bd377a4d314ff33f7e6c7187448333b140d1c73c6cbe4f47400",
-      "actual_hash": "abe9fb6334a03bd377a4d314ff33f7e6c7187448333b140d1c73c6cbe4f47400",
-      "unchanged_columns": [
-        "behavior",
-        "created_at",
-        "from_path",
-        "id",
-        "locale",
-        "organization_id",
-        "owner_id",
-        "owner_type",
-        "reason",
-        "site_id",
-        "source",
-        "status_code",
-        "to_path",
-        "updated_at"
-      ],
-      "unchanged_source_hash": "abe9fb6334a03bd377a4d314ff33f7e6c7187448333b140d1c73c6cbe4f47400",
-      "unchanged_target_hash": "abe9fb6334a03bd377a4d314ff33f7e6c7187448333b140d1c73c6cbe4f47400"
-    },
-    {
-      "table": "site_theme_tokens",
-      "source_count": 1,
-      "target_count": 1,
-      "columns": [
-        "created_at",
-        "id",
-        "organization_id",
-        "site_id",
-        "status",
-        "template_slug",
-        "tokens_json",
-        "updated_at",
-        "updated_by"
-      ],
-      "projected_hash": "026f4bddd12aa549be31c3eaf24308a12442ca79ccbdb822cda9c03a287484d5",
-      "actual_hash": "026f4bddd12aa549be31c3eaf24308a12442ca79ccbdb822cda9c03a287484d5",
-      "unchanged_columns": [
-        "created_at",
-        "id",
-        "organization_id",
-        "site_id",
-        "status",
-        "template_slug",
-        "tokens_json",
-        "updated_at",
-        "updated_by"
-      ],
-      "unchanged_source_hash": "026f4bddd12aa549be31c3eaf24308a12442ca79ccbdb822cda9c03a287484d5",
-      "unchanged_target_hash": "026f4bddd12aa549be31c3eaf24308a12442ca79ccbdb822cda9c03a287484d5"
+      "actual_hash": "abe9fb6334a03bd377a4d314ff33f7e6c7187448333b140d1c73c6cbe4f47400"
     },
     {
       "table": "site_transfer_requests",
@@ -3186,7 +1515,6 @@
     },
     {
       "table": "sites",
-      "source_count": 11,
       "target_count": 11,
       "columns": [
         "analytics_data_start_at",
@@ -3199,12 +1527,14 @@
         "default_currency",
         "feature_overrides",
         "id",
+        "integrations_json",
         "last_published_at",
         "onboarding_status",
         "organization_id",
         "robots",
         "seo_description",
         "seo_title",
+        "settings_json",
         "slug",
         "social_facebook_url",
         "social_instagram_url",
@@ -3218,61 +1548,8 @@
         "url_structure",
         "vertical"
       ],
-      "projected_hash": "da1124a66557b1bd42c5faa8ada516cfb2da58973eee80151518b7670775a516",
-      "actual_hash": "da1124a66557b1bd42c5faa8ada516cfb2da58973eee80151518b7670775a516",
-      "unchanged_columns": [
-        "analytics_data_start_at",
-        "brand_description",
-        "brand_name",
-        "canonical_url",
-        "contact_email",
-        "contact_phone",
-        "created_at",
-        "default_currency",
-        "feature_overrides",
-        "id",
-        "last_published_at",
-        "onboarding_status",
-        "organization_id",
-        "robots",
-        "seo_description",
-        "seo_title",
-        "slug",
-        "social_facebook_url",
-        "social_instagram_url",
-        "social_tiktok_url",
-        "status",
-        "subdomain",
-        "team_id",
-        "theme_id",
-        "updated_at",
-        "updated_by",
-        "url_structure",
-        "vertical"
-      ],
-      "unchanged_source_hash": "da1124a66557b1bd42c5faa8ada516cfb2da58973eee80151518b7670775a516",
-      "unchanged_target_hash": "da1124a66557b1bd42c5faa8ada516cfb2da58973eee80151518b7670775a516"
-    },
-    {
-      "table": "spent_subdomains",
-      "source_count": 0,
-      "target_count": 0,
-      "columns": [
-        "domain",
-        "site_id",
-        "spent_at",
-        "successor_domain"
-      ],
-      "projected_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-      "actual_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-      "unchanged_columns": [
-        "domain",
-        "site_id",
-        "spent_at",
-        "successor_domain"
-      ],
-      "unchanged_source_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-      "unchanged_target_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      "projected_hash": "455d4b029c665b81b4c6aa6ff4790c3ab10c80dff74c3616198f30bb753643be",
+      "actual_hash": "455d4b029c665b81b4c6aa6ff4790c3ab10c80dff74c3616198f30bb753643be"
     },
     {
       "table": "stripe_ga4_subscription_intents",
@@ -3530,147 +1807,6 @@
       "unchanged_target_hash": "99f217e47d7b737aaf8532888eb52e6a37b98394610b55bcc5828b8486a5da52"
     },
     {
-      "table": "tenant_compliance",
-      "source_count": 1,
-      "target_count": 1,
-      "columns": [
-        "address_visibility",
-        "contact_points",
-        "created_at",
-        "dba_name",
-        "disclaimer",
-        "entity_name",
-        "entity_type",
-        "footer_disclaimer",
-        "founder_name",
-        "founding_date",
-        "id",
-        "metadata_json",
-        "nonprofit_status",
-        "notice_page_id",
-        "organization_id",
-        "privacy_page_id",
-        "registration_number",
-        "same_as",
-        "service_area",
-        "service_area_type",
-        "site_id",
-        "terms_page_id",
-        "updated_at",
-        "updated_by"
-      ],
-      "projected_hash": "48bfde6790b1b303e0d876ea835f046502d893824d2f0d1f50976398f5f12193",
-      "actual_hash": "48bfde6790b1b303e0d876ea835f046502d893824d2f0d1f50976398f5f12193",
-      "unchanged_columns": [
-        "address_visibility",
-        "contact_points",
-        "created_at",
-        "dba_name",
-        "disclaimer",
-        "entity_name",
-        "entity_type",
-        "footer_disclaimer",
-        "founder_name",
-        "founding_date",
-        "id",
-        "metadata_json",
-        "nonprofit_status",
-        "notice_page_id",
-        "organization_id",
-        "privacy_page_id",
-        "registration_number",
-        "same_as",
-        "service_area",
-        "service_area_type",
-        "site_id",
-        "terms_page_id",
-        "updated_at",
-        "updated_by"
-      ],
-      "unchanged_source_hash": "48bfde6790b1b303e0d876ea835f046502d893824d2f0d1f50976398f5f12193",
-      "unchanged_target_hash": "48bfde6790b1b303e0d876ea835f046502d893824d2f0d1f50976398f5f12193"
-    },
-    {
-      "table": "tenant_page_variants",
-      "source_count": 25,
-      "target_count": 25,
-      "columns": [
-        "canonical_url",
-        "created_at",
-        "document_id",
-        "id",
-        "locale",
-        "organization_id",
-        "page_id",
-        "path",
-        "robots",
-        "seo_description",
-        "seo_title",
-        "site_id",
-        "summary",
-        "title",
-        "updated_at",
-        "updated_by"
-      ],
-      "projected_hash": "0bbce498fe585d69b03e02ff8643063c44f8e865974fad0aef11df5a3275fa6c",
-      "actual_hash": "0bbce498fe585d69b03e02ff8643063c44f8e865974fad0aef11df5a3275fa6c",
-      "unchanged_columns": [
-        "canonical_url",
-        "created_at",
-        "document_id",
-        "id",
-        "locale",
-        "organization_id",
-        "page_id",
-        "path",
-        "robots",
-        "seo_description",
-        "seo_title",
-        "site_id",
-        "summary",
-        "title",
-        "updated_at",
-        "updated_by"
-      ],
-      "unchanged_source_hash": "0bbce498fe585d69b03e02ff8643063c44f8e865974fad0aef11df5a3275fa6c",
-      "unchanged_target_hash": "0bbce498fe585d69b03e02ff8643063c44f8e865974fad0aef11df5a3275fa6c"
-    },
-    {
-      "table": "tenant_pages",
-      "source_count": 23,
-      "target_count": 23,
-      "columns": [
-        "created_at",
-        "id",
-        "organization_id",
-        "page_type",
-        "recipe",
-        "site_id",
-        "sort_order",
-        "source",
-        "source_ref",
-        "updated_at",
-        "updated_by"
-      ],
-      "projected_hash": "e9e8f3b003884be62940880fe4304b56787f090a334a228122620c64c8e7d979",
-      "actual_hash": "e9e8f3b003884be62940880fe4304b56787f090a334a228122620c64c8e7d979",
-      "unchanged_columns": [
-        "created_at",
-        "id",
-        "organization_id",
-        "page_type",
-        "recipe",
-        "site_id",
-        "sort_order",
-        "source",
-        "source_ref",
-        "updated_at",
-        "updated_by"
-      ],
-      "unchanged_source_hash": "e9e8f3b003884be62940880fe4304b56787f090a334a228122620c64c8e7d979",
-      "unchanged_target_hash": "e9e8f3b003884be62940880fe4304b56787f090a334a228122620c64c8e7d979"
-    },
-    {
       "table": "usage_events",
       "source_count": 85,
       "target_count": 85,
@@ -3794,6 +1930,23 @@
       "unchanged_target_hash": "6e09bf4277338bb9f461e2e32fe131382eb30255620c769d95a200f0507ea178"
     },
     {
+      "table": "user_workspace_state",
+      "target_count": 10,
+      "columns": [
+        "created_at",
+        "location_id",
+        "organization_id",
+        "site_id",
+        "updated_at",
+        "user_id",
+        "whatsapp_last_inbound_id",
+        "whatsapp_pending_confirmation",
+        "whatsapp_updated_at"
+      ],
+      "projected_hash": "bf97782a22522dab4bf76af58201a2a2473b9c4c39832b40b596dc4294cb77ab",
+      "actual_hash": "bf97782a22522dab4bf76af58201a2a2473b9c4c39832b40b596dc4294cb77ab"
+    },
+    {
       "table": "verification",
       "source_count": 0,
       "target_count": 0,
@@ -3817,81 +1970,23 @@
       ],
       "unchanged_source_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
       "unchanged_target_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
-    },
-    {
-      "table": "work_requests",
-      "source_count": 0,
-      "target_count": 0,
-      "columns": [
-        "assigned_to",
-        "completed_at",
-        "created_at",
-        "description",
-        "id",
-        "notes",
-        "organization_id",
-        "priority",
-        "site_id",
-        "source",
-        "status",
-        "title",
-        "type",
-        "updated_at"
-      ],
-      "projected_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-      "actual_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-      "unchanged_columns": [
-        "assigned_to",
-        "completed_at",
-        "created_at",
-        "description",
-        "id",
-        "notes",
-        "organization_id",
-        "priority",
-        "site_id",
-        "source",
-        "status",
-        "title",
-        "type",
-        "updated_at"
-      ],
-      "unchanged_source_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-      "unchanged_target_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
-    },
-    {
-      "table": "zaraz_sync_lock",
-      "source_count": 1,
-      "target_count": 1,
-      "columns": [
-        "id",
-        "locked_at"
-      ],
-      "projected_hash": "b626dc4d633a10629cdca81e8127505ead772b83604782ab0dc75164390d2dcc",
-      "actual_hash": "b626dc4d633a10629cdca81e8127505ead772b83604782ab0dc75164390d2dcc",
-      "unchanged_columns": [
-        "id",
-        "locked_at"
-      ],
-      "unchanged_source_hash": "b626dc4d633a10629cdca81e8127505ead772b83604782ab0dc75164390d2dcc",
-      "unchanged_target_hash": "b626dc4d633a10629cdca81e8127505ead772b83604782ab0dc75164390d2dcc"
     }
   ],
   "invariants": [
     {
       "name": "media_owner_scope",
       "violations": 0,
-      "sql_sha256": "7cb13a19320e099aefce5bb7fd15736fcf073b5f7fa9dce753f3d6893faf214c"
+      "sql_sha256": "96d09253ab17bb0ddc3867b275489189e66e615ef2cec3189e2f0930117093c0"
     },
     {
       "name": "document_owner_scope",
       "violations": 0,
-      "sql_sha256": "f87de88e56dc47fc765c19b8c392e8c449cfeafc464c3758e42aac328f433429"
+      "sql_sha256": "2a4c3fe4402f213c3971511bbc494b0227c51f5293582ebfe1c4ce045b4f6009"
     },
     {
-      "name": "english_source_page",
+      "name": "editorial_representation_scope",
       "violations": 0,
-      "sql_sha256": "23ac5f54e02746eaf391fa943fd1985c6ce85261fe74542de2511d64249124ff"
+      "sql_sha256": "caaea26f78910a86d4b42ee3d819876416fd5e21a92f04057230ec37d092d7ab"
     },
     {
       "name": "english_source_locale",
@@ -3911,21 +2006,510 @@
     {
       "name": "localized_resource_owner_scope",
       "violations": 0,
-      "sql_sha256": "163238666eb21a7d3a2249c5f91396cdd69c1bc73353de12d6496f2923828264"
+      "sql_sha256": "f053b51da7b352feaf2acabbb0e6337ac9d13c4a015521857ce9ce771aa1b85a"
     },
     {
-      "name": "localized_document_link",
+      "name": "activity_request_scope",
       "violations": 0,
-      "sql_sha256": "d8364ec1f56536c61dd84f4bb9717456cb8fba3ee008b1b66f5527ff36a3fa7b"
+      "sql_sha256": "55275833e365dcae654ea62b5f72ec9079f1da6de420eff86f4f28f966f4c9a0"
     },
     {
-      "name": "publication_document_completeness",
+      "name": "experience_product_scope",
       "violations": 0,
-      "sql_sha256": "a483a6065d9882b89aadfc2e69f2ab24fbf1af42ae0ccfeaf1cea77033fa41d7"
+      "sql_sha256": "2f94b74679b549a05040e966173e81344d8af105b2dd7aa6518693a90827f26c"
     }
   ],
-  "discarded_relationship_rows": 30,
-  "discarded_relationship_reason": "Synthetic Markdown owner IDs never referenced actual content blocks; each asset URL is parsed from retained parent Markdown; exact per-row evidence stays private",
-  "unresolved_location_timezones": 4,
-  "retention": "All 339 media assets and 679 content blocks preserved exactly; 13 conversation and 42 message history rows retained; four unknown location timezones remain NULL"
+  "candidate_database_checks": {
+    "table_row_counts_match_manifest": true,
+    "foreign_key_violations": 0,
+    "integrity": "ok"
+  },
+  "archived_source_tables": [
+    {
+      "table": "account",
+      "rows": 19,
+      "sha256": "4f950e866d497827cb6ced81a5999952410e9ed64e0ba45e9ca4b65222ba8382"
+    },
+    {
+      "table": "availability_overrides",
+      "rows": 0,
+      "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    {
+      "table": "blog_posts",
+      "rows": 26,
+      "sha256": "72872dbf6194fbcddc3873468957e4ed797dfbd31c9ec1d45b4b05ccd2d1ec6d"
+    },
+    {
+      "table": "booking_policies",
+      "rows": 11,
+      "sha256": "9934a167b58df66ba2811eed53c3faa347bc385fa56cae45e10b6c2ba67de2d8"
+    },
+    {
+      "table": "business_locations",
+      "rows": 13,
+      "sha256": "33da495596d35b07ce12f581c546baa6e00033ef48df5aa71c3610215f92b3d7"
+    },
+    {
+      "table": "canary_runs",
+      "rows": 188,
+      "sha256": "60a726a8ce6b6e656504b0617d8c65187fcfad34f2958adba851593bd6ee4c43"
+    },
+    {
+      "table": "chowbot_channel_state",
+      "rows": 3,
+      "sha256": "9fcb3b731563637161a57c40d6e1dbdd46a3c30d6294d72598a2d828b3d1a32b"
+    },
+    {
+      "table": "chowbot_conversations",
+      "rows": 13,
+      "sha256": "e987ac026abe52b8bbb2ddd32064c27f307f239d8d8bb4a0c05368d1040fdc7d"
+    },
+    {
+      "table": "chowbot_messages",
+      "rows": 42,
+      "sha256": "9f71a3a8031743c05e80b7e4772bd1454c8f3d900466237f3f0aacc3f56ae3a3"
+    },
+    {
+      "table": "contact_submissions",
+      "rows": 6,
+      "sha256": "3a5779b9e1a64aaec3034d0a69b4878dbf4afb1540cc2ee359379dc72c843689"
+    },
+    {
+      "table": "content_blocks",
+      "rows": 679,
+      "sha256": "e77cabcc65946d917c09af35b4cd4f8a2c494c2d3971cdc400c05b54c318e4a9"
+    },
+    {
+      "table": "content_documents",
+      "rows": 60,
+      "sha256": "cef164bf0047665bd740cc253c36d32d6a039182db9143f8c763838dd672443c"
+    },
+    {
+      "table": "customers",
+      "rows": 12,
+      "sha256": "632618d9d4aff1fe174fa961877f1811ab9ee00dee78de6cc94c94ee353e8ba3"
+    },
+    {
+      "table": "dashboard_preferences",
+      "rows": 2,
+      "sha256": "a772e44bce3fbade3f3474b41352d658de8615dfaeaa304c1fafbaa162ba1076"
+    },
+    {
+      "table": "domain_reconciliation_jobs",
+      "rows": 4,
+      "sha256": "c0f38f3969e67fc3a58ef830d2ea9446bb3ea9f85cffc83be2c3014591c0e95b"
+    },
+    {
+      "table": "experience_bookings",
+      "rows": 3,
+      "sha256": "7785271f94a5424adcbcdfbae2653afa237a71d2321f244126e24d83b679e7d9"
+    },
+    {
+      "table": "experiences",
+      "rows": 12,
+      "sha256": "e6bc8b9f55bfee63d08e3447fad442cb8164900b9a3c250ff8e27b6e307860a3"
+    },
+    {
+      "table": "facebook_pages_connections",
+      "rows": 0,
+      "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    {
+      "table": "google_analytics_connections",
+      "rows": 1,
+      "sha256": "66f223804ff918d7ee799be3bbf4aa52c209accf5216f30ceb6173110245346c"
+    },
+    {
+      "table": "guest_thread_deliveries",
+      "rows": 0,
+      "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    {
+      "table": "guest_thread_entries",
+      "rows": 0,
+      "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    {
+      "table": "guest_threads",
+      "rows": 0,
+      "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    {
+      "table": "invitation",
+      "rows": 16,
+      "sha256": "231deca0b28520c9c0bea4d499dbbce8038c71e5357c50136d253c4cc41dd01f"
+    },
+    {
+      "table": "jwks",
+      "rows": 2,
+      "sha256": "1069d61e89bc0491f625de3e43a9dfc1592243a953aad3a6eebd9daf67cfc076"
+    },
+    {
+      "table": "location_qa",
+      "rows": 34,
+      "sha256": "641840ed3f9c596f11ca89ca0ac2022e3bd40fdba48aedf9023ae907e1ea7e44"
+    },
+    {
+      "table": "mcp_tool_call_events",
+      "rows": 1501,
+      "sha256": "33a8b188482a794b8ce12dfcccdc1738084da8b654c5d2e3a29e37af31040b02"
+    },
+    {
+      "table": "mcp_workspace_preferences",
+      "rows": 7,
+      "sha256": "d80abeba6b441d38cc067ed3a3e79519253c552f3b508290c5557d5c5e6d8dab"
+    },
+    {
+      "table": "media_assets",
+      "rows": 339,
+      "sha256": "79f9fa8d22f124d67f6bdbf66f903df58d4fb58b0e2cef04a883edbff4139bc8"
+    },
+    {
+      "table": "media_placements",
+      "rows": 705,
+      "sha256": "3cb98337a53c6e166abc556bb47d4aed639d9611f043796e25b5271bf75795a8"
+    },
+    {
+      "table": "member",
+      "rows": 25,
+      "sha256": "06832f5ef4db6c0b5e8b533416c32e1de0bdd58d3915fca853118e7547f75ebd"
+    },
+    {
+      "table": "notification_reads",
+      "rows": 0,
+      "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    {
+      "table": "notifications",
+      "rows": 2,
+      "sha256": "15e984adbfedcabca7818db856c406fc4f6cc69e0b8c7bae034ace6e74b98b44"
+    },
+    {
+      "table": "oauthAccessToken",
+      "rows": 2,
+      "sha256": "8cdafad7bcf3717fc07e16dc5b7d0a78553921914b9ed4819325434e65fd2119"
+    },
+    {
+      "table": "oauthClient",
+      "rows": 31,
+      "sha256": "8040be9484f477bbb5f8ced386420ee14cf6607803d1fd0a60897d09cd134445"
+    },
+    {
+      "table": "oauthClientAssertion",
+      "rows": 106,
+      "sha256": "a0452021cc570ae7667efcc2683f04d8a3be0704249f6ad9aa787c7b090d2a34"
+    },
+    {
+      "table": "oauthClientResource",
+      "rows": 0,
+      "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    {
+      "table": "oauthConsent",
+      "rows": 39,
+      "sha256": "7b9fbafb7df41eb5c1a0a78a4ecd80566776d86f444d6f89d40db78b3383fb1f"
+    },
+    {
+      "table": "oauthRefreshToken",
+      "rows": 402,
+      "sha256": "6cc6d9103749322675a2159f600b6327d49d71d79648ef0d24e3e870fd3a86c8"
+    },
+    {
+      "table": "oauthResource",
+      "rows": 2,
+      "sha256": "aa51e5d73e24dcb33adc338c71abdc7114f80fbbed55638b3a27ab9b6de85597"
+    },
+    {
+      "table": "offerings",
+      "rows": 6,
+      "sha256": "fcfaeb03b49c83687264586ca1affa7736d50139d3855303ef45a29ed7edcee9"
+    },
+    {
+      "table": "onboarding_drafts",
+      "rows": 1,
+      "sha256": "9edfb7c4cc685e7374bb161604a0cd6bcda44a38ff075abd2d3fd5a6f07da64a"
+    },
+    {
+      "table": "organization",
+      "rows": 14,
+      "sha256": "1bdc520651f1258471594983252a68c0bca7d9fa8e1183d053651e01c149f9d3"
+    },
+    {
+      "table": "organization_billing",
+      "rows": 5,
+      "sha256": "b3474c9b2433561767d8f2510a4b23164cad9172ad39573381c48e9608e46a8c"
+    },
+    {
+      "table": "organization_events",
+      "rows": 390,
+      "sha256": "b1efa19945d8c629a28350cf687aef059c589e1ea5ee667e9647a6a67f299117"
+    },
+    {
+      "table": "platform_contact_submissions",
+      "rows": 0,
+      "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    {
+      "table": "platform_docs",
+      "rows": 9,
+      "sha256": "2f94eaeaab3ecab1ca95bb91ad0572a2457d26ac1607a380f0630c8bc809b888"
+    },
+    {
+      "table": "platform_locale_catalogs",
+      "rows": 1,
+      "sha256": "abdb7132a9f7586dbc047035ed5af7c9067e7391af6b6ae99ae17947fcde678f"
+    },
+    {
+      "table": "platform_locale_messages",
+      "rows": 333,
+      "sha256": "adc4cc31de5b02955a18941ebbfed7087aafabf40857e89614626019f84437da"
+    },
+    {
+      "table": "post_channel_jobs",
+      "rows": 0,
+      "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    {
+      "table": "posts",
+      "rows": 15,
+      "sha256": "23d451db6a6e8415a8f22d69173fe9574250ce5b2fc29d505293d3646e07d78b"
+    },
+    {
+      "table": "prices",
+      "rows": 629,
+      "sha256": "76f83ef2e476dea1e01367edae1e6fa6443a75038c1947cd39144bd03c2a1e3b"
+    },
+    {
+      "table": "product_categories",
+      "rows": 65,
+      "sha256": "10924969295e8d7de02e7bc6c72d33aa13ad15ad57d458a057b02230dd38ed7a"
+    },
+    {
+      "table": "products",
+      "rows": 492,
+      "sha256": "b8c14777dc44330a43d11703ec1e4a799054c66931c50a9c41a8f7ead899df1f"
+    },
+    {
+      "table": "public_resource_cache_invalidations",
+      "rows": 354,
+      "sha256": "0eb33c6e964b47dd2265b6d1a0d419054b0d14fdf6baf2e81296fdf3d50c0f81"
+    },
+    {
+      "table": "rate_limits",
+      "rows": 795,
+      "sha256": "fa40f81eba6197fc7541046610b411f2cb6c11f063a37f6f7bddda5f14e1be48"
+    },
+    {
+      "table": "reservation_submissions",
+      "rows": 15,
+      "sha256": "c68f0260d4c469d308bb6f408471caa1f8687775d6dde5c0787c6d0655279fdf"
+    },
+    {
+      "table": "resource_localizations",
+      "rows": 597,
+      "sha256": "de0a349562006109305e34b6fe9f8fde705b83ec0f317be7098092d4d663af42"
+    },
+    {
+      "table": "review_requests",
+      "rows": 0,
+      "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    {
+      "table": "reviews",
+      "rows": 58,
+      "sha256": "b7885af21e113cf8a45a47776ac6a683e314505eb1e618f91dcb73855f038174"
+    },
+    {
+      "table": "session",
+      "rows": 203,
+      "sha256": "f886d4bdecc29020394fbe457b31e1bb129d781d347dc79ec3fd9d750997d380"
+    },
+    {
+      "table": "site_analytics_daily",
+      "rows": 99,
+      "sha256": "71d4cb8b344e721a407234e8df2b3b14136b8f5da3a0ea6b6ad4409046aef5bf"
+    },
+    {
+      "table": "site_analytics_dimension_daily",
+      "rows": 436,
+      "sha256": "dc8589dfcc4b9897d03393c594c172a8a631c3ff514bdf1a7abedb608c4c1323"
+    },
+    {
+      "table": "site_analytics_page_daily",
+      "rows": 364,
+      "sha256": "6f8097d6eb883a63d8140f2be5fb10679056ee96d6396a4adca6f33e2689d206"
+    },
+    {
+      "table": "site_analytics_sessions",
+      "rows": 1171,
+      "sha256": "48aa3451101d52ffdf87b0a1370d310de91a6ecd066b3954ef0a9b857f83a4fd"
+    },
+    {
+      "table": "site_config",
+      "rows": 16,
+      "sha256": "fef0ab527bd4aea67268d8f114941b4e112c00634034f7c889cd706e36d1ec72"
+    },
+    {
+      "table": "site_consultation_settings",
+      "rows": 1,
+      "sha256": "c49f57dff1f6823b9d23e78a71bf5236d3d9f773aa809e5638fffb223708981b"
+    },
+    {
+      "table": "site_conversion_events",
+      "rows": 129,
+      "sha256": "06df9e36f78f0ad9c8793f100d7994499254ac18ad421fa5451ca4ae9ebab305"
+    },
+    {
+      "table": "site_domain_events",
+      "rows": 21,
+      "sha256": "ef55e783c917e8e256bff4535895b0adfe2e3ea7467e9cd2dff9989460e8780e"
+    },
+    {
+      "table": "site_domains",
+      "rows": 16,
+      "sha256": "1c208c809440b8a62ffbf657f1225b2e076e3c69272f421c4c29e93f128d1739"
+    },
+    {
+      "table": "site_language_licenses",
+      "rows": 1,
+      "sha256": "8faafaaa8a705ac7b9213408247c61c77d4392e314ae64bdb0b730272804c4cd"
+    },
+    {
+      "table": "site_link_items",
+      "rows": 0,
+      "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    {
+      "table": "site_link_pages",
+      "rows": 0,
+      "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    {
+      "table": "site_locales",
+      "rows": 12,
+      "sha256": "00eedda1338ba7980c201d4f5226de652e97cc3d784e4010e6bb229faa76ecea"
+    },
+    {
+      "table": "site_pageview_events",
+      "rows": 31445,
+      "sha256": "e8b00d4e151ca7497205f3be03b53bb07ea39a36a0df75026bc0c9bed833fda4"
+    },
+    {
+      "table": "site_redirects",
+      "rows": 8,
+      "sha256": "8ba49a639e647c39727220d4caaa95c0e1b0c8bda93a9fb1c7d8fbe64d84906f"
+    },
+    {
+      "table": "site_theme_tokens",
+      "rows": 1,
+      "sha256": "6e5c95d1b77d3903faecf041ce544ffc3499fcc1bf07df70d164afe1817511d0"
+    },
+    {
+      "table": "site_transfer_requests",
+      "rows": 2,
+      "sha256": "61c7405c400f9dbb2902c2fe8e253c89d8cd62c215017125971bc0bc6ee4fb68"
+    },
+    {
+      "table": "sites",
+      "rows": 11,
+      "sha256": "5a1c05229014dd7d82fb9bdbd102088369d874512bd1115ae071049e78867b0d"
+    },
+    {
+      "table": "spent_subdomains",
+      "rows": 0,
+      "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    {
+      "table": "stripe_ga4_subscription_intents",
+      "rows": 0,
+      "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    {
+      "table": "stripe_invoice_payments",
+      "rows": 5,
+      "sha256": "1d7990d5a3f3b1669a34afed94bef72a1f56b217a46ab015a5f9d89dee7418cf"
+    },
+    {
+      "table": "stripe_subscription_versions",
+      "rows": 3,
+      "sha256": "5eca2b8895c866d67fbd8d6e68f163ce43b453c531492886bcbec159422ac9b9"
+    },
+    {
+      "table": "stripe_webhook_events",
+      "rows": 29,
+      "sha256": "9c78003a3697c2bb6abc3c0235000c5fbe8df909b21de11884aa450369af39de"
+    },
+    {
+      "table": "subscription",
+      "rows": 3,
+      "sha256": "74f1f6a412ccea1e58a32a045f1ae20c05184f17d682ca78de6e7cac0f55cb20"
+    },
+    {
+      "table": "team",
+      "rows": 23,
+      "sha256": "1cc9f76f845352e63eb6ca305db40a30ae492737e0a916305578c23abdb0d095"
+    },
+    {
+      "table": "teamMember",
+      "rows": 4,
+      "sha256": "3b87941229b48754c329f78990add7a352ee5e75c95d72a87a1841610bab9972"
+    },
+    {
+      "table": "tenant_compliance",
+      "rows": 1,
+      "sha256": "d5daaad95b634007cb25a6844d6056fe02bea4e5c6ebffc782d77305b3edb927"
+    },
+    {
+      "table": "tenant_page_variants",
+      "rows": 25,
+      "sha256": "a4be22d01378d9e35492e2abc6e2478eb9b855e6b00d6cb0529eb2286fb3a548"
+    },
+    {
+      "table": "tenant_pages",
+      "rows": 23,
+      "sha256": "73d56252cce5c06d8f7575e2f2621df80529fde0e4566d5844c424a4839c4179"
+    },
+    {
+      "table": "themes",
+      "rows": 2,
+      "sha256": "a1f413c6c4dc880a1441fe38a0ff5df15489c49009c38cc626bf7438fc668515"
+    },
+    {
+      "table": "usage_events",
+      "rows": 85,
+      "sha256": "8e3ac5b612b3dec5790851f12f5e01eaba102999f1f8de982b79f454defef3b2"
+    },
+    {
+      "table": "usage_quota_grants",
+      "rows": 12,
+      "sha256": "2e4c8d517c23b611daad7b3b8751a5928f7b77ca692afa40f25e6667b67c2461"
+    },
+    {
+      "table": "user",
+      "rows": 29,
+      "sha256": "040ec5a855db6e8c55f70daa63b0fbfc74ba08189bdea4516d53e9c44c970100"
+    },
+    {
+      "table": "verification",
+      "rows": 0,
+      "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    {
+      "table": "work_requests",
+      "rows": 0,
+      "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    {
+      "table": "zaraz_sync_lock",
+      "rows": 1,
+      "sha256": "f1f48bc50129c21001009131ddfa60a1331847a182ff9de074508c0deccab929"
+    }
+  ],
+  "discarded_rows_by_table": {
+    "media_placements": 30,
+    "site_domains": 4
+  },
+  "unresolved_field_count": 4,
+  "private_evidence": "Per-row IDs, values, disposition records and the complete typed source archive remain outside Git."
 }

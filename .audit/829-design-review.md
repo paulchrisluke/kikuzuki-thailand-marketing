@@ -1,5 +1,8 @@
 # Issue 829 design cross-judge
 
+> Historical evidence from the superseded 94-table proposal. This document's implementation, test and review claims apply only to its recorded revision, not the current [53-table consolidation contract](../docs/database/epoch-5-consolidation.md). Current authorization is PR #848 ready for review only: no staging/production merge, deployment, initialization or further staging writes. Current gates are in [829-checklist.md](829-checklist.md).
+
+
 ## Verdict
 
 Use Candidate A as the base. It is the only candidate that resolves the live availability evidence correctly and carries the fresh production census through a concrete conversion. Graft four proof obligations from Candidate B, then tighten one boundary in A. Do not average the storage shapes.

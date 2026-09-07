@@ -1,8 +1,11 @@
 # Adversarial review report
 
-## Verdict
+> Historical evidence from the superseded 94-table proposal. This document's implementation, test and review claims apply only to its recorded revision, not the current [53-table consolidation contract](../docs/database/epoch-5-consolidation.md). Current authorization is PR #848 ready for review only: no staging/production merge, deployment, initialization or further staging writes. Current gates are in [829-checklist.md](829-checklist.md).
 
-**Approve with conditions.** Three proven runtime SQL findings were accepted, corrected, and independently rechecked at `dd5712068f3aea548a7bdabfea4d4b56c606648d`. No unresolved implementation blocker remains from this review. This verdict requires the root agent's final build, full D1 suite, Codex browser checks, and scheduled CI verification before declaring staging ready. It does not authorize production promotion.
+
+## Historical verdict
+
+**Historical verdict: approve with conditions for the recorded 94-table revision only.** Three proven runtime SQL findings were accepted, corrected, and independently rechecked at `dd5712068f3aea548a7bdabfea4d4b56c606648d`. No unresolved implementation blocker remains from this review. This verdict requires the root agent's final build, full D1 suite, Codex browser checks, and scheduled CI verification before declaring staging ready. It does not authorize production promotion.
 
 ## Review contract
 
@@ -108,6 +111,6 @@ Private command logs are in the local TEMP directory with prefix `829-final-`; t
 
 Viewed all six root-supplied full-page screenshots for Pottery House, Kikuzuki, and NCLS at 1280px and 390px. Repeated read-only local browser navigation with tenant-scoped request headers for Pottery House and Kikuzuki, scrolled their pages to activate lazy content, waited for image decoding, and viewed four additional settled screenshots. Both sites then had zero broken or pending images. The previously blank Pottery post/blog images and Kikuzuki location/story images appeared after scrolling. Kikuzuki measured exactly the viewport width at both sizes.
 
-Pottery House has a **pre-existing adjacent layout defect**, not a capture-only artifact: document width settled to 1287px at a 1280px viewport and 445px at a 390px viewport. The concrete overflowing element is the compact review card's long location chip, `Pottery House — Beachfront at Klong Muang`, styled `shrink-0` inside an unwrapped flex footer (`components/saya/SayaReviewCard.vue:15-23`). Both this exact layout and the location title existed at `cef114150`. The issue diff only adds Google attribution below that footer; it does not change the overflowing layout or label. No adjacent CSS fix was made under the bounded review instruction.
+Pottery House has a **pre-existing adjacent layout defect**, not a capture-only artifact: document width settled to 1287px at a 1280px viewport and 445px at a 390px viewport. The concrete overflowing element is the compact review card's long location chip, `Pottery House ï¿½ Beachfront at Klong Muang`, styled `shrink-0` inside an unwrapped flex footer (`components/saya/SayaReviewCard.vue:15-23`). Both this exact layout and the location title existed at `cef114150`. The issue diff only adds Google attribution below that footer; it does not change the overflowing layout or label. No adjacent CSS fix was made under the bounded review instruction.
 
 NCLS supplied desktop/mobile screenshots were inspected. Its additional settled-image run was stopped before completion so root could stop the Worker and reset local D1; no claim of completed NCLS image decoding is made. All reviewer browser processes were terminated before root's reset. No fixture/data/build/application changes were made in this visual task. Private captures are under TEMP `krabiclaw-829-private/visual`, including the four `*-settled.png` captures.

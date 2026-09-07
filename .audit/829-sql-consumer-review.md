@@ -1,5 +1,8 @@
 # SQL consumer verification after column inventory
 
+> Historical evidence from the superseded 94-table proposal. This document's implementation, test and review claims apply only to its recorded revision, not the current [53-table consolidation contract](../docs/database/epoch-5-consolidation.md). Current authorization is PR #848 ready for review only: no staging/production merge, deployment, initialization or further staging writes. Current gates are in [829-checklist.md](829-checklist.md).
+
+
 The initial inventory had zero missing evidence entries but still missed retired billing projections in scheduled tasks. Inventory completeness is not SQL compilation or behavior proof. The six affected task projections and unused DTO fields were deleted; QA scopes and two experience readers were also corrected to their existing canonical tables and product state.
 
 The final scan reads all 1,279 TypeScript, JavaScript, Vue script, SQL, fixture, and seed files under server, scripts, tests, seed-definitions, pages, components, lib, utils, and shared. It extracts strings and templates, expands finite conditional branches, and prepares SQL against the generated Epoch 5 baseline in SQLite. [Full records](829-sql-consumers.json) retain each location, statement, and result; [scan code](829-sql-consumer-audit.mjs) is rerunnable.

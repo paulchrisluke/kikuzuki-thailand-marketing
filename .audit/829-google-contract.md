@@ -1,5 +1,8 @@
 # Google contracts for Epoch 5
 
+> Historical Epoch 4 source/provider observations. Source facts remain evidence for the audited snapshot; runtime ownership, release scope and qualification are governed by the [53-table consolidation contract](../docs/database/epoch-5-consolidation.md) and [current checklist](829-checklist.md). This report does not authorize provider mutations or qualify the consolidated application.
+
+
 Observed 2026-09-06 against the production Epoch 4 export and the current Places API v1 reference.
 
 ## Runtime and data changes

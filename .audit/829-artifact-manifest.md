@@ -1,26 +1,24 @@
-# Audit artifact handling
+# Audit artifact scope and handling
 
-The exact reviewed commit allowlist is [829-commit-files.txt](829-commit-files.txt), containing 35 files. It includes reproducible code, aggregate source/target schemas, table/field hashes and counts, disposition matrices, SQL records, attributed review and sanitized findings. Census source_file values contain filenames only. No credentials, raw production rows, email tokens or absolute private export paths are included. Source field names such as privateKey are schema metadata, not key values.
+Current ownership is defined by the [53-table consolidation contract](../docs/database/epoch-5-consolidation.md). Current authorization stops at PR #848 ready for review. No audit artifact authorizes a staging or production action.
 
-The production-source candidate summary proves 94 tables / 42,244 rows against its recorded baseline hash. The separate NCLS fixture check proves all nine invariants and FK checks pass. Its 30 :media:index names reference real CTA blocks and are retained; they are not the 30 missing-owner relationships removed from the production transform.
+## Current target evidence
 
-829-site-scope-census.json records the observed Epoch 4 source checks, not the generated target enforcement. Current composite FKs and CHECKs are in 829-target-schema.json. Historical design and independent-review reports retain their original scope and attribution; current release gates are in 829-checklist.md.
+- [Target schema](829-target-schema.json) and [target columns](829-target-columns.tsv) are regenerated from the canonical baseline inspected at root revision `097aec98`: **53 tables, 826 columns**. Baseline SHA-256 is `dee2b633866e7cf0701a6d7df7dd5b08f6f37de3a68759a16d6788d71445b3a7`.
+- [Transfer summary](829-transfer-summary.json) is an explicit aggregate-only projection of the matching private final candidate manifest: **41,544 rows**, 53 table hashes, nine invariants and 96 archived source-table hashes. Read-only candidate checks independently matched table counts, FK checks and integrity. This is transfer evidence, not application/CI qualification.
+- [Findings](829-findings.md), [column audit](829-column-audit.md) and [checklist](829-checklist.md) distinguish current census/transfer facts from pending runtime gates.
+- [Decisions](829-decisions.tsv) and [consolidation plan](829-consolidation-plan.md) are maintained by the integration owner.
 
-## Private local probes (do not commit)
+## Historical evidence
 
-- canonicalize-ncls.mjs
-- field-audit.mjs
-- google-evidence.mjs
-- google-location.mjs
-- google-review-history.mjs
-- tighten-defaults.mjs
+The original 96-table source census, `829-columns.tsv`, `829-tables.tsv`, `829-indexes.tsv`, `829-site-scope-census.json`, `829-owned-json-shapes.json`, `829-json-aggregate.json` and `829-epoch4-archive-hashes.json` retain the audited source observations. Source data/schema facts remain valid for that snapshot. Any target declarations, disposition decisions or runtime ownership claims embedded in them describe the superseded 94-table proposal.
 
-These are one-off investigation or mutation scripts. Some read private exports or live provider credentials in process. They are not release commands; keep them outside the commit. The NCLS canonicalizer deliberately rejected the proposed deletion because no missing-owner fixture rows qualified.
+`829-table-evidence.json`, `829-sql-consumers.json`, `829-sql-consumer-run.json`, `829-removed-column-sql-scan.tsv`, `829-column-followups.txt` and their review reports are static evidence for the earlier recorded tree. They are not a current consumer scan. `829-ncls-fixture-verification.json` records the earlier fixture check, not the consolidated fixture state. `829-commit-files.txt` is the historical 35-file review allowlist, not the current commit manifest.
 
-## Superseded scratch output (do not commit)
+The design, independent final review, browser verification, preview-CI correction, provider and Google reports retain their original attribution and observations with explicit historical scope. Their old approvals, release plans and passing results cannot qualify the consolidated application. Previous contents of regenerated target artifacts remain available in Git history; they are not a supported second target model.
 
-- 829-column-audit-run.txt
-- 829-fixed-query-proof.json
-- 829-removed-column-query-candidates.json
+## Private evidence boundary
 
-The final per-field SQL scan, full SQL preparation output and review replace these scratch snapshots. Existing issue-820.tsv is historical issue evidence already tracked; no new disposition is required. All raw exports, complete transfer manifests, provider plans and per-row evidence remain in the existing private evidence directory outside Git.
+Raw exports, complete candidate manifests, typed source archives, provider IDs/plans, per-row dispositions and private probes remain outside Git. The committed transfer summary includes only allowlisted schema names, columns, aggregate counts, hashes and invariant outcomes. Census source filenames contain no absolute private paths. Schema field names are metadata, not secret values.
+
+One-off canonicalizers, provider probes and mutation scripts are not release commands and are not included. Use only the repository's canonical release and cutover procedures when separately authorized.

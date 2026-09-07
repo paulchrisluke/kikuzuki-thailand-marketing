@@ -1,5 +1,8 @@
 # Issue 829 provider continuity census
 
+> Historical Epoch 4 source/provider observations. Source facts remain evidence for the audited snapshot; runtime ownership, release scope and qualification are governed by the [53-table consolidation contract](../docs/database/epoch-5-consolidation.md) and [current checklist](829-checklist.md). This report does not authorize provider mutations or qualify the consolidated application.
+
+
 Read-only checks completed on 2026-09-06 using the existing worktree .env credentials. No email, charge, provider metadata, webhook configuration, customer data or auth state was changed. Credentials and raw email content were never written to evidence. Detailed provider IDs and associations are in the private directory outside Git.
 
 ## Stripe

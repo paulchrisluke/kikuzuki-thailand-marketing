@@ -1,5 +1,8 @@
 # PR 848 preview CI correction
 
+> Historical evidence from the superseded 94-table proposal. This document's implementation, test and review claims apply only to its recorded revision, not the current [53-table consolidation contract](../docs/database/epoch-5-consolidation.md). Current authorization is PR #848 ready for review only: no staging/production merge, deployment, initialization or further staging writes. Current gates are in [829-checklist.md](829-checklist.md).
+
+
 The latest user instruction limits this work to an open PR ready for review.
 Do not merge to staging or production, initialize staging cards, mutate live
 providers, or close #829. The previously prepared staging database remains

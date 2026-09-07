@@ -1,5 +1,8 @@
 # Epoch 5 local browser verification
 
+> Historical evidence from the superseded 94-table proposal. This document's implementation, test and review claims apply only to its recorded revision, not the current [53-table consolidation contract](../docs/database/epoch-5-consolidation.md). Current authorization is PR #848 ready for review only: no staging/production merge, deployment, initialization or further staging writes. Current gates are in [829-checklist.md](829-checklist.md).
+
+
 The root agent used the Codex browser against the production Nuxt/Nitro output
 served by local Wrangler on September 6, 2026. These checks exercised the local
 canonical fixtures. They do not qualify the deployed preview or staging build.

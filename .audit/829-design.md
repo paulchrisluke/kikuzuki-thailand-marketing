@@ -1,5 +1,8 @@
 # Candidate A. Typed JSON contracts and one booking decision
 
+> Historical evidence from the superseded 94-table proposal. This document's implementation, test and review claims apply only to its recorded revision, not the current [53-table consolidation contract](../docs/database/epoch-5-consolidation.md). Current authorization is PR #848 ready for review only: no staging/production merge, deployment, initialization or further staging writes. Current gates are in [829-checklist.md](829-checklist.md).
+
+
 Historical design proposal. Final implementation and verification dispositions are recorded in 829-findings.md, 829-column-audit.md and 829-sql-consumer-review.md. Proposed signatures below are not a second supported API.
 
 ## Phase position
