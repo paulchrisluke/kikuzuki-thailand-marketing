@@ -120,6 +120,18 @@ for (const tenant of tenants) {
   })
 }
 
+test('Kikuzuki menu retains its authored Tuna Sushi media', async ({ page }) => {
+  const response = await openTenantPage(page, `${kikuzukiTestBaseUrl()}/menu`, kikuzukiTestExtraHeaders())
+  expect(response?.status()).toBe(200)
+  const image = page.locator('main').getByRole('img', { name: 'Tuna Sushi', exact: true }).first()
+  await expect(image).toBeVisible()
+  await image.scrollIntoViewIfNeeded()
+  await expect(image).toHaveAttribute('src', /^https:\/\/(?:imagedelivery\.net|media\.krabiclaw\.com)\//)
+  await expect.poll(() => image.evaluate(element =>
+    element instanceof HTMLImageElement && element.complete && element.naturalWidth > 0,
+  )).toBe(true)
+})
+
 test('Pottery House preserves dark-theme hydration and booking context', async ({ page }) => {
   await openTenantPage(page, `${potteryHouseBaseURL}/experiences/pottery-wheel-class`, potteryHouseExtraHeaders)
   await expect(page.locator('.tenant-layout')).not.toHaveCSS('--saya-bg', '')
