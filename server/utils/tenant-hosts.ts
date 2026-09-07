@@ -97,7 +97,6 @@ export function environmentTenantAliasSlug(host: string, env: TenantHostEnv): st
 export function usesTenantHeader(host: string): boolean {
   const hostname = hostnameOf(host).toLowerCase().replace(/\.$/, '')
   if (hostname === 'localhost' || hostname === '127.0.0.1') return true
-  if (hostname === 'local.krabiclaw.com') return true
   return WORKERS_DEV_PREVIEW_HOST_PATTERN.test(hostname)
 }
 
@@ -107,7 +106,6 @@ export function usesTenantHeader(host: string): boolean {
 export function isPreviewContext(host: string): boolean {
   const hostname = hostnameOf(host).toLowerCase().replace(/\.$/, '')
   if (hostname === 'localhost' || hostname === '127.0.0.1') return true
-  if (hostname === 'local.krabiclaw.com') return true
   if (hostname === 'preview.krabiclaw.com' || hostname === 'staging.krabiclaw.com') return true
   if (isEnvironmentTenantAliasHost(hostname)) return true
   return WORKERS_DEV_PREVIEW_HOST_PATTERN.test(hostname)

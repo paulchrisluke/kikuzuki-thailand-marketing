@@ -25,7 +25,7 @@ function matchingDedupeEntry(
   input: AppendEntryInput,
   payloadJson: string | null,
 ): GuestThreadEntryRow {
-  const matches = entry.thread_id === input.threadId
+  const matches = entry.request_id === input.threadId
     && entry.kind === input.kind
     && entry.actor_kind === input.actorKind
     && entry.actor_user_id === (input.actorUserId ?? null)
@@ -50,7 +50,7 @@ function matchingDedupeEntry(
  * the remaining idempotent work.
  */
 export async function appendEntry(db: DbClient, input: AppendEntryInput): Promise<GuestThreadEntryRow> {
-  const payloadJson = input.payloadJson ? JSON.stringify(input.payloadJson) : null
+  const payloadJson = JSON.stringify(input.payloadJson ?? {})
   if (input.dedupeKey) {
     const existing = await findEntryByDedupeKey(db, input.dedupeKey)
     if (existing) return matchingDedupeEntry(existing, input, payloadJson)
@@ -63,11 +63,11 @@ export async function appendEntry(db: DbClient, input: AppendEntryInput): Promis
 
   try {
     const result = await execute(db, `
-      INSERT INTO guest_thread_entries
-        (id, thread_id, kind, actor_kind, actor_user_id, channel, body, event_name, payload_json, dedupe_key, sequence, occurred_at, created_at)
-      SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, COALESCE(MAX(sequence), 0) + 1, ?, ?
-      FROM guest_thread_entries
-      WHERE thread_id = ?
+      INSERT INTO activity_entries
+        (id, request_id, kind, scope_kind, actor_kind, actor_user_id, channel, body, event_name, payload_json, dedupe_key, sequence, occurred_at, created_at)
+      SELECT ?, ?, ?, 'request', ?, ?, ?, ?, ?, ?, ?, COALESCE(MAX(sequence), 0) + 1, ?, ?
+      FROM activity_entries
+      WHERE request_id = ?
       ON CONFLICT DO NOTHING
     `, [
       id,
@@ -99,25 +99,25 @@ export async function appendEntry(db: DbClient, input: AppendEntryInput): Promis
     throw error instanceof Error ? error : new Error(message)
   }
 
-  const created = await queryFirst<GuestThreadEntryRow>(db, `SELECT * FROM guest_thread_entries WHERE id = ? LIMIT 1`, [id])
+  const created = await queryFirst<GuestThreadEntryRow>(db, `SELECT * FROM activity_entries WHERE id = ? LIMIT 1`, [id])
   if (!created) throw new Error('Failed to load appended guest thread entry')
   return created
 }
 
 export async function findEntryByDedupeKey(db: DbClient, dedupeKey: string): Promise<GuestThreadEntryRow | null> {
   return await queryFirst<GuestThreadEntryRow>(db, `
-    SELECT * FROM guest_thread_entries WHERE dedupe_key = ? LIMIT 1
+    SELECT * FROM activity_entries WHERE dedupe_key = ? LIMIT 1
   `, [dedupeKey])
 }
 
 export async function getEntryById(db: DbClient, id: string): Promise<GuestThreadEntryRow | null> {
-  return await queryFirst<GuestThreadEntryRow>(db, `SELECT * FROM guest_thread_entries WHERE id = ? LIMIT 1`, [id])
+  return await queryFirst<GuestThreadEntryRow>(db, `SELECT * FROM activity_entries WHERE id = ? LIMIT 1`, [id])
 }
 
 export async function listThreadEntries(db: DbClient, threadId: string): Promise<GuestThreadEntryRow[]> {
   const rows = await queryAll<GuestThreadEntryRow>(db, `
-    SELECT * FROM guest_thread_entries
-    WHERE thread_id = ?
+    SELECT * FROM activity_entries
+    WHERE request_id = ?
     ORDER BY sequence ASC, occurred_at ASC, id ASC
   `, [threadId])
   return rows ?? []
@@ -125,8 +125,8 @@ export async function listThreadEntries(db: DbClient, threadId: string): Promise
 
 export async function getLatestEntry(db: DbClient, threadId: string): Promise<GuestThreadEntryRow | null> {
   return await queryFirst<GuestThreadEntryRow>(db, `
-    SELECT * FROM guest_thread_entries
-    WHERE thread_id = ?
+    SELECT * FROM activity_entries
+    WHERE request_id = ?
     ORDER BY sequence DESC, occurred_at DESC, id DESC
     LIMIT 1
   `, [threadId])
@@ -138,8 +138,8 @@ export async function getLatestEntryByKind(
   kinds: GuestThreadEntryKind[],
 ): Promise<GuestThreadEntryRow | null> {
   return await queryFirst<GuestThreadEntryRow>(db, `
-    SELECT * FROM guest_thread_entries
-    WHERE thread_id = ? AND kind IN (SELECT value FROM json_each(?))
+    SELECT * FROM activity_entries
+    WHERE request_id = ? AND kind IN (SELECT value FROM json_each(?))
     ORDER BY sequence DESC, occurred_at DESC, id DESC
     LIMIT 1
   `, [threadId, d1JsonStringSet(kinds)])

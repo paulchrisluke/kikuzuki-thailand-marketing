@@ -72,10 +72,10 @@ const STARTER_PLAN: Plan = {
   prices: [],
   features: [
     'Free KrabiClaw ChatGPT app — build & edit your site by chatting',
-    'Bookings & ticketed experiences',
+    'Bookings, ticketed experiences & consultation requests',
     'Email notifications for reservations & bookings',
     '500 shared organization AI credits per UTC week',
-    'Basic SEO — get found by search & AI',
+    'Structured SEO schema for restaurants, experiences & legal practices',
   ],
   limits: publicPlanLimits(STARTER_PLAN_ID),
   image: '/krabi-claw-free.png',

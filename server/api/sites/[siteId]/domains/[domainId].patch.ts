@@ -71,7 +71,7 @@ export default defineHandler(async (event) => {
       try {
         await execute(db, `
           UPDATE site_domains
-          SET status = 'disabled', role = 'secondary', updated_at = ?
+          SET status = 'disabled', role = 'secondary', updated_at = ?, next_check_at = NULL, reconciliation_token = NULL, reconciliation_expires_at = NULL
           WHERE id = ? AND site_id = ? AND type = 'custom'
         `, [now, domainId, siteId])
 
@@ -93,17 +93,6 @@ export default defineHandler(async (event) => {
               SET role = 'canonical', updated_at = ?
               WHERE id = ?
             `, [now, promotedDomain.id])
-            await execute(db, `
-              UPDATE sites
-              SET public_url = ?, custom_domain = ?, custom_domain_status = 'active', updated_at = ?
-              WHERE id = ? AND organization_id = ?
-            `, [`https://${promotedDomain.domain}`, promotedDomain.domain, now, siteId, site.organization_id])
-          } else {
-            await execute(db, `
-              UPDATE sites
-              SET public_url = NULL, custom_domain = NULL, custom_domain_status = 'none', updated_at = ?
-              WHERE id = ? AND organization_id = ?
-            `, [now, siteId, site.organization_id])
           }
         }
       } catch (error) {

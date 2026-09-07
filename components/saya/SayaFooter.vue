@@ -159,7 +159,8 @@
 </template>
 
 <script setup lang="ts">
-import { getTodayGoogleHours, getActiveSpecialClosure } from '~/utils/formatters'
+import { getActiveSpecialClosure } from '~/utils/formatters'
+import { getTodayHoursLabel, type OpeningHours, type SpecialHours } from '~/shared/reservation-hours'
 import { getVerticalCopy } from '~/utils/vertical-copy'
 import { resolveProductPresentation } from '~/utils/product-presentation'
 
@@ -194,11 +195,9 @@ interface PublicLocation {
   phone?: string | null
   email?: string | null
   googleBusinessHours?: ApiValue
-  opening_hours?: ApiValue
-  opening_hours_translated?: string[] | null
-  special_hours?: ApiValue
+  opening_hours?: OpeningHours
+  special_hours?: SpecialHours
   timezone?: string | null
-  is_primary?: boolean
   grab_url?: string | null
   uber_eats_url?: string | null
   foodpanda_url?: string | null
@@ -264,20 +263,12 @@ const tagline = computed(() => props.site?.brand_description?.trim() || '')
 const sitePlan = computed(() => props.site?.plan)
 const showBrandingCredit = computed(() => !props.isPlatform && sitePlan.value === 'free')
 
-const primaryLocation = computed<PublicLocation | null>(() =>
-  props.locations.find((l: PublicLocation) => l.is_primary) ?? props.locations[0] ?? null
-)
-
 interface OrderLink { label: string; url: string }
-const orderLinks = computed<OrderLink[]>(() => {
-  const loc = primaryLocation.value
-  if (!loc) return []
-  return [
-    { label: 'Grab', url: loc.grab_url ?? '' },
-    { label: 'Uber Eats', url: loc.uber_eats_url ?? '' },
-    { label: 'FoodPanda', url: loc.foodpanda_url ?? '' },
-  ].filter(o => o.url)
-})
+const orderLinks = computed<OrderLink[]>(() => props.locations.flatMap(loc => [
+  { label: `${loc.title} � Grab`, url: loc.grab_url ?? '' },
+  { label: `${loc.title} � Uber Eats`, url: loc.uber_eats_url ?? '' },
+  { label: `${loc.title} � FoodPanda`, url: loc.foodpanda_url ?? '' },
+]).filter(link => link.url))
 
 function safeHttpUrl(value: unknown): string | null {
   if (!value || typeof value !== 'string') return null
@@ -309,14 +300,12 @@ const activeSocials = computed(() =>
 )
 const locations = computed(() =>
   props.locations.map((loc: PublicLocation) => {
-    const closure = getActiveSpecialClosure(loc.special_hours, loc.timezone)
+    const closure = getActiveSpecialClosure(loc.special_hours ?? null, loc.timezone)
     return {
       ...loc,
       hoursToday: closure
         ? t('saya.footer.temporarily_closed')
-        : locale.value === 'en'
-          ? getTodayGoogleHours(loc.opening_hours)
-          : localizedHoursToday(loc),
+        : getTodayHoursLabel(loc.opening_hours ?? null, t('saya.location.closed'), loc.timezone, new Date(), loc.special_hours ?? null, locale.value),
     }
   })
 )
@@ -339,15 +328,5 @@ function formatLocAddress(loc: PublicLocation) {
   return [line1, normalizedAddr?.locality, normalizedAddr?.administrativeArea].filter(Boolean).join(', ')
 }
 
-function localizedHoursToday(loc: PublicLocation): string | null {
-  if (!Array.isArray(loc.opening_hours_translated)) return null
-  const weekday = new Intl.DateTimeFormat('en-US', {
-    weekday: 'long',
-    timeZone: typeof loc.timezone === 'string' ? loc.timezone : undefined,
-  }).format(new Date()).toUpperCase()
-  const index = ['MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY', 'SUNDAY'].indexOf(weekday)
-  if (index < 0) return null
-  const value = loc.opening_hours_translated[index]
-  return typeof value === 'string' ? value : null
-}
+
 </script>

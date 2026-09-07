@@ -2,6 +2,7 @@
   <component
     :is="component"
     :to="to"
+    :external="external"
     :type="to ? undefined : type"
     :disabled="!to && (disabled || loading)"
     :aria-disabled="disabled || loading ? 'true' : undefined"
@@ -25,6 +26,7 @@
 
 <script setup lang="ts">
 const props = withDefaults(defineProps<{
+  external?: boolean
   to?: string
   variant?: 'solid' | 'outline' | 'ghost'
   size?: 'sm' | 'md' | 'lg' | 'xl'
@@ -33,6 +35,7 @@ const props = withDefaults(defineProps<{
   disabled?: boolean
   type?: 'button' | 'submit'
 }>(), {
+  external: false,
   to: undefined,
   variant: 'solid',
   size: 'md',

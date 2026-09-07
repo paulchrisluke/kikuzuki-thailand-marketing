@@ -8,6 +8,17 @@
         <template #leading>
           <DashboardNavbarLeading :to="levelBackTo" label="Location" />
         </template>
+        <template #right>
+          <DashboardResourceLocalization
+            :site-id="siteId"
+            resource-type="business_location"
+            :resource-id="locationId"
+            resource-label="location"
+            :fields="locationLocalizationFields"
+            :route-path="localizedLocationPath"
+            :language-settings-path="siteLocalizationSettingsPath"
+          />
+        </template>
       </UDashboardNavbar>
     </template>
 
@@ -38,7 +49,6 @@
           <div v-if="editorKey === 'profile'" class="space-y-6">
             <p class="text-base text-muted">The public identity and contact details for this location.</p>
             <div class="flex flex-wrap gap-6">
-              <UCheckbox v-model="detailsForm.is_primary" label="Primary location" />
               <UCheckbox :model-value="detailsForm.status === 'active'" label="Active" @update:model-value="setDetailsActive" />
             </div>
             <UFormField label="Name"><UInput v-model="detailsForm.title" size="xl" autofocus class="w-full" /></UFormField>
@@ -53,44 +63,10 @@
             <UFormField label="Address"><UTextarea v-model="detailsForm.address" :rows="4" class="w-full" /></UFormField>
           </div>
 
-          <div v-else-if="editorKey === 'translations'" class="space-y-6">
-            <p class="text-base text-muted">Edit this location's public content in another published language. The default-language values above are unaffected.</p>
-            <UFormField label="Language">
-              <select v-model="translationLocale" aria-label="Translation language" class="rounded-lg border border-default bg-default px-3 py-2">
-                <option v-for="option in translationLocaleOptions" :key="option" :value="option">{{ option }}</option>
-              </select>
-            </UFormField>
-            <p v-if="translationLocaleOptions.length === 0" class="text-sm text-muted">No additional languages are enabled for this site yet.</p>
-            <template v-else>
-              <p class="text-xs text-muted">Source (English): {{ detailsForm.title }}</p>
-              <UFormField :label="`Name (${translationLocale})`"><UInput v-model="translationFields.title" size="xl" class="w-full" /></UFormField>
-              <UFormField :label="`Short description (${translationLocale})`"><UInput v-model="translationFields.short_description" size="xl" class="w-full" /></UFormField>
-              <UFormField :label="`Description (${translationLocale})`"><UTextarea v-model="translationFields.description" :rows="6" class="w-full" /></UFormField>
-              <UFormField :label="`City (${translationLocale})`"><UInput v-model="translationFields.city" size="xl" class="w-full" /></UFormField>
-              <UFormField :label="`Neighbourhood (${translationLocale})`"><UInput v-model="translationFields.neighborhood" size="xl" class="w-full" /></UFormField>
-              <UFormField :label="`Address (${translationLocale})`"><UTextarea v-model="translationFields.address" :rows="4" class="w-full" /></UFormField>
-              <UFormField :label="`Opening hours (${translationLocale}, one per line)`"><UTextarea v-model="translationFields.opening_hours_text" :rows="4" class="w-full" /></UFormField>
-              <UFormField :label="`SEO title (${translationLocale})`"><UInput v-model="translationFields.seo_title" size="xl" class="w-full" /></UFormField>
-              <UFormField :label="`SEO description (${translationLocale})`"><UTextarea v-model="translationFields.seo_description" :rows="3" class="w-full" /></UFormField>
-              <p v-if="translationError" class="text-sm text-error">{{ translationError }}</p>
-              <UButton :loading="translationSaving" label="Save translation" @click="saveTranslation" />
-            </template>
-          </div>
 
           <div v-else-if="editorKey === 'hours'" class="space-y-6">
             <p class="text-base text-muted">Set the regular hours shown to guests. A Google Places sync replaces these hours with Google's current record.</p>
-            <div class="divide-y divide-default rounded-xl border border-default">
-              <div v-for="day in openingHours" :key="day.day" class="space-y-3 p-4">
-                <div class="flex items-center justify-between gap-4">
-                  <p class="font-medium text-highlighted">{{ day.day }}</p>
-                  <UCheckbox :model-value="!day.isOpen" label="Closed" @update:model-value="setDayClosed(day.day, $event)" />
-                </div>
-                <div v-if="day.isOpen" class="grid grid-cols-2 gap-3">
-                  <UFormField label="Open"><UInput :model-value="day.openTime" type="time" class="w-full" @update:model-value="updateDayTime(day.day, 'openTime', $event)" /></UFormField>
-                  <UFormField label="Close"><UInput :model-value="day.closeTime" type="time" class="w-full" @update:model-value="updateDayTime(day.day, 'closeTime', $event)" /></UFormField>
-                </div>
-              </div>
-            </div>
+            <HoursTimezoneCard v-model:form="hoursForm" />
           </div>
 
           <div v-else-if="editorKey === 'content'" class="space-y-6">
@@ -149,6 +125,10 @@
   </UDashboardPanel>
 </template>
 <script setup lang="ts">
+import HoursTimezoneCard, { type HoursTimezoneForm } from '~/lib/components/workspace/onboarding/HoursTimezoneCard.vue'
+import { parseOpeningHours, parseSpecialHours, type OpeningHours, type SpecialHours } from '~/shared/reservation-hours'
+import DashboardResourceLocalization from '~/components/dashboard/DashboardResourceLocalization.vue'
+
 import EditorPaneShell from '~/components/dashboard/EditorPaneShell.vue'
 import EditorNavigationList from '~/components/dashboard/EditorNavigationList.vue'
 const dashboardApi = useDashboardApi()
@@ -186,21 +166,14 @@ interface BusinessLocation {
   short_description: string | null
   price_level: string | null
   google_place_id: string | null
-  opening_hours: { weekdayDescriptions?: string[] } | null
+  opening_hours: OpeningHours
+  special_hours: SpecialHours
   rating: number | null
   review_count: number | null
-  is_primary: boolean
   status: string
   last_synced_at: string | null
   notification_phone?: string | null
   timezone?: string | null
-}
-
-interface DayHours {
-  day: string
-  isOpen: boolean
-  openTime: string
-  closeTime: string
 }
 
 const route = useRoute()
@@ -227,7 +200,7 @@ const routeSegments = computed(() => {
 })
 const detailKey = computed(() => routeSegments.value[0] ?? null)
 const editorKey = computed(() => detailKey.value ?? 'profile')
-const validDetailKeys = new Set(['profile', 'hours', 'content', 'discovery', 'notifications', 'features', 'translations'])
+const validDetailKeys = new Set(['profile', 'hours', 'content', 'discovery', 'notifications', 'features'])
 if (routeSegments.value.length > 1 || (detailKey.value && !validDetailKeys.has(detailKey.value))) {
   throw createError({ statusCode: 404, statusMessage: 'Location setting not found' })
 }
@@ -266,7 +239,6 @@ const isBusinessLocation = (value: unknown): value is BusinessLocation => {
   return typeof value.id === 'string'
     && typeof value.slug === 'string'
     && typeof value.title === 'string'
-    && typeof value.is_primary === 'boolean'
     && typeof value.status === 'string'
     && isNullableString(value.city)
     && isNullableString(value.phone)
@@ -338,22 +310,28 @@ const detailsForm = reactive({
   address: '',
   short_description: '',
   description: '',
-  is_primary: false,
   status: 'active',
   notification_phone: '',
   timezone: '',
 })
+const siteLocalizationSettingsPath = computed(() => `/dashboard/${route.params.orgSlug}/sites/${route.params.siteSlug}/settings/localization`)
+const locationLocalizationFields = computed(() => [
+  { key: 'title', label: 'Name', source: location.value?.title },
+  { key: 'short_description', label: 'Short description', source: location.value?.short_description },
+  { key: 'description', label: 'Description', source: location.value?.description, multiline: true, rows: 6 },
+  { key: 'city', label: 'City', source: location.value?.city },
+  { key: 'neighborhood', label: 'Neighbourhood', source: location.value?.neighborhood },
+  { key: 'address', label: 'Address', source: location.value?.address?.addressLines?.join('\n'), multiline: true, rows: 3 },
+])
+function localizedLocationPath(locale: string): string {
+  const slug = location.value?.slug
+  if (!slug) throw new Error('The location slug is unavailable.')
+  return `/${locale}/locations/${slug}`
+}
 
 const timezoneOptions = TIMEZONE_OPTIONS
 
-const WEEKDAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'] as const
-
-const openingHours = ref<DayHours[]>(WEEKDAYS.map(day => ({
-  day,
-  isOpen: true,
-  openTime: '09:00',
-  closeTime: '22:00'
-})))
+const hoursForm = ref<HoursTimezoneForm>({ timezone: '', hours: null, specialHours: null })
 
 function fillDetailsForm(loc: BusinessLocation) {
   detailsForm.title = loc.title
@@ -370,110 +348,10 @@ function fillDetailsForm(loc: BusinessLocation) {
   detailsForm.address = loc.address?.addressLines?.join('\n') ?? ''
   detailsForm.short_description = loc.short_description ?? ''
   detailsForm.description = loc.description ?? ''
-  openingHours.value = parseOpeningHours(loc.opening_hours?.weekdayDescriptions)
-  detailsForm.is_primary = loc.is_primary
+  hoursForm.value = { timezone: loc.timezone ?? '', hours: parseOpeningHours(loc.opening_hours), specialHours: parseSpecialHours(loc.special_hours) }
   detailsForm.status = loc.status
   detailsForm.notification_phone = loc.notification_phone ?? ''
   detailsForm.timezone = loc.timezone ?? ''
-}
-
-const twelveHourToTwentyFourHour = (value: string): string | null => {
-  const match = value.trim().match(/^(\d{1,2}):(\d{2})\s*([AP]M)$/i)
-  if (!match) return null
-  const rawHour = Number(match[1])
-  const minute = match[2]
-  const period = match[3]!.toUpperCase()
-  if (rawHour < 1 || rawHour > 12) return null
-  let hour = rawHour % 12
-  if (period === 'PM') hour += 12
-  return `${String(hour).padStart(2, '0')}:${minute}`
-}
-
-const twentyFourHourToTwelveHour = (value: string): string => {
-  const match = value.match(/^(\d{2}):(\d{2})$/)
-  if (!match) return '9:00 AM'
-  const hour24 = Number(match[1])
-  const minute = match[2]
-  const period = hour24 >= 12 ? 'PM' : 'AM'
-  const hour12 = hour24 % 12 || 12
-  return `${hour12}:${minute} ${period}`
-}
-
-const parseOpeningHours = (weekdayDescriptions?: string[]): DayHours[] => {
-  const defaults = WEEKDAYS.map(day => ({
-    day,
-    isOpen: true,
-    openTime: '09:00',
-    closeTime: '22:00'
-  }))
-
-  if (!weekdayDescriptions?.length) return defaults
-
-  const byDay = new Map(defaults.map(item => [item.day, { ...item }]))
-
-  for (const line of weekdayDescriptions) {
-    const separatorIndex = String(line).indexOf(':')
-    if (separatorIndex === -1) continue
-    const rawDay = String(line).slice(0, separatorIndex)
-    const rawValue = String(line).slice(separatorIndex + 1)
-    const day = rawDay?.trim() as typeof WEEKDAYS[number] | undefined
-    const value = rawValue?.trim() ?? ''
-    if (!day || !byDay.has(day)) continue
-
-    const current = byDay.get(day)
-    if (!current) continue
-
-    if (/^closed$/i.test(value)) {
-      current.isOpen = false
-      continue
-    }
-
-    if (/^open\s*24\s*hours$/i.test(value)) {
-      current.isOpen = true
-      current.openTime = '00:00'
-      current.closeTime = '23:59'
-      continue
-    }
-
-    const rangeMatch = value.match(/^(\d{1,2}:\d{2}\s*[AP]M)\s*[\-–]\s*(\d{1,2}:\d{2}\s*[AP]M)$/i)
-    if (!rangeMatch) continue
-
-    const openTime = twelveHourToTwentyFourHour(rangeMatch[1]!)
-    const closeTime = twelveHourToTwentyFourHour(rangeMatch[2]!)
-    if (!openTime || !closeTime) continue
-
-    current.isOpen = true
-    current.openTime = openTime
-    current.closeTime = closeTime
-  }
-
-  return WEEKDAYS.map(day => byDay.get(day) || {
-    day,
-    isOpen: true,
-    openTime: '09:00',
-    closeTime: '22:00'
-  })
-}
-
-const buildWeekdayDescriptions = (hours: DayHours[]): string[] => {
-  return hours.map((day) => {
-    if (!day.isOpen) return `${day.day}: Closed`
-    if (day.openTime === '00:00' && day.closeTime === '23:59') return `${day.day}: Open 24 hours`
-    return `${day.day}: ${twentyFourHourToTwelveHour(day.openTime)} - ${twentyFourHourToTwelveHour(day.closeTime)}`
-  })
-}
-
-const setDayClosed = (dayName: string, value: boolean | 'indeterminate') => {
-  if (value === 'indeterminate') return
-  const day = openingHours.value.find(item => item.day === dayName)
-  if (!day) return
-  day.isOpen = !value
-}
-
-const updateDayTime = (dayName: string, field: 'openTime' | 'closeTime', value: string | number) => {
-  const day = openingHours.value.find(item => item.day === dayName)
-  if (!day) return
-  day[field] = typeof value === 'string' ? value : String(value)
 }
 
 const setDetailsActive = (v: boolean | 'indeterminate') => {
@@ -482,11 +360,7 @@ const setDetailsActive = (v: boolean | 'indeterminate') => {
 }
 
 const addressSummary = computed(() => location.value?.address?.addressLines?.join(', ') || location.value?.city || 'Not set')
-const hoursSummary = computed(() => {
-  const descriptions = location.value?.opening_hours?.weekdayDescriptions ?? []
-  const openDays = descriptions.filter(line => !/closed/i.test(line)).length
-  return descriptions.length ? `${openDays} days open each week` : 'Not set'
-})
+const hoursSummary = computed(() => location.value?.opening_hours === null ? 'Not set' : `${location.value?.opening_hours?.periods.length ?? 0} opening periods`)
 const contentSummary = computed(() => location.value?.short_description?.trim() || location.value?.description?.trim() || 'Not set')
 const discoverySummary = computed(() => location.value?.google_place_id ? 'Google Places connected' : 'Not connected')
 const notificationSummary = computed(() => location.value?.notification_phone || location.value?.timezone || 'Not configured')
@@ -501,7 +375,6 @@ const navigationItems = computed(() => [
   { id: 'discovery', label: 'Discovery', summary: discoverySummary.value, icon: 'i-simple-icons-googlemaps', to: `${settingsPath.value}/discovery` },
   { id: 'notifications', label: 'Notifications', summary: notificationSummary.value, icon: 'i-lucide-bell', to: `${settingsPath.value}/notifications` },
   { id: 'features', label: 'Available features', summary: featureSummary.value, icon: 'i-lucide-layout-grid', to: `${settingsPath.value}/features` },
-  { id: 'translations', label: 'Translations', summary: '', icon: 'i-lucide-languages', to: `${settingsPath.value}/translations` },
 ])
 const navigationGroups = computed(() => [
   { id: 'location', label: 'Location', items: navigationItems.value.slice(0, 2) },
@@ -515,7 +388,6 @@ const detailTitles: Record<string, string> = {
   discovery: 'Discovery',
   notifications: 'Notifications',
   features: 'Available features',
-  translations: 'Translations',
 }
 const hasDetail = computed(() => detailKey.value !== null)
 // Names the level, not the open section: at `lg` the section's title is a
@@ -528,9 +400,9 @@ function editorSignature(key: string | null): string {
     case 'profile': return JSON.stringify([
       detailsForm.title, detailsForm.slug, detailsForm.city, detailsForm.neighborhood,
       detailsForm.phone, detailsForm.email, detailsForm.website_url, detailsForm.address,
-      detailsForm.is_primary, detailsForm.status,
+      detailsForm.status,
     ])
-    case 'hours': return JSON.stringify(openingHours.value)
+    case 'hours': return JSON.stringify(hoursForm.value)
     case 'content': return JSON.stringify([detailsForm.short_description, detailsForm.description, detailsForm.price_level])
     case 'discovery': return JSON.stringify([detailsForm.google_place_id, detailsForm.maps_url, detailsForm.google_review_url])
     case 'notifications': return JSON.stringify([detailsForm.notification_phone, detailsForm.timezone])
@@ -554,6 +426,13 @@ const validationMessage = computed(() => {
     if (detailsForm.email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(detailsForm.email)) return 'Enter a valid email address.'
     if (!isValidUrl(detailsForm.website_url)) return 'Enter a complete website URL.'
   }
+  if (editorKey.value === 'hours') {
+    if (!hoursForm.value.timezone) return 'Choose the location timezone.'
+    try {
+      parseOpeningHours(hoursForm.value.hours)
+      parseSpecialHours(hoursForm.value.specialHours)
+    } catch (error) { return error instanceof Error ? error.message : 'Invalid hours' }
+  }
   if (editorKey.value === 'discovery' && ![detailsForm.maps_url, detailsForm.google_review_url].every(isValidUrl)) {
     return 'Enter complete Google Maps and review URLs.'
   }
@@ -561,97 +440,9 @@ const validationMessage = computed(() => {
 })
 const dirty = computed(() => editorSignature(editorKey.value) !== originalSignature.value)
 const saveDisabled = computed(() => {
-  if (editorKey.value === 'translations') return translationLocaleOptions.value.length === 0
   return !dirty.value || validationMessage.value !== null
 })
 
-// Translations panel: a separate localization layer over the same
-// business_location resource, edited through the canonical per-resource
-// localization API (server/utils/localization.ts) rather than the
-// English-only PATCH endpoint used by the panels above.
-const translationLocale = ref('')
-const translationLocales = ref<string[]>([])
-const translationLocaleOptions = computed(() => translationLocales.value)
-const translationError = ref<string | null>(null)
-const translationSaving = ref(false)
-const translationFields = reactive({ title: '', short_description: '', description: '', city: '', neighborhood: '', address: '', opening_hours_text: '', seo_title: '', seo_description: '' })
-function isTranslationLocalesResponse(value: unknown): value is { languages: Array<{ locale: string; locale_status: string; is_source: boolean | number }> } {
-  return isRecord(value) && Array.isArray(value.languages)
-}
-async function loadTranslationLocales() {
-  try {
-    const response = await dashboardApi<{ languages: Array<{ locale: string; locale_status: string; is_source: boolean | number }> }>(
-      `/api/editor/sites/${siteId}/locales`,
-      { validate: isTranslationLocalesResponse },
-    )
-    translationLocales.value = response.languages
-      .filter(item => item.locale_status === 'published' && !item.is_source)
-      .map(item => item.locale)
-    if (translationLocales.value.length && !translationLocale.value) translationLocale.value = translationLocales.value[0]!
-  } catch (cause) {
-    translationLocales.value = []
-    translationError.value = getErrorMessage(cause, 'Failed to load site languages')
-  }
-}
-function isTranslationResponse(value: unknown): value is { localization: { values: Record<string, unknown> } } {
-  return isRecord(value) && isRecord(value.localization) && isRecord(value.localization.values)
-}
-async function loadTranslationFields() {
-  if (!translationLocale.value || !locationId.value) return
-  translationError.value = null
-  try {
-    const response = await dashboardApi<{ localization: { values: Record<string, unknown> } }>(
-      `/api/editor/sites/${siteId}/localization/business_location/${locationId.value}/${encodeURIComponent(translationLocale.value)}`,
-      { validate: isTranslationResponse },
-    )
-    const values = response.localization.values
-    translationFields.title = typeof values.title === 'string' ? values.title : ''
-    translationFields.short_description = typeof values.short_description === 'string' ? values.short_description : ''
-    translationFields.description = typeof values.description === 'string' ? values.description : ''
-    translationFields.city = typeof values.city === 'string' ? values.city : ''
-    translationFields.neighborhood = typeof values.neighborhood === 'string' ? values.neighborhood : ''
-    translationFields.address = typeof values.address === 'string' ? values.address : ''
-    translationFields.opening_hours_text = Array.isArray(values.opening_hours) ? values.opening_hours.join('\n') : ''
-    translationFields.seo_title = typeof values.seo_title === 'string' ? values.seo_title : ''
-    translationFields.seo_description = typeof values.seo_description === 'string' ? values.seo_description : ''
-  } catch (cause) {
-    const statusCode = isRecord(cause) && typeof cause.statusCode === 'number' ? cause.statusCode : null
-    if (statusCode !== 404) translationError.value = getErrorMessage(cause, 'Failed to load translation')
-    translationFields.title = ''; translationFields.short_description = ''; translationFields.description = ''
-    translationFields.city = ''; translationFields.neighborhood = ''; translationFields.address = ''
-    translationFields.opening_hours_text = ''; translationFields.seo_title = ''; translationFields.seo_description = ''
-  }
-}
-watch(translationLocale, () => { void loadTranslationFields() })
-async function saveTranslation() {
-  if (!locationId.value || !translationLocale.value) return
-  translationSaving.value = true; translationError.value = null
-  try {
-    const values: Record<string, string> = {}
-    if (translationFields.title.trim()) values.title = translationFields.title.trim()
-    if (translationFields.short_description.trim()) values.short_description = translationFields.short_description.trim()
-    if (translationFields.description.trim()) values.description = translationFields.description.trim()
-    if (translationFields.city.trim()) values.city = translationFields.city.trim()
-    if (translationFields.neighborhood.trim()) values.neighborhood = translationFields.neighborhood.trim()
-    if (translationFields.address.trim()) values.address = translationFields.address.trim()
-    if (translationFields.seo_title.trim()) values.seo_title = translationFields.seo_title.trim()
-    if (translationFields.seo_description.trim()) values.seo_description = translationFields.seo_description.trim()
-    const openingHoursValues: Record<string, unknown> = {}
-    const openingHoursLines = translationFields.opening_hours_text.split('\n').map(line => line.trim()).filter(Boolean)
-    if (openingHoursLines.length) openingHoursValues.opening_hours = openingHoursLines
-    await dashboardApi(`/api/editor/sites/${siteId}/localization/business_location/${locationId.value}/${encodeURIComponent(translationLocale.value)}`, {
-      method: 'PUT',
-      body: { values: { ...values, ...openingHoursValues }, route_path: `/${translationLocale.value}/locations/${detailsForm.slug || String(route.params.locationSlug)}` },
-      validate: isRecord,
-    })
-    toast.add({ description: 'Translation saved', color: 'success' })
-  } catch (cause) {
-    translationError.value = getErrorMessage(cause, 'Failed to save translation')
-  } finally {
-    translationSaving.value = false
-  }
-}
-void loadTranslationLocales()
 
 function resetDraft() {
   if (!location.value) return
@@ -701,10 +492,6 @@ async function patchLocation(body: Record<string, unknown>, successMessage: stri
 
 async function saveCurrentEditor() {
   if (saveDisabled.value) return
-  if (editorKey.value === 'translations') {
-    await saveTranslation()
-    return
-  }
   if (editorKey.value === 'features') {
     await saveLocationFeatures()
     return
@@ -721,13 +508,12 @@ async function saveCurrentEditor() {
       address: detailsForm.address.trim()
         ? { addressLines: detailsForm.address.split('\n').map(line => line.trim()).filter(Boolean) }
         : null,
-      is_primary: detailsForm.is_primary,
       status: detailsForm.status,
     }, 'Profile saved')
     return
   }
   if (editorKey.value === 'hours') {
-    await patchLocation({ opening_hours: { weekdayDescriptions: buildWeekdayDescriptions(openingHours.value) } }, 'Hours saved')
+    await patchLocation({ opening_hours: parseOpeningHours(hoursForm.value.hours), special_hours: parseSpecialHours(hoursForm.value.specialHours), timezone: hoursForm.value.timezone }, 'Hours saved')
     return
   }
   if (editorKey.value === 'content') {
@@ -751,7 +537,6 @@ async function saveCurrentEditor() {
     timezone: detailsForm.timezone || null,
   }, 'Notifications saved')
 }
-
 
 async function syncGooglePlace() {
   if (!location.value?.google_place_id) return

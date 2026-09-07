@@ -169,7 +169,8 @@
 </template>
 
 <script setup lang="ts">
-import { formatGoogleHours, getTodayGoogleHours } from '~/utils/formatters'
+import { formatOpeningHours, getIsOpenNow } from '~/utils/formatters'
+import { getTodayHoursLabel } from '~/shared/reservation-hours'
 const DOMPurify = useHtmlSanitizer()
 
 definePageMeta({ layout: 'saya' })
@@ -197,38 +198,9 @@ const formattedAddress = computed(() => {
   return loc.address || loc.city || ''
 })
 
-const weekdayNames = ['SUNDAY', 'MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY']
-function currentLocationWeekday(timezone: unknown): string {
-  if (!timezone) return weekdayNames[new Date().getDay()]!
-  return new Intl.DateTimeFormat('en-US', { weekday: 'long', timeZone: String(timezone) }).format(new Date()).toUpperCase()
-}
-
-const weekHours = computed(() => {
-  const hours = locale.value === 'en'
-    ? location.value?.opening_hours
-    : location.value?.opening_hours_translated
-  if (!hours) return []
-  const days = ['MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY', 'SUNDAY']
-  const timezone = location.value?.time_zone || location.value?.timezone || null
-  const today = currentLocationWeekday(timezone)
-  return formatGoogleHours(hours, locale.value, t('saya.location.closed')).map((h: ApiValue, i: number) => ({ ...h, today: days[i] === today }))
-})
-
-const todayHours = computed(() => {
-  const timezone = location.value?.time_zone || location.value?.timezone || null
-  const today = currentLocationWeekday(timezone)
-  return locale.value === 'en'
-    ? getTodayGoogleHours(location.value?.opening_hours, today)
-    : weekHours.value.find(day => day.today)?.hours ?? ''
-})
-const isOpenNow = computed(() => {
-  const h = todayHours.value
-  if (!h) return undefined
-  const lower = h.toLowerCase()
-  if (lower.includes('open today') && !lower.includes('closed today')) return true
-  if (lower.includes('closed today')) return false
-  return undefined
-})
+const weekHours = computed(() => formatOpeningHours(location.value?.opening_hours ?? null, locale.value, t('saya.location.closed'), location.value?.timezone))
+const todayHours = computed(() => getTodayHoursLabel(location.value?.opening_hours ?? null, t('saya.location.closed'), location.value?.timezone, new Date(), location.value?.special_hours ?? null, locale.value))
+const isOpenNow = computed(() => getIsOpenNow(location.value?.opening_hours ?? null, location.value?.timezone, location.value?.special_hours ?? null))
 
 const mapEmbedSrc = computed(() => (location.value as ApiValue)?.map_embed_url || null)
 

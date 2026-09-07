@@ -1,3 +1,4 @@
+import type { IntegrationVersion, GoogleOAuthIntegration } from '~/shared/site-settings'
 import type { D1Database } from '@cloudflare/workers-types'
 import { execute, queryFirst } from '~/server/db'
 import { encryptSecret, decryptSecret, encryptionEnv } from './encryption'
@@ -30,23 +31,9 @@ const googleJson = async <T>(url: string, accessToken: string): Promise<T> => {
   return (await response.json()) as T
 }
 
-export interface GoogleAnalyticsConnection {
-  id: string
+export interface GoogleAnalyticsConnection extends Omit<GoogleOAuthIntegration, 'kind' | 'revision'>, IntegrationVersion {
   organization_id: string
   site_id: string
-  connected_by_user_id?: string
-  provider_account_email: string
-  encrypted_access_token: string
-  encrypted_refresh_token: string
-  scopes: string
-  ga4_property_id?: string
-  ga4_property_name?: string
-  ga4_measurement_id?: string
-  search_console_site_url?: string
-  status: 'active' | 'disabled' | 'error'
-  expires_at?: string
-  created_at: string
-  updated_at: string
 }
 
 export interface Ga4Property {
@@ -147,7 +134,8 @@ export const storeGoogleAnalyticsConnection = async (
     scopes: string
     expires_at?: string
     status: 'active' | 'disabled' | 'error'
-  }
+  },
+  expected: IntegrationVersion
 ): Promise<string> => {
   if (!env.DB) {
     throw new Error('Database not available')
@@ -160,34 +148,22 @@ export const storeGoogleAnalyticsConnection = async (
   const encryptedAccessToken = await encryptSecret(connection.encrypted_access_token, tokenEnv)
   const encryptedRefreshToken = await encryptSecret(connection.encrypted_refresh_token, tokenEnv)
 
-  await execute(env.DB, `
-    INSERT INTO google_analytics_connections
-    (id, organization_id, site_id, connected_by_user_id, provider_account_email,
-     encrypted_access_token, encrypted_refresh_token, scopes, status, expires_at, created_at, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    ON CONFLICT(organization_id, site_id) DO UPDATE SET
-      connected_by_user_id = excluded.connected_by_user_id,
-      provider_account_email = excluded.provider_account_email,
-      encrypted_access_token = excluded.encrypted_access_token,
-      encrypted_refresh_token = excluded.encrypted_refresh_token,
-      scopes = excluded.scopes,
-      status = excluded.status,
-      expires_at = excluded.expires_at,
-      updated_at = excluded.updated_at
-  `, [
-    connectionId,
-    connection.organization_id,
-    connection.site_id,
-    connection.connected_by_user_id,
-    connection.provider_account_email,
-    encryptedAccessToken,
-    encryptedRefreshToken,
-    connection.scopes,
-    connection.status,
-    connection.expires_at ?? null,
-    now,
-    now
-  ])
+  const { organization_id: organizationId, site_id: siteId, ...providerState } = connection
+  const payload = JSON.stringify({
+    ...providerState, id: connectionId, kind: 'oauth', revision: crypto.randomUUID(),
+    encrypted_access_token: encryptedAccessToken,
+    encrypted_refresh_token: encryptedRefreshToken, updated_at: now,
+  })
+  const result = await execute(env.DB, `
+    UPDATE sites SET integrations_json = json_set(integrations_json, '$.google',
+      json_set(json_patch(CASE WHEN json_extract(integrations_json, '$.google.kind') = 'oauth' AND json_extract(integrations_json, '$.google.provider_account_email') = ?
+                             THEN json_extract(integrations_json, '$.google') ELSE '{}' END, json(?)),
+        '$.created_at', COALESCE(json_extract(integrations_json, '$.google.created_at'), ?)))
+    WHERE id = ? AND organization_id = ?
+      AND json_extract(integrations_json, '$.google.revision') IS ?
+      AND json_extract(settings_json, '$.config.resource_team_generation') IS ?
+  `, [connection.provider_account_email, payload, now, siteId, organizationId, expected.revision, expected.transfer_generation])
+  if (result.meta?.changes !== 1) throw new Error('Site ownership or google connection changed during authorization')
 
   return connectionId
 }
@@ -203,9 +179,28 @@ export const getGoogleAnalyticsConnection = async (
   }
 
   const connection = await queryFirst<GoogleAnalyticsConnection>(env.DB, `
-    SELECT * FROM google_analytics_connections
-    WHERE organization_id = ? AND site_id = ? AND status = 'active'
-    LIMIT 1
+    SELECT id AS site_id, organization_id,
+           json_extract(integrations_json, '$.google.id') AS id,
+           json_extract(integrations_json, '$.google.revision') AS revision,
+           json_extract(settings_json, '$.config.resource_team_generation') AS transfer_generation,
+           json_extract(integrations_json, '$.google.connected_by_user_id') AS connected_by_user_id,
+           json_extract(integrations_json, '$.google.provider_account_email') AS provider_account_email,
+           json_extract(integrations_json, '$.google.encrypted_access_token') AS encrypted_access_token,
+           json_extract(integrations_json, '$.google.encrypted_refresh_token') AS encrypted_refresh_token,
+           json_extract(integrations_json, '$.google.scopes') AS scopes,
+           json_extract(integrations_json, '$.google.ga4_property_id') AS ga4_property_id,
+           json_extract(integrations_json, '$.google.ga4_property_name') AS ga4_property_name,
+           json_extract(integrations_json, '$.google.ga4_measurement_id') AS ga4_measurement_id,
+           json_extract(integrations_json, '$.google.search_console_site_url') AS search_console_site_url,
+           json_extract(integrations_json, '$.google.status') AS status,
+           json_extract(integrations_json, '$.google.expires_at') AS expires_at,
+           json_extract(integrations_json, '$.google.created_at') AS created_at,
+           json_extract(integrations_json, '$.google.updated_at') AS updated_at
+      FROM sites
+     WHERE organization_id = ? AND id = ?
+       AND json_extract(integrations_json, '$.google.kind') = 'oauth'
+       AND json_extract(integrations_json, '$.google.status') = 'active'
+     LIMIT 1
   `, [organizationId, siteId])
 
   if (!connection) {

@@ -1,3 +1,4 @@
+import type { GoogleReviewMetadata } from '~/shared/google-review'
 import type { SocialImageSource } from '~/utils/social-metadata'
 import type { PublicLocaleRepresentation } from '~/utils/public-resource-contracts'
 
@@ -69,6 +70,9 @@ export interface PublicSiteQa {
 }
 
 export interface PublicSiteReview {
+  source: string | null
+  original_reference: string | null
+  google_review_metadata: GoogleReviewMetadata | null
   id: string
   author_name: string
   media: Array<{ asset_id: string; slot: string; public_url: string; thumbnail_url: string | null; kind: string; alt_text: string | null }>
@@ -201,13 +205,6 @@ export interface PublicCompliance {
   same_as: string[]
   contact_points: PublicComplianceContactPoint[]
   address_visibility: 'visible' | 'hidden'
-  address: {
-    street_address: string | null
-    locality: string | null
-    region: string | null
-    postal_code: string | null
-    country: string | null
-  } | null
   metadata: ApiRecord
 }
 
@@ -219,9 +216,6 @@ export interface PublicBlawbyIdentity {
   phone: string | null
   banner_content: string | null
   banner_dismissible: boolean
-  /** The site's primary business_locations row's address, when publicly configured. */
-  primary_location_address_street: string | null
-  primary_location_address_locality: string | null
 }
 
 export interface PublicBlawbyShellData {

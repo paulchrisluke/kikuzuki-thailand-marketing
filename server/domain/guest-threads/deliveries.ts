@@ -229,8 +229,8 @@ export async function deliverGuestThreadEmail(
 export async function listDeliveryFailures(db: DbClient, threadId: string): Promise<GuestThreadDeliveryRow[]> {
   const deliveries = await queryAll<GuestThreadDeliveryRow>(db, `
     SELECT d.* FROM guest_thread_deliveries d
-    JOIN guest_thread_entries e ON e.id = d.entry_id
-    WHERE e.thread_id = ? AND d.status IN ('failed', 'unknown')
+    JOIN activity_entries e ON e.id = d.entry_id
+    WHERE e.request_id = ? AND d.status IN ('failed', 'unknown')
     ORDER BY d.created_at DESC
   `, [threadId])
   const nowMs = Date.now()

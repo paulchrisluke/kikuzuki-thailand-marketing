@@ -20,15 +20,12 @@ import {
   deleteContentBlock,
   getContentBlock,
   getContentDocumentById,
-  getContentDocumentByOwner,
   getContentOutline,
   renderContentPreview,
   replaceContentBlock,
   CONTENT_BLOCK_TYPES,
-  CONTENT_DOCUMENT_OWNER_TYPES,
   type ContentBlockType,
   type ContentBlockInput,
-  type ContentDocumentOwnerType,
 } from '~/server/utils/content-documents'
 import {
   createPlatformBlogPost,
@@ -244,7 +241,6 @@ function projectPlatformContentBlock(value: unknown, index: number) {
 
 export function projectPlatformBlogPostForMcp(post: Record<string, unknown>) {
   const contentDocument = platformBlogResponseRecord(post.content_document, 'post.content_document')
-  const document = platformBlogResponseRecord(contentDocument.document, 'post.content_document.document')
   if (!Array.isArray(contentDocument.blocks)) invalidPlatformBlogResponse('post.content_document.blocks', 'an array')
   return {
     id: platformBlogResponseString(post.id, 'post.id'),
@@ -275,7 +271,6 @@ export function projectPlatformBlogPostForMcp(post: Record<string, unknown>) {
     public_url: platformBlogResponseNullableString(post.public_url, 'post.public_url'),
     preview_url: platformBlogResponseNullableString(post.preview_url, 'post.preview_url'),
     content_blocks: contentDocument.blocks.map((block, index) => projectPlatformContentBlock(block, index)),
-    document_updated_at: platformBlogResponseString(document.updated_at, 'post.content_document.document.updated_at'),
   }
 }
 
@@ -293,7 +288,6 @@ export function platformBlogLifecycleCall(
     siteId: Object.prototype.hasOwnProperty.call(args, 'site_id') ? requiredString(args, 'site_id') : null,
     input: {
       expected_updated_at: requiredString(args, 'expected_updated_at'),
-      expected_document_updated_at: requiredString(args, 'expected_document_updated_at'),
       ...(Object.prototype.hasOwnProperty.call(args, 'scheduled_for')
         ? { scheduled_for: typeof scheduledFor === 'string' ? scheduledFor.trim() : null }
         : {}),
@@ -301,33 +295,8 @@ export function platformBlogLifecycleCall(
   }
 }
 
-function optionalContentDocumentOwnerType(args: Record<string, unknown>, key: string) {
-  const value = args[key]
-  if (!CONTENT_DOCUMENT_OWNER_TYPES.includes(value as ContentDocumentOwnerType)) {
-    throw mcpProtocolError(MCP_ERROR.invalidParams, `${key} must be one of: ${CONTENT_DOCUMENT_OWNER_TYPES.join(', ')}.`)
-  }
-  return value as ContentDocumentOwnerType
-}
-
 async function resolveContentDocument(db: D1Database, args: Record<string, unknown>) {
-  const documentId = optionalString(args, 'document_id')
-  const hasOwnerLookup = args.owner_type !== undefined || args.owner_id !== undefined
-  if (documentId && hasOwnerLookup) {
-    throw mcpProtocolError(MCP_ERROR.invalidParams, 'Provide either document_id, or owner_type and owner_id, not both.')
-  }
-  if (documentId) {
-    const document = await getContentDocumentById(db, documentId)
-    if (!document) throw mcpProtocolError(MCP_ERROR.invalidParams, 'content document not found.')
-    return document
-  }
-
-  const ownerId = optionalString(args, 'owner_id')
-  const ownerType = args.owner_type !== undefined ? optionalContentDocumentOwnerType(args, 'owner_type') : undefined
-  if (!ownerType || !ownerId) {
-    throw mcpProtocolError(MCP_ERROR.invalidParams, 'Provide either document_id, or owner_type and owner_id.')
-  }
-
-  const document = await getContentDocumentByOwner(db, ownerType, ownerId)
+  const document = await getContentDocumentById(db, requiredString(args, 'document_id'))
   if (!document) throw mcpProtocolError(MCP_ERROR.invalidParams, 'content document not found.')
   return document
 }
@@ -850,8 +819,12 @@ export async function executePlatformMcpToolCall(
       return {
         document: {
           id: document.id,
-          owner_type: document.owner_type,
-          owner_id: document.owner_id,
+          organization_id: document.organization_id,
+          site_id: document.site_id,
+          kind: document.kind,
+          row_role: document.row_role,
+          root_id: document.root_id,
+          locale: document.locale,
           updated_at: document.updated_at,
         },
         blocks: await getContentOutline(user.db, document.id),
@@ -948,7 +921,7 @@ export async function executePlatformMcpToolCall(
       const siteId = optionalString(rawArguments, 'site_id')
       const result = await updatePlatformBlogPost(user.db, requiredString(rawArguments, 'post_id'), {
         content_blocks: contentBlocks(rawArguments),
-        expected_document_updated_at: requiredString(rawArguments, 'expected_document_updated_at'),
+        expected_updated_at: requiredString(rawArguments, 'expected_updated_at'),
       }, siteId, user.env)
       return { post: projectPlatformBlogPostForMcp(result.post) }
     }
@@ -989,7 +962,7 @@ export async function executePlatformMcpToolCall(
       return await updatePlatformDoc(user.db, requiredString(rawArguments, 'doc_id'), {
         title: optionalString(rawArguments, 'title'),
         content_blocks: rawArguments.content_blocks === undefined ? undefined : contentBlocks(rawArguments),
-        expected_document_updated_at: optionalString(rawArguments, 'expected_document_updated_at'),
+        expected_updated_at: optionalString(rawArguments, 'expected_updated_at'),
         excerpt: optionalString(rawArguments, 'excerpt'),
         category: optionalString(rawArguments, 'category'),
         ...navMetadataInput(rawArguments),

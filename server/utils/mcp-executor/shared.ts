@@ -1,10 +1,11 @@
+import { WEEKDAYS, parseRecurringSlots } from '~/shared/reservation-hours'
 import { errorChainForTelemetry } from "~/server/utils/error-telemetry";
 import { HTTPError } from 'nitro';
 import type { H3Event } from 'nitro';
 import { queryFirst } from "~/server/db";
 import { assertSafeDownloadUrl } from "~/server/utils/platform-mcp-executor";
 import { getMediaAsset } from "~/server/utils/media-asset-manager";
-import { generateSlots, type WeekdayName } from "~/server/utils/experiences";
+import { generateSlots } from "~/server/utils/experiences";
 import type { getMcpTool } from "~/server/utils/mcp-tools";
 import { requireMcpUser, type McpSiteContext, type McpUserContext } from "~/server/utils/mcp-auth";
 import { mcpProtocolError, MCP_ERROR } from "~/server/utils/mcp-protocol";
@@ -175,12 +176,6 @@ export async function requireActiveImageAsset(
   return asset;
 }
 
-/**
- * Expands the slot_start/slot_end/slot_interval_minutes/slot_weekday convenience args
- * (used by create_experience/update_experience) into a concrete time_slots array or a
- * recurring_slots[weekday] entry, then strips the convenience keys before they reach
- * createExperience/updateExperience.
- */
 export function expandSlotGeneratorArgs(args: Record<string, unknown>): Record<string, unknown> {
   const { slot_start, slot_end, slot_interval_minutes, slot_weekday, ...rest } = args;
   if (slot_start === undefined && slot_end === undefined && slot_interval_minutes === undefined) {
@@ -199,21 +194,12 @@ export function expandSlotGeneratorArgs(args: Record<string, unknown>): Record<s
     );
   }
   const generated = generateSlots(slot_start, slot_end, slot_interval_minutes);
-  if (slot_weekday !== undefined) {
-    if (typeof slot_weekday !== "string") {
-      throw mcpProtocolError(MCP_ERROR.invalidParams, "slot_weekday must be a weekday name.");
-    }
-    const existingRecurring = (rest.recurring_slots as Record<string, string[]> | null | undefined) ?? {};
-    const { time_slots: omittedTimeSlots, ...restWithoutTimeSlots } = rest;
-    void omittedTimeSlots;
-    return {
-      ...restWithoutTimeSlots,
-      recurring_slots: { ...existingRecurring, [slot_weekday as WeekdayName]: generated },
-    };
-  }
-  const { recurring_slots: omittedRecurringSlots, ...restWithoutRecurringSlots } = rest;
-  void omittedRecurringSlots;
-  return { ...restWithoutRecurringSlots, time_slots: generated };
+  const existing = parseRecurringSlots(rest.recurring_slots ?? null) ?? {};
+  if (slot_weekday === undefined) return { ...rest, recurring_slots: Object.fromEntries(WEEKDAYS.map(day => [day, generated])) };
+  const day = WEEKDAYS.find(day => day === slot_weekday);
+  if (!day) throw mcpProtocolError(MCP_ERROR.invalidParams, 'slot_weekday must be a lowercase weekday name.');
+  return { ...rest, recurring_slots: { ...existing, [day]: generated } };
+
 }
 
 export interface GeneratedImagePickerConfig {
@@ -785,7 +771,6 @@ export function workspaceContextPayload(
   organization: Awaited<ReturnType<typeof resolveMcpWorkspace>>["organization"],
   site: McpSiteSummary | null,
   location: McpLocationSummary | null,
-  env?: { NUXT_PUBLIC_FREE_SITE_DOMAIN?: string },
 ) {
   return {
     organization_id: organization?.id ?? site?.organization_id ?? null,
@@ -794,7 +779,7 @@ export function workspaceContextPayload(
     site_id: site?.id ?? null,
     site_name: site?.brand_name ?? site?.subdomain ?? null,
     site_subdomain: site?.subdomain ?? null,
-    site_public_url: resolveSitePublicOrigin(site, env),
+    site_public_url: resolveSitePublicOrigin(site),
     location_id: location?.id ?? null,
     location_slug: location?.slug ?? null,
     location_title: location?.title ?? null,
@@ -808,63 +793,22 @@ function normalizeAbsoluteUrl(value: string | null | undefined): string | null {
   return trimmed.replace(/\/$/, "");
 }
 
-function normalizeHostname(value: string | null | undefined): string | null {
-  const trimmed = typeof value === "string" ? value.trim() : "";
-  if (!trimmed) return null;
-  return trimmed.replace(/^https?:\/\//i, "").replace(/\/$/, "");
-}
-
 export function resolveSitePublicOrigin(
-  site:
-    | Pick<McpSiteSummary, "public_url" | "custom_domain" | "subdomain">
-    | { publicUrl?: string | null; customDomain?: string | null; subdomain?: string | null }
-    | null
-    | undefined,
-  env?: { NUXT_PUBLIC_FREE_SITE_DOMAIN?: string },
+  site: Pick<McpSiteSummary, 'public_url'> | { publicUrl?: string | null } | null | undefined,
 ): string | null {
-  const siteRecord = (site ?? {}) as {
-    public_url?: string | null;
-    custom_domain?: string | null;
-    publicUrl?: string | null;
-    customDomain?: string | null;
-    subdomain?: string | null;
-  };
-  const explicitPublicUrl = normalizeAbsoluteUrl(
-    siteRecord.public_url ?? siteRecord.publicUrl,
-  );
-  if (explicitPublicUrl) return explicitPublicUrl;
-
-  const customDomain = normalizeHostname(
-    siteRecord.custom_domain ?? siteRecord.customDomain,
-  );
-  if (customDomain) return `https://${customDomain}`;
-
-  const subdomain = typeof siteRecord.subdomain === "string" ? siteRecord.subdomain.trim() : "";
-  if (subdomain) {
-    const baseDomain = env?.NUXT_PUBLIC_FREE_SITE_DOMAIN
-      ? env.NUXT_PUBLIC_FREE_SITE_DOMAIN.replace(/^https?:\/\//, '').replace(/\/$/, '')
-      : '';
-    if (!baseDomain) throw new Error('NUXT_PUBLIC_FREE_SITE_DOMAIN is required')
-    return `https://${subdomain}.${baseDomain}`;
-  }
-
-  return null;
+  if (!site) return null
+  return normalizeAbsoluteUrl('public_url' in site ? site.public_url : site.publicUrl)
 }
 
 export function absolutizeSiteUrl(
-  site:
-    | Pick<McpSiteSummary, "public_url" | "custom_domain" | "subdomain">
-    | { publicUrl?: string | null; customDomain?: string | null; subdomain?: string | null }
-    | null
-    | undefined,
+  site: Parameters<typeof resolveSitePublicOrigin>[0],
   value: string | null | undefined,
-  env?: { NUXT_PUBLIC_FREE_SITE_DOMAIN?: string },
 ): string | null {
   const trimmed = typeof value === "string" ? value.trim() : "";
   if (!trimmed) return null;
   if (/^https?:\/\//i.test(trimmed)) return trimmed;
 
-  const origin = resolveSitePublicOrigin(site, env);
+  const origin = resolveSitePublicOrigin(site);
   if (!origin) return null;
 
   if (trimmed.startsWith("/")) return `${origin}${trimmed}`;
@@ -873,15 +817,10 @@ export function absolutizeSiteUrl(
 
 export function attachViewUrlToRecord<T extends object>(
   record: T,
-  site:
-    | Pick<McpSiteSummary, "public_url" | "custom_domain" | "subdomain">
-    | { publicUrl?: string | null; customDomain?: string | null; subdomain?: string | null }
-    | null
-    | undefined,
+  site: Parameters<typeof resolveSitePublicOrigin>[0],
   options: {
     publicPath?: string | null;
   } = {},
-  env?: { NUXT_PUBLIC_FREE_SITE_DOMAIN?: string },
 ): T & { public_path?: string | null; public_url: string | null; view_url: string | null } {
   const recordShape = record as Record<string, unknown>;
   const explicitPublicPath =
@@ -895,7 +834,7 @@ export function attachViewUrlToRecord<T extends object>(
   const viewUrl =
     canonicalUrl && /^https?:\/\//i.test(canonicalUrl)
       ? canonicalUrl
-      : absolutizeSiteUrl(site, explicitPublicPath ?? existingPublicUrl, env);
+      : absolutizeSiteUrl(site, explicitPublicPath ?? existingPublicUrl);
 
   return {
     ...record,
@@ -916,7 +855,6 @@ export function workspaceOrganizationsPayload(
 
 export function workspaceSitesPayload(
   workspace: Awaited<ReturnType<typeof resolveMcpWorkspace>>,
-  env?: { NUXT_PUBLIC_FREE_SITE_DOMAIN?: string },
 ) {
   return workspace.sites.map((site) => ({
     id: site.id,
@@ -925,7 +863,7 @@ export function workspaceSitesPayload(
     name: site.brand_name ?? site.subdomain ?? site.id,
     subdomain: site.subdomain ?? "",
     orgSlug: site.organization_slug ?? "",
-    publicUrl: resolveSitePublicOrigin(site, env),
+    publicUrl: resolveSitePublicOrigin(site),
     status: site.status ?? "inactive",
     active: site.id === workspace.site?.id,
   }));
@@ -962,23 +900,20 @@ export async function mutationContextPayload(
            s.id AS site_id,
            s.brand_name,
            s.subdomain,
-           s.custom_domain,
-           s.public_url,
+           (SELECT domain FROM site_domains WHERE site_id = s.id AND role = 'canonical' AND status = 'active' AND type = 'custom') AS custom_domain,
+           (SELECT 'https://' || domain FROM site_domains WHERE site_id = s.id AND role = 'canonical' AND status = 'active') AS public_url,
            location.id AS location_id,
            location.slug AS location_slug,
            location.title AS location_title
     FROM sites s
-    LEFT JOIN mcp_workspace_preferences preference
-      ON preference.user_id = ? AND preference.site_id = s.id
     LEFT JOIN business_locations location
-      ON location.id = COALESCE(?, preference.location_id, s.primary_location_id)
+      ON location.id = ?
      AND location.organization_id = s.organization_id
      AND location.site_id = s.id
     WHERE s.id = ?
       AND s.organization_id = ?
     LIMIT 1
   `, [
-    site.userId,
     options.locationId ?? null,
     site.siteId,
     options.organizationId ?? site.organizationId,
@@ -993,7 +928,7 @@ export async function mutationContextPayload(
     site_id: context.site_id,
     site_name: context.brand_name ?? context.subdomain,
     site_subdomain: context.subdomain,
-    site_public_url: resolveSitePublicOrigin(context, site.env),
+    site_public_url: resolveSitePublicOrigin(context),
     location_id: context.location_id,
     location_slug: context.location_slug,
     location_title: context.location_title,

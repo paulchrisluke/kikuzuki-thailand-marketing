@@ -79,14 +79,9 @@
         :saving="saving"
         :removing="removing"
         :save-disabled="!form.name.trim() || (form.price_mode === 'amount' && !form.price_major.trim()) || incompleteDetail"
-        @save="locale === 'en' ? save() : saveLocalized()"
+        @save="save"
         @remove="removeEditing"
       >
-        <UFormField v-if="editingId && translationLocales.length" label="Language">
-          <USelect v-model="locale" :items="localeItems" class="w-full" aria-label="Field language" />
-        </UFormField>
-
-        <template v-if="locale === 'en'">
           <!--
             The photo leads the sheet the way it leads the row and the way it
             leads Airbnb's own photo detail: it is the thing you recognise the
@@ -229,22 +224,17 @@
             <UCheckbox v-model="form.available" label="Available" />
             <UCheckbox v-model="form.featured" label="Featured" />
           </div>
-        </template>
-
-        <template v-else>
-          <p class="text-xs text-muted">Source (English): {{ form.name }}</p>
-          <UFormField :label="`Name (${locale})`">
-            <UInput v-model="localizedFields.name" class="w-full" />
-          </UFormField>
-          <UFormField :label="`Description (${locale})`">
-            <UTextarea v-model="localizedFields.description" :rows="4" class="w-full" />
-          </UFormField>
-          <UFormField :label="`SEO title (${locale})`">
-            <UInput v-model="localizedFields.seo_title" class="w-full" />
-          </UFormField>
-          <UFormField :label="`SEO description (${locale})`">
-            <UTextarea v-model="localizedFields.seo_description" :rows="2" class="w-full" />
-          </UFormField>
+        <template v-if="editingId" #actions>
+          <DashboardResourceLocalization
+            :site-id="siteId"
+            resource-type="product"
+            :resource-id="editingId"
+            :resource-label="presentation.itemLabel.toLowerCase()"
+            :fields="productLocalizationFields"
+            :load-values="loadProductLocalization"
+            :save-values="saveProductLocalization"
+            :language-settings-path="siteLocalizationSettingsPath"
+          />
         </template>
       </DashboardListItemDialog>
     </template>
@@ -256,6 +246,7 @@ import DashboardListEditor from '~/components/dashboard/DashboardListEditor.vue'
 import DashboardMediaThumb from '~/components/dashboard/DashboardMediaThumb.vue'
 import DashboardListItemDialog from '~/components/dashboard/DashboardListItemDialog.vue'
 import DashboardCoverPhotoField from '~/components/dashboard/DashboardCoverPhotoField.vue'
+import DashboardResourceLocalization from '~/components/dashboard/DashboardResourceLocalization.vue'
 import type { Product, ProductCategory } from '~/server/types/products'
 import type { ProductDetailDraft } from '~/utils/product-fields'
 import { fromProductDetailDrafts, normalizeProductTags, toProductDetailDrafts } from '~/utils/product-fields'
@@ -417,10 +408,6 @@ const dialogOpen = ref(false)
 const editingId = ref<string | null>(null)
 const saving = ref(false)
 const removing = ref(false)
-const locale = ref('en')
-const translationLocales = ref<string[]>([])
-const localeItems = computed(() => ['en', ...translationLocales.value])
-const localizedFields = ref({ name: '', description: '', seo_title: '', seo_description: '' })
 /** The three states the server accepts; nothing else is representable. */
 type PriceMode = 'amount' | 'wording' | 'none'
 const priceModes = [
@@ -460,14 +447,12 @@ function resetForm() {
 }
 
 function openNew() {
-  locale.value = 'en'
   editingId.value = null
   resetForm()
   dialogOpen.value = true
 }
 
 function openExisting(item: { row: Product }) {
-  locale.value = 'en'
   const product = item.row
   editingId.value = product.id
   form.name = product.name
@@ -562,59 +547,89 @@ async function setPrimaryImage(assetId: string | null) {
   }
 }
 
-function isLocalesResponse(value: unknown): value is { languages: Array<{ locale: string; locale_status: string; is_source: boolean | number }> } {
-  return isRecord(value) && Array.isArray(value.languages)
+const editingProduct = computed(() => products.value.find(row => row.id === editingId.value) ?? null)
+function productDetailFieldKey(kind: 'label' | 'values', key: string): string {
+  return `detail:${kind}:${key}`
 }
-
-async function loadLocales() {
-  try {
-    const response = await dashboardApi(`/api/editor/sites/${siteId}/locales`, { validate: isLocalesResponse })
-    translationLocales.value = response.languages.filter(item => item.locale_status === 'published' && !item.is_source).map(item => item.locale)
-  } catch {
-    translationLocales.value = []
-  }
+const productLocalizationFields = computed(() => {
+  const product = editingProduct.value
+  const fields: Array<{ key: string; label: string; source: string | readonly string[] | null | undefined; kind?: 'string-list'; multiline?: boolean; rows?: number }> = [
+    { key: 'name', label: 'Name', source: product?.name },
+    { key: 'description', label: 'Description', source: product?.description, multiline: true, rows: 4 },
+    { key: 'tags_json', label: 'Tags', source: product?.tags, kind: 'string-list' },
+  ]
+  product?.details.forEach((detail) => {
+    fields.push({ key: productDetailFieldKey('label', detail.key), label: `${detail.label} label`, source: detail.label })
+    fields.push({ key: productDetailFieldKey('values', detail.key), label: `${detail.label} values`, source: detail.values, kind: 'string-list' })
+  })
+  return fields
+})
+const siteLocalizationSettingsPath = computed(() => `/dashboard/${route.params.orgSlug}/sites/${route.params.siteSlug}/settings/localization`)
+function localizedProductPath(locale: string): string {
+  const product = editingProduct.value
+  if (!product) throw new Error('The product is no longer available.')
+  return `/${locale}${presentation.productPath(String(route.params.locationSlug), product.slug)}`
 }
-
-function isLocalizationResponse(value: unknown): value is { localization: { values: Record<string, unknown> } } {
+function isProductLocalizationResponse(value: unknown): value is { localization: { values: Record<string, unknown> } } {
   return isRecord(value) && isRecord(value.localization) && isRecord(value.localization.values)
 }
-
-watch(locale, async (value) => {
-  if (!editingId.value || value === 'en') return
+async function loadProductLocalization(locale: string): Promise<Record<string, unknown>> {
+  if (!editingId.value) throw new Error('The product is unavailable.')
   try {
-    const response = await dashboardApi(
-      `/api/editor/sites/${siteId}/localization/product/${editingId.value}/${encodeURIComponent(value)}`,
-      { validate: isLocalizationResponse },
+    const response = await dashboardApi<{ localization: { values: Record<string, unknown> } }>(
+      `/api/editor/sites/${siteId}/localization/product/${editingId.value}/${encodeURIComponent(locale)}`,
+      { validate: isProductLocalizationResponse },
     )
-    const values = response.localization.values
-    localizedFields.value = {
-      name: typeof values.name === 'string' ? values.name : '',
-      description: typeof values.description === 'string' ? values.description : '',
-      seo_title: typeof values.seo_title === 'string' ? values.seo_title : '',
-      seo_description: typeof values.seo_description === 'string' ? values.seo_description : '',
+    const values = { ...response.localization.values }
+    const details = Array.isArray(values.details_json) ? values.details_json : []
+    for (const detail of details) {
+      if (!isRecord(detail) || typeof detail.key !== 'string') continue
+      if (typeof detail.label === 'string') values[productDetailFieldKey('label', detail.key)] = detail.label
+      if (Array.isArray(detail.values)) values[productDetailFieldKey('values', detail.key)] = detail.values
     }
-  } catch {
-    // No translation saved for this locale yet — start blank.
-    localizedFields.value = { name: '', description: '', seo_title: '', seo_description: '' }
-  }
-})
-
-async function saveLocalized() {
-  if (!editingId.value) return
-  saving.value = true
-  try {
-    await dashboardApi(`/api/editor/sites/${siteId}/localization/product/${editingId.value}/${encodeURIComponent(locale.value)}`, {
-      method: 'PUT',
-      body: { values: { ...localizedFields.value } },
-      validate: isRecord,
-    })
-    dialogOpen.value = false
-  } catch (error) {
-    toast.add({ description: getErrorMessage(error, 'Failed to save translation'), color: 'error' })
-  } finally {
-    saving.value = false
+    return values
+  } catch (cause) {
+    const statusCode = isRecord(cause) && typeof cause.statusCode === 'number' ? cause.statusCode : null
+    if (statusCode === 404) return {}
+    throw cause
   }
 }
+async function saveProductLocalization(locale: string, submitted: Record<string, unknown>): Promise<void> {
+  const product = editingProduct.value
+  if (!product) throw new Error('The product is unavailable.')
+  const values: Record<string, unknown> = {}
+  for (const key of ['name', 'description', 'tags_json']) {
+    if (Object.hasOwn(submitted, key)) values[key] = submitted[key]
+  }
+  const hasDetailTranslation = product.details.some(detail =>
+    Object.hasOwn(submitted, productDetailFieldKey('label', detail.key))
+    || Object.hasOwn(submitted, productDetailFieldKey('values', detail.key)))
+  if (hasDetailTranslation) {
+    values.details_json = product.details.map((detail) => {
+      const label = submitted[productDetailFieldKey('label', detail.key)]
+      const detailValues = submitted[productDetailFieldKey('values', detail.key)]
+      if (typeof label !== 'string' || !label.trim() || !Array.isArray(detailValues) || detailValues.length === 0) {
+        throw new Error(`Translate the complete ${detail.label} detail before saving.`)
+      }
+      return { key: detail.key, label: label.trim(), values: detailValues }
+    })
+  }
+  await dashboardApi(`/api/editor/sites/${siteId}/localization/product/${product.id}/${encodeURIComponent(locale)}`, {
+    method: 'PUT',
+    body: { values, route_path: localizedProductPath(locale) },
+    validate: isProductLocalizationResponse,
+  })
+}
+
+let openedLocalizationTarget = ''
+watch(products, (rows) => {
+  const target = typeof route.query.localize === 'string' ? route.query.localize : ''
+  if (!target.startsWith('product:') || target === openedLocalizationTarget) return
+  const product = rows.find(row => target === `product:${row.id}`)
+  if (!product) return
+  openedLocalizationTarget = target
+  openExisting({ row: product })
+}, { immediate: true })
 
 watch([locationId, categoryId], () => {
   editing.value = false
@@ -624,5 +639,4 @@ watch([locationId, categoryId], () => {
   void load()
 }, { immediate: true })
 
-await loadLocales()
 </script>

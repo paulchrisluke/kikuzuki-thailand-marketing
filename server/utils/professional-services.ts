@@ -1,10 +1,11 @@
+import { parseGoogleReviewMetadata } from '~/shared/google-review'
 import { queryAll, queryFirst, type DbClient } from '~/server/db'
 import { HTTPError } from 'nitro';
 import type { CloudflareEnv } from '~/server/utils/auth'
 import { parseSocialImageSource } from '~/utils/social-metadata'
 import { listPageQa } from '~/server/utils/location-qa'
 import { listSiteReviews } from '~/server/utils/site-reviews'
-import { getPublishedLocalizedSiteBlogPost, getPublishedSiteBlogPost } from '~/server/utils/platform-content'
+import { getPublishedLocalizedSiteBlogPost } from '~/server/utils/platform-content'
 import {
   loadExactPublicLocalizations,
   projectExactLocalizedCollection,
@@ -126,11 +127,6 @@ function mapOfferingRow(row: OfferingRow, socialMedia: PublicSocialMedia): Publi
     canonical_path: typeof row.canonical_path === 'string' ? row.canonical_path : null,
     sort_order: Number(row.sort_order ?? 0),
     featured: asBoolean(row.featured),
-    // Real business_locations data for the offering's own location, when one
-    // is associated (offerings.location_id) — used to populate a
-    // schema.org PostalAddress on the offering's own graph node rather than
-    // always falling back to the site's primary location. Null when the
-    // offering is site-wide (no location_id) or the location has no address.
     location_address_street: typeof row.location_address === 'string' ? row.location_address : null,
     location_address_locality: typeof row.location_city === 'string' ? row.location_city : null,
   }
@@ -192,18 +188,20 @@ function mapPublicOfferingSummaries(rows: PublicTenantPageOfferingRow[]): Public
   }))
 }
 
-export async function listPublicBlogSummaries(db: DbClient, siteId: string, limit = 50): Promise<PublicBlogSummary[]> {
+export async function listPublicBlogSummaries(db: DbClient, siteId: string, limit = 50, locale = 'en'): Promise<PublicBlogSummary[]> {
   const rows = await queryAll<ApiRecord>(db, `
-    SELECT p.id, p.title, p.slug, p.excerpt, p.category, p.tags_json, p.published_at, p.canonical_url, p.featured_order,
+    SELECT root.id, p.id AS representation_id, p.title, p.slug, p.summary AS excerpt, p.metadata_json ->> '$.category' AS category,
+           p.metadata_json ->> '$.tags' AS tags_json, root.published_at, p.canonical_url, p.path,
+           root.metadata_json ->> '$.featured_order' AS featured_order,
            featured.asset_id AS asset_id, media.public_url, media.thumbnail_url, media.kind, media.width, media.height
-      FROM blog_posts p
-      LEFT JOIN media_placements featured ON featured.owner_type = 'blog_post' AND featured.owner_id = p.id AND featured.slot = 'featured' AND featured.sort_order = 0 AND featured.status = 'active'
+      FROM content_documents root JOIN content_documents p ON COALESCE(p.root_id,p.id) = root.id AND p.locale = ?
+      LEFT JOIN media_placements featured ON featured.owner_type = 'content_document' AND featured.owner_id = p.id AND featured.slot = 'featured' AND featured.sort_order = 0 AND featured.status = 'active'
       LEFT JOIN media_assets media ON media.id = featured.asset_id AND media.status = 'active'
-     WHERE p.site_id = ? AND p.status = 'published' AND p.visibility = 'public'
-     ORDER BY COALESCE(p.featured_order, 999999), p.published_at IS NULL, p.published_at DESC, p.id DESC
+     WHERE root.site_id = ? AND root.kind = 'article' AND root.row_role = 'root' AND root.status = 'published' AND root.visibility = 'public'
+     ORDER BY COALESCE(root.metadata_json ->> '$.featured_order', 999999), root.published_at IS NULL, root.published_at DESC, root.id DESC
      LIMIT ?
-  `, [siteId, Math.max(1, Math.min(50, Math.trunc(limit)))])
-  const socialMedia = await loadPublicSocialMedia(db, siteId, 'blog_post', rows.map(row => String(row.id)))
+  `, [locale, siteId, Math.max(1, Math.min(50, Math.trunc(limit)))])
+  const socialMedia = await loadPublicSocialMedia(db, siteId, 'content_document', rows.map(row => String(row.representation_id)))
   return rows.map(row => ({
     id: String(row.id),
     title: String(row.title),
@@ -213,7 +211,7 @@ export async function listPublicBlogSummaries(db: DbClient, siteId: string, limi
     tags: row.tags_json ? JSON.parse(row.tags_json) as string[] : [],
     featured_order: Number.isFinite(Number(row.featured_order)) ? Number(row.featured_order) : null,
     published_at: typeof row.published_at === 'string' ? row.published_at : null,
-    canonical_url: resolvePublicArticleCanonicalUrl(row.canonical_url, row.slug),
+    canonical_url: locale === 'en' ? resolvePublicArticleCanonicalUrl(row.canonical_url, row.slug) : `/${locale}${requiredText(row.path, 'localized article path')}`,
     media: typeof row.public_url === 'string' && row.public_url
       ? [{
           asset_id: String(row.asset_id),
@@ -225,7 +223,7 @@ export async function listPublicBlogSummaries(db: DbClient, siteId: string, limi
           height: Number.isFinite(Number(row.height)) ? Number(row.height) : null,
         }]
       : [],
-    social_image: socialMedia.get(String(row.id))?.social_image ?? null,
+    social_image: socialMedia.get(String(row.representation_id))?.social_image ?? null,
   }))
 }
 
@@ -299,9 +297,15 @@ export async function getPublicTenantPageByPath(
 
 export async function getPublicConsultationSettings(db: DbClient, siteId: string): Promise<PublicConsultationSettings> {
   const row = await queryFirst<ApiRecord>(db, `
-    SELECT mode, cta_label, external_url, schedule_path, confirmation_path, tracking_enabled, metadata_json
-      FROM site_consultation_settings
-     WHERE site_id = ?
+    SELECT json_extract(settings_json, '$.consultation.mode') AS mode,
+           json_extract(settings_json, '$.consultation.cta_label') AS cta_label,
+           json_extract(settings_json, '$.consultation.external_url') AS external_url,
+           json_extract(settings_json, '$.consultation.schedule_path') AS schedule_path,
+           json_extract(settings_json, '$.consultation.confirmation_path') AS confirmation_path,
+           json_extract(settings_json, '$.consultation.tracking_enabled') AS tracking_enabled,
+           json_extract(settings_json, '$.consultation.metadata_json') AS metadata_json
+      FROM sites
+     WHERE id = ? AND json_type(settings_json, '$.consultation') = 'object'
      LIMIT 1
   `, [siteId])
 
@@ -328,31 +332,35 @@ export async function getPublicConsultationSettings(db: DbClient, siteId: string
 
 export async function getPublicCompliance(db: DbClient, siteId: string): Promise<PublicCompliance | null> {
   const row = await queryFirst<ApiRecord>(db, `
-    SELECT *
-      FROM tenant_compliance
-     WHERE site_id = ?
+    SELECT json_extract(settings_json, '$.compliance.entity_name') AS entity_name,
+           json_extract(settings_json, '$.compliance.dba_name') AS dba_name,
+           json_extract(settings_json, '$.compliance.entity_type') AS entity_type,
+           json_extract(settings_json, '$.compliance.nonprofit_status') AS nonprofit_status,
+           json_extract(settings_json, '$.compliance.registration_number') AS registration_number,
+           json_extract(settings_json, '$.compliance.service_area') AS service_area,
+           json_extract(settings_json, '$.compliance.service_area_type') AS service_area_type,
+           json_extract(settings_json, '$.compliance.disclaimer') AS disclaimer,
+           json_extract(settings_json, '$.compliance.footer_disclaimer') AS footer_disclaimer,
+           json_extract(settings_json, '$.compliance.founder_name') AS founder_name,
+           json_extract(settings_json, '$.compliance.founding_date') AS founding_date,
+           json_extract(settings_json, '$.compliance.same_as') AS same_as,
+           json_extract(settings_json, '$.compliance.contact_points') AS contact_points,
+           json_extract(settings_json, '$.compliance.address_visibility') AS address_visibility,
+           json_extract(settings_json, '$.compliance.metadata_json') AS metadata_json
+      FROM sites
+     WHERE id = ? AND json_type(settings_json, '$.compliance') = 'object'
      LIMIT 1
   `, [siteId])
   if (!row) return null
-  const visibleAddress = row.address_visibility === 'visible'
-    ? await queryFirst<ApiRecord>(db, `
-        SELECT address, city
-          FROM business_locations
-         WHERE site_id = ? AND status = 'active'
-           AND address IS NOT NULL AND trim(address) <> ''
-         ORDER BY is_primary DESC, title ASC, id ASC
-         LIMIT 1
-      `, [siteId])
-    : null
   const mediaRows = await queryAll<ApiRecord>(db, `
     SELECT ma.id, ma.public_url, ma.kind, ma.alt_text, ma.file_name,
            mp.slot
       FROM media_placements mp
       JOIN media_assets ma ON ma.id = mp.asset_id AND ma.status = 'active'
-     WHERE mp.site_id = ? AND mp.owner_type = 'tenant_compliance' AND mp.owner_id = ?
-       AND mp.slot = 'document' AND mp.status = 'active'
+     WHERE mp.site_id = ? AND mp.owner_type = 'site' AND mp.owner_id = ?
+       AND mp.slot = 'compliance_document' AND mp.status = 'active'
      ORDER BY mp.sort_order
-  `, [siteId, String(row.id)])
+  `, [siteId, siteId])
   return {
     entity_name: typeof row.entity_name === 'string' ? row.entity_name : null,
     dba_name: typeof row.dba_name === 'string' ? row.dba_name : null,
@@ -376,15 +384,6 @@ export async function getPublicCompliance(db: DbClient, siteId: string): Promise
     same_as: row.same_as ? JSON.parse(row.same_as) as string[] : [],
     contact_points: row.contact_points ? JSON.parse(row.contact_points) as PublicComplianceContactPoint[] : [],
     address_visibility: row.address_visibility === 'visible' ? 'visible' : 'hidden',
-    address: visibleAddress
-      ? {
-          street_address: typeof visibleAddress.address === 'string' ? visibleAddress.address : null,
-          locality: typeof visibleAddress.city === 'string' ? visibleAddress.city : null,
-          region: null,
-          postal_code: null,
-          country: null,
-        }
-      : null,
     metadata: row.metadata_json ? JSON.parse(row.metadata_json) as ApiRecord : {},
   }
 }
@@ -393,21 +392,18 @@ export async function getPublicCompliance(db: DbClient, siteId: string): Promise
 
 export async function getPublicThemeTokens(db: DbClient, siteId: string, templateSlug = 'blawby'): Promise<ApiRecord> {
   const row = await queryFirst<{ tokens_json: string | null }>(db, `
-    SELECT tokens_json
-      FROM site_theme_tokens
-     WHERE site_id = ? AND template_slug = ? AND status = 'active'
+    SELECT json_extract(settings_json, ? || '.tokens') AS tokens_json
+      FROM sites
+     WHERE id = ? AND json_extract(settings_json, ? || '.status') = 'active'
      LIMIT 1
-  `, [siteId, templateSlug])
+  `, ['$.theme_by_template.' + templateSlug, siteId, '$.theme_by_template.' + templateSlug])
   return row?.tokens_json ? JSON.parse(row.tokens_json) as ApiRecord : {}
 }
 
 export async function getPublicBlawbyIdentity(db: DbClient, siteId: string): Promise<PublicBlawbyIdentity> {
   const row = await queryFirst<ApiRecord>(db, `
-    SELECT s.brand_name, s.brand_description, s.contact_phone,
-           primary_loc.address AS primary_location_address,
-           primary_loc.city AS primary_location_city
+    SELECT s.brand_name, s.brand_description, s.contact_phone
       FROM sites s
-      LEFT JOIN business_locations primary_loc ON s.primary_location_id = primary_loc.id AND primary_loc.status = 'active'
      WHERE s.id = ?
      LIMIT 1
   `, [siteId])
@@ -421,11 +417,6 @@ export async function getPublicBlawbyIdentity(db: DbClient, siteId: string): Pro
     phone: typeof row?.contact_phone === 'string' ? row.contact_phone : null,
     banner_content: null,
     banner_dismissible: false,
-    // The site's primary business_locations row, if any — the seam for
-    // threading a real PostalAddress into the org-level schema.org graph
-    // node (see utils/professional-service-schema.ts / useBlawbyOrgIdentity).
-    primary_location_address_street: typeof row?.primary_location_address === 'string' ? row.primary_location_address : null,
-    primary_location_address_locality: typeof row?.primary_location_city === 'string' ? row.primary_location_city : null,
   }
 }
 
@@ -437,41 +428,33 @@ export async function getPublicBlawbyShellData(
   const locale = options.locale?.trim() || 'en'
   const localizations = options.localizations ?? []
   const siteLocalization = localizations.find(item => item.resourceType === 'site' && item.resourceId === siteId) ?? null
-  const [sourceIdentity, sourceConsultation, sourceCompliance, themeTokens, sourceOfferingLinks, pageLinks, primaryLocation] = await Promise.all([
+  const [sourceIdentity, sourceConsultation, sourceCompliance, themeTokens, sourceOfferingLinks, pageLinks] = await Promise.all([
     getPublicBlawbyIdentity(db, siteId),
     getPublicConsultationSettings(db, siteId),
     getPublicCompliance(db, siteId),
     getPublicThemeTokens(db, siteId),
     listPublicOfferingLinks(db, siteId),
     listPublishedTenantPagePaths(db, siteId, locale),
-    locale === 'en'
-      ? Promise.resolve(null)
-      : queryFirst<{ primary_location_id: string | null }>(db, 'SELECT primary_location_id FROM sites WHERE id = ? LIMIT 1', [siteId]),
   ])
-  const primaryLocationLocalization = primaryLocation?.primary_location_id
-    ? localizations.find(item => item.resourceType === 'business_location' && item.resourceId === primaryLocation.primary_location_id)
-    : null
   const localizedRepresentation = locale !== 'en'
   const identity = localizedRepresentation
     ? {
         ...sourceIdentity,
         brand_name: typeof siteLocalization?.values.brand_name === 'string' ? siteLocalization.values.brand_name : '',
         brand_description: typeof siteLocalization?.values.brand_description === 'string' ? siteLocalization.values.brand_description : null,
-        primary_location_address_street: typeof primaryLocationLocalization?.values.address === 'string' ? primaryLocationLocalization.values.address : null,
-        primary_location_address_locality: typeof primaryLocationLocalization?.values.city === 'string' ? primaryLocationLocalization.values.city : null,
       }
     : sourceIdentity
   let consultation = sourceConsultation
   let compliance = sourceCompliance
   let offeringLinks = sourceOfferingLinks
   if (localizedRepresentation) {
-    const consultationValues = localizations.find(row => row.resourceType === 'site_consultation_settings')?.values
+    const consultationValues = siteLocalization?.values.consultation as { cta_label?: unknown } | undefined
     consultation = {
       ...sourceConsultation,
       cta_label: typeof consultationValues?.cta_label === 'string' ? consultationValues.cta_label : '',
       metadata: { ...sourceConsultation.metadata, header_cta_label: null },
     }
-    const complianceValues = localizations.find(row => row.resourceType === 'tenant_compliance')?.values
+    const complianceValues = siteLocalization?.values.compliance as { service_area?: unknown; disclaimer?: unknown; footer_disclaimer?: unknown } | undefined
     compliance = sourceCompliance
       ? {
           ...sourceCompliance,
@@ -528,30 +511,19 @@ export async function getPublicBlawbyDocumentData(
     getPublicBlawbyShellData(db, siteId, { locale, localizations }),
     getPublicBlawbyRouteData(db, siteId, recipe, { ...options, locale, localizations }, env),
   ])
-  const sourceLabel = (await queryFirst<{ label: string | null }>(db, `
-    SELECT label FROM site_locales
-     WHERE organization_id = ? AND site_id = ? AND is_source = 1
-     LIMIT 1
-  `, [site.organization_id, siteId]))?.label ?? 'English'
   const pagePath = ROUTE_PAGE_PATHS[recipe]
-  const resource = recipe === 'offering' && route.offering
-    ? { type: 'offering' as const, id: route.offering.id }
-    : recipe === 'article' && route.post
-      ? { type: 'tenant_blog_post' as const, id: route.post.id }
-      : undefined
-  route.localeRepresentations = resource
+  if (recipe === 'article') return { shell, route }
+  route.localeRepresentations = recipe === 'offering' && route.offering
     ? await listPublicResourceLocaleRepresentations(db, {
         organizationId: site.organization_id,
         siteId,
-        sourceLabel,
-        resource,
+        resource: { type: 'offering', id: route.offering.id },
       })
     : await listPublicLocaleRepresentations(db, {
         organizationId: site.organization_id,
         siteId,
         sourcePath: pagePath ?? '/',
-        sourceLabel,
-        pageId: route.page?.page_id,
+        documentId: route.page?.page_id,
       })
   return { shell, route }
 }
@@ -624,6 +596,9 @@ function mapPublicReviews(rows: SiteReviewRow[]): PublicSiteReview[] {
     content: requiredText(row.content, `review ${row.id}.content`),
     original_review_date: typeof row.original_review_date === 'string' ? row.original_review_date : null,
     verified: row.verified === true,
+    source: typeof row.source === 'string' ? row.source : null,
+    original_reference: typeof row.original_reference === 'string' ? row.original_reference : null,
+    google_review_metadata: parseGoogleReviewMetadata(row.google_review_metadata),
   }))
 }
 
@@ -684,7 +659,7 @@ export async function getPublicBlawbyRouteData(
     ? listPublicTenantPageOfferingRows(db, siteId)
     : Promise.resolve([])
   const qaRowsPromise = needsQa && pagePath
-    ? listPageQa(db, siteId, pagePath, true)
+    ? listPageQa(db, siteId, pagePath, true, options.locale ?? 'en')
     : Promise.resolve([])
   const localized = options.locale !== undefined && options.locale !== 'en'
   const localizedOfferingId = localized && recipe === 'offering' && options.slug
@@ -712,11 +687,9 @@ export async function getPublicBlawbyRouteData(
       : Promise.resolve(null),
     qaRowsPromise,
     needsReviews ? listSiteReviews(db, siteId, { publishedOnly: true }) : Promise.resolve([]),
-    postLimit ? listPublicBlogSummaries(db, siteId, postLimit) : Promise.resolve([]),
+    postLimit ? listPublicBlogSummaries(db, siteId, postLimit, options.locale ?? 'en') : Promise.resolve([]),
     recipe === 'article' && options.slug
-      ? options.locale && options.locale !== 'en'
-        ? getPublishedLocalizedSiteBlogPost(db, siteId, options.slug, options.locale, env)
-        : getPublishedSiteBlogPost(db, siteId, options.slug, env)
+      ? getPublishedLocalizedSiteBlogPost(db, siteId, options.slug, options.locale ?? 'en', env)
       : Promise.resolve(null),
   ])
   const localizations = options.localizations ?? []
@@ -764,28 +737,17 @@ export async function getPublicBlawbyRouteData(
     }
   }
 
-  const sourceQa = mapPublicQa(qaRows)
-  const qa = localized ? projectExactLocalizedCollection('location_qa', sourceQa, localizations) : sourceQa
-  const sourcePosts = posts
-  const resolvedPosts = localized
-    ? projectExactLocalizedCollection('tenant_blog_post', sourcePosts, localizations).map(item => {
-        const representation = localizations.find(value => value.resourceType === 'tenant_blog_post' && value.resourceId === item.id)
-        if (!representation?.routePath?.startsWith('/')) {
-          throw new HTTPError({ statusCode: 500, statusMessage: 'Stored localized blog route is invalid', data: { code: 'INVALID_STORED_CONTENT' } })
-        }
-        return { ...item, canonical_url: representation.routePath }
-      })
-    : sourcePosts
+  const qa = mapPublicQa(qaRows)
   const resolvedPost = mapPublicBlogPost(postRow)
   return {
     recipe,
-    localeRepresentations: [],
+    localeRepresentations: postRow?.localeRepresentations ?? [],
     page,
     offerings,
     offering: resolvedOffering,
     qa,
     reviews: mapPublicReviews(reviewRows),
-    posts: resolvedPosts,
+    posts,
     post: resolvedPost,
   }
 }

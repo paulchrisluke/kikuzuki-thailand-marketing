@@ -96,11 +96,7 @@ export interface DashboardSiteRow {
   effective_plan: string
   media: Array<{ asset_id: string, slot: string, public_url: string, thumbnail_url: string | null, kind: string | null }>
   social_image: { url: string, width?: number, height?: number, type?: string } | null
-  primary_location_id: string | null
   default_currency: string | null
-  // JSON { enabled?: ProductFeature[]; disabled?: ProductFeature[] } delta (config/cms-registry.ts),
-  // or null for pure vertical defaults — see resolveSiteCmsCapabilities
-  // (server/utils/cms-capabilities.ts), the one place this is parsed.
   feature_overrides: string | null
   theme_id: string
 }
@@ -109,7 +105,6 @@ export interface DashboardLocationRow {
   id: string
   slug: string
   title: string
-  is_primary: number | boolean
   status: string
   city: string | null
   address: string | null
@@ -135,7 +130,6 @@ export interface DashboardLocationContextRow {
   opening_hours: string | null
   rating: number | null
   review_count: number | null
-  is_primary: number | boolean
   status: string
   last_synced_at: string | null
   description: string | null
@@ -150,15 +144,6 @@ export interface DashboardLocationContextRow {
 
 export interface DashboardContextOptions {
   requireSite?: boolean
-  // Opt-in only — see resolveRecentlyTransferredSite. Defaults to off so generic
-  // multi-site callers (e.g. the org-root single-site auto-redirect) keep returning
-  // null on ambiguity rather than being silently steered toward a transferred site.
-  allowTransferFallback?: boolean
-  // Defaults to true (throw if the user has no organization at all). Signup no
-  // longer auto-creates a personal org (see auth.ts), so a brand-new user
-  // legitimately has zero organizations until they create or join one — only
-  // the onboarding discovery endpoint (/api/dashboard/context) opts out of the
-  // throw to represent that state instead of erroring.
   requireOrganization?: boolean
   organizationSlug?: string | null
   // Explicit site scope used by transfer onboarding when a transferred site
@@ -244,24 +229,6 @@ export async function resolveRequestedOrganization(
   if (!activeOrganizationId) return null
 
   return await resolveUserOrganization(env, { userId, organizationId: activeOrganizationId })
-}
-
-// Not a guess: the org-scoped /onboarding route has no siteSlug to attach a header
-// from, and a recipient who already owned a site before accepting a handoff legitimately
-// ends up with 2+ sites. The site this route means is unambiguous — whichever site this
-// exact user most recently accepted a transfer into — so resolve it precisely instead of
-// falling back to null the way genuine multi-site ambiguity does.
-async function resolveRecentlyTransferredSite(db: DbClient, organizationId: string, userId: string): Promise<Omit<DashboardSiteRow, 'effective_plan'> | null> {
-  return await queryFirst<Omit<DashboardSiteRow, 'effective_plan'>>(db, `
-    SELECT s.id, s.organization_id, s.brand_name, s.vertical, s.subdomain, s.custom_domain, s.public_url,
-           s.status, s.onboarding_status, s.primary_location_id, s.default_currency,
-           s.feature_overrides, s.theme_id
-    FROM site_transfer_requests t
-    JOIN sites s ON s.id = t.site_id
-    WHERE t.claiming_organization_id = ? AND t.accepted_by_user_id = ? AND t.status = 'accepted'
-    ORDER BY t.completed_at DESC
-    LIMIT 1
-  `, [organizationId, userId])
 }
 
 export async function getDashboardContext(
@@ -361,8 +328,8 @@ export async function getDashboardContext(event: H3Event, options: DashboardCont
 
   const rawSite = siteId
     ? await queryFirst<Omit<DashboardSiteRow, 'effective_plan'>>(db, `
-        SELECT s.id, s.organization_id, s.brand_name, s.vertical, s.subdomain, s.custom_domain, s.public_url,
-               s.status, s.onboarding_status, s.primary_location_id, s.default_currency,
+        SELECT s.id, s.organization_id, s.brand_name, s.vertical, s.subdomain, (SELECT domain FROM site_domains WHERE site_id = s.id AND role = 'canonical' AND status = 'active' AND type = 'custom') AS custom_domain, (SELECT 'https://' || domain FROM site_domains WHERE site_id = s.id AND role = 'canonical' AND status = 'active') AS public_url,
+               s.status, s.onboarding_status, s.default_currency,
                s.feature_overrides, s.theme_id
         FROM sites s
         WHERE s.organization_id = ? AND s.id = ?
@@ -370,16 +337,14 @@ export async function getDashboardContext(event: H3Event, options: DashboardCont
       `, [organization.id, siteId])
     : siteSlug
       ? await queryFirst<Omit<DashboardSiteRow, 'effective_plan'>>(db, `
-        SELECT s.id, s.organization_id, s.brand_name, s.vertical, s.subdomain, s.custom_domain, s.public_url,
-               s.status, s.onboarding_status, s.primary_location_id, s.default_currency,
+        SELECT s.id, s.organization_id, s.brand_name, s.vertical, s.subdomain, (SELECT domain FROM site_domains WHERE site_id = s.id AND role = 'canonical' AND status = 'active' AND type = 'custom') AS custom_domain, (SELECT 'https://' || domain FROM site_domains WHERE site_id = s.id AND role = 'canonical' AND status = 'active') AS public_url,
+               s.status, s.onboarding_status, s.default_currency,
                s.feature_overrides, s.theme_id
         FROM sites s
         WHERE s.organization_id = ? AND s.subdomain = ?
         LIMIT 1
         `, [organization.id, siteSlug])
-      : options.allowTransferFallback
-        ? await resolveRecentlyTransferredSite(db, organization.id, session.user.id)
-        : null
+      : null
 
   const siteSocialMedia = rawSite ? (await loadSiteSocialMedia(db, organization.id)).get(rawSite.id) ?? [] : []
   const site = rawSite
@@ -542,7 +507,7 @@ export async function listDashboardLocations(
     social_thumbnail_url: string | null
   }>(db, `
     SELECT business_locations.id, business_locations.slug, business_locations.title,
-           business_locations.is_primary, business_locations.status,
+           business_locations.status,
            business_locations.city, business_locations.address, business_locations.feature_overrides,
            ma_hero.id AS hero_asset_id,
            ma_hero.kind AS hero_kind,
@@ -562,12 +527,9 @@ export async function listDashboardLocations(
       AND ma_social.organization_id = business_locations.organization_id AND ma_social.site_id = business_locations.site_id AND ma_social.status = 'active'
     WHERE business_locations.organization_id = ? AND business_locations.site_id = ? AND business_locations.status = 'active'
       ${scopedTeamIds ? `AND (sites.team_id IN (SELECT value FROM json_each(?)) OR business_locations.team_id IN (SELECT value FROM json_each(?)))` : ''}
-    ORDER BY is_primary DESC, title ASC
+    ORDER BY title ASC
   `, scopedTeamIdsJson ? [organizationId, siteId, scopedTeamIdsJson, scopedTeamIdsJson] : [organizationId, siteId])
 
-  // A location's card image is the location's own social_card. The site-media
-  // query that used to sit here existed only to fall back to the site logo,
-  // which made every location on a site look identical.
   return locations.map((location) => {
     const { hero_asset_id, hero_kind, hero_media_public_url, hero_media_thumbnail_url,
       social_asset_id, social_kind, social_public_url, social_thumbnail_url, ...fields } = location
@@ -584,7 +546,6 @@ export async function listDashboardLocations(
       id: location.id,
       slug: location.slug,
       title: location.title,
-      is_primary: Boolean(location.is_primary),
       status: location.status,
       city: location.city,
       address: parseLocationAddress(location.address),

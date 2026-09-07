@@ -15,7 +15,6 @@ export interface StoredPublicLocalizationRow {
   locale: string
   values_json: string
   route_path: string | null
-  document_id: string | null
 }
 
 export interface ExactPublicLocalization {
@@ -24,7 +23,6 @@ export interface ExactPublicLocalization {
   locale: string
   values: LocalizedValues
   routePath: string | null
-  documentId: string | null
 }
 
 export async function loadExactPublicLocalizations(
@@ -34,9 +32,9 @@ export async function loadExactPublicLocalizations(
   locale: string,
 ): Promise<ExactPublicLocalization[]> {
   const entitlement = await assertPublicSiteLanguageEntitlement(db, organizationId, siteId, locale)
-  if (entitlement.source) throw new HTTPError({ statusCode: 404, statusMessage: 'English source routes are unprefixed' })
+  if (entitlement.source) throw new HTTPError({ statusCode: 404, statusMessage: 'Primary-language routes are unprefixed' })
   const rows = await queryAll<StoredPublicLocalizationRow>(db, `
-    SELECT resource_type, resource_id, locale, values_json, route_path, document_id
+    SELECT resource_type, resource_id, locale, values_json, route_path
       FROM resource_localizations
      WHERE organization_id = ? AND site_id = ? AND locale = ?
      ORDER BY resource_type, resource_id
@@ -47,21 +45,12 @@ export async function loadExactPublicLocalizations(
 const PROJECTED_FIELD_NAMES: Partial<Record<LocalizedResourceType, Readonly<Record<string, string>>>> = {
   business_location: {
     address: 'address_translated',
-    opening_hours: 'opening_hours_translated',
   },
   product: {
     tags_json: 'tags',
     details_json: 'details',
   },
-  experience: {
-    included_items_json: 'included_items',
-  },
-  tenant_blog_post: {
-    tags_json: 'tags',
-  },
-  site_post: {
-    body: 'summary',
-  },
+
 }
 
 function localizedSlug(routePath: string | null): string | null {
@@ -79,7 +68,6 @@ export function indexStoredPublicLocalizations(rows: readonly StoredPublicLocali
       locale: row.locale,
       values: validateLocalizedValues(resourceType, parsedValues),
       routePath: row.route_path,
-      documentId: row.document_id,
     }
   })
 }
@@ -97,18 +85,26 @@ export function projectExactLocalizedResource<T extends { id: string }>(
   const clearedValues = Object.fromEntries(
     Object.keys(definition.fields).map(field => [fieldNames[field] ?? field, undefined]),
   )
-  if (resourceType === 'site_post') {
-    clearedValues.body = undefined
-    clearedValues.summary = undefined
-  }
   const projectedValues = Object.fromEntries(Object.entries(localization.values).map(([field, value]) => [
     fieldNames[field] ?? field,
     value,
   ]))
-  if (resourceType === 'site_post' && typeof localization.values.body === 'string') {
-    projectedValues.body = localization.values.body
-    projectedValues.summary = localization.values.body
+  const titleField: Partial<Record<LocalizedResourceType, string>> = {
+    site: 'brand_name',
+    business_location: 'title',
+    product: 'name',
+    offering: 'name',
   }
+  const descriptionField: Partial<Record<LocalizedResourceType, string>> = {
+    site: 'brand_description',
+    business_location: 'description',
+    product: 'description',
+    offering: 'summary',
+  }
+  const localizedTitle = titleField[resourceType] ? localization.values[titleField[resourceType]] : undefined
+  const localizedDescription = descriptionField[resourceType] ? localization.values[descriptionField[resourceType]] : undefined
+  if ('seo_title' in canonical) projectedValues.seo_title = typeof localizedTitle === 'string' ? localizedTitle : null
+  if ('seo_description' in canonical) projectedValues.seo_description = typeof localizedDescription === 'string' ? localizedDescription : null
   const slug = localizedSlug(localization.routePath)
   const routeFields = {
     ...(slug && 'slug' in canonical ? { slug } : {}),

@@ -1,4 +1,3 @@
-// Mirrors the CHECK constraint on platform_docs.category (migrations/0001_initial.sql).
 // Single source of truth for category <-> slug conversion across docs routing,
 // the sidebar, and the sitemap.
 export const CATEGORY_SLUGS: Record<string, string> = {

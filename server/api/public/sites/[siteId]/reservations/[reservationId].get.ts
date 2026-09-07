@@ -18,13 +18,13 @@ export default defineHandler(async (event) => {
   const tokenHash = await hashReservationCancelToken(token)
   const reservation = await queryFirst(
     db, `
-    SELECT name, date, time, guests, status, location_id
-    FROM reservation_submissions
-    WHERE id = ?
+    SELECT json_extract(payload_json, '$.guest.name') AS name, booking_date AS date, time_slot AS time, CAST(party_size AS TEXT) || CASE json_extract(payload_json, '$.party_size_is_minimum') WHEN 1 THEN '+' ELSE '' END AS guests, status, location_id
+    FROM requests
+    WHERE kind = 'reservation' AND id = ?
       AND site_id = ?
-      AND cancellation_token_hash = ?
-      AND cancellation_token_used_at IS NULL
-      AND cancellation_token_expires_at > ?
+      AND json_extract(payload_json, '$.cancellation.token_hash') = ?
+      AND json_extract(payload_json, '$.cancellation.used_at') IS NULL
+      AND json_extract(payload_json, '$.cancellation.expires_at') > ?
     LIMIT 1
   `, [reservationId, siteId, tokenHash, new Date().toISOString()], )
 

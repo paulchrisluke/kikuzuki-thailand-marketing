@@ -87,7 +87,7 @@ import EditorNavigationList from '~/components/dashboard/EditorNavigationList.vu
 import EditorPaneShell from '~/components/dashboard/EditorPaneShell.vue'
 import { parseCmsFeatureOverrideDelta, resolveCmsCapabilities, type ProductFeature } from '~/config/cms-registry'
 import { resolvePublicTemplate } from '~/utils/template-registry'
-import { getTodayGoogleHours } from '~/utils/formatters'
+import { getTodayHoursLabel, type OpeningHours } from '~/shared/reservation-hours'
 import { normalizeVertical, type SiteVertical } from '~/utils/vertical-copy'
 
 definePageMeta({ layout: 'dashboard' })
@@ -103,7 +103,7 @@ interface LocationOverview {
   rating: number | null
   google_place_id: string | null
   timezone?: string | null
-  opening_hours?: Parameters<typeof getTodayGoogleHours>[0]
+  opening_hours?: OpeningHours
 }
 
 interface InboxSummary { openThreads: number; unreadThreads: number }
@@ -175,19 +175,9 @@ const includeProducts = computed(() => hasFeature('products'))
 const currentOpeningState = computed(() => {
   const hours = location.value?.opening_hours
   if (!hours) return 'Hours not set'
-  const timezone = location.value?.timezone || null
-  let today = ['SUNDAY', 'MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY'][new Date().getDay()]
-  if (timezone) {
-    try {
-      today = new Intl.DateTimeFormat('en-US', { weekday: 'long', timeZone: timezone }).format(new Date()).toUpperCase()
-    } catch {
-      // Use the local day when the configured timezone is invalid.
-    }
-  }
-  return getTodayGoogleHours(hours, today) || 'Hours synced'
+  return getTodayHoursLabel(hours, 'Closed', location.value?.timezone) || 'Hours not set'
 })
 
-/** Plural-aware count, or the empty state that says what to do instead. */
 function countSummary(total: number, noun: string, empty: string): string {
   if (!total) return empty
   return `${total} ${total === 1 ? noun : `${noun}s`}`

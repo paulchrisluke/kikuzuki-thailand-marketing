@@ -60,15 +60,6 @@ async function markSiteCreationFailed(db: D1Database, siteId: string, cause: unk
   return asError(cause)
 }
 
-// sites.vertical has a narrower CHECK constraint (sites_vertical_check) than the
-// app-level SiteVertical union — it accepts 'service' but not 'professional_service'.
-// This is the single place that bridges the two: every caller of runSiteCreation
-// passes the canonical app-level SiteVertical, and this function is the only thing
-// that ever writes to sites.vertical, so there is exactly one alias translation.
-function toStoredVertical(vertical: SiteVertical): string {
-  return vertical === 'professional_service' ? 'service' : vertical
-}
-
 // Registry-driven: the template (and therefore theme_id) a site gets is derived
 // from the same publicTemplateRegistry that already drives tenant routing/rendering
 // (utils/template-registry.ts) — this is the only place site-creation decides a
@@ -101,7 +92,6 @@ export async function runSiteCreation(
     }
 
     const themeId = resolveThemeId(vertical)
-    const storedVertical = toStoredVertical(vertical)
 
     const { organizationId, existingRetrySiteId } = await resolveCreationOrganization(env, db, userId, name)
     await options?.beforeSiteMutation?.(organizationId)
@@ -111,7 +101,7 @@ export async function runSiteCreation(
       // correct both here so a professional-service retry can never be left on Saya.
       siteId = existingRetrySiteId
       await execute(db, `UPDATE sites SET theme_id = ?, vertical = ?, updated_at = ? WHERE id = ?`,
-        [themeId, storedVertical, new Date().toISOString(), existingRetrySiteId])
+        [themeId, vertical, new Date().toISOString(), existingRetrySiteId])
       await ensureSiteTeam(db, { env, organizationId, siteId: existingRetrySiteId, name })
       return await performSeeding(env, db, existingRetrySiteId, organizationId, name, vertical, '')
     }
@@ -126,7 +116,7 @@ export async function runSiteCreation(
               (id, organization_id, theme_id, vertical, slug, subdomain, brand_name, default_currency, status, onboarding_status, analytics_data_start_at, created_at, updated_at)
             VALUES (?, ?, ?, ?, ?, ?, ?, 'USD', 'active', 'pending', ?, ?, ?)
           `,
-          params: [siteId, organizationId, themeId, storedVertical, normalizedSubdomain, normalizedSubdomain, name, now, now, now],
+          params: [siteId, organizationId, themeId, vertical, normalizedSubdomain, normalizedSubdomain, name, now, now, now],
         },
         {
           query: `
@@ -353,7 +343,7 @@ async function performSeeding(
   subdomain: string
 ): Promise<SiteCreationResult> {
   const now = new Date().toISOString()
-  await seedNewSite(db, { organizationId, siteId, name, vertical })
+  const locationId = await seedNewSite(db, { organizationId, siteId, name, vertical })
 
   const resolvedSubdomain = subdomain || await queryFirst<SubdomainRow>(
     db, 'SELECT subdomain FROM sites WHERE id = ?', [siteId]
@@ -371,6 +361,7 @@ async function performSeeding(
       siteId,
       organizationId,
       subdomain: resolvedSubdomain,
+      locationId,
       message: 'Site created successfully',
     }
   }

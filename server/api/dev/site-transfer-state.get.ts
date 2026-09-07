@@ -28,7 +28,7 @@ export default defineHandler(async (event) => {
   if (!transfer) return jsonResponse({ transfer: null, site: null, domains: [] })
 
   const site = await queryFirst(db, `
-    SELECT id, organization_id, public_url, custom_domain, custom_domain_status
+    SELECT id, organization_id, (SELECT 'https://' || domain FROM site_domains WHERE site_id = sites.id AND role = 'canonical' AND status = 'active') AS public_url, (SELECT domain FROM site_domains WHERE site_id = sites.id AND role = 'canonical' AND status = 'active' AND type = 'custom') AS custom_domain, COALESCE((SELECT status FROM site_domains WHERE site_id = sites.id AND type = 'custom' AND status NOT IN ('deleted', 'disabled') ORDER BY role = 'canonical' DESC, created_at, id LIMIT 1), 'none') AS custom_domain_status
     FROM sites
     WHERE id = ?
     LIMIT 1

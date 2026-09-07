@@ -1,12 +1,11 @@
 import { executeBatch, queryFirst, type BatchQuery, type DbClient } from '~/server/db'
 import { isReservedTestDomain, shouldSendRealEmail } from '~/server/utils/email-delivery'
 import type { ReplyEmailEnv } from '~/server/utils/submission-messages'
-import { getAdapter } from './adapters/registry'
+import { getGuestRequest, requestActions, requestSummary, type GuestRequest } from '~/server/domain/requests'
 import { deliverGuestThreadEmail, getDeliveryById, getDeliveryClaimEligibility, getDeliveryRetryEligibility, isDeliveryClaimInFlight } from './deliveries'
 import { findEntryByDedupeKey, getEntryById } from './entries'
-import { getGuestThreadById, updateThreadProjectionIfLatestEntry } from './repository'
+import { updateThreadProjectionIfLatestEntry } from './repository'
 import type {
-  AnyGuestThreadSourceAdapter,
   GuestThreadDeliveryProvider,
   GuestThreadDeliveryRow,
   GuestThreadEntryRow,
@@ -27,50 +26,36 @@ export type OperationOutcome =
   | { ok: false; status: 502; reason: 'delivery_failed'; message: string }
   | { ok: false; status: 504; reason: 'delivery_unknown'; message: string }
 
-export interface ExecuteOperationInput {
+export type ExecuteOperationInput = {
   threadId: string
   siteId: string
   action: string
-  actorUserId: string
   body?: string
   deliveryId?: string
   env: ReplyEmailEnv
   idempotencyKey?: string
-}
+} & ({ actorUserId: string; completionSource?: 'manual' } | { actorUserId: null; action: 'complete'; completionSource: 'auto' })
 
 interface ThreadContext {
   thread: GuestThreadRow
-  adapter: AnyGuestThreadSourceAdapter
-  source: unknown
 }
 
-type SourceMutationPlan =
-  | {
-      kind: 'reservation'
-      action: 'confirm' | 'cancel' | 'complete'
-      beforeStatus: string
-      afterStatus: 'confirmed' | 'cancelled' | 'completed'
-      requiresNotification: boolean
-    }
-  | {
-      kind: 'experience_booking'
-      action: 'confirm' | 'cancel'
-      beforeStatus: string
-      afterStatus: 'confirmed' | 'cancelled'
-      requiresNotification: true
-    }
+interface SourceMutationPlan {
+  kind: 'reservation' | 'experience_booking'
+  action: 'confirm' | 'cancel' | 'complete'
+  beforeStatus: string
+  afterStatus: 'confirmed' | 'cancelled' | 'completed'
+  requiresNotification: boolean
+}
 
 async function loadThreadContext(
   db: DbClient,
   threadId: string,
   siteId: string,
 ): Promise<ThreadContext | OperationOutcome> {
-  const thread = await getGuestThreadById(db, threadId, siteId)
+  const thread = await getGuestRequest(db, threadId, siteId)
   if (!thread) return { ok: false, status: 404, reason: 'thread_not_found' }
-  const adapter = getAdapter(thread.submission_type)
-  const source = await adapter.loadSource({ db }, thread.submission_id)
-  if (!source) return { ok: false, status: 404, reason: 'source_not_found' }
-  return { thread, adapter, source }
+  return { thread }
 }
 
 function operationDedupeKey(input: ExecuteOperationInput): string {
@@ -98,37 +83,26 @@ async function successfulOutcome(
   context: ThreadContext,
   status: SuccessfulOperationOutcome['status'] = 200,
 ): Promise<SuccessfulOperationOutcome> {
-  const thread = await getGuestThreadById(db, context.thread.id, context.thread.site_id)
-  const source = await context.adapter.loadSource({ db }, context.thread.submission_id)
+  const thread = await getGuestRequest(db, context.thread.id, context.thread.site_id)
   return {
     ok: true,
     status,
     thread: thread ?? context.thread,
-    availableActions: source ? context.adapter.listAvailableActions(source) : [],
+    availableActions: requestActions(thread ?? context.thread),
   }
 }
 
 function sourceMutationPlan(context: ThreadContext, action: string): SourceMutationPlan | null {
-  const beforeStatus = context.adapter.getOperationalStatus(context.source)
-  if (context.thread.submission_type === 'reservation') {
-    if (beforeStatus === 'new' && action === 'confirm') {
-      return { kind: 'reservation', action, beforeStatus, afterStatus: 'confirmed', requiresNotification: true }
-    }
-    if ((beforeStatus === 'new' || beforeStatus === 'confirmed') && action === 'cancel') {
-      return { kind: 'reservation', action, beforeStatus, afterStatus: 'cancelled', requiresNotification: true }
-    }
-    if (beforeStatus === 'confirmed' && action === 'complete') {
-      return { kind: 'reservation', action, beforeStatus, afterStatus: 'completed', requiresNotification: false }
-    }
-    return null
+  const { kind, status: beforeStatus } = context.thread
+  if (kind === 'contact') return null
+  if (beforeStatus === 'pending' && action === 'confirm') {
+    return { kind, action, beforeStatus, afterStatus: 'confirmed', requiresNotification: true }
   }
-  if (context.thread.submission_type === 'experience_booking') {
-    if (beforeStatus === 'pending' && action === 'confirm') {
-      return { kind: 'experience_booking', action, beforeStatus, afterStatus: 'confirmed', requiresNotification: true }
-    }
-    if ((beforeStatus === 'pending' || beforeStatus === 'confirmed') && action === 'cancel') {
-      return { kind: 'experience_booking', action, beforeStatus, afterStatus: 'cancelled', requiresNotification: true }
-    }
+  if ((beforeStatus === 'pending' || beforeStatus === 'confirmed') && action === 'cancel') {
+    return { kind, action, beforeStatus, afterStatus: 'cancelled', requiresNotification: true }
+  }
+  if (beforeStatus === 'confirmed' && action === 'complete') {
+    return { kind, action, beforeStatus, afterStatus: 'completed', requiresNotification: false }
   }
   return null
 }
@@ -142,23 +116,22 @@ function operationEntryQuery(
   now: string,
   subject: string | null,
 ): BatchQuery {
-  const sourceTable = plan.kind === 'reservation' ? 'reservation_submissions' : 'experience_bookings'
   return {
     query: `
-      INSERT INTO guest_thread_entries
-        (id, thread_id, kind, actor_kind, actor_user_id, channel, body, event_name, payload_json, dedupe_key, sequence, occurred_at, created_at)
-      SELECT ?, gt.id, 'operation', 'member', ?, NULL, ?, ?, ?, ?,
-             COALESCE((SELECT MAX(sequence) FROM guest_thread_entries WHERE thread_id = gt.id), 0) + 1,
+      INSERT INTO activity_entries
+        (id, request_id, kind, scope_kind, actor_kind, actor_user_id, channel, body, event_name, payload_json, dedupe_key, sequence, occurred_at, created_at)
+      SELECT ?, gt.id, 'operation', 'request', ?, ?, NULL, ?, ?, ?, ?,
+             COALESCE((SELECT MAX(sequence) FROM activity_entries WHERE request_id = gt.id), 0) + 1,
              ?, ?
-      FROM guest_threads gt
-      JOIN ${sourceTable} source ON source.id = gt.submission_id AND source.site_id = gt.site_id
-      WHERE gt.id = ? AND gt.site_id = ? AND gt.submission_type = ? AND source.status = ?
+      FROM requests gt
+      WHERE gt.id = ? AND gt.site_id = ? AND gt.kind = ? AND gt.status = ?
       ON CONFLICT(dedupe_key) DO NOTHING
     `,
     params: [
       entryId,
+      input.actorUserId === null ? 'system' : 'member',
       input.actorUserId,
-      plan.requiresNotification ? operationBody(plan.action, context.adapter, context.source) : null,
+      plan.requiresNotification ? operationBody(plan.action, context.thread) : null,
       `${plan.kind}.${plan.action}`,
       JSON.stringify({ action: plan.action, beforeStatus: plan.beforeStatus, afterStatus: plan.afterStatus, subject }),
       dedupeKey,
@@ -172,20 +145,19 @@ function operationEntryQuery(
   }
 }
 
-function sourceUpdateQuery(context: ThreadContext, plan: SourceMutationPlan, entryId: string, now: string): BatchQuery {
-  const sourceTable = plan.kind === 'reservation' ? 'reservation_submissions' : 'experience_bookings'
-  const completion = plan.kind === 'reservation' && plan.action === 'complete'
-    ? ", completed_at = COALESCE(completed_at, ?), completion_source = COALESCE(completion_source, 'manual')"
+function sourceUpdateQuery(context: ThreadContext, plan: SourceMutationPlan, input: ExecuteOperationInput, entryId: string, now: string): BatchQuery {
+  const completion = plan.action === 'complete'
+    ? ", payload_json = json_set(payload_json, '$.completion.at', COALESCE(json_extract(payload_json, '$.completion.at'), ?), '$.completion.source', COALESCE(json_extract(payload_json, '$.completion.source'), ?))"
     : ''
   const params = completion
-    ? [plan.afterStatus, now, now, context.thread.submission_id, context.thread.site_id, plan.beforeStatus, entryId]
-    : [plan.afterStatus, now, context.thread.submission_id, context.thread.site_id, plan.beforeStatus, entryId]
+    ? [plan.afterStatus, now, now, input.completionSource ?? 'manual', context.thread.id, context.thread.site_id, plan.beforeStatus, entryId]
+    : [plan.afterStatus, now, context.thread.id, context.thread.site_id, plan.beforeStatus, entryId]
   return {
     query: `
-      UPDATE ${sourceTable}
+      UPDATE requests
       SET status = ?, updated_at = ?${completion}
       WHERE id = ? AND site_id = ? AND status = ?
-        AND EXISTS (SELECT 1 FROM guest_thread_entries WHERE id = ?)
+        AND EXISTS (SELECT 1 FROM activity_entries WHERE id = ?)
     `,
     params,
   }
@@ -194,9 +166,9 @@ function sourceUpdateQuery(context: ThreadContext, plan: SourceMutationPlan, ent
 function resolveThreadQuery(threadId: string, entryId: string, now: string): BatchQuery {
   return {
     query: `
-      UPDATE guest_threads
+      UPDATE requests
       SET conversation_state = 'resolved', resolved_at = ?, updated_at = ?
-      WHERE id = ? AND EXISTS (SELECT 1 FROM guest_thread_entries WHERE id = ?)
+      WHERE id = ? AND EXISTS (SELECT 1 FROM activity_entries WHERE id = ?)
     `,
     params: [now, now, threadId, entryId],
   }
@@ -209,9 +181,9 @@ function revokeReviewRequestQuery(context: ThreadContext, plan: SourceMutationPl
       UPDATE review_requests
       SET revoked_at = COALESCE(revoked_at, ?), updated_at = ?
       WHERE booking_type = ? AND booking_id = ? AND submitted_at IS NULL AND revoked_at IS NULL
-        AND EXISTS (SELECT 1 FROM guest_thread_entries WHERE id = ?)
+        AND EXISTS (SELECT 1 FROM activity_entries WHERE id = ?)
     `,
-    params: [now, now, plan.kind, context.thread.submission_id, entryId],
+    params: [now, now, plan.kind, context.thread.id, entryId],
   }
 }
 
@@ -228,8 +200,8 @@ function deliveryReceiptQuery(
       INSERT INTO guest_thread_deliveries
         (id, entry_id, channel, provider, purpose, status, created_at, updated_at)
       SELECT ?, id, 'email', ?, 'status_update', 'pending', ?, ?
-      FROM guest_thread_entries
-      WHERE id = ? AND thread_id = ?
+      FROM activity_entries
+      WHERE id = ? AND request_id = ?
       ON CONFLICT(id) DO NOTHING
     `,
     params: [
@@ -256,20 +228,13 @@ function operationSubject(action: string, fromName: string): string {
   return `Update on your booking at ${fromName}`
 }
 
-function operationBody(action: string, adapter: AnyGuestThreadSourceAdapter, source: unknown): string {
-  const fields = adapter.buildCurrentDetail(source).fields
-  if (adapter.type === 'reservation') {
-    const context = `${fields.date} at ${fields.time} for ${fields.guests} guests`
-    if (action === 'confirm') return `Your reservation is confirmed: ${context}.`
-    if (action === 'cancel') return `Your reservation for ${context} has been cancelled.`
-    if (action === 'complete') return `Thanks for dining with us! We hope you enjoyed your visit on ${fields.date}.`
-  }
-  if (adapter.type === 'experience_booking') {
-    const context = `${fields.bookingDate} at ${fields.timeSlot} for ${fields.partySize} guests`
-    if (action === 'confirm') return `Your booking is confirmed: ${context}.`
-    if (action === 'cancel') return `Your booking for ${context} has been cancelled.`
-  }
-  return 'Your booking status has been updated.'
+function operationBody(action: string, request: GuestRequest): string {
+  if (request.kind === 'contact') throw new Error('Contact requests have no booking operations')
+  const context = `${request.booking_date} at ${request.time_slot} for ${request.party_size}${request.payload.party_size_is_minimum ? '+' : ''} guests`
+  const noun = request.kind === 'reservation' ? 'reservation' : 'booking'
+  if (action === 'confirm') return `Your ${noun} is confirmed: ${context}.`
+  if (action === 'cancel') return `Your ${noun} for ${context} has been cancelled.`
+  return `Thanks for visiting us on ${request.booking_date}.`
 }
 
 function replySubject(submissionType: GuestThreadSubmissionType, fromName: string): string {
@@ -298,10 +263,10 @@ async function sendStatusUpdate(
   if (!entry.body || !subject) return conflict('Status update has no recorded email content')
   const payload = JSON.parse(entry.payload_json!) as { action?: string; afterStatus?: string }
   if (payload.action && (
-    payload.afterStatus !== context.adapter.getOperationalStatus(context.source)
-    || entry.body !== operationBody(payload.action, context.adapter, context.source)
+    payload.afterStatus !== context.thread.status
+    || entry.body !== operationBody(payload.action, context.thread)
   )) return conflict('Status update was superseded by a booking change')
-  const summary = context.adapter.summarize(context.source)
+  const summary = await requestSummary(db, context.thread)
   if (!summary.guestEmail) return { ok: false, status: 400, reason: 'no_guest_email' }
   const fromName = await getSiteBrandName(db, context.thread.site_id)
   return await deliverGuestThreadEmail(db, {
@@ -311,8 +276,8 @@ async function sendStatusUpdate(
     fromName,
     subject,
     body: entry.body,
-    submissionType: context.thread.submission_type,
-    submissionId: context.thread.submission_id,
+    submissionType: context.thread.kind,
+    submissionId: context.thread.id,
   })
 }
 
@@ -322,7 +287,7 @@ async function executeSourceMutation(
   input: ExecuteOperationInput,
 ): Promise<OperationOutcome> {
   const dedupeKey = operationDedupeKey(input)
-  const eventName = `${context.thread.submission_type}.${input.action}`
+  const eventName = `${context.thread.kind}.${input.action}`
   const existing = await findEntryByDedupeKey(db, dedupeKey)
   if (existing) {
     if (!entryMatchesRequest(existing, eventName)) return conflict()
@@ -337,7 +302,7 @@ async function executeSourceMutation(
 
   const plan = sourceMutationPlan(context, input.action)
   if (!plan) return conflict(`"${input.action}" is not a valid action for the current state`)
-  const summary = context.adapter.summarize(context.source)
+  const summary = await requestSummary(db, context.thread)
   if (plan.requiresNotification && !summary.guestEmail) {
     return { ok: false, status: 400, reason: 'no_guest_email' }
   }
@@ -350,7 +315,7 @@ async function executeSourceMutation(
     : null
   const queries = [
     operationEntryQuery(context, plan, input, entryId, dedupeKey, now, subject),
-    sourceUpdateQuery(context, plan, entryId, now),
+    sourceUpdateQuery(context, plan, input, entryId, now),
     resolveThreadQuery(context.thread.id, entryId, now),
   ]
   const revokeReview = revokeReviewRequestQuery(context, plan, entryId, now)
@@ -395,12 +360,12 @@ async function executeManualTransition(
   await executeBatch(db, [
     {
       query: `
-        INSERT INTO guest_thread_entries
-          (id, thread_id, kind, actor_kind, actor_user_id, channel, body, event_name, payload_json, dedupe_key, sequence, occurred_at, created_at)
-        SELECT ?, id, 'resolution', 'member', ?, NULL, NULL, ?, NULL, ?,
-               COALESCE((SELECT MAX(sequence) FROM guest_thread_entries WHERE thread_id = guest_threads.id), 0) + 1,
+        INSERT INTO activity_entries
+          (id, request_id, kind, scope_kind, actor_kind, actor_user_id, channel, body, event_name, payload_json, dedupe_key, sequence, occurred_at, created_at)
+        SELECT ?, id, 'resolution', 'request', 'member', ?, NULL, NULL, ?, '{}', ?,
+               COALESCE((SELECT MAX(sequence) FROM activity_entries WHERE request_id = requests.id), 0) + 1,
                ?, ?
-        FROM guest_threads
+        FROM requests
         WHERE id = ? AND site_id = ? AND ${statePredicate}
         ON CONFLICT(dedupe_key) DO NOTHING
       `,
@@ -408,9 +373,9 @@ async function executeManualTransition(
     },
     {
       query: `
-        UPDATE guest_threads
+        UPDATE requests
         SET conversation_state = ?, resolved_at = ?, updated_at = ?
-        WHERE id = ? AND EXISTS (SELECT 1 FROM guest_thread_entries WHERE id = ?)
+        WHERE id = ? AND EXISTS (SELECT 1 FROM activity_entries WHERE id = ?)
       `,
       params: [targetState, resolving ? now : null, now, context.thread.id, entryId],
     },
@@ -427,7 +392,7 @@ async function executeReply(
   context: ThreadContext,
   input: ExecuteOperationInput,
 ): Promise<OperationOutcome> {
-  const summary = context.adapter.summarize(context.source)
+  const summary = await requestSummary(db, context.thread)
   if (!summary.guestEmail) return { ok: false, status: 400, reason: 'no_guest_email' }
   const body = (input.body ?? '').trim()
   if (!body) return { ok: false, status: 400, reason: 'empty_body' }
@@ -444,12 +409,12 @@ async function executeReply(
     await executeBatch(db, [
       {
         query: `
-          INSERT INTO guest_thread_entries
-            (id, thread_id, kind, actor_kind, actor_user_id, channel, body, event_name, payload_json, dedupe_key, sequence, occurred_at, created_at)
-          SELECT ?, id, 'message', 'member', ?, 'email', ?, 'thread.member_reply', NULL, ?,
-                 COALESCE((SELECT MAX(sequence) FROM guest_thread_entries WHERE thread_id = guest_threads.id), 0) + 1,
+          INSERT INTO activity_entries
+            (id, request_id, kind, scope_kind, actor_kind, actor_user_id, channel, body, event_name, payload_json, dedupe_key, sequence, occurred_at, created_at)
+          SELECT ?, id, 'message', 'request', 'member', ?, 'email', ?, 'thread.member_reply', '{}', ?,
+                 COALESCE((SELECT MAX(sequence) FROM activity_entries WHERE request_id = requests.id), 0) + 1,
                  ?, ?
-          FROM guest_threads
+          FROM requests
           WHERE id = ? AND site_id = ?
           ON CONFLICT(dedupe_key) DO NOTHING
         `,
@@ -460,8 +425,8 @@ async function executeReply(
           INSERT INTO guest_thread_deliveries
             (id, entry_id, channel, provider, purpose, status, created_at, updated_at)
           SELECT ?, id, 'email', ?, 'member_reply', 'pending', ?, ?
-          FROM guest_thread_entries
-          WHERE id = ? AND thread_id = ?
+          FROM activity_entries
+          WHERE id = ? AND request_id = ?
           ON CONFLICT(id) DO NOTHING
         `,
         params: [deliveryId, emailProvider(input.env, summary.guestEmail), now, now, entryId, context.thread.id],
@@ -481,10 +446,10 @@ async function executeReply(
     env: input.env,
     to: summary.guestEmail,
     fromName,
-    subject: replySubject(context.thread.submission_type, fromName),
+    subject: replySubject(context.thread.kind, fromName),
     body,
-    submissionType: context.thread.submission_type,
-    submissionId: context.thread.submission_id,
+    submissionType: context.thread.kind,
+    submissionId: context.thread.id,
   })
 
   if (outcome.status === 'sent' || outcome.status === 'accepted' || outcome.status === 'delivered' || outcome.status === 'read') {
@@ -509,7 +474,7 @@ async function retryDelivery(
     return { ok: false, status: 404, reason: 'delivery_not_found' }
   }
   const entry = await getEntryById(db, delivery.entry_id)
-  if (!entry || entry.thread_id !== context.thread.id) return { ok: false, status: 404, reason: 'delivery_not_found' }
+  if (!entry || entry.request_id !== context.thread.id) return { ok: false, status: 404, reason: 'delivery_not_found' }
   if (isDeliveryClaimInFlight(delivery)) return await successfulOutcome(db, context, 202)
   const retryEligibility = getDeliveryRetryEligibility(delivery)
   if (retryEligibility === 'unsupported') {
@@ -519,7 +484,7 @@ async function retryDelivery(
     return conflict('This email delivery is not currently eligible for retry')
   }
 
-  const summary = context.adapter.summarize(context.source)
+  const summary = await requestSummary(db, context.thread)
   if (!summary.guestEmail) return { ok: false, status: 400, reason: 'no_guest_email' }
   const fromName = await getSiteBrandName(db, context.thread.site_id)
   if (!entry.body) return conflict('Delivery entry has no email body')
@@ -530,10 +495,10 @@ async function retryDelivery(
         env: input.env,
         to: summary.guestEmail,
         fromName,
-        subject: replySubject(context.thread.submission_type, fromName),
+        subject: replySubject(context.thread.kind, fromName),
         body: entry.body,
-        submissionType: context.thread.submission_type,
-        submissionId: context.thread.submission_id,
+        submissionType: context.thread.kind,
+        submissionId: context.thread.id,
       })
   if ('ok' in retried) return retried
   if (delivery.purpose === 'member_reply' && (retried.status === 'sent' || retried.status === 'accepted')) {

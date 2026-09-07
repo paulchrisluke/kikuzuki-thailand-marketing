@@ -27,8 +27,8 @@ export default defineHandler(async (event) => {
   if (!site) return jsonResponse({ error: 'Site not found or access denied' }, { status: 404 })
 
   const postScope = await queryFirst<{ location_id: string | null }>(db, `
-    SELECT location_id FROM posts
-     WHERE id = ? AND organization_id = ? AND site_id = ?
+    SELECT location_id FROM content_documents
+     WHERE kind = 'social_post' AND row_role = 'root' AND id = ? AND organization_id = ? AND site_id = ?
      LIMIT 1
   `, [postId, site.organization_id, siteId])
   if (!postScope) return jsonResponse({ error: 'Post not found' }, { status: 404 })

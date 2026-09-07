@@ -1,7 +1,7 @@
 import { publishGuestInboxThreadEvent } from '~/server/cloudflare/guest-inbox-events'
-import { getAdapter } from '~/server/domain/guest-threads/adapters/registry'
+import { getGuestRequest, requestSummary } from '~/server/domain/requests'
 import { appendEntry } from '~/server/domain/guest-threads/entries'
-import { ensureGuestThread, updateThreadProjectionIfLatestEntry } from '~/server/domain/guest-threads/repository'
+import { updateThreadProjectionIfLatestEntry } from '~/server/domain/guest-threads/repository'
 import { nextConversationState } from '~/server/domain/guest-threads/state-machine'
 import type { CloudflareEnv } from '~/server/utils/auth'
 import { notifyGuestThreadReply } from '~/server/utils/notifications'
@@ -28,8 +28,8 @@ export async function receiveGuestEmail(env: CloudflareEnv, email: InboundGuestE
   const orgSite = await getSubmissionOrgSite(db, email.submissionType, email.submissionId)
   if (!orgSite) throw new Error('Submission not found')
 
-  const adapter = getAdapter(email.submissionType)
-  const thread = await ensureGuestThread(db, adapter, email.submissionId)
+  const thread = await getGuestRequest(db, email.submissionId, undefined, email.submissionType)
+  if (!thread) throw new Error('Submission not found')
   const entry = await appendEntry(db, {
     threadId: thread.id,
     kind: 'message',
@@ -46,9 +46,9 @@ export async function receiveGuestEmail(env: CloudflareEnv, email: InboundGuestE
   await updateThreadProjectionIfLatestEntry(db, thread.id, entry.id, { conversationState })
 
   try {
-    const source = await adapter.loadSource({ db }, email.submissionId)
+    const source = thread
     if (source) {
-      const summary = adapter.summarize(source)
+      const summary = await requestSummary(db, source)
       await notifyGuestThreadReply(env, db, {
         organizationId: orgSite.organizationId,
         siteId: orgSite.siteId,

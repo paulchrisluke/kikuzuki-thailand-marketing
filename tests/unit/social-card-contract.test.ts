@@ -33,6 +33,9 @@ test('social card source selection prefers owner media over site fallback media'
   ], { owner_type: 'business_location', owner_id: 'location-1' }, 'site-1')
   assert.equal(selected.current?.asset_id, 'owner-card')
   assert.equal(selected.source?.asset_id, 'owner-hero')
+  const video = { ...placedAsset('content_document', 'post-1', 'cover', 'video-1'), kind: 'video' as const, thumbnail_url: 'https://img.example/poster.png' }
+  assert.equal(selectSocialCardPlacements([video], { owner_type: 'content_document', owner_id: 'post-1' }, 'site-1').source?.thumbnail_url, video.thumbnail_url)
+  assert.equal(selectSocialCardPlacements([{ ...video, thumbnail_url: null }], { owner_type: 'content_document', owner_id: 'post-1' }, 'site-1').source, null)
 })
 
 test('social card generation keys change when a byte-producing source changes', () => {
@@ -43,5 +46,9 @@ test('social card generation keys change when a byte-producing source changes', 
   assert.notEqual(
     buildSocialCardGenerationKey({ ...base, sourceAssetId: 'source-1' }),
     buildSocialCardGenerationKey({ ...base, sourceAssetId: 'source-2' }),
+  )
+  assert.notEqual(
+    buildSocialCardGenerationKey({ ...base, sourceAssetId: 'source-1', sourceUpdatedAt: '2026-09-06T00:00:00Z' }),
+    buildSocialCardGenerationKey({ ...base, sourceAssetId: 'source-1', sourceUpdatedAt: '2026-09-06T01:00:00Z' }),
   )
 })

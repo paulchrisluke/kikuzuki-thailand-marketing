@@ -1,20 +1,13 @@
 import type { McpExecutorContext } from './shared'
 import {
-  deleteResourceLocalization,
+  deleteLocalization,
   getProductCatalogLocalization,
-  getResourceLocalizationForAuthoring,
-  putResourceLocalizationForAuthoring,
+  getLocalizationForAuthoring,
+  putLocalizationForAuthoring,
   syncProductCatalogLocalization,
-  type ResourceLocalizationRecord,
 } from '~/server/utils/localization'
 import { listSiteLocales } from '~/server/utils/site-locales'
 import { NOT_HANDLED, mutationContextPayload, requiredString } from './shared'
-
-function toLocalizationObject(record: ResourceLocalizationRecord) {
-  const { id, resource_type, resource_id, locale, values, route_path, document_id } = record
-  const content_document = 'content_document' in record ? record.content_document ?? null : null
-  return { id, resource_type, resource_id, locale, values, route_path, document_id, content_document }
-}
 
 export async function handleLocalesTools(ctx: McpExecutorContext): Promise<unknown> {
   const { toolName, args, site } = ctx
@@ -22,11 +15,11 @@ export async function handleLocalesTools(ctx: McpExecutorContext): Promise<unkno
     return await listSiteLocales(site.db, site.organizationId, site.siteId)
   }
   if (toolName === 'get_resource_localization') {
-    const record = await getResourceLocalizationForAuthoring(site.db, site.organizationId, site.siteId, requiredString(args, 'resource_type'), requiredString(args, 'resource_id'), requiredString(args, 'locale'))
-    return { localization: toLocalizationObject(record) }
+    const record = await getLocalizationForAuthoring(site.db, site.organizationId, site.siteId, requiredString(args, 'resource_type'), requiredString(args, 'resource_id'), requiredString(args, 'locale'))
+    return { localization: record }
   }
   if (toolName === 'put_resource_localization') {
-    const localization = await putResourceLocalizationForAuthoring(site.db, {
+    const localization = await putLocalizationForAuthoring(site.db, {
       organizationId: site.organizationId,
       siteId: site.siteId,
       resourceType: requiredString(args, 'resource_type'),
@@ -35,13 +28,13 @@ export async function handleLocalesTools(ctx: McpExecutorContext): Promise<unkno
       values: args.values,
       routePath: args.route_path,
       contentBlocks: args.content_blocks ?? undefined,
-      expectedDocumentUpdatedAt: args.expected_document_updated_at ?? undefined,
+      expectedUpdatedAt: args.expected_updated_at ?? undefined,
       userId: site.userId,
     })
-    return { localization: toLocalizationObject(localization), context: await mutationContextPayload(site) }
+    return { localization: localization, context: await mutationContextPayload(site) }
   }
   if (toolName === 'delete_resource_localization') {
-    const result = await deleteResourceLocalization(site.db, {
+    const result = await deleteLocalization(site.db, {
       organizationId: site.organizationId,
       siteId: site.siteId,
       resourceType: requiredString(args, 'resource_type'),
@@ -51,7 +44,8 @@ export async function handleLocalesTools(ctx: McpExecutorContext): Promise<unkno
     return { ...result, context: await mutationContextPayload(site) }
   }
   if (toolName === 'get_product_catalog_localization') {
-    return await getProductCatalogLocalization(site.db, site.organizationId, site.siteId, requiredString(args, 'locale'))
+    const catalog = await getProductCatalogLocalization(site.db, site.organizationId, site.siteId, requiredString(args, 'locale'))
+    return { locale: catalog.locale, products: catalog.products }
   }
   if (toolName === 'sync_product_catalog_localization') {
     const result = await syncProductCatalogLocalization(site.db, {

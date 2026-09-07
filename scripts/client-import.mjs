@@ -7,6 +7,7 @@
  * Usage:
  *   node scripts/client-import.mjs \
  *     --slug pottery-house-krabi \
+ *     --brand-name "Pottery House Krabi" \
  *     --vertical experience \
  *     --maps-url "https://www.google.com/maps/place/Pottery+House+Krabi/..." \
  *     --maps-url "https://www.google.com/maps/place/Beachfront+Pottery+Krabi/..." \
@@ -14,7 +15,7 @@
  *     --dry-run
  *
  * Environment variables:
- *   GOOGLE_MAPS_API_KEY  — required for Google Places lookup
+ *   GOOGLE_PLACES_API_KEY  — required for Google Places lookup
  *
  * Outputs (in client-imports/<slug>/):
  *   client-manifest.json   — extracted business facts from Google Places
@@ -25,35 +26,41 @@
  */
 
 import { parseArgs } from "node:util";
-import { readdir, stat, mkdir, writeFile, readFile } from "node:fs/promises";
+import { readdir, stat, lstat, mkdir, writeFile, readFile } from "node:fs/promises";
 import { join, extname, basename } from "node:path";
 import { existsSync } from "node:fs";
 import { createHash } from "node:crypto";
 import { spawnYarn } from "./utils/spawn-yarn.mjs";
+import { ALL_VERTICALS } from "../utils/vertical-copy.ts";
+import { resolvePublicTemplate } from "../utils/template-registry.ts";
+import { normalizeGoogleOpeningHours } from "../shared/reservation-hours.ts";
+import { normalizeGoogleReview } from "../shared/google-review.ts";
 import { prepareD1SeedFile } from "./utils/d1-seed-file.mjs";
 
-// ── Args ─────────────────────────────────────────────────────────────────────
 
 const { values: rawArgs } = parseArgs({
   options: {
     slug: { type: "string" },
+    "brand-name": { type: "string" },
     "organization-id": { type: "string" },
     vertical: { type: "string", default: "restaurant" },
     "maps-url": { type: "string", multiple: true, default: [] },
     images: { type: "string" },
+    "images-place-id": { type: "string" },
     "dry-run": { type: "boolean", default: false },
     apply: { type: "boolean", default: false },
     approve: { type: "boolean", default: false },
-    "allow-stock": { type: "boolean", default: false },
     remote: { type: "boolean", default: false },
+    "base-url": { type: "string" },
+    email: { type: "string" },
   },
   allowPositionals: true,
 });
 
 const SLUG = rawArgs.slug;
+const BRAND_NAME = rawArgs["brand-name"]?.trim();
 const ORGANIZATION_ID = rawArgs["organization-id"]?.trim();
 
-// Slug validation: only allow letters, digits, hyphens, underscores
 const SLUG_SAFE_PATTERN = /^[a-zA-Z0-9_-]+$/;
 if (!SLUG_SAFE_PATTERN.test(SLUG)) {
   console.error(
@@ -64,34 +71,24 @@ if (!SLUG_SAFE_PATTERN.test(SLUG)) {
 const VERTICAL = rawArgs.vertical;
 const MAPS_URLS = rawArgs["maps-url"] ?? [];
 const IMAGES_DIR = rawArgs.images;
-const ALLOW_STOCK = rawArgs["allow-stock"] ?? false;
 const REMOTE = rawArgs.remote ?? false;
 
-// Validate VERTICAL against allowed set
-const ALLOWED_VERTICALS = [
-  "experience",
-  "restaurant",
-  "retail",
-  "wellness",
-  "service",
-  "professional_service",
-];
-if (VERTICAL && !ALLOWED_VERTICALS.includes(VERTICAL)) {
+if (VERTICAL && !ALL_VERTICALS.includes(VERTICAL)) {
   console.error(
-    `Error: Invalid vertical "${VERTICAL}". Must be one of: ${ALLOWED_VERTICALS.join(", ")}`,
+    `Error: Invalid vertical "${VERTICAL}". Must be one of: ${ALL_VERTICALS.join(", ")}`,
   );
   process.exit(1);
 }
 
-// Mode: --approve writes approved.json; --apply executes seed; default = dry-run
 const MODE = rawArgs.approve ? "approve" : rawArgs.apply ? "apply" : "dry-run";
 
-const API_KEY = process.env.GOOGLE_MAPS_API_KEY;
+const API_KEY = process.env.GOOGLE_PLACES_API_KEY;
+if (MODE === "dry-run" && !BRAND_NAME) throw new Error("--brand-name is required; site identity must be supplied explicitly");
 
 if (!SLUG) {
   console.error("Error: --slug is required");
   console.error(
-    "Usage: node scripts/client-import.mjs --slug <slug> [--dry-run | --approve | --apply] [--allow-stock] [--remote]",
+    "Usage: node scripts/client-import.mjs --slug <slug> [--dry-run | --approve | --apply] [--remote]",
   );
   process.exit(1);
 }
@@ -106,7 +103,7 @@ await mkdir(OUT_DIR, { recursive: true });
 
 // ── Route parity check ────────────────────────────────────────────────────────
 
-const CONTENT_TYPES = ["experiences", "posts", "menu", "products", "locations", "reviews"];
+const CONTENT_TYPES = ["products", "posts", "menu", "experiences", "locations", "reviews"];
 
 function checkRouteParity() {
   const issues = [];
@@ -153,10 +150,10 @@ function checkRouteParity() {
   return issues;
 }
 
-// ── Google Places API ─────────────────────────────────────────────────────────
 
 function extractPlaceIdFromUrl(url) {
-  // Pattern: !1sChIJ... in the URL data parameter
+  const explicitId = new URL(url).searchParams.get("query_place_id");
+  if (explicitId) return explicitId;
   const chijMatch = url.match(/!1s(ChIJ[^!&%]+)/);
   if (chijMatch) {
     try {
@@ -200,65 +197,15 @@ async function resolveShortUrl(url) {
 }
 
 async function fetchPlaceDetails(placeId) {
-  if (!API_KEY) return null;
-
-  const fields = [
-    "place_id",
-    "name",
-    "formatted_address",
-    "formatted_phone_number",
-    "international_phone_number",
-    "website",
-    "rating",
-    "user_ratings_total",
-    "opening_hours",
-    "photos",
-    "reviews",
-    "geometry",
-    "url",
-    "address_component",
-    "vicinity",
-  ].join(",");
-
-  const url = `https://maps.googleapis.com/maps/api/place/details/json?place_id=${encodeURIComponent(placeId)}&fields=${fields}&key=${API_KEY}`;
-
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 10000);
-
-  try {
-    const res = await fetch(url, { signal: controller.signal });
-    clearTimeout(timeout);
-    if (!res.ok) return null;
-
-    const data = await res.json();
-    if (data.status !== "OK") {
-      console.error(
-        `  Google Places API error for ${placeId}: ${data.status} — ${data.error_message ?? ""}`,
-      );
-      return null;
-    }
-    return data.result;
-  } catch (err) {
-    clearTimeout(timeout);
-    if (err.name === "AbortError") {
-      console.error(`  Google Places request timed out for ${placeId}`);
-    }
-    return null;
-  }
-}
-
-async function findPlaceByText(query) {
-  if (!API_KEY) return null;
-
-  const url = `https://maps.googleapis.com/maps/api/place/findplacefromtext/json?input=${encodeURIComponent(query)}&inputtype=textquery&fields=place_id,name,formatted_address&key=${API_KEY}`;
-
-  const res = await fetch(url);
-  if (!res.ok) return null;
-
-  const data = await res.json();
-  if (data.status !== "OK" || !data.candidates?.length) return null;
-
-  return data.candidates[0].place_id;
+  const response = await fetch(`https://places.googleapis.com/v1/places/${encodeURIComponent(placeId)}`, {
+    headers: {
+      "X-Goog-Api-Key": API_KEY,
+      "X-Goog-FieldMask": "id,displayName,formattedAddress,addressComponents,location,googleMapsUri,nationalPhoneNumber,internationalPhoneNumber,websiteUri,rating,userRatingCount,regularOpeningHours,reviews,timeZone",
+    },
+    signal: AbortSignal.timeout(10000),
+  });
+  if (!response.ok) throw new Error(`Google Places details failed for ${placeId}: HTTP ${response.status}`);
+  return response.json();
 }
 
 async function resolvePlace(rawUrl) {
@@ -272,63 +219,40 @@ async function resolvePlace(rawUrl) {
   }
 
   const name = extractBusinessNameFromUrl(url);
-  let placeId = extractPlaceIdFromUrl(url);
+  const placeId = extractPlaceIdFromUrl(url);
 
-  if (!placeId && name && API_KEY) {
-    console.log(`  No place ID in URL — searching by name: "${name}"`);
-    placeId = await findPlaceByText(name);
-  }
-
-  if (!placeId) {
+  if (!placeId || !API_KEY) {
     return {
       source_url: rawUrl,
-      name: name ?? "(unknown)",
+      name: name ?? null,
       error: API_KEY
-        ? "Could not resolve place ID"
-        : "GOOGLE_MAPS_API_KEY not set — skipping Places API lookup",
+        ? "Provide a Maps URL containing an explicit place ID (!1sChIJ... or query_place_id=...). Location selection is required."
+        : "GOOGLE_PLACES_API_KEY not set — skipping Places API lookup",
     };
   }
 
   console.log(`  Place ID: ${placeId}`);
   const details = await fetchPlaceDetails(placeId);
 
-  if (!details) {
-    return {
-      source_url: rawUrl,
-      place_id: placeId,
-      name: name ?? "(unknown)",
-      error: "Places API returned no details",
-    };
-  }
+  if (details.id !== placeId || !details.displayName?.text) throw new Error(`Google Places returned invalid identity for ${placeId}`);
 
   return {
     source_url: rawUrl,
-    place_id: details.place_id,
-    name: details.name,
-    formatted_address: details.formatted_address,
-    phone: details.formatted_phone_number ?? null,
-    international_phone: details.international_phone_number ?? null,
-    website: details.website ?? null,
+    place_id: details.id,
+    name: details.displayName?.text ?? null,
+    formatted_address: details.formattedAddress ?? null,
+    address_components: details.addressComponents ?? [],
+    timezone: details.timeZone?.id ?? null,
+    phone: details.nationalPhoneNumber ?? null,
+    international_phone: details.internationalPhoneNumber ?? null,
+    website: details.websiteUri ?? null,
     rating: details.rating ?? null,
-    user_ratings_total: details.user_ratings_total ?? null,
-    lat: details.geometry?.location?.lat ?? null,
-    lng: details.geometry?.location?.lng ?? null,
-    opening_hours: Array.isArray(details.opening_hours?.weekday_text)
-      ? { weekdayDescriptions: details.opening_hours.weekday_text }
-      : null,
-    photos: (details.photos ?? []).slice(0, 10).map((p) => ({
-      reference: p.photo_reference,
-      width: p.width,
-      height: p.height,
-      attributions: p.html_attributions,
-    })),
-    reviews: (details.reviews ?? []).slice(0, 10).map((r) => ({
-      author: r.author_name,
-      rating: r.rating,
-      text: r.text,
-      time: r.time,
-    })),
-    maps_url: details.url ?? rawUrl,
+    user_ratings_total: details.userRatingCount ?? null,
+    lat: details.location?.latitude ?? null,
+    lng: details.location?.longitude ?? null,
+    opening_hours: normalizeGoogleOpeningHours(details.regularOpeningHours?.periods),
+    reviews: (details.reviews ?? []).map(normalizeGoogleReview),
+    maps_url: details.googleMapsUri ?? null,
     _raw: details,
   };
 }
@@ -372,7 +296,7 @@ async function scanImages(dir) {
   }
 
   const dirStat = await stat(resolvedPath);
-  const entries = await readdir(resolvedPath);
+  const entries = (await readdir(resolvedPath)).sort();
   const files = [];
 
   const brandLabel = SLUG.replace(/-/g, " ").replace(/\b\w/g, (l) =>
@@ -384,13 +308,13 @@ async function scanImages(dir) {
     if (!IMAGE_EXTS.has(ext)) continue;
 
     const fullPath = join(resolvedPath, entry);
-    const info = await stat(fullPath);
+    const info = await lstat(fullPath);
 
-    // Reject symlinks
-    if (info.isSymbolicLink()) {
+    if (!info.isFile() || info.isSymbolicLink()) {
       continue;
     }
     const normalName = normalizeFilename(basename(entry, ext)) + ext;
+    if (files.some(file => file.normalized_name === normalName)) throw new Error(`Duplicate normalized image filename: ${normalName}`);
 
     const contents = await readFile(fullPath);
     const hash = createHash("sha256").update(contents).digest("hex");
@@ -405,6 +329,7 @@ async function scanImages(dir) {
       r2_key: r2Key,
       public_url: `https://media.krabiclaw.com/${r2Key}`,
       assigned_to: assignedTo,
+      place_id: rawArgs["images-place-id"] ?? null,
       alt_text: brandLabel,
       hash: `sha256:${hash}`,
       size_bytes: info.size,
@@ -442,6 +367,7 @@ function detectMissingFields(places) {
         field: "email",
         issue: "Not returned by Google Places API — supply via overrides.json",
       });
+    if (!place.timezone) missing.push({ location: place.name, field: "timezone" });
     if (!place.opening_hours)
       missing.push({ location: place.name, field: "opening_hours" });
     if (!place.lat || !place.lng)
@@ -453,12 +379,6 @@ function detectMissingFields(places) {
         location: place.name,
         field: "reviews",
         issue: "No reviews returned from API",
-      });
-    if (!place.photos?.length)
-      missing.push({
-        location: place.name,
-        field: "photos",
-        issue: "No photos returned from API (may need manual upload)",
       });
   }
 
@@ -486,8 +406,7 @@ const FORBIDDEN_BY_VERTICAL = {
   restaurant: [],
   retail: [],
   wellness: [],
-  service: [],
-  professional_service: [
+  service: [
     "Come dine",
     "From the kitchen",
     "Reserve a table",
@@ -522,14 +441,11 @@ function generateSeedSql(places, mediaManifest) {
   const siteId = `site-${SLUG}`;
   const now = new Date().toISOString();
 
-  const primary = places[0];
-
-  const brandName = primary?.name ?? SLUG;
+  const brandName = BRAND_NAME;
 
   const locationInserts = places
     .map((place, idx) => {
       const locId = `loc-${SLUG}-${idx}`;
-      const isPrimary = idx === 0 ? 1 : 0;
       const phone = place.international_phone ?? place.phone ?? "NULL";
       const address = place.formatted_address
         ? `'${place.formatted_address.replace(/'/g, "''")}'`
@@ -542,6 +458,7 @@ function generateSeedSql(places, mediaManifest) {
       const hours = place.opening_hours
         ? `'${JSON.stringify(place.opening_hours).replace(/'/g, "''")}'`
         : "NULL";
+      const timezone = place.timezone ? "'" + place.timezone.replace(/'/g, "''") + "'" : "NULL";
       const rating = place.rating ?? "NULL";
       const ratingCount = place.user_ratings_total ?? "NULL";
       const email = place.email
@@ -559,27 +476,26 @@ function generateSeedSql(places, mediaManifest) {
       return `-- Location: ${place.name}
 INSERT INTO business_locations (
   id, site_id, organization_id, slug, title, address, phone, email,
-  maps_url, latitude, longitude, opening_hours,
-  rating, review_count, google_place_id, last_synced_at, is_primary, status
+  maps_url, latitude, longitude, opening_hours, timezone,
+  rating, review_count, google_place_id, last_synced_at, status
 ) VALUES (
   '${locId}', '${siteId}', '${orgId}',
   '${slug}', '${(place.name ?? "").replace(/'/g, "''")}',
   ${address}, ${phone === "NULL" ? "NULL" : `'${phone}'`}, ${email},
-  ${mapsUrl}, ${lat}, ${lng}, ${hours},
-  ${rating}, ${ratingCount}, ${placeId}, ${lastSyncedAt}, ${isPrimary}, 'active'
+  ${mapsUrl}, ${lat}, ${lng}, ${hours}, ${timezone},
+  ${rating}, ${ratingCount}, ${placeId}, ${lastSyncedAt}, 'active'
 ) ON CONFLICT(id) DO UPDATE SET
   title = excluded.title, address = excluded.address,
   phone = excluded.phone, email = excluded.email, maps_url = excluded.maps_url,
   latitude = excluded.latitude, longitude = excluded.longitude,
-  opening_hours = excluded.opening_hours,
+  opening_hours = excluded.opening_hours, timezone = excluded.timezone,
   rating = excluded.rating, review_count = excluded.review_count,
   google_place_id = excluded.google_place_id, last_synced_at = excluded.last_synced_at,
   updated_at = CURRENT_TIMESTAMP;`;
     })
     .join("\n\n");
 
-  const heroAssets = mediaManifest.files
-    .slice(0, 3)
+  const mediaAssets = mediaManifest.files
     .map((f, i) => {
       const assetId = `asset-${SLUG}-${i}`;
       const r2Key = `sites/${siteId}/media/${f.normalized_name}`;
@@ -587,7 +503,7 @@ INSERT INTO business_locations (
       const ext = f.normalized_name.split(".").pop()?.toLowerCase() ?? "";
       const mimeType = MIME_MAP[ext] ?? "application/octet-stream";
       return `INSERT INTO media_assets (id, site_id, organization_id, r2_key, public_url, file_name, mime_type, alt_text, kind, provider, source, status)
-VALUES ('${assetId}', '${siteId}', '${orgId}', '${r2Key}', '${publicUrl}', '${f.normalized_name}', '${mimeType}', '${brandName}', 'image', 'cloudflare_r2', 'import', 'active')
+VALUES ('${assetId}', '${siteId}', '${orgId}', '${r2Key}', '${publicUrl}', '${f.normalized_name}', '${mimeType}', '${brandName.replace(/'/g, "''")}', 'image', 'cloudflare_r2', 'uploaded', 'active')
 ON CONFLICT(id) DO UPDATE SET
   r2_key = excluded.r2_key,
   public_url = excluded.public_url,
@@ -598,6 +514,29 @@ ON CONFLICT(id) DO UPDATE SET
     })
     .join("\n");
 
+  const reviewInserts = places.flatMap((place, index) => place.reviews.map(review => {
+    const locationId = `loc-${SLUG}-${index}`;
+    const values = [`gplaces-${locationId}-${review.google_review_id.replaceAll('/', '-')}`, orgId, siteId, locationId,
+      review.google_review_id, review.author_name, review.rating, review.content, review.original_review_date,
+      review.original_reference, JSON.stringify(review.google_review_metadata), now, now];
+    const literal = value => value == null ? 'NULL' : typeof value === 'number' ? String(value) : `'${value.replaceAll("'", "''")}'`;
+    return `INSERT INTO reviews (id, organization_id, site_id, location_id, google_review_id, author_name, rating, content, original_review_date, original_reference, google_review_metadata, created_at, updated_at, source, status)
+VALUES (${values.map(literal).join(', ')}, 'google_places', 'approved')
+ON CONFLICT(organization_id, site_id, location_id, google_review_id) DO UPDATE SET
+  author_name=excluded.author_name, rating=excluded.rating, content=excluded.content, original_review_date=excluded.original_review_date,
+  original_reference=excluded.original_reference, google_review_metadata=excluded.google_review_metadata, updated_at=excluded.updated_at;`;
+  })).join('\n');
+  if (mediaManifest.files.length > 51) throw new Error("A location supports one hero and at most 50 gallery images");
+  const placements = mediaManifest.files.map((file, index) => {
+    const locationIndex = places.findIndex(place => place.place_id === file.place_id);
+    if (locationIndex < 0) throw new Error(`Image ${file.original_name} requires --images-place-id matching an imported place`);
+    const locationId = `loc-${SLUG}-${locationIndex}`;
+    const slot = index === 0 ? 'hero' : 'gallery';
+    return `INSERT INTO media_placements (id, organization_id, site_id, owner_type, owner_id, slot, asset_id, sort_order, status)
+VALUES ('placement-${SLUG}-${index}', '${orgId}', '${siteId}', 'business_location', '${locationId}', '${slot}', 'asset-${SLUG}-${index}', ${index === 0 ? 0 : index - 1}, 'active')
+ON CONFLICT(id) DO UPDATE SET owner_id=excluded.owner_id, slot=excluded.slot, asset_id=excluded.asset_id, sort_order=excluded.sort_order;`;
+  }).join('\n');
+
   return `-- ============================================================
 -- Seed: ${SLUG}  (vertical: ${VERTICAL})
 -- Generated: ${now}
@@ -606,17 +545,18 @@ ON CONFLICT(id) DO UPDATE SET
 
 -- Site
 INSERT INTO sites (
-  id, organization_id, theme_id, theme, slug, subdomain,
+  id, organization_id, theme_id, slug, subdomain,
   brand_name, brand_description,
   status, onboarding_status,
   default_currency, vertical
 ) VALUES (
-  '${siteId}', '${orgId}', 'saya-theme-v1', 'saya', '${SLUG}', '${SLUG}',
+  '${siteId}', '${orgId}', '${resolvePublicTemplate({ vertical: VERTICAL }).themeId}', '${SLUG}', '${SLUG}',
   '${brandName.replace(/'/g, "''")}', NULL,
   'active', 'active',
   'USD', '${VERTICAL}'
 ) ON CONFLICT(id) DO UPDATE SET
   brand_name = excluded.brand_name,
+  theme_id = excluded.theme_id,
   vertical = excluded.vertical,
   updated_at = CURRENT_TIMESTAMP;
 
@@ -637,8 +577,10 @@ ON CONFLICT(id) DO NOTHING;
 -- Locations
 ${locationInserts}
 
--- Media assets (hero images — map to actual uploaded paths before applying)
-${heroAssets}
+-- Approved client media, explicit location placements, and Google reviews
+${mediaAssets}
+${placements}
+${reviewInserts}
 `;
 }
 
@@ -660,9 +602,9 @@ function generateRouteManifest(places) {
     slug: SLUG,
     vertical: VERTICAL,
     locations,
-    services: VERTICAL === "professional_service" ? ["/services"] : [],
+    services: VERTICAL === "service" ? ["/services"] : [],
     tenant_pages:
-      VERTICAL === "professional_service"
+      VERTICAL === "service"
         ? [
             "/about",
             "/pricing",
@@ -788,23 +730,10 @@ if (MODE === "approve") {
   const hash = createHash("sha256")
     .update(manifestContent)
     .update(seedContent)
+    .update(await readFile(join(OUT_DIR, "media-manifest.json"), "utf8"))
     .digest("hex");
 
-  // Load media manifest to capture dir mtime for stale-guard in apply
-  let mediaMeta = null;
-  const mediaManifestPath = join(OUT_DIR, "media-manifest.json");
-  if (existsSync(mediaManifestPath)) {
-    try {
-      const mm = JSON.parse(await readFile(mediaManifestPath, "utf8"));
-      mediaMeta = {
-        directory: mm.directory ?? null,
-        dir_mtime: mm.dir_mtime ?? null,
-        count: mm.files?.length ?? 0,
-      };
-    } catch {
-      // Ignore parse errors
-    }
-  }
+  const mediaMeta = JSON.parse(await readFile(join(OUT_DIR, "media-manifest.json"), "utf8"));
 
   const approved = {
     approved: true,
@@ -813,10 +742,10 @@ if (MODE === "approve") {
     manifest_hash: hash,
     slug: SLUG,
     vertical: VERTICAL,
-    api_key_available: !!process.env.GOOGLE_MAPS_API_KEY,
+    api_key_available: !!process.env.GOOGLE_PLACES_API_KEY,
     media_dir: mediaMeta?.directory ?? null,
     media_dir_mtime: mediaMeta?.dir_mtime ?? null,
-    media_count: mediaMeta?.count ?? 0,
+    media_count: mediaMeta.files.length,
   };
 
   const approvedPath = join(OUT_DIR, "approved.json");
@@ -828,9 +757,11 @@ if (MODE === "approve") {
   process.exit(0);
 }
 
-// ── Apply mode ────────────────────────────────────────────────────────────────
 
 if (MODE === "apply") {
+  const baseUrl = rawArgs["base-url"] || (REMOTE ? null : "http://localhost:3000");
+  if (!baseUrl) throw new Error("Remote import verification requires --base-url for the target application.");
+  if (!process.env.E2E_TEST_PASSWORD) throw new Error("E2E_TEST_PASSWORD is required to generate and verify imported social cards.");
   const approvedPath = join(OUT_DIR, "approved.json");
   const seedPath = join(OUT_DIR, "seed-preview.sql");
   const manifestPath = join(OUT_DIR, "client-manifest.json");
@@ -864,6 +795,7 @@ if (MODE === "apply") {
   const currentHash = createHash("sha256")
     .update(manifestContent)
     .update(seedContent)
+    .update(await readFile(join(OUT_DIR, "media-manifest.json"), "utf8"))
     .digest("hex");
 
   if (currentHash !== approvedRaw.manifest_hash) {
@@ -897,14 +829,13 @@ if (MODE === "apply") {
     process.exit(1);
   }
 
-  // Gate 4: API key availability changed between dry-run and apply
   if ("api_key_available" in approvedRaw) {
-    const keyNow = !!process.env.GOOGLE_MAPS_API_KEY;
+    const keyNow = !!process.env.GOOGLE_PLACES_API_KEY;
     if (keyNow !== approvedRaw.api_key_available) {
       const was = approvedRaw.api_key_available ? "available" : "unavailable";
       const now = keyNow ? "available" : "unavailable";
       console.error(
-        `Error: GOOGLE_MAPS_API_KEY was ${was} during dry-run but is ${now} now.`,
+        `Error: GOOGLE_PLACES_API_KEY was ${was} during dry-run but is ${now} now.`,
       );
       console.error(
         "  Re-run --dry-run and --approve to regenerate with current API access.",
@@ -938,27 +869,13 @@ if (MODE === "apply") {
     process.exit(1);
   }
 
-  // Gate 7: stock media guard
-  const mediaManifestPath = join(OUT_DIR, "media-manifest.json");
-  if (existsSync(mediaManifestPath)) {
-    const media = JSON.parse(await readFile(mediaManifestPath, "utf8"));
-    if (!media.files?.length && !ALLOW_STOCK) {
-      console.error("Error: No client images found in media manifest.");
-      console.error(
-        "  Add --allow-stock to proceed with stock/placeholder images, or provide an --images directory.",
-      );
-      process.exit(1);
-    }
-    if (!media.files?.length && ALLOW_STOCK) {
-      console.log(
-        "⚠ Proceeding with no client images (--allow-stock set). Update media before launch.",
-      );
-    }
+  const media = JSON.parse(await readFile(join(OUT_DIR, "media-manifest.json"), "utf8"));
+  if (!media.files?.length) throw new Error("Client images are required before applying an import");
+  for (const file of media.files) {
+    const bytes = await readFile(file.source_file);
+    if (`sha256:${createHash('sha256').update(bytes).digest('hex')}` !== file.hash) throw new Error(`Image changed after approval: ${file.original_name}`);
   }
 
-  // Gate 8: organization exists, and any existing site-${SLUG} already belongs
-  // to it — a typo'd --organization-id must never silently re-home an existing
-  // client's site or seed a new one under the wrong tenant.
   {
     const siteId = `site-${SLUG}`;
     const org = queryD1Row(
@@ -991,12 +908,21 @@ if (MODE === "apply") {
     `  Approved by: ${approvedRaw.approved_by} at ${approvedRaw.approved_at}`,
   );
 
-  // Overwrite visibility — query row counts before apply
+  const config = await readFile('wrangler.toml', 'utf8');
+  const bucket = [...config.matchAll(/\[\[r2_buckets\]\]([^]*?)(?=\n\[|$)/g)]
+    .find(match => /binding\s*=\s*"MEDIA_BUCKET"/.test(match[1]))?.[1].match(/bucket_name\s*=\s*"([^"]+)"/)?.[1];
+  if (!bucket) throw new Error('MEDIA_BUCKET is missing from wrangler.toml');
+  for (const file of media.files) {
+    const mimeType = MIME_MAP[extname(file.normalized_name).slice(1)];
+    const result = spawnYarn(['wrangler', 'r2', 'object', 'put', `${bucket}/${file.r2_key}`, REMOTE ? '--remote' : '--local', '--file', file.source_file, '--content-type', mimeType]);
+    if (result.status !== 0) throw new Error(`Client image upload failed: ${file.original_name}`);
+  }
+
   const siteId = `site-${SLUG}`;
   const TRACKED = [
     "business_locations",
     "reviews",
-    "location_qa",
+    "content_documents",
     "media_assets",
     "experiences",
   ];
@@ -1051,10 +977,13 @@ if (MODE === "apply") {
     }
   }
 
-  console.log("\n✓ Seed applied.");
-  console.log(
-    `\nNext: yarn client:verify --url ${REMOTE ? `https://${SLUG}.krabiclaw.com` : `http://localhost:3000`} --vertical ${VERTICAL} --site-id ${siteId} --slug ${SLUG}`,
-  );
+  const cardArgs = ["local:cards", "--base-url", baseUrl, "--site-id", siteId];
+  if (rawArgs.email) cardArgs.push("--email", rawArgs.email);
+  const cards = spawnYarn(cardArgs);
+  if (cards.status !== 0) throw new Error("Seed applied, but social-card generation failed. Import handoff is incomplete.");
+  const verification = spawnYarn(["client:verify", "--url", baseUrl, "--vertical", VERTICAL, "--site-id", siteId, "--slug", SLUG, "--tenant-slug", SLUG]);
+  if (verification.status !== 0) throw new Error("Seed applied, but client verification failed. Import handoff is incomplete.");
+  console.log("\nSeed, social cards, and public verification completed.");
   process.exit(0);
 }
 
@@ -1077,7 +1006,7 @@ console.log("\n→ Resolving Google Places data...");
 
 if (!API_KEY) {
   console.log(
-    "  ⚠ GOOGLE_MAPS_API_KEY not set — Places API calls will be skipped",
+    "  ⚠ GOOGLE_PLACES_API_KEY not set — Places API calls will be skipped",
   );
 }
 
@@ -1104,18 +1033,7 @@ const mediaManifest = await scanImages(IMAGES_DIR);
 
 if (mediaManifest.error) {
   console.log(`  ⚠ ${mediaManifest.error}`);
-  if (!ALLOW_STOCK) {
-    console.log(
-      "  ⚠ No client images found. Add --allow-stock to allow stock/placeholder images,",
-    );
-    console.log(
-      "    or pass --images <dir> to provide client photos. --apply will refuse without one.",
-    );
-  } else {
-    console.log(
-      "  ⚠ --allow-stock set — proceeding without client images. Remember to update before launch.",
-    );
-  }
+  console.log("Provide --images <dir> and --images-place-id <place-id>. Apply requires client photos.");
 } else {
   console.log(
     `  ✓ Found ${mediaManifest.total} images in ${mediaManifest.directory}`,
@@ -1132,47 +1050,25 @@ if (mediaManifest.error) {
 
 const overridesPath = join(OUT_DIR, "overrides.json");
 if (existsSync(overridesPath)) {
-  try {
-    const raw = JSON.parse(await readFile(overridesPath, "utf8"));
-    const overrides = Object.fromEntries(
-      Object.entries(raw).map(([k, v]) => [k, v.value]),
-    );
-    const keys = Object.keys(overrides);
-    if (keys.length > 0) {
-      console.log(
-        `\n→ Applying ${keys.length} override(s) from overrides.json...`,
-      );
-      if (places[0]) {
-        if (overrides.phone) {
-          places[0].phone = overrides.phone;
-          places[0].international_phone = overrides.phone;
-        }
-        if (overrides.address) {
-          places[0].formatted_address = overrides.address;
-        }
-        if (overrides.title) {
-          places[0].name = overrides.title;
-        }
-        if (overrides.website) {
-          places[0].website = overrides.website;
-        }
-        if (overrides.email) {
-          places[0].email = overrides.email;
-        }
-        if (overrides.lat) {
-          const lat = parseFloat(overrides.lat);
-          if (Number.isFinite(lat)) places[0].lat = lat;
-        }
-        if (overrides.lng) {
-          const lng = parseFloat(overrides.lng);
-          if (Number.isFinite(lng)) places[0].lng = lng;
-        }
-      }
-      for (const k of keys)
-        console.log(`  ${k} = ${JSON.stringify(overrides[k])}`);
+  const overrides = JSON.parse(await readFile(overridesPath, "utf8"));
+  for (const [placeId, fields] of Object.entries(overrides)) {
+    const place = places.find(candidate => candidate.place_id === placeId);
+    if (!place) throw new Error(`Override place_id ${placeId} is not in this import`);
+    if (!fields || typeof fields !== 'object' || Array.isArray(fields)) throw new Error('Invalid location overrides');
+    for (const [key, entry] of Object.entries(fields)) {
+      if (!entry || typeof entry.value !== 'string') throw new Error(`Invalid override ${key}`);
+      const value = entry.value;
+      if (key === 'phone') { place.phone = value; place.international_phone = value; }
+      else if (key === 'address') place.formatted_address = value;
+      else if (key === 'title') place.name = value;
+      else if (key === 'website') place.website = value;
+      else if (key === 'email') place.email = value;
+      else if (key === 'lat' || key === 'lng') {
+        const number = Number(value);
+        if (!Number.isFinite(number)) throw new Error(`Invalid coordinate override ${key}`);
+        place[key] = number;
+      } else throw new Error(`Unknown override field ${key}`);
     }
-  } catch {
-    console.log("  ⚠ Could not parse overrides.json — skipping");
   }
 }
 
@@ -1263,10 +1159,10 @@ function buildGeneratedCopyInventory(places, mediaManifest) {
         table: "reviews",
         field: "content",
         value:
-          review.text?.slice(0, 80) + (review.text?.length > 80 ? "…" : ""),
+          review.content?.slice(0, 80) + (review.content?.length > 80 ? "…" : ""),
         provenance: "google_maps",
         source_inputs: ["google_maps_review"],
-        note: `Rating ${review.rating}/5 by ${review.author}`,
+        note: `Rating ${review.rating}/5 by ${review.author_name}`,
       });
     }
   }
@@ -1318,8 +1214,8 @@ const clientManifest = {
   generated_at: new Date().toISOString(),
   slug: SLUG,
   vertical: VERTICAL,
-  primary_location: places[0] ?? null,
-  secondary_locations: places.slice(1),
+  brand_name: BRAND_NAME,
+  locations: places,
   forbidden_copy_domains: FORBIDDEN_BY_VERTICAL[VERTICAL] ?? [],
 };
 
@@ -1369,14 +1265,14 @@ Next steps:
                client-imports/${SLUG}/route-manifest.json
                client-imports/${SLUG}/generated-copy.json   ← hallucination review surface
                client-imports/${SLUG}/copy-scan.txt
-  2. Upload:   images per client-imports/${SLUG}/media-manifest.json
+  2. Review image placement and hashes in client-imports/${SLUG}/media-manifest.json. Apply uploads approved images before database writes.
   3. Approve:  yarn client:import --slug ${SLUG} --organization-id ${ORGANIZATION_ID} --approve
-  4. Apply:    yarn client:import --slug ${SLUG} --organization-id ${ORGANIZATION_ID} --apply${ALLOW_STOCK ? " --allow-stock" : ""}
+  4. Apply:    yarn client:import --slug ${SLUG} --organization-id ${ORGANIZATION_ID} --apply
   5. Verify:   yarn client:verify --url http://localhost:3000 --vertical ${VERTICAL} --site-id site-${SLUG} --slug ${SLUG}
   6. Release + verify prod:
                Merge through staging to main; CI deploys and verifies each environment.
                yarn client:verify --url https://${SLUG}.krabiclaw.com --vertical ${VERTICAL} --site-id site-${SLUG} --slug ${SLUG}
 
   Or use the onboard wrapper (steps 1-5 in one command):
-               yarn client:onboard --slug ${SLUG} --organization-id ${ORGANIZATION_ID} --vertical ${VERTICAL}${ALLOW_STOCK ? " --allow-stock" : ""}
+               yarn client:onboard --slug ${SLUG} --organization-id ${ORGANIZATION_ID} --vertical ${VERTICAL}
 `);

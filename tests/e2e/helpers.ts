@@ -205,3 +205,12 @@ export async function expectHealthyPage(page: Page, errors: string[], allowedErr
   )
   expect(appErrors).toEqual([])
 }
+
+// Cloudflare's injected preview toolbar can leave an empty overlay over app controls.
+export async function dismissPreviewToolbar(page: Page) {
+  await page.addInitScript(() => {
+    const removePreviewModal = () => document.querySelectorAll('.cf_modal_container').forEach(element => element.remove())
+    new MutationObserver(removePreviewModal).observe(document, { childList: true, subtree: true })
+    removePreviewModal()
+  })
+}

@@ -1,9 +1,11 @@
-import { executeBatch, queryAll, queryFirst, type BatchQuery, type DbClient } from '~/server/db'
+import { assertPublicSiteLanguageEntitlement, getPersistedSourceLocale } from '~/server/utils/localization'
+import { createContentDocumentWithBlocks, updateContentDocument } from '~/server/utils/content-documents'
+import { queryAll, queryFirst, type DbClient } from '~/server/db'
 import { d1JsonStringSet } from '~/server/db/d1-limits'
 import { cleanString } from '~/server/utils/api-response'
 import { resolvePublicTemplate, type PublicTemplateSlug } from '~/utils/template-registry'
 import { getMediaPlacements } from '~/server/utils/media-placement'
-import { loadExactPublicLocalizations, projectExactLocalizedCollection, projectExactLocalizedResource } from '~/server/utils/public-localization'
+import { loadExactPublicLocalizations, projectExactLocalizedResource } from '~/server/utils/public-localization'
 import { listPublicLocaleRepresentations } from '~/server/utils/public-locale-representations'
 import type { PublicLocaleRepresentation } from '~/utils/public-resource-contracts'
 
@@ -200,20 +202,25 @@ export function defaultLinksPage(input: { organizationId: string; siteId: string
   }
 }
 
-export async function getLinksPage(db: DbClient, siteId: string): Promise<{ page: SiteLinksPage | null; items: SiteLinkItem[] }> {
+export async function getLinksPage(db: DbClient, siteId: string, locale = 'en'): Promise<{ page: SiteLinksPage | null; items: SiteLinkItem[] }> {
   const pageRow = await queryFirst<ApiRecord>(db, `
-    SELECT lp.*
-      FROM site_link_pages lp
-     WHERE lp.site_id = ?
+    SELECT d.id, d.organization_id, d.site_id, d.path, d.title, root.robots, d.seo_title,
+           d.seo_description, d.created_at, d.updated_at, d.updated_by
+      FROM content_documents d JOIN content_documents root ON root.id = COALESCE(d.root_id, d.id)
+     WHERE d.site_id = ? AND d.locale = ? AND root.kind = 'page' AND root.row_role = 'root'
+       AND (root.metadata_json ->> '$.recipe') = 'links'
      LIMIT 1
-  `, [siteId])
+  `, [siteId, locale])
   if (!pageRow) return { page: null, items: [] }
-
   const items = await queryAll<ApiRecord>(db, `
-    SELECT li.*
-      FROM site_link_items li
-     WHERE li.link_page_id = ? AND li.site_id = ?
-     ORDER BY li.sort_order ASC, li.created_at ASC
+    SELECT b.id, d.organization_id, d.site_id, d.id AS link_page_id,
+           (b.data_json ->> '$.label') AS label, (source.data_json ->> '$.url') AS destination,
+           source.position AS sort_order, (source.data_json ->> '$.status') AS status,
+           b.created_at, b.updated_at, d.updated_by
+      FROM content_blocks b JOIN content_documents d ON d.id = b.document_id
+      JOIN content_blocks source ON source.id = COALESCE(b.source_block_id,b.id)
+     WHERE b.document_id = ? AND d.site_id = ? AND b.type = 'cta'
+     ORDER BY source.position, b.created_at
   `, [pageRow.id, siteId])
 
   return { page: mapPage(pageRow), items: items.map(mapItem) }
@@ -223,41 +230,29 @@ export async function getPublicLinksPage(db: DbClient, siteId: string, locale = 
   const site = await queryFirst<ApiRecord>(db, `
     SELECT s.id, s.organization_id, s.brand_name, s.brand_description,
            s.theme_id, s.vertical,
-           cfg.value AS brand_color
+           (s.settings_json ->> '$.config.brand_color') AS brand_color
       FROM sites s
-      LEFT JOIN site_config cfg ON cfg.site_id = s.id AND cfg.key = 'brand_color'
      WHERE s.id = ? AND s.status = 'active' AND s.onboarding_status = 'active'
      LIMIT 1
   `, [siteId])
   if (!site) return null
   const media = await getMediaPlacements(db, { siteId, ownerType: 'site', ownerIds: [siteId] })
 
-  const { page: sourcePage, items } = await getLinksPage(db, siteId)
-  const sourceItems = items.filter(item => item.status === 'active')
-  if (!sourcePage || sourcePage.path !== '/links' || sourceItems.length === 0) return null
+  await assertPublicSiteLanguageEntitlement(db, String(site.organization_id), siteId, locale)
+  const { page: sourcePage } = await getLinksPage(db, siteId)
+  const { page, items } = await getLinksPage(db, siteId, locale)
+  const publicItems = items.filter(item => item.status === 'active')
+  if (!sourcePage || !page || publicItems.length === 0) return null
   const organizationId = String(site.organization_id)
-  const sourceLanguage = await queryFirst<{ label: string | null }>(db, `
-    SELECT label
-      FROM site_locales
-     WHERE site_id = ? AND is_source = 1
-     LIMIT 1
-  `, [siteId])
-  const localizations = locale === 'en'
+  const sourceLocale = await getPersistedSourceLocale(db, organizationId, siteId)
+  const isSourceLocale = locale === sourceLocale.locale
+  const localizations = isSourceLocale
     ? []
     : await loadExactPublicLocalizations(db, organizationId, siteId, locale)
-  const pageLocalization = localizations.find(item => item.resourceType === 'site_link_page' && item.resourceId === sourcePage.id)
   const siteLocalization = localizations.find(item => item.resourceType === 'site' && item.resourceId === siteId)
-  if (locale !== 'en' && !pageLocalization) return null
-  const page = pageLocalization
-    ? projectExactLocalizedResource('site_link_page', sourcePage, pageLocalization)
-    : sourcePage
-  const publicItems = locale === 'en'
-    ? sourceItems
-    : projectExactLocalizedCollection('site_link_item', sourceItems, localizations)
-  if (publicItems.length === 0) return null
   const localizedSite = siteLocalization
     ? projectExactLocalizedResource('site', { ...site, id: siteId }, siteLocalization)
-    : { ...site, brand_name: null, brand_description: null }
+    : isSourceLocale ? site : { ...site, brand_name: null, brand_description: null }
 
   const template = resolvePublicTemplate({
     themeId: typeof site.theme_id === 'string' ? site.theme_id : null,
@@ -282,8 +277,7 @@ export async function getPublicLinksPage(db: DbClient, siteId: string, locale = 
       organizationId,
       siteId,
       sourcePath: '/links',
-      sourceLabel: sourceLanguage?.label || 'English',
-      resource: { type: 'site_link_page', id: sourcePage.id },
+      documentId: sourcePage.id,
     }),
   }
 }
@@ -294,6 +288,7 @@ export async function upsertLinksPage(db: DbClient, input: {
   page: LinksPageUpdateInput
   items: LinkItemUpdateInput[]
   updatedBy?: string | null
+  expectedUpdatedAt?: string
 }) {
   const current = await getLinksPage(db, input.siteId)
   const pageId = current.page?.id || idWith('linkpage')
@@ -320,90 +315,28 @@ export async function upsertLinksPage(db: DbClient, input: {
 
   const foreignIds = itemIds.length
     ? await queryAll<{ id: string }>(db, `
-      SELECT id FROM site_link_items
-       WHERE id IN (SELECT value FROM json_each(?))
-         AND (organization_id <> ? OR site_id <> ? OR link_page_id <> ?)
+      SELECT b.id FROM content_blocks b JOIN content_documents d ON d.id = b.document_id
+       WHERE b.id IN (SELECT value FROM json_each(?))
+         AND (d.organization_id <> ? OR d.site_id <> ? OR b.document_id <> ?)
     `, [d1JsonStringSet(itemIds), input.organizationId, input.siteId, pageId])
     : []
   if (foreignIds.length) throw new SiteLinksValidationError('Link item IDs must belong to the current site.')
 
-  const now = new Date().toISOString()
-  const statements: BatchQuery[] = [{
-    query: `
-      INSERT INTO site_link_pages
-        (id, organization_id, site_id, path, title, robots, seo_title, seo_description,
-         created_at, updated_at, updated_by)
-      VALUES (?, ?, ?, '/links', ?, ?, ?, ?, ?, ?, ?)
-      ON CONFLICT(site_id) DO UPDATE SET
-        title = excluded.title,
-        robots = excluded.robots,
-        seo_title = excluded.seo_title,
-        seo_description = excluded.seo_description,
-        updated_at = excluded.updated_at,
-        updated_by = excluded.updated_by
-    `,
-    params: [
-      pageId,
-      input.organizationId,
-      input.siteId,
-      title,
-      robots,
-      nullableString(input.page.seo_title, 200),
-      nullableString(input.page.seo_description, 500),
-      now,
-      now,
-      input.updatedBy ?? null,
-    ],
-  }]
-
-  if (itemIds.length) {
-    statements.push({
-      query: `
-        DELETE FROM site_link_items
-         WHERE organization_id = ? AND site_id = ? AND link_page_id = ?
-           AND id NOT IN (SELECT value FROM json_each(?))
-      `,
-      params: [input.organizationId, input.siteId, pageId, d1JsonStringSet(itemIds)],
-    })
+  const blocks = normalizedItems.sort((a, b) => a.sortOrder - b.sortOrder).map(item => ({
+    id: item.id, type: 'cta' as const, data: { label: item.label, url: item.destination,
+      status: item.status, updated_by: input.updatedBy ?? null },
+  }))
+  const copy = { title, robots, seo_title: nullableString(input.page.seo_title, 200),
+    seo_description: nullableString(input.page.seo_description, 500), updated_by: input.updatedBy ?? null }
+  if (current.page) {
+    await updateContentDocument(db, current.page.id, { expected_updated_at: input.expectedUpdatedAt ?? current.page.updated_at,
+      changes: copy, blocks })
   } else {
-    statements.push({
-      query: 'DELETE FROM site_link_items WHERE organization_id = ? AND site_id = ? AND link_page_id = ?',
-      params: [input.organizationId, input.siteId, pageId],
-    })
+    await createContentDocumentWithBlocks(db, { id: pageId, organizationId: input.organizationId, siteId: input.siteId,
+      kind: 'page', rowRole: 'root', locale: 'en', path: '/links', title, robots,
+      seoTitle: copy.seo_title, seoDescription: copy.seo_description, updatedBy: input.updatedBy,
+      metadata: { recipe: 'links', page_type: 'custom' } }, blocks)
   }
-
-  for (const item of normalizedItems) {
-    statements.push({
-      query: `
-        INSERT INTO site_link_items
-          (id, organization_id, site_id, link_page_id, label, destination, sort_order,
-           status, created_at, updated_at, updated_by)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        ON CONFLICT(id) DO UPDATE SET
-          label = excluded.label,
-          destination = excluded.destination,
-          sort_order = excluded.sort_order,
-          status = excluded.status,
-          updated_at = excluded.updated_at,
-          updated_by = excluded.updated_by
-      `,
-      params: [
-        item.id,
-        input.organizationId,
-        input.siteId,
-        pageId,
-        item.label,
-        item.destination,
-        item.sortOrder,
-        item.status,
-        now,
-        now,
-        input.updatedBy ?? null,
-      ],
-    })
-  }
-
-  await executeBatch(db, statements)
   return await getLinksPage(db, input.siteId)
 }
 
@@ -417,7 +350,7 @@ export async function createLinkItem(db: DbClient, input: {
   const current = await getLinksPage(db, input.siteId)
   if (!current.page || current.page.id !== input.linkPageId) throw new SiteLinksValidationError('Links page not found.')
   const nextItems = [...current.items, { ...input.item, sort_order: current.items.length }]
-  return await upsertLinksPage(db, { organizationId: input.organizationId, siteId: input.siteId, page: current.page, items: nextItems, updatedBy: input.updatedBy })
+  return await upsertLinksPage(db, { organizationId: input.organizationId, siteId: input.siteId, page: current.page, items: nextItems, updatedBy: input.updatedBy, expectedUpdatedAt: current.page.updated_at })
 }
 
 export async function updateLinkItem(db: DbClient, input: {
@@ -431,7 +364,7 @@ export async function updateLinkItem(db: DbClient, input: {
   if (!current.page) throw new SiteLinksValidationError('Links page not found.')
   const nextItems = current.items.map(item => item.id === input.itemId ? { ...item, ...input.updates, id: item.id } : item)
   if (!nextItems.some(item => item.id === input.itemId)) throw new SiteLinksValidationError('Link item not found.')
-  return await upsertLinksPage(db, { organizationId: input.organizationId, siteId: input.siteId, page: current.page, items: nextItems, updatedBy: input.updatedBy })
+  return await upsertLinksPage(db, { organizationId: input.organizationId, siteId: input.siteId, page: current.page, items: nextItems, updatedBy: input.updatedBy, expectedUpdatedAt: current.page.updated_at })
 }
 
 export async function deleteLinkItem(db: DbClient, input: {
@@ -447,6 +380,7 @@ export async function deleteLinkItem(db: DbClient, input: {
     siteId: input.siteId,
     page: current.page,
     items: current.items.filter(item => item.id !== input.itemId),
+    expectedUpdatedAt: current.page.updated_at,
     updatedBy: input.updatedBy,
   })
 }

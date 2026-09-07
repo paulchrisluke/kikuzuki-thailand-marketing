@@ -10,31 +10,9 @@
         :class="plan.highlighted ? 'sm:-mt-4 sm:mb-4' : ''"
         class="flex flex-col"
       >
-        <BillingPlanCard :plan="plan" :annual="false" class="h-full flex-1">
-          <template v-if="plan.prices.length" #cta>
-            <PlatformButton
-              size="xl"
-              block
-              :loading="upgrading === plan.id"
-              :variant="plan.highlighted ? 'solid' : 'outline'"
-              class="font-bold shadow-sm transition-all duration-300"
-              @click="handleUpgrade(plan.id)"
-            >
-              Get Started
-            </PlatformButton>
-          </template>
-        </BillingPlanCard>
+        <BillingPlanCard :plan="plan" :annual="false" class="h-full flex-1" />
       </div>
     </div>
-
-    <!-- Checkout error -->
-    <div v-if="checkoutError" class="max-w-3xl mx-auto mt-8 bg-error-50 dark:bg-error-950/30 border border-error-200 dark:border-error-800/60 rounded-2xl p-6 text-center">
-      <div class="flex items-center justify-center gap-2 text-error-600 dark:text-error-400">
-        <PlatformIcon name="exclamation-triangle" class="size-5" />
-        <span class="font-medium text-sm">{{ checkoutError }}</span>
-      </div>
-    </div>
-
 
     <!-- Feature comparison table -->
     <div class="max-w-5xl mx-auto mt-24">
@@ -97,33 +75,6 @@ const planList = computed(() => props.plans)
 
 const MAIN_PLAN_IDS: ReadonlySet<string> = new Set([STARTER_PLAN_ID, NEW_SALE_PLAN_ID])
 const mainPlans = computed(() => planList.value.filter(p => MAIN_PLAN_IDS.has(p.id)))
-const upgrading = ref<string | null>(null)
-const checkoutError = ref<string>('')
-
-async function handleUpgrade(planId: string) {
-  upgrading.value = planId
-  checkoutError.value = ''
-  try {
-    const [{ authClient }, { useOrgSettings }] = await Promise.all([
-      import('~/lib/auth-client'),
-      import('~/composables/useOrgSettings'),
-    ])
-    const session = await authClient.getSession()
-    if (!session.data?.user) {
-      await navigateTo({ path: '/login', query: { redirect: `/pricing?plan=${encodeURIComponent(planId)}` } })
-      return
-    }
-    const billingPath = useOrgSettings().billing.value
-    if (!billingPath) throw new Error('Organization context is required to upgrade a plan')
-    const billingUrl = `${billingPath}?plan=${encodeURIComponent(planId)}`
-    await navigateTo(billingUrl)
-  } catch (error) {
-    checkoutError.value = error instanceof Error ? error.message : 'Unable to open billing. Please try again.'
-  } finally {
-    upgrading.value = null
-  }
-}
-
 type CellValue = boolean | string
 type ComparisonRow = { feature: string } & Record<string, CellValue>
 

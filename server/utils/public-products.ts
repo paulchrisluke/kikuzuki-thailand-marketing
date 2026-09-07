@@ -90,7 +90,7 @@ export async function loadPublicProductCollection(
       FROM business_locations
      WHERE organization_id = ? AND site_id = ? AND status = 'active'
        ${locationSlug ? 'AND slug = ?' : ''}
-     ORDER BY is_primary DESC, title, id
+     ORDER BY title, id
   `, [resolved.site.organization_id, siteId, ...(locationSlug ? [locationSlug] : [])])
   if (locationSlug && locationRows.length !== 1) return null
   const locations = locationRows.filter(location => locationHasProducts(resolved.site, location))
@@ -117,7 +117,6 @@ export async function loadPublicProductDetail(
       organizationId: collection.site.organization_id,
       siteId,
       sourcePath: collection.presentation.productPath(location.slug, product.slug),
-      sourceLabel: 'English',
       resource: { type: 'product', id: product.id },
     })
     return { ...collection, location, product, localeRepresentations }
@@ -167,7 +166,6 @@ export async function loadPublicProductDetail(
     organizationId: collection.site.organization_id,
     siteId,
     sourcePath: collection.presentation.productPath(location.slug, sourceProduct.slug),
-    sourceLabel: 'English',
     resource: { type: 'product', id: sourceProduct.id },
   })
   return {

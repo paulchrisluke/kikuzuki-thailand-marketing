@@ -19,9 +19,9 @@ export function useAuthOperation() {
     }
   }
 
-  async function signInWithGoogle(callbackURL?: string) {
+  async function signInWithGoogle(callbackURL?: string, loginHint?: string) {
     return run(async () => {
-      const result = await authClient.signIn.social(googleSignInOptions(callbackURL))
+      const result = await authClient.signIn.social(googleSignInOptions(callbackURL, loginHint))
       if (result?.error) throw new Error(result.error.message || 'Google sign in failed.')
       return result
     }, 'Google sign in failed. Please try again.')

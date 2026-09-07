@@ -2,7 +2,7 @@ import { HTTPError } from 'nitro';
 import type { H3Event } from 'nitro';
 import {  getRequestHost } from 'nitro/h3';
 import { queryAll, queryFirst, type DbClient } from '../db/index.ts'
-import { getContentBlocksForOwner } from './content-documents.ts'
+import { getContentBlocksForDocument } from './content-documents.ts'
 import { findAuthUsersByIds, type CloudflareEnv } from './auth.ts'
 import { blogCategoryToSlug, slugToBlogCategory } from '../../utils/blog-categories.ts'
 import { categoryToSlug, slugToCategory } from '../../utils/docs-categories.ts'
@@ -266,35 +266,24 @@ export async function listPublishedPlatformDocsForLlm(db: DbClient) {
   return await queryAll<PlatformLlmDocSummary>(
     db,
     `SELECT
-      id, title, slug, excerpt, category, difficulty_level, canonical_url, seo_description, updated_at
-     FROM platform_docs
+      id, title, slug, summary AS excerpt, (metadata_json ->> '$.category') AS category, (metadata_json ->> '$.difficulty_level') AS difficulty_level, canonical_url, seo_description, updated_at
+     FROM content_documents
+     WHERE kind = 'platform_doc' AND row_role = 'root' AND site_id = '${PLATFORM_SITE_ID}'
      ORDER BY category, sort_order, updated_at DESC`,
   )
 }
 
 export async function listPublishedPlatformBlogPostsForLlm(db: DbClient, env: CloudflareEnv) {
-  const posts = await queryAll<PlatformLlmBlogSummary & { author_id: string | null }>(
-    db,
-    `SELECT
-      p.id, p.title, p.slug, p.excerpt, p.category, p.canonical_url, p.seo_description, p.published_at, p.updated_at, p.author_id
-     FROM blog_posts p
-     WHERE p.status = 'published' AND p.site_id = '${PLATFORM_SITE_ID}' AND p.visibility = 'public'
-     ORDER BY p.category, p.published_at DESC`,
-  )
-  const authors = await findAuthUsersByIds(env, posts.map(post => post.author_id))
-  return posts.map(({ author_id: authorId, ...post }) => ({
-    ...post,
-    author_name: (authorId ? authors.get(authorId)?.name : null) ?? null,
-  }))
+  return listPublishedTenantBlogPostsForLlm(db, PLATFORM_SITE_ID, env)
 }
 
 export async function listPublishedTenantBlogPostsForLlm(db: DbClient, siteId: string, env: CloudflareEnv) {
   const posts = await queryAll<TenantLlmBlogSummary & { author_id: string | null }>(
     db,
     `SELECT
-      p.id, p.title, p.slug, p.excerpt, p.category, p.canonical_url, p.seo_description, p.published_at, p.updated_at, p.author_id
-     FROM blog_posts p
-     WHERE p.status = 'published' AND p.site_id = ? AND p.visibility = 'public'
+      p.id, p.title, p.slug, p.summary AS excerpt, (p.metadata_json ->> '$.category') AS category, p.canonical_url, p.seo_description, p.published_at, p.updated_at, p.author_id
+     FROM content_documents p
+     WHERE p.kind = 'article' AND p.row_role = 'root' AND p.status = 'published' AND p.site_id = ? AND p.visibility = 'public'
      ORDER BY p.published_at DESC, p.updated_at DESC`,
     [siteId],
   )
@@ -311,13 +300,14 @@ export async function getPublishedPlatformDocBySlug(db: DbClient, categorySlug: 
   const detail = await queryFirst<Omit<PlatformLlmDocDetail, 'content_blocks'>>(
     db,
     `SELECT
-      id, title, slug, excerpt, category, difficulty_level, canonical_url, seo_description, updated_at
-     FROM platform_docs
-     WHERE slug = ? AND category = ?`,
+      id, title, slug, summary AS excerpt, (metadata_json ->> '$.category') AS category, (metadata_json ->> '$.difficulty_level') AS difficulty_level, canonical_url, seo_description, updated_at
+     FROM content_documents
+     WHERE kind = 'platform_doc' AND row_role = 'root' AND site_id = '${PLATFORM_SITE_ID}'
+       AND slug = ? AND (metadata_json ->> '$.category') = ?`,
     [slug, category],
   )
   if (!detail) return null
-  const contentBlocks = await getContentBlocksForOwner(db, 'platform_doc', detail.id)
+  const contentBlocks = await getContentBlocksForDocument(db, detail.id)
   if (!contentBlocks) throw new HTTPError({ statusCode: 500, statusMessage: 'Documentation content document is missing' })
   return { ...detail, content_blocks: contentBlocks }
 }
@@ -325,31 +315,21 @@ export async function getPublishedPlatformDocBySlug(db: DbClient, categorySlug: 
 export async function getPublishedPlatformBlogPostBySlug(db: DbClient, categorySlug: string, slug: string) {
   const category = slugToBlogCategory(categorySlug)
   if (!category) return null
-  const detail = await queryFirst<Omit<PlatformLlmBlogDetail, 'content_blocks'>>(
-    db,
-    `SELECT
-      p.id, p.title, p.slug, p.excerpt, p.category, p.canonical_url, p.seo_description, p.published_at, p.updated_at
-     FROM blog_posts p
-     WHERE p.slug = ? AND p.category = ? AND p.status = 'published' AND p.site_id = '${PLATFORM_SITE_ID}'`,
-    [slug, category],
-  )
-  if (!detail) return null
-  const contentBlocks = await getContentBlocksForOwner(db, 'platform_blog', detail.id)
-  if (!contentBlocks) throw new HTTPError({ statusCode: 500, statusMessage: 'Blog content document is missing' })
-  return { ...detail, content_blocks: contentBlocks }
+  const detail = await getPublishedTenantBlogPostBySlug(db, PLATFORM_SITE_ID, slug)
+  return detail?.category === category ? detail : null
 }
 
 export async function getPublishedTenantBlogPostBySlug(db: DbClient, siteId: string, slug: string) {
   const detail = await queryFirst<Omit<TenantLlmBlogDetail, 'content_blocks'>>(
     db,
     `SELECT
-      p.id, p.title, p.slug, p.excerpt, p.category, p.canonical_url, p.seo_description, p.published_at, p.updated_at
-     FROM blog_posts p
-     WHERE p.slug = ? AND p.status = 'published' AND p.site_id = ?`,
+      p.id, p.title, p.slug, p.summary AS excerpt, (p.metadata_json ->> '$.category') AS category, p.canonical_url, p.seo_description, p.published_at, p.updated_at
+     FROM content_documents p
+     WHERE p.kind = 'article' AND p.row_role = 'root' AND p.slug = ? AND p.status = 'published' AND p.site_id = ? AND p.visibility = 'public'`,
     [slug, siteId],
   )
   if (!detail) return null
-  const contentBlocks = await getContentBlocksForOwner(db, 'tenant_blog', detail.id)
+  const contentBlocks = await getContentBlocksForDocument(db, detail.id)
   if (!contentBlocks) throw new HTTPError({ statusCode: 500, statusMessage: 'Blog content document is missing' })
   return { ...detail, content_blocks: contentBlocks }
 }

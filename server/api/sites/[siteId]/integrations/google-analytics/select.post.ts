@@ -2,7 +2,6 @@ import { jsonResponse } from '~/server/utils/api-response'
 import {
   getGoogleAnalyticsAccessToken, getGoogleAnalyticsConnection, getGa4MeasurementId
 } from '~/server/utils/google-analytics'
-import { deleteConfig, setConfig } from '~/server/utils/site-config'
 import { execute } from '~/server/db'
 import { reconcileZarazAnalytics } from '~/server/utils/zaraz-analytics'
 import { requireSiteAccess } from '~/server/utils/location-access'
@@ -42,26 +41,19 @@ export default defineHandler(async (event) => {
       measurementId = await getGa4MeasurementId(accessToken, ga4PropertyId)
     }
 
-    await execute(db, `
-      UPDATE google_analytics_connections
-      SET ga4_property_id = ?, ga4_property_name = ?, ga4_measurement_id = ?, search_console_site_url = ?, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
-      WHERE id = ?
-    `, [ga4PropertyId, ga4PropertyName, measurementId, searchConsoleSiteUrl, connection.id])
-
-    if (ga4PropertyId) {
-      await setConfig(db, site.organization_id, site.id, 'ga4_property_id', ga4PropertyId)
-    } else {
-      await deleteConfig(db, site.organization_id, site.id, 'ga4_property_id')
-    }
-    if (measurementId) {
-      await setConfig(db, site.organization_id, site.id, 'google_analytics_measurement_id', measurementId)
-    } else {
-      await deleteConfig(db, site.organization_id, site.id, 'google_analytics_measurement_id')
-    }
-    if (searchConsoleSiteUrl) {
-      await setConfig(db, site.organization_id, site.id, 'search_console_site_url', searchConsoleSiteUrl)
-    } else {
-      await deleteConfig(db, site.organization_id, site.id, 'search_console_site_url')
+    const result = await execute(db, `
+      UPDATE sites SET integrations_json = json_set(integrations_json,
+        '$.google.ga4_property_id', ?, '$.google.ga4_property_name', ?,
+        '$.google.ga4_measurement_id', ?, '$.google.search_console_site_url', ?,
+        '$.google.updated_at', strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), '$.google.revision', ?)
+      WHERE id = ? AND organization_id = ?
+        AND json_extract(integrations_json, '$.google.kind') = 'oauth'
+        AND json_extract(integrations_json, '$.google.revision') IS ?
+        AND json_extract(settings_json, '$.config.resource_team_generation') IS ?
+    `, [ga4PropertyId, ga4PropertyName, measurementId, searchConsoleSiteUrl, crypto.randomUUID(),
+      site.id, site.organization_id, connection.revision, connection.transfer_generation])
+    if (result.meta?.changes !== 1) {
+      return jsonResponse({ error: 'Google Analytics connection changed. Reload before selecting a property.' }, { status: 409 })
     }
 
     try {

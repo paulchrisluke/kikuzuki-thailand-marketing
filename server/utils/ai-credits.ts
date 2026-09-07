@@ -182,7 +182,7 @@ async function getOrganizationPlanInfo(db: DbClient, organizationId: string, now
   const billing = await getOrganizationBillingProjection(db, organizationId, now)
   return {
     plan: billing.effectivePlan,
-    version: String(billing.updatedAt ?? billing.plan ?? 'free'),
+    version: String(billing.updatedAt ?? billing.accessPlan ?? 'free'),
   }
 }
 

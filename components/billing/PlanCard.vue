@@ -82,16 +82,15 @@
     <!-- CTA -->
     <div class="relative z-10 mt-auto pt-4">
       <slot name="cta">
-        <PlatformButton
+        <PlatformAccountCta
           v-if="plan.cta"
           :to="plan.cta.href"
+          :label="plan.cta.label"
           :variant="isHighlighted ? 'solid' : 'outline'"
           size="xl"
           block
           class="font-bold shadow-sm transition-all duration-300 hover:shadow-md"
-        >
-          {{ plan.cta.label }}
-        </PlatformButton>
+        />
       </slot>
     </div>
   </div>

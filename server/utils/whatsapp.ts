@@ -474,7 +474,7 @@ export async function sendWhatsAppNotification(
 }
 
 /**
- * Lookup an org's WhatsApp notification phone from site_config.
+ * Read the site's owner WhatsApp notification phone.
  * Returns null if not set — callers should skip sending rather than throw.
  */
 export async function getOrgWhatsAppPhone(
@@ -483,8 +483,7 @@ export async function getOrgWhatsAppPhone(
   siteId: string
 ): Promise<string | null> {
   const row = await queryFirst<{ value: string }>(db, `
-    SELECT value FROM site_config
-    WHERE organization_id = ? AND site_id = ? AND key = 'whatsapp_phone'
+    SELECT json_extract(settings_json, '$.config.whatsapp_phone') AS value FROM sites WHERE organization_id = ? AND id = ?
     LIMIT 1
   `, [organizationId, siteId])
   return row?.value ?? null
@@ -665,15 +664,14 @@ export async function setOrgWhatsAppPhone(
 ): Promise<void> {
   if (!phone) {
     await execute(db, `
-      DELETE FROM site_config WHERE organization_id = ? AND site_id = ? AND key = 'whatsapp_phone'
+      UPDATE sites SET settings_json = json_remove(settings_json, '$.config.whatsapp_phone') WHERE organization_id = ? AND id = ?
     `, [organizationId, siteId])
   } else {
     const normalized = parsePhoneOrThrow(phone, { defaultCountry: 'TH' })
     const now = new Date().toISOString()
     await execute(db, `
-      INSERT INTO site_config (organization_id, site_id, key, value, updated_at)
-      VALUES (?, ?, 'whatsapp_phone', ?, ?)
-      ON CONFLICT(organization_id, site_id, key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at
-    `, [organizationId, siteId, normalized, now])
+      UPDATE sites SET settings_json = json_set(settings_json, '$.config.whatsapp_phone', ?), updated_at = ?
+      WHERE organization_id = ? AND id = ?
+    `, [normalized, now, organizationId, siteId])
   }
 }

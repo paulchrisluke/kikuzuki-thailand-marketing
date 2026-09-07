@@ -12,18 +12,10 @@ import {
 
 type ReviewRequestDeliveryEnv = CloudflareEnv
 
-function platformDomain(env: ReviewRequestDeliveryEnv): string {
-  const configured = env.NUXT_PUBLIC_PLATFORM_DOMAIN?.trim()
-  if (!configured) throw new Error('NUXT_PUBLIC_PLATFORM_DOMAIN is required')
-  return configured.replace(/^https?:\/\//, '').replace(/\/$/, '')
-}
-
-function siteBaseUrl(env: ReviewRequestDeliveryEnv, context: ReviewBookingContext): string {
+function siteBaseUrl(context: ReviewBookingContext): string {
   const publicUrl = context.site_public_url?.replace(/\/$/, '')
-  if (publicUrl) return publicUrl
-  const subdomain = context.site_subdomain?.trim()
-  if (subdomain) return `https://${subdomain}.${platformDomain(env)}`
-  throw new Error('Site public URL or subdomain is required')
+  if (!publicUrl) throw new Error('Site has no active canonical domain')
+  return publicUrl
 }
 
 function bookingLabel(context: ReviewBookingContext): string {
@@ -47,7 +39,7 @@ export async function sendReviewRequestForBooking(
   if (!recipientEmail) throw new Error('Booking customer has no email address')
 
   const { request, token } = await createOrRotateReviewRequest(db, context)
-  const baseUrl = siteBaseUrl(env, context)
+  const baseUrl = siteBaseUrl(context)
   const reviewUrl = `${baseUrl}/locations/${encodeURIComponent(context.location_slug)}/review-submit?token=${encodeURIComponent(token)}`
   const optOutUrl = `${reviewUrl}&optOut=1`
 

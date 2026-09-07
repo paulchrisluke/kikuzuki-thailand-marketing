@@ -1,3 +1,4 @@
+import { parsePostInput } from '../shared/posts.ts'
 import type {
   CompiledSeedBusinessLocationTranslation,
   CompiledCuratedSiteBundle,
@@ -145,7 +146,7 @@ export function compileCuratedSiteFixture(
       priceAmount: experience.priceAmount,
       durationMinutes: experience.durationMinutes,
       maxCapacity: experience.maxCapacity,
-      timeSlots: [...experience.timeSlots],
+      recurringSlots: structuredClone(experience.recurringSlots),
       status: experience.status,
       sortOrder: experience.sortOrder,
       featured: experience.featured,
@@ -226,27 +227,15 @@ export function compileCuratedSiteFixture(
       throw new Error(`Post "${post.id}" references unknown location "${post.locationId}"`)
     }
     const media = validateMedia(post.media, mediaIds, `Post "${post.id}"`)
-    if (post.postType === 'offer' && !post.offerCoupon?.trim() && !post.offerTerms?.trim()) {
-      throw new Error(`Offer post "${post.id}" requires offerCoupon or offerTerms`)
-    }
-    if (post.postType === 'event' && !post.eventStartAt?.trim()) {
-      throw new Error(`Event post "${post.id}" requires eventStartAt`)
-    }
+    const topic = parsePostInput({ post_type: post.post_type, body: post.body, event: post.event, offer: post.offer, call_to_action: post.call_to_action, alert_type: post.alert_type })
     return {
+      ...topic,
       id: post.id,
       organizationId: fixture.organizationId,
       siteId: fixture.siteId,
       locationId: post.locationId,
-      postType: post.postType,
       title: post.title,
       body: post.body,
-      ctaType: post.ctaType ?? null,
-      ctaUrl: post.ctaUrl ?? null,
-      eventTitle: post.eventTitle ?? null,
-      eventStartAt: post.eventStartAt ?? null,
-      eventEndAt: post.eventEndAt ?? null,
-      offerCoupon: post.offerCoupon ?? null,
-      offerTerms: post.offerTerms ?? null,
       media,
       status: post.status,
       publishedAt: post.publishedAt,
@@ -319,7 +308,7 @@ export function compileCuratedSiteFixture(
       siteId: fixture.siteId,
     },
     site: { ...fixture.site, media: validatedSiteMedia },
-    siteConfig: fixture.siteConfig.map((entry) => ({ ...entry })),
+    settings: structuredClone(fixture.settings),
     siteLocales: fixture.siteLocales.map((entry) => ({ ...entry })),
     siteDomains: fixture.siteDomains.map((entry) => ({ ...entry })),
     locations: fixture.locations.map((location) => ({ ...location, media: validatedLocationMediaById.get(location.id)! })),

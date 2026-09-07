@@ -26,12 +26,11 @@ export default defineHandler(async (event) => {
     invited_interval: string | null
     invited_domain: string | null
     requires_payment: number
-    custom_domains_removed_at: string | null
     brand_name: string | null
     slug: string
     subdomain: string | null
   }>(
-    db, `SELECT r.id, r.site_id, r.to_email, r.status, r.message, r.invited_plan, r.invited_coupon, r.invited_interval, r.invited_domain, r.requires_payment, r.custom_domains_removed_at, s.brand_name, s.slug, s.subdomain
+    db, `SELECT r.id, r.site_id, r.to_email, r.status, r.message, r.invited_plan, r.invited_coupon, r.invited_interval, r.invited_domain, r.requires_payment, s.brand_name, s.slug, s.subdomain
      FROM site_transfer_requests r
      JOIN sites s ON s.id = r.site_id
      WHERE r.token = ? LIMIT 1`, [token], )
@@ -140,7 +139,7 @@ export default defineHandler(async (event) => {
   }
 
   return jsonResponse({
-    id: row.id, site_id: row.site_id, site_name: row.brand_name ?? row.slug, to_email: row.to_email, message: row.message, invited_plan: row.invited_plan, invited_coupon: row.invited_coupon, invited_interval: invitedInterval, pricing_month, pricing_year, invited_domain: row.invited_domain, domain_active: !!row.invited_domain && !row.custom_domains_removed_at, requires_payment: requiresPayment, never_expires: true, site_subdomain: row.subdomain, })
+    id: row.id, site_id: row.site_id, site_name: row.brand_name ?? row.slug, to_email: row.to_email, message: row.message, invited_plan: row.invited_plan, invited_coupon: row.invited_coupon, invited_interval: invitedInterval, pricing_month, pricing_year, invited_domain: row.invited_domain, domain_active: !!row.invited_domain, requires_payment: requiresPayment, never_expires: true, site_subdomain: row.subdomain, })
 })
 import { defineHandler } from 'nitro';
 import { getRouterParam } from 'nitro/h3';

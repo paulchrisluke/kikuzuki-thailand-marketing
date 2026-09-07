@@ -1,6 +1,5 @@
+import { readAvailability, assertAvailabilityDate } from '~/server/utils/availability'
 import { cloudflareEnv, jsonResponse } from '~/server/utils/api-response'
-import { getReservationSlotAvailabilityRange } from '~/server/utils/reservations'
-import { resolveLocationTimezone } from '~/server/utils/site-config'
 import { queryFirst } from '~/server/db'
 
 const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/
@@ -32,15 +31,7 @@ export default defineHandler(async (event) => {
     db, `SELECT id, max_capacity, opening_hours FROM business_locations WHERE id = ? AND site_id = ? LIMIT 1`, [locationId, siteId], )
   if (!location) return jsonResponse({ error: 'Location not found' }, { status: 404 })
 
-  let parsedHours: unknown = null
-  try {
-    parsedHours = location.opening_hours ? JSON.parse(location.opening_hours) : null
-  } catch {
-    return jsonResponse({ error: 'Location hours configuration is invalid. Please contact support.' }, { status: 500 })
-  }
-
-  const timezone = await resolveLocationTimezone(db, site.organization_id, siteId, locationId)
-
+  assertAvailabilityDate(date)
   const dateStrings: string[] = []
   const cursor = new Date(`${date}T00:00:00Z`)
   if (isNaN(cursor.getTime())) {
@@ -50,16 +41,8 @@ export default defineHandler(async (event) => {
     dateStrings.push(cursor.toISOString().slice(0, 10))
     cursor.setUTCDate(cursor.getUTCDate() + 1)
   }
-  const availability = await getReservationSlotAvailabilityRange(
-    db,
-    siteId,
-    { id: location.id, max_capacity: location.max_capacity, opening_hours: parsedHours },
-    dateStrings,
-    timezone,
-  )
-  const dates = dateStrings.map(dateStr => ({ date: dateStr, slots: availability[dateStr] ?? [] }))
-
-  return jsonResponse({ timezone, dates })
+  const [snapshot] = await readAvailability(db, { siteId, owners: [{ kind: 'location', locationId: location.id }], dates: dateStrings })
+  return jsonResponse({ timezone: snapshot!.timezone, dates: snapshot!.days })
 })
 import { defineHandler } from 'nitro';
 import { getQuery } from 'nitro/h3';

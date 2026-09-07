@@ -482,7 +482,7 @@ const availableActions = computed<Array<{ value: string; label: string; icon: st
   if (!booking.value || !presentation.value || !booking.value.threadId) return []
   const label = presentation.value.noun
   const cancel = { value: 'cancel', label: `Cancel ${label}`, icon: 'i-lucide-calendar-x', color: 'error' as const }
-  if (bookingNeedsResponse(booking.value.type, booking.value.status)) {
+  if (bookingNeedsResponse(booking.value.status)) {
     return [{ value: 'confirm', label: `Confirm ${label}`, icon: 'i-lucide-calendar-check', color: 'success' }, cancel]
   }
   if (booking.value.status !== 'confirmed') return []

@@ -28,7 +28,6 @@ interface LocationRow {
   opening_hours: string | null
   rating: number | null
   review_count: number | null
-  is_primary: number | boolean
   status: string
   last_synced_at: string | null
   city: string | null
@@ -42,33 +41,32 @@ interface LocationRow {
 
 export default defineHandler(async (event) => {
   const siteId = getRouterParam(event, 'siteId')
-  
+
   if (!siteId) {
-    return jsonResponse({ 
-      error: 'Site ID is required' 
+    return jsonResponse({
+      error: 'Site ID is required'
     }, { status: 400 })
   }
-  
+
   const env = cloudflareEnv(event)
   const db = env.db
-  
+
   if (!db) {
-    return jsonResponse({ 
-      error: 'Database not available' 
+    return jsonResponse({
+      error: 'Database not available'
     }, { status: 500 })
   }
 
   try {
-    // Get site and verify it's active
     const site = await queryFirst<SiteRow>(db, `
-      SELECT id, organization_id, status FROM sites 
+      SELECT id, organization_id, status FROM sites
       WHERE id = ? AND status = 'active'
       LIMIT 1
     `, [siteId])
-    
+
     if (!site) {
-      return jsonResponse({ 
-        error: 'Site not found or inactive' 
+      return jsonResponse({
+        error: 'Site not found or inactive'
       }, { status: 404 })
     }
 
@@ -79,33 +77,32 @@ export default defineHandler(async (event) => {
       media_kind: string | null
       media_thumbnail_url: string | null
     }>(db, `
-      SELECT bl.id, bl.slug, bl.title, bl.address, bl.phone, bl.website_url, bl.maps_url, bl.latitude, bl.longitude, bl.opening_hours, bl.rating, bl.review_count, bl.is_primary, bl.status, bl.last_synced_at, bl.city, bl.neighborhood, bl.grab_url, bl.uber_eats_url, bl.foodpanda_url, ma.id AS asset_id, ma.public_url AS media_public_url, ma.kind AS media_kind, ma.thumbnail_url AS media_thumbnail_url
+      SELECT bl.id, bl.slug, bl.title, bl.address, bl.phone, bl.website_url, bl.maps_url, bl.latitude, bl.longitude, bl.opening_hours, bl.rating, bl.review_count, bl.status, bl.last_synced_at, bl.city, bl.neighborhood, bl.grab_url, bl.uber_eats_url, bl.foodpanda_url, ma.id AS asset_id, ma.public_url AS media_public_url, ma.kind AS media_kind, ma.thumbnail_url AS media_thumbnail_url
       FROM business_locations bl
       LEFT JOIN media_placements mp ON mp.site_id = bl.site_id AND mp.owner_type = 'business_location' AND mp.owner_id = bl.id AND mp.slot = 'hero' AND mp.sort_order = 0 AND mp.status = 'active'
       LEFT JOIN media_assets ma ON mp.asset_id = ma.id AND ma.status = 'active'
         AND ma.organization_id = bl.organization_id AND ma.site_id = bl.site_id
       WHERE bl.organization_id = ? AND bl.site_id = ? AND bl.status = 'active'
-      ORDER BY bl.is_primary DESC, bl.title ASC
+      ORDER BY bl.title ASC
     `, [site.organization_id, siteId])
-    
 
-    // Parse JSON fields and return public-safe data
+
     const parsedLocations = locationRows.map((location) => {
       return {
         id: location.id, slug: location.slug, title: location.title, address: location.address ? JSON.parse(location.address) : null, phone: location.phone, website_url: location.website_url, maps_url: location.maps_url, map_embed_url: calculateMapEmbedUrl({
           title: location.title, maps_url: location.maps_url, latitude: location.latitude, longitude: location.longitude, address: location.address, city: location.city
-        }), latitude: location.latitude, longitude: location.longitude, opening_hours: location.opening_hours ? JSON.parse(location.opening_hours) : null, rating: location.rating, review_count: location.review_count, is_primary: Boolean(location.is_primary), status: location.status, media: location.media_public_url ? [{ asset_id: location.asset_id, slot: 'hero', public_url: location.media_public_url, thumbnail_url: location.media_thumbnail_url, kind: location.media_kind }] : [], city: location.city, neighborhood: location.neighborhood || null, grab_url: location.grab_url || null, uber_eats_url: location.uber_eats_url || null, foodpanda_url: location.foodpanda_url || null
+        }), latitude: location.latitude, longitude: location.longitude, opening_hours: location.opening_hours ? JSON.parse(location.opening_hours) : null, rating: location.rating, review_count: location.review_count, status: location.status, media: location.media_public_url ? [{ asset_id: location.asset_id, slot: 'hero', public_url: location.media_public_url, thumbnail_url: location.media_thumbnail_url, kind: location.media_kind }] : [], city: location.city, neighborhood: location.neighborhood || null, grab_url: location.grab_url || null, uber_eats_url: location.uber_eats_url || null, foodpanda_url: location.foodpanda_url || null
       }
     })
-    
+
     return jsonResponse({
       success: true, locations: parsedLocations, count: parsedLocations.length
     })
-    
+
   } catch (error) {
     console.error('Failed to get public business locations:', error)
-    return jsonResponse({ 
-      error: 'Failed to get business locations' 
+    return jsonResponse({
+      error: 'Failed to get business locations'
     }, { status: 500 })
   }
 })

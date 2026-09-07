@@ -7,6 +7,7 @@ import { fireOrganizationEventSafe } from '~/server/utils/organization-events'
 import {
   isSingleMediaPlacement,
   isSupportedMediaPlacement,
+  isMediaPlacementOwnerType,
   MAX_ORDERED_MEDIA_ASSETS,
   type MediaPlacementOwnerType,
 } from '~/shared/media-placement-contract'
@@ -111,14 +112,55 @@ export interface MediaPlacementInsertInput {
   updatedAt?: string
 }
 
+const OWNER_TABLES = {
+  site: 'sites', business_location: 'business_locations', product: 'products',
+  content_document: 'content_documents', offering: 'offerings', review: 'reviews',
+  review_request: 'review_requests',
+  content_block: 'content_blocks',
+} as const satisfies Record<MediaPlacementOwnerType, string>
+
+export function mediaPlacementOwnerQuery(input: {
+  ownerType: string; ownerId: string; organizationId: string; siteId: string
+}): BatchQuery {
+  if (!isMediaPlacementOwnerType(input.ownerType)) throw new HTTPError({ statusCode: 400, statusMessage: 'Unsupported media owner' })
+  const params = [input.ownerId, input.organizationId, input.siteId]
+  if (input.ownerType === 'content_block') return {
+    query: `SELECT root.location_id FROM content_blocks cb JOIN content_documents owner ON owner.id = cb.document_id
+      JOIN content_documents root ON root.id = COALESCE(owner.root_id, owner.id)
+      WHERE cb.id = ? AND owner.organization_id = ? AND owner.site_id = ?`, params,
+  }
+  if (input.ownerType === 'content_document') return {
+    query: `SELECT root.location_id FROM content_documents owner
+      JOIN content_documents root ON root.id = COALESCE(owner.root_id, owner.id)
+      WHERE owner.id = ? AND owner.organization_id = ? AND owner.site_id = ?`, params,
+  }
+  const table = OWNER_TABLES[input.ownerType]
+  const location = input.ownerType === 'business_location' ? 'id'
+    : ['product', 'offering', 'review', 'review_request'].includes(input.ownerType) ? 'location_id' : 'NULL'
+  return {
+    query: `SELECT ${location} AS location_id FROM ${table} WHERE id = ? AND organization_id = ? AND ${input.ownerType === 'site' ? 'id' : 'site_id'} = ?`, params,
+  }
+}
+
 export function buildMediaPlacementInsertQuery(input: MediaPlacementInsertInput): BatchQuery {
   if (!isSupportedMediaPlacement({ owner_type: input.ownerType, slot: input.slot })) {
     throw new HTTPError({ statusCode: 400, statusMessage: 'Media placement owner and slot are not supported' })
   }
   const createdAt = input.createdAt ?? new Date().toISOString()
+  const owner = mediaPlacementOwnerQuery(input)
   return {
-    query: 'INSERT INTO media_placements (id, organization_id, site_id, owner_type, owner_id, slot, asset_id, sort_order, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-    params: [input.id ?? crypto.randomUUID(), input.organizationId, input.siteId, input.ownerType, input.ownerId, input.slot, input.assetId, input.sortOrder, input.status ?? 'active', createdAt, input.updatedAt ?? createdAt],
+    query: `INSERT INTO media_placements (id, organization_id, site_id, owner_type, owner_id, slot, asset_id, sort_order, status, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, CASE WHEN EXISTS (${owner.query})
+        AND EXISTS (SELECT 1 FROM media_assets WHERE id = ? AND organization_id = ? AND site_id = ?
+          AND (status = 'active' OR (status = 'pending' AND ? = 'review_request' AND ? = 'pending')))
+        AND (? != 'content_document' OR ? NOT IN ('cover', 'gallery') OR EXISTS
+        (SELECT 1 FROM content_documents d JOIN content_documents root ON root.id = COALESCE(d.root_id, d.id)
+          WHERE d.id = ? AND d.organization_id = ? AND d.site_id = ?
+          AND (root.kind != 'social_post' OR (root.metadata_json ->> '$.post_type') != 'alert'))) THEN ? ELSE NULL END, ?, ?, ?, ?)`,
+    params: [input.id ?? crypto.randomUUID(), input.organizationId, input.siteId, input.ownerType, input.ownerId, input.slot,
+      ...owner.params!, input.assetId, input.organizationId, input.siteId, input.ownerType, input.status ?? 'active',
+      input.ownerType, input.slot, input.ownerId, input.organizationId, input.siteId, input.assetId,
+      input.sortOrder, input.status ?? 'active', createdAt, input.updatedAt ?? createdAt],
   }
 }
 
@@ -268,6 +310,7 @@ export async function readMediaPlacements(db: DbClient, input: {
   ownerType: MediaPlacementOwnerType
   ownerIds: string[]
   slot?: string
+  includePendingSocialCard?: boolean
 }): Promise<Map<string, StoredMediaPlacementItem[]>> {
   const ownerIds = [...new Set(input.ownerIds)].filter(Boolean)
   const result = new Map(ownerIds.map(id => [id, [] as StoredMediaPlacementItem[]]))
@@ -280,7 +323,7 @@ export async function readMediaPlacements(db: DbClient, input: {
      WHERE mp.site_id = ? AND mp.owner_type = ?
        AND mp.owner_id IN (SELECT value FROM json_each(?))
        ${input.slot ? 'AND mp.slot = ?' : ''}
-       AND mp.status = 'active' AND ma.status = 'active'
+       AND (mp.status = 'active' ${input.includePendingSocialCard ? "OR (mp.slot = 'social_card' AND mp.status = 'pending')" : ''}) AND ma.status = 'active'
      ORDER BY mp.owner_id, mp.slot, mp.sort_order
   `, [input.siteId, input.ownerType, d1JsonStringSet(ownerIds), ...(input.slot ? [input.slot] : [])])
   for (const row of rows) {
@@ -569,8 +612,9 @@ export async function deleteMediaAsset(db: DbClient, env: MediaProviderEnv, id: 
     r2_key: string | null
     organization_id: string
     created_by_user_id: string | null
+    source: string
   }>(db, `
-    SELECT id, provider, cloudflare_image_id, r2_key, organization_id, created_by_user_id
+    SELECT id, provider, cloudflare_image_id, r2_key, organization_id, created_by_user_id, source
     FROM media_assets
     WHERE id = ? AND site_id = ? AND status != 'deleted'
   `, [id, siteId]) ?? null
@@ -578,6 +622,8 @@ export async function deleteMediaAsset(db: DbClient, env: MediaProviderEnv, id: 
   if (!pendingAsset) {
     throw new HTTPError({ statusCode: 404, statusMessage: 'Media asset not found' })
   }
+  const sourcePlacements = pendingAsset.source === 'generated' ? [] : await queryAll<{ owner_type: string; owner_id: string; slot: string }>(db,
+    'SELECT owner_type, owner_id, slot FROM media_placements WHERE asset_id = ? AND site_id = ?', [id, siteId])
 
   const references = await getMediaStorageReferenceState(db, {
     assetId: pendingAsset.id,
@@ -626,4 +672,14 @@ export async function deleteMediaAsset(db: DbClient, env: MediaProviderEnv, id: 
       provider: pendingAsset.provider,
     },
   })
+  if (sourcePlacements.length) {
+    const { refreshSocialCard, refreshSiteBrandSocialCards, socialCardRefreshOwnersForPlacement } = await import('~/server/utils/social-card')
+    if (sourcePlacements.some(placement => placement.owner_type === 'site' && ['logo', 'social_share'].includes(placement.slot))) {
+      await refreshSiteBrandSocialCards({ db, env, siteId, actorId: deletedByUserId })
+    } else {
+      for (const placement of sourcePlacements) {
+        for (const owner of await socialCardRefreshOwnersForPlacement(db, placement)) await refreshSocialCard({ db, env, owner, actorId: deletedByUserId })
+      }
+    }
+  }
 }

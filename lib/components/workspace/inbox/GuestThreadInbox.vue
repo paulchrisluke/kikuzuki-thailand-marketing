@@ -206,8 +206,8 @@ interface ThreadDetail {
   source: {
     submissionType: SubmissionType
     submissionId: string
-    operationalStatus: string
-    operationalStatusLabel: string
+    operationalStatus: string | null
+    operationalStatusLabel: string | null
     fields: Record<string, unknown>
   }
   entries: ThreadEntry[]

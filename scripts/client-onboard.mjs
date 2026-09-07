@@ -100,11 +100,12 @@ function parseIntakeYaml(content) {
 const { values: rawArgs } = parseArgs({
   options: {
     slug:              { type: 'string' },
+    'brand-name':      { type: 'string' },
     'organization-id': { type: 'string' },
     vertical:          { type: 'string' },
     'maps-url':        { type: 'string', multiple: true, default: [] },
     images:            { type: 'string' },
-    'allow-stock':     { type: 'boolean', default: false },
+    'images-place-id': { type: 'string' },
     'site-id':         { type: 'string' },
     'live-url':        { type: 'string' },
     url:               { type: 'string' },  // alias for --live-url
@@ -123,12 +124,14 @@ if (args.from) {
     process.exit(1)
   }
   const intake = parseIntakeYaml(readFileSync(args.from, 'utf8'))
+  if (!args['brand-name'] && intake.brand_name) args['brand-name'] = intake.brand_name
   if (!args.slug     && intake.slug)       args.slug = intake.slug
   if (!args.vertical && intake.vertical)   args.vertical = intake.vertical
   if (!args['live-url'] && intake.live_url) args['live-url'] = intake.live_url
   if (!args['site-id']  && intake.site_id)  args['site-id']  = intake.site_id
   if (!args['organization-id'] && intake.organization_id) args['organization-id'] = intake.organization_id
   if (!args.images      && intake.images_dir) args.images = intake.images_dir
+  if (!args['images-place-id'] && intake.images_place_id) args['images-place-id'] = intake.images_place_id
   if (!args['maps-url']?.length && intake.maps_urls?.length) {
     args['maps-url'] = intake.maps_urls
   }
@@ -199,13 +202,13 @@ async function gate(message) {
   }
 }
 
-// ── Build forwarded arg lists ─────────────────────────────────────────────────
 
-const importArgs = ['scripts/client-import.mjs', '--slug', SLUG, '--vertical', VERTICAL]
+if (!args['brand-name']?.trim()) throw new Error('--brand-name or intake brand_name is required')
+const importArgs = ['scripts/client-import.mjs', '--slug', SLUG, '--vertical', VERTICAL, '--brand-name', args['brand-name']]
 importArgs.push('--organization-id', args['organization-id'])
 for (const url of (args['maps-url'] ?? [])) importArgs.push('--maps-url', url)
 if (args.images) importArgs.push('--images', args.images)
-if (args['allow-stock']) importArgs.push('--allow-stock')
+if (args['images-place-id']) importArgs.push('--images-place-id', args['images-place-id'])
 if (REMOTE) importArgs.push('--remote')
 
 const siteId  = args['site-id'] ?? `site-${SLUG}`
@@ -253,6 +256,7 @@ if (NON_INTERACTIVE) {
   const currentHash = createHash('sha256')
     .update(manifestContent)
     .update(seedContent)
+    .update(await readFile(join(OUT_DIR, 'media-manifest.json'), 'utf8'))
     .digest('hex')
   
   if (currentHash !== approved.manifest_hash) {

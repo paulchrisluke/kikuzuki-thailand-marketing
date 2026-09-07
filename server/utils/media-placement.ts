@@ -7,13 +7,14 @@ import {
   hydrateMediaAssetRefs,
   MAX_ORDERED_MEDIA_ASSETS,
   buildSingleMediaPlacementQueries,
+  mediaPlacementOwnerQuery,
   isSingleMediaPlacement,
   readMediaPlacements,
   type MediaAssetRefInput,
   type StoredMediaPlacementItem,
 } from '~/server/utils/media-asset-manager'
 import { isEditableMediaPlacement, isEditableMediaPlacementOwnerType, type EditableMediaPlacementOwnerType, type MediaPlacementOwnerType } from '~/shared/media-placement-contract'
-import { refreshSocialCard, socialCardRefreshOwnersForPlacement } from '~/server/utils/social-card'
+import { refreshSocialCard, refreshSiteBrandSocialCards, socialCardRefreshOwnersForPlacement } from '~/server/utils/social-card'
 
 export { EDITABLE_MEDIA_PLACEMENT_OWNERS } from '~/shared/media-placement-contract'
 export type MediaPlacementItem = StoredMediaPlacementItem
@@ -31,18 +32,6 @@ interface PlacementAuthInput {
   memberId?: string
   role?: MemberAccessPrincipal['role']
   placement: MediaPlacementKey
-}
-
-const OWNER_TABLES: Partial<Record<MediaPlacementOwnerType, string>> = {
-  business_location: 'business_locations',
-  product: 'products',
-  post: 'posts',
-  blog_post: 'blog_posts',
-  experience: 'experiences',
-  offering: 'offerings',
-  review: 'reviews',
-  review_request: 'review_requests',
-  tenant_compliance: 'tenant_compliance',
 }
 
 export function parseMediaPlacementKey(value: unknown): MediaPlacementKey {
@@ -94,7 +83,17 @@ function isUniqueConstraintError(error: unknown): boolean {
 }
 
 function allowedKindsFor(placement: MediaPlacementKey): Array<'image' | 'video' | 'file'> {
-  return placement.owner_type === 'tenant_compliance' ? ['file'] : ['image', 'video']
+  return placement.owner_type === 'site' && placement.slot === 'compliance_document' ? ['file'] : ['image', 'video']
+}
+
+async function requirePostMediaAllowed(db: DbClient, input: PlacementAuthInput): Promise<void> {
+  if (input.placement.owner_type !== 'content_document' || !['cover', 'gallery'].includes(input.placement.slot)) return
+  const document = await queryFirst<{ kind: string; post_type: string | null }>(db,
+    `SELECT root.kind, root.metadata_json ->> '$.post_type' AS post_type
+      FROM content_documents d JOIN content_documents root ON root.id = COALESCE(d.root_id, d.id)
+      WHERE d.id = ? AND d.organization_id = ? AND d.site_id = ?`,
+    [input.placement.owner_id, input.organizationId, input.siteId])
+  if (!document || (document.kind === 'social_post' && document.post_type === 'alert')) throw new HTTPError({ statusCode: 400, statusMessage: 'Alert posts do not accept media' })
 }
 
 async function authorizePlacementWrite(db: DbClient, input: PlacementAuthInput): Promise<void> {
@@ -149,6 +148,7 @@ export async function setSingleMediaPlacement(db: DbClient, input: {
   assetId: string | null
 }) {
   await authorizePlacementWrite(db, input)
+  if (input.assetId) await requirePostMediaAllowed(db, input)
   const refs: MediaAssetRefInput[] = input.assetId ? [{ asset_id: input.assetId }] : []
   const media = await hydrateMediaAssetRefs(db, {
     organizationId: input.organizationId,
@@ -177,6 +177,10 @@ async function refreshSocialCardForPlacement(db: DbClient, input: {
   placement: MediaPlacementKey
 }) {
   try {
+    if (input.placement.owner_type === 'site' && ['logo', 'social_share'].includes(input.placement.slot)) {
+      await refreshSiteBrandSocialCards({ db, env: input.env, siteId: input.siteId })
+      return
+    }
     const owners = await socialCardRefreshOwnersForPlacement(db, input.placement)
     for (const owner of owners) await refreshSocialCard({ db, env: input.env, owner })
   } catch (error) {
@@ -212,6 +216,7 @@ export async function attachMediaPlacement(db: DbClient, input: {
     throw new HTTPError({ statusCode: 400, statusMessage: 'This placement is single-valued; use setSingleMediaPlacement instead' })
   }
   await authorizePlacementWrite(db, input)
+  await requirePostMediaAllowed(db, input)
   const [asset] = await hydrateMediaAssetRefs(db, {
     organizationId: input.organizationId,
     siteId: input.siteId,
@@ -222,6 +227,7 @@ export async function attachMediaPlacement(db: DbClient, input: {
   if (!asset) throw new HTTPError({ statusCode: 400, statusMessage: 'asset_id is required' })
   const now = new Date().toISOString()
   const scopeParams = [input.organizationId, input.siteId, input.placement.owner_type, input.placement.owner_id, input.placement.slot]
+  const owner = mediaPlacementOwnerQuery({ ...input, ownerType: input.placement.owner_type, ownerId: input.placement.owner_id })
   let results
   try {
     results = await executeBatch(db, [{
@@ -229,13 +235,22 @@ export async function attachMediaPlacement(db: DbClient, input: {
         SELECT ?, ?, ?, ?, ?, ?, ?,
           COALESCE((SELECT MAX(sort_order) + 1 FROM media_placements WHERE organization_id = ? AND site_id = ? AND owner_type = ? AND owner_id = ? AND slot = ?), 0),
           'active', ?, ?
-        WHERE (SELECT COUNT(*) FROM media_placements WHERE organization_id = ? AND site_id = ? AND owner_type = ? AND owner_id = ? AND slot = ?) < ?`,
+        WHERE (SELECT COUNT(*) FROM media_placements WHERE organization_id = ? AND site_id = ? AND owner_type = ? AND owner_id = ? AND slot = ?) < ?
+          AND EXISTS (${owner.query})
+          AND EXISTS (SELECT 1 FROM media_assets WHERE id = ? AND organization_id = ? AND site_id = ? AND status = 'active')
+          AND (? != 'content_document' OR ? NOT IN ('cover','gallery') OR EXISTS (
+            SELECT 1 FROM content_documents d JOIN content_documents root ON root.id = COALESCE(d.root_id,d.id)
+             WHERE d.id = ? AND d.organization_id = ? AND d.site_id = ?
+               AND (root.kind != 'social_post' OR (root.metadata_json ->> '$.post_type') != 'alert')))`,
       params: [
         crypto.randomUUID(), ...scopeParams, asset.asset_id,
         ...scopeParams,
         now, now,
         ...scopeParams,
         MAX_ORDERED_MEDIA_ASSETS,
+        ...owner.params!,
+        asset.asset_id, input.organizationId, input.siteId,
+        input.placement.owner_type, input.placement.slot, input.placement.owner_id, input.organizationId, input.siteId,
       ],
     }])
   } catch (error) {
@@ -245,7 +260,7 @@ export async function attachMediaPlacement(db: DbClient, input: {
     throw error
   }
   if (Number(results[0]?.meta?.changes ?? 0) === 0) {
-    throw new HTTPError({ statusCode: 422, statusMessage: `Media placements accept at most ${MAX_ORDERED_MEDIA_ASSETS} assets` })
+    throw new HTTPError({ statusCode: 422, statusMessage: `The owner no longer accepts media or has reached ${MAX_ORDERED_MEDIA_ASSETS} assets` })
   }
   await refreshSocialCardForPlacement(db, input)
   return canonicalPlacementState(db, input)
@@ -358,10 +373,10 @@ export async function reorderMediaPlacements(db: DbClient, input: {
     placement: input.placement,
     expectedAssetIds: currentOrder,
   })]
-  order.forEach((assetId, index) => {
+  order.forEach((assetId) => {
     queries.push({
-      query: `UPDATE media_placements SET sort_order = ? WHERE organization_id = ? AND site_id = ? AND owner_type = ? AND owner_id = ? AND slot = ? AND asset_id = ?`,
-      params: [-(index + 1), ...scopeParams, assetId],
+      query: `UPDATE media_placements SET sort_order = (SELECT COALESCE(MAX(sort_order), 0) + 1 FROM media_placements WHERE organization_id = ? AND site_id = ? AND owner_type = ? AND owner_id = ? AND slot = ?) WHERE organization_id = ? AND site_id = ? AND owner_type = ? AND owner_id = ? AND slot = ? AND asset_id = ?`,
+      params: [...scopeParams, ...scopeParams, assetId],
     })
   })
   order.forEach((assetId, index) => {
@@ -416,23 +431,8 @@ async function requirePlacementOwner(db: DbClient, input: {
   siteId: string
   placement: MediaPlacementKey
 }): Promise<string | null> {
-  const { placement } = input
-  if (placement.owner_type === 'site') {
-    const row = await queryFirst(db, 'SELECT id FROM sites WHERE id = ? AND organization_id = ? LIMIT 1', [placement.owner_id, input.organizationId])
-    if (row && placement.owner_id === input.siteId) return null
-  } else if (placement.owner_type === 'product') {
-    const row = await queryFirst<{ location_id: string }>(db, 'SELECT location_id FROM products WHERE id = ? AND organization_id = ? AND site_id = ? LIMIT 1', [placement.owner_id, input.organizationId, input.siteId])
-    if (row) return row.location_id
-  } else if (placement.owner_type === 'content_block') {
-    const row = await queryFirst(db, `SELECT cb.id FROM content_blocks cb JOIN content_documents d ON d.id = cb.document_id LEFT JOIN tenant_page_variants v ON d.owner_type = 'tenant_page' AND v.id = d.owner_id LEFT JOIN blog_posts bp ON d.owner_type = 'tenant_blog' AND bp.id = d.owner_id WHERE cb.id = ? AND COALESCE(v.site_id, bp.site_id) = ? LIMIT 1`, [placement.owner_id, input.siteId])
-    if (row) return null
-  } else {
-    const table = OWNER_TABLES[placement.owner_type]
-    if (table) {
-      const hasLocation = ['post', 'experience', 'offering', 'review', 'review_request'].includes(placement.owner_type)
-      const row = await queryFirst<{ location_id?: string | null }>(db, `SELECT id${hasLocation ? ', location_id' : ''} FROM ${table} WHERE id = ? AND site_id = ? LIMIT 1`, [placement.owner_id, input.siteId])
-      if (row) return placement.owner_type === 'business_location' ? placement.owner_id : row.location_id ?? null
-    }
-  }
+  const owner = mediaPlacementOwnerQuery({ ...input, ownerType: input.placement.owner_type, ownerId: input.placement.owner_id })
+  const row = await queryFirst<{ location_id: string | null }>(db, owner.query, owner.params)
+  if (row) return row.location_id
   throw new HTTPError({ statusCode: 404, statusMessage: 'Media placement owner not found' })
 }

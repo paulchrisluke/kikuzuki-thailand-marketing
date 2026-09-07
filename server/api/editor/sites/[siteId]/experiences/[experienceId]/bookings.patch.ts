@@ -1,8 +1,8 @@
+import { getGuestRequest } from '~/server/domain/requests'
 import { jsonResponse, readRequiredBody } from '~/server/utils/api-response'
-import { updateBookingStatus } from '~/server/utils/experiences'
+import { executeGuestThreadOperation } from '~/server/domain/guest-threads/operations'
 import { assertResourceAccess } from '~/server/utils/member-access'
 import { queryFirst } from '~/server/db'
-import { getGuestThreadBySubmission } from '~/server/domain/guest-threads/repository'
 import { publishGuestInboxThreadEvent } from '~/server/cloudflare/guest-inbox-events'
 import { requireSiteAccess } from '~/server/utils/location-access'
 
@@ -11,9 +11,9 @@ export default defineHandler(async (event) => {
   const experienceId = getRouterParam(event, 'experienceId')
   if (!siteId || !experienceId) return jsonResponse({ error: 'siteId and experienceId required' }, { status: 400 })
 
-  const { env, db, site } = await requireSiteAccess(event, siteId, 'context')
+  const { env, db, site, session } = await requireSiteAccess(event, siteId, 'context')
 
-  const experience = await queryFirst<{ location_id: string }>(db, `SELECT location_id FROM experiences WHERE id = ? AND site_id = ? LIMIT 1`, [experienceId, siteId])
+  const experience = await queryFirst<{ location_id: string }>(db, `SELECT location_id FROM products WHERE product_type = \'experience\' AND id = ? AND site_id = ? LIMIT 1`, [experienceId, siteId])
   if (!experience) return jsonResponse({ error: 'Experience not found' }, { status: 404 })
 
   await assertResourceAccess(db, {
@@ -22,16 +22,17 @@ export default defineHandler(async (event) => {
 
   let body: { booking_id?: string; status?: string }
   try { body = await readRequiredBody<{ booking_id?: string; status?: string }>(event) } catch { return jsonResponse({ error: 'Invalid body' }, { status: 400 }) }
-  if (!body.booking_id || !['pending', 'confirmed', 'cancelled'].includes(body.status ?? '')) {
+  if (!body.booking_id || !['confirmed', 'cancelled', 'completed'].includes(body.status ?? '')) {
     return jsonResponse({ error: 'booking_id and valid status required' }, { status: 400 })
   }
 
-  const ok = await updateBookingStatus(db, siteId, experienceId, body.booking_id, body.status as 'pending' | 'confirmed' | 'cancelled')
-  if (!ok) return jsonResponse({ error: 'Booking not found' }, { status: 404 })
-  const thread = await getGuestThreadBySubmission(db, 'experience_booking', body.booking_id)
-  if (thread) {
-    await publishGuestInboxThreadEvent(env, db, { threadId: thread.id, type: 'thread.changed' })
-  }
+  const request = await getGuestRequest(db, body.booking_id, siteId, 'experience_booking')
+  if (!request || request.product_id !== experienceId) return jsonResponse({ error: 'Booking not found' }, { status: 404 })
+  const action = body.status === 'confirmed' ? 'confirm' : body.status === 'completed' ? 'complete' : 'cancel'
+  const outcome = await executeGuestThreadOperation(db, { threadId: request.id, siteId, action, actorUserId: session.user.id, env,
+    idempotencyKey: `editor:experience-booking:${request.id}:${request.status}:${request.updated_at}:${action}` })
+  if (!outcome.ok) return jsonResponse({ error: 'message' in outcome ? outcome.message : outcome.reason }, { status: outcome.status })
+  await publishGuestInboxThreadEvent(env, db, { threadId: request.id, type: 'thread.changed' })
   return jsonResponse({ updated: true })
 })
 import { defineHandler } from 'nitro';

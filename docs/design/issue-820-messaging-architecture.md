@@ -93,6 +93,12 @@ The organization-scoped WebSocket carries only invalidations. Clients refetch
 authoritative HTTP data after invalidation or reconnect and expose connection
 failure plus an explicit refresh action; they do not interval-poll.
 
+Invalidation transport is best effort after the authoritative mutation commits.
+A Durable Object transport failure is logged and does not turn a saved booking
+or message into an HTTP failure. Missing bindings and rejected publication
+contracts still surface as errors; persistence errors are never caught by the
+invalidation publisher.
+
 ## Module boundaries
 
 | Module | Responsibility |

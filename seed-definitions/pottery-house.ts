@@ -29,23 +29,22 @@ export const potteryHouseFixture: CuratedSiteDefinition = {
     brandName: 'Pottery House Krabi',
     media: [{ asset_id: 'media-ph-logo', slot: 'logo' }, { asset_id: 'media-ph-logo', slot: 'favicon' }],
     themeId: 'saya-theme-v1',
-    theme: 'saya',
     brandDescription:
       'A creative pottery studio in Krabi, Thailand. Wheel throwing classes, handbuilding workshops, Cocktails & Clay nights, and a beachfront popup. Clay, calm, and a place to return to each week.',
     status: 'active',
     onboardingStatus: 'active',
-    primaryLocationId: 'loc-pottery-house',
     contactEmail: null,
     contactPhone: '+66817794877',
-    publicUrl: 'https://www.potteryhousekrabi.com',
     defaultCurrency: 'THB',
     vertical: 'experience',
   },
-  siteConfig: [
-    { key: 'source_locale', value: 'en' },
-    { key: 'brand_color', value: '#96826A' },
-    { key: 'whatsapp_phone', value: '+447464115465' },
-  ],
+  settings: {
+    "config": {
+      "default_timezone": "Asia/Bangkok",
+      "brand_color": "#96826A",
+      "whatsapp_phone": "+447464115465"
+    }
+  },
   siteLocales: [
     {
       id: 'locale::org-pottery-house::site-pottery-house::en',
@@ -59,18 +58,10 @@ export const potteryHouseFixture: CuratedSiteDefinition = {
       locale: 'th',
       label: 'ไทย',
       isSource: false,
-      status: 'published',
+      status: 'disabled',
     },
   ],
   siteDomains: [
-    {
-      id: 'domain-pottery-local',
-      domain: 'pottery-house.localhost',
-      type: 'subdomain',
-      role: 'secondary',
-      status: 'active',
-      dnsStatus: 'valid',
-    },
     {
       id: 'domain-pottery-prod',
       domain: 'pottery-house.krabiclaw.com',
@@ -110,14 +101,14 @@ export const potteryHouseFixture: CuratedSiteDefinition = {
         'Pottery House is a creative studio in Krabi where you can throw on the wheel, build by hand, glaze your pieces, and take something real home with you. All materials and firing are included. Whether you are a first-timer, a returning traveller, or someone looking for a slow creative routine while staying in Krabi, you are welcome here.',
       shortDescription:
         'Wheel throwing, handbuilding, and glazing classes in the heart of Krabi. All materials and firing included.',
-      openingHours: [
-        { openDay: 'TUESDAY', openTime: '10:00', closeTime: '18:00' },
-        { openDay: 'WEDNESDAY', openTime: '10:00', closeTime: '18:00' },
-        { openDay: 'THURSDAY', openTime: '10:00', closeTime: '18:00' },
-        { openDay: 'FRIDAY', openTime: '10:00', closeTime: '22:00' },
-        { openDay: 'SATURDAY', openTime: '10:00', closeTime: '18:00' },
-        { openDay: 'SUNDAY', openTime: '10:00', closeTime: '18:00' },
-      ],
+      openingHours: { periods: [
+        { open: { day: 2, hour: 10, minute: 0 }, close: { day: 2, hour: 18, minute: 0 } },
+        { open: { day: 3, hour: 10, minute: 0 }, close: { day: 3, hour: 18, minute: 0 } },
+        { open: { day: 4, hour: 10, minute: 0 }, close: { day: 4, hour: 18, minute: 0 } },
+        { open: { day: 5, hour: 10, minute: 0 }, close: { day: 5, hour: 22, minute: 0 } },
+        { open: { day: 6, hour: 10, minute: 0 }, close: { day: 6, hour: 18, minute: 0 } },
+        { open: { day: 0, hour: 10, minute: 0 }, close: { day: 0, hour: 18, minute: 0 } },
+      ] },
       // Verified against the live Google Places API 2026-07-06.
       rating: 5,
       reviewCount: 3,
@@ -127,7 +118,6 @@ export const potteryHouseFixture: CuratedSiteDefinition = {
       categories: ['Pottery Studio', 'Pottery Classes', 'Ceramic Workshop', 'Art Experience'],
       instagramUrl: 'https://instagram.com/potteryclasseskrabi',
       facebookUrl: '',
-      isPrimary: true,
       status: 'active',
       media: [
         { asset_id: 'media-ph-homepage-custom', slot: 'hero' },
@@ -164,15 +154,15 @@ export const potteryHouseFixture: CuratedSiteDefinition = {
       description:
         'A pop-up beachfront pottery session at Sea View, Klong Muang. Throw on the wheel with the Gulf of Thailand in front of you. Limited seats, unforgettable setting.',
       shortDescription: 'Beachfront wheel throwing sessions at Klong Muang beach. Limited seats.',
-      openingHours: [
-        { openDay: 'MONDAY', openTime: '12:00', closeTime: '19:30' },
-        { openDay: 'TUESDAY', openTime: '12:00', closeTime: '19:30' },
-        { openDay: 'WEDNESDAY', openTime: '12:00', closeTime: '19:30' },
-        { openDay: 'THURSDAY', openTime: '12:00', closeTime: '19:30' },
-        { openDay: 'FRIDAY', openTime: '12:00', closeTime: '19:30' },
-        { openDay: 'SATURDAY', openTime: '12:00', closeTime: '19:30' },
-        { openDay: 'SUNDAY', openTime: '12:00', closeTime: '19:30' },
-      ],
+      openingHours: { periods: [
+        { open: { day: 1, hour: 12, minute: 0 }, close: { day: 1, hour: 19, minute: 30 } },
+        { open: { day: 2, hour: 12, minute: 0 }, close: { day: 2, hour: 19, minute: 30 } },
+        { open: { day: 3, hour: 12, minute: 0 }, close: { day: 3, hour: 19, minute: 30 } },
+        { open: { day: 4, hour: 12, minute: 0 }, close: { day: 4, hour: 19, minute: 30 } },
+        { open: { day: 5, hour: 12, minute: 0 }, close: { day: 5, hour: 19, minute: 30 } },
+        { open: { day: 6, hour: 12, minute: 0 }, close: { day: 6, hour: 19, minute: 30 } },
+        { open: { day: 0, hour: 12, minute: 0 }, close: { day: 0, hour: 19, minute: 30 } },
+      ] },
       // Verified against the live Google Places API 2026-07-06.
       rating: 4.5,
       reviewCount: 8,
@@ -183,7 +173,6 @@ export const potteryHouseFixture: CuratedSiteDefinition = {
       instagramUrl: 'https://instagram.com/potteryclasseskrabi',
       // Facebook Place ID stored in this field for the beachfront location
       facebookUrl: 'ChIJNfYDGwC_UTARU_DUo4sLtK8',
-      isPrimary: false,
       status: 'active',
       media: [
         { asset_id: 'media-ph-beach-hero', slot: 'hero' },
@@ -516,7 +505,7 @@ export const potteryHouseFixture: CuratedSiteDefinition = {
       priceAmount: 1200,
       durationMinutes: 90,
       maxCapacity: 8,
-      timeSlots: ['10:00', '12:00', '14:00', '16:00'],
+      recurringSlots: { sunday: ['10:00', '12:00', '14:00', '16:00'], monday: ['10:00', '12:00', '14:00', '16:00'], tuesday: ['10:00', '12:00', '14:00', '16:00'], wednesday: ['10:00', '12:00', '14:00', '16:00'], thursday: ['10:00', '12:00', '14:00', '16:00'], friday: ['10:00', '12:00', '14:00', '16:00'], saturday: ['10:00', '12:00', '14:00', '16:00'] },
       status: 'active',
       sortOrder: 1,
       featured: true,
@@ -538,7 +527,7 @@ export const potteryHouseFixture: CuratedSiteDefinition = {
       priceAmount: 1500,
       durationMinutes: 180,
       maxCapacity: 12,
-      timeSlots: ['19:00'],
+      recurringSlots: { sunday: ['19:00'], monday: ['19:00'], tuesday: ['19:00'], wednesday: ['19:00'], thursday: ['19:00'], friday: ['19:00'], saturday: ['19:00'] },
       status: 'active',
       sortOrder: 2,
       featured: true,
@@ -560,7 +549,7 @@ export const potteryHouseFixture: CuratedSiteDefinition = {
       priceAmount: 1800,
       durationMinutes: 120,
       maxCapacity: 4,
-      timeSlots: ['09:00', '15:00'],
+      recurringSlots: { sunday: ['09:00', '15:00'], monday: ['09:00', '15:00'], tuesday: ['09:00', '15:00'], wednesday: ['09:00', '15:00'], thursday: ['09:00', '15:00'], friday: ['09:00', '15:00'], saturday: ['09:00', '15:00'] },
       status: 'active',
       sortOrder: 3,
       featured: true,
@@ -582,7 +571,7 @@ export const potteryHouseFixture: CuratedSiteDefinition = {
       priceAmount: null,
       durationMinutes: null,
       maxCapacity: null,
-      timeSlots: [],
+      recurringSlots: null,
       status: 'active',
       sortOrder: 4,
       featured: false,
@@ -695,7 +684,7 @@ export const potteryHouseFixture: CuratedSiteDefinition = {
     {
       id: 'post-ph-1',
       locationId: 'loc-pottery-house',
-      postType: 'update',
+      post_type: 'standard',
       title: 'Doors open, wheels spinning.',
       body: 'Welcome to Pottery House. We are open for wheel classes, handbuilding sessions, and Cocktails & Clay every Friday night. Walk-ins welcome when we have space, but booking ahead is always a good idea. Find us on Instagram @potteryclasseskrabi.',
       media: [{ asset_id: 'media-ph-post1', slot: 'cover' }],
@@ -706,7 +695,7 @@ export const potteryHouseFixture: CuratedSiteDefinition = {
     {
       id: 'post-ph-2',
       locationId: 'loc-pottery-house',
-      postType: 'standard',
+      post_type: 'standard',
       title: null,
       body: 'Nothing makes our team happier than happy students. Turns out clay, coffee, and a few proud smiles are the perfect recipe. Thank you for making the studio so joyful.',
       media: [{ asset_id: 'media-ph-post2', slot: 'cover' }],
@@ -717,7 +706,7 @@ export const potteryHouseFixture: CuratedSiteDefinition = {
     {
       id: 'post-ph-3',
       locationId: 'loc-pottery-house',
-      postType: 'standard',
+      post_type: 'standard',
       title: 'Cocktails & Clay — Every Friday, 7PM to 10PM',
       body: 'Grab a drink, sit at the wheel, and see what your hands can do. Our Friday night Cocktails & Clay session is social, relaxed, and genuinely fun — whether you are a first-timer or you already know your way around a wheel. ฿1,500 per person. Book via Instagram @potteryclasseskrabi.',
       media: [{ asset_id: 'media-ph-post3', slot: 'cover' }],
@@ -862,14 +851,7 @@ export const potteryHouseFixture: CuratedSiteDefinition = {
 export const compiledPotteryHouseSeed = compileCuratedSiteFixture(potteryHouseFixture)
 
 export function renderCompiledPotteryHouseCoreSeedBlock(): string {
-  const siteConfigRows = compiledPotteryHouseSeed.siteConfig
-    .map((entry) => `  (${[
-      sqlValue(compiledPotteryHouseSeed.identity.organizationId),
-      sqlValue(compiledPotteryHouseSeed.identity.siteId),
-      sqlValue(entry.key),
-      sqlValue(entry.value),
-    ].join(', ')})`)
-    .join(',\n')
+  const settings = compiledPotteryHouseSeed.settings
 
   const siteLocaleRows = compiledPotteryHouseSeed.siteLocales
     .map((entry) => `  (${[
@@ -900,33 +882,28 @@ export function renderCompiledPotteryHouseCoreSeedBlock(): string {
   return `-- BEGIN GENERATED: pottery_core
 -- Pottery House Krabi core generated from the curated fixture contract.
 INSERT OR REPLACE INTO sites (
-  id, organization_id, theme_id, theme, slug, subdomain,
-  public_url, brand_name, brand_description,
-  status, onboarding_status, primary_location_id,
-  contact_email, contact_phone, default_currency, vertical, analytics_data_start_at
+  id, organization_id, theme_id, slug, subdomain,
+  brand_name, brand_description,
+  status, onboarding_status,
+  contact_email, contact_phone, default_currency, vertical, settings_json, analytics_data_start_at
 ) VALUES (
   ${sqlValue(identity.siteId)},
   ${sqlValue(identity.organizationId)},
   ${sqlValue(site.themeId)},
-  ${sqlValue(site.theme)},
   ${sqlValue(site.slug)},
   ${sqlValue(site.subdomain)},
-  ${sqlValue(site.publicUrl)},
   ${sqlValue(site.brandName)},
   ${sqlValue(site.brandDescription)},
   ${sqlValue(site.status)},
   ${sqlValue(site.onboardingStatus)},
-  NULL,
   ${sqlValue(site.contactEmail)},
   ${sqlValue(site.contactPhone ?? null)},
   ${sqlValue(site.defaultCurrency)},
   ${sqlValue(site.vertical)},
+  ${sqlJson(settings)},
   strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
 );
 
-INSERT OR REPLACE INTO site_config (organization_id, site_id, key, value)
-VALUES
-${siteConfigRows};
 
 INSERT OR REPLACE INTO site_locales
   (id, organization_id, site_id, locale, label, is_source, status)
@@ -994,7 +971,6 @@ export function renderCompiledPotteryHouseMediaBlock(): string {
       sqlJson(location.categories),
       sqlValue(location.instagramUrl),
       sqlValue(location.facebookUrl),
-      sqlValue(location.isPrimary),
       sqlValue(location.status),
       sqlValue(location.notificationPhone ?? null),
       sqlValue('Asia/Bangkok'),
@@ -1011,7 +987,7 @@ INSERT OR REPLACE INTO business_locations (
   rating, review_count, google_place_id, last_synced_at,
   price_level, categories,
   instagram_url, facebook_url,
-  is_primary, status, notification_phone,
+  status, notification_phone,
   timezone
 ) VALUES
 ${locationRowsNoHero};
@@ -1030,7 +1006,6 @@ ${mediaPlacementRows ? `INSERT OR REPLACE INTO media_placements
 VALUES
 ${mediaPlacementRows};` : ''}
 
-UPDATE sites SET primary_location_id = ${sqlValue(compiledPotteryHouseSeed.site.primaryLocationId)} WHERE id = ${sqlValue(compiledPotteryHouseSeed.identity.siteId)};
 -- END GENERATED: pottery_media`
 }
 
@@ -1054,20 +1029,7 @@ export function renderCompiledPotteryHouseExperiencesBlock(): string {
       sqlValue(experience.featured), sqlValue(experience.featuredSortOrder), sqlValue(sortOrderFor(experience.id)),
       sqlJson(experience.tags), sqlJson(experience.details), sqlValue(experience.seoTitle), sqlValue(experience.seoDescription),
       sqlValue('template'), sqlValue('seed:pottery-house'), sqlValue('seed:pottery-house'),
-    ].join(', ')})`)
-    .join(',\n')
-  const experienceRows = compiledPotteryHouseSeed.experiences
-    .map((experience) => `  (${[
-      sqlValue(experience.id),
-      sqlValue(experience.organizationId),
-      sqlValue(experience.siteId),
-      sqlValue(experience.locationId),
-      sqlValue(experience.tagline),
-      sqlValue(experience.priceAmount == null ? experience.price : null),
-      sqlValue(experience.durationMinutes),
-      sqlValue(experience.maxCapacity),
-      experience.timeSlots.length > 0 ? sqlJson(experience.timeSlots) : 'NULL',
-      'NULL',
+      sqlJson({ tagline: experience.tagline, pricing_note: experience.priceAmount == null ? experience.price : null, duration_minutes: experience.durationMinutes, max_capacity: experience.maxCapacity, recurring_slots: experience.recurringSlots, included_items: experience.includedItems?.length ? experience.includedItems : null, what_to_bring: experience.whatToBring?.length ? experience.whatToBring : null, meeting_point: experience.meetingPoint ?? null, cancellation_policy: experience.cancellationPolicy ?? null }),
     ].join(', ')})`)
     .join(',\n')
   const experiencePriceRows = compiledPotteryHouseSeed.experiences
@@ -1091,7 +1053,7 @@ ${experienceMedia
     sqlValue(`em-${experience.id}-${media.slot}-${index}`),
     sqlValue(experience.organizationId),
     sqlValue(experience.siteId),
-    sqlValue('experience'), sqlValue(experience.id), sqlValue(media.slot),
+    sqlValue('product'), sqlValue(experience.id), sqlValue(media.slot),
     sqlValue(media.asset_id),
     index, sqlValue('active'),
   ].join(', ')})`)
@@ -1108,15 +1070,9 @@ ${experienceCategoryRows};
 INSERT OR REPLACE INTO products
   (id, organization_id, site_id, location_id, product_type, category_id, name, slug, description,
    is_visible, available, featured, featured_sort_order, sort_order, tags_json, details_json,
-   seo_title, seo_description, source, created_by, updated_by)
+   seo_title, seo_description, source, created_by, updated_by, experience_json)
 VALUES
 ${experienceProductRows};
-
-INSERT OR REPLACE INTO experiences
-  (id, organization_id, site_id, location_id, tagline, pricing_note,
-   duration_minutes, max_capacity, time_slots, recurring_slots)
-VALUES
-${experienceRows};
 
 INSERT OR REPLACE INTO prices
   (id, organization_id, site_id, location_id, product_id, amount_minor, currency, unit, tax_behavior,
@@ -1170,11 +1126,9 @@ export function renderCompiledPotteryHouseQaBlock(): string {
       sqlValue(qa.siteId),
       sqlValue(qa.locationId),
       sqlValue(qa.question),
-      sqlValue(qa.questionAuthor),
       sqlValue(qa.answer),
-      sqlValue(qa.answerAuthor),
-      sqlValue(qa.isOwnerAnswer),
-      sqlValue(qa.upvoteCount),
+      sqlValue('qa'), sqlValue('root'), sqlValue('en'),
+      sqlJson({ question_author: qa.questionAuthor, answer_author: qa.answerAuthor, is_owner_answer: Boolean(qa.isOwnerAnswer), upvote_count: qa.upvoteCount }),
       sqlValue(qa.source),
       sqlValue(qa.status),
       sqlValue(qa.sortOrder),
@@ -1183,10 +1137,8 @@ export function renderCompiledPotteryHouseQaBlock(): string {
 
   return `-- BEGIN GENERATED: pottery_qa
 -- Location Q&A for Pottery House Krabi.
-INSERT OR IGNORE INTO location_qa
-  (id, organization_id, site_id, location_id,
-   question, question_author, answer, answer_author,
-   is_owner_answer, upvote_count, source, status, sort_order)
+INSERT OR IGNORE INTO content_documents
+  (id, organization_id, site_id, location_id, title, summary, kind, row_role, locale, metadata_json, source, status, sort_order)
 VALUES
 ${qaRows};
 -- END GENERATED: pottery_qa`
@@ -1199,16 +1151,9 @@ export function renderCompiledPotteryHousePostsBlock(): string {
       sqlValue(post.organizationId),
       sqlValue(post.siteId),
       sqlValue(post.locationId),
-      sqlValue(post.postType),
-      sqlValue(post.title),
-      sqlValue(post.body),
-      sqlValue(post.ctaType),
-      sqlValue(post.ctaUrl),
-      sqlValue(post.eventTitle),
-      sqlValue(post.eventStartAt),
-      sqlValue(post.eventEndAt),
-      sqlValue(post.offerCoupon),
-      sqlValue(post.offerTerms),
+      sqlValue(post.title), sqlValue(post.body),
+      sqlValue('social_post'), sqlValue('root'), sqlValue('en'), sqlValue('template'),
+      sqlJson({ post_type: post.post_type, call_to_action: post.call_to_action, event: post.event, offer: post.offer, alert_type: post.alert_type }),
       sqlValue(post.status),
       sqlValue(post.publishedAt),
       sqlValue(post.createdBy),
@@ -1217,13 +1162,11 @@ export function renderCompiledPotteryHousePostsBlock(): string {
 
   const postMediaRows = compiledPotteryHouseSeed.posts.flatMap(post => post.media.map((media, index) => `  (${[
     sqlValue(`placement-post-${post.id}-${media.slot}-${index}`), sqlValue(post.organizationId), sqlValue(post.siteId),
-    sqlValue('post'), sqlValue(post.id), sqlValue(media.slot), sqlValue(media.asset_id), index, sqlValue('active'),
+    sqlValue('content_document'), sqlValue(post.id), sqlValue(media.slot), sqlValue(media.asset_id), index, sqlValue('active'),
   ].join(', ')})`)).join(',\n')
   return `-- BEGIN GENERATED: pottery_posts
-INSERT OR IGNORE INTO posts
-  (id, organization_id, site_id, location_id,
-   post_type, title, body, cta_type, cta_url, event_title, event_start, event_end, offer_coupon, offer_terms,
-   status, published_at, created_by)
+INSERT OR IGNORE INTO content_documents
+  (id, organization_id, site_id, location_id, title, summary, kind, row_role, locale, source, metadata_json, status, published_at, created_by)
 VALUES
 ${postRows};
 
@@ -1238,7 +1181,6 @@ ${postMediaRows};` : ''}
 export function renderCompiledPotteryHouseBlogBlock(): string {
   const publishedAt = '2026-07-08T00:00:00.000Z'
   const postId = 'blog-pottery-group-bookings'
-  const documentId = 'content-document-pottery-group-bookings'
   const blockId = 'content-block-pottery-group-bookings'
   const body = `# Group Bookings Create a Unique Pottery Experience in Krabi
 
@@ -1255,10 +1197,10 @@ Our team can help organise group timing, capacity, and the right workshop format
 
   return `-- BEGIN GENERATED: pottery_blog
 -- Tenant blog coverage for Pottery House Krabi parity checks.
-INSERT OR IGNORE INTO blog_posts
-  (id, organization_id, site_id, title, slug, excerpt, category, status,
+INSERT OR IGNORE INTO content_documents
+  (id, organization_id, site_id, title, slug, summary, metadata_json, status,
    author_id, published_at, created_at, updated_at,
-   seo_description, seo_keywords, canonical_url, robots, hide_from_nav)
+   seo_description, seo_keywords, canonical_url, robots, kind, row_role, locale, visibility)
 VALUES (
   ${sqlValue(postId)},
   ${sqlValue('org-pottery-house')},
@@ -1266,7 +1208,7 @@ VALUES (
   ${sqlValue('Group Bookings Create a Unique Pottery Experience in Krabi')},
   ${sqlValue('group-bookings-create-a-unique-pottery-experience-in-krabi')},
   ${sqlValue('A practical guide to private pottery sessions in Krabi for retreats, schools, and team events.')},
-  ${sqlValue('Group bookings')},
+  ${sqlJson({ category: 'Group bookings', hide_from_nav: false })},
   'published',
   ${sqlValue('user-pottery-house')},
   ${sqlValue(publishedAt)},
@@ -1276,20 +1218,17 @@ VALUES (
   ${sqlValue('pottery workshop krabi, group booking krabi, retreat activity krabi, team building pottery')},
   ${sqlValue('/blog/group-bookings-create-a-unique-pottery-experience-in-krabi')},
   ${sqlValue('index,follow')},
-  0
+  'article', 'root', 'en', 'public'
 );
 
 INSERT OR REPLACE INTO media_placements
   (id, organization_id, site_id, owner_type, owner_id, slot, asset_id, sort_order, status)
-VALUES ('placement-blog-pottery-group-bookings-featured', 'org-pottery-house', 'site-pottery-house', 'blog_post', ${sqlValue(postId)}, 'featured', 'media-ph-homepage-custom', 0, 'active');
+VALUES ('placement-blog-pottery-group-bookings-featured', 'org-pottery-house', 'site-pottery-house', 'content_document', ${sqlValue(postId)}, 'featured', 'media-ph-homepage-custom', 0, 'active');
 
-INSERT OR REPLACE INTO content_documents
-  (id, owner_type, owner_id, created_at, updated_at)
-VALUES (${sqlValue(documentId)}, 'tenant_blog', ${sqlValue(postId)}, ${sqlValue(publishedAt)}, ${sqlValue(publishedAt)});
 
 INSERT OR REPLACE INTO content_blocks
   (id, document_id, parent_block_id, type, position, level, data_json, created_at, updated_at)
-VALUES (${sqlValue(blockId)}, ${sqlValue(documentId)}, NULL, 'markdown', 0, NULL, ${sqlJson(blockData)}, ${sqlValue(publishedAt)}, ${sqlValue(publishedAt)});
+VALUES (${sqlValue(blockId)}, ${sqlValue(postId)}, NULL, 'markdown', 0, NULL, ${sqlJson(blockData)}, ${sqlValue(publishedAt)}, ${sqlValue(publishedAt)});
 -- END GENERATED: pottery_blog`
 }
 

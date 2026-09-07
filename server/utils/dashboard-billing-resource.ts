@@ -2,7 +2,6 @@ import { HTTPError } from 'nitro';
 
 import type { H3Event } from 'nitro'
 import type Stripe from 'stripe'
-import { queryFirst } from '~/server/db'
 import { getOrganizationCreditsResource } from '~/server/utils/ai-credits'
 import { getOrganizationBillingStatus, getStripe, requireBillingAccess } from '~/server/utils/billing'
 import { loadOrganizationSiteSummaries } from '~/server/utils/billing-site-resource'
@@ -17,20 +16,16 @@ export async function loadDashboardBillingResource(event: H3Event, organizationS
     organizationSlug,
   })
   await requireBillingAccess(env, db, organization.id, userId)
-  const [billingStatus, credits, organizationBilling] = await Promise.all([
+  const [billingStatus, credits] = await Promise.all([
     getOrganizationBillingStatus(env, db, organization.id),
     getOrganizationCreditsResource(db, organization.id),
-    queryFirst<{ stripe_customer_id: string | null }>(
-      db,
-      'SELECT stripe_customer_id FROM organization_billing WHERE organization_id = ? LIMIT 1',
-      [organization.id],
-    ),
+
   ])
 
   let card: { brand: string; last4: string; exp_month: number; exp_year: number } | null = null
-  if (organizationBilling?.stripe_customer_id) {
+  if (billingStatus.stripeCustomerId) {
     const stripe = getStripe(env)
-    const customer = await stripe.customers.retrieve(organizationBilling.stripe_customer_id, {
+    const customer = await stripe.customers.retrieve(billingStatus.stripeCustomerId, {
       expand: ['invoice_settings.default_payment_method'],
     }) as Stripe.Customer
     const paymentMethod = customer.invoice_settings?.default_payment_method

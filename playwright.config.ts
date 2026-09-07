@@ -37,6 +37,7 @@ const localWorkerCommand = [
   '--assets .output/public',
   '--local',
   `--port ${port}`,
+  `--host localhost:${port}`,
   '--var E2E_ALLOW_DEV_ROUTES:true',
   `--var E2E_DEV_ROUTE_SECRET:${localDevRouteSecret}`,
   '--var EMAIL_DELIVERY_MODE:log_only',
@@ -66,7 +67,9 @@ export default defineConfig({
   workers: process.env.PLAYWRIGHT_WORKERS
     ? Number(process.env.PLAYWRIGHT_WORKERS)
     : process.env.CI ? 2 : undefined,
-  reporter: process.env.CI ? [['list'], ['html', { open: 'never' }]] : 'list',
+  reporter: process.env.CI
+    ? [['list'], ['./tests/e2e/progress-reporter.ts'], ['html', { open: 'never' }]]
+    : [['list'], ['./tests/e2e/progress-reporter.ts']],
   use: {
     baseURL,
     trace: 'retain-on-failure',

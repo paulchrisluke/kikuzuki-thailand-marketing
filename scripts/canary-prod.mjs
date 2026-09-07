@@ -24,16 +24,7 @@ function d1Query(sql) {
 }
 
 function sqlEscape(value) {
-  return String(value).replace(/\\/g, '\\\\').replace(/'/g, "''")
-}
-
-function d1Exec(sql) {
-  const res = spawnYarn(['-s', 'wrangler', 'd1', 'execute', 'DB', '--remote', '--json', '--command', sql], {
-    stdio: ['ignore', 'pipe', 'pipe'],
-    encoding: 'utf8',
-  })
-  if (res.error) throw res.error
-  if (res.status !== 0) throw new Error(res.stderr || `d1Exec exited ${res.status}`)
+  return String(value).replace(/'/g, "''")
 }
 
 async function fetchJson(request, url, options = {}) {
@@ -65,8 +56,8 @@ async function main() {
   }
 
   const before = {
-    reservations: Number(d1Query(`SELECT COUNT(*) as c FROM reservation_submissions WHERE site_id = '${sqlEscape(expectedSiteId)}'`)[0]?.c ?? 0),
-    contacts: Number(d1Query(`SELECT COUNT(*) as c FROM contact_submissions WHERE site_id = '${sqlEscape(expectedSiteId)}'`)[0]?.c ?? 0),
+    reservations: Number(d1Query(`SELECT COUNT(*) as c FROM requests WHERE kind = 'reservation' AND site_id = '${sqlEscape(expectedSiteId)}'`)[0]?.c ?? 0),
+    contacts: Number(d1Query(`SELECT COUNT(*) as c FROM requests WHERE kind = 'contact' AND site_id = '${sqlEscape(expectedSiteId)}'`)[0]?.c ?? 0),
   }
 
   const browser = await chromium.launch({ headless: true })
@@ -142,8 +133,8 @@ async function main() {
     }
 
     const after = {
-      reservations: Number(d1Query(`SELECT COUNT(*) as c FROM reservation_submissions WHERE site_id = '${sqlEscape(expectedSiteId)}'`)[0]?.c ?? 0),
-      contacts: Number(d1Query(`SELECT COUNT(*) as c FROM contact_submissions WHERE site_id = '${sqlEscape(expectedSiteId)}'`)[0]?.c ?? 0),
+      reservations: Number(d1Query(`SELECT COUNT(*) as c FROM requests WHERE kind = 'reservation' AND site_id = '${sqlEscape(expectedSiteId)}'`)[0]?.c ?? 0),
+      contacts: Number(d1Query(`SELECT COUNT(*) as c FROM requests WHERE kind = 'contact' AND site_id = '${sqlEscape(expectedSiteId)}'`)[0]?.c ?? 0),
     }
 
     if (JSON.stringify(before) !== JSON.stringify(after)) {
@@ -160,20 +151,6 @@ async function main() {
       user_id: session.body.user.id,
     }
 
-    d1Exec(`
-      INSERT INTO canary_runs (id, run_type, environment, status, organization_id, site_id, details_json, created_at)
-      VALUES (
-        'canary-auth-${sqlEscape(crypto.randomUUID())}',
-        'auth',
-        'production',
-        'pass',
-        '${sqlEscape(orgId)}',
-        '${sqlEscape(expectedSiteId)}',
-        '${sqlEscape(JSON.stringify(summary))}',
-        '${sqlEscape(nowIso())}'
-      )
-    `)
-
     console.log(JSON.stringify(summary, null, 2))
   } finally {
     await page.close().catch(() => {})
@@ -183,30 +160,6 @@ async function main() {
 }
 
 main().catch((error) => {
-  const orgId = process.env.CANARY_ORG_ID
-  const siteId = process.env.CANARY_SITE_ID
-  try {
-    if (orgId && siteId) {
-      const failure = {
-        failed_at: nowIso(),
-        message: error instanceof Error ? error.message : String(error),
-      }
-      d1Exec(`
-        INSERT INTO canary_runs (id, run_type, environment, status, organization_id, site_id, details_json, created_at)
-        VALUES (
-          'canary-auth-${sqlEscape(crypto.randomUUID())}',
-          'auth',
-          'production',
-          'fail',
-          '${sqlEscape(orgId)}',
-          '${sqlEscape(siteId)}',
-          '${sqlEscape(JSON.stringify(failure))}',
-          '${sqlEscape(nowIso())}'
-        )
-      `)
-    }
-  } catch (_err) { /* best-effort failure audit write; do not mask the original canary error */ }
-
   console.error('canary:prod failed')
   console.error(error instanceof Error ? error.message : String(error))
   process.exit(1)

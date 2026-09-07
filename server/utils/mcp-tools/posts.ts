@@ -1,5 +1,8 @@
+import { postMutationJsonSchema } from '~/shared/posts'
 import type { McpToolDefinition } from './shared'
 import { pageInfoObject, paginationInputSchema, postMutationResultObject, postObject, postPublishResultObject, siteTool } from './shared'
+
+const { media: _initialMedia, ...postUpdateProperties } = postMutationJsonSchema.properties
 
 export const POSTS_TOOLS: McpToolDefinition[] = [
   siteTool({
@@ -35,54 +38,21 @@ export const POSTS_TOOLS: McpToolDefinition[] = [
     }),
   siteTool({
       name: 'create_post',
-      description: 'Create a time-boxed, social-style announcement (tonight\'s event, a limited offer, quick news) and publish it to the website immediately unless scheduled_for is provided. This does not publish to social channels; use publish_post with explicit channels for social publication. Use post_type "offer" for a discount/special (requires offer_coupon or offer_terms), "event" for a scheduled happening (requires event_start), or "update" for general news. Defaults to "standard". Optional SEO title and description fields customize the public post page. For long-form, evergreen articles (site history, guides, "why choose us") use create_blog_post instead; announcements do not appear in site navigation.',
+      description: 'Create a website announcement, published immediately unless scheduled_for is provided. Use standard for news. Event and offer require event.title and a complete local event.schedule. Offer fields are optional and call_to_action is not allowed on offers. CALL uses the selected location phone. Alert supports covid_19 summary and CTA only. Event recurrence supports daily, weekly and monthly rules. Google publishing is unavailable. Use publish_post for connected Facebook or Instagram channels. Use create_blog_post for long-form articles.',
       domain: 'posts',
       minimumRole: 'editor',
       confirmRequired: true,
-      inputSchema: {
-        body: { type: 'string' },
-        title: { type: 'string' },
-        slug: { type: 'string', description: 'Optional public URL slug. If omitted, KrabiClaw generates a stable unique slug.' },
-        seo_title: { type: 'string', description: 'Optional SEO title for the public post page.' },
-        seo_description: { type: 'string', description: 'Optional SEO/meta description for the public post page.' },
-        post_type: { type: 'string', enum: ['standard', 'offer', 'event', 'update'], description: 'Determines how the post is presented. "offer" = promotion, "event" = scheduled happening.' },
-        location_id: { type: 'string', description: 'Restrict this post to a specific location. Omit to apply site-wide.' },
-        cta_type: { type: 'string', description: 'Call-to-action type shown with the post, e.g. "book", "order", "learn_more".' },
-        cta_url: { type: 'string', description: 'URL the call-to-action button links to.' },
-        event_title: { type: 'string', description: 'Event name. Use with post_type "event".' },
-        event_start: { type: 'string', description: 'Event start datetime (ISO 8601). Use with post_type "event".' },
-        event_end: { type: 'string', description: 'Event end datetime (ISO 8601). Use with post_type "event".' },
-        offer_coupon: { type: 'string', description: 'Coupon code for the promotion. Use with post_type "offer".' },
-        offer_terms: { type: 'string', description: 'Terms and conditions for the promotion. Use with post_type "offer".' },
-        scheduled_for: { type: 'string', description: 'If set, the post is scheduled to publish at this datetime (ISO 8601) instead of immediately.' },
-      },
+      inputSchema: postMutationJsonSchema.properties,
       required: ['body'],
       outputSchema: postMutationResultObject,
     }),
   siteTool({
       name: 'update_post',
-      description: 'Update a post, including converting it into a promotion or event via post_type. Only provided fields are changed.',
+      description: 'Update a post. Changing post_type clears incompatible topic fields; supply the new event or offer shape together. Edit cover and gallery through media placement tools. Schedule changes use scheduled_for, independently of event dates.',
       domain: 'posts',
       minimumRole: 'editor',
       confirmRequired: false,
-      inputSchema: {
-        post_id: { type: 'string' },
-        body: { type: 'string' },
-        title: { type: 'string' },
-        slug: { type: ['string', 'null'], description: 'Public URL slug. Pass null or omit to keep the current slug; pass a string to change it.' },
-        seo_title: { type: ['string', 'null'] },
-        seo_description: { type: ['string', 'null'] },
-        post_type: { type: 'string', enum: ['standard', 'offer', 'event', 'update'], description: 'Determines how the post is presented. "offer" = promotion, "event" = scheduled happening.' },
-        location_id: { type: ['string', 'null'], description: 'Restrict this post to a specific location. Pass null to clear it.' },
-        cta_type: { type: 'string', description: 'Call-to-action type shown with the post, e.g. "book", "order", "learn_more".' },
-        cta_url: { type: 'string', description: 'URL the call-to-action button links to.' },
-        event_title: { type: 'string', description: 'Event name. Use with post_type "event".' },
-        event_start: { type: 'string', description: 'Event start datetime (ISO 8601). Use with post_type "event".' },
-        event_end: { type: 'string', description: 'Event end datetime (ISO 8601). Use with post_type "event".' },
-        offer_coupon: { type: 'string', description: 'Coupon code for the promotion. Use with post_type "offer".' },
-        offer_terms: { type: 'string', description: 'Terms and conditions for the promotion. Use with post_type "offer".' },
-        scheduled_for: { type: 'string', description: 'If set, the post is scheduled to publish at this datetime (ISO 8601) instead of immediately.' },
-      },
+      inputSchema: { ...postUpdateProperties, post_id: { type: 'string' } },
       required: ['post_id'],
       outputSchema: postMutationResultObject,
     }),

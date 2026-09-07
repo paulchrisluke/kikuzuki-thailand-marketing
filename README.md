@@ -20,7 +20,6 @@ Multi-tenant platform SaaS. Nuxt 5 nightly + Nitro 3 + Cloudflare Workers + D1.
 | `yarn stripe:listen` | Forward Stripe webhooks to localhost (local dev only) |
 | `yarn canary:prod` | Production-safe authenticated browser canary (read-only checks). |
 | `yarn canary:notifications` | Production provider-level email/WhatsApp notification canary. |
-| `yarn test:mcp:local` | Local ChatGPT MCP harness preflight against the public tunnel target. |
 
 ---
 
@@ -161,18 +160,6 @@ http://localhost:3000/services          (x-preview-tenant: ncls)
 http://localhost:3000/experiences       (x-preview-tenant: pottery-house)
 http://localhost:3000/reservations      (x-preview-tenant: kikuzuki-krabi-thailand)
 ```
-
-### Local ChatGPT MCP harness
-
-For local-but-public connector testing through a real HTTPS origin, use the
-hybrid local harness instead of plain localhost:
-
-```bash
-yarn test:mcp:local:tunnel
-```
-
-The full env contract, tunnel setup, write-smoke mode, and ChatGPT handoff are
-documented in [docs/local-mcp-harness.md](docs/local-mcp-harness.md).
 
 ### macOS file limit fix
 

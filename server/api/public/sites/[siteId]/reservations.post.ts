@@ -1,20 +1,20 @@
-import { execute, queryFirst } from '~/server/db'
+import { bookingPayloadForGuest, requestInsertQueries } from '~/server/domain/requests'
+import { publishGuestInboxThreadEvent } from '~/server/cloudflare/guest-inbox-events'
+import { queryFirst } from '~/server/db'
 import { cleanString, cloudflareEnv, jsonResponse } from '~/server/utils/api-response'
 import { isReservedTestDomain, shouldSendRealEmail } from '~/server/utils/email-delivery'
 import { notifyReservationCreated } from '~/server/utils/notifications'
 import { createReservationCancelToken, hashReservationCancelToken } from '~/server/utils/reservation-cancel-token'
 import { resolveLocationContact } from '~/server/utils/contact-resolution'
 import { resolveLocationTimezone, isDateBeforeTimezoneToday } from '~/server/utils/site-config'
-import { generateReservationTimes, isStructuredOpeningHours } from '~/shared/reservation-hours'
-import { getReservationSlotAvailability } from '~/server/utils/reservations'
+import { readAvailability, executeAvailabilityClaim } from '~/server/utils/availability'
+
 import { renderBookingPolicySummary, resolveBookingPolicy } from '~/server/utils/booking-policies'
 import { getSourceLocale } from '~/server/utils/site-locales'
 import { deleteCustomerIfUnlinked, findOrCreateCustomer, recordCustomerBooking } from '~/server/utils/customers'
 import { getAuthSession } from '~/server/utils/auth'
 import { DEFAULT_EMAIL_DAILY_LIMIT as EMAIL_DAILY_LIMIT, DEFAULT_IP_HOURLY_LIMIT as IP_HOURLY_LIMIT, getClientIp, hashClientIp, hashIdentifier, incrementHourlyRateLimit } from '~/server/utils/hourly-rate-limit'
 import { parsePhone } from '~/utils/phone'
-import { reservationAdapter } from '~/server/domain/guest-threads/adapters/reservation'
-import { ensureGuestThread } from '~/server/domain/guest-threads/repository'
 import { recordSubmissionConversionSafe } from '~/server/utils/site-conversions'
 import { buildOwnerThreadInboxUrl } from '~/server/utils/dashboard-notification-links'
 import { defineHandler } from 'nitro'
@@ -66,7 +66,7 @@ export default defineHandler(async (event) => {
     return jsonResponse({ error: 'Please choose a valid party size.' }, { status: 400 })
 
   const site = await queryFirst<{ id: string; organization_id: string; brand_name?: string | null; public_url?: string | null }>(
-    db, 'SELECT id, organization_id, brand_name, public_url FROM sites WHERE id = ? AND status = ? LIMIT 1', [siteId, 'active'], )
+    db, `SELECT id, organization_id, brand_name, (SELECT 'https://' || domain FROM site_domains WHERE site_id = sites.id AND role = 'canonical' AND status = 'active') AS public_url FROM sites WHERE id = ? AND status = ? LIMIT 1`, [siteId, 'active'], )
   if (!site) return jsonResponse({ error: 'Site not found' }, { status: 404 })
   const siteBaseUrl = site.public_url?.trim().replace(/\/$/, '')
   if (!siteBaseUrl) return jsonResponse({ error: 'Site public URL is not configured' }, { status: 500 })
@@ -84,19 +84,8 @@ export default defineHandler(async (event) => {
   if (isDateBeforeTimezoneToday(date, reservationTimezone))
     return jsonResponse({ error: 'Please choose a valid future date.' }, { status: 400 })
 
-  let parsedHours: unknown = null
-  if (location.opening_hours) {
-    try {
-      parsedHours = JSON.parse(location.opening_hours)
-    } catch {
-      return jsonResponse({ error: 'Location hours configuration is invalid. Please contact support.' }, { status: 500 })
-    }
-  }
-  if (!isStructuredOpeningHours(parsedHours)) {
-    return jsonResponse({ error: 'Location hours configuration is invalid. Please contact support.' }, { status: 500 })
-  }
-  const availability = await getReservationSlotAvailability(db, siteId, { id: resolvedLocationId, max_capacity: location.max_capacity, opening_hours: parsedHours }, date, reservationTimezone)
-  const slotAvailability = availability.find((s) => s.time_slot === time)
+  const [snapshot] = await readAvailability(db, { siteId, owners: [{ kind: 'location', locationId: resolvedLocationId }], dates: [date] })
+  const slotAvailability = snapshot!.days[0]!.slots.find(s => s.time_slot === time)
   if (!slotAvailability) {
     return jsonResponse({ error: 'Please choose a valid time — this location is closed at that time.' }, { status: 400 })
   }
@@ -135,44 +124,22 @@ export default defineHandler(async (event) => {
     organizationId: site.organization_id, siteId, name, email, phone, source: 'reservation', bookingAt: `${date}T${time}:00`, userId, } as const
   const customer = await findOrCreateCustomer(db, customerInput)
 
-  const insertResult = await execute(db, `
-    INSERT INTO reservation_submissions (
-      id, organization_id, site_id, customer_id, name, email, phone, date, time, guests, status, requests, ip_hash, cancellation_token_hash, cancellation_token_expires_at, location_id
-    )
-    SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'confirmed', ?, ?, ?, ?, ?
-    FROM business_locations l
-    LEFT JOIN availability_overrides ao
-      ON ao.owner_type = 'location'
-     AND ao.location_id = l.id
-     AND ao.override_date = ?
-     AND ao.time_slot = ?
-    WHERE l.id = ? AND l.site_id = ?
-      AND l.opening_hours IS ?
-      AND (? = 1 OR ao.status = 'open')
-      AND COALESCE(ao.status, 'open') != 'closed'
-      AND (
-        COALESCE(ao.capacity_override, l.max_capacity) IS NULL
-        OR COALESCE((
-        SELECT SUM(CASE WHEN guests = '8+' THEN 8 ELSE CAST(guests AS INTEGER) END)
-        FROM reservation_submissions
-        WHERE location_id = ? AND date = ? AND time = ? AND status != 'cancelled'
-        ), 0) + ? <= COALESCE(ao.capacity_override, l.max_capacity)
-      )
-  `, [
-    id, site.organization_id, siteId, customer.id, name, email, phone, date, time, guests,
-    requests || null, ipHash, cancellationTokenHash, cancellation.expiresAt, resolvedLocationId,
-    date, time, resolvedLocationId, siteId,
-    location.opening_hours, generateReservationTimes(parsedHours, date).includes(time) ? 1 : 0,
-    resolvedLocationId, date, time, partySize,
-  ])
+  const now = new Date().toISOString()
+  const payload = bookingPayloadForGuest({ name, email, phone, notes: requests, ipHash, partySizeIsMinimum: guests.endsWith('+') })
+  payload.cancellation = { token_hash: cancellationTokenHash, expires_at: cancellation.expiresAt, used_at: null }
+  const [statement, ...following] = requestInsertQueries({ id, kind: 'reservation', organization_id: site.organization_id, site_id: siteId, location_id: resolvedLocationId, product_id: null, customer_id: customer.id, review_id: null,
+    status: 'confirmed', booking_date: date, time_slot: time, party_size: partySize, conversation_state: 'needs_attention', resolved_at: null, payload, created_at: now, updated_at: now })
+  statement.query = statement.query.replace(/VALUES \(([^)]+)\)/, 'SELECT $1 WHERE /* availability_claim */')
+  await executeAvailabilityClaim(db, { snapshot: snapshot!, date, time, partySize, statement, following })
+  const inserted = await queryFirst(db, 'SELECT id FROM requests WHERE id = ?', [id])
 
-  if (!insertResult?.meta?.changes) {
+  if (!inserted) {
     if (customer.created) await deleteCustomerIfUnlinked(db, customer.id)
     return jsonResponse({ error: 'This time is no longer available. Please choose another time.' }, { status: 409 })
   }
   await recordCustomerBooking(db, customer.id, customerInput)
 
-  const thread = await ensureGuestThread(db, reservationAdapter, id, { publishEnv: env })
+  await publishGuestInboxThreadEvent(env, db, { threadId: id, type: 'thread.created' })
 
   // Build absolute cancel URL for the confirmation email
   const cancelUrl = `${siteBaseUrl}/reservations/cancel?id=${id}#${cancellation.token}`
@@ -184,7 +151,7 @@ export default defineHandler(async (event) => {
       organizationId: site.organization_id,
       siteId,
       locationId: resolvedLocationId,
-      threadId: thread.id,
+      threadId: id,
     }),
   ])
 
@@ -210,7 +177,7 @@ export default defineHandler(async (event) => {
       eventName: 'reservation_submit',
       stage: 'submitted',
       locationId: resolvedLocationId,
-      entityType: 'reservation_submission',
+      entityType: 'request',
       entityId: id,
       pageType: 'reservations',
       pagePath: '/reservations',

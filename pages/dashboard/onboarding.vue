@@ -102,7 +102,7 @@ const previewVertical = computed<SiteVertical>(() =>
     ? normalizeVertical(siteData.value.vertical as string | undefined) as SiteVertical
     : selectedOnboardingVertical.value
 )
-const siteLocations = ref<Array<{ id: string; slug: string; title: string; is_primary: boolean }>>([])
+const siteLocations = ref<Array<{ id: string; slug: string; title: string; }>>([])
 const orgSlug = ref<string | null>(null)
 const previewToken = ref('')
 const draftPreview = ref<{
@@ -148,14 +148,13 @@ const previewLocations = computed(() => {
     id: draftPreview.value.draftId,
     slug: draftPreview.value.subdomainCandidate,
     title: draftPreview.value.draftName,
-    is_primary: true,
   }]
   if (siteLocations.value.length > 0) return siteLocations.value
   return []
 })
 
 const selectedLocation = computed(() =>
-  previewLocations.value.find(l => l.id === selectedLocationId.value) ?? previewLocations.value[0] ?? null
+  previewLocations.value.find(l => l.id === selectedLocationId.value) ?? null
 )
 
 const siteDomain = computed(() => {
@@ -267,7 +266,7 @@ interface OnboardingContextResponse {
   context: {
     organization?: { id: string; slug: string; name: string } | null
     site?: ApiRecord | null
-    locations?: Array<{ id: string; slug: string; title: string; is_primary: boolean }>
+    locations?: Array<{ id: string; slug: string; title: string; }>
   }
   previewToken: string | null
   checklist: {
@@ -304,8 +303,6 @@ const applyContext = (response: OnboardingContextResponse) => {
   if (response.context.site) {
     siteData.value = response.context.site
     siteLocations.value = response.context.locations ?? []
-    const primary = siteLocations.value.find(l => l.is_primary) ?? siteLocations.value[0]
-    if (primary) selectedLocationId.value = primary.id
   }
   previewToken.value = response.previewToken ?? ''
   const items = response.checklist.items
@@ -353,16 +350,8 @@ const retryContext = async () => {
   }
 }
 
-// ─── Actions ─────────────────────────────────────────────────────────────────
 const onSelectPage = (page: string) => {
   selectedPreviewPage.value = page
-  // When switching to location-scoped page, ensure a location is selected
-  if (locationScopedPages.has(page) && !selectedLocationId.value && previewLocations.value.length > 0) {
-    const primary = previewLocations.value.find(l => l.is_primary) ?? previewLocations.value[0]
-    if (primary) {
-      selectedLocationId.value = primary.id
-    }
-  }
 }
 
 const onSelectLocation = (id: string) => {

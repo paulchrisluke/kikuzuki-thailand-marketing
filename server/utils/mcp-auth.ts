@@ -333,7 +333,7 @@ function ensureForbiddenScopesAbsent(scopes: string[], forbiddenScopes?: string[
   }
 }
 
-// siteId accepts the site's id, subdomain, or custom_domain — all three are exact,
+// siteId accepts the site's id, subdomain, or active domain — all three are exact,
 // unambiguous identifiers (unlike a free-text business name), so resolving them
 // directly here removes a list-then-match round trip for every site-scoped tool.
 export async function requireMcpSite(
@@ -345,23 +345,23 @@ export async function requireMcpSite(
   const user = authenticatedUser ?? await requireMcpUser(event)
 
   type SiteRow = { id: string; organization_id: string; subdomain: string | null; custom_domain: string | null; public_url: string | null }
-  const siteByColumn = async (column: 'id' | 'subdomain' | 'custom_domain') =>
+  const siteByColumn = async (column: 'id' | 'subdomain' | 'domain') =>
     queryFirst<SiteRow>(
       user.db,
       `
-      SELECT s.id, s.organization_id, s.subdomain, s.custom_domain, s.public_url
+      SELECT s.id, s.organization_id, s.subdomain, (SELECT domain FROM site_domains WHERE site_id = s.id AND role = 'canonical' AND status = 'active' AND type = 'custom') AS custom_domain, (SELECT 'https://' || domain FROM site_domains WHERE site_id = s.id AND role = 'canonical' AND status = 'active') AS public_url
       FROM sites s
-      WHERE s.${column} = ?
+      WHERE ${column === 'domain' ? "EXISTS (SELECT 1 FROM site_domains WHERE site_id = s.id AND domain = ? AND status = 'active')" : `s.${column} = ?`}
       LIMIT 1
     `,
       [siteId],
     )
 
-  // Check id first, then subdomain, then custom_domain — see note above on
+  // Check id first, then subdomain, then active domain — see note above on
   // why an OR across all three columns is ambiguous.
   const site = await siteByColumn('id')
     ?? await siteByColumn('subdomain')
-    ?? await siteByColumn('custom_domain')
+    ?? await siteByColumn('domain')
 
   if (!site?.organization_id) {
     throw new HTTPError({ statusCode: 404, statusMessage: 'Site not found or access denied' })

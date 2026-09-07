@@ -20,8 +20,6 @@ interface PlaceLocationRow {
   site_id: string
   title: string
   google_place_id: string
-  stripe_customer_id: string | null
-  stripe_subscription_id: string | null
   access_plan: string | null
   access_expires_at: string | null
   payment_status: string | null
@@ -73,7 +71,7 @@ export default defineScheduledTask({
     // integrations; legacy entitlement caches are not access grants here.
     const billingRows = await queryAll<PlaceLocationRow>(db, `
       SELECT bl.id, bl.organization_id, bl.site_id, bl.title, bl.google_place_id,
-             ob.stripe_customer_id, ob.stripe_subscription_id, ob.access_plan,
+             ob.access_plan,
              ob.access_expires_at, ob.payment_status, ob.paid_through, ob.past_due_since, ob.updated_at
       FROM business_locations bl
       INNER JOIN organization_billing ob

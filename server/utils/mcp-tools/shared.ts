@@ -1,5 +1,5 @@
-// AUTO-SPLIT from the former monolithic mcp-tools.ts. Shared schema fragments,
-// annotation helpers, and tool-builder functions used across MCP_TOOLS domain files.
+import { postMutationJsonSchema } from '~/shared/posts'
+import { openingHoursSchema, specialHoursSchema, recurringSlotsSchema, WEEKDAYS } from '~/shared/reservation-hours'
 import type { McpToolRole } from '~/server/utils/mcp-auth'
 import { EXPERIENCE_STATUSES } from '~/server/utils/experiences'
 import { SUPPORTED_CURRENCIES } from '~/shared/currencies'
@@ -76,22 +76,8 @@ export function seoOverrideFieldsSchema() {
   }
 }
 
-export const openingHoursInputSchema = {
-  type: ['string', 'object', 'null'],
-  description: 'Opening hours for this location. Accepted shapes: (1) an object { weekdayDescriptions: string[] } with one entry per day, e.g. { weekdayDescriptions: ["Monday: 9:00 AM – 5:00 PM", "Tuesday: 9:00 AM – 5:00 PM", ...] } — this is also the shape returned by get_location; (2) a plain string with one day per line, e.g. "Monday: 9:00 AM – 5:00 PM\\nTuesday: 9:00 AM – 5:00 PM". A bare array of per-day structured objects (e.g. { openDay, openTime, closeTime }) is NOT supported — convert to weekdayDescriptions strings first. Pass null to clear.',
-}
-
-export const specialHoursInputSchema = {
-  type: ['object', 'null'],
-  description: 'A temporary closure or special-hours override for this specific location, e.g. "closed for renovations for two weeks" or "closed until July 17". Shape: { closed: boolean, starts_on?: "YYYY-MM-DD" (defaults to today if omitted), ends_on?: "YYYY-MM-DD" (omit for an indefinite closure), note?: string — a short guest-facing message, e.g. "Closed for renovations — back July 18th!" }. Convert relative durations like "2 weeks" into a concrete ends_on date yourself before calling. This only affects this location\'s own page, never the site-wide homepage. Pass null for the whole field to clear it and reopen the location.',
-  properties: {
-    closed: { type: 'boolean' },
-    starts_on: { type: ['string', 'null'] },
-    ends_on: { type: ['string', 'null'] },
-    note: { type: ['string', 'null'] },
-  },
-  required: ['closed'],
-}
+export const openingHoursInputSchema = { ...openingHoursSchema, description: 'Canonical weekly endpoint periods. Days use Sunday=0. Null means unknown; periods [] means closed. Sunday 00:00 without a close means always open.' }
+export const specialHoursInputSchema = { ...specialHoursSchema, description: 'Explicit dated hours or closures. Closure starts_on is required; ends_on is inclusive and null means indefinite. Dated hours replace regular hours; periods [] closes the date.' }
 
 export const locationObject = {
   type: 'object',
@@ -106,14 +92,13 @@ export const locationObject = {
     website_url: { type: ['string', 'null'] },
     maps_url: { type: ['string', 'null'] },
     address: { type: ['string', 'null'] },
-    opening_hours: { type: ['object', 'null'] },
-    special_hours: { type: ['object', 'null'] },
+    opening_hours: openingHoursSchema,
+    special_hours: specialHoursSchema,
     rating: { type: ['number', 'null'] },
     review_count: { type: ['number', 'null'] },
     description: { type: ['string', 'null'] },
     short_description: { type: ['string', 'null'] },
     status: { type: 'string' },
-    is_primary: { type: 'number' },
     notification_phone: { type: ['string', 'null'], description: 'WhatsApp number for internal booking/reservation alerts to this location\'s manager. Not shown to guests. Falls back to the site-level whatsapp_phone if null.' },
     timezone: { type: ['string', 'null'], description: 'IANA time zone identifier for this location, e.g. Asia/Bangkok. Used to interpret opening hours and booking slots.' },
     max_capacity: { type: ['number', 'null'], description: 'Maximum total guests this location can seat per reservation time slot. Null means no cap is enforced (slots remain bookable).' },
@@ -406,19 +391,13 @@ export const postPublishResultObject = {
 export const postObject = {
   type: 'object',
   properties: {
+    ...postMutationJsonSchema.properties,
+    location_phone: { type: ['string', 'null'] },
     id: { type: 'string' },
     slug: { type: ['string', 'null'] },
     title: { type: ['string', 'null'] },
     body: { type: 'string' },
-    post_type: { type: 'string', enum: ['standard', 'offer', 'event', 'update'] },
     location_id: { type: ['string', 'null'] },
-    cta_type: { type: ['string', 'null'] },
-    cta_url: { type: ['string', 'null'] },
-    event_title: { type: ['string', 'null'] },
-    event_start: { type: ['string', 'null'] },
-    event_end: { type: ['string', 'null'] },
-    offer_coupon: { type: ['string', 'null'] },
-    offer_terms: { type: ['string', 'null'] },
     status: { type: 'string', enum: ['published', 'scheduled'] },
     scheduled_for: { type: ['string', 'null'] },
     published_at: { type: ['string', 'null'] },
@@ -571,14 +550,7 @@ export const experienceObject = {
       type: 'array',
       items: resolvedMediaAssetObject,
     },
-    time_slots: { type: ['array', 'null'], items: { type: 'string' } },
-    recurring_slots: {
-      type: ['object', 'null'],
-      additionalProperties: {
-        type: 'array',
-        items: { type: 'string' },
-      },
-    },
+    recurring_slots: recurringSlotsSchema,
     tags: { type: 'array', items: { type: 'string' } },
     details: PRODUCT_DETAILS_INPUT_SCHEMA,
     included_items: { type: 'array', items: { type: 'string' } },
@@ -635,19 +607,11 @@ export const experienceWriteSchema = {
   pricing_note: { type: ['string', 'null'], description: 'Concise pricing context for an inquiry-only experience.' },
   duration_minutes: { type: ['number', 'null'], description: 'Expected duration in minutes.' },
   max_capacity: { type: ['number', 'null'], description: 'Maximum guest count for a single booking or session.' },
-  time_slots: { type: ['array', 'null'], items: { type: 'string' }, description: 'Flat daily time slots in HH:MM format, used when the same schedule applies every day. Ignored if recurring_slots is set.' },
-  recurring_slots: {
-    type: ['object', 'null'],
-    description: 'Per-weekday time slots in HH:MM format when the schedule differs by day. Keys must be full weekday names such as Monday or Friday. Takes priority over time_slots when set.',
-    additionalProperties: {
-      type: 'array',
-      items: { type: 'string' },
-    },
-  },
-  slot_start: { type: 'string', description: 'Convenience: auto-generate slots from this "HH:MM" start time. Used with slot_end and slot_interval_minutes instead of typing time_slots by hand.' },
+  recurring_slots: { ...recurringSlotsSchema, description: 'Weekly start times keyed by lowercase weekday. Missing days have no starts; null is unknown.' },
+  slot_start: { type: 'string', description: 'Convenience: auto-generate slots from this "HH:MM" start time. Used with slot_end and slot_interval_minutes instead of typing recurring_slots by hand.' },
   slot_end: { type: 'string', description: 'Convenience: auto-generate slots up to and including this "HH:MM" end time.' },
   slot_interval_minutes: { type: 'number', description: 'Convenience: interval in minutes between generated slots, e.g. 30.' },
-  slot_weekday: { type: 'string', enum: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'], description: 'If set alongside slot_start/slot_end/slot_interval_minutes, the generated slots are assigned to recurring_slots for this weekday instead of the flat time_slots list.' },
+  slot_weekday: { type: 'string', enum: [...WEEKDAYS], description: 'Assign generated starts to this lowercase weekday. Omit to apply to every weekday.' },
   tags: { type: ['array', 'null'], items: { type: 'string' }, description: 'Searchable labels shared with the canonical Product model.' },
   details: { ...PRODUCT_DETAILS_INPUT_SCHEMA, type: ['array', 'null'], description: 'Structured detail groups shared with the canonical Product model.' },
   included_items: { type: ['array', 'null'], items: { type: 'string' }, description: 'Explicit list of what is included. Use one concise string per included item.' },
@@ -806,7 +770,6 @@ export const submissionObject = {
     email: { type: ['string', 'null'] },
     phone: { type: ['string', 'null'] },
     message: { type: ['string', 'null'] },
-    status: { type: 'string', enum: ['new', 'read', 'replied', 'spam'] },
     created_at: { type: 'string' },
   },
 }
@@ -868,10 +831,9 @@ export const locationListItemObject = {
     title: { type: 'string' },
     city: { type: ['string', 'null'] },
     status: { type: 'string' },
-    is_primary: { type: 'boolean' },
     active: { type: 'boolean', description: 'True when this is the currently active MCP location context.' },
   },
-  required: ['id', 'slug', 'title', 'status', 'is_primary', 'active'],
+  required: ['id', 'slug', 'title', 'status', 'active'],
 }
 
 export const workspaceContextObject = {

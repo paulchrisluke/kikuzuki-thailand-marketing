@@ -123,6 +123,8 @@
               id: review.id,
               author: review.author_name,
               media: review.media,
+              original_reference: review.original_reference,
+              google_review_metadata: review.google_review_metadata,
               rating: review.rating,
               content: review.content,
               title: review.title,

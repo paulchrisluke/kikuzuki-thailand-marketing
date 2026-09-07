@@ -1,0 +1,50 @@
+removed_table	removed_column	same_statement_name_candidates	prepared_candidates	dynamic_review_locations	expected_source_fixture_locations
+account	expiresAt	0	0		
+business_locations	is_primary	0	0		
+business_locations	attributes	0	0		
+business_locations	facebook_page_id	0	0		
+business_locations	facebook_connection_id	0	0		
+chowbot_channel_state	selected_site_id	0	0		
+chowbot_channel_state	active_conversation_id	0	0		
+chowbot_channel_state	pending_message_id	0	0		
+contact_submissions	status	2	0	server\domain\guest-threads\repository.ts:310; server\domain\guest-threads\repository.ts:430	
+customers	marketing_opted_out_at	0	0		
+customers	loyalty_points_balance	0	0		
+dashboard_preferences	id	0	0		
+dashboard_preferences	user_id	0	0		
+dashboard_preferences	organization_id	0	0		
+dashboard_preferences	selected_location_id	0	0		
+dashboard_preferences	created_at	0	0		
+dashboard_preferences	updated_at	0	0		
+experiences	time_slots	0	0		
+oauthClient	scopesJson	1	0		tests\integration\epoch5-data.test.mjs:71
+oauthClient	requirePkce	1	0		tests\integration\epoch5-data.test.mjs:71
+oauthRefreshToken	accessTokenId	0	0		
+organization_billing	stripe_customer_id	1	1		
+organization_billing	stripe_subscription_id	2	2		
+platform_contact_submissions	status	0	0		
+posts	cta_type	0	0		
+posts	cta_url	0	0		
+posts	event_title	0	0		
+posts	event_start	0	0		
+posts	event_end	0	0		
+posts	offer_coupon	0	0		
+posts	offer_terms	0	0		
+site_transfer_requests	custom_domains_snapshot	0	0		
+site_transfer_requests	custom_domains_removed_at	0	0		
+sites	theme	3	1	scripts\generate-demo-seed.ts:80; scripts\generate-demo-seed.ts:91	
+sites	custom_domain	11	11		
+sites	custom_domain_status	3	3		
+sites	primary_location_id	0	0		
+sites	public_url	19	18	scripts\generate-demo-seed.ts:91	
+subscription	limits	0	0		
+subscription	createdAt	0	0		
+subscription	updatedAt	0	0		
+themes	id	1	0		tests\integration\epoch5-data.test.mjs:15
+themes	name	1	0		tests\integration\epoch5-data.test.mjs:15
+themes	slug	1	0		tests\integration\epoch5-data.test.mjs:15
+themes	version	0	0		
+themes	description	0	0		
+themes	status	0	0		
+themes	created_at	0	0		
+themes	updated_at	0	0		

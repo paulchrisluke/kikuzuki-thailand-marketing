@@ -1,7 +1,8 @@
+import { publishGuestInboxThreadEvent } from '~/server/cloudflare/guest-inbox-events'
+import { readAvailability } from '~/server/utils/availability'
 import { cloudflareEnv, jsonResponse, cleanString, readRequiredBody } from '~/server/utils/api-response'
 import { isReservedTestDomain, shouldSendRealEmail } from '~/server/utils/email-delivery'
-import { getExperienceBySlug, createExperienceBookingClaimingCapacity, getSlotAvailability, resolveExperienceTimezone } from '~/server/utils/experiences'
-import { isDateBeforeTimezoneToday } from '~/server/utils/site-config'
+import { getExperienceBySlug, createExperienceBookingClaimingCapacity } from '~/server/utils/experiences'
 import { fmt12Hour } from '~/shared/reservation-hours'
 import { notifyExperienceBookingCreated } from '~/server/utils/notifications'
 import { recordSubmissionConversionSafe } from '~/server/utils/site-conversions'
@@ -10,14 +11,11 @@ import { parsePhone } from '~/utils/phone'
 import { queryFirst } from '~/server/db'
 import { renderBookingPolicySummary, resolveBookingPolicy } from '~/server/utils/booking-policies'
 import { getSourceLocale } from '~/server/utils/site-locales'
-import { buildOwnerThreadInboxUrl, getPlatformDomain } from '~/server/utils/dashboard-notification-links'
-import { getActiveSpecialClosure } from '~/utils/formatters'
+import { buildOwnerThreadInboxUrl } from '~/server/utils/dashboard-notification-links'
 import { createReservationCancelToken, hashReservationCancelToken } from '~/server/utils/reservation-cancel-token'
 import { deleteCustomerIfUnlinked, findOrCreateCustomer, recordCustomerBooking } from '~/server/utils/customers'
 import { getAuthSession } from '~/server/utils/auth'
 import { DEFAULT_EMAIL_DAILY_LIMIT as EMAIL_DAILY_LIMIT, DEFAULT_IP_HOURLY_LIMIT as IP_HOURLY_LIMIT, getClientIp, hashClientIp, hashIdentifier, incrementHourlyRateLimit } from '~/server/utils/hourly-rate-limit'
-import { experienceBookingAdapter } from '~/server/domain/guest-threads/adapters/experience-booking'
-import { ensureGuestThread } from '~/server/domain/guest-threads/repository'
 import { defineHandler } from 'nitro'
 import { getRouterParam } from 'nitro/h3'
 
@@ -30,7 +28,7 @@ export default defineHandler(async (event) => {
   const db = env.DB
   if (!db) return jsonResponse({ error: 'Database not available' }, { status: 500 })
 
-  const site = await queryFirst<{ id: string; organization_id: string; brand_name: string | null; public_url: string | null; subdomain: string | null }>(db, `SELECT id, organization_id, brand_name, public_url, subdomain FROM sites WHERE id = ? AND status = 'active' LIMIT 1`, [siteId])
+  const site = await queryFirst<{ id: string; organization_id: string; brand_name: string | null; public_url: string | null; subdomain: string | null }>(db, `SELECT id, organization_id, brand_name, (SELECT 'https://' || domain FROM site_domains WHERE site_id = sites.id AND role = 'canonical' AND status = 'active') AS public_url, subdomain FROM sites WHERE id = ? AND status = 'active' LIMIT 1`, [siteId])
   if (!site) return jsonResponse({ error: 'Site not found' }, { status: 404 })
 
   const experience = await getExperienceBySlug(db, siteId, slug)
@@ -78,25 +76,9 @@ export default defineHandler(async (event) => {
   if (!bookingDate || !/^\d{4}-\d{2}-\d{2}$/.test(bookingDate)) {
     return jsonResponse({ error: 'A valid date (YYYY-MM-DD) is required' }, { status: 400 })
   }
-  const experienceTimezone = await resolveExperienceTimezone(db, site.organization_id, siteId, experience)
-  if (isDateBeforeTimezoneToday(bookingDate, experienceTimezone)) {
-    return jsonResponse({ error: 'Booking date must be today or in the future' }, { status: 400 })
-  }
-
-  if (experience.location_id) {
-    const location = await queryFirst<{ special_hours: string | null; timezone: string | null }>(
-      db, `SELECT special_hours, timezone FROM business_locations WHERE id = ? LIMIT 1`, [experience.location_id], )
-    if (location?.special_hours) {
-      const [year, month, day] = bookingDate.split('-').map(Number) as [number, number, number]
-      const closure = getActiveSpecialClosure(location.special_hours, location.timezone, { year, month, day })
-      if (closure) {
-        return jsonResponse({ error: 'This location is temporarily closed and not accepting bookings for the selected date.' }, { status: 409 })
-      }
-    }
-  }
-
   if (!timeSlot) return jsonResponse({ error: 'A time slot is required' }, { status: 400 })
-  const availability = await getSlotAvailability(db, siteId, experience, bookingDate, experienceTimezone)
+  const [snapshot] = await readAvailability(db, { siteId, owners: [{ kind: 'experience', experienceId: experience.id }], dates: [bookingDate] })
+  const availability = snapshot!.days[0]!.slots
   if (availability.length === 0) {
     return jsonResponse({ error: 'No available time slots for this date' }, { status: 400 })
   }
@@ -147,7 +129,7 @@ export default defineHandler(async (event) => {
   }
   await recordCustomerBooking(db, customer.id, customerInput)
 
-  const thread = await ensureGuestThread(db, experienceBookingAdapter, booking.id, { publishEnv: env })
+  await publishGuestInboxThreadEvent(env, db, { threadId: booking.id, type: 'thread.created' })
 
   try {
     const [{ contactPhone, contactEmail }, ownerInboxUrl] = await Promise.all([
@@ -156,11 +138,10 @@ export default defineHandler(async (event) => {
         organizationId: site.organization_id,
         siteId,
         locationId: experience.location_id,
-        threadId: thread.id,
+        threadId: booking.id,
       }),
     ])
-    const platformDomain = getPlatformDomain(env)
-    const siteBaseUrl = site.public_url?.replace(/\/$/, '') || (site.subdomain ? `https://${site.subdomain}.${platformDomain}` : null)
+    const siteBaseUrl = site.public_url?.replace(/\/$/, '')
     const cancelUrl = siteBaseUrl ? `${siteBaseUrl}/experiences/cancel?id=${booking.id}#${cancellation.token}` : null
     await notifyExperienceBookingCreated(env, db, {
       organizationId: site.organization_id, siteId, siteName: site.brand_name, locationId: experience.location_id, bookingId: booking.id, guestName, email: guestEmail, guestPhone: normalizedGuestPhone, experienceTitle: experience.title, bookingDate, timeSlot, partySize, notes: notes || null, cancelUrl, contactPhone, contactEmail, ownerInboxUrl, })
@@ -182,7 +163,7 @@ export default defineHandler(async (event) => {
       eventName: 'experience_booking_submit',
       stage: 'submitted',
       locationId: experience.location_id,
-      entityType: 'experience_booking',
+      entityType: 'request',
       entityId: booking.id,
       pageType: 'experience',
       pagePath: `/experiences/${slug}`,

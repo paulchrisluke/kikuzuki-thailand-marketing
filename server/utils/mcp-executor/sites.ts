@@ -25,7 +25,7 @@ export async function handleSitesTools(ctx: McpExecutorContext): Promise<unknown
         );
         return {
           site: siteRecord,
-          context: workspaceContextPayload(workspace.organization, workspace.site, workspace.location, site.env),
+          context: workspaceContextPayload(workspace.organization, workspace.site, workspace.location),
         };
       }
     case "get_site_settings":

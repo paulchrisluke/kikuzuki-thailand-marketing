@@ -1,3 +1,4 @@
+import type { IntegrationOAuthState } from '~/shared/site-settings'
 import { defineHandler } from 'nitro';
 import { cloudflareEnv } from '../../../utils/api-response'
 import { verifyOAuthState } from '../../../utils/encryption'
@@ -32,14 +33,9 @@ export default defineHandler(async (event) => {
     return new Response('Server misconfiguration', { status: 500 })
   }
 
-  const stateData = await verifyOAuthState<{
-    siteId: string
-    organizationId: string
-    userId: string
-    timestamp: number
-  }>(hmacSecret, state)
+  const stateData = await verifyOAuthState<IntegrationOAuthState>(hmacSecret, state)
 
-  if (!stateData || Date.now() - stateData.timestamp > 10 * 60 * 1000) {
+  if (!stateData || !(stateData.revision === null || typeof stateData.revision === 'string') || !(stateData.transfer_generation === null || typeof stateData.transfer_generation === 'string') || Date.now() - stateData.timestamp > 10 * 60 * 1000) {
     return new Response(null, { status: 302, headers: { Location: '/dashboard?fb=expired' } })
   }
 
@@ -79,7 +75,7 @@ export default defineHandler(async (event) => {
     const firstPage = pages[0]
 
     await storeFacebookPagesConnection(env, {
-      organization_id: organizationId, site_id: siteId, connected_by_user_id: userId, facebook_user_id: userInfo.id, facebook_page_id: firstPage?.id, facebook_page_name: firstPage?.name, encrypted_user_token: systemUserToken, encrypted_page_token: firstPage?.access_token, user_token_expires_at: undefined, scopes: undefined, status: 'active', })
+      organization_id: organizationId, site_id: siteId, connected_by_user_id: userId, facebook_user_id: userInfo.id, facebook_page_id: firstPage?.id, facebook_page_name: firstPage?.name, encrypted_user_token: systemUserToken, encrypted_page_token: firstPage?.access_token, user_token_expires_at: undefined, scopes: undefined, status: 'active', }, stateData)
 
     return new Response(null, {
       status: 302, headers: { Location: await settingsRedirect('connected') }, })

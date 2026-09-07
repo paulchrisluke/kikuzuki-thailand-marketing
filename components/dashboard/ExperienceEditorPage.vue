@@ -5,6 +5,17 @@
         <template #leading>
           <DashboardNavbarLeading :to="experiencesPath" label="Experiences" />
         </template>
+        <template #right>
+          <DashboardResourceLocalization
+            :site-id="siteId"
+            resource-type="product"
+            :resource-id="experienceId"
+            resource-label="experience"
+            :fields="experienceLocalizationFields"
+            :route-path="localizedExperiencePath"
+            :language-settings-path="siteLocalizationSettingsPath"
+          />
+        </template>
       </UDashboardNavbar>
     </template>
 
@@ -140,46 +151,24 @@
               <UInputNumber v-model="editor.form.duration_minutes" :min="0" class="w-full" />
             </UFormField>
             <p class="border-t border-default pt-6 text-sm font-semibold text-highlighted">Times</p>
-            <UTabs v-model="editor.slotsMode.value" :items="slotModes" :content="false" />
 
-            <UCard :ui="{ body: 'p-4 sm:p-4' }">
-              <div class="grid grid-cols-3 items-end gap-2">
-                <UFormField label="Start" size="xs">
-                  <UInput v-model="generator.start" type="time" class="w-full" />
-                </UFormField>
-                <UFormField label="End" size="xs">
-                  <UInput v-model="generator.end" type="time" class="w-full" />
-                </UFormField>
-                <UFormField label="Every" size="xs">
-                  <USelect v-model="generator.interval" :items="intervalOptions" class="w-full" />
-                </UFormField>
-              </div>
-              <UButton
-                v-if="editor.slotsMode.value === 'flat'"
-                size="xs"
-                class="mt-3"
-                color="neutral"
-                variant="soft"
-                :loading="generating"
-                @click="runGenerator()"
-              >
-                Generate slots
-              </UButton>
-              <p v-else class="mt-3 text-xs text-muted">Set times above, then use the bolt icon on a day to apply.</p>
-            </UCard>
+            <UCheckbox :model-value="editor.recurringSlots.value !== null" label="Set weekly start times" @update:model-value="editor.recurringSlots.value = $event === true ? {} : null" />
+            <template v-if="editor.recurringSlots.value !== null">
+              <UCard :ui="{ body: 'p-4 sm:p-4' }">
+                <div class="grid grid-cols-3 items-end gap-2">
+                  <UFormField label="Start" size="xs">
+                    <UInput v-model="generator.start" type="time" class="w-full" />
+                  </UFormField>
+                  <UFormField label="End" size="xs">
+                    <UInput v-model="generator.end" type="time" class="w-full" />
+                  </UFormField>
+                  <UFormField label="Every" size="xs">
+                    <USelect v-model="generator.interval" :items="intervalOptions" class="w-full" />
+                  </UFormField>
+                </div>
+                <p class="mt-3 text-xs text-muted">Set times above, then use the bolt icon on a day to apply.</p>
+              </UCard>
 
-            <UInputTags
-              v-if="editor.slotsMode.value === 'flat'"
-              v-model="editor.timeSlots.value"
-              placeholder="18:00"
-              delimiter=","
-              add-on-blur
-              add-on-paste
-              class="w-full"
-              aria-label="Time slots"
-            />
-
-            <template v-else>
               <div class="flex flex-wrap gap-2">
                 <UButton size="xs" color="neutral" variant="soft" @click="copyRecurring('all')">Copy first day to all</UButton>
                 <UButton size="xs" color="neutral" variant="soft" @click="copyRecurring('weekdays')">Copy to Mon–Fri</UButton>
@@ -188,7 +177,7 @@
               <div v-for="day in weekdayNames" :key="day" class="grid grid-cols-[5.5rem_1fr_auto] items-center gap-2">
                 <span class="text-sm font-medium text-highlighted">{{ day }}</span>
                 <UInputTags
-                  v-model="editor.recurringSlots[day]"
+                  v-model="editor.recurringSlots.value[day]"
                   placeholder="18:00"
                   delimiter=","
                   add-on-blur
@@ -269,51 +258,6 @@
 
 
           </div>
-
-          <!-- Translations -->
-          <div v-else-if="editorKey === 'translations'" class="space-y-6">
-            <UFormField label="Language">
-              <USelect v-model="translationLocale" :items="localeItems" class="w-40" aria-label="Field language" />
-            </UFormField>
-            <p v-if="translationLocale === 'en'" class="text-sm text-muted">
-              English is the source language. Choose another language to translate this experience.
-            </p>
-            <template v-else>
-              <p class="text-xs text-muted">Source (English): {{ editor.form.title }}</p>
-              <UFormField :label="`Title (${translationLocale})`">
-                <UInput v-model="translationFields.title" class="w-full" />
-              </UFormField>
-              <UFormField :label="`Tagline (${translationLocale})`">
-                <UInput v-model="translationFields.tagline" class="w-full" />
-              </UFormField>
-              <UFormField :label="`Description (${translationLocale})`">
-                <UTextarea v-model="translationFields.body" :rows="5" class="w-full" />
-              </UFormField>
-              <UFormField :label="`Price note (${translationLocale})`">
-                <UInput v-model="translationFields.price" class="w-full" />
-              </UFormField>
-              <UFormField :label="`Included items (${translationLocale})`">
-                <UInputTags v-model="translationFields.included_items" add-on-blur add-on-paste class="w-full" />
-              </UFormField>
-              <UFormField :label="`What to bring (${translationLocale})`">
-                <UInputTags v-model="translationFields.what_to_bring" add-on-blur add-on-paste class="w-full" />
-              </UFormField>
-              <UFormField :label="`Meeting point (${translationLocale})`">
-                <UTextarea v-model="translationFields.meeting_point" :rows="3" class="w-full" />
-              </UFormField>
-              <UFormField :label="`Cancellation policy (${translationLocale})`">
-                <UTextarea v-model="translationFields.cancellation_policy" :rows="3" class="w-full" />
-              </UFormField>
-              <UFormField :label="`SEO title (${translationLocale})`">
-                <UInput v-model="translationFields.seo_title" class="w-full" />
-              </UFormField>
-              <UFormField :label="`SEO description (${translationLocale})`">
-                <UTextarea v-model="translationFields.seo_description" :rows="2" class="w-full" />
-              </UFormField>
-              <p v-if="translationError" class="text-sm text-error">{{ translationError }}</p>
-            </template>
-          </div>
-
         </template>
       </EditorPaneShell>
     </template>
@@ -325,6 +269,7 @@ import EditorPaneShell from '~/components/dashboard/EditorPaneShell.vue'
 import EditorNavigationList from '~/components/dashboard/EditorNavigationList.vue'
 import type { EditorNavigationGroup } from '~/components/dashboard/EditorNavigationList.vue'
 import DashboardPhotoManager from '~/components/dashboard/DashboardPhotoManager.vue'
+import DashboardResourceLocalization from '~/components/dashboard/DashboardResourceLocalization.vue'
 import BookingPolicyForm from '~/components/dashboard/BookingPolicyForm.vue'
 import type { BookingPolicyPreset } from '~/utils/booking-policy-presets'
 import { BOOKING_POLICY_PRESETS, applyBookingPolicyPreset, matchBookingPolicyPreset } from '~/utils/booking-policy-presets'
@@ -376,7 +321,6 @@ const sectionLabels: Record<string, string> = {
   discounts: 'Discounts',
   included: "What's included",
   policies: 'Policies',
-  translations: 'Translations',
 }
 const validSectionKeys = new Set(Object.keys(sectionLabels))
 
@@ -397,7 +341,7 @@ if (routeSegments.value.length > 1 || (detailKey.value && !validSectionKeys.has(
 // Photos commit as you act, so there is no pending draft for a footer to save.
 const showActions = computed(() => hasDetail.value && editorKey.value !== 'photos')
 const saveDisabled = computed(() => editorKey.value === 'details' && !editor.form.title.trim())
-const saving = computed(() => editor.saving.value || translationSaving.value)
+const saving = computed(() => editor.saving.value)
 
 // ── Load ────────────────────────────────────────────────
 const isExperiencesResponse = (value: unknown): value is { experiences: Experience[] } =>
@@ -539,12 +483,8 @@ const guestsSummary = computed(() => {
 const itinerarySummary = computed(() => {
   const parts: string[] = []
   if (editor.form.duration_minutes) parts.push(`${editor.form.duration_minutes} min`)
-  if (editor.slotsMode.value === 'flat') {
-    if (editor.timeSlots.value.length) parts.push(`${editor.timeSlots.value.length} times daily`)
-  } else {
-    const days = weekdayNames.filter(day => editor.recurringSlots[day].length).length
-    if (days) parts.push(`${days} ${days === 1 ? 'day' : 'days'} a week`)
-  }
+  const days = weekdayNames.filter(day => editor.recurringSlots.value?.[day]?.length).length
+  if (days) parts.push(`${days} ${days === 1 ? 'day' : 'days'} a week`)
   return parts.join(' · ') || 'No times set'
 })
 
@@ -579,21 +519,10 @@ const navigationGroups = computed<EditorNavigationGroup[]>(() => [
       { id: 'calendar', label: 'Dates and availability', summary: 'Close times or change capacity on the calendar', icon: 'i-lucide-calendar-days', to: calendarPath.value },
     ],
   },
-  {
-    id: 'manage',
-    label: 'Manage',
-    items: [
-      { id: 'translations', label: 'Translations', summary: translationLocales.value.length ? `${translationLocales.value.length} languages` : 'No other languages', icon: 'i-lucide-languages', to: `${experiencePath.value}/translations` },
-    ],
-  },
 ])
 
 // ── Save / cancel ───────────────────────────────────────
 async function saveCurrentEditor() {
-  if (editorKey.value === 'translations') {
-    await saveTranslation()
-    return
-  }
   await editor.save(experienceId.value)
 }
 
@@ -609,10 +538,7 @@ const statusOptions = [
   { label: 'Inactive', value: 'inactive' },
   { label: 'Sold out', value: 'sold_out' },
 ]
-const slotModes = [
-  { label: 'Same times every day', value: 'flat' },
-  { label: 'Different times per day', value: 'recurring' },
-]
+
 const intervalOptions = [
   { label: '15 min', value: 15 },
   { label: '30 min', value: 30 },
@@ -625,15 +551,14 @@ const generating = ref(false)
 const isSlotsResponse = (value: unknown): value is { slots: string[] } =>
   isRecord(value) && Array.isArray(value.slots) && value.slots.every(slot => typeof slot === 'string')
 
-async function runGenerator(day?: WeekdayName) {
+async function runGenerator(day: WeekdayName) {
   generating.value = true
   try {
     const res = await dashboardApi('/api/utils/generate-slots', {
       query: { start: generator.start, end: generator.end, interval_minutes: generator.interval },
       validate: isSlotsResponse,
     })
-    if (day) editor.recurringSlots[day] = res.slots
-    else editor.timeSlots.value = res.slots
+    if (editor.recurringSlots.value !== null) editor.recurringSlots.value[day] = res.slots
   } catch {
     toast.add({ description: 'Could not generate slots — check start/end/interval.', color: 'error' })
   } finally {
@@ -642,123 +567,34 @@ async function runGenerator(day?: WeekdayName) {
 }
 
 function copyRecurring(mode: 'all' | 'weekdays' | 'weekend') {
-  const slots = editor.recurringSlots
+  const slots = editor.recurringSlots.value
+  if (slots === null) return
   if (mode === 'all') {
-    const first = [...slots[weekdayNames[0]]]
+    const first = [...(slots[weekdayNames[0]] ?? [])]
     for (const day of weekdayNames) slots[day] = [...first]
   } else if (mode === 'weekdays') {
-    const monday = [...slots.Monday]
-    for (const day of ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'] as WeekdayName[]) slots[day] = [...monday]
+    const monday = [...(slots.monday ?? [])]
+    for (const day of ['monday', 'tuesday', 'wednesday', 'thursday', 'friday'] as WeekdayName[]) slots[day] = [...monday]
   } else {
-    const friday = [...slots.Friday]
-    for (const day of ['Friday', 'Saturday'] as WeekdayName[]) slots[day] = [...friday]
+    const friday = [...(slots.friday ?? [])]
+    for (const day of ['friday', 'saturday'] as WeekdayName[]) slots[day] = [...friday]
   }
 }
 
-// ── Translations ────────────────────────────────────────
-const translationLocale = ref('en')
-const translationLocales = ref<string[]>([])
-const localeItems = computed(() => ['en', ...translationLocales.value])
-const translationFields = reactive({
-  title: '', tagline: '', body: '', price: '',
-  included_items: [] as string[], what_to_bring: [] as string[],
-  meeting_point: '', cancellation_policy: '', seo_title: '', seo_description: '',
-})
-const translationError = ref<string | null>(null)
-const translationSaving = ref(false)
-
-const isLocalesResponse = (value: unknown): value is { languages: Array<{ locale: string; locale_status: string; is_source: boolean | number }> } =>
-  isRecord(value) && Array.isArray(value.languages)
-const isTranslationResponse = (value: unknown): value is { localization: { values: Record<string, unknown> } } =>
-  isRecord(value) && isRecord(value.localization) && isRecord(value.localization.values)
-
-async function loadTranslationLocales() {
-  try {
-    const response = await dashboardApi(`/api/editor/sites/${siteId}/locales`, { validate: isLocalesResponse })
-    translationLocales.value = response.languages
-      .filter(item => item.locale_status === 'published' && !item.is_source)
-      .map(item => item.locale)
-  } catch (cause) {
-    translationLocales.value = []
-    translationError.value = getErrorMessage(cause, 'Failed to load site languages')
-  }
+const siteLocalizationSettingsPath = computed(() => `/dashboard/${route.params.orgSlug}/sites/${route.params.siteSlug}/settings/localization`)
+const experienceLocalizationFields = computed(() => [
+  { key: 'name', label: 'Title', source: data.value?.experience.title },
+  { key: 'experience.tagline', label: 'Tagline', source: data.value?.experience.tagline },
+  { key: 'description', label: 'Description', source: data.value?.experience.body, multiline: true, rows: 6 },
+  { key: 'experience.pricing_note', label: 'Price note', source: data.value?.experience.pricing_note },
+  { key: 'experience.included_items', label: 'Included items', source: data.value?.experience.included_items, kind: 'string-list' as const },
+  { key: 'experience.what_to_bring', label: 'What to bring', source: data.value?.experience.what_to_bring, kind: 'string-list' as const },
+  { key: 'experience.meeting_point', label: 'Meeting point', source: data.value?.experience.meeting_point, multiline: true },
+  { key: 'experience.cancellation_policy', label: 'Cancellation policy', source: data.value?.experience.cancellation_policy, multiline: true },
+])
+function localizedExperiencePath(locale: string): string {
+  return `/${locale}/experiences/${experienceSlug.value}`
 }
-
-function resetTranslationFields() {
-  Object.assign(translationFields, {
-    title: '', tagline: '', body: '', price: '',
-    included_items: [], what_to_bring: [],
-    meeting_point: '', cancellation_policy: '', seo_title: '', seo_description: '',
-  })
-}
-
-async function loadTranslationFields() {
-  translationError.value = null
-  try {
-    const response = await dashboardApi(
-      `/api/editor/sites/${siteId}/localization/experience/${experienceId.value}/${encodeURIComponent(translationLocale.value)}`,
-      { validate: isTranslationResponse },
-    )
-    const values = response.localization.values
-    const text = (key: string) => (typeof values[key] === 'string' ? values[key] : '')
-    const list = (key: string) => (Array.isArray(values[key]) ? (values[key] as unknown[]).filter((item): item is string => typeof item === 'string') : [])
-    Object.assign(translationFields, {
-      title: text('title'),
-      tagline: text('tagline'),
-      body: text('body'),
-      price: text('price'),
-      included_items: list('included_items_json'),
-      what_to_bring: list('what_to_bring'),
-      meeting_point: text('meeting_point'),
-      cancellation_policy: text('cancellation_policy'),
-      seo_title: text('seo_title'),
-      seo_description: text('seo_description'),
-    })
-  } catch (cause) {
-    const statusCode = isRecord(cause) && typeof cause.statusCode === 'number' ? cause.statusCode : null
-    if (statusCode !== 404) translationError.value = getErrorMessage(cause, 'Failed to load translation')
-    resetTranslationFields()
-  }
-}
-
-watch(translationLocale, () => {
-  if (translationLocale.value === 'en') {
-    resetTranslationFields()
-    return
-  }
-  void loadTranslationFields()
-})
-
-async function saveTranslation() {
-  if (translationLocale.value === 'en') return
-  if (!experienceSlug.value) {
-    translationError.value = 'This experience has no slug yet, so its translated page has no address. Save it once in English first.'
-    return
-  }
-  translationSaving.value = true
-  translationError.value = null
-  try {
-    const values: Record<string, unknown> = {}
-    for (const field of ['title', 'tagline', 'body', 'price', 'meeting_point', 'cancellation_policy', 'seo_title', 'seo_description'] as const) {
-      if (translationFields[field].trim()) values[field] = translationFields[field].trim()
-    }
-    if (translationFields.included_items.length) values.included_items_json = translationFields.included_items
-    if (translationFields.what_to_bring.length) values.what_to_bring = translationFields.what_to_bring
-
-    await dashboardApi(`/api/editor/sites/${siteId}/localization/experience/${experienceId.value}/${encodeURIComponent(translationLocale.value)}`, {
-      method: 'PUT',
-      body: { values, route_path: `/${translationLocale.value}/experiences/${experienceSlug.value}` },
-      validate: isRecord,
-    })
-    toast.add({ description: 'Translation saved', color: 'success' })
-  } catch (cause) {
-    translationError.value = getErrorMessage(cause, 'Failed to save translation')
-  } finally {
-    translationSaving.value = false
-  }
-}
-
-void loadTranslationLocales()
 
 // A save rewrites the record the hub summaries and the slug read from.
 watch(() => editor.saving.value, (isSaving, wasSaving) => {

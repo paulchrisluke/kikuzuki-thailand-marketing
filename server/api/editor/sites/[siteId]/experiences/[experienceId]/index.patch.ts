@@ -1,3 +1,4 @@
+import { parseRecurringSlots } from '~/shared/reservation-hours'
 import { jsonResponse, readRequiredBody } from '~/server/utils/api-response'
 import { updateExperience } from '~/server/utils/experiences'
 import { InvalidFieldError, stringArrayOrNull } from '~/server/utils/validation-helpers'
@@ -23,7 +24,7 @@ export default defineHandler(async (event) => {
   if (!siteId || !experienceId) return jsonResponse({ error: 'siteId and experienceId required' }, { status: 400 })
 
   const { env, db, site } = await requireSiteAccess(event, siteId, 'context')
-  const existing = await queryFirst<{ location_id: string }>(db, 'SELECT location_id FROM experiences WHERE id = ? AND site_id = ? LIMIT 1', [experienceId, siteId])
+  const existing = await queryFirst<{ location_id: string }>(db, 'SELECT location_id FROM products WHERE product_type = \'experience\' AND id = ? AND site_id = ? LIMIT 1', [experienceId, siteId])
   if (!existing) return jsonResponse({ error: 'Experience not found' }, { status: 404 })
   const principal = {
     env,
@@ -50,11 +51,10 @@ export default defineHandler(async (event) => {
   if ('price' in body) updates.price = body.price === null ? null : body.price as PriceInput
   if ('duration_minutes' in body) updates.duration_minutes = optionalInteger(body.duration_minutes)
   if ('max_capacity' in body) updates.max_capacity = optionalInteger(body.max_capacity)
-  if ('time_slots' in body) updates.time_slots = Array.isArray(body.time_slots) ? body.time_slots.map(String) : null
-  if ('recurring_slots' in body) {
-    updates.recurring_slots = body.recurring_slots && typeof body.recurring_slots === 'object' && !Array.isArray(body.recurring_slots)
-      ? (body.recurring_slots as Record<string, string[]>)
-      : null
+  try {
+    if ('recurring_slots' in body) updates.recurring_slots = parseRecurringSlots(body.recurring_slots)
+  } catch (error) {
+    return jsonResponse({ error: error instanceof Error ? error.message : 'Invalid recurring_slots' }, { status: 400 })
   }
   if ('tags' in body) updates.tags = body.tags
   if ('details' in body) updates.details = body.details

@@ -1,30 +1,55 @@
 import { HTTPError } from 'nitro';
 
-import { execute, executeBatch, queryAll, queryFirst, type BatchQuery, type DbClient } from '../db/index.ts'
+import { executeBatch, queryAll, queryFirst, type BatchQuery, type DbClient } from '../db/index.ts'
 import { d1JsonStringSet } from '../db/d1-limits.ts'
 import { assertNoEmbeddedMediaFields } from '../../utils/tenant-page-blocks.ts'
+import type { content_documents } from '../db/schema.ts'
 import {
   CONTENT_BLOCK_TYPES,
   type ContentBlockType,
-  type ContentDocumentOwnerType,
+  type ContentDocumentKind,
 } from '~/shared/content-registries'
+
 
 export {
   CONTENT_BLOCK_TYPES,
-  CONTENT_DOCUMENT_OWNER_TYPES,
+  CONTENT_DOCUMENT_KINDS,
   type ContentBlockType,
-  type ContentDocumentOwnerType,
+  type ContentDocumentKind,
 } from '~/shared/content-registries'
 
-export interface ContentDocumentRow {
-  id: string
-  owner_type: ContentDocumentOwnerType
-  owner_id: string
-  created_at: string
-  updated_at: string
+export type ContentDocumentRow = Pick<typeof content_documents.$inferSelect,
+  'id' | 'organization_id' | 'site_id' | 'kind' | 'created_at' | 'updated_at'
+> & { row_role: 'root' | 'representation'; root_id: string | null; locale: string }
+
+interface ContentDocumentInputFields {
+  id?: string
+  organizationId: string
+  siteId: string
+  kind: ContentDocumentKind
+  title?: string | null
+  slug?: string | null
+  path?: string | null
+  summary?: string | null
+  seoTitle?: string | null
+  seoDescription?: string | null
+  seoKeywords?: string | null
+  canonicalUrl?: string | null
+  robots?: string | null
+  metadata?: Record<string, unknown>
+  createdBy?: string | null
+  updatedBy?: string | null
 }
 
+export type ContentDocumentInput = ContentDocumentInputFields & (
+  | { rowRole: 'representation'; rootId: string; locale: string }
+  | { rowRole: 'root'; locale: 'en'; locationId?: string | null; scopePath?: string | null;
+      status?: string | null; visibility?: string | null; sortOrder?: number; source?: string | null;
+      authorId?: string | null; publishedAt?: string | null; firstPublishedAt?: string | null; scheduledFor?: string | null }
+)
+
 export interface ContentBlockRow {
+  source_block_id: string | null
   id: string
   document_id: string
   parent_block_id: string | null
@@ -37,6 +62,7 @@ export interface ContentBlockRow {
 }
 
 export interface ContentBlockSnapshot {
+  source_block_id?: string | null
   id: string
   parent_block_id: string | null
   type: ContentBlockType
@@ -59,6 +85,7 @@ export interface ContentBlockMedia {
 }
 
 export interface ContentBlockInput {
+  source_block_id?: string | null
   id?: string
   type: ContentBlockType
   data: Record<string, unknown>
@@ -70,9 +97,14 @@ export interface ContentBlockInput {
 
 type ContentBlockWriteInput = Omit<ContentBlockSnapshot, 'id'> & { id?: string; updated_at?: string | null }
 
+export type ContentDocumentChanges = Partial<Pick<typeof content_documents.$inferInsert,
+  'title' | 'slug' | 'path' | 'summary' | 'seo_title' | 'seo_description' | 'seo_keywords' | 'canonical_url' | 'robots'
+  | 'status' | 'visibility' | 'sort_order' | 'location_id' | 'source' | 'scope_path' | 'published_at' | 'first_published_at' | 'scheduled_for' | 'updated_by'
+>> & { metadata?: Record<string, unknown> }
+
 interface ContentDocumentWriteOptions {
+  changes?: ContentDocumentChanges
   bodyMarkdown?: string
-  expectedBlock?: { id: string; updatedAt: string }
   expectedDocument?: { id: string; updatedAt: string }
   additionalQueriesBefore?: BatchQuery[]
   additionalQueriesAfter?: BatchQuery[]
@@ -194,66 +226,67 @@ export function renderContentBlocksToMarkdown(blocks: Array<Pick<ContentBlockRow
   return sections.join('\n\n').trim()
 }
 
-export async function getContentDocumentByOwner(db: DbClient, ownerType: ContentDocumentOwnerType, ownerId: string) {
-  return await queryFirst<ContentDocumentRow | null>(
-    db,
-    `SELECT id, owner_type, owner_id, created_at, updated_at
-     FROM content_documents
-     WHERE owner_type = ? AND owner_id = ?
-     LIMIT 1`,
-    [ownerType, ownerId],
-  )
+export async function getContentRepresentation(db: DbClient, input: { rootId: string; locale?: string }) {
+  return await queryFirst<ContentDocumentRow>(db, `
+    SELECT d.id, d.organization_id, d.site_id, d.kind, d.row_role, d.root_id, d.locale, d.created_at, d.updated_at
+    FROM content_documents d
+    JOIN site_locales l ON l.organization_id = d.organization_id AND l.site_id = d.site_id AND l.locale = d.locale
+    WHERE COALESCE(d.root_id, d.id) = ? AND d.row_role IN ('root', 'representation')
+      AND (? IS NULL AND l.is_source = 1 OR d.locale = ?)
+    LIMIT 1
+  `, [input.rootId, input.locale ?? null, input.locale ?? null])
+}
+
+export function prepareContentDocumentDeletion(input: { organizationId: string; siteId: string } & ({ documentId: string } | { locationId: string })): BatchQuery[] {
+  const document = 'documentId' in input
+  const owned = document
+    ? 'SELECT id FROM content_documents WHERE (id = ? OR root_id = ?) AND organization_id = ? AND site_id = ?'
+    : `SELECT d.id FROM content_documents d LEFT JOIN content_documents root ON root.id = d.root_id
+       WHERE (d.location_id = ? OR root.location_id = ?) AND d.organization_id = ? AND d.site_id = ?`
+  const id = document ? input.documentId : input.locationId
+  const params = [id, id, input.organizationId, input.siteId]
+  return [
+    { query: `DELETE FROM site_redirects WHERE owner_type = 'content_document' AND owner_id IN (${owned})`, params },
+    { query: `DELETE FROM site_redirects WHERE owner_type = 'content_block' AND owner_id IN (
+      SELECT id FROM content_blocks WHERE document_id IN (${owned})
+    )`, params },
+    { query: `DELETE FROM media_placements WHERE owner_type = 'content_document' AND owner_id IN (${owned})`, params },
+    { query: `DELETE FROM media_placements WHERE owner_type = 'content_block' AND owner_id IN (
+      SELECT id FROM content_blocks WHERE document_id IN (${owned})
+    )`, params },
+    { query: `DELETE FROM content_documents WHERE ${document ? 'id' : 'location_id'} = ? AND organization_id = ? AND site_id = ?`,
+      params: [id, input.organizationId, input.siteId] },
+  ]
 }
 
 export async function getContentDocumentById(db: DbClient, documentId: string) {
-  return await queryFirst<ContentDocumentRow | null>(
-    db,
-    `SELECT id, owner_type, owner_id, created_at, updated_at
-     FROM content_documents
-     WHERE id = ?
-     LIMIT 1`,
-    [documentId],
-  )
+  return await queryFirst<ContentDocumentRow>(db, `
+    SELECT id, organization_id, site_id, kind, row_role, root_id, locale, created_at, updated_at
+    FROM content_documents WHERE id = ? AND row_role IN ('root', 'representation')
+  `, [documentId])
 }
 
-export async function ensureContentDocument(db: DbClient, ownerType: ContentDocumentOwnerType, ownerId: string) {
-  const existing = await getContentDocumentByOwner(db, ownerType, ownerId)
-  if (existing) return existing
-
-  const now = new Date().toISOString()
-  const id = crypto.randomUUID()
-  try {
-    await execute(
-      db,
-      `INSERT INTO content_documents (id, owner_type, owner_id, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?)`,
-      [id, ownerType, ownerId, now, now],
-    )
-  } catch (error) {
-    const raced = await getContentDocumentByOwner(db, ownerType, ownerId)
-    if (raced) return raced
-    throw error
-  }
-
+function assertDocumentSnapshotQuery(documentId: string, now: string, expectedUpdatedAt?: string): BatchQuery {
   return {
-    id,
-    owner_type: ownerType,
-    owner_id: ownerId,
-    created_at: now,
-    updated_at: now,
+    query: `INSERT INTO content_blocks (id, document_id, parent_block_id, type, position, level, data_json, created_at, updated_at)
+      SELECT NULL, ?, NULL, 'markdown', 0, NULL, '{}', ?, ?
+       WHERE NOT EXISTS (
+         SELECT 1 FROM content_documents d
+          WHERE d.id = ? AND d.row_role IN ('root', 'representation')${expectedUpdatedAt === undefined ? '' : ' AND d.updated_at = ?'}
+       )`,
+    params: [documentId, now, now, documentId, ...(expectedUpdatedAt === undefined ? [] : [expectedUpdatedAt])],
   }
 }
 
-// Every call rewrites the document's complete block set. Documents are short,
-// and the single guarded delete+reinsert keeps optimistic concurrency atomic.
 function buildDocumentWriteBatch(
   document: ContentDocumentRow,
-  blocks: ContentBlockWriteInput[],
+  blocks: ContentBlockWriteInput[] | undefined,
   opts: ContentDocumentWriteOptions = {},
 ) {
-  const now = new Date().toISOString()
-  const snapshots: Array<ContentBlockSnapshot & { updated_at: string }> = blocks.map((block, index) => ({
+  const now = new Date(Math.max(Date.now(), Date.parse(document.updated_at) + 1)).toISOString()
+  const snapshots: Array<ContentBlockSnapshot & { updated_at: string }> = (blocks ?? []).map((block, index) => ({
     id: block.id ?? crypto.randomUUID(),
+    source_block_id: block.source_block_id ?? null,
     parent_block_id: block.parent_block_id ?? null,
     type: assertBlockType(block.type),
     position: typeof block.position === 'number' ? block.position : index,
@@ -261,6 +294,25 @@ function buildDocumentWriteBatch(
     data: mediaFreeBlockData(block.type, block.data, `content block ${index} data`),
     updated_at: block.updated_at ?? now,
   }))
+  const byId = new Map(snapshots.map(block => [block.id, block]))
+  if (byId.size !== snapshots.length) badRequest('Content block IDs must be unique within a document')
+  const visiting = new Set<string>()
+  const inserted = new Set<string>()
+  const insertionOrder: typeof snapshots = []
+  function visit(block: typeof snapshots[number]) {
+    if (inserted.has(block.id)) return
+    if (visiting.has(block.id)) badRequest('Content block hierarchy must not contain a cycle')
+    visiting.add(block.id)
+    if (block.parent_block_id !== null) {
+      const parent = byId.get(block.parent_block_id)
+      if (!parent) badRequest('Content block parent must exist in the same document')
+      visit(parent)
+    }
+    visiting.delete(block.id)
+    inserted.add(block.id)
+    insertionOrder.push(block)
+  }
+  snapshots.forEach(visit)
   const bodyMarkdown = opts.bodyMarkdown ?? renderContentBlocksToMarkdown(snapshots.map(block => ({
     id: block.id,
     type: block.type,
@@ -269,55 +321,7 @@ function buildDocumentWriteBatch(
     data_json: JSON.stringify(block.data),
   })))
 
-  // The guard is folded into the DELETE's WHERE clause (rather than run as a
-  // separate pre-batch UPDATE) so the check and the rewrite commit atomically:
-  // if opts.expectedBlock no longer matches, this DELETE removes zero rows,
-  // which makes every subsequent INSERT below collide on its (still-present)
-  // primary key and abort the whole batch instead of silently overwriting it.
-  const deleteBlocksQuery = opts.expectedBlock
-    ? {
-        query: `DELETE FROM content_blocks WHERE document_id = ? AND NOT EXISTS (
-          SELECT 1 FROM content_blocks WHERE id = ? AND updated_at != ?
-        )`,
-        params: [document.id, opts.expectedBlock.id, opts.expectedBlock.updatedAt],
-      }
-    : {
-        query: 'DELETE FROM content_blocks WHERE document_id = ?',
-        params: [document.id],
-      }
-
-  // When the guarded block is being removed entirely (deleteContentBlock),
-  // it has no corresponding INSERT below to collide on if the guard's DELETE
-  // above failed to match, so nothing would abort the batch. Force a PK
-  // collision to detect that case too: insert a throwaway row under the
-  // guarded id (this only succeeds if the guard really did clear the old
-  // row) and remove it again immediately after, all inside the same batch.
-  const guardBlockPersists = !opts.expectedBlock || snapshots.some(block => block.id === opts.expectedBlock!.id)
-  const guardCollisionQueries = opts.expectedBlock && !guardBlockPersists
-    ? [
-        {
-          query: `INSERT INTO content_blocks (id, document_id, parent_block_id, type, position, level, data_json, created_at, updated_at)
-            VALUES (?, ?, NULL, 'markdown', 0, NULL, '{}', ?, ?)`,
-          params: [opts.expectedBlock.id, document.id, now, opts.expectedBlock.updatedAt],
-        },
-        { query: 'DELETE FROM content_blocks WHERE id = ?', params: [opts.expectedBlock.id] },
-      ]
-    : []
-
-  // Whole-document replacements use the document timestamp as their source
-  // of truth. This INSERT is a no-op only while the exact token still exists;
-  // a stale or deleted document attempts to insert an intentionally invalid
-  // block type, tripping the CHECK constraint and rolling back the batch.
-  // Unlike an anchor-block guard, it also closes the race where every old
-  // block id was replaced between preflight and commit.
-  const documentGuardQueries = opts.expectedDocument
-    ? [{
-        query: `INSERT INTO content_blocks (id, document_id, parent_block_id, type, position, level, data_json, created_at, updated_at)
-          SELECT ?, ?, NULL, '__content_document_concurrency_guard__', 0, NULL, '{}', ?, ?
-           WHERE NOT EXISTS (SELECT 1 FROM content_documents WHERE id = ? AND updated_at = ?)`,
-        params: [crypto.randomUUID(), opts.expectedDocument.id, now, now, opts.expectedDocument.id, opts.expectedDocument.updatedAt],
-      }]
-    : []
+  const snapshotAssertion = assertDocumentSnapshotQuery(document.id, now, opts.expectedDocument?.updatedAt)
 
   const retainedIds = snapshots.map(block => block.id)
   const stalePlacementQuery = retainedIds.length
@@ -331,49 +335,92 @@ function buildDocumentWriteBatch(
         query: `DELETE FROM media_placements WHERE owner_type = 'content_block' AND owner_id IN (SELECT id FROM content_blocks WHERE document_id = ?)`,
         params: [document.id],
       }
-  const liveBlockQueries: { query: string; params: unknown[] }[] = [
-    stalePlacementQuery,
-    deleteBlocksQuery,
-    ...snapshots.map(block => ({
-      query: `INSERT INTO content_blocks (id, document_id, parent_block_id, type, position, level, data_json, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      params: [block.id, document.id, block.parent_block_id, block.type, block.position, block.level, JSON.stringify(block.data), now, block.updated_at],
+  const liveBlockQueries: { query: string; params: unknown[] }[] = blocks === undefined ? [] : [
+    { query: `INSERT INTO content_blocks(id, document_id, type, position, data_json)
+      SELECT NULL, ?, 'markdown', 0, '{}' WHERE EXISTS (SELECT 1 FROM content_blocks
+        WHERE id IN (SELECT value FROM json_each(?)) AND document_id <> ?)`, params: [document.id, d1JsonStringSet(retainedIds), document.id] },
+    { query: `INSERT INTO content_blocks(id, document_id, type, position, data_json)
+      SELECT NULL, ?, 'markdown', 0, '{}' WHERE EXISTS (
+        SELECT 1 FROM content_blocks source
+        JOIN content_blocks translated ON translated.source_block_id = source.id
+        JOIN json_each(?) incoming ON json_extract(incoming.value, '$.id') = source.id
+        WHERE source.document_id = ? AND source.type <> json_extract(incoming.value, '$.type')
+      )`, params: [document.id, JSON.stringify(snapshots.map(({ id, type }) => ({ id, type }))), document.id] },
+    ...insertionOrder.filter(block => block.source_block_id).map(block => ({
+      query: `INSERT INTO content_blocks(id, document_id, type, position, data_json)
+        SELECT NULL, ?, 'markdown', 0, '{}' WHERE NOT EXISTS (
+          SELECT 1 FROM content_blocks source JOIN content_documents root ON root.id = source.document_id
+          WHERE source.id = ? AND source.type = ? AND source.source_block_id IS NULL AND root.id = ?
+            AND root.row_role = 'root' AND root.kind = ?
+            AND root.organization_id = ? AND root.site_id = ?
+        )`, params: [document.id, block.source_block_id, block.type, document.root_id, document.kind, document.organization_id, document.site_id],
     })),
-    ...guardCollisionQueries,
+    stalePlacementQuery,
+    { query: `DELETE FROM media_placements WHERE owner_type = 'content_block' AND owner_id IN (
+      WITH RECURSIVE removed(id) AS (
+        SELECT translated.id FROM content_blocks translated JOIN content_blocks source ON source.id = translated.source_block_id
+        WHERE source.document_id = ? AND source.id NOT IN (SELECT value FROM json_each(?))
+        UNION
+        SELECT child.id FROM content_blocks child JOIN removed ON child.parent_block_id = removed.id OR child.source_block_id = removed.id
+      ) SELECT id FROM removed
+    )`, params: [document.id, d1JsonStringSet(retainedIds)] },
+    ...insertionOrder.map(block => ({
+      query: `INSERT INTO content_blocks (id, document_id, source_block_id, parent_block_id, type, position, level, data_json, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(id) DO UPDATE SET source_block_id = excluded.source_block_id, parent_block_id = excluded.parent_block_id,
+          type = excluded.type, position = excluded.position, level = excluded.level, data_json = excluded.data_json, updated_at = excluded.updated_at`,
+      params: [block.id, document.id, block.source_block_id ?? null, block.parent_block_id, block.type, block.position, block.level, JSON.stringify(block.data), now, block.updated_at],
+    })),
+    { query: 'DELETE FROM content_blocks WHERE document_id = ? AND id NOT IN (SELECT value FROM json_each(?))', params: [document.id, d1JsonStringSet(retainedIds)] },
   ]
 
+  const assignments = ['updated_at = ?']
+  const values: unknown[] = [now]
+  const changedColumns = ['title', 'slug', 'path', 'summary', 'seo_title', 'seo_description', 'seo_keywords',
+    'canonical_url', 'robots', 'status', 'visibility', 'sort_order', 'location_id', 'source', 'scope_path',
+    'published_at', 'first_published_at', 'scheduled_for', 'updated_by'] as const
+  for (const column of changedColumns) {
+    if (opts.changes?.[column] !== undefined) {
+      assignments.push(column + ' = ?')
+      values.push(opts.changes[column])
+    }
+  }
+  const metadata = Object.entries(opts.changes?.metadata ?? {}).filter(([, value]) => value !== undefined)
+  if (metadata.length) {
+    assignments.push('metadata_json = json_set(metadata_json, ' + metadata.map(() => '?, json(?)').join(', ') + ')')
+    for (const [key, value] of metadata) values.push('$.' + JSON.stringify(key), JSON.stringify(value))
+  }
+
   const queries: { query: string; params: unknown[] }[] = [
+    { query: snapshotAssertion.query, params: snapshotAssertion.params ?? [] },
     ...(opts.additionalQueriesBefore ?? []).map(query => ({ query: query.query, params: query.params ?? [] })),
-    ...documentGuardQueries,
     ...liveBlockQueries,
     {
-      query: 'UPDATE content_documents SET updated_at = ? WHERE id = ?',
-      params: [now, document.id],
+      query: `UPDATE content_documents SET ${assignments.join(', ')} WHERE id = ?`,
+      params: [...values, document.id],
     },
     ...(opts.additionalQueriesAfter ?? []).map(query => ({ query: query.query, params: query.params ?? [] })),
   ]
 
-  return { queries, body_markdown: bodyMarkdown, blocks: snapshots }
+  return { queries, body_markdown: bodyMarkdown, blocks: snapshots, updated_at: now }
 }
 
 async function writeDocumentBlocks(
   db: DbClient,
   document: ContentDocumentRow,
-  blocks: ContentBlockWriteInput[],
+  blocks: ContentBlockWriteInput[] | undefined,
   opts: ContentDocumentWriteOptions = {},
 ) {
-  const prepared = buildDocumentWriteBatch(document, blocks, opts)
+  const prepared = buildDocumentWriteBatch(document, blocks, {
+    ...opts,
+    expectedDocument: { id: document.id, updatedAt: document.updated_at },
+  })
   try {
     await executeBatch(db, prepared.queries)
   } catch (error) {
-    if (opts.expectedDocument) {
-      const current = await getContentDocumentById(db, opts.expectedDocument.id)
-      if (!current || current.updated_at !== opts.expectedDocument.updatedAt) {
-        throw new HTTPError({ statusCode: 409, statusMessage: 'Content document was updated by another writer', cause: error })
-      }
-    }
-    if (opts.expectedBlock) {
-      throw new HTTPError({ statusCode: 409, statusMessage: 'Content block was updated by another writer', cause: error })
+    const current = await getContentDocumentById(db, document.id)
+    if (!current || current.updated_at !== document.updated_at) {
+      throw new HTTPError({ statusCode: 409, statusMessage: 'Content document was updated by another writer', cause: error })
     }
     throw error
   }
@@ -381,118 +428,67 @@ async function writeDocumentBlocks(
   return {
     body_markdown: prepared.body_markdown,
     blocks: prepared.blocks,
+    updated_at: prepared.updated_at,
   }
 }
 
-export async function syncContentDocumentFromMarkdown(
-  db: DbClient,
-  opts: {
-    ownerType: ContentDocumentOwnerType
-    ownerId: string
-    bodyMarkdown: string
-  },
-) {
-  const document = await ensureContentDocument(db, opts.ownerType, opts.ownerId)
-
-  // Markdown only ever encodes heading/markdown blocks, but the document writer
-  // replaces the document's entire block set. Carry forward any existing
-  // structured blocks (image, gallery, faq, etc.) so a plain-markdown sync
-  // doesn't delete content the block editor or MCP tools already built.
-  const existingBlocks = await listBlocksForDocument(db, document.id)
-  const preservedStructuredBlocks = existingBlocks
-    .filter(block => block.type !== 'heading' && block.type !== 'markdown')
-    .map(block => ({
-      id: block.id,
-      parent_block_id: block.parent_block_id,
-      type: block.type,
-      level: block.level,
-      data: parseBlockData(block),
-      updated_at: block.updated_at,
-    }))
-
-  const blocks = [...markdownToContentBlocks(opts.bodyMarkdown), ...preservedStructuredBlocks]
-    .map((block, index) => ({ ...block, position: index }))
-
-  const write = await writeDocumentBlocks(db, document, blocks, {
-    bodyMarkdown: opts.bodyMarkdown,
-  })
-  const currentDocument = await getContentDocumentById(db, document.id)
-  if (!currentDocument) throw new HTTPError({ statusCode: 500, statusMessage: 'Content document disappeared after synchronization' })
-  return { document: currentDocument, ...write }
-}
-
 export function prepareContentDocumentWithBlocks(
-  ownerType: ContentDocumentOwnerType,
-  ownerId: string,
+  input: ContentDocumentInput,
   blocks: ContentBlockInput[],
   opts: {
-    documentId?: string
     bodyMarkdown?: string
     additionalQueriesBefore?: BatchQuery[]
     additionalQueriesAfter?: BatchQuery[]
   } = {},
 ) {
   const now = new Date().toISOString()
-  const documentId = opts.documentId ?? crypto.randomUUID()
   const document: ContentDocumentRow = {
-    id: documentId,
-    owner_type: ownerType,
-    owner_id: ownerId,
-    created_at: now,
-    updated_at: now,
+    id: input.id ?? crypto.randomUUID(), organization_id: input.organizationId, site_id: input.siteId,
+    kind: input.kind, row_role: input.rowRole, root_id: input.rowRole === 'representation' ? input.rootId : null, locale: input.locale,
+    created_at: now, updated_at: now,
   }
+  const root = input.rowRole === 'root' ? input : null
   const documentInsert: BatchQuery = {
-    query: 'INSERT INTO content_documents (id, owner_type, owner_id, created_at, updated_at) VALUES (?, ?, ?, ?, ?)',
-    params: [documentId, ownerType, ownerId, now, now],
+    query: `INSERT INTO content_documents
+      (id, organization_id, site_id, kind, row_role, root_id, root_role, locale, title, slug, path, summary,
+       seo_title, seo_description, seo_keywords, canonical_url, robots, metadata_json, created_by, updated_by,
+       location_id, scope_path, status, visibility, sort_order, source, author_id, published_at, first_published_at, scheduled_for,
+       created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    params: [document.id, input.organizationId, input.siteId, input.kind, input.rowRole, document.root_id,
+      input.rowRole === 'representation' ? 'root' : null, input.locale,
+      input.title ?? null, input.slug ?? null, input.path ?? null, input.summary ?? null,
+      input.seoTitle ?? null, input.seoDescription ?? null, input.seoKeywords ?? null,
+      input.canonicalUrl ?? null, input.robots ?? null, JSON.stringify(input.metadata ?? {}),
+      input.createdBy ?? null, input.updatedBy ?? null,
+      root?.locationId ?? null, root?.scopePath ?? null, root?.status ?? null, root?.visibility ?? null,
+      root?.sortOrder ?? 0, root?.source ?? null, root?.authorId ?? null,
+      root?.publishedAt ?? null, root?.firstPublishedAt ?? null, root?.scheduledFor ?? null, now, now],
   }
+
   const write = buildDocumentWriteBatch(document, blocks.map((block, index) => ({
-    id: block.id,
-    parent_block_id: block.parent_block_id ?? null,
-    type: block.type,
-    position: index,
-    level: block.level ?? null,
-    data: block.data,
-  })), {
-    bodyMarkdown: opts.bodyMarkdown,
-    additionalQueriesBefore: [documentInsert, ...(opts.additionalQueriesBefore ?? [])],
-    additionalQueriesAfter: opts.additionalQueriesAfter,
-  })
-  return { document, ...write }
+    id: block.id, source_block_id: block.source_block_id ?? null, parent_block_id: block.parent_block_id ?? null, type: block.type,
+    position: index, level: block.level ?? null, data: block.data,
+  })), { bodyMarkdown: opts.bodyMarkdown, additionalQueriesAfter: opts.additionalQueriesAfter })
+  return { document, ...write, queries: [...(opts.additionalQueriesBefore ?? []), documentInsert, ...write.queries] }
 }
 
-// This never calls ensureContentDocument
-// (which INSERTs standalone, outside any batch). It folds the content_documents
-// INSERT into the same additionalQueriesBefore array as the caller's own
-// owner-row INSERT (e.g. blog_posts), so the block writer's single
-// executeBatch call becomes the entire create operation: document, owner row,
-// and blocks all commit or all fail together. Use this whenever a
-// content document needs to be created atomically alongside the row it belongs
-// to — not for adding a document to an already-existing owner row.
 export async function createContentDocumentWithBlocks(
   db: DbClient,
-  ownerType: ContentDocumentOwnerType,
-  ownerId: string,
+  input: ContentDocumentInput,
   blocks: ContentBlockInput[],
-  opts: {
-    documentId?: string
-    bodyMarkdown?: string
-    additionalQueriesBefore?: BatchQuery[]
-    additionalQueriesAfter?: BatchQuery[]
-  } = {},
+  opts: Parameters<typeof prepareContentDocumentWithBlocks>[2] = {},
 ) {
-  const prepared = prepareContentDocumentWithBlocks(ownerType, ownerId, blocks, opts)
+  const prepared = prepareContentDocumentWithBlocks(input, blocks, opts)
   await executeBatch(db, prepared.queries)
-  const currentDocument = await getContentDocumentById(db, prepared.document.id)
-  if (!currentDocument) throw new HTTPError({ statusCode: 500, statusMessage: 'Content document disappeared after synchronization' })
-  return {
-    document: currentDocument,
-    body_markdown: prepared.body_markdown,
-    blocks: prepared.blocks,
-  }
+  const document = await getContentDocumentById(db, prepared.document.id)
+  if (!document) throw new HTTPError({ statusCode: 500, statusMessage: 'Content document disappeared after synchronization' })
+  return { document, body_markdown: prepared.body_markdown, blocks: prepared.blocks }
 }
 
 function formatBlockOutline(block: ContentBlockRow) {
   return {
+    source_block_id: block.source_block_id,
     id: block.id,
     parent_block_id: block.parent_block_id,
     type: block.type,
@@ -534,7 +530,7 @@ export async function getContentOutline(db: DbClient, documentId: string) {
 export async function getContentBlock(db: DbClient, blockId: string) {
   const block = await queryFirst<ContentBlockRow | null>(
     db,
-    `SELECT id, document_id, parent_block_id, type, position, level, data_json, created_at, updated_at
+    `SELECT id, document_id, source_block_id, parent_block_id, type, position, level, data_json, created_at, updated_at
      FROM content_blocks
      WHERE id = ?
      LIMIT 1`,
@@ -548,7 +544,7 @@ export async function getContentBlock(db: DbClient, blockId: string) {
 export async function listBlocksForDocument(db: DbClient, documentId: string) {
   return await queryAll<ContentBlockRow>(
     db,
-    `SELECT id, document_id, parent_block_id, type, position, level, data_json, created_at, updated_at
+    `SELECT id, document_id, source_block_id, parent_block_id, type, position, level, data_json, created_at, updated_at
      FROM content_blocks
      WHERE document_id = ?
      ORDER BY position ASC, created_at ASC`,
@@ -569,6 +565,7 @@ export async function appendContentBlock(
   if (input.after_block_id && afterIndex === -1) badRequest('after_block_id was not found in this document')
 
   const newBlock: ContentBlockWriteInput = {
+    source_block_id: input.source_block_id ?? null,
     parent_block_id: input.parent_block_id ?? null,
     type: assertBlockType(input.type),
     position: afterIndex + 1,
@@ -578,6 +575,8 @@ export async function appendContentBlock(
   const snapshots = [
     ...existing.slice(0, afterIndex + 1).map(block => ({
       id: block.id,
+
+      source_block_id: block.source_block_id,
       parent_block_id: block.parent_block_id,
       type: block.type,
       position: block.position,
@@ -588,6 +587,8 @@ export async function appendContentBlock(
     newBlock,
     ...existing.slice(afterIndex + 1).map(block => ({
       id: block.id,
+
+      source_block_id: block.source_block_id,
       parent_block_id: block.parent_block_id,
       type: block.type,
       position: block.position,
@@ -597,14 +598,7 @@ export async function appendContentBlock(
     })),
   ].map((block, index) => ({ ...block, position: index, updated_at: block.position === index ? block.updated_at : null }))
 
-  // Anchor on the block we're inserting after (or the last block, when
-  // appending to the end) so a concurrent edit to the existing content is
-  // detected instead of silently overwritten. An empty document has nothing
-  // to race against, so no guard is needed there.
-  const anchorBlock = afterIndex >= 0 ? existing[afterIndex] : undefined
-  return await writeDocumentBlocks(db, document, snapshots, {
-    expectedBlock: anchorBlock ? { id: anchorBlock.id, updatedAt: anchorBlock.updated_at } : undefined,
-  })
+  return await writeDocumentBlocks(db, document, snapshots)
 }
 
 export async function replaceContentBlock(
@@ -613,14 +607,17 @@ export async function replaceContentBlock(
   input: { data: Record<string, unknown>; expected_updated_at: string },
 ) {
   const current = await getContentBlock(db, blockId)
-  if (current.updated_at !== input.expected_updated_at) {
-    throw new HTTPError({ statusCode: 409, statusMessage: 'Content block was updated by another writer' })
-  }
   const document = await getContentDocumentById(db, current.document_id)
   if (!document) notFound('Content document not found')
 
-  const snapshots = (await listBlocksForDocument(db, document.id)).map((block) => ({
+  const blocks = await listBlocksForDocument(db, document.id)
+  if (blocks.find(block => block.id === blockId)?.updated_at !== input.expected_updated_at) {
+    throw new HTTPError({ statusCode: 409, statusMessage: 'Content block was updated by another writer' })
+  }
+  const snapshots = blocks.map((block) => ({
     id: block.id,
+
+    source_block_id: block.source_block_id,
     parent_block_id: block.parent_block_id,
     type: block.type,
     position: block.position,
@@ -629,9 +626,7 @@ export async function replaceContentBlock(
     updated_at: block.id === blockId ? null : block.updated_at,
   }))
 
-  return await writeDocumentBlocks(db, document, snapshots, {
-    expectedBlock: { id: blockId, updatedAt: input.expected_updated_at },
-  })
+  return await writeDocumentBlocks(db, document, snapshots)
 }
 
 export async function deleteContentBlock(
@@ -640,16 +635,14 @@ export async function deleteContentBlock(
   input: { expected_updated_at: string },
 ) {
   const current = await getContentBlock(db, blockId)
-  if (current.updated_at !== input.expected_updated_at) {
-    throw new HTTPError({ statusCode: 409, statusMessage: 'Content block was updated by another writer' })
-  }
   const document = await getContentDocumentById(db, current.document_id)
   if (!document) notFound('Content document not found')
 
   const allBlocks = await listBlocksForDocument(db, document.id)
+  if (allBlocks.find(block => block.id === blockId)?.updated_at !== input.expected_updated_at) {
+    throw new HTTPError({ statusCode: 409, statusMessage: 'Content block was updated by another writer' })
+  }
 
-  // Cascade-delete descendants so removing a block never leaves a surviving
-  // block pointing at a parent_block_id that no longer exists.
   const removedIds = new Set<string>([blockId])
   let addedDescendant = true
   while (addedDescendant) {
@@ -666,6 +659,8 @@ export async function deleteContentBlock(
     .filter(block => !removedIds.has(block.id))
     .map((block, index) => ({
       id: block.id,
+
+      source_block_id: block.source_block_id,
       parent_block_id: block.parent_block_id,
       type: block.type,
       position: index,
@@ -674,9 +669,7 @@ export async function deleteContentBlock(
       updated_at: block.updated_at,
     }))
 
-  return await writeDocumentBlocks(db, document, snapshots, {
-    expectedBlock: { id: blockId, updatedAt: input.expected_updated_at },
-  })
+  return await writeDocumentBlocks(db, document, snapshots)
 }
 
 export async function renderContentPreview(db: DbClient, documentId: string) {
@@ -684,10 +677,8 @@ export async function renderContentPreview(db: DbClient, documentId: string) {
   return { body_markdown: renderContentBlocksToMarkdown(blocks), blocks: await attachContentBlockMedia(db, documentId, blocks.map(formatBlockOutline)) }
 }
 
-/** Editor-oriented snapshot read. Unknown/future block types remain opaque data
- * so a client can round-trip them without becoming a second content system. */
-export async function getContentEditorSnapshot(db: DbClient, ownerType: ContentDocumentOwnerType, ownerId: string) {
-  const document = await getContentDocumentByOwner(db, ownerType, ownerId)
+export async function getContentEditorSnapshot(db: DbClient, documentId: string) {
+  const document = await getContentDocumentById(db, documentId)
   if (!document) return null
   return await getContentEditorSnapshotForDocument(db, document)
 }
@@ -697,12 +688,13 @@ export async function getContentEditorSnapshotForDocument(db: DbClient, document
   return { document, blocks: await attachContentBlockMedia(db, document.id, blocks.map(formatBlockOutline)) }
 }
 
-export async function getContentBlocksForOwner(db: DbClient, ownerType: ContentDocumentOwnerType, ownerId: string) {
-  const document = await getContentDocumentByOwner(db, ownerType, ownerId)
+export async function getContentBlocksForDocument(db: DbClient, documentId: string) {
+  const document = await getContentDocumentById(db, documentId)
   if (!document) return null
   const blocks = await listBlocksForDocument(db, document.id)
   return await attachContentBlockMedia(db, document.id, blocks.map(b => ({
     id: b.id,
+    source_block_id: b.source_block_id,
     parent_block_id: b.parent_block_id,
     type: b.type,
     position: b.position,
@@ -714,70 +706,53 @@ export async function getContentBlocksForOwner(db: DbClient, ownerType: ContentD
 }
 
 
-export async function replaceContentDocumentBlocks(
+export async function updateContentDocument(
   db: DbClient,
-  ownerType: ContentDocumentOwnerType,
-  ownerId: string,
-  blocks: ContentBlockInput[],
-  opts: { expected_document_updated_at: string; additionalQueriesBefore?: BatchQuery[]; additionalQueriesAfter?: BatchQuery[] },
-) {
-  const document = await getContentDocumentByOwner(db, ownerType, ownerId)
-  if (!document) notFound('Content document not found')
-  if (document.updated_at !== opts.expected_document_updated_at) {
-    throw new HTTPError({ statusCode: 409, statusMessage: 'Content document was updated by another writer' })
-  }
-  const snapshots = blocks.map((block, index) => ({
-    id: typeof (block as ContentBlockInput & { id?: unknown }).id === 'string'
-      ? (block as ContentBlockInput & { id: string }).id
-      : undefined,
-    parent_block_id: block.parent_block_id ?? null,
-    type: assertBlockType(block.type),
-    position: index,
-    level: block.level ?? null,
-    data: asObject(block.data, `content block ${index} data`),
-    updated_at: null,
-  }))
-  return await writeDocumentBlocks(db, document, snapshots, {
-    expectedDocument: { id: document.id, updatedAt: opts.expected_document_updated_at },
-    additionalQueriesBefore: opts.additionalQueriesBefore,
-    additionalQueriesAfter: opts.additionalQueriesAfter,
-  })
-}
-
-/**
- * Prepare a document replacement without doing any reads or writes.
- *
- * Bulk domain services use this to prefetch their documents once and compose
- * one atomic D1 batch for several owners. The expected timestamp is preserved
- * in the document guard so a concurrent writer still turns the batch into a
- * conflict instead of silently overwriting newer content.
- */
-export function prepareContentDocumentBlocksReplacement(
-  document: ContentDocumentRow,
-  blocks: ContentBlockInput[],
-  opts: {
-    expected_document_updated_at: string
+  documentId: string,
+  input: {
+    expected_updated_at: string
+    blocks?: ContentBlockInput[]
+    changes?: ContentDocumentChanges
     additionalQueriesBefore?: BatchQuery[]
     additionalQueriesAfter?: BatchQuery[]
   },
 ) {
-  if (document.updated_at !== opts.expected_document_updated_at) {
+  const document = await getContentDocumentById(db, documentId)
+  if (!document) notFound('Content document not found')
+  if (document.updated_at !== input.expected_updated_at) {
     throw new HTTPError({ statusCode: 409, statusMessage: 'Content document was updated by another writer' })
   }
-  const snapshots = blocks.map((block, index) => ({
-    id: typeof (block as ContentBlockInput & { id?: unknown }).id === 'string'
-      ? (block as ContentBlockInput & { id: string }).id
-      : undefined,
-    parent_block_id: block.parent_block_id ?? null,
-    type: assertBlockType(block.type),
-    position: index,
-    level: block.level ?? null,
-    data: asObject(block.data, `content block ${index} data`),
-    updated_at: null,
+  const snapshots = input.blocks?.map((block, index) => ({
+    id: block.id, source_block_id: block.source_block_id ?? null, parent_block_id: block.parent_block_id ?? null,
+    type: assertBlockType(block.type), position: index, level: block.level ?? null,
+    data: asObject(block.data, `content block ${index} data`), updated_at: null,
+  }))
+  const result = await writeDocumentBlocks(db, document, snapshots, {
+    changes: input.changes, expectedDocument: { id: document.id, updatedAt: input.expected_updated_at },
+    additionalQueriesBefore: input.additionalQueriesBefore, additionalQueriesAfter: input.additionalQueriesAfter,
+  })
+  return { updated_at: result.updated_at }
+}
+
+export function prepareContentDocumentUpdate(
+  document: ContentDocumentRow,
+  input: {
+    expected_updated_at: string
+    blocks?: ContentBlockInput[]
+    changes?: ContentDocumentChanges
+    additionalQueriesBefore?: BatchQuery[]
+    additionalQueriesAfter?: BatchQuery[]
+  },
+) {
+  if (document.updated_at !== input.expected_updated_at) {
+    throw new HTTPError({ statusCode: 409, statusMessage: 'Content document was updated by another writer' })
+  }
+  const snapshots = input.blocks?.map((block, index) => ({
+    id: block.id, source_block_id: block.source_block_id ?? null, parent_block_id: block.parent_block_id ?? null, type: assertBlockType(block.type),
+    position: index, level: block.level ?? null, data: asObject(block.data, `content block ${index} data`), updated_at: null,
   }))
   return buildDocumentWriteBatch(document, snapshots, {
-    expectedDocument: { id: document.id, updatedAt: opts.expected_document_updated_at },
-    additionalQueriesBefore: opts.additionalQueriesBefore,
-    additionalQueriesAfter: opts.additionalQueriesAfter,
+    changes: input.changes, expectedDocument: { id: document.id, updatedAt: input.expected_updated_at },
+    additionalQueriesBefore: input.additionalQueriesBefore, additionalQueriesAfter: input.additionalQueriesAfter,
   })
 }

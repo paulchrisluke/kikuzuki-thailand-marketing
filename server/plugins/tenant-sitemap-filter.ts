@@ -22,33 +22,42 @@ function pathFromLoc(input: unknown) {
   }
 }
 
-async function publishedTenantPagePaths(event: H3Event, db: DbClient | undefined, siteId: string | undefined) {
-  if (!db || !siteId) return new Set<string>()
-  const rows = await queryAll<{ path: string | null }>(db, `
-    SELECT v.path
-      FROM tenant_page_variants v
-     WHERE v.site_id = ?
+async function publishedTenantSitemapScope(db: DbClient | undefined, siteId: string | undefined) {
+  const paths = new Set<string>(), locales = new Set<string>()
+  if (!db || !siteId) return { paths, locales }
+  const rows = await queryAll<{ path: string | null; locale: string }>(db, `
+    SELECT l.locale, CASE WHEN l.locale = 'en' THEN d.path WHEN d.path = '/' THEN '/' || l.locale ELSE '/' || l.locale || d.path END AS path
+      FROM site_locales l LEFT JOIN content_documents d ON d.site_id = l.site_id AND d.organization_id = l.organization_id AND d.locale = l.locale
+        AND d.kind = 'page' AND d.row_role IN ('root','representation')
+     WHERE l.site_id = ? AND l.status = 'published'
   `, [siteId])
-  return new Set(rows.map(row => row.path).filter((path): path is string => Boolean(path)))
+  for (const row of rows) {
+    locales.add(row.locale)
+    if (row.path) paths.add(row.path === '/' ? '/' : row.path.replace(/\/$/, ''))
+  }
+  return { paths, locales }
 }
 
-function isAllowedTenantPath(event: H3Event, path: string, publishedPaths: Set<string>) {
+function isAllowedTenantPath(event: H3Event, path: string, scope: { paths: Set<string>; locales: Set<string> }) {
   const site = event.context.site as { theme?: string | null; vertical?: string | null } | undefined
   const template = resolvePublicTemplate({
-    theme: site?.theme,
     themeId: event.context.themeId as string | null | undefined,
     vertical: site?.vertical,
   })
   const exactPaths = new Set(template.sitemap.exactPaths)
-  return publishedPaths.has(path) || exactPaths.has(path) || template.sitemap.dynamicPrefixes.some(prefix => path.startsWith(prefix))
+  const normalized = path === '/' ? '/' : path.replace(/\/$/, '')
+  if (scope.paths.has(normalized)) return true
+  const locale = normalized.split('/')[1] ?? ''
+  const route = locale !== 'en' && scope.locales.has(locale) ? normalized.slice(locale.length + 1) || '/' : normalized
+  return exactPaths.has(route) || template.sitemap.dynamicPrefixes.some(prefix => route.startsWith(prefix))
 }
 
 export default definePlugin((nitroApp) => {
   const filterTenantUrls = async <T>(ctx: { event: H3Event; urls: T[] }) => {
     if (ctx.event.context.tenantType !== TENANT_TYPES.TENANT) return
     const env = cloudflareEnv(ctx.event)
-    const publishedPaths = await publishedTenantPagePaths(ctx.event, env.db, ctx.event.context.siteId as string | undefined)
-    ctx.urls = ctx.urls.filter((url) => isAllowedTenantPath(ctx.event, pathFromLoc(url), publishedPaths))
+    const scope = await publishedTenantSitemapScope(env.db, ctx.event.context.siteId as string | undefined)
+    ctx.urls = ctx.urls.filter((url) => isAllowedTenantPath(ctx.event, pathFromLoc(url), scope))
   }
 
   nitroApp.hooks.hook('sitemap:input', async (ctx) => {

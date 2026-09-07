@@ -1,3 +1,4 @@
+import { getGuestRequest } from '~/server/domain/requests'
 import { defineHandler } from 'nitro'
 import { getRouterParam, readBody } from 'nitro/h3'
 
@@ -9,7 +10,6 @@ import { jsonResponse } from '~/server/utils/api-response'
 import { requireSiteAccess } from '~/server/utils/location-access'
 import { assertMemberScope } from '~/server/utils/member-access'
 import { getCloudflareWaitUntil } from '~/server/utils/mcp-route-helpers'
-import { getGuestThreadById } from '~/server/domain/guest-threads/repository'
 import { getGuestThreadDetail } from '~/server/domain/guest-threads/detail'
 import { executeGuestThreadOperation, GUEST_THREAD_ACTIONS } from '~/server/domain/guest-threads/operations'
 import { publishDashboardInvalidation } from '~/server/cloudflare/guest-inbox-events'
@@ -23,7 +23,7 @@ export default defineHandler(async (event) => {
 
   const { env, db, session, site } = await requireSiteAccess(event, siteId, 'context')
 
-  const thread = await getGuestThreadById(db, threadId, siteId)
+  const thread = await getGuestRequest(db, threadId, siteId)
   if (!thread) return jsonResponse({ error: 'Thread not found' }, { status: 404 })
   await assertMemberScope(db, { env, memberId: site.member_id, role: site.member_role, organizationId: site.organization_id, siteId, locationId: thread.location_id })
 

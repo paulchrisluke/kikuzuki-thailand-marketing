@@ -57,7 +57,6 @@ const nclsOrg: ProfessionalServiceOrgIdentity = {
   founderName: 'Rich Gittings',
   foundingDate: '2010-01-01',
   contactPoints: [{ contact_type: 'customer service', telephone: '(984) 777-8288', email: 'contact@example.org' }],
-  address: null,
   addressVisible: false,
 }
 
@@ -142,7 +141,6 @@ test('template-driven generation: a distinct non-NCLS professional-service tenan
     founderName: 'Jamie Alvarez',
     foundingDate: '2015-06-01',
     contactPoints: [{ contact_type: 'customer service', telephone: '(503) 555-0101', email: 'hello@cascadetax.example' }],
-    address: null,
     addressVisible: false,
   }
 
@@ -204,44 +202,17 @@ test('article recipe emits BlogPosting with publisher/isPartOf pointing at the s
   assert.deepEqual((article as Record<string, unknown>).isPartOf, { '@id': 'https://ncls.krabiclaw.com/#website' })
 })
 
-test('Organization address is withheld unless addressVisible is explicitly true, even when address data is present', () => {
-  const withAddressData: ProfessionalServiceOrgIdentity = {
-    ...nclsOrg,
-    address: { street_address: '123 Main St', locality: 'Raleigh', region: 'NC', postal_code: '27601', country: 'US' },
-    addressVisible: false,
-  }
-  const hidden = buildProfessionalServiceGraph({
-    recipe: 'home', origin: 'https://ncls.krabiclaw.com', org: withAddressData, pageUrl: '/', pageTitle: 'Home',
-  })
-  const hiddenOrg = graphByType(hidden, 'Organization')!
-  assert.equal((hiddenOrg as Record<string, unknown>).address, undefined)
-
-  const visible = buildProfessionalServiceGraph({
-    recipe: 'home', origin: 'https://ncls.krabiclaw.com', org: { ...withAddressData, addressVisible: true }, pageUrl: '/', pageTitle: 'Home',
-  })
-  const visibleOrg = graphByType(visible, 'Organization')!
-  assert.deepEqual((visibleOrg as Record<string, unknown>).address, {
-    '@type': 'PostalAddress',
-    streetAddress: '123 Main St',
-    addressLocality: 'Raleigh',
-    addressRegion: 'NC',
-    postalCode: '27601',
-    addressCountry: 'US',
-  })
-})
-
 test('a service-detail offering with its own business_locations address gets its own PostalAddress, independent of the org address', () => {
   const graph = buildProfessionalServiceGraph({
     recipe: 'service-detail',
     origin: 'https://ncls.krabiclaw.com',
-    org: { ...nclsOrg, address: null, addressVisible: false },
+    org: { ...nclsOrg, addressVisible: true },
     pageUrl: '/services/durham-office',
     pageTitle: 'Durham office consultations',
     offering: {
       name: 'Durham office consultations',
       schemaType: 'LegalService',
       address: { street_address: '456 Office Way', locality: 'Durham' },
-      addressVisible: true,
     },
   })
   const service = graphByType(graph, 'LegalService')!
@@ -254,7 +225,7 @@ test('a service-detail offering with its own business_locations address gets its
   assert.equal((org as Record<string, unknown>).address, undefined, 'the org address must stay withheld even though the offering address is visible')
 })
 
-test('a service-detail offering with no addressVisible override falls back to the org addressVisible flag', () => {
+test('offering addresses are withheld when tenant compliance visibility is hidden', () => {
   const graph = buildProfessionalServiceGraph({
     recipe: 'service-detail',
     origin: 'https://ncls.krabiclaw.com',
@@ -268,5 +239,5 @@ test('a service-detail offering with no addressVisible override falls back to th
     },
   })
   const service = graphByType(graph, 'LegalService')!
-  assert.equal((service as Record<string, unknown>).address, undefined, 'offering address must respect the org-level visibility default when not overridden')
+  assert.equal((service as Record<string, unknown>).address, undefined, 'offering address must respect tenant compliance visibility')
 })

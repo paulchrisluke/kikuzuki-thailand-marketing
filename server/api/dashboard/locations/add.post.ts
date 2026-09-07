@@ -1,10 +1,11 @@
+import { parseOpeningHours, parseSpecialHours } from '~/shared/reservation-hours'
 // POST /api/dashboard/locations/add
 // Add a new physical location to the current org's site from a Google Maps URL.
 // Requires an existing site — this is the multi-location flow, not onboarding.
 import { cloudflareEnv, jsonResponse } from '~/server/utils/api-response'
 import { getAuthSession } from '~/server/utils/auth'
 import { getDashboardContext } from '~/server/utils/dashboard-context'
-import { getPlaceDetailsByUrl, getPlaceDetails, searchPlaces } from '~/server/utils/google-places'
+import { getPlaceDetailsByUrl, getPlaceDetails, searchPlaces, googleReviewUpserts } from '~/server/utils/google-places'
 import { chargeFlatCredits } from '~/server/utils/ai-credits'
 import { createLocation } from '~/server/utils/location-management'
 import { purgePublicResourceCacheSafe } from '~/server/utils/public-resource-cache'
@@ -93,7 +94,7 @@ export default defineHandler(async (event) => {
 
     const result = await createLocation(
       env as SetupEnv, db, organizationId, siteId, {
-        title: typeof details?.name === 'string' && details.name.trim() ? details.name.trim() : name, slug, city: typeof details?.city === 'string' && details.city.trim() ? details.city.trim() : null, address: typeof details?.address === 'string' && details.address.trim() ? details.address.trim() : null, phone: typeof details?.phone === 'string' && details.phone.trim() ? details.phone.trim() : null, website_url: typeof details?.websiteUrl === 'string' && details.websiteUrl.trim() ? details.websiteUrl.trim() : null, opening_hours: typeof details?.openingHours === 'string' && details.openingHours.trim() ? details.openingHours.trim() : null, notification_phone: notificationPhone.value, timezone: typeof details?.timezone === 'string' && details.timezone.trim() ? details.timezone.trim() : null, is_primary: typeof details?.isPrimary === 'boolean' ? details.isPrimary : false, }, session.user.id, )
+        title: typeof details?.name === 'string' && details.name.trim() ? details.name.trim() : name, slug, city: typeof details?.city === 'string' && details.city.trim() ? details.city.trim() : null, address: typeof details?.address === 'string' && details.address.trim() ? details.address.trim() : null, phone: typeof details?.phone === 'string' && details.phone.trim() ? details.phone.trim() : null, website_url: typeof details?.websiteUrl === 'string' && details.websiteUrl.trim() ? details.websiteUrl.trim() : null, opening_hours: parseOpeningHours(details?.openingHours ?? null), special_hours: parseSpecialHours(details?.specialHours ?? null), notification_phone: notificationPhone.value, timezone: typeof details?.timezone === 'string' && details.timezone.trim() ? details.timezone.trim() : null, }, session.user.id, )
 
     if (result.status !== 200 && result.status !== 201) {
       return jsonResponse({ error: (result.data as { error?: string }).error ?? 'Could not add location.' }, { status: result.status })
@@ -137,7 +138,7 @@ export default defineHandler(async (event) => {
   if (previewOnly) {
     return jsonResponse({
       success: true, preview: {
-        placeId: place.placeId, name: place.name, address: place.formattedAddress, city: place.city, phone: place.phone, mapsUrl: place.mapsUrl, websiteUrl: place.websiteUrl, rating: place.rating, ratingCount: place.ratingCount, openingHours: place.openingHours, }, })
+        placeId: place.placeId, name: place.name, address: place.formattedAddress, city: place.city, phone: place.phone, mapsUrl: place.mapsUrl, websiteUrl: place.websiteUrl, rating: place.rating, ratingCount: place.ratingCount, openingHours: place.openingHours, timezone: place.timezone, }, })
   }
 
   const notificationPhone = normalizeNotificationPhone(details?.notificationPhone)
@@ -163,11 +164,9 @@ export default defineHandler(async (event) => {
         ? details.websiteUrl.trim()
         : place.websiteUrl ?? null, address: typeof details?.address === 'string' && details.address.trim()
         ? details.address.trim()
-        : null, opening_hours: typeof details?.openingHours === 'string' && details.openingHours.trim()
-        ? details.openingHours.trim()
-        : place.openingHours ?? null, rating: place.rating ?? null, review_count: place.ratingCount ?? null, notification_phone: notificationPhone.value, timezone: typeof details?.timezone === 'string' && details.timezone.trim()
+        : null, opening_hours: parseOpeningHours(details && 'openingHours' in details ? details.openingHours : place.openingHours), special_hours: parseSpecialHours(details?.specialHours ?? null), rating: place.rating ?? null, review_count: place.ratingCount ?? null, notification_phone: notificationPhone.value, timezone: typeof details?.timezone === 'string' && details.timezone.trim()
         ? details.timezone.trim()
-        : null, is_primary: typeof details?.isPrimary === 'boolean' ? details.isPrimary : false, }, session.user.id, )
+        : place.timezone, }, session.user.id, )
 
   if (result.status !== 200 && result.status !== 201) {
     return jsonResponse({ error: (result.data as { error?: string }).error ?? 'Could not add location.' }, { status: result.status })
@@ -176,16 +175,7 @@ export default defineHandler(async (event) => {
   const locationId = (result.data as { location?: { id: string } }).location?.id
   if (locationId) {
     const now = new Date().toISOString()
-    for (const review of place.reviews ?? []) {
-      if (!review.reviewId || !review.rating) continue
-      try {
-        const reviewId = `${siteId}-${review.reviewId.replace(/\//g, '-')}`
-        await executeBatch(db, [{
-          query: `INSERT OR IGNORE INTO reviews (id, organization_id, site_id, location_id, google_review_id, author_name, rating, content, status, source, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'approved', 'google_places', ?, ?)`,
-          params: [reviewId, organizationId, siteId, locationId, review.reviewId, review.authorName, review.rating, review.text, review.publishedAt ?? now, now],
-        }])
-      } catch { /* non-fatal */ }
-    }
+    await executeBatch(db, googleReviewUpserts({ organizationId, siteId, locationId }, place.reviews, now))
   }
   await purgePublicResourceCacheSafe(env, siteId)
 

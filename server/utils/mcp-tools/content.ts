@@ -82,19 +82,19 @@ export const CONTENT_TOOLS: McpToolDefinition[] = [
     }),
   siteTool({
       name: 'update_tenant_page',
-      description: 'Update canonical tenant-page content with optimistic concurrency. Provide the complete blocks array and expected_document_updated_at from the last read. If existing block ids are omitted, also provide the exact removed_block_ids and confirmation_token returned by the canonical page read.',
+      description: 'Update canonical tenant-page content with optimistic concurrency. Provide the complete blocks array and expected_updated_at from the last read. If existing block ids are omitted, also provide the exact removed_block_ids and confirmation_token returned by the canonical page read.',
       domain: 'content',
       minimumRole: 'editor',
       confirmRequired: true,
       inputSchema: {
         variant_id: { type: 'string' },
-        expected_document_updated_at: { type: 'string' },
+        expected_updated_at: { type: 'string' },
         ...TENANT_PAGE_METADATA_SCHEMA,
         blocks: TENANT_PAGE_BLOCKS_SCHEMA,
         removed_block_ids: { type: 'array', items: { type: 'string' } },
         confirmation_token: { type: 'string' },
       },
-      required: ['variant_id', 'expected_document_updated_at', 'blocks'],
+      required: ['variant_id', 'expected_updated_at', 'blocks'],
       outputSchema: TENANT_PAGE_LIFECYCLE_OUTPUT,
     }),
   siteTool({
@@ -103,8 +103,8 @@ export const CONTENT_TOOLS: McpToolDefinition[] = [
       domain: 'content',
       minimumRole: 'editor',
       confirmRequired: true,
-      inputSchema: { variant_id: { type: 'string' }, new_path: { type: 'string' }, expected_document_updated_at: { type: 'string' } },
-      required: ['variant_id', 'new_path', 'expected_document_updated_at'],
+      inputSchema: { variant_id: { type: 'string' }, new_path: { type: 'string' }, expected_updated_at: { type: 'string' } },
+      required: ['variant_id', 'new_path', 'expected_updated_at'],
       outputSchema: TENANT_PAGE_LIFECYCLE_OUTPUT,
     }),
   siteTool({

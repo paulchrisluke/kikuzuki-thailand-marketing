@@ -400,7 +400,7 @@ function isBookingKind(kind: AgendaKind): kind is BookingKind {
 }
 
 function needsResponse(item: AgendaItem): boolean {
-  return isBookingKind(item.kind) && bookingNeedsResponse(item.kind, item.status)
+  return isBookingKind(item.kind) && bookingNeedsResponse(item.status)
 }
 
 function referenceDay(item: AgendaItem): string {

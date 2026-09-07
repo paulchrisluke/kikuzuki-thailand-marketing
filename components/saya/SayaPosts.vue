@@ -50,13 +50,13 @@
           </div>
 
           <div v-if="!limit" class="space-y-4 mb-6">
-            <div v-if="post.event_title || post.event_start" class="rounded-xl border border-default bg-muted p-4 text-xs">
+            <div v-if="post.event" class="rounded-xl border border-default bg-muted p-4 text-xs">
               <p class="mb-1 font-bold text-default">{{ t('saya.posts.event_details_label') }}</p>
-              <p class="text-default">{{ post.event_title }}{{ post.event_title && post.event_start ? ` • ${formatDate(post.event_start)}` : '' }}</p>
+              <p class="text-default">{{ post.event.title }} ? {{ postEventDescription(post.event, locale) }}</p>
             </div>
-            <div v-if="post.offer_coupon || post.offer_terms" class="rounded-xl border border-default bg-muted p-4 text-xs">
+            <div v-if="post.offer" class="rounded-xl border border-default bg-muted p-4 text-xs">
               <p class="mb-1 font-bold text-default">{{ t('saya.posts.special_offer_label') }}</p>
-              <p class="text-default">{{ post.title }} <span v-if="post.offer_coupon">• {{ t('saya.posts.code_label') }} {{ post.offer_coupon }}</span></p>
+              <p class="text-default">{{ post.title }} <span v-if="post.offer.coupon_code">• {{ t('saya.posts.code_label') }} {{ post.offer.coupon_code }}</span></p>
             </div>
           </div>
 
@@ -90,6 +90,7 @@
 </template>
 
 <script setup>
+import { postEventDescription } from '~/shared/posts'
 
 const props = defineProps({
   posts: { type: Array, default: () => [] },
@@ -120,7 +121,7 @@ const layoutClass = computed(() => {
 
 const { formatDate } = useLocaleDate()
 
-const { localePath, t } = useI18n()
+const { localePath, t, locale } = useI18n()
 
 function resolvePostPath(post) {
   return post?.public_path

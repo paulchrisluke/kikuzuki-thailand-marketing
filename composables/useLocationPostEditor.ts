@@ -1,13 +1,6 @@
+import { parsePostTopic, type PostMutation } from '~/shared/posts'
 import { getErrorMessage } from '~/utils/errors'
 
-/**
- * The write half of the location post editor, shared by the new-post route and
- * the existing-post route.
- *
- * It lives here rather than in either page because both have to save, publish
- * and reconcile media identically — a second copy of `syncPostMedia` in
- * particular would be a second answer to which placements a save should touch.
- */
 export interface PostMediaFormItem {
   asset_id: string
   slot: 'cover' | 'gallery'
@@ -48,6 +41,7 @@ export function useLocationPostEditor(siteId: string, locationId: Ref<string | n
   const { trackPostCreated, trackPostPublished } = useAnalytics()
 
   const form = reactive({
+    topic: { post_type: 'standard' } as PostMutation,
     title: '',
     body: '',
     slug: '',
@@ -65,6 +59,7 @@ export function useLocationPostEditor(siteId: string, locationId: Ref<string | n
   const publishing = ref(false)
 
   function reset() {
+    form.topic = { post_type: 'standard' }
     form.title = ''
     form.body = ''
     form.slug = ''
@@ -81,6 +76,7 @@ export function useLocationPostEditor(siteId: string, locationId: Ref<string | n
 
   function snapshot() {
     return JSON.stringify({
+      ...form.topic,
       title: form.title,
       body: form.body,
       slug: form.slug,
@@ -100,6 +96,7 @@ export function useLocationPostEditor(siteId: string, locationId: Ref<string | n
   const isDirty = computed(() => snapshot() !== savedSnapshot.value)
 
   function loadFrom(post: ApiRecord) {
+    form.topic = { ...parsePostTopic({ post_type: post.post_type, event: post.event, offer: post.offer, call_to_action: post.call_to_action, alert_type: post.alert_type }), scheduled_for: typeof post.scheduled_for === 'string' ? post.scheduled_for : null }
     form.title = String(post.title ?? '')
     form.body = String(post.body ?? '')
     form.slug = String(post.slug ?? '')
@@ -113,6 +110,7 @@ export function useLocationPostEditor(siteId: string, locationId: Ref<string | n
 
   function buildPayload(ownerLocationId: string, postId?: string) {
     const base = {
+      ...form.topic,
       title: form.title,
       body: form.body,
       slug: form.slug || undefined,
@@ -126,11 +124,9 @@ export function useLocationPostEditor(siteId: string, locationId: Ref<string | n
     if (postId) return base
     return {
       ...base,
-      // A freshly added gallery row has no asset yet; sending it would write a
-      // placement with an empty asset_id.
       media: form.media
         .filter(item => item.asset_id)
-        .map(item => ({ asset_id: item.asset_id, slot: item.slot, alt_text: item.alt_text })),
+        .map(item => ({ asset_id: item.asset_id, slot: item.slot })),
     }
   }
 
@@ -187,10 +183,11 @@ export function useLocationPostEditor(siteId: string, locationId: Ref<string | n
     saving.value = true
     try {
       if (postId) {
+        if (form.topic.post_type === 'alert') await syncMedia(postId)
         const res = await dashboardApi<ApiRecord>(`/api/editor/sites/${siteId}/posts/${postId}`, {
           method: 'PATCH', body: buildPayload(ownerLocationId, postId), validate: isPostResponse,
         })
-        await syncMedia(postId)
+        if (form.topic.post_type !== 'alert') await syncMedia(postId)
         originalMedia = form.media.map(item => ({ ...item }))
         savedSnapshot.value = snapshot()
         toast.add({ description: 'Saved', color: 'success' })
@@ -225,12 +222,11 @@ export function useLocationPostEditor(siteId: string, locationId: Ref<string | n
         })
         id = String((res.post as ApiRecord).id)
       } else if (isDirty.value) {
-        // Only an edited post is rewritten before publishing; re-sending an
-        // unchanged row would revalidate fields this editor never exposed.
+        if (form.topic.post_type === 'alert') await syncMedia(id)
         await dashboardApi<ApiRecord>(`/api/editor/sites/${siteId}/posts/${id}`, {
           method: 'PATCH', body: buildPayload(ownerLocationId, id), validate: isPostResponse,
         })
-        await syncMedia(id)
+        if (form.topic.post_type !== 'alert') await syncMedia(id)
       }
       const res = await dashboardApi<ApiRecord>(`/api/editor/sites/${siteId}/posts/${id}/publish`, {
         method: 'POST', body: { channels: selectedChannels.value }, validate: isPostResponse,

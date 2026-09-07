@@ -1,6 +1,9 @@
+import { PLATFORM_SITE_ID } from '~/shared/platform-scope'
+import { resolveBlogPublicPath } from '~/utils/blog-editor'
 import { HTTPError } from 'nitro'
 import { queryAll, type DbClient } from '~/server/db'
-import { assertSiteLanguageEntitlement } from '~/server/utils/localization'
+import { assertSiteLanguageEntitlement, getPersistedSourceLocale } from '~/server/utils/localization'
+import { platformLocale } from '~/shared/platform-locales'
 import type { LocalizedResourceType } from '~/server/utils/localization-registry'
 import { tenantBlogPostPath } from '~/utils/tenant-blog-route'
 import { postPublicPath } from '~/utils/post-slugs'
@@ -10,9 +13,8 @@ interface RepresentationInput {
   organizationId: string
   siteId: string
   sourcePath: string
-  sourceLabel: string
   resource?: { type: LocalizedResourceType; id: string; routeSuffix?: string }
-  pageId?: string
+  documentId?: string
   publishedLocaleRoute?: boolean
 }
 
@@ -26,33 +28,18 @@ export async function resolvePublicLocalizationSourcePath(
     const [row] = await queryAll<{ slug: string }>(db, 'SELECT slug FROM business_locations WHERE site_id = ? AND id = ? LIMIT 1', [siteId, resource.id])
     sourcePath = row ? `/locations/${row.slug}` : null
   } else if (resource.type === 'product') {
-    const [row] = await queryAll<{ slug: string; location_slug: string; vertical: string }>(db, `
-      SELECT p.slug, l.slug AS location_slug, s.vertical
+    const [row] = await queryAll<{ slug: string; location_slug: string; vertical: string; product_type: string }>(db, `
+      SELECT p.slug, p.product_type, l.slug AS location_slug, s.vertical
         FROM products p
-        JOIN business_locations l ON l.id = p.location_id AND l.site_id = p.site_id
+        LEFT JOIN business_locations l ON l.id = p.location_id AND l.site_id = p.site_id
         JOIN sites s ON s.id = p.site_id
        WHERE p.site_id = ? AND p.id = ? LIMIT 1
     `, [siteId, resource.id])
-    sourcePath = row ? `/locations/${row.location_slug}/${row.vertical === 'restaurant' ? 'menu' : 'products'}/${row.slug}` : null
-  } else if (resource.type === 'experience') {
-    const [row] = await queryAll<{ slug: string }>(db, 'SELECT slug FROM products WHERE site_id = ? AND id = ? LIMIT 1', [siteId, resource.id])
-    sourcePath = row ? `/experiences/${row.slug}` : null
+    sourcePath = row ? row.product_type === 'experience' ? `/experiences/${row.slug}` : `/locations/${row.location_slug}/${row.vertical === 'restaurant' ? 'menu' : 'products'}/${row.slug}` : null
   } else if (resource.type === 'offering') {
     const [row] = await queryAll<{ slug: string; canonical_path: string | null }>(db, 'SELECT slug, canonical_path FROM offerings WHERE site_id = ? AND id = ? LIMIT 1', [siteId, resource.id])
     sourcePath = row ? row.canonical_path || `/services/${row.slug}` : null
-  } else if (resource.type === 'site_post') {
-    const [row] = await queryAll<{ id: string; slug: string | null }>(db, 'SELECT id, slug FROM posts WHERE site_id = ? AND id = ? LIMIT 1', [siteId, resource.id])
-    sourcePath = row ? postPublicPath(row.slug ?? row.id) : null
-  } else if (resource.type === 'tenant_blog_post') {
-    const [row] = await queryAll<{ slug: string; vertical: string; theme_id: string }>(db, `
-      SELECT p.slug, s.vertical, s.theme_id
-        FROM blog_posts p JOIN sites s ON s.id = p.site_id
-       WHERE p.site_id = ? AND p.id = ? LIMIT 1
-    `, [siteId, resource.id])
-    sourcePath = row ? tenantBlogPostPath(row, row.slug) : null
-  } else if (resource.type === 'site_link_page') {
-    const [row] = await queryAll<{ path: string }>(db, 'SELECT path FROM site_link_pages WHERE site_id = ? AND id = ? LIMIT 1', [siteId, resource.id])
-    sourcePath = row?.path ?? null
+
   }
   if (sourcePath) return sourcePath
   throw new HTTPError({
@@ -60,6 +47,19 @@ export async function resolvePublicLocalizationSourcePath(
     statusMessage: 'Localized resource source route is missing',
     data: { resource_type: resource.type, resource_id: resource.id },
   })
+}
+
+export async function resolvePublicDocumentSourcePath(db: DbClient, siteId: string, documentId: string): Promise<string> {
+  const [row] = await queryAll<{ id: string; kind: string; path: string | null; slug: string | null; category: string | null; vertical: string; theme_id: string }>(db, `
+    SELECT d.id, d.kind, d.path, d.slug, (d.metadata_json ->> '$.category') AS category, s.vertical, s.theme_id
+      FROM content_documents d JOIN sites s ON s.id = d.site_id
+     WHERE d.site_id = ? AND d.id = ? AND d.row_role = 'root' LIMIT 1`, [siteId, documentId])
+  if (row?.kind === 'page' && row.path) return row.path
+  if (row?.kind === 'social_post') return postPublicPath(row.slug ?? row.id)
+  if (row?.kind === 'article' && row.slug && siteId === PLATFORM_SITE_ID) return resolveBlogPublicPath({ scope: 'platform', slug: row.slug, category: row.category })
+  if (row?.kind === 'article' && row.slug) return tenantBlogPostPath({ themeId: row.theme_id, vertical: row.vertical }, row.slug)
+  if (row?.kind === 'platform_doc' && row.slug && row.category) return '/docs/' + row.category + '/' + row.slug
+  throw new HTTPError({ statusCode: 500, statusMessage: 'Document source route is missing', data: { document_id: documentId } })
 }
 
 export async function listPublicResourceLocaleRepresentations(
@@ -77,8 +77,7 @@ function isUnavailableRepresentation(error: unknown): boolean {
   const code = error.data && typeof error.data === 'object' && 'code' in error.data
     ? error.data.code
     : null
-  return code === 'LANGUAGE_LICENSE_REQUIRED'
-    || code === 'LANGUAGE_LICENSE_SYNCING'
+  return code === 'LANGUAGE_ENTITLEMENT_REQUIRED'
     || code === 'PLATFORM_LOCALE_UNAVAILABLE'
 }
 
@@ -86,15 +85,18 @@ export async function listPublicLocaleRepresentations(
   db: DbClient,
   input: RepresentationInput,
 ): Promise<PublicLocaleRepresentation[]> {
+  const sourceLocale = await getPersistedSourceLocale(db, input.organizationId, input.siteId)
+  const sourceCatalog = platformLocale(sourceLocale.locale)
+  if (!sourceCatalog) throw new HTTPError({ statusCode: 500, statusMessage: 'Site primary language catalog is unavailable' })
   const representations: PublicLocaleRepresentation[] = [{
-    locale: 'en',
-    label: input.sourceLabel,
+    locale: sourceLocale.locale,
+    label: sourceCatalog.label,
     route_path: input.sourcePath,
     source: 'source',
   }]
   const candidates = input.resource
-    ? await queryAll<{ locale: string; label: string; route_path: string }>(db, `
-        SELECT rl.locale, COALESCE(sl.label, rl.locale) AS label, rl.route_path
+    ? await queryAll<{ locale: string; route_path: string }>(db, `
+        SELECT rl.locale, rl.route_path
           FROM resource_localizations rl
           JOIN site_locales sl
             ON sl.organization_id = rl.organization_id AND sl.site_id = rl.site_id AND sl.locale = rl.locale
@@ -103,26 +105,26 @@ export async function listPublicLocaleRepresentations(
            AND sl.status = 'published'
          ORDER BY rl.locale
       `, [input.organizationId, input.siteId, input.resource.type, input.resource.id])
-    : input.pageId
-      ? await queryAll<{ locale: string; label: string; route_path: string }>(db, `
-          SELECT v.locale, COALESCE(sl.label, v.locale) AS label,
+    : input.documentId
+      ? await queryAll<{ locale: string; route_path: string }>(db, `
+          SELECT v.locale,
                  CASE WHEN v.path = '/' THEN '/' || v.locale ELSE '/' || v.locale || v.path END AS route_path
-            FROM tenant_page_variants v
+            FROM content_documents v
             JOIN site_locales sl
               ON sl.organization_id = v.organization_id AND sl.site_id = v.site_id AND sl.locale = v.locale
-           WHERE v.organization_id = ? AND v.site_id = ? AND v.page_id = ? AND v.locale <> 'en'
+           WHERE v.organization_id = ? AND v.site_id = ? AND v.root_id = ? AND v.row_role = 'representation' AND v.locale <> 'en'
              AND sl.status = 'published'
            ORDER BY v.locale
-        `, [input.organizationId, input.siteId, input.pageId])
+        `, [input.organizationId, input.siteId, input.documentId])
       : input.publishedLocaleRoute
-        ? await queryAll<{ locale: string; label: string; route_path: string }>(db, `
-            SELECT sl.locale, COALESCE(sl.label, sl.locale) AS label,
+        ? await queryAll<{ locale: string; route_path: string }>(db, `
+            SELECT sl.locale,
                    CASE WHEN ? = '/' THEN '/' || sl.locale ELSE '/' || sl.locale || ? END AS route_path
               FROM site_locales sl
-             WHERE sl.organization_id = ? AND sl.site_id = ? AND sl.locale <> 'en'
+             WHERE sl.organization_id = ? AND sl.site_id = ? AND sl.locale <> ?
                AND sl.status = 'published'
              ORDER BY sl.locale
-          `, [input.sourcePath, input.sourcePath, input.organizationId, input.siteId])
+          `, [input.sourcePath, input.sourcePath, input.organizationId, input.siteId, sourceLocale.locale])
         : []
 
   for (const candidate of candidates) {
@@ -132,9 +134,11 @@ export async function listPublicLocaleRepresentations(
       if (isUnavailableRepresentation(error)) continue
       throw error
     }
+    const catalog = platformLocale(candidate.locale)
+    if (!catalog) throw new HTTPError({ statusCode: 500, statusMessage: 'Published language catalog is unavailable' })
     representations.push({
       locale: candidate.locale,
-      label: candidate.label,
+      label: catalog.label,
       route_path: `${candidate.route_path}${input.resource?.routeSuffix ?? ''}`,
       source: 'localized',
     })

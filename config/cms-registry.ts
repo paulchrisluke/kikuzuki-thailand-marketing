@@ -193,7 +193,7 @@ export function toggleableModulesForScope(template: PublicTemplateSlug, scope: '
 const supportedCombinations: Record<SiteVertical, readonly PublicTemplateSlug[]> = {
   restaurant: ['saya'],
   experience: ['saya'],
-  professional_service: ['blawby'],
+  service: ['blawby'],
 }
 
 // Always-on features: 'contact'/'locations'/'settings' are infra; 'blog'/'qa'/
@@ -218,7 +218,7 @@ const verticalDefaultFeatures: Record<SiteVertical, readonly ProductFeature[]> =
   // experience rows and no CMS route to reach them.
   restaurant: ['products', 'reservations', 'ordering', 'experiences'],
   experience: ['experiences', 'reservations'],
-  professional_service: ['services'],
+  service: ['services'],
 }
 
 // Vocabulary/label differences that are purely cosmetic (same underlying feature, different

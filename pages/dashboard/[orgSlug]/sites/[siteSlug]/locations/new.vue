@@ -139,10 +139,6 @@ const computedSiteStatus = computed((): 'setup' | 'progress' | 'ready' | 'live' 
 
 const onSelectPage = (page: string) => {
   selectedPreviewPage.value = page
-  if (locationScopedPages.has(page) && !selectedLocationId.value && siteLocations.value.length > 0) {
-    const primary = siteLocations.value.find(l => l.is_primary) ?? siteLocations.value[0]
-    if (primary) selectedLocationId.value = primary.id
-  }
 }
 
 const onSelectLocation = (id: string) => {

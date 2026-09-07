@@ -70,8 +70,6 @@ const sqlChunks: { label: string; sql: string }[] = [
     label: 'setup',
     sql: `${SQL_HEADER}
 -- Theme is shared platform data, not client-owned.
-INSERT OR IGNORE INTO themes (id, name, slug, version, description, status)
-VALUES ('saya-theme-v1', 'Saya', 'saya', '1.0.0', 'Restaurant website theme', 'active');
 
 -- Cleanly replace the protected kikuzuki tenant rows.
 -- DELETE order respects FK constraints.

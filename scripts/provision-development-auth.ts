@@ -18,12 +18,14 @@ const { values: options } = parseArgs({
     preview: { type: 'boolean', default: false },
     'local-dev': { type: 'boolean', default: false },
     'persist-to': { type: 'string' },
+    'user-id': { type: 'string' },
   },
   strict: true,
 })
 const isPreview = options.preview
 const isLocalDev = options['local-dev']
 const persistTo = options['persist-to'] ? resolve(options['persist-to']) : null
+if (options['user-id'] !== undefined && !isLocalDev) throw new Error('--user-id requires --local-dev.')
 if (isPreview && isLocalDev) throw new Error('Choose only one of --preview or --local-dev.')
 if (persistTo && isPreview) {
   throw new Error('--persist-to is available only for local D1 fixture provisioning.')
@@ -50,9 +52,13 @@ if (!e2ePassword) {
 const localDeveloperPassword = isLocalDev ? (process.env.LOCAL_DEVELOPER_PASSWORD || randomUUID()) : ''
 
 const sqlString = (value: string) => `'${value.replaceAll("'", "''")}'`
-const credentialFixtures = isLocalDev
+const availableFixtures = isLocalDev
   ? [...E2E_AUTH_FIXTURES, LOCAL_DEVELOPER_AUTH_FIXTURE]
   : E2E_AUTH_FIXTURES
+const credentialFixtures = options['user-id'] !== undefined
+  ? availableFixtures.filter(fixture => fixture.id === options['user-id'])
+  : availableFixtures
+if (!credentialFixtures.length) throw new Error(`Unknown development fixture user: ${options['user-id']}`)
 const e2ePasswordHash = await hashPassword(e2ePassword)
 const localDeveloperPasswordHash = isLocalDev ? await hashPassword(localDeveloperPassword) : ''
 
@@ -119,8 +125,8 @@ try {
   }
   args.push('--file', sqlPath)
   execFileSync(process.execPath, args, { cwd: process.cwd(), stdio: 'inherit' })
-  console.log(`Provisioned ${E2E_AUTH_FIXTURES.length} verified Better Auth E2E credentials (${isPreview ? 'preview' : 'local'}).`)
-  if (isLocalDev) {
+  console.log(`Provisioned ${credentialFixtures.length} verified Better Auth development credentials (${isPreview ? 'preview' : 'local'}).`)
+  if (credentialFixtures.some(fixture => fixture.id === LOCAL_DEVELOPER_AUTH_FIXTURE.id)) {
     console.log('\nLocal developer sign-in')
     if (process.env.LOCAL_DEVELOPER_PASSWORD) {
       console.log('URL: http://localhost:3000/api/dev/login  (signs in and redirects, no typing)')

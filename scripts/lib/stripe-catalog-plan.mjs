@@ -50,10 +50,10 @@ export const PLAN_DEFINITIONS = Object.freeze([
     badge: 'Most Popular',
     imagePath: 'scripts/assets/stripe/growth.png',
     features: [
-      'Restaurant or experience site live in minutes',
+      'Restaurant, experience, or legal / professional site live in minutes',
       'Your own domain (yourbusiness.com)',
-      'Edit menus, content & photos through ChatGPT',
-      'Bookings & ticketed experiences',
+      'Edit menus, practice areas, content & photos through ChatGPT',
+      'Bookings, ticketed experiences & consultation requests',
       'Messaging booking & reservation notifications',
       'Auto-sync from Facebook & Instagram',
       'Google Places imports',

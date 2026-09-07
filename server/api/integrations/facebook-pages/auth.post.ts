@@ -1,3 +1,5 @@
+import { queryFirst } from '~/server/db'
+import type { IntegrationVersion } from '~/shared/site-settings'
 import { jsonResponse } from '../../../utils/api-response'
 import { getFacebookAuthUrl } from '../../../utils/facebook-pages'
 import { signOAuthState } from '../../../utils/encryption'
@@ -17,8 +19,15 @@ export default defineHandler(async (event) => {
     return jsonResponse({ error: 'Server misconfiguration' }, { status: 500 })
   }
 
+  const version = await queryFirst<IntegrationVersion>(db, `
+      SELECT json_extract(integrations_json, '$.facebook.revision') AS revision,
+             json_extract(settings_json, '$.config.resource_team_generation') AS transfer_generation
+        FROM sites WHERE id = ? AND organization_id = ?
+    `, [site.id, site.organization_id])
+  if (!version) throw new Error('Site no longer belongs to this organization')
+
   const state = await signOAuthState(env.CONNECTOR_TOKEN_ENCRYPTION_KEY as string, {
-    siteId: site.id, organizationId: site.organization_id, userId: session.user.id, timestamp: Date.now(), })
+    ...version, siteId: site.id, organizationId: site.organization_id, userId: session.user.id, timestamp: Date.now(), })
 
   const authUrl = getFacebookAuthUrl(env, state)
   return jsonResponse({ success: true, authUrl })

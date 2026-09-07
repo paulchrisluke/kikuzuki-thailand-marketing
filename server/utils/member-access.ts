@@ -272,11 +272,12 @@ async function resourceTeamGeneration(
   input: { organizationId: string; siteId: string },
 ): Promise<string | null> {
   const row = await queryFirst<{ value: string | null }>(db, `
-    SELECT value
-    FROM site_config
-    WHERE organization_id = ? AND site_id = ? AND key = ?
+    SELECT json_extract(settings_json, '$.config.resource_team_generation') AS value
+    FROM sites
+    WHERE organization_id = ? AND id = ?
+      AND json_type(settings_json, '$.config.resource_team_generation') IS NOT NULL
     LIMIT 1
-  `, [input.organizationId, input.siteId, RESOURCE_TEAM_GENERATION_CONFIG_KEY])
+  `, [input.organizationId, input.siteId])
 
   // Absence of the transfer marker is the legacy path. Presence with a null,
   // non-string, or malformed value fails closed rather than silently falling

@@ -379,7 +379,7 @@ const scopeHeaderModel = computed<DashboardScopeHeaderModel>(() => {
 })
 
 // The children label comes from the resolved capabilities (locationVocabulary), not a
-// hardcoded string, so a professional_service site correctly reads "Offices / Service
+// hardcoded string, so a service site correctly reads "Offices / Service
 // Areas" instead of "Locations".
 const locationsNavLabel = computed(() => capabilities.value?.locationVocabulary === 'office/service area' ? 'Offices / Service Areas' : 'Locations')
 // Nav goes to the list, never into a location the user did not choose. Picking

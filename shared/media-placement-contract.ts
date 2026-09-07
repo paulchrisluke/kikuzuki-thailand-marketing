@@ -1,25 +1,19 @@
 export const MEDIA_PLACEMENT_SLOTS = {
-  site: ['logo', 'logo_dark', 'favicon', 'social_share', 'social_card'],
+  site: ['logo', 'logo_dark', 'favicon', 'social_share', 'social_card', 'compliance_document'],
   business_location: ['hero', 'gallery', 'social_card'],
   product: ['image', 'gallery', 'social_card'],
-  post: ['cover', 'gallery', 'social_card'],
-  blog_post: ['featured', 'social_card'],
-  experience: ['gallery', 'social_card'],
+  content_document: ['cover', 'featured', 'gallery', 'social_card'],
   offering: ['thumbnail', 'hero', 'gallery', 'social_card'],
   content_block: ['media', 'gallery', 'background', 'featured', 'decoration'],
-  platform_doc: ['featured', 'social_card'],
   review: ['portrait', 'gallery', 'social_card'],
   review_request: ['gallery'],
-  tenant_compliance: ['document'],
-  chowbot_message: ['attachment'],
-  tenant_page: ['social_card'],
 } as const
 
 export type MediaPlacementOwnerType = keyof typeof MEDIA_PLACEMENT_SLOTS
 
 export const EDITABLE_MEDIA_PLACEMENT_OWNERS = [
-  'site', 'business_location', 'product', 'post', 'blog_post', 'experience',
-  'offering', 'content_block', 'review', 'review_request', 'tenant_compliance',
+  'site', 'business_location', 'product', 'content_document',
+  'offering', 'content_block', 'review', 'review_request',
 ] as const satisfies readonly MediaPlacementOwnerType[]
 
 export type EditableMediaPlacementOwnerType = typeof EDITABLE_MEDIA_PLACEMENT_OWNERS[number]
@@ -41,9 +35,9 @@ const INDEXED_SLOTS = [
 ] as const satisfies ReadonlyArray<{ ownerType: MediaPlacementOwnerType; runtime: RegExp; sqlGlob: string }>
 
 const ORDERED_PLACEMENTS = new Set([
-  'business_location:gallery', 'product:gallery', 'post:gallery', 'experience:gallery',
+  'business_location:gallery', 'product:gallery', 'content_document:gallery',
   'offering:gallery', 'content_block:gallery', 'review:gallery', 'review_request:gallery',
-  'tenant_compliance:document',
+  'site:compliance_document',
 ])
 
 export const MAX_ORDERED_MEDIA_ASSETS = 50

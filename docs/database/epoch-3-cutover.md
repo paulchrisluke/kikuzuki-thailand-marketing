@@ -17,10 +17,11 @@ the rollback resource and is not retired by this release.
 
 Normal schema work still follows [migrations.md](migrations.md). This document is the exceptional database-epoch procedure authorized for the broad schema cleanup.
 
-The committed Epoch 3 migration chain is now the starting point for normal
-changes. Do not repeat this cutover or regenerate its baseline to repair schema
-generation. First prove an unchanged schema generates no diff using the current
+Epoch 3 is historical. Its migration chain and executable tools are available at
+[the final merged revision before Epoch 4](https://github.com/paulchrisluke/krabiclaw/tree/ae17c88c05a4a849c2ebaf2ff2b165c2fccc9620).
+Current schema work follows the active
 [migration preflight and generator safeguards](migrations.md#normal-schema-change).
+Do not run this historical cutover against a current resource.
 
 ## Canonical ownership after cutover
 
@@ -46,15 +47,14 @@ It migrates and then removes `ai_usage_log`, `ai_credits`, `platform_pageview_ev
 
 ## Repeatable local proof
 
-The frozen Epoch 2 export is authoritative. Operator exports and transformed databases stay outside Git.
-
-```sh
-yarn lint:migrations
-yarn lint:schema-drift
-yarn lint:epoch3-indexes
-node scripts/epoch3-data.mjs transform /absolute/path/epoch2.sqlite /absolute/path/epoch3.sqlite
-node scripts/epoch3-data.mjs verify /absolute/path/epoch2.sqlite /absolute/path/epoch3.sqlite
-```
+For historical reproduction, use the frozen Epoch 2 export and a separate checkout
+of `ae17c88c05a4a849c2ebaf2ff2b165c2fccc9620`. That revision retains the matching
+[migration chain](https://github.com/paulchrisluke/krabiclaw/tree/ae17c88c05a4a849c2ebaf2ff2b165c2fccc9620/migrations),
+[transformer](https://github.com/paulchrisluke/krabiclaw/blob/ae17c88c05a4a849c2ebaf2ff2b165c2fccc9620/scripts/epoch3-data.mjs),
+[index audit](https://github.com/paulchrisluke/krabiclaw/blob/ae17c88c05a4a849c2ebaf2ff2b165c2fccc9620/scripts/audit-epoch3-indexes.mjs),
+and [original commands](https://github.com/paulchrisluke/krabiclaw/blob/ae17c88c05a4a849c2ebaf2ff2b165c2fccc9620/docs/database/epoch-3-cutover.md#repeatable-local-proof).
+Operator exports and transformed databases stay outside Git. These tools are
+retired from the current checkout because their target schema is Epoch 3.
 
 `transform` refuses to overwrite its output and writes `<epoch3.sqlite>.manifest.json`. It fails on a non-empty deletion target, unsupported registry value, invalid currency precision, unmapped Experience pricing text, Product/Experience ID or slug collision, billing/access mismatch, AI lifetime or balance mismatch, required-scope mismatch, row/hash mismatch, or foreign-key violation.
 

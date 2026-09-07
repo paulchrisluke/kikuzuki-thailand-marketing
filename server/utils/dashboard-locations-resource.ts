@@ -11,7 +11,6 @@ export interface DashboardLocationResource {
   slug: string
   title: string
   city: string | null
-  is_primary: boolean
   status: string
   address: string | null | Record<string, unknown>
   phone: string | null
@@ -44,12 +43,12 @@ export async function listDashboardLocationsResource(
     ? `AND id IN (SELECT value FROM json_each(?))`
     : ''
   const locations = await queryAll<DashboardLocationResource>(db, `
-    SELECT id, slug, title, city, is_primary, status, address, phone, email,
+    SELECT id, slug, title, city, status, address, phone, email,
            notification_phone, grab_url, uber_eats_url, foodpanda_url
       FROM business_locations
      WHERE organization_id = ? AND site_id = ?
        ${locationFilter}
-     ORDER BY is_primary DESC, title ASC
+     ORDER BY title ASC
   `, [organization.id, site.id, ...(accessibleLocationIds ? [d1JsonStringSet(accessibleLocationIds)] : [])])
   return {
     success: true as const,
@@ -64,7 +63,6 @@ export async function listDashboardLocationsResource(
             }
           })()
         : location.address,
-      is_primary: Boolean(location.is_primary),
     })),
   }
 }

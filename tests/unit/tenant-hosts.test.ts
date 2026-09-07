@@ -132,10 +132,6 @@ test('preview contexts include platform hosts, direct tenant aliases, and raw sh
   assert.equal(isPreviewContext('localhost'), true)
   assert.equal(isPreviewContext('localhost:3000'), true)
   assert.equal(isPreviewContext('127.0.0.1:3000'), true)
-  assert.equal(isPreviewContext('local.krabiclaw.com'), true)
-  assert.equal(isPreviewContext('LOCAL.KRABICLAW.COM'), true)
-  assert.equal(isPreviewContext('local.krabiclaw.com.'), true)
-  assert.equal(isPreviewContext('demo.local.krabiclaw.com'), false)
   assert.equal(isPreviewContext('preview.krabiclaw.com'), true)
   assert.equal(isPreviewContext('staging.krabiclaw.com'), true)
   assert.equal(isPreviewContext('pottery-house-preview.krabiclaw.com'), true)
@@ -147,7 +143,6 @@ test('preview contexts include platform hosts, direct tenant aliases, and raw sh
 
 test('tenant headers are confined to local and raw workers.dev shared hosts', () => {
   assert.equal(usesTenantHeader('localhost:3000'), true)
-  assert.equal(usesTenantHeader('local.krabiclaw.com'), true)
   assert.equal(usesTenantHeader('krabiclaw-preview.paulchrisluke.workers.dev'), true)
   assert.equal(usesTenantHeader('preview.krabiclaw.com'), false)
   assert.equal(usesTenantHeader('staging.krabiclaw.com'), false)

@@ -1,7 +1,9 @@
+import { createAuthMiddleware } from 'better-auth/api'
+import { loginMethodForPath, REMEMBERED_PROFILE_COOKIE, REMEMBERED_PROFILE_MAX_AGE } from '~/shared/auth/remembered-profile'
 import { APIError, betterAuth } from 'better-auth'
 import { drizzleAdapter } from 'better-auth/adapters/drizzle'
 import { hashPassword } from 'better-auth/crypto'
-import { admin, anonymous, getOrgAdapter, hasPermission, jwt, organization, phoneNumber } from 'better-auth/plugins'
+import { admin, anonymous, getOrgAdapter, hasPermission, jwt, lastLoginMethod, organization, phoneNumber } from 'better-auth/plugins'
 import { stripe as betterAuthStripe } from '@better-auth/stripe'
 import { oauthProvider } from '@better-auth/oauth-provider'
 import type { SchemaClient, Scope } from '@better-auth/oauth-provider'
@@ -33,38 +35,6 @@ type MemberRow = InferSelectModel<typeof schema.member>
 type InvitationRow = InferSelectModel<typeof schema.invitation>
 
 const CIMD_TENANT_SCOPES = ['openid', 'email', 'offline_access', 'tenant'] as const
-// The only scope set a tenant CIMD client could have persisted before the
-// `email` scope was added — the sole legacy state this migration backfills.
-const LEGACY_TENANT_SCOPES = ['openid', 'offline_access', 'tenant'] as const
-
-function sameExactSet(a: readonly string[], b: readonly string[]): boolean {
-  if (a.length !== b.length) return false
-  if (new Set(a).size !== a.length || new Set(b).size !== b.length) return false
-  const setB = new Set(b)
-  return a.every(item => setB.has(item))
-}
-
-// Pure decision extracted for direct unit testing (see auth-cimd-scopes.test.ts)
-// — the surrounding hook is deeply coupled to Better Auth's adapter/context
-// types. Returns the scopes to persist, or null when no update is needed.
-// A brand-new client (isNewClient) always gets the current scope set. An
-// existing client's persisted scopes must exactly match either the current
-// set (no-op) or the one known legacy set (backfilled) — anything else
-// (unknown scopes, a partial/corrupted array, a non-array value) throws
-// rather than silently leaving an unrecognized scope grant in place.
-export function nextCimdTenantScopes(existingScopes: unknown, isNewClient: boolean): string[] | null {
-  if (isNewClient) return [...CIMD_TENANT_SCOPES]
-  if (!Array.isArray(existingScopes) || !existingScopes.every(scope => typeof scope === 'string')) {
-    throw new Error('CIMD client has a malformed persisted scopes value')
-  }
-  // Non-tenant clients (e.g. platform_admin) are untouched by this
-  // migration — only a client on the tenant scope track is validated below.
-  if (!existingScopes.includes('tenant')) return null
-  if (sameExactSet(existingScopes, CIMD_TENANT_SCOPES)) return null
-  if (sameExactSet(existingScopes, LEGACY_TENANT_SCOPES)) return [...CIMD_TENANT_SCOPES]
-  throw new Error('Unrecognized persisted CIMD scope state for a tenant client')
-}
-
 export const OAUTH_SIGNING_POLICY = {
   algorithm: 'RS256',
   resourceSeedMode: 'merge',
@@ -103,7 +73,7 @@ async function normalizeCimdClientAuthentication(data: {
   client: SchemaClient<Scope[]>
   metadata: Record<string, unknown>
   ctx: GenericEndpointContext
-}, isNewClient: boolean) {
+}) {
   const { client, metadata, ctx } = data
   const advertisedMethods = metadata.token_endpoint_auth_methods_supported
   const jwksUri = metadata.jwks_uri
@@ -112,9 +82,7 @@ async function normalizeCimdClientAuthentication(data: {
     && typeof jwksUri === 'string'
     && jwksUri.length > 0
 
-  const update: Record<string, unknown> = {}
-  const nextScopes = nextCimdTenantScopes(client.scopes, isNewClient)
-  if (nextScopes) update.scopes = nextScopes
+  const update: Record<string, unknown> = { scopes: [...CIMD_TENANT_SCOPES] }
   if (supportsPrivateKeyJwt) {
     // @better-auth/cimd@1.7.0-beta.10's convertDocToClient only reads the
     // singular doc.token_endpoint_auth_method (node_modules/@better-auth/cimd/
@@ -131,7 +99,6 @@ async function normalizeCimdClientAuthentication(data: {
     update.jwksUri = jwksUri
   }
 
-  if (Object.keys(update).length === 0) return
   Object.assign(client, update)
   await ctx.context.adapter.update({
     model: 'oauthClient',
@@ -419,7 +386,22 @@ export function createAuth(env: CloudflareEnv) {
         })
       },
     },
+    hooks: {
+      after: createAuthMiddleware(async (ctx) => {
+        const method = loginMethodForPath(ctx.path)
+        const session = ctx.context.newSession
+        if (!method || !session) return
+        const identifier = method === 'whatsapp' ? session.user.phoneNumber : session.user.email
+        if (typeof identifier !== 'string' || !identifier) return
+        ctx.setCookie(REMEMBERED_PROFILE_COOKIE, identifier, {
+          ...ctx.context.authCookies.sessionToken.attributes,
+          httpOnly: false,
+          maxAge: REMEMBERED_PROFILE_MAX_AGE,
+        })
+      }),
+    },
     plugins: [
+      lastLoginMethod({ customResolveMethod: ctx => loginMethodForPath(ctx.path) }),
       jwt({
         jwks: {
           keyPairConfig: { alg: OAUTH_SIGNING_POLICY.algorithm },
@@ -456,13 +438,6 @@ export function createAuth(env: CloudflareEnv) {
         },
       }),
       oauthProvider({
-        schema: {
-          oauthClient: {
-            fields: {
-              scopes: 'scopesJson',
-            },
-          },
-        },
         loginPage: '/oauth/login',
         consentPage: '/oauth/consent',
         allowPublicClientPrelogin: true,
@@ -490,8 +465,8 @@ export function createAuth(env: CloudflareEnv) {
       }),
       cimd({
         allowLoopback: import.meta.dev || env.E2E_ALLOW_DEV_ROUTES === 'true',
-        onClientCreated: data => normalizeCimdClientAuthentication(data, true),
-        onClientRefreshed: data => normalizeCimdClientAuthentication(data, false),
+        onClientCreated: normalizeCimdClientAuthentication,
+        onClientRefreshed: normalizeCimdClientAuthentication,
       }),
       organization(configuredOrganizationOptions),
       betterAuthStripe({
@@ -516,13 +491,6 @@ export function createAuth(env: CloudflareEnv) {
             }, ctx)
           },
         },
-        schema: {
-          subscription: {
-            fields: {
-              limits: { type: 'string', required: false },
-            },
-          },
-        } as never,
         onEvent: async (event) => {
           const queued = await enqueueStripeEvent(db, event)
           if (!queued || !env.STRIPE_SECRET_KEY) return

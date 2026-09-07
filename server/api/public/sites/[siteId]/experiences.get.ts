@@ -15,7 +15,7 @@ export default defineHandler(async (event) => {
   if (!site) return jsonResponse({ error: 'Site not found' }, { status: 404 })
 
   const experiencesRaw = await listExperiences(db, siteId, { activeOnly: true })
-  const experiences = await attachAvailabilitySummaries(db, site.organization_id, siteId, experiencesRaw)
+  const experiences = await attachAvailabilitySummaries(db, siteId, experiencesRaw)
   return jsonResponse({ experiences })
 })
 import { defineHandler } from 'nitro';

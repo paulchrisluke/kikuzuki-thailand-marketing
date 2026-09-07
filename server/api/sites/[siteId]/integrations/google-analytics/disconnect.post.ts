@@ -1,5 +1,4 @@
 import { jsonResponse } from '~/server/utils/api-response'
-import { deleteConfig } from '~/server/utils/site-config'
 import { execute } from '~/server/db'
 import { reconcileZarazAnalytics } from '~/server/utils/zaraz-analytics'
 import { requireSiteAccess } from '~/server/utils/location-access'
@@ -12,15 +11,14 @@ export default defineHandler(async (event) => {
 
   const { env, db, site } = await requireSiteAccess(event, siteId)
 
-  await execute(db, `
-    UPDATE google_analytics_connections
-    SET status = 'disabled', updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
-    WHERE organization_id = ? AND site_id = ?
-  `, [site.organization_id, site.id])
+  const result = await execute(db, `
+    UPDATE sites SET integrations_json = json_set(integrations_json, '$.google',
+      json_object('kind', 'manual', 'status', 'disabled', 'revision', ?,
+        'updated_at', strftime('%Y-%m-%dT%H:%M:%fZ', 'now')))
+    WHERE organization_id = ? AND id = ?
+  `, [crypto.randomUUID(), site.organization_id, site.id])
 
-  await deleteConfig(db, site.organization_id, site.id, 'ga4_property_id')
-  await deleteConfig(db, site.organization_id, site.id, 'google_analytics_measurement_id')
-  await deleteConfig(db, site.organization_id, site.id, 'search_console_site_url')
+  if (result.meta?.changes !== 1) return jsonResponse({ error: 'Site ownership changed. Reload before disconnecting.' }, { status: 409 })
 
   try {
     await reconcileZarazAnalytics(env, db)

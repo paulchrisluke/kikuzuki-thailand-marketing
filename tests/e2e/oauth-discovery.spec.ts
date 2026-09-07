@@ -119,7 +119,7 @@ test.describe('OAuth discovery endpoints', () => {
     expect((body.code_challenge_methods_supported as string[])).toContain('S256')
   })
 
-  test('public CIMD exchanges an authorization code once and reuses remembered consent', async ({ request, baseURL }) => {
+  test('public CIMD exchanges codes once, rotates refresh grants and reuses remembered consent', async ({ request, baseURL }) => {
     await loginAs(request, baseURL!, 'user-e2e-oauth-cimd')
 
     const cimdClientId = process.env.MCP_CIMD_CLIENT_URL || `${baseURL}/api/auth/oauth2/test-client-metadata?nonce=${Date.now()}`
@@ -178,6 +178,39 @@ test.describe('OAuth discovery endpoints', () => {
     const tokenBody = await token.json() as { access_token?: string, refresh_token?: string }
     expect(tokenBody.access_token).toBeTruthy()
     expect(tokenBody.refresh_token).toBeTruthy()
+
+    const refreshGrant = () => request.post(`${baseURL}/api/auth/oauth2/token`, {
+      headers: { Origin: baseURL! },
+      form: {
+        grant_type: 'refresh_token',
+        client_id: cimdClientId,
+        refresh_token: tokenBody.refresh_token!,
+        resource: `${baseURL}/api/mcp`,
+      },
+    })
+    const refreshed = await refreshGrant()
+    expect(refreshed.status(), await refreshed.text()).toBe(200)
+    const refreshedBody = await refreshed.json()
+    expect(refreshedBody.access_token).toBeTruthy()
+    expect(refreshedBody.refresh_token).toBeTruthy()
+    expect(refreshedBody.refresh_token).not.toBe(tokenBody.refresh_token)
+
+    const tools = await request.post(`${baseURL}/api/mcp`, {
+      headers: {
+        Authorization: `Bearer ${refreshedBody.access_token}`,
+        Accept: 'application/json, text/event-stream',
+        Cookie: '',
+      },
+      data: { jsonrpc: '2.0', id: 1, method: 'tools/list', params: {} },
+    })
+    expect(tools.status(), await tools.text()).toBe(200)
+    const toolsBody = await tools.json()
+    expect(toolsBody.error).toBeUndefined()
+    expect(toolsBody.result.tools.length).toBeGreaterThan(0)
+
+    const refreshReplay = await refreshGrant()
+    expect(refreshReplay.status()).toBe(400)
+    expect(await refreshReplay.json()).toMatchObject({ error: 'invalid_grant' })
 
     const replay = await exchangeCode()
     expect(replay.status()).toBe(400)

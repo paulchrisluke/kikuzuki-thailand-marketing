@@ -73,10 +73,10 @@ export function summarizeForTelemetry(value: unknown): string | null {
     const json = JSON.stringify(redacted);
     if (!json) return null;
     return json.length > MAX_SUMMARY_LENGTH
-      ? `${json.slice(0, MAX_SUMMARY_LENGTH)}…[truncated]`
+      ? JSON.stringify({ truncated: true, summary: json.slice(0, MAX_SUMMARY_LENGTH) })
       : json;
   } catch {
-    return "[unserializable]";
+    return JSON.stringify("[unserializable]");
   }
 }
 

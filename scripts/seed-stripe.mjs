@@ -2,7 +2,8 @@
 //
 // Default mode is read-only: provider reads produce a deterministic plan JSON
 // and SHA-256. Applying requires that reviewed plan, an exact SHA confirmation,
-// an unchanged provider snapshot, and a Stripe test-mode key.
+// an unchanged provider snapshot, and a Stripe test-mode key. The explicit
+// --ownership-file cutover mode instead pins its inventory account and mode.
 //
 // Examples:
 //   yarn stripe:catalog:plan
@@ -186,11 +187,20 @@ export function parseCli(argv) {
       'journal-path': { type: 'string' },
       'confirm-sha256': { type: 'string' },
       'canonical-product': { type: 'string', multiple: true },
+      'ownership-file': { type: 'string' },
+      'verify-ownership': { type: 'boolean' },
+      'rollback-ownership': { type: 'boolean' },
     },
     allowPositionals: false,
   })
   if (values['dry-run'] && values.apply) throw new Error('Choose either --dry-run or --apply, not both.')
   const apply = Boolean(values.apply)
+  const ownershipFile = values['ownership-file'] ? resolve(values['ownership-file']) : null
+  const verifyOwnership = Boolean(values['verify-ownership'])
+  const rollbackOwnership = Boolean(values['rollback-ownership'])
+  if (verifyOwnership && (!ownershipFile || apply)) throw new Error('--verify-ownership requires --ownership-file without --apply.')
+  if (rollbackOwnership && (!ownershipFile || !apply)) throw new Error('--rollback-ownership requires --ownership-file and --apply.')
+  if (ownershipFile && (values['retirement-only'] || values['canonical-product'])) throw new Error('Ownership cutover cannot include catalog changes.')
   const planFile = values['plan-file'] ? resolve(String(values['plan-file'])) : null
   const journalValue = values['journal-file'] ?? values['journal-path']
   if (values['journal-file'] && values['journal-path'] && String(values['journal-file']) !== String(values['journal-path'])) {
@@ -213,6 +223,9 @@ export function parseCli(argv) {
   if (!apply && journalFile) throw new Error('--journal-file is only valid with --apply.')
   return {
     apply,
+    ownershipFile,
+    verifyOwnership,
+    rollbackOwnership,
     requireTestMode: Boolean(values['require-test-mode']),
     retirementOnly: Boolean(values['retirement-only']),
     planFile,
@@ -235,18 +248,158 @@ function writePlan(path, plan) {
   writeFileSync(path, `${JSON.stringify(plan, null, 2)}\n`, 'utf8')
 }
 
+function ownershipJson(value) {
+  if (Array.isArray(value)) return `[${value.map(ownershipJson).join(',')}]`
+  if (value && typeof value === 'object') return `{${Object.keys(value).sort().map(key => `${JSON.stringify(key)}:${ownershipJson(value[key])}`).join(',')}}`
+  return JSON.stringify(value)
+}
+
+function ownershipHash(value) {
+  return sha256Bytes(ownershipJson(value))
+}
+
+export async function readOwnershipCutover(stripe, inventory, mode) {
+  if (!inventory || !/^acct_[A-Za-z0-9]+$/.test(inventory.accountId)
+    || !['test', 'live'].includes(inventory.mode) || inventory.mode !== mode
+    || !Array.isArray(inventory.organizations) || inventory.organizations.length === 0) {
+    throw new Error('Ownership inventory requires the expected account, mode and canonical organization/customer pairs.')
+  }
+  const account = await stripe.accounts.retrieve(null)
+  if (account.id !== inventory.accountId) throw new Error('Ownership cutover Stripe account mismatch.')
+  const organizationIds = new Set()
+  const customerIds = new Set()
+  const objects = []
+  for (const owner of inventory.organizations) {
+    if (typeof owner.organizationId !== 'string' || !owner.organizationId.trim()
+      || !/^cus_[A-Za-z0-9]+$/.test(owner.customerId)
+      || organizationIds.has(owner.organizationId) || customerIds.has(owner.customerId)) {
+      throw new Error('Ownership inventory contains an invalid or duplicate organization/customer pair.')
+    }
+    organizationIds.add(owner.organizationId)
+    customerIds.add(owner.customerId)
+    const customer = await stripe.customers.retrieve(owner.customerId)
+    if (customer.deleted || customer.livemode !== (mode === 'live')) throw new Error('Ownership customer is deleted or has the wrong mode.')
+    for (const key of ['organizationId', 'organization_id']) {
+      if (customer.metadata[key] && customer.metadata[key] !== owner.organizationId) throw new Error('Customer ownership conflicts with the canonical inventory.')
+    }
+    if (customer.metadata.customerType && customer.metadata.customerType !== 'organization') throw new Error('Customer type conflicts with organization ownership.')
+    objects.push({ kind: 'customer', id: customer.id, organizationId: owner.organizationId, state: { metadata: customer.metadata } })
+    for await (const subscription of stripe.subscriptions.list({ customer: customer.id, status: 'all', limit: 100 })) {
+      if (objects.length > 1000) throw new Error('Ownership inventory exceeds the bounded cutover size.')
+      if (subscription.customer !== customer.id || subscription.livemode !== customer.livemode) throw new Error('Subscription customer or mode conflicts with inventory.')
+      for (const key of ['referenceId', 'organization_id']) {
+        if (subscription.metadata[key] && subscription.metadata[key] !== owner.organizationId) throw new Error('Subscription ownership conflicts with the canonical inventory.')
+      }
+      objects.push({
+        kind: 'subscription', id: subscription.id, organizationId: owner.organizationId,
+        state: {
+          metadata: subscription.metadata, customer: subscription.customer, status: subscription.status,
+          items: subscription.items.data.map(item => ({ id: item.id, price: item.price.id, quantity: item.quantity, periodStart: item.current_period_start, periodEnd: item.current_period_end })),
+          latestInvoice: subscription.latest_invoice, cancelAtPeriodEnd: subscription.cancel_at_period_end,
+          cancelAt: subscription.cancel_at, canceledAt: subscription.canceled_at, endedAt: subscription.ended_at,
+          trialStart: subscription.trial_start, trialEnd: subscription.trial_end, schedule: subscription.schedule,
+        },
+      })
+    }
+  }
+  if (inventory.webhook) {
+    const { endpointId, fromUrl, toUrl } = inventory.webhook
+    const source = new URL(fromUrl)
+    const target = new URL(toUrl)
+    if (!/^we_[A-Za-z0-9]+$/.test(endpointId) || source.protocol !== 'https:' || source.origin !== target.origin
+      || source.pathname !== '/api/billing/webhook' || target.pathname !== '/api/auth/stripe/webhook'
+      || source.search || target.search || source.hash || target.hash || source.username || target.username) {
+      throw new Error('Webhook cutover must name the existing endpoint and the canonical path on the same HTTPS origin.')
+    }
+    const endpoint = await stripe.webhookEndpoints.retrieve(endpointId)
+    if (endpoint.livemode !== (mode === 'live') || ![fromUrl, toUrl].includes(endpoint.url) || endpoint.status !== 'enabled') {
+      throw new Error('Webhook endpoint mode, URL or status differs from the inventory.')
+    }
+    objects.push({ kind: 'webhook', id: endpoint.id, state: { url: endpoint.url, status: endpoint.status, apiVersion: endpoint.api_version, enabledEvents: endpoint.enabled_events.slice().sort(), metadata: endpoint.metadata } })
+  }
+  return objects.sort((a, b) => `${a.kind}:${a.id}`.localeCompare(`${b.kind}:${b.id}`))
+}
+
+function normalizedOwnershipObject(object, inventory) {
+  const after = structuredClone(object)
+  if (object.kind === 'webhook') after.state.url = inventory.webhook.toUrl
+  else if (object.kind === 'customer') {
+    delete after.state.metadata.organization_id
+    Object.assign(after.state.metadata, { organizationId: object.organizationId, customerType: 'organization' })
+  } else if (object.state.status !== 'canceled') {
+    delete after.state.metadata.organization_id
+    after.state.metadata.referenceId = object.organizationId
+  }
+  return after
+}
+
+export async function runOwnershipCutover(cli, stripe, mode) {
+  const inventory = JSON.parse(readFileSync(cli.ownershipFile, 'utf8'))
+  const current = await readOwnershipCutover(stripe, inventory, mode)
+  if (cli.verifyOwnership) {
+    if (current.some(object => ownershipHash(object) !== ownershipHash(normalizedOwnershipObject(object, inventory)))) {
+      throw new Error('Ownership verification found metadata or a webhook URL that still requires normalization.')
+    }
+    console.log(`Ownership verified: ${inventory.organizations.length} organizations, ${current.length} provider objects; canceled subscription history retained.`)
+    return { status: 'verified', objectCount: current.length }
+  }
+  if (!cli.apply) {
+    if (!cli.planFile) throw new Error('Ownership planning requires --plan-file for the private review artifact.')
+    const body = { kind: 'stripe-ownership-cutover', schemaVersion: 1, capturedAt: new Date().toISOString(), inventory, objects: current.map(before => ({ before, after: normalizedOwnershipObject(before, inventory) })) }
+    const plan = { ...body, planSha256: ownershipHash(body) }
+    writePlan(cli.planFile, plan)
+    console.log(`Wrote read-only ownership cutover plan: ${cli.planFile}\nPlan SHA-256: ${plan.planSha256}`)
+    return { status: 'planned', planSha256: plan.planSha256 }
+  }
+  const { planSha256, ...plan } = JSON.parse(readFileSync(cli.planFile, 'utf8'))
+  if (plan.kind !== 'stripe-ownership-cutover' || plan.schemaVersion !== 1 || planSha256 !== cli.confirmSha256
+    || planSha256 !== ownershipHash(plan) || ownershipHash(plan.inventory) !== ownershipHash(inventory)) {
+    throw new Error('Ownership cutover requires the unchanged reviewed plan and exact SHA-256.')
+  }
+  if (current.length !== plan.objects.length) throw new Error('Ownership inventory changed since review.')
+  for (let index = 0; index < current.length; index += 1) {
+    const operation = plan.objects[index]
+    if (ownershipHash(operation.after) !== ownershipHash(normalizedOwnershipObject(operation.before, inventory))
+      || ![ownershipHash(operation.before), ownershipHash(operation.after)].includes(ownershipHash(current[index]))) {
+      throw new Error('Provider state changed since review; regenerate the plan before applying.')
+    }
+  }
+  const operations = cli.rollbackOwnership ? plan.objects.map(({ before, after }) => ({ before: after, after: before })) : plan.objects
+  const journal = { kind: plan.kind, planSha256, direction: cli.rollbackOwnership ? 'rollback' : 'forward', status: 'applying', completed: [] }
+  writePlan(cli.journalFile, journal)
+  for (let index = 0; index < current.length; index += 1) {
+    const { before, after } = operations[index]
+    if (ownershipHash(current[index]) === ownershipHash(after)) continue
+    const options = { idempotencyKey: `ownership-${planSha256}-${journal.direction}-${index}` }
+    if (before.kind === 'webhook') await stripe.webhookEndpoints.update(before.id, { url: after.state.url }, options)
+    else {
+      const metadata = Object.fromEntries([...new Set([...Object.keys(before.state.metadata), ...Object.keys(after.state.metadata)])]
+        .filter(key => before.state.metadata[key] !== after.state.metadata[key]).map(key => [key, after.state.metadata[key] ?? '']))
+      if (before.kind === 'customer') await stripe.customers.update(before.id, { metadata }, options)
+      else await stripe.subscriptions.update(before.id, { metadata }, options)
+    }
+    journal.completed.push({ kind: before.kind, id: before.id })
+    writePlan(cli.journalFile, journal)
+  }
+  const verified = await readOwnershipCutover(stripe, inventory, mode)
+  if (ownershipHash(verified) !== ownershipHash(operations.map(operation => operation.after))) throw new Error('Cutover verification failed; retain plan and journal for investigation.')
+  journal.status = 'verified'
+  writePlan(cli.journalFile, journal)
+  console.log(`Ownership cutover verified: ${journal.completed.length} metadata/endpoint operations; billing terms unchanged.`)
+  return journal
+}
+
 export async function main(argv = process.argv.slice(2), dependencies = {}) {
   const cli = parseCli(argv)
   const secretKey = dependencies.secretKey ?? secretKeyFromEnv()
   if (!secretKey) throw new Error('STRIPE_SECRET_KEY not found in environment or .env')
 
-  // Test-mode validation happens before Stripe construction. A live key can
-  // never reach a provider client when this preflight requires test mode.
   const mode = keyMode(secretKey)
-  if (cli.apply || cli.requireTestMode) assertTestModeKey(secretKey)
+  if ((cli.apply && !cli.ownershipFile) || cli.requireTestMode) assertTestModeKey(secretKey)
 
   const stripeFactory = dependencies.stripeFactory ?? createStripeClient
   const stripe = stripeFactory(secretKey)
+  if (cli.ownershipFile) return runOwnershipCutover(cli, stripe, mode)
   if (!cli.apply) {
     const plan = await createCatalogPlan({
       readAdapter: stripeReadAdapter(stripe),

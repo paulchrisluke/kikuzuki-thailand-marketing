@@ -93,8 +93,7 @@ export function isTechnicalAssetSeoPath(pathname: string): boolean {
 
 export function isNonIndexableHost(hostname: string): boolean {
   const host = hostname.toLowerCase().replace(/\.$/, '')
-  return host === 'local.krabiclaw.com'
-    || host === 'preview.krabiclaw.com'
+  return host === 'preview.krabiclaw.com'
     || host === 'staging.krabiclaw.com'
     || isEnvironmentTenantAliasHost(host)
     || host.endsWith('.pages.dev')

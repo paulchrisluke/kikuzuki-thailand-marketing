@@ -11,7 +11,7 @@ export default defineHandler(async (event) => {
 
   const { env, db, site } = await requireSiteAccess(event, siteId, 'context')
 
-  const experience = await queryFirst<{ location_id: string }>(db, `SELECT location_id FROM experiences WHERE id = ? AND site_id = ? LIMIT 1`, [experienceId, siteId])
+  const experience = await queryFirst<{ location_id: string }>(db, `SELECT location_id FROM products WHERE product_type = \'experience\' AND id = ? AND site_id = ? LIMIT 1`, [experienceId, siteId])
   if (!experience) return jsonResponse({ error: 'Experience not found' }, { status: 404 })
 
   await assertResourceAccess(db, {
