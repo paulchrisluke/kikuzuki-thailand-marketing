@@ -113,6 +113,7 @@ export async function loadOrganizationGuestThreads(
 ) {
   const { db, env, organization, userId } = await getDashboardContext(event, {
     requireOrganization: true,
+    requireSite: false,
     organizationSlug: scope?.orgSlug,
     pathname: '/api/dashboard/guest-threads',
   })

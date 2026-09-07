@@ -108,6 +108,14 @@ test('guest thread state stays source-owned, per-user, tenant-isolated, and idem
     expect(ownerListBefore.threads).toHaveLength(1)
     expect(secondOwnerListBefore.threads).toHaveLength(1)
     const threadId = ownerListBefore.threads[0]!.id
+    const organizationList = await owner.get('/api/dashboard/guest-threads', {
+      params: { org: 'pottery-house-krabi', search: guestName },
+    })
+    await expectStatus(organizationList, 200)
+    expect(await organizationList.json()).toMatchObject({ threads: [{ id: threadId }] })
+    await expectStatus(await foreignOwner.get('/api/dashboard/guest-threads', {
+      params: { org: 'pottery-house-krabi', search: guestName },
+    }), 404)
     expect(secondOwnerListBefore.threads[0]!.id).toBe(threadId)
     expect(ownerListBefore.threads[0]).toMatchObject({ guestName, submissionType: 'contact', unread: true })
     expect(secondOwnerListBefore.threads[0]).toMatchObject({ guestName, submissionType: 'contact', unread: true })
