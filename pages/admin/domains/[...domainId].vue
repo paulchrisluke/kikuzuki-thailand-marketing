@@ -108,7 +108,7 @@ const navigationGroups = computed<EditorNavigationGroup[]>(() => [{
   items: domains.value.map(domain => ({
     id: domain.id,
     label: domain.domain,
-    summary: `${domain.organization_name || 'Unknown organization'} · ${domain.site_name || 'Unknown site'} · ${domain.status}`,
+    summary: `${domain.organization_name || 'Organization unavailable'} · ${domain.site_name || 'Site unavailable'} · ${domain.status}`,
     to: `/admin/domains/${encodeURIComponent(domain.id)}`,
   })),
 }])
@@ -126,10 +126,15 @@ async function loadDomains() {
   loadError.value = ''
   try {
     const query = search.value.trim() ? `?q=${encodeURIComponent(search.value.trim())}` : ''
-    const response = await applicationFetch<{ domains: Domain[]; events: DomainEvent[] }>(`/api/admin/domains${query}`, { validate: isDomainsResponse })
+    const [response, detailResponse] = await Promise.all([
+      applicationFetch<{ domains: Domain[]; events: DomainEvent[] }>(`/api/admin/domains${query}`, { validate: isDomainsResponse }),
+      selectedDomainId.value
+        ? applicationFetch<{ domains: Domain[]; events: DomainEvent[] }>(`/api/admin/domains?id=${encodeURIComponent(selectedDomainId.value)}`, { validate: isDomainsResponse })
+        : Promise.resolve({ domains: [], events: [] }),
+    ])
     if (token !== requestToken) return
-    domains.value = response.domains
-    events.value = response.events
+    domains.value = [...new Map([...response.domains, ...detailResponse.domains].map(domain => [domain.id, domain])).values()]
+    events.value = [...new Map([...response.events, ...detailResponse.events].map(event => [event.id, event])).values()]
     if (selectedDomainId.value && !selectedDomain.value) throw createError({ statusCode: 404, statusMessage: 'Domain not found' })
   } catch (error) {
     if (isNuxtError(error)) throw error

@@ -14,9 +14,15 @@ export default defineHandler(async (event) => {
 
   const query = getQuery(event)
   const search = String(query.q || '').trim().toLowerCase()
+  const domainId = String(query.id || '').trim()
   const stuckOnly = String(query.stuck || '') === 'true'
-  const params: ApiRecord[] = []
+  const params: unknown[] = []
   const where = [`sd.type = 'custom'`, `sd.status != 'deleted'`]
+
+  if (domainId) {
+    where.push('sd.id = ?')
+    params.push(domainId)
+  }
 
   if (stuckOnly) {
     where.push(`sd.status IN ('pending', 'verifying', 'failed', 'blocked')`)
@@ -33,18 +39,24 @@ export default defineHandler(async (event) => {
     JOIN sites s ON s.id = sd.site_id
     WHERE ${where.join(' AND ')}
     ORDER BY sd.status = 'active' ASC, sd.updated_at DESC
-    ${search ? '' : 'LIMIT 100'}
+    ${search || domainId ? '' : 'LIMIT 100'}
   `, params)
 
+  const eventWhere = [`e.kind = 'audit'`, `json_extract(e.payload_json, '$.entityType') = 'domain'`]
+  const eventParams: unknown[] = []
+  if (domainId) {
+    eventWhere.push(`json_extract(e.payload_json, '$.entityId') = ?`)
+    eventParams.push(domainId)
+  }
   const eventRows = await queryAll<ApiRecord>(db, `
     SELECT e.id, e.event_name AS event_type, e.body AS message, e.created_at, s.organization_id, sd.domain, s.brand_name AS site_name
     FROM activity_entries e
     LEFT JOIN site_domains sd ON sd.id = json_extract(e.payload_json, '$.entityId')
     JOIN sites s ON s.id = e.site_id
-    WHERE e.kind = 'audit' AND json_extract(e.payload_json, '$.entityType') = 'domain'
+    WHERE ${eventWhere.join(' AND ')}
     ORDER BY e.created_at DESC
-    ${search ? '' : 'LIMIT 100'}
-  `, [])
+    ${search || domainId ? '' : 'LIMIT 100'}
+  `, eventParams)
 
   const organizationIds = new Set([
     ...domainRows.map(row => String(row.organization_id)),

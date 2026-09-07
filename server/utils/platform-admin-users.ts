@@ -181,7 +181,7 @@ export async function requirePlatformPermission(
 export async function listPlatformUsers(
   authApi: AdminApi,
   headers: HeadersInit,
-  input: { search?: string; limit?: number; offset?: number } = {},
+  input: { search?: string; userId?: string; limit?: number; offset?: number } = {},
 ): Promise<PlatformAdminUserList> {
   try {
     const result = await authApi.listUsers({
@@ -192,6 +192,9 @@ export async function listPlatformUsers(
               searchField: 'email',
               searchOperator: 'contains',
             }
+          : {}),
+        ...(input.userId
+          ? { filterField: 'id', filterValue: input.userId, filterOperator: 'eq' as const }
           : {}),
         limit: input.limit ?? 50,
         offset: input.offset ?? 0,

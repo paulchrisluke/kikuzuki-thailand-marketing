@@ -11,17 +11,26 @@
     <template #body>
       <DashboardListEditor
         :items="listItems"
+        v-model:editing="editing"
         title="Documentation"
         description="Manage the platform help library and its navigation metadata."
         empty-title="No docs yet"
         empty-icon="i-lucide-book-open"
         add-label="Add documentation"
+        :pending="docsLoading"
         :error="docsError"
         :removing-id="deletingDocId"
         @add="addDoc"
         @open="openDoc"
         @remove="openDeleteConfirm"
-      />
+      >
+        <template #item="{ item }">
+          <button type="button" class="w-full text-left focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary disabled:cursor-default" :disabled="editing" @click="openDoc(item)">
+            <p class="truncate text-sm font-medium text-highlighted">{{ item.title }}</p>
+            <p v-if="item.summary" class="mt-1 line-clamp-2 text-sm text-muted">{{ item.summary }}</p>
+          </button>
+        </template>
+      </DashboardListEditor>
     </template>
   </UDashboardPanel>
 
@@ -59,6 +68,8 @@ const isDocsResponse = (value: unknown): value is { docs: Doc[] } =>
   )
 
 const docs = ref<Doc[]>([])
+const editing = ref(false)
+const docsLoading = ref(true)
 const docsError = ref('')
 const deleteConfirmOpen = ref(false)
 const pendingDeleteDocId = ref<string | null>(null)
@@ -72,12 +83,15 @@ function addDoc() { navigateTo('/admin/docs/new') }
 function openDoc(doc: Doc) { navigateTo(`/admin/docs/${encodeURIComponent(doc.id)}`) }
 
 async function loadDocs() {
+  docsLoading.value = true
   try {
     const res = await applicationFetch<{ docs: Doc[] }>('/api/admin/docs', { validate: isDocsResponse })
     docs.value = res.docs ?? []
     docsError.value = ''
   } catch {
     docsError.value = 'Failed to load docs.'
+  } finally {
+    docsLoading.value = false
   }
 }
 

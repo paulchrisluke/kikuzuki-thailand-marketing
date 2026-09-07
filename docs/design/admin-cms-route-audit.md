@@ -4,8 +4,12 @@ Issue #855 defines the platform-admin information architecture. `DESIGN.md` rema
 
 | Current route | Actual job | Current shape | Target type | Proposed route | Shared primitives | Decision |
 | --- | --- | --- | --- | --- | --- | --- |
-| `/admin` | Browse organizations | Single-purpose organization browser at the hub URL | Hub | `/admin` | `EditorNavigationList` | Replace with grouped hub |
+| `/admin` | Browse organizations | Single-purpose organization browser at the hub URL | Browse | `/admin/organizations` | `EditorNavigationList`, `EditorPaneShell` | Move the all-organizations job to the canonical Organizations browser |
+| None | Navigate platform operations, people, publishing, and insights | No grouped admin entry point | Hub | `/admin` | `EditorNavigationList` | Add grouped hub at the existing admin root |
 | `/admin/clients` | Browse client organizations | Duplicate client collection | Filtered browse | `/admin/organizations?view=clients` | `EditorNavigationList`, `EditorPaneShell` | Merge into Organizations and remove route |
+| Inline organization expansion and client actions | Inspect an organization and operate its workspace | Detail state was coupled to the old collection pages | Durable leaf | `/admin/organizations/:id` | `EditorNavigationList`, `EditorPaneShell` | Move to one refresh-safe organization detail route |
+| Inline client billing | Inspect subscription and pending-transfer state | Billing was nested inside the duplicate Clients collection | Durable leaf | `/admin/organizations/:id/billing` | `EditorPaneShell` | Move under the canonical organization record |
+| Inline client handoff | Send a client transfer invitation | Handoff was nested inside the duplicate Clients collection | Durable task | `/admin/organizations/:id/handoff` | `EditorPaneShell` | Move under the canonical organization record |
 | `/admin/work` | Triage support requests | Inline-edit list | Hub → leaf | `/admin/work`, `/admin/work/:id` | `EditorNavigationList`, `EditorPaneShell` | Replace |
 | `/admin/domains` | Monitor and sync domains | List plus global event stream | Hub → leaf | `/admin/domains`, `/admin/domains/:id` | `EditorNavigationList`, `EditorPaneShell` | Replace |
 | `/admin/users` | Find and impersonate users | Table with inline action | Hub → leaf | `/admin/users`, `/admin/users/:id` | `EditorNavigationList`, `EditorPaneShell` | Replace |

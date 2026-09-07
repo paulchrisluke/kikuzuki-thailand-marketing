@@ -11,9 +11,50 @@ import { dashboardScopeHeaderModelKey } from '~/lib/components/workspace/dashboa
 // instead of earning a second layout.
 const ADMIN_PRIMARY = ['/admin/organizations', '/admin/users', '/admin/content', '/admin/analytics']
 
+export function useAdminNavigationGroups(managedServiceEnabled: Ref<boolean>) {
+  return computed<EditorNavigationGroup[]>(() => [
+    {
+      id: 'operations',
+      label: 'Operations',
+      items: [
+        { id: 'organizations', label: 'Organizations', summary: 'Sites, locations, billing, and transfers', to: '/admin/organizations' },
+        ...(managedServiceEnabled.value
+          ? [{ id: 'work', label: 'Work Queue', summary: 'Priority support requests', to: '/admin/work' }]
+          : []),
+        { id: 'domains', label: 'Domains', summary: 'Custom domain status and sync history', to: '/admin/domains' },
+      ],
+    },
+    {
+      id: 'people',
+      label: 'People & access',
+      items: [
+        { id: 'users', label: 'Users', summary: 'Accounts and impersonation', to: '/admin/users' },
+        { id: 'members', label: 'Team Members', summary: 'Platform staff access', to: '/admin/members' },
+      ],
+    },
+    {
+      id: 'publishing',
+      label: 'Publishing',
+      items: [
+        { id: 'content', label: 'Platform Content', summary: 'Default social sharing media', to: '/admin/content' },
+        { id: 'blog', label: 'Blog', summary: 'Platform blog posts', to: '/admin/blog' },
+        { id: 'docs', label: 'Documentation', summary: 'Documentation pages and navigation', to: '/admin/docs' },
+      ],
+    },
+    {
+      id: 'insights',
+      label: 'Insights',
+      items: [
+        { id: 'analytics', label: 'Analytics', summary: 'Platform-wide usage and activity', to: '/admin/analytics' },
+      ],
+    },
+  ])
+}
+
 export function useDashboardMenu() {
   const route = useRoute()
   const dashboard = useDashboardSite()
+  const adminNavigationGroups = useAdminNavigationGroups(dashboard.managedServiceEnabled)
   const scopeHeaderModel = inject(dashboardScopeHeaderModelKey, null)
   const organizationSettings = useOrganizationSettingsNavigation()
 
@@ -28,17 +69,7 @@ export function useDashboardMenu() {
     return route.path === path || (!exact && route.path.startsWith(`${path}/`))
   }
 
-  const adminItems = computed(() => [
-    ...(dashboard.managedServiceEnabled.value ? [{ id: 'work', label: 'Work Queue', summary: 'Managed service queue', to: '/admin/work' }] : []),
-    { id: 'organizations', label: 'Organizations', summary: 'Sites, billing, and operations', to: '/admin/organizations' },
-    { id: 'members', label: 'Members', summary: 'Platform staff access', to: '/admin/members' },
-    { id: 'analytics', label: 'Analytics', summary: 'Platform-wide usage', to: '/admin/analytics' },
-    { id: 'domains', label: 'Domains', summary: 'Custom domain requests', to: '/admin/domains' },
-    { id: 'users', label: 'Users', summary: 'Accounts and impersonation', to: '/admin/users' },
-    { id: 'content', label: 'Platform Content', summary: 'Default social sharing media', to: '/admin/content' },
-    { id: 'blog', label: 'Blog', summary: 'Platform blog posts', to: '/admin/blog' },
-    { id: 'docs', label: 'Docs', summary: 'Documentation pages', to: '/admin/docs' },
-  ])
+  const adminItems = computed(() => adminNavigationGroups.value.flatMap(group => group.items))
 
   /** Links shown in the top nav and the bottom bar. */
   const primaryNavItems = computed(() => {

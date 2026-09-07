@@ -5,6 +5,7 @@ import { queryAll } from '~/server/db'
 import { createAuth } from '~/server/utils/auth'
 import { betterAuthTimestampToIso, type BetterAuthTimestamp } from '~/server/utils/better-auth-timestamps'
 import { getOrgAdapter } from 'better-auth/plugins'
+import { getQuery } from 'nitro/h3'
 
 interface ClientRow {
   org_id: string
@@ -132,6 +133,7 @@ export default defineHandler(async (event) => {
     const { statusCode, message } = platformPermissionError(error)
     return jsonResponse({ error: message }, { status: statusCode })
   }
+  const organizationId = String(getQuery(event).id || '').trim()
 
   const clients = await queryAll<ClientRow>(db, `
     WITH single_site AS (
@@ -149,7 +151,8 @@ export default defineHandler(async (event) => {
     LEFT JOIN pending_transfer pt ON pt.from_organization_id = ob.organization_id AND pt.rn = 1
     WHERE ob.access_plan = 'growth'
       AND (ob.access_expires_at IS NULL OR ob.access_expires_at > strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
-  `)
+      AND (? = '' OR ob.organization_id = ?)
+  `, [organizationId, organizationId])
 
   const auth = createAuth(env)
   const authContext = await auth.$context

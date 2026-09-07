@@ -11,7 +11,7 @@
       <EditorPaneShell
         :has-detail="Boolean(selectedRequest)"
         :detail-title="selectedRequest?.title"
-        dismiss-to="/admin/work"
+        :dismiss-to="workDismissUrl"
         :show-actions="Boolean(selectedRequest)"
         :saving="saving"
         @cancel="closeRequest"
@@ -37,7 +37,8 @@
               <span class="text-xs text-muted">{{ formatDate(selectedRequest.created_at) }}</span>
             </div>
             <div>
-              <p class="font-medium text-highlighted">{{ selectedRequest.brand_name || selectedRequest.org_name }}</p>
+              <p class="font-medium text-highlighted">{{ selectedRequest.org_name }}</p>
+              <p v-if="selectedRequest.brand_name" class="mt-1 text-sm text-muted">{{ selectedRequest.brand_name }}</p>
               <p v-if="selectedRequest.description" class="mt-2 whitespace-pre-wrap text-sm text-default">{{ selectedRequest.description }}</p>
             </div>
             <UFormField label="Status">
@@ -72,7 +73,13 @@ interface WorkRequest {
 
 const isWorkRequestsResponse = (value: unknown): value is { requests: WorkRequest[] } =>
   isRecord(value) && Array.isArray(value.requests) && value.requests.every(request =>
-    isRecord(request) && typeof request.id === 'string' && typeof request.type === 'string' && typeof request.status === 'string',
+    isRecord(request) && typeof request.id === 'string' && typeof request.type === 'string'
+    && typeof request.title === 'string' && (request.description === null || typeof request.description === 'string')
+    && typeof request.status === 'string' && typeof request.priority === 'string' && typeof request.source === 'string'
+    && (request.notes === null || typeof request.notes === 'string') && typeof request.org_name === 'string'
+    && (request.org_slug === null || typeof request.org_slug === 'string')
+    && (request.brand_name === null || typeof request.brand_name === 'string')
+    && typeof request.created_at === 'string' && (request.completed_at === null || typeof request.completed_at === 'string'),
   )
 
 const statusItems = [
@@ -101,12 +108,13 @@ const selectedRequestId = computed(() => {
   return Array.isArray(value) ? value[0] ?? null : typeof value === 'string' ? value : null
 })
 const selectedRequest = computed(() => requests.value.find(request => request.id === selectedRequestId.value) ?? null)
+const workDismissUrl = computed(() => showDone.value ? '/admin/work?done=1' : '/admin/work')
 const navigationGroups = computed<EditorNavigationGroup[]>(() => [{
   id: 'work',
   items: requests.value.map(request => ({
     id: request.id,
     label: request.title,
-    summary: `${request.brand_name || request.org_name} · ${request.priority} · ${request.status.replaceAll('_', ' ')}`,
+    summary: `${request.org_name} · ${request.priority} · ${request.status.replaceAll('_', ' ')}`,
     to: `/admin/work/${encodeURIComponent(request.id)}${showDone.value ? '?done=1' : ''}`,
   })),
 }])
@@ -127,9 +135,14 @@ async function loadWorkRequests() {
   loading.value = true
   loadError.value = ''
   try {
-    const response = await applicationFetch<{ requests: WorkRequest[] }>(`/api/admin/work-requests?done=${showDone.value ? '1' : '0'}`, { validate: isWorkRequestsResponse })
+    const [response, detailResponse] = await Promise.all([
+      applicationFetch<{ requests: WorkRequest[] }>(`/api/admin/work-requests?done=${showDone.value ? '1' : '0'}`, { validate: isWorkRequestsResponse }),
+      selectedRequestId.value
+        ? applicationFetch<{ requests: WorkRequest[] }>(`/api/admin/work-requests?id=${encodeURIComponent(selectedRequestId.value)}`, { validate: isWorkRequestsResponse })
+        : Promise.resolve({ requests: [] }),
+    ])
     if (token !== requestToken) return
-    requests.value = response.requests
+    requests.value = [...new Map([...response.requests, ...detailResponse.requests].map(request => [request.id, request])).values()]
     if (selectedRequestId.value && !selectedRequest.value) throw createError({ statusCode: 404, statusMessage: 'Work request not found' })
   } catch (error) {
     if (isNuxtError(error)) throw error
@@ -158,7 +171,7 @@ async function saveRequest() {
 }
 
 function closeRequest() {
-  navigateTo('/admin/work')
+  navigateTo(workDismissUrl.value)
 }
 
 onMounted(() => {

@@ -1,7 +1,8 @@
+import { getQuery } from 'nitro/h3'
 import { queryAll } from '~/server/db'
 import { cloudflareEnv, jsonResponse } from '~/server/utils/api-response'
-import { listPlatformOrganizations, platformPermissionError, requirePlatformEventPermission } from '~/server/utils/platform-admin-users'
-import { listOrganizationMembers } from '~/server/utils/member-access'
+import { countPlatformOrganizations, listPlatformOrganizations, platformPermissionError, requirePlatformEventPermission } from '~/server/utils/platform-admin-users'
+import { findOrganizationById, listOrganizationMembers } from '~/server/utils/member-access'
 
 interface OrganizationRow { id: string; name: string; slug: string | null; impersonation_user_id: string | null }
 interface SiteRow { id: string; organization_id: string; slug: string; brand_name: string | null; subdomain: string | null; status: string | null }
@@ -14,21 +15,27 @@ export default defineHandler(async (event) => {
 
   try {
     await requirePlatformEventPermission(event, env, { platform: ['organizations'] })
+    const organizationId = String(getQuery(event).id || '').trim()
+    const selectedOrganization = organizationId ? await findOrganizationById(env, organizationId) : null
+    const organizationLimit = organizationId ? 1 : Math.max(await countPlatformOrganizations(env), 1)
 
     const [organizations, siteRows, locationRows] = await Promise.all([
-      listPlatformOrganizations(env, { limit: 50 }), queryAll<SiteRow>(db, `
+      organizationId
+        ? Promise.resolve(selectedOrganization ? [selectedOrganization] : [])
+        : listPlatformOrganizations(env, { limit: organizationLimit }), queryAll<SiteRow>(db, `
         SELECT id, organization_id, slug, brand_name, subdomain, status
         FROM sites
+        ${organizationId ? 'WHERE organization_id = ?' : ''}
         ORDER BY COALESCE(brand_name, slug) ASC
-      `), queryAll<LocationRow>(db, `
-        SELECT id, site_id, slug, title, city
-        FROM business_locations
+      `, organizationId ? [organizationId] : []), queryAll<LocationRow>(db, `
+        SELECT bl.id, bl.site_id, bl.slug, bl.title, bl.city
+        FROM business_locations bl
+        ${organizationId ? 'JOIN sites s ON s.id = bl.site_id WHERE s.organization_id = ?' : ''}
         ORDER BY title ASC
-      `), ])
+      `, organizationId ? [organizationId] : []), ])
     const organizationRows: OrganizationRow[] = await Promise.all(organizations.map(async (organization) => {
       const members = await listOrganizationMembers(env, organization.id)
       const impersonationUser = members.find(member => member.role === 'owner')
-        ?? members.find(member => member.role === 'admin')
       return {
         id: organization.id,
         name: organization.name,
@@ -47,7 +54,7 @@ export default defineHandler(async (event) => {
     return jsonResponse({
       organizations: organizationRows.map(organization => ({
         id: organization.id, name: organization.name, slug: organization.slug, impersonationUserId: organization.impersonation_user_id, sites: (sitesByOrganization.get(organization.id) || []).map(site => ({
-          id: site.id, slug: site.slug, name: site.brand_name || site.slug, subdomain: site.subdomain, status: site.status, locations: (locationsBySite.get(site.id) || []).map(location => ({
+          id: site.id, slug: site.slug, name: site.brand_name, subdomain: site.subdomain, status: site.status, locations: (locationsBySite.get(site.id) || []).map(location => ({
             id: location.id, slug: location.slug, title: location.title, city: location.city, })), })), })), })
   } catch (error) {
     const { statusCode, message } = platformPermissionError(error, 'Failed to load organizations')

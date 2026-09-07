@@ -7,7 +7,7 @@
     </template>
 
     <template #body>
-      <EditorPaneShell :has-detail="Boolean(selectedUser)" :detail-title="selectedUser?.name || selectedUser?.email" dismiss-to="/admin/users">
+      <EditorPaneShell :has-detail="Boolean(selectedUser)" :detail-title="selectedUser?.name || 'Unnamed user'" dismiss-to="/admin/users">
         <template #index>
           <div class="space-y-5">
             <div class="flex gap-2">
@@ -24,7 +24,7 @@
         <template #detail>
           <div v-if="selectedUser" class="space-y-6">
             <div class="flex flex-wrap items-center gap-2">
-              <UBadge :color="selectedUser.role === 'admin' ? 'primary' : 'neutral'" variant="soft" :label="selectedUser.role || 'user'" />
+              <UBadge :color="selectedUser.role === 'admin' ? 'primary' : 'neutral'" variant="soft" :label="selectedUser.role || 'Role unavailable'" />
               <UBadge v-if="selectedUser.banned" color="error" variant="soft" label="Banned" />
             </div>
             <dl class="divide-y divide-default overflow-hidden rounded-xl border border-default text-sm">
@@ -35,11 +35,12 @@
             <UButton
               label="Impersonate user"
               icon="i-lucide-log-in"
-              :disabled="selectedUser.role === 'admin'"
+              :disabled="!selectedUser.role || selectedUser.role === 'admin'"
               :loading="impersonatingUserId === selectedUser.id"
               @click="impersonateUser(selectedUser.id)"
             />
             <p v-if="selectedUser.role === 'admin'" class="text-xs text-muted">Platform administrators cannot be impersonated.</p>
+            <p v-else-if="!selectedUser.role" class="text-xs text-muted">Impersonation is unavailable because this account has no role.</p>
           </div>
         </template>
       </EditorPaneShell>
@@ -60,7 +61,10 @@ interface AdminUser { id: string; email: string; name: string | null; role: stri
 
 const isUsersResponse = (value: unknown): value is { users: AdminUser[] } =>
   isRecord(value) && Array.isArray(value.users) && value.users.every(user =>
-    isRecord(user) && typeof user.id === 'string' && typeof user.email === 'string' && typeof user.banned === 'boolean',
+    isRecord(user) && typeof user.id === 'string' && typeof user.email === 'string'
+    && (user.name === null || typeof user.name === 'string')
+    && (user.role === null || typeof user.role === 'string')
+    && typeof user.banned === 'boolean' && typeof user.createdAt === 'string',
   )
 
 const route = useRoute()
@@ -84,7 +88,7 @@ const navigationGroups = computed<EditorNavigationGroup[]>(() => [{
   id: 'users',
   items: users.value.map(user => ({
     id: user.id,
-    label: user.name || user.email,
+    label: user.name || 'Unnamed user',
     summary: `${user.email}${user.banned ? ' · Banned' : ''}`,
     to: `/admin/users/${encodeURIComponent(user.id)}`,
   })),
@@ -95,8 +99,13 @@ async function loadUsers() {
   loadError.value = ''
   try {
     const query = search.value.trim() ? `?q=${encodeURIComponent(search.value.trim())}` : ''
-    const response = await applicationFetch<{ users: AdminUser[] }>(`/api/admin/users${query}`, { validate: isUsersResponse })
-    users.value = response.users
+    const [response, detailResponse] = await Promise.all([
+      applicationFetch<{ users: AdminUser[] }>(`/api/admin/users${query}`, { validate: isUsersResponse }),
+      selectedUserId.value
+        ? applicationFetch<{ users: AdminUser[] }>(`/api/admin/users?id=${encodeURIComponent(selectedUserId.value)}`, { validate: isUsersResponse })
+        : Promise.resolve({ users: [] }),
+    ])
+    users.value = [...new Map([...response.users, ...detailResponse.users].map(user => [user.id, user])).values()]
     if (selectedUserId.value && !selectedUser.value) throw createError({ statusCode: 404, statusMessage: 'User not found' })
   } catch (error) {
     if (isNuxtError(error)) throw error

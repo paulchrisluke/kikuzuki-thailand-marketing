@@ -49,7 +49,7 @@
                 <UBadge color="neutral" variant="soft" :label="`${selectedOrganization.sites.length} ${selectedOrganization.sites.length === 1 ? 'site' : 'sites'}`" />
                 <UBadge v-if="selectedClient" :color="planColor(selectedClient.plan)" variant="soft" :label="planLabel(selectedClient.plan)" />
               </div>
-              <p class="text-sm text-muted">{{ selectedOrganization.slug || selectedOrganization.id }}</p>
+              <p class="text-sm text-muted">{{ selectedOrganization.slug || 'Organization slug unavailable' }}</p>
               <UButton
                 label="Open workspace"
                 icon="i-lucide-log-in"
@@ -74,8 +74,8 @@
                 <div class="space-y-3">
                   <div class="flex items-start justify-between gap-3">
                     <div>
-                      <p class="font-medium text-highlighted">{{ site.name }}</p>
-                      <p class="text-xs text-muted">{{ site.subdomain || site.slug }}</p>
+                      <p class="font-medium text-highlighted">{{ site.name || 'Site name unavailable' }}</p>
+                      <p class="text-xs text-muted">{{ site.subdomain || 'Subdomain unavailable' }}</p>
                     </div>
                     <UBadge :color="site.status === 'active' ? 'success' : 'neutral'" variant="soft" :label="site.status || 'unknown'" />
                   </div>
@@ -84,7 +84,7 @@
                       <UIcon name="i-lucide-map-pin" class="size-4 shrink-0 text-muted" />
                       <div class="min-w-0">
                         <p class="truncate text-sm text-default">{{ location.title }}</p>
-                        <p class="truncate text-xs text-muted">{{ location.city || location.slug }}</p>
+                        <p class="truncate text-xs text-muted">{{ location.city || 'City unavailable' }}</p>
                       </div>
                     </div>
                   </div>
@@ -163,7 +163,7 @@ definePageMeta({ layout: 'dashboard' })
 useSeoMeta({ title: 'Organizations | KrabiClaw Admin', robots: 'noindex, nofollow' })
 
 interface AdminLocation { id: string; slug: string; title: string; city: string | null }
-interface AdminSite { id: string; slug: string; name: string; subdomain: string | null; status: string | null; locations: AdminLocation[] }
+interface AdminSite { id: string; slug: string; name: string | null; subdomain: string | null; status: string | null; locations: AdminLocation[] }
 interface AdminOrganization { id: string; name: string; slug: string | null; impersonationUserId: string | null; sites: AdminSite[] }
 interface AdminClient { org_id: string; plan: string | null; site_id: string | null; subscription_status: string | null; custom_domain: string | null; pending_transfer_email: string | null }
 interface BillingStatus {
@@ -177,7 +177,7 @@ const isNullableString = (value: unknown): value is string | null => value === n
 const isAdminLocation = (value: unknown): value is AdminLocation => isRecord(value)
   && typeof value.id === 'string' && typeof value.slug === 'string' && typeof value.title === 'string' && isNullableString(value.city)
 const isAdminSite = (value: unknown): value is AdminSite => isRecord(value)
-  && typeof value.id === 'string' && typeof value.slug === 'string' && typeof value.name === 'string'
+  && typeof value.id === 'string' && typeof value.slug === 'string' && isNullableString(value.name)
   && isNullableString(value.subdomain) && isNullableString(value.status)
   && Array.isArray(value.locations) && value.locations.every(isAdminLocation)
 const isAdminOrganization = (value: unknown): value is AdminOrganization => isRecord(value)
@@ -204,6 +204,9 @@ const isBillingStatus = (value: unknown): value is BillingStatus => isRecord(val
     && value.pending_transfer.recipient_organizations.every(isRecipientOrganization)))
 
 const route = useRoute()
+if (Array.isArray(route.params.organizationId) && route.params.organizationId.length > 2) {
+  throw createError({ statusCode: 404, statusMessage: 'Organization route not found' })
+}
 const toast = useToast()
 const { refreshSession } = useAuth()
 const organizations = ref<AdminOrganization[]>([])
@@ -261,7 +264,7 @@ const navigationGroups = computed<EditorNavigationGroup[]>(() => [{
   items: filteredOrganizations.value.map(organization => ({
     id: organization.id,
     label: organization.name,
-    summary: `${organization.sites.length} ${organization.sites.length === 1 ? 'site' : 'sites'} · ${organization.slug || organization.id}`,
+    summary: `${organization.sites.length} ${organization.sites.length === 1 ? 'site' : 'sites'} · ${organization.slug || 'Slug unavailable'}`,
     to: `/admin/organizations/${encodeURIComponent(organization.id)}${clientView.value ? '?view=clients' : ''}`,
   })),
 }])
@@ -290,11 +293,18 @@ async function loadOrganizations() {
   loading.value = true
   loadError.value = ''
   try {
-    const [overview, clientResponse] = await Promise.all([
+    const [overview, detailResponse, clientResponse] = await Promise.all([
       applicationFetch<{ organizations: AdminOrganization[] }>('/api/admin/overview', { validate: isOrganizationsResponse }),
-      applicationFetch<{ clients: AdminClient[] }>('/api/admin/clients', { validate: isClientsResponse }),
+      selectedOrganizationId.value
+        ? applicationFetch<{ organizations: AdminOrganization[] }>(`/api/admin/overview?id=${encodeURIComponent(selectedOrganizationId.value)}`, { validate: isOrganizationsResponse })
+        : Promise.resolve({ organizations: [] }),
+      clientView.value
+        ? applicationFetch<{ clients: AdminClient[] }>('/api/admin/clients', { validate: isClientsResponse })
+        : selectedOrganizationId.value
+          ? applicationFetch<{ clients: AdminClient[] }>(`/api/admin/clients?id=${encodeURIComponent(selectedOrganizationId.value)}`, { validate: isClientsResponse })
+          : Promise.resolve({ clients: [] }),
     ])
-    organizations.value = overview.organizations
+    organizations.value = [...new Map([...overview.organizations, ...detailResponse.organizations].map(organization => [organization.id, organization])).values()]
     clients.value = clientResponse.clients
     if (selectedOrganizationId.value && !selectedOrganization.value) {
       throw createError({ statusCode: 404, statusMessage: 'Organization not found' })
@@ -333,6 +343,10 @@ async function loadBilling() {
     billingLoading.value = false
   }
 }
+
+watch(detailSection, async (section) => {
+  if (section === 'billing' && selectedClient.value && !billingStatus.value) await loadBilling()
+})
 
 async function forceAcceptTransfer() {
   const transfer = billingStatus.value?.pending_transfer

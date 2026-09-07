@@ -11,17 +11,26 @@
     <template #body>
       <DashboardListEditor
         :items="listItems"
+        v-model:editing="editing"
         title="Posts"
         description="Publish updates and stories for the platform site."
         empty-title="No posts yet"
         empty-icon="i-lucide-newspaper"
         add-label="Add a post"
+        :pending="blogLoading"
         :error="blogError"
         :removing-id="deletingPostId"
         @add="addPost"
         @open="openPost"
         @remove="openDeleteConfirm"
-      />
+      >
+        <template #item="{ item }">
+          <button type="button" class="w-full text-left focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary disabled:cursor-default" :disabled="editing" @click="openPost(item)">
+            <p class="truncate text-sm font-medium text-highlighted">{{ item.title }}</p>
+            <p v-if="item.summary" class="mt-1 line-clamp-2 text-sm text-muted">{{ item.summary }}</p>
+          </button>
+        </template>
+      </DashboardListEditor>
     </template>
   </UDashboardPanel>
 
@@ -50,6 +59,8 @@ const toast = useToast()
 interface BlogPost { id: string; title: string; status: 'published' | 'scheduled'; published_at: string | null; scheduled_for: string | null }
 
 const blogPosts = ref<BlogPost[]>([])
+const editing = ref(false)
+const blogLoading = ref(true)
 const blogError = ref('')
 const deleteConfirmOpen = ref(false)
 const pendingDeletePostId = ref<string | null>(null)
@@ -63,6 +74,7 @@ function addPost() { navigateTo('/admin/blog/new') }
 function openPost(post: BlogPost) { navigateTo(`/admin/blog/${encodeURIComponent(post.id)}`) }
 
 async function loadBlogPosts() {
+  blogLoading.value = true
   try {
     const res = await applicationFetch<{ posts: BlogPost[] }>('/api/admin/blog/posts', {
       validate: validateApiShape({ posts: 'array' }),
@@ -71,6 +83,8 @@ async function loadBlogPosts() {
     blogError.value = ''
   } catch {
     blogError.value = 'Failed to load posts.'
+  } finally {
+    blogLoading.value = false
   }
 }
 

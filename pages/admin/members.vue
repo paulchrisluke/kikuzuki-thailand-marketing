@@ -66,14 +66,17 @@ const invitingTeam = ref(false)
 const teamInviteResult = ref<{ error?: boolean; message: string } | null>(null)
 const memberGroups = computed<EditorNavigationGroup[]>(() => [{
   id: 'team',
-  items: team.value.map(member => ({ id: member.id, label: member.name || member.email, summary: member.email, to: `/admin/users/${encodeURIComponent(member.id)}` })),
+  items: team.value.map(member => ({ id: member.id, label: member.name || 'Unnamed team member', summary: member.email, to: `/admin/users/${encodeURIComponent(member.id)}` })),
 }])
 
 const isMembersResponse = (value: unknown): value is { team: TeamMember[] } =>
   isRecord(value)
   && Array.isArray(value.team)
   && value.team.every(member =>
-    isRecord(member) && typeof member.id === 'string' && typeof member.email === 'string',
+    isRecord(member) && typeof member.id === 'string' && typeof member.email === 'string'
+    && (member.name === null || typeof member.name === 'string')
+    && (member.image === null || typeof member.image === 'string')
+    && typeof member.role === 'string' && typeof member.createdAt === 'string',
   )
 const isTeamInviteResponse = (value: unknown): value is { action: string; email: string } =>
   isRecord(value) && typeof value.action === 'string' && typeof value.email === 'string'
