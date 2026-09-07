@@ -30,6 +30,7 @@ import { createStripeClient } from '~/server/utils/stripe-client'
 import { unwrapInstrumentedD1 } from '~/server/utils/request-metrics'
 import { timingSafeEqualText } from '~/server/utils/dev-route-auth'
 import { notifyOrganizationInvited } from '~/server/utils/notifications'
+import { linkLegalIntakeAuthorizedUser } from '~/server/utils/legal-intake-references'
 
 type MemberRow = InferSelectModel<typeof schema.member>
 type InvitationRow = InferSelectModel<typeof schema.invitation>
@@ -452,6 +453,10 @@ export function createAuth(env: CloudflareEnv) {
                  WHERE anonymous_user_id = ?
                )
           `, [newUser.user.id, now, anonymousUser.user.id, anonymousUser.user.id])
+          // U4/U9 (R27, KTD9): sets legal_intake_references.current_authorized_user_id
+          // once, from NULL only — replay-safe and collision-safe, never touches
+          // original_actor_id/kind (original anonymous attribution is preserved).
+          await linkLegalIntakeAuthorizedUser(db, anonymousUser.user.id, newUser.user.id)
         },
       }),
       oauthProvider({
