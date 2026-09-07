@@ -126,6 +126,22 @@ interface BlawbyRouteDescriptor {
 //   - engagementContractsList: staff engagement-contract listing.
 // engagement-contracts accept reuses engagementAcceptance verbatim rather
 // than adding a duplicate route key.
+//
+// U6 additions (ALL placeholder paths, unverified -- same PLACEHOLDER flag
+// as every other route key above; see the U6 report):
+//   - intakeCreate: public actor creates a new intake (client IP forwarded
+//     -- this is the first anonymous-abuse-sensitive write in the family).
+//   - intakeRecover: re-fetches an already-claimed intake by request
+//     reference after response loss, without resubmitting the payload.
+//   - intakeCheckout: begins or replaces a Blawby Checkout/Payment Link
+//     session for an already-created intake (client IP forwarded --
+//     payment-adjacent).
+//   - intakeStatus: read-only status poll for a bound intake.
+//   - intakePostPay: server-to-server verification GET called ONLY by the
+//     BFF's post-pay route (never directly reachable by the browser) after
+//     a Payment Link return, to correlate and confirm a Checkout session
+//     before it is ever attached (client IP forwarded -- this is the
+//     payment-confirmation boundary).
 const BLAWBY_BEARER_ROUTES = {
   engagementAcceptance: { path: '/legal/engagements/accept', includeClientIp: true },
   practiceRead: { path: '/legal/practice', includeClientIp: false },
@@ -134,6 +150,11 @@ const BLAWBY_BEARER_ROUTES = {
   intakeList: { path: '/legal/intakes', includeClientIp: false },
   intakeAccept: { path: '/legal/intakes/accept', includeClientIp: false },
   engagementContractsList: { path: '/legal/engagements', includeClientIp: false },
+  intakeCreate: { path: '/legal/public/intakes', includeClientIp: true },
+  intakeRecover: { path: '/legal/public/intakes/recover', includeClientIp: false },
+  intakeCheckout: { path: '/legal/public/intakes/checkout', includeClientIp: true },
+  intakeStatus: { path: '/legal/public/intakes/status', includeClientIp: false },
+  intakePostPay: { path: '/legal/public/intakes/post-pay', includeClientIp: true },
 } as const satisfies Record<string, BlawbyRouteDescriptor>
 
 export type BlawbyRouteKey = keyof typeof BLAWBY_BEARER_ROUTES

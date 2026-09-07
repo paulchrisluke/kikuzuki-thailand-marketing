@@ -18,7 +18,7 @@ import type { H3Event } from 'nitro'
 
 import { queryFirst, type DbClient } from '~/server/db'
 import { getAuthSession, normalizeOrigin, type CloudflareEnv } from '~/server/utils/auth'
-import { cloudflareEnv, jsonResponse } from '~/server/utils/api-response'
+import { apiErrorResponse, cloudflareEnv, jsonResponse } from '~/server/utils/api-response'
 import { getDashboardContext } from '~/server/utils/dashboard-context'
 import { assertOrganizationAccess } from '~/server/utils/member-access'
 import { getActiveBlawbySite } from '~/server/utils/professional-services'
@@ -535,12 +535,65 @@ export function assertLegalStaffMutationOrigin(event: H3Event, env: CloudflareEn
   }
 }
 
+// -- U6: R30 reviewed Stripe payment-origin allowlist ------------------
+
+// Shared by U6's Checkout/Payment Link URL (server/api/public/sites/
+// [siteId]/legal/intakes/checkout.post.ts and post-pay.post.ts). U5's
+// Connect onboarding URL (server/api/dashboard/legal/connect/index.post.ts)
+// predates this helper and keeps its own inline allowlist/parsing --
+// deliberately not touched here to avoid unrelated-file scope creep on a
+// working, already-shipped route; a future task could migrate it onto this
+// shared helper. PLACEHOLDER hosts -- Stripe Checkout Session's and Payment
+// Link's real response host(s) for this environment are not yet confirmed
+// against a live Stripe account or U8's real contract; flagged for review
+// before this is treated as a verified boundary (see U6 report).
+export const STRIPE_PAYMENT_ORIGIN_ALLOWLIST = new Set(['https://checkout.stripe.com', 'https://buy.stripe.com'])
+
+// R30: HTTPS parsing + exact-origin allowlist check + userinfo rejection.
+// Returns the normalized URL string on success, or null for anything
+// malformed, non-HTTPS, userinfo-bearing, or outside the allowlist -- the
+// caller turns a null into a sanitized invalid-upstream (502) response.
+// "Redirected" upstream URLs (R30's other named failure mode) are already
+// rejected earlier, inside blawby-client.ts's fetchBlawby (redirect:
+// 'manual' + 3xx/opaqueredirect classification) -- this function only
+// needs to validate the URL VALUE Blawby's JSON body returned, not chase a
+// live redirect itself.
+export function validateLegalPaymentUrl(
+  raw: string,
+  allowlist: ReadonlySet<string> = STRIPE_PAYMENT_ORIGIN_ALLOWLIST,
+): string | null {
+  let parsed: URL
+  try {
+    parsed = new URL(raw)
+  } catch {
+    return null
+  }
+  if (parsed.protocol !== 'https:' || parsed.username || parsed.password) return null
+  if (!allowlist.has(parsed.origin)) return null
+  return parsed.toString()
+}
+
 // R26's "every legal response is Cache-Control: no-store", applied once
 // here instead of by hand in every U5 route file. Wraps jsonResponse
 // (which does not set this header) rather than duplicating its
-// content-type logic.
+// content-type logic. Reused unmodified for U6's public-site-origin
+// routes -- its signature already takes no dashboard-specific input, so no
+// generalization was needed.
 export function legalJsonResponse(body: ApiValue, init: ResponseInit = {}): Response {
   const headers = new Headers(init.headers)
   headers.set('cache-control', 'no-store')
   return jsonResponse(body, { ...init, headers })
+}
+
+// U6: R26 says "every legal response is Cache-Control: no-store" -- not
+// just success responses. U5's staff routes use apiErrorResponse directly
+// for their error paths, which does not set this header (a pre-existing
+// gap flagged here rather than fixed on U5's already-shipped files, per
+// this plan's "do not broaden scope" constraint). U6's new public routes
+// use this wrapper for every error response instead, so the new route
+// family satisfies R26 in full.
+export function legalApiErrorResponse(event: H3Event, status: number, code: string, message: string): Response {
+  const response = apiErrorResponse(event, status, code, message)
+  response.headers.set('cache-control', 'no-store')
+  return response
 }

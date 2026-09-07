@@ -286,6 +286,41 @@ export async function claimLegalIntakeReference(
   return { status: wasCreated ? 'claimed' : 'recovered', record: mapRow(row) }
 }
 
+// -- U6 addition: read-only lookup for recover/checkout/status/post-pay -----
+
+export interface FindLegalIntakeReferenceParams {
+  requestReference: string
+  organizationId: string
+  siteId: string
+  actorId: string
+}
+
+// R16's "recover by request reference" (and the checkout/status/post-pay
+// routes that follow it) need to re-find an existing claim WITHOUT
+// resubmitting/reverifying the original payload -- claimLegalIntakeReference
+// above always requires a payload and performs a write. This is the
+// read-only counterpart: same ownership rule as claimLegalIntakeReference
+// (original actor OR the linked current authorized user), but no digest
+// verification (there is no payload to verify here) and no row mutation.
+// Returns null for both "no such row" and "row exists but this actor does
+// not own it" -- the two are made indistinguishable to the caller so a
+// probing actor cannot use this to enumerate other actors' request
+// references.
+export async function findLegalIntakeReferenceForActor(
+  db: DbClient,
+  params: FindLegalIntakeReferenceParams,
+): Promise<LegalIntakeRecord | null> {
+  const row = await queryFirst<LegalIntakeRow>(db, `
+    SELECT * FROM legal_intake_references
+     WHERE id = ? AND organization_id = ? AND site_id = ?
+  `, [params.requestReference, params.organizationId, params.siteId])
+  if (!row) return null
+  const ownedByActor = row.original_actor_id === params.actorId
+    || (row.current_authorized_user_id !== null && row.current_authorized_user_id === params.actorId)
+  if (!ownedByActor) return null
+  return mapRow(row)
+}
+
 // -- Intake/Checkout attachment (R17) ----------------------------------------
 
 export type LegalIntakeAttachOutcome = 'attached' | 'conflict'
