@@ -244,7 +244,7 @@ import { isCurrencyCode } from '~/shared/currencies'
 import { majorAmountToMinor, minorAmountToMajor } from '~/shared/prices'
 import { formatProductPriceLabel } from '~/utils/product-money'
 import { requireProductPresentation } from '~/utils/product-presentation'
-import { getErrorMessage } from '~/utils/errors'
+import { getErrorMessage, isNotFoundError } from '~/utils/errors'
 
 const route = useRoute()
 const dashboardApi = useDashboardApi()
@@ -331,10 +331,12 @@ async function load() {
     ])
     categories.value = categoryResponse.categories
     const found = productResponse.products.find(row => row.id === productId.value)
-    if (!found) throw createError({ statusCode: 404, statusMessage: `${presentation.itemLabel} not found` })
+    // An item that is not there is not a page; a request that failed is a state.
+    if (!found) return showError(createError({ statusCode: 404, statusMessage: `${presentation.itemLabel} not found` }))
     product.value = found
     loadForm(found)
   } catch (error) {
+    if (isNotFoundError(error)) return showError(createError({ statusCode: 404, statusMessage: `${presentation.itemLabel} not found` }))
     loadError.value = getErrorMessage(error, `Failed to load this ${presentation.itemLabel.toLowerCase()}`)
   }
 }

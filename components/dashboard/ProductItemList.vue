@@ -149,10 +149,11 @@ function isOne(value: unknown): value is { success: true; product: Product } {
 
 const load = catalog.refresh
 
-// A category that is not in the catalog is not a page.
+// A category that is not in the catalog is not a page. Thrown from an effect it
+// would be an unhandled rejection rather than the 404 screen, so it is shown.
 watchEffect(() => {
   if (!catalog.pending.value && catalog.categories.value.length && !category.value) {
-    throw createError({ statusCode: 404, statusMessage: 'Product category not found' })
+    showError(createError({ statusCode: 404, statusMessage: `${presentation.categoryLabel} not found` }))
   }
 })
 

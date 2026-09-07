@@ -228,7 +228,7 @@ import {
   postScheduleComplete,
   toLocalDateTimeInput,
 } from '~/utils/post-fields'
-import { getErrorMessage } from '~/utils/errors'
+import { getErrorMessage, isNotFoundError } from '~/utils/errors'
 
 const route = useRoute()
 const dashboardApi = useDashboardApi()
@@ -316,7 +316,11 @@ const { data: facebookData } = await useAsyncData(
   { lazy: true, default: () => ({ connected: false }) },
 )
 
-const loadError = computed(() => (error.value ? getErrorMessage(error.value, 'Failed to load the post') : null))
+// A post that is not there is not a page; a request that failed is a state.
+watchEffect(() => {
+  if (isNotFoundError(error.value)) showError(createError({ statusCode: 404, statusMessage: 'Post not found' }))
+})
+const loadError = computed(() => (error.value && !isNotFoundError(error.value) ? getErrorMessage(error.value, 'Failed to load the post') : null))
 const post = computed(() => data.value?.post ?? null)
 const facebookConnected = computed(() => facebookData.value?.connected ?? false)
 

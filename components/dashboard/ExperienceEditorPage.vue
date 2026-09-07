@@ -298,7 +298,7 @@ import {
 import type { Experience, WeekdayName } from '~/server/utils/experiences'
 import { formatMinorAmount, majorAmountToMinor } from '~/shared/prices'
 import type { CurrencyCode } from '~/shared/currencies'
-import { getErrorMessage } from '~/utils/errors'
+import { getErrorMessage, isNotFoundError } from '~/utils/errors'
 
 const route = useRoute()
 const dashboardApi = useDashboardApi()
@@ -385,7 +385,11 @@ const { data, error, refresh } = await useAsyncData(
   { watch: [experienceId, currentLocationId] },
 )
 
-const loadError = computed(() => (error.value ? getErrorMessage(error.value, 'Could not load this experience') : null))
+// An experience that is not there is not a page; a request that failed is a state.
+watchEffect(() => {
+  if (isNotFoundError(error.value)) showError(createError({ statusCode: 404, statusMessage: 'Experience not found' }))
+})
+const loadError = computed(() => (error.value && !isNotFoundError(error.value) ? getErrorMessage(error.value, 'Could not load this experience') : null))
 
 // The list validator only asserts `id`, so a slug can be missing. A localization
 // route built on an empty slug would publish `/th/experiences/`.

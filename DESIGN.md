@@ -196,9 +196,17 @@ nothing — because those are the only three states the server accepts.
 large. When there is no image, show a muted icon in the *same footprint* so a
 list does not reflow between rows that have one and rows that do not.
 
-**Unsupported routes 404.** Capability gating happens in
-`middleware/dashboard.global.ts` and throws a Nuxt 404. Never redirect and never
-render a fallback.
+**Unsupported routes 404, and so does a record that is not there.** Capability
+gating happens in `middleware/dashboard.global.ts` and throws a Nuxt 404. Never
+redirect and never render a fallback.
+
+A missing record and a failed request are not the same event and do not get the
+same answer. A record that is not there is not a page, so it 404s. A request
+that failed is a state the surface shows, because the record may well still
+exist. Rendering "not found" inside the pane for both made a deleted record look
+like a broken editor, sitting in a frame with a rail, a navbar and a commit bar
+for something that does not exist. `isNotFoundError` in `utils/errors.ts` is the
+one place that tells them apart.
 
 **Empty is a state, not a bug.** A category with no items, or a location with no
 categories, renders its own empty state. Containers that cannot be empty (the
