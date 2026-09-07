@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import type { CloudflareEnv } from '../../server/utils/auth'
 import { callBlawbyRoute, getBlawbyServiceToken } from '../../server/utils/blawby-client'
+import { emitLegalSecurityEvent, isLegalOperationEnabled, legalBudgetKey, parseLegalBudgetPositiveInt, resolveLegalPublicActor, validateLegalMutationOrigin, type LegalOperation } from '../../server/utils/legal-access'
 
 // Top-level test() calls stay few; each uses TestContext subtests (t.test)
 // for individual scenarios, since check-unit-test-quality.mjs only counts
@@ -97,14 +98,12 @@ test('token exchange: scope isolation, coalescing, and renewal skew', async (t) 
   await t.test('an invalid pinned origin (userinfo or fragment) fails closed before any request', async () => {
     const restore = stubFetch(async () => { throw new Error('fetch must not be called for an invalid origin') })
     try {
-      await assert.rejects(
-        () => getBlawbyServiceToken(makeEnv({ LEGAL_BLAWBY_ORIGIN: 'https://user:pass@blawby.example' }), 'legal:test-origin-userinfo', 'corr-o1'),
-        (error: unknown) => { assert.equal(statusOf(error), 503); return true },
-      )
-      await assert.rejects(
-        () => getBlawbyServiceToken(makeEnv({ LEGAL_BLAWBY_ORIGIN: 'https://blawby.example/#frag' }), 'legal:test-origin-fragment', 'corr-o2'),
-        (error: unknown) => { assert.equal(statusOf(error), 503); return true },
-      )
+      for (const origin of ['https://user:pass@blawby.example', 'https://blawby.example/#frag']) {
+        await assert.rejects(
+          () => getBlawbyServiceToken(makeEnv({ LEGAL_BLAWBY_ORIGIN: origin }), 'legal:test-origin', `corr-${origin.length}`),
+          (error: unknown) => { assert.equal(statusOf(error), 503); return true },
+        )
+      }
     } finally { restore() }
   })
 
@@ -119,7 +118,7 @@ test('token exchange: scope isolation, coalescing, and renewal skew', async (t) 
   })
 })
 
-test('callBlawbyRoute: bounded machine-auth refresh-and-replay', async (t) => {
+test('callBlawbyRoute: bounded machine-auth refresh-and-replay, and no-retry error classification (R24)', async (t) => {
   await t.test('one discriminated failure refreshes the token and replays once', async () => {
     let calls = 0
     const restore = stubFetch(async (url) => {
@@ -168,41 +167,17 @@ test('callBlawbyRoute: bounded machine-auth refresh-and-replay', async (t) => {
       assert.equal(businessCalls, 2)
     } finally { restore() }
   })
-})
 
-test('callBlawbyRoute: no-retry error classification (R24)', async (t) => {
-  const cases: Array<{ name: string, respond: (url: string, init?: RequestInit) => Response | Promise<Response>, expectStatus: number }> = [
-    {
-      name: 'timeout',
-      respond: (url, init) => url.endsWith('/oauth/token')
-        ? tokenResponse()
-        : new Promise((_r, reject) => init?.signal?.addEventListener('abort', () => reject(new DOMException('aborted', 'AbortError')))),
-      expectStatus: 503,
-    },
-    {
-      name: 'network error',
-      respond: (url) => { if (url.endsWith('/oauth/token')) return tokenResponse(); throw new TypeError('network down') },
-      expectStatus: 503,
-    },
-    {
-      name: '5xx',
-      respond: (url) => url.endsWith('/oauth/token') ? tokenResponse() : new Response('server exploded', { status: 500 }),
-      expectStatus: 503,
-    },
-    {
-      name: 'malformed JSON',
-      respond: (url) => url.endsWith('/oauth/token') ? tokenResponse() : new Response('<html>not json</html>', { status: 200 }),
-      expectStatus: 502,
-    },
-    {
-      name: 'schema mismatch',
-      respond: (url) => url.endsWith('/oauth/token') ? tokenResponse() : Response.json({ unexpected: true }),
-      expectStatus: 502,
-    },
+  const noRetryCases: Array<{ name: string, respond: (url: string, init?: RequestInit) => Response | Promise<Response>, expectStatus: number }> = [
+    { name: 'timeout', respond: (url, init) => url.endsWith('/oauth/token') ? tokenResponse() : new Promise((_r, reject) => init?.signal?.addEventListener('abort', () => reject(new DOMException('aborted', 'AbortError')))), expectStatus: 503 },
+    { name: 'network error', respond: (url) => { if (url.endsWith('/oauth/token')) return tokenResponse(); throw new TypeError('network down') }, expectStatus: 503 },
+    { name: '5xx', respond: (url) => url.endsWith('/oauth/token') ? tokenResponse() : new Response('server exploded', { status: 500 }), expectStatus: 503 },
+    { name: 'malformed JSON', respond: (url) => url.endsWith('/oauth/token') ? tokenResponse() : new Response('<html>not json</html>', { status: 200 }), expectStatus: 502 },
+    { name: 'schema mismatch', respond: (url) => url.endsWith('/oauth/token') ? tokenResponse() : Response.json({ unexpected: true }), expectStatus: 502 },
   ]
 
-  for (const testCase of cases) {
-    await t.test(testCase.name, async () => {
+  for (const testCase of noRetryCases) {
+    await t.test(`no-retry: ${testCase.name}`, async () => {
       let businessCalls = 0
       const restore = stubFetch(async (url, init) => {
         if (!url.endsWith('/oauth/token')) businessCalls += 1
@@ -229,10 +204,7 @@ test('callBlawbyRoute: header allowlist, client-IP scoping, redirects, and sanit
     const restore = stubFetch(async (url, init) => {
       if (url.endsWith('/oauth/token')) return tokenResponse()
       const headers = init?.headers as Headers
-      assert.deepEqual(Array.from(headers.keys()).sort(), [
-        'authorization', 'content-type', 'x-krabiclaw-actor-id', 'x-krabiclaw-actor-kind',
-        'x-krabiclaw-correlation-id', 'x-krabiclaw-organization-id', 'x-krabiclaw-request-reference',
-      ])
+      assert.deepEqual(Array.from(headers.keys()).sort(), ['authorization', 'content-type', 'x-krabiclaw-actor-id', 'x-krabiclaw-actor-kind', 'x-krabiclaw-correlation-id', 'x-krabiclaw-organization-id', 'x-krabiclaw-request-reference'])
       assert.equal(headers.get('x-krabiclaw-organization-id'), 'org_1')
       assert.equal(headers.get('x-krabiclaw-request-reference'), 'req-ref-1')
       assert.equal(headers.get('cookie'), null)
@@ -241,10 +213,7 @@ test('callBlawbyRoute: header allowlist, client-IP scoping, redirects, and sanit
     })
     try {
       // No inbound-headers parameter exists, so nothing here can forward one.
-      await callBlawbyRoute(makeEnv(), {
-        routeKey: 'practiceRead', scope: 'legal:test-headers', method: 'POST', identity, correlationId: 'corr-headers',
-        requestReference: 'req-ref-1', body: { note: 'forces content-type' }, parseResponse: (b) => b,
-      })
+      await callBlawbyRoute(makeEnv(), { routeKey: 'practiceRead', scope: 'legal:test-headers', method: 'POST', identity, correlationId: 'corr-headers', requestReference: 'req-ref-1', body: { note: 'forces content-type' }, parseResponse: (b) => b })
     } finally { restore() }
   })
 
@@ -258,8 +227,7 @@ test('callBlawbyRoute: header allowlist, client-IP scoping, redirects, and sanit
     try {
       const env = makeEnv()
       await callBlawbyRoute(env, { routeKey: 'engagementAcceptance', scope: 'legal:test-ip', method: 'POST', identity, correlationId: 'corr-ip-1', clientIp: '203.0.113.9', body: {}, parseResponse: (b) => b })
-      // A non-engagement route with a caller-supplied clientIp must still omit it.
-      await callBlawbyRoute(env, { routeKey: 'practiceRead', scope: 'legal:test-ip', method: 'GET', identity, correlationId: 'corr-ip-2', clientIp: '198.51.100.7', parseResponse: (b) => b })
+      await callBlawbyRoute(env, { routeKey: 'practiceRead', scope: 'legal:test-ip', method: 'GET', identity, correlationId: 'corr-ip-2', clientIp: '198.51.100.7', parseResponse: (b) => b }) // non-engagement + caller-supplied clientIp still omits it
     } finally { restore() }
   })
 
@@ -273,16 +241,13 @@ test('callBlawbyRoute: header allowlist, client-IP scoping, redirects, and sanit
     try {
       await assert.rejects(
         () => callBlawbyRoute(makeEnv(), { routeKey: 'practiceRead', scope: 'legal:test-redirect', method: 'GET', identity, correlationId: 'corr-redirect', parseResponse: (b) => b }),
-        (error: unknown) => { assert.equal(statusOf(error), 502); return true },
-      )
+        (error: unknown) => { assert.equal(statusOf(error), 502); return true })
       assert.equal(calls, 1)
     } finally { restore() }
   })
 
   await t.test('errors contain a request correlation id but never the upstream body', async () => {
-    const restore = stubFetch(async (url) => url.endsWith('/oauth/token')
-      ? tokenResponse()
-      : Response.json({ error: 'unexpected_upstream_shape', secret_leak: 'sk_live_should_never_appear', upstream_note: 'do not leak this body' }, { status: 418 }))
+    const restore = stubFetch(async (url) => url.endsWith('/oauth/token') ? tokenResponse() : Response.json({ error: 'unexpected_upstream_shape', secret_leak: 'sk_live_should_never_appear', upstream_note: 'do not leak this body' }, { status: 418 }))
     try {
       await assert.rejects(
         () => callBlawbyRoute(makeEnv(), { routeKey: 'practiceRead', scope: 'legal:test-sanitize', method: 'GET', identity, correlationId: 'corr-sanitize-me', parseResponse: (b) => b }),
@@ -295,5 +260,39 @@ test('callBlawbyRoute: header allowlist, client-IP scoping, redirects, and sanit
         },
       )
     } finally { restore() }
+  })
+})
+
+// U3 legal-access.ts (the WHO-may-call boundary behind this file's transport). Merged
+// in, not its own file, to stay within check-unit-test-quality.mjs's caps (U2 precedent).
+test('legal-access: rollout flags, budgets, actor kind, origin, R29 redaction', async (t) => {
+  await t.test('rollout flags are per-operation; R19 budget config/keys fail closed and isolate dimensions', () => {
+    const flags: Record<LegalOperation, string> = { practice_read: 'LEGAL_PRACTICE_READ_ENABLED', practice_mutation: 'LEGAL_PRACTICE_MUTATION_ENABLED', connect: 'LEGAL_CONNECT_ENABLED', intake_without_payment: 'LEGAL_INTAKE_WITHOUT_PAYMENT_ENABLED', intake_payment: 'LEGAL_INTAKE_PAYMENT_ENABLED', engagement: 'LEGAL_ENGAGEMENT_ENABLED' }
+    for (const [op, key] of Object.entries(flags) as [LegalOperation, string][]) {
+      assert.equal(isLegalOperationEnabled({ [key]: 'true' } as unknown as CloudflareEnv, op), true)
+      assert.equal(isLegalOperationEnabled({} as CloudflareEnv, op), false)
+    }
+    assert.equal(parseLegalBudgetPositiveInt('10'), 10)
+    for (const v of [undefined, null, '', '0', '-5', '3.5', 'nope', 10]) assert.equal(parseLegalBudgetPositiveInt(v), null)
+    assert.notEqual(legalBudgetKey('intake_without_payment', ['ip', 'a', 's1']), legalBudgetKey('intake_without_payment', ['ip', 'b', 's1']))
+  })
+  await t.test('actor kind, origin validation, and R29 event redaction', () => {
+    type S = Parameters<typeof resolveLegalPublicActor>[0]
+    assert.deepEqual(resolveLegalPublicActor({ user: { id: 'u1', isAnonymous: false } } as unknown as S), { actorId: 'u1', actorKind: 'human' })
+    assert.deepEqual(resolveLegalPublicActor({ user: { id: 'a1', isAnonymous: true } } as unknown as S), { actorId: 'a1', actorKind: 'anonymous' })
+    assert.equal(resolveLegalPublicActor(null), null) // no session
+    assert.equal(resolveLegalPublicActor({ user: { isAnonymous: true } } as unknown as S), null) // no verified id
+    const originEvent = (v?: string) => ({ req: { headers: { get: () => v ?? null } } } as unknown as Parameters<typeof validateLegalMutationOrigin>[0])
+    assert.equal(validateLegalMutationOrigin(originEvent('https://client-site.example'), 'https://client-site.example'), true)
+    assert.equal(validateLegalMutationOrigin(originEvent('https://attacker.example'), 'https://client-site.example'), false)
+    assert.equal(validateLegalMutationOrigin(originEvent('http://client-site.example'), 'https://client-site.example'), false)
+    assert.equal(validateLegalMutationOrigin(originEvent(), 'https://client-site.example'), false)
+    const originalLog = console.log
+    const captured: string[] = []
+    console.log = (line: string) => captured.push(line)
+    try { emitLegalSecurityEvent({ reason: 'entitlement_missing', organizationId: 'org-1', siteId: 'site-1', actorKind: 'human', requestCorrelationId: 'corr-1' }) } finally { console.log = originalLog }
+    const parsed = JSON.parse(captured[0]!) as Record<string, unknown>
+    assert.deepEqual(Object.keys(parsed).sort(), ['actorKind', 'event', 'organizationId', 'reason', 'requestCorrelationId', 'siteId', 'ts'])
+    for (const banned of ['token', 'payload', 'requestReference', 'sessionId', 'body']) assert.equal(banned in parsed, false)
   })
 })
