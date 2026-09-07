@@ -1,5 +1,6 @@
 <template>
-  <div class="relative overflow-hidden py-16 sm:py-24">
+  <NuxtLayout name="platform">
+    <div v-if="isPlatform" class="relative overflow-hidden py-16 sm:py-24">
     <!-- Ambient Background Mesh -->
     <div class="absolute top-0 left-1/4 -z-10 w-96 h-96 bg-primary/10 rounded-full blur-3xl opacity-60"></div>
     <div class="absolute bottom-1/3 right-1/4 -z-10 w-112.5 h-112.5 bg-(--kc-teal)/10 rounded-full blur-3xl opacity-50"></div>
@@ -268,11 +269,15 @@
         </div>
       </div>
     </div>
-  </div>
+    </div>
+    <TenantPublicPage v-else path="/restaurants" />
+  </NuxtLayout>
 </template>
 
 <script setup lang="ts">
-definePageMeta({ layout: 'platform' })
+definePageMeta({ layout: false })
+
+const { isPlatform } = useTenantSite()
 
 const restaurantFeatures = [
   {
