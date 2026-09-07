@@ -77,6 +77,17 @@ WHATSAPP_DELIVERY_MODE = "provider"
 # secret and rebuilds the production index. Preview and staging deploys do not rebuild search
 # automatically (see .github/workflows/ci.yml and docs/ai-search.md). To set it by hand:
 #   yarn wrangler secret put PLATFORM_SEARCH_REINDEX_SECRET
+# Legal BFF (Blawby integration) configuration — all fields optional for dormant deployments.
+# When enabling any LEGAL_*_ENABLED flag in production, provide these via deployment secrets:
+#   yarn wrangler secret put LEGAL_BLAWBY_CLIENT_SECRET
+#   yarn wrangler secret put LEGAL_DIGEST_KEYS (JSON key ring; see legal digest validation)
+# Non-secret Blawby configuration can be set as [vars] entries when enabling:
+#   LEGAL_BLAWBY_ORIGIN: HTTPS origin of the Blawby API service
+#   LEGAL_BLAWBY_CLIENT_ID: OAuth client ID for Blawby
+#   LEGAL_BLAWBY_AUDIENCE: OAuth audience identifier for Blawby
+#   LEGAL_BLAWBY_CALLBACK_URL_RETURN: HTTPS return callback base URL (path appended by KrabiClaw)
+#   LEGAL_BLAWBY_CALLBACK_URL_REFRESH: HTTPS refresh callback base URL (path appended by KrabiClaw)
+#   LEGAL_PUBLIC_BUDGET_CONFIG: JSON rate-limit budget configuration (see rate-limit validation)
 
 [[d1_databases]]
 binding = "DB"

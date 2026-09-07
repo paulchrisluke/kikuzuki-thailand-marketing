@@ -146,6 +146,14 @@ export interface CloudflareEnv {
   MEDIA_BUCKET?: R2Bucket
   SITE_CACHE?: KVNamespace
   GUEST_INBOX_HUBS?: DurableObjectNamespace
+  LEGAL_BLAWBY_ORIGIN?: string
+  LEGAL_BLAWBY_CLIENT_ID?: string
+  LEGAL_BLAWBY_CLIENT_SECRET?: string
+  LEGAL_BLAWBY_AUDIENCE?: string
+  LEGAL_BLAWBY_CALLBACK_URL_RETURN?: string
+  LEGAL_BLAWBY_CALLBACK_URL_REFRESH?: string
+  LEGAL_PUBLIC_BUDGET_CONFIG?: string
+  LEGAL_DIGEST_KEYS?: string
   db?: ReturnType<typeof createDb>
   [key: string]: ApiValue
 }

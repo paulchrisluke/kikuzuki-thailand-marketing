@@ -17,3 +17,51 @@ function flagEnabled(env: ApiRecord | undefined, key: string): boolean {
 export function isManagedServiceEnabled(env: ApiRecord | undefined): boolean {
   return flagEnabled(env, 'MANAGED_SERVICE_ENABLED')
 }
+
+/**
+ * Controls whether legal practice read operations are enabled for Blawby integration.
+ * Requires the site's legal_operations entitlement to be true.
+ */
+export function isLegalPracticeReadEnabled(env: ApiRecord | undefined): boolean {
+  return flagEnabled(env, 'LEGAL_PRACTICE_READ_ENABLED')
+}
+
+/**
+ * Controls whether legal practice mutation operations are enabled for Blawby integration.
+ * Requires the site's legal_operations entitlement to be true.
+ */
+export function isLegalPracticeMutationEnabled(env: ApiRecord | undefined): boolean {
+  return flagEnabled(env, 'LEGAL_PRACTICE_MUTATION_ENABLED')
+}
+
+/**
+ * Controls whether legal Connect operations are enabled for Blawby integration.
+ * Requires the site's legal_operations entitlement to be true.
+ */
+export function isLegalConnectEnabled(env: ApiRecord | undefined): boolean {
+  return flagEnabled(env, 'LEGAL_CONNECT_ENABLED')
+}
+
+/**
+ * Controls whether legal intake without payment operations are enabled for Blawby integration.
+ * Requires the site's legal_operations entitlement to be true.
+ */
+export function isLegalIntakeWithoutPaymentEnabled(env: ApiRecord | undefined): boolean {
+  return flagEnabled(env, 'LEGAL_INTAKE_WITHOUT_PAYMENT_ENABLED')
+}
+
+/**
+ * Controls whether legal intake payment operations are enabled for Blawby integration.
+ * Requires the site's legal_operations entitlement to be true.
+ */
+export function isLegalIntakePaymentEnabled(env: ApiRecord | undefined): boolean {
+  return flagEnabled(env, 'LEGAL_INTAKE_PAYMENT_ENABLED')
+}
+
+/**
+ * Controls whether legal engagement operations are enabled for Blawby integration.
+ * Requires the site's legal_operations entitlement to be true.
+ */
+export function isLegalEngagementEnabled(env: ApiRecord | undefined): boolean {
+  return flagEnabled(env, 'LEGAL_ENGAGEMENT_ENABLED')
+}
