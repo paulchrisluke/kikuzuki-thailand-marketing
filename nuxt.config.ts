@@ -317,6 +317,10 @@ export default defineNuxtConfig({
       pathPrefix: false,
     },
     {
+      path: '~/components/reviews',
+      pathPrefix: false,
+    },
+    {
       path: '~/lib/components/workspace/dashboard',
       pathPrefix: false,
     },
@@ -393,6 +397,11 @@ export default defineNuxtConfig({
     },
     devServer: {
       watch: ['server']
+    },
+    rolldownConfig: {
+      output: {
+        strictExecutionOrder: true,
+      },
     },
     // Leave the resolved WASM import for Wrangler, which uploads .wasm as a precompiled
     // module. Nitro's Rollup pass cannot parse the binary, and Workers cannot compile raw

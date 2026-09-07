@@ -62,8 +62,10 @@
           <div class="p-8 pb-9">
             <!-- Open now meta -->
             <div class="saya-eyebrow mb-5 flex items-center gap-2 text-muted">
-              <span class="size-1.5 rounded-full" :class="loc.open_now ? 'bg-green-400' : 'bg-zinc-300'" />
-              {{ loc.open_now ? locationsCopy.openNowLabel : locationsCopy.closedLabel }}
+              <template v-if="loc.isOpenNow !== undefined">
+                <span class="size-1.5 rounded-full" :class="loc.isOpenNow ? 'bg-green-400' : 'bg-zinc-300'" />
+                {{ loc.isOpenNow ? locationsCopy.openNowLabel : locationsCopy.closedLabel }}
+              </template>
               <template v-if="todayHours(loc)">· {{ todayHours(loc) }}</template>
             </div>
 
@@ -110,7 +112,11 @@ const { isAuthenticated } = useAuth()
 const { locale, localePath, t } = useI18n()
 const locationsCopy = computed(() => getVerticalCopy(unref(site)?.vertical, locale.value))
 
-const { locations, pending } = await usePublicPageData()
+const { locations: publishedLocations, pending } = await usePublicPageData()
+const locations = computed(() => publishedLocations.value.map(location => ({
+  ...location,
+  isOpenNow: getIsOpenNow(location.opening_hours, location.timezone, location.special_hours),
+})))
 const locationMedia = (location: ApiRecord) => Array.isArray(location.media)
   ? (location.media as ApiRecord[]).find(item => item.slot === 'hero') ?? null
   : null

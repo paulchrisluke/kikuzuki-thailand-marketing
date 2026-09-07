@@ -141,8 +141,8 @@
             <svg v-if="isDark" viewBox="0 0 20 20" fill="currentColor" class="size-4"><path d="M10 2a.75.75 0 01.75.75v1.5a.75.75 0 01-1.5 0v-1.5A.75.75 0 0110 2ZM10 15a.75.75 0 01.75.75v1.5a.75.75 0 01-1.5 0v-1.5A.75.75 0 0110 15ZM10 7a3 3 0 100 6 3 3 0 000-6ZM15.657 5.404a.75.75 0 10-1.06-1.06l-1.061 1.06a.75.75 0 001.06 1.06l1.06-1.06ZM6.464 14.596a.75.75 0 10-1.06-1.06l-1.06 1.06a.75.75 0 001.06 1.06l1.06-1.06ZM18 10a.75.75 0 01-.75.75h-1.5a.75.75 0 010-1.5h1.5a.75.75 0 01.75.75ZM5 10a.75.75 0 01-.75.75h-1.5a.75.75 0 010-1.5h1.5A.75.75 0 015 10ZM14.596 15.657a.75.75 0 001.06-1.06l-1.06-1.061a.75.75 0 10-1.06 1.06l1.06 1.06ZM5.404 6.464a.75.75 0 001.06-1.06l-1.06-1.06a.75.75 0 10-1.061 1.06l1.06 1.06Z"/></svg>
             <svg v-else viewBox="0 0 20 20" fill="currentColor" class="size-4"><path d="M17.293 13.293A8 8 0 016.707 2.707a8.001 8.001 0 1010.586 10.586z"/></svg>
           </button>
-          <NuxtLink :to="localePath('/privacy')" class="transition hover:text-inverted">{{ t('legal.privacy') }}</NuxtLink>
-          <NuxtLink :to="localePath('/terms')" class="transition hover:text-inverted">{{ t('legal.terms') }}</NuxtLink>
+          <a :href="platformPrivacyUrl" class="transition hover:text-inverted">{{ t('legal.privacy') }}</a>
+          <a :href="platformTermsUrl" class="transition hover:text-inverted">{{ t('legal.terms') }}</a>
           <a
             v-if="showBrandingCredit"
             href="https://krabiclaw.com"
@@ -227,6 +227,9 @@ function toggleColorMode() {
   syncDarkMode()
 }
 const { locale } = useI18n()
+const platformSiteUrl = useRuntimeConfig().public.siteUrl
+const platformPrivacyUrl = new URL('/privacy', platformSiteUrl).href
+const platformTermsUrl = new URL('/terms', platformSiteUrl).href
 const copy = computed(() => getVerticalCopy(props.site?.vertical, locale.value))
 const isExperienceSite = computed(() => props.site?.vertical === 'experience')
 
