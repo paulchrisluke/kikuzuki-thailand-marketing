@@ -3,7 +3,7 @@
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-16 pb-8">
 
       <!-- Main grid -->
-      <div class="grid grid-cols-2 md:grid-cols-4 gap-8 lg:gap-12 mb-12">
+      <div class="grid grid-cols-2 md:grid-cols-5 gap-8 lg:gap-10 mb-12">
 
         <!-- Brand col -->
         <div class="col-span-2 md:col-span-1">
@@ -14,7 +14,7 @@
             </span>
           </NuxtLink>
           <p class="text-[13px] leading-relaxed text-inverted/60 max-w-75 mb-6">
-            The ChatGPT-powered website builder for local businesses. Empowering independent businesses globally. 🦀
+            The AI-managed web operating layer for local and professional businesses. Empowering independent owners globally. 🦀
           </p>
           <div class="flex items-center gap-4 text-inverted/50">
             <a href="https://github.com/paulchrisluke/krabiclaw/" target="_blank" rel="noopener noreferrer" class="hover:text-inverted transition-colors">
@@ -24,6 +24,18 @@
               </svg>
             </a>
           </div>
+        </div>
+
+        <!-- Solutions -->
+        <div>
+          <div class="kc-eyebrow text-inverted/50 mb-4">Solutions</div>
+          <ul class="space-y-2.5">
+            <li v-for="link in solutionLinks" :key="link.label">
+              <NuxtLink :to="link.to" class="text-[14px] text-inverted/80 hover:text-inverted transition-colors no-underline">
+                {{ link.label }}
+              </NuxtLink>
+            </li>
+          </ul>
         </div>
 
         <!-- Product -->
@@ -73,7 +85,13 @@
 </template>
 
 <script setup>
+const solutionLinks = [
+  { label: 'Restaurants', to: '/restaurants' },
+  { label: 'Experiences', to: '/experiences' },
+  { label: 'Legal & Professional', to: '/legal' },
+]
 const productLinks = [
+  { label: 'ChatGPT App', to: '/plugin' },
   { label: 'Features', to: '/features' },
   { label: 'Pricing', to: '/pricing' },
   { label: 'Templates', to: '/templates' },
