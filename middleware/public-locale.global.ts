@@ -9,18 +9,14 @@ export default defineNuxtRouteMiddleware(async (to) => {
     if (!$setAppLocale) throw new Error('Application locale setter is unavailable')
     $setAppLocale(locale, messages)
   }
-  // The tenant's localized routes are handled by the catch-all page, so Nuxt
-  // exposes `tenantPath` rather than a named `locale` param. On the server,
-  // resolve the first path segment against this site's published locales before
-  // layouts request the shared shell. On the client, use the route's published
-  // representations to distinguish a locale prefix from a source path.
+  const explicitLocale = typeof to.params.locale === 'string' ? to.params.locale : null
   if (import.meta.client) {
     const representations = useState<Array<{ locale: string }>>('public-locale-representations', () => [])
-    if (!representations.value.length) return
+    if (!explicitLocale && !representations.value.length) return
     const candidate = splitLocalePrefix(to.path).localeSegment
-    const locale = candidate && representations.value.some(item => item.locale === candidate)
+    const locale = explicitLocale ?? (candidate && representations.value.some(item => item.locale === candidate)
       ? candidate
-      : 'en'
+      : 'en')
     state.value = locale
     const messages = locale === 'en'
       ? null
@@ -51,7 +47,10 @@ export default defineNuxtRouteMiddleware(async (to) => {
        AND sl.locale = ? AND sl.is_source = 0 AND sl.status = 'published'
      LIMIT 1
   `, [siteId, candidate])
-  if (!locale) return
+  if (!locale) {
+    if (explicitLocale) throw createError({ statusCode: 404, statusMessage: 'Localized route was not found' })
+    return
+  }
   const entitlement = await assertPublicSiteLanguageEntitlement(db, locale.organization_id, siteId, locale.locale)
   if (!entitlement.platform_messages) {
     throw createError({ statusCode: 503, statusMessage: 'Published platform locale messages are unavailable' })
