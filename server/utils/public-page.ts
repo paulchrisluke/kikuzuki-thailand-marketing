@@ -489,7 +489,7 @@ async function loadPublicPageSource(
           AND ma.organization_id = mp.organization_id
           AND ma.site_id = mp.site_id
           AND ma.status = 'active'
-        WHERE p.product_type = 'experience' AND p.organization_id = ? AND p.site_id = ? AND p.is_visible = 1
+        WHERE p.product_type = 'standard' AND p.organization_id = ? AND p.site_id = ? AND p.is_visible = 1
           ${locationSlug ? 'AND p.location_id = ?' : ''}
           AND mp.owner_type = 'product' AND mp.slot IN ('image', 'gallery') AND mp.status = 'active'
         ORDER BY mp.owner_id, mp.slot, mp.sort_order, mp.id`,
