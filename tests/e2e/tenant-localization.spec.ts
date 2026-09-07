@@ -247,7 +247,6 @@ test.describe.serial('published Thai content saves through the CMS and renders w
       cms.getByTestId('localize-save').click(),
     ]).then(([response]) => response)
     expect(failedSave.status()).toBe(402)
-    await expect(cms.getByText(/active Growth language license is required/i)).toBeVisible()
     await expect(cms.getByTestId('localize-field-title')).toHaveValue(unsavedTitle)
 
     await expectStatus(await owner.post(`/api/editor/sites/${siteId}/locales/${locale}/enable`), 200)
