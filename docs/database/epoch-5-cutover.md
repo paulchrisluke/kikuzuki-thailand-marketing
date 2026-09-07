@@ -1,6 +1,6 @@
 # Database epoch 5 cutover
 
-**Status: Staging preparation authorized; production remains owner-controlled.**
+**Status: Production promotion authorized; frozen transfer verified September 7, 2026.**
 **Issue:** #829
 
 Epoch 5 replaces the released Epoch 4 schema on a new D1 resource. The generated
@@ -26,7 +26,8 @@ resource or edit a Wrangler migration ledger.
 
 | Purpose | Retained resource |
 | --- | --- |
-| Running production, Epoch 4 | `krabiclaw-db-epoch4-final`, `736830db-4922-4594-bca6-731df2450a23` |
+| Retained production rollback, Epoch 4 | `krabiclaw-db-epoch4-final`, `736830db-4922-4594-bca6-731df2450a23` |
+| Verified production, Epoch 5 | `krabiclaw-db-epoch5-final`, `10d03f30-c9db-49f9-af47-0c5d7c5738eb` |
 | Prior staging, Epoch 4 | `krabiclaw-db-staging-epoch4-final`, `ec6c7ee3-a75f-4445-b445-1addfe78482f` |
 | Final staging, 53-table baseline | `krabiclaw-db-staging-epoch5-final`, `e1683b37-39cb-4d46-b299-7cf0b4401147` |
 | Earlier staging candidate, obsolete 94-table baseline | `krabiclaw-db-staging-epoch5`, `47a27e3a-2720-4dec-8e1e-fbca6345c0c3` |
@@ -226,6 +227,23 @@ verify an actual delivered reply through the provider and Cloudflare email
 hook, preserving `EMAIL_REPLY_SECRET` and the configured reply domain.
 
 ## Production release owned by the user
+
+The owner approved promotion on September 7, 2026. The reviewed Stripe plan
+applied nine metadata/endpoint changes and verified unchanged billing terms.
+The owner added the missing `reply.krabiclaw.com` mail records. Email Routing's
+catch-all now targets the existing `krabiclaw` email handler; the eight named
+forwarding rules are unchanged. A real SMTP reply from the authorized canary
+inbox persisted once in its demo-site conversation. The old bridge Worker is
+disconnected from routing.
+
+After the documented freeze and drain, the final production export transformed
+into 53 tables and 41,949 rows. The data-only import into the fresh APAC resource
+was re-exported and independently verified against the frozen source and the
+typed local projection. Schema, every table's data, retained source archive,
+foreign keys, integrity and all nine invariants passed. Private exports and
+credentials remain outside Git. The normal promotion changes only production's
+D1 binding and omits the freeze flag. Production browser verification remains
+required after deployment; social-card generation remains prohibited.
 
 Follow [release-and-outage-prevention.md](../operations/release-and-outage-prevention.md)
 and [release-flow.md](../operations/release-flow.md). Prepare a fresh APAC
