@@ -373,6 +373,17 @@ async function defaultLegalEntitlementResolver(db: DbClient, organizationId: str
   return billing.entitlements.legal_operations === true
 }
 
+export interface ResolveLegalPublicSiteAccessOptions {
+  // R26 scopes Origin validation to "every cookie-authenticated legal
+  // mutation" -- a same-origin GET never sends an Origin header per the
+  // Fetch spec (response-tainting "basic"), so a non-mutating caller (e.g.
+  // status.get.ts's read-only status poll) must be able to opt out.
+  // Defaults to true so every existing mutation route (create/recover/
+  // checkout/post-pay) keeps validating Origin unchanged without having to
+  // pass this explicitly.
+  validateOrigin?: boolean
+}
+
 // R13's explicit ordering: resolve only the site facts needed to determine
 // its canonical origin, validate Origin, then check rollout group,
 // entitlement, and the IP/site budget — all before a Better Auth session is
@@ -389,7 +400,9 @@ export async function resolveLegalPublicSiteAccess(
   operation: LegalOperation,
   siteId: string,
   resolveEntitlement: LegalEntitlementResolver = defaultLegalEntitlementResolver,
+  options: ResolveLegalPublicSiteAccessOptions = {},
 ): Promise<LegalPublicSiteContext> {
+  const validateOrigin = options.validateOrigin ?? true
   const env = cloudflareEnv(event)
   const db = env.DB
   if (!db) throw new HTTPError({ statusCode: 503, message: 'Database not available' })
@@ -410,7 +423,7 @@ export async function resolveLegalPublicSiteAccess(
       statusCode: 403, message: 'Site origin could not be resolved',
     })
   }
-  if (!validateLegalMutationOrigin(event, canonicalOrigin)) {
+  if (validateOrigin && !validateLegalMutationOrigin(event, canonicalOrigin)) {
     denyLegal({
       event, reason: 'origin_invalid', organizationId, siteId, actorKind: null,
       statusCode: 403, message: 'Request origin is not trusted for this site',
@@ -604,6 +617,37 @@ export function validateLegalPaymentUrl(
   }
   if (parsed.protocol !== 'https:' || parsed.username || parsed.password) return null
   if (!allowlist.has(parsed.origin)) return null
+  return parsed.toString()
+}
+
+// -- I3: R22 Connect callback URL validation --------------------------------
+
+// R22 requires the configured Connect callback URLs be built from "exact
+// per-environment HTTPS return and refresh settings." Before this, the only
+// check anywhere in the branch was a bare non-empty-string test on
+// LEGAL_BLAWBY_CALLBACK_URL_RETURN/LEGAL_BLAWBY_CALLBACK_URL_REFRESH in
+// server/api/dashboard/legal/connect/index.post.ts, with no HTTPS check, no
+// userinfo/fragment rejection, and no deploy-time check anywhere
+// (scripts/check-deploy-env.mjs does not exist in this repo).
+//
+// This is a pure function (same shape as validateLegalPaymentUrl above) so
+// it is directly unit-testable without D1/session/network. Fails closed:
+// returns null for anything malformed, non-HTTPS, userinfo-bearing, or
+// fragment-bearing — the caller turns a null into a 503 misconfiguration
+// response (same fail-closed pattern as
+// legal-intake-references.ts's parseLegalIntakeDigestKeyConfig) rather than
+// forwarding a malformed/insecure URL to Blawby.
+export function validateLegalCallbackUrl(raw: string): string | null {
+  if (!raw) return null
+  let parsed: URL
+  try {
+    parsed = new URL(raw)
+  } catch {
+    return null
+  }
+  if (parsed.protocol !== 'https:') return null
+  if (parsed.username || parsed.password) return null
+  if (parsed.hash) return null
   return parsed.toString()
 }
 

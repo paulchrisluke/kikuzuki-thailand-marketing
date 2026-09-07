@@ -129,19 +129,24 @@ interface BlawbyRouteDescriptor {
 //
 // U6 additions (ALL placeholder paths, unverified -- same PLACEHOLDER flag
 // as every other route key above; see the U6 report):
-//   - intakeCreate: public actor creates a new intake (client IP forwarded
-//     -- this is the first anonymous-abuse-sensitive write in the family).
+//   - intakeCreate: public actor creates a new intake.
 //   - intakeRecover: re-fetches an already-claimed intake by request
 //     reference after response loss, without resubmitting the payload.
 //   - intakeCheckout: begins or replaces a Blawby Checkout/Payment Link
-//     session for an already-created intake (client IP forwarded --
-//     payment-adjacent).
+//     session for an already-created intake.
 //   - intakeStatus: read-only status poll for a bound intake.
 //   - intakePostPay: server-to-server verification GET called ONLY by the
 //     BFF's post-pay route (never directly reachable by the browser) after
 //     a Payment Link return, to correlate and confirm a Checkout session
-//     before it is ever attached (client IP forwarded -- this is the
-//     payment-confirmation boundary).
+//     before it is ever attached.
+//
+// R5 scopes the dedicated originating-client-IP forward to engagement
+// acceptance ONLY ("engagement acceptance may additionally include the
+// dedicated originating-client-IP value"). intakeCreate, intakeCheckout,
+// and intakePostPay must NOT set includeClientIp: true -- doing so silently
+// widens R5 beyond its documented scope with no brief/report/ledger record.
+// Every route below other than engagementAcceptance omits client IP, same
+// as practiceRead's existing test pattern.
 const BLAWBY_BEARER_ROUTES = {
   engagementAcceptance: { path: '/legal/engagements/accept', includeClientIp: true },
   practiceRead: { path: '/legal/practice', includeClientIp: false },
@@ -150,11 +155,11 @@ const BLAWBY_BEARER_ROUTES = {
   intakeList: { path: '/legal/intakes', includeClientIp: false },
   intakeAccept: { path: '/legal/intakes/accept', includeClientIp: false },
   engagementContractsList: { path: '/legal/engagements', includeClientIp: false },
-  intakeCreate: { path: '/legal/public/intakes', includeClientIp: true },
+  intakeCreate: { path: '/legal/public/intakes', includeClientIp: false },
   intakeRecover: { path: '/legal/public/intakes/recover', includeClientIp: false },
-  intakeCheckout: { path: '/legal/public/intakes/checkout', includeClientIp: true },
+  intakeCheckout: { path: '/legal/public/intakes/checkout', includeClientIp: false },
   intakeStatus: { path: '/legal/public/intakes/status', includeClientIp: false },
-  intakePostPay: { path: '/legal/public/intakes/post-pay', includeClientIp: true },
+  intakePostPay: { path: '/legal/public/intakes/post-pay', includeClientIp: false },
 } as const satisfies Record<string, BlawbyRouteDescriptor>
 
 export type BlawbyRouteKey = keyof typeof BLAWBY_BEARER_ROUTES

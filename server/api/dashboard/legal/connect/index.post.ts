@@ -7,7 +7,11 @@
 //
 // R22: callback URLs are built server-side from
 // LEGAL_BLAWBY_CALLBACK_URL_RETURN/LEGAL_BLAWBY_CALLBACK_URL_REFRESH (U1's
-// CloudflareEnv fields) — never from readBody/getQuery.
+// CloudflareEnv fields) — never from readBody/getQuery. Both values are
+// validated by legal-access.ts's validateLegalCallbackUrl (exact HTTPS,
+// no userinfo, no fragment) before being forwarded to Blawby; a value that
+// fails validation is treated as a misconfiguration (503), same as a
+// missing value, rather than forwarded as-is.
 // Plan step 6 / R14: the browser must create-and-retain an
 // organization-and-operation-scoped Connect UUID v4 in sessionStorage
 // BEFORE calling this route (see composables/useLegalConnect.ts) and send
@@ -21,7 +25,13 @@
 
 import { apiErrorResponse, cloudflareEnv, rethrowHttpError } from '~/server/utils/api-response'
 import { callBlawbyRoute } from '~/server/utils/blawby-client'
-import { assertLegalStaffMutationOrigin, legalJsonResponse, legalRequestCorrelationId, resolveLegalStaffAccess } from '~/server/utils/legal-access'
+import {
+  assertLegalStaffMutationOrigin,
+  legalJsonResponse,
+  legalRequestCorrelationId,
+  resolveLegalStaffAccess,
+  validateLegalCallbackUrl,
+} from '~/server/utils/legal-access'
 
 const UUID_V4_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
 
@@ -76,9 +86,13 @@ export default defineHandler(async (event) => {
       return apiErrorResponse(event, 400, 'LEGAL_CONNECT_REQUEST_KEY_INVALID', 'A valid Connect request key (UUID v4) is required')
     }
 
-    const returnUrl = typeof env.LEGAL_BLAWBY_CALLBACK_URL_RETURN === 'string' ? env.LEGAL_BLAWBY_CALLBACK_URL_RETURN : ''
-    const refreshUrl = typeof env.LEGAL_BLAWBY_CALLBACK_URL_REFRESH === 'string' ? env.LEGAL_BLAWBY_CALLBACK_URL_REFRESH : ''
+    const rawReturnUrl = typeof env.LEGAL_BLAWBY_CALLBACK_URL_RETURN === 'string' ? env.LEGAL_BLAWBY_CALLBACK_URL_RETURN : ''
+    const rawRefreshUrl = typeof env.LEGAL_BLAWBY_CALLBACK_URL_REFRESH === 'string' ? env.LEGAL_BLAWBY_CALLBACK_URL_REFRESH : ''
+    const returnUrl = validateLegalCallbackUrl(rawReturnUrl)
+    const refreshUrl = validateLegalCallbackUrl(rawRefreshUrl)
     if (!returnUrl || !refreshUrl) {
+      // R22: fail closed on a missing OR malformed/insecure callback URL —
+      // never forward an unvalidated value to Blawby.
       return apiErrorResponse(event, 503, 'LEGAL_BLAWBY_NOT_CONFIGURED', 'Connect callback URLs are not configured for this environment')
     }
 

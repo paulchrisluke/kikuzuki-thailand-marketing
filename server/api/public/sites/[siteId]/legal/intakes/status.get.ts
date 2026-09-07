@@ -6,10 +6,17 @@
 // PLACEHOLDER path '/legal/public/intakes/status', see blawby-client.ts;
 // not a verified U8 contract).
 //
-// Same R13 call order as the other routes in this family. A GET still
-// goes through Origin validation (resolveLegalPublicSiteAccess) and all
-// four R19 budgets (assertLegalPublicActorBudgets) -- R19's budgets are
-// not limited to mutating verbs.
+// Same R13 call order as the other routes in this family, EXCEPT Origin
+// validation: R26 scopes Origin validation to "every cookie-authenticated
+// legal mutation" -- a same-origin GET never sends an Origin header per the
+// Fetch spec (response-tainting "basic"), so this read-only status poll
+// would 403 on every real browser request if it validated Origin like the
+// mutation routes do. resolveLegalPublicSiteAccess is called with
+// { validateOrigin: false } below to opt out of that single check while
+// keeping every other guard (site eligibility, rollout flag, entitlement,
+// IP budget, session, and all four R19 budgets via
+// assertLegalPublicActorBudgets) unchanged -- R19's budgets are not limited
+// to mutating verbs.
 
 import { rethrowHttpError } from '~/server/utils/api-response'
 import { callBlawbyRoute } from '~/server/utils/blawby-client'
@@ -41,7 +48,9 @@ export default defineHandler(async (event) => {
   if (!siteId) return legalApiErrorResponse(event, 400, 'LEGAL_INTAKE_SITE_ID_REQUIRED', 'Site id is required')
 
   try {
-    const context = await resolveLegalPublicSiteAccess(event, 'intake_without_payment', siteId)
+    const context = await resolveLegalPublicSiteAccess(
+      event, 'intake_without_payment', siteId, undefined, { validateOrigin: false },
+    )
     const actor = await requireLegalPublicActor(event, context)
 
     const query = getQuery(event)

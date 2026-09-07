@@ -377,3 +377,77 @@ test('public actor/session gates: a denied request creates no anonymous user or 
     await runtime.dispose()
   }
 })
+
+// Whole-branch-review finding I2: a same-origin GET never sends an Origin
+// header per the Fetch spec (response-tainting "basic"), so status.get.ts's
+// underlying call to resolveLegalPublicSiteAccess must succeed with no
+// Origin header when it opts out via { validateOrigin: false } — the same
+// call path status.get.ts itself now uses — while every mutation route
+// (create/recover/checkout/post-pay), which all still default to
+// validateOrigin: true, keeps correctly rejecting a missing or mismatched
+// Origin. Proven for real: no internal module is mocked, only real D1 rows
+// and a hand-built H3Event (same technique as every other test in this
+// file).
+test('R26/I2: origin validation is scoped to mutations — a GET-shaped caller can opt out, mutation-shaped callers cannot', { timeout: 60_000 }, async (t) => {
+  const { runtime, db } = await setupD1()
+  const deadline = setTimeout(() => { void runtime.dispose() }, 55_000)
+  try {
+    await db.batch([
+      "INSERT INTO organization (id,name,slug) VALUES ('org-a','Org A','org-a')",
+      "INSERT INTO sites (id,organization_id,slug,subdomain,vertical,theme_id,status,onboarding_status) VALUES ('site-a','org-a','site-a','site-a','service','blawby-theme-v1','active','active')",
+      "INSERT INTO site_domains (id,organization_id,site_id,domain,type,role,status) VALUES ('dom-a','org-a','site-a','site-a.example.com','custom','canonical','active')",
+    ].map(statement => db.prepare(statement)))
+
+    const env = { ...baseEnv(db), LEGAL_INTAKE_WITHOUT_PAYMENT_ENABLED: 'true' } as unknown as CloudflareEnv
+    const alwaysEntitled = async () => true
+
+    await t.test('validateOrigin: false succeeds with no Origin header at all (the real same-origin-GET shape)', async () => {
+      const event = buildEvent(env, { ip: '5.5.5.1' })
+      const context = await resolveLegalPublicSiteAccess(
+        event, 'intake_without_payment', 'site-a', alwaysEntitled, { validateOrigin: false },
+      )
+      assert.deepEqual({ organizationId: context.organizationId, siteId: context.siteId }, { organizationId: 'org-a', siteId: 'site-a' })
+    })
+
+    await t.test('validateOrigin: false still succeeds with a wrong Origin header present (the check is skipped, not merely relaxed)', async () => {
+      const event = buildEvent(env, { origin: 'https://attacker.example', ip: '5.5.5.2' })
+      const context = await resolveLegalPublicSiteAccess(
+        event, 'intake_without_payment', 'site-a', alwaysEntitled, { validateOrigin: false },
+      )
+      assert.equal(context.siteId, 'site-a')
+    })
+
+    await t.test('default (mutation-shaped, no options passed) still rejects a missing Origin header with 403 origin_invalid', async () => {
+      const events = captureSecurityEvents()
+      const event = buildEvent(env, { ip: '5.5.5.3' })
+      await assert.rejects(
+        resolveLegalPublicSiteAccess(event, 'intake_without_payment', 'site-a', alwaysEntitled),
+        (error: unknown) => (error as { statusCode?: number })?.statusCode === 403,
+      )
+      events.restore()
+      assert.ok(events.lines.some(line => JSON.parse(line).reason === 'origin_invalid'))
+    })
+
+    await t.test('default (mutation-shaped, no options passed) still rejects a mismatched Origin header with 403 origin_invalid', async () => {
+      const events = captureSecurityEvents()
+      const event = buildEvent(env, { origin: 'https://attacker.example', ip: '5.5.5.4' })
+      await assert.rejects(
+        resolveLegalPublicSiteAccess(event, 'intake_without_payment', 'site-a', alwaysEntitled),
+        (error: unknown) => (error as { statusCode?: number })?.statusCode === 403,
+      )
+      events.restore()
+      assert.ok(events.lines.some(line => JSON.parse(line).reason === 'origin_invalid'))
+    })
+
+    await t.test('explicitly passing validateOrigin: true behaves exactly like the default (mutation-route parity)', async () => {
+      const event = buildEvent(env, { origin: 'https://site-a.example.com', ip: '5.5.5.5' })
+      const context = await resolveLegalPublicSiteAccess(
+        event, 'intake_without_payment', 'site-a', alwaysEntitled, { validateOrigin: true },
+      )
+      assert.equal(context.siteId, 'site-a')
+    })
+  } finally {
+    clearTimeout(deadline)
+    await runtime.dispose()
+  }
+})

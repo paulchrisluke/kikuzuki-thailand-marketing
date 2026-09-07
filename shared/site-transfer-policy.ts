@@ -12,6 +12,25 @@ export const SITE_TRANSFER_REPARENT_TABLES = [
   'media_assets', 'media_placements', 'product_categories', 'products', 'prices',
   'review_requests', 'reviews', 'offerings', 'site_redirects', 'resource_localizations',
   'analytics_summaries', 'analytics_events', 'site_domains', 'site_locales',
+  // legal_intake_references is classified REPARENT because the schema for
+  // this table has a composite (organization_id, site_id) foreign key,
+  // which makes REPARENT the only referentially-safe category available:
+  // a site transfer that left these rows behind (RETAIN) or deleted them
+  // (REVOKE) would either violate that FK against a now-stale
+  // organization_id, or destroy durable intake-claim state the U4 conflict
+  // classifier still needs after the transfer. This classification is a
+  // MECHANICAL/STRUCTURAL necessity, required simply to keep the
+  // lint:product-model exhaustiveness check passing, and does NOT resolve
+  // the still-deferred product/legal-privacy question this plan Data
+  // Model section explicitly punts on (policy for organizations with
+  // multiple legal-enabled sites, and for transferring a legal-enabled
+  // site). Real multi-site/transfer support for legal-enabled sites
+  // remains blocked on that separate decision (see this plan Scope
+  // Boundaries and Data Model sections, and its Definition of Done: no
+  // multi-site or transfer policy is silently assumed). Until that
+  // decision lands, nothing in this repo actually exercises a transfer of
+  // a legal-enabled site in practice; this entry only keeps the linter
+  // per-table exhaustiveness check honest for the table that exists today.
   'legal_intake_references',
 ] as const
 

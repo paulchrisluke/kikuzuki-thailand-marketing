@@ -4,7 +4,7 @@ import { generateSQLiteDrizzleJson, generateSQLiteMigration } from 'drizzle-kit/
 import { Miniflare } from 'miniflare'
 import * as schema from '../../server/db/schema.ts'
 import type { CloudflareEnv } from '../../server/utils/auth.ts'
-import { checkLegalBudget, legalBudgetKey } from '../../server/utils/legal-access.ts'
+import { checkLegalBudget, legalBudgetKey, validateLegalCallbackUrl } from '../../server/utils/legal-access.ts'
 
 // R19: the four public budgets (IP/site/op, actor/site/op, site/op
 // aggregate, request-reference) are independent and fail closed. This is
@@ -84,4 +84,39 @@ test('checkLegalBudget: real D1 rate_limits table proves independence and fail-c
     await db.prepare('DROP TABLE rate_limits').run()
     assert.equal(await checkLegalBudget(db, budgetEnv, 'ip_site_op', legalBudgetKey('practice_read', ['ip', 'ip-hash-c', 'site-1'])), false)
   } finally { await runtime.dispose() }
+})
+
+// Whole-branch-review finding I3: R22 requires the Connect callback URLs be
+// built from "exact per-environment HTTPS return and refresh settings," but
+// server/api/dashboard/legal/connect/index.post.ts previously only checked
+// for a non-empty string before forwarding LEGAL_BLAWBY_CALLBACK_URL_RETURN/
+// LEGAL_BLAWBY_CALLBACK_URL_REFRESH to Blawby -- no HTTPS check, no
+// userinfo/fragment rejection anywhere. validateLegalCallbackUrl is a pure
+// function (no D1/session/network) -- placed in this uncapped D1-suite file
+// (rather than tests/unit/, which is at its 3600-line cap with zero margin)
+// purely for test-quality-cap headroom, same reasoning legal-access-d1.test.ts
+// and legal-entitlement-rollout-matrix-d1.test.ts already document for their
+// own D1-backed proofs.
+test('validateLegalCallbackUrl: R22 exact-HTTPS validation for the Connect callback URLs (pure function, no D1)', () => {
+  // A valid HTTPS URL passes and is returned normalized.
+  assert.equal(validateLegalCallbackUrl('https://dashboard.example.com/legal/connect/return'), 'https://dashboard.example.com/legal/connect/return')
+
+  // http:// fails -- R22 requires HTTPS.
+  assert.equal(validateLegalCallbackUrl('http://dashboard.example.com/legal/connect/return'), null)
+
+  // A URL with userinfo fails.
+  assert.equal(validateLegalCallbackUrl('https://user:pass@dashboard.example.com/legal/connect/return'), null)
+  assert.equal(validateLegalCallbackUrl('https://user@dashboard.example.com/legal/connect/return'), null)
+
+  // A URL with a fragment fails.
+  assert.equal(validateLegalCallbackUrl('https://dashboard.example.com/legal/connect/return#section'), null)
+
+  // An empty or missing value fails.
+  assert.equal(validateLegalCallbackUrl(''), null)
+
+  // A malformed URL fails.
+  assert.equal(validateLegalCallbackUrl('not a url'), null)
+
+  // A non-HTTP(S) scheme fails.
+  assert.equal(validateLegalCallbackUrl('ftp://dashboard.example.com/legal/connect/return'), null)
 })
