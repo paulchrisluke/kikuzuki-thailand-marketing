@@ -25,10 +25,7 @@ async function putLocalization(
 }
 
 async function expectLocalizedMenu(page: Page) {
-  await page.waitForFunction(() => {
-    const root = document.querySelector('#__nuxt')
-    return root && '__vue_app__' in root && Boolean(root.__vue_app__)
-  })
+  await expect(page.locator('[data-hydrated]')).toHaveAttribute('data-hydrated', 'true')
   await expect(page.locator('html')).toHaveAttribute('lang', locale)
   await expect(page.getByRole('navigation', { name: 'การนำทางหลัก' })).toBeVisible()
   await expect(page.getByRole('navigation', { name: 'การนำทางหลัก' }).getByRole('link', { name: 'เมนู', exact: true })).toBeVisible()
@@ -124,6 +121,7 @@ test('Kikuzuki keeps its Thai shell and category translations on a hard load', a
   await page.getByRole('button', { name: /🇹🇭 th/ }).click()
   await page.getByRole('menuitem', { name: /🇺🇸/ }).click()
   await expect(page).toHaveURL(`${kikuzukiTestBaseUrl()}/menu`)
+  await expect(page.locator('[data-hydrated]')).toHaveAttribute('data-hydrated', 'true')
   await expect(page.locator('html')).toHaveAttribute('lang', 'en')
   await expect(page.getByRole('navigation', { name: 'Primary navigation' })).toBeVisible()
   await expect(page.getByRole('link', { name: 'Tuna Sushi' }).first()).toBeVisible()
