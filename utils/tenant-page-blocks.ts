@@ -220,6 +220,46 @@ const TRANSLATABLE_DATA_FIELDS = new Set([
   'intro', 'label', 'markdown', 'name', 'note', 'prompt', 'question', 'short_description',
   'subtitle', 'summary', 'text', 'title', 'cta_label',
 ])
+const TRANSLATION_SOURCE_BLOCK_ID_FIELD = '_localization_source_block_id'
+
+export interface TenantPageLocalizedTextField {
+  path: Array<string | number>
+  label: string
+  value: string
+}
+
+function localizedFieldLabel(key: string): string {
+  return key.replace(/_/g, ' ').replace(/^\w/, character => character.toUpperCase())
+}
+
+function collectTenantPageLocalizedText(value: unknown, path: Array<string | number>, key = ''): TenantPageLocalizedTextField[] {
+  if (typeof value === 'string') {
+    return TRANSLATABLE_DATA_FIELDS.has(key)
+      ? [{ path, label: localizedFieldLabel(key), value }]
+      : []
+  }
+  if (Array.isArray(value)) {
+    return value.flatMap((item, index) => collectTenantPageLocalizedText(item, [...path, index], key))
+  }
+  if (!value || typeof value !== 'object') return []
+  return Object.entries(value as Record<string, unknown>).flatMap(([childKey, childValue]) =>
+    collectTenantPageLocalizedText(childValue, [...path, childKey], childKey))
+}
+
+export function tenantPageLocalizedTextFields(block: TenantPageBlock): TenantPageLocalizedTextField[] {
+  return collectTenantPageLocalizedText(block.data, [])
+}
+
+export function writeTenantPageLocalizedText(block: TenantPageBlock, path: readonly (string | number)[], value: string): void {
+  if (path.length === 0) throw new Error('Localized page field path is empty.')
+  let target: unknown = block.data
+  for (const segment of path.slice(0, -1)) {
+    if (!target || typeof target !== 'object') throw new Error('Localized page field path is invalid.')
+    target = (target as Record<string | number, unknown>)[segment]
+  }
+  if (!target || typeof target !== 'object') throw new Error('Localized page field path is invalid.')
+  ;(target as Record<string | number, unknown>)[path[path.length - 1]!] = value
+}
 
 function clearTenantPageTranslationText(value: unknown, key = ''): unknown {
   if (typeof value === 'string') return TRANSLATABLE_DATA_FIELDS.has(key) ? '' : value
@@ -229,15 +269,63 @@ function clearTenantPageTranslationText(value: unknown, key = ''): unknown {
     .map(([childKey, childValue]) => [childKey, clearTenantPageTranslationText(childValue, childKey)]))
 }
 
-export function createTenantPageTranslationBlocks(blocks: readonly TenantPageBlock[]): TenantPageBlock[] {
-  const ids = new Map(blocks.map(block => [block.id, crypto.randomUUID()]))
-  return blocks.map((block, position) => ({
+export function tenantPageTranslationSourceBlockId(block: TenantPageBlock): string {
+  const value = block.data[TRANSLATION_SOURCE_BLOCK_ID_FIELD]
+  if (typeof value !== 'string' || !value) {
+    throw new Error('A translated page block is missing its canonical source block identity.')
+  }
+  return value
+}
+
+function pageFieldPathKey(path: readonly (string | number)[]): string {
+  return JSON.stringify(path)
+}
+
+function blankTenantPageTranslationBlock(block: TenantPageBlock, id: string = crypto.randomUUID()): TenantPageBlock {
+  return {
     ...block,
-    id: ids.get(block.id)!,
-    position,
-    data: clearTenantPageTranslationText(structuredClone(block.data)) as Record<string, unknown>,
+    id,
+    data: {
+      ...(clearTenantPageTranslationText(structuredClone(block.data)) as Record<string, unknown>),
+      [TRANSLATION_SOURCE_BLOCK_ID_FIELD]: block.id,
+    },
     media: block.media.map(item => ({ ...item, alt_text: null })),
-  }))
+  }
+}
+
+export function createTenantPageTranslationBlocks(blocks: readonly TenantPageBlock[]): TenantPageBlock[] {
+  return blocks.map((block, position) => ({ ...blankTenantPageTranslationBlock(block), position }))
+}
+
+export function alignTenantPageTranslationBlocks(
+  sourceBlocks: readonly TenantPageBlock[],
+  translatedBlocks: readonly TenantPageBlock[],
+): TenantPageBlock[] {
+  const translatedBySourceId = new Map<string, TenantPageBlock>()
+  for (const block of translatedBlocks) {
+    const sourceBlockId = tenantPageTranslationSourceBlockId(block)
+    if (translatedBySourceId.has(sourceBlockId)) {
+      throw new Error(`Multiple translated page blocks reference source block ${sourceBlockId}.`)
+    }
+    translatedBySourceId.set(sourceBlockId, block)
+  }
+
+  return sourceBlocks.map((source, position) => {
+    const translated = translatedBySourceId.get(source.id)
+    if (!translated) return { ...blankTenantPageTranslationBlock(source), position }
+    if (translated.type !== source.type) {
+      throw new Error(`Translated page block ${translated.id} does not match source block ${source.id}.`)
+    }
+
+    const aligned = blankTenantPageTranslationBlock(source, translated.id)
+    const translatedFields = new Map(tenantPageLocalizedTextFields(translated)
+      .map(field => [pageFieldPathKey(field.path), field.value]))
+    for (const field of tenantPageLocalizedTextFields(source)) {
+      const translatedValue = translatedFields.get(pageFieldPathKey(field.path))
+      if (translatedValue !== undefined) writeTenantPageLocalizedText(aligned, field.path, translatedValue)
+    }
+    return { ...aligned, position }
+  })
 }
 
 export function normalizeTenantPageBlocks(value: unknown): TenantPageBlock[] {

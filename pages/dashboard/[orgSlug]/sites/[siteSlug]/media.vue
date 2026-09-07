@@ -94,22 +94,16 @@
           <input v-model="editAltText" class="mt-1 w-full rounded-lg border border-default bg-default px-3 py-2" placeholder="Describe this image">
         </label>
         <p v-if="editError" class="text-sm text-error">{{ editError }}</p>
-        <UButton size="sm" :loading="editSaving" @click="saveAltText">Save</UButton>
-
-        <div v-if="translationLocales.length" class="space-y-3 rounded-lg border border-default p-4">
-          <div class="flex items-center justify-between gap-4">
-            <h3 class="text-sm font-semibold">Translations</h3>
-            <select v-model="translationLocale" aria-label="Field language" class="rounded-lg border border-default bg-default px-2 py-1 text-sm">
-              <option v-for="option in translationLocales" :key="option" :value="option">{{ option }}</option>
-            </select>
-          </div>
-          <label class="block text-sm">Alt text ({{ translationLocale }})
-            <input v-model="translationAltText" class="mt-1 w-full rounded-lg border border-default bg-default px-3 py-2">
-          </label>
-          <p v-if="translationError" class="text-sm text-error">{{ translationError }}</p>
-          <UButton size="sm" variant="soft" :loading="translationSaving" :disabled="!translationAltText.trim()" @click="saveTranslation">
-            Save translation
-          </UButton>
+        <div class="flex justify-end gap-2">
+          <DashboardResourceLocalization
+            :site-id="siteId"
+            resource-type="media_asset"
+            :resource-id="editingAsset.id"
+            resource-label="media details"
+            :fields="mediaLocalizationFields"
+            :language-settings-path="siteLocalizationSettingsPath"
+          />
+          <UButton size="sm" :loading="editSaving" @click="saveAltText">Save</UButton>
         </div>
       </div>
     </template>
@@ -123,6 +117,7 @@
 </template>
 
 <script setup lang="ts">
+import DashboardResourceLocalization from '~/components/dashboard/DashboardResourceLocalization.vue'
 import DashboardGridEditor from '~/components/dashboard/DashboardGridEditor.vue'
 
 const dashboardApi = useDashboardApi()
@@ -396,63 +391,34 @@ watch(search, () => {
   searchDebounceTimer = setTimeout(() => { void load() }, 300)
 })
 
-// ── Edit (English alt text) + Translations (resource_localizations) ──
+// ── Edit ──
 const editOpen = ref(false)
 const editingAsset = ref<MediaAsset | null>(null)
 const editAltText = ref('')
 const editSaving = ref(false)
 const editError = ref<string | null>(null)
-const translationLocale = ref('')
-const translationLocales = ref<string[]>([])
-const translationAltText = ref('')
-const translationSaving = ref(false)
-const translationError = ref<string | null>(null)
-
-function isLocalesResponse(value: unknown): value is { languages: Array<{ locale: string; locale_status: string; is_source: boolean | number }> } {
-  return isRecord(value) && Array.isArray(value.languages)
-}
-async function loadTranslationLocales() {
-  try {
-    const response = await dashboardApi<{ languages: Array<{ locale: string; locale_status: string; is_source: boolean | number }> }>(
-      `${siteApiBase}/locales`,
-      { validate: isLocalesResponse },
-    )
-    translationLocales.value = response.languages.filter(item => item.locale_status === 'published' && !item.is_source).map(item => item.locale)
-    translationLocale.value = translationLocales.value[0] ?? ''
-  } catch (cause) {
-    translationLocales.value = []
-    translationLocale.value = ''
-    translationError.value = cause instanceof Error ? cause.message : 'Failed to load site languages'
-  }
-}
-function isTranslationResponse(value: unknown): value is { localization: { values: Record<string, unknown> } } {
-  return isRecord(value) && isRecord(value.localization) && isRecord(value.localization.values)
-}
-async function loadTranslationAltText() {
-  translationError.value = null
-  translationAltText.value = ''
-  if (!editingAsset.value || !translationLocale.value) return
-  try {
-    const response = await dashboardApi<{ localization: { values: Record<string, unknown> } }>(
-      `${siteApiBase}/localization/media_asset/${editingAsset.value.id}/${encodeURIComponent(translationLocale.value)}`,
-      { validate: isTranslationResponse },
-    )
-    const value = response.localization.values.alt_text
-    translationAltText.value = typeof value === 'string' ? value : ''
-  } catch (cause) {
-    const statusCode = isRecord(cause) && typeof cause.statusCode === 'number' ? cause.statusCode : null
-    if (statusCode !== 404) translationError.value = getErrorMessage(cause, 'Failed to load translation')
-  }
-}
-watch(translationLocale, () => { void loadTranslationAltText() })
+const mediaLocalizationFields = computed(() => [
+  { key: 'alt_text', label: 'Alt text', source: editingAsset.value?.alt_text },
+])
+const route = useRoute()
+const siteLocalizationSettingsPath = computed(() => `/dashboard/${route.params.orgSlug}/sites/${route.params.siteSlug}/settings/localization`)
 
 function openEdit(asset: MediaAsset) {
   editingAsset.value = asset
   editAltText.value = asset.alt_text ?? ''
   editError.value = null
   editOpen.value = true
-  void loadTranslationLocales().then(() => loadTranslationAltText())
 }
+
+let openedLocalizationTarget = ''
+watch(assets, (rows) => {
+  const target = typeof route.query.localize === 'string' ? route.query.localize : ''
+  if (!target.startsWith('media_asset:') || target === openedLocalizationTarget) return
+  const asset = rows.find(row => target === `media_asset:${row.id}`)
+  if (!asset) return
+  openedLocalizationTarget = target
+  openEdit(asset)
+}, { immediate: true })
 
 async function saveAltText() {
   if (!editingAsset.value) return
@@ -476,21 +442,4 @@ async function saveAltText() {
   }
 }
 
-async function saveTranslation() {
-  if (!editingAsset.value || !translationLocale.value || !translationAltText.value.trim()) return
-  translationSaving.value = true
-  translationError.value = null
-  try {
-    await dashboardApi(`${siteApiBase}/localization/media_asset/${editingAsset.value.id}/${encodeURIComponent(translationLocale.value)}`, {
-      method: 'PUT',
-      body: { values: { alt_text: translationAltText.value.trim() } },
-      validate: isRecord,
-    })
-    toast.add({ description: 'Translation saved', color: 'success' })
-  } catch (cause) {
-    translationError.value = getErrorMessage(cause, 'Failed to save translation')
-  } finally {
-    translationSaving.value = false
-  }
-}
 </script>

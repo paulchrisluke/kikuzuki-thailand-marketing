@@ -292,8 +292,8 @@ export async function getPublicTenantPageForPath(
   const [blocks, media, sourceLocale] = await Promise.all([
     hydrateBlocks(db, siteId, page.path, page.blocks, options.hydrationResources, localizations),
     loadPublicSocialMedia(db, siteId, 'tenant_page', [page.id]),
-    queryFirst<{ label: string | null }>(db, `
-      SELECT label FROM site_locales
+    queryFirst<{ locale: string }>(db, `
+      SELECT locale FROM site_locales
        WHERE organization_id = ? AND site_id = ? AND is_source = 1
        LIMIT 1
     `, [page.organization_id, siteId]),
@@ -312,17 +312,19 @@ export async function getPublicTenantPageForPath(
       )
     }
   }
-  if (!sourceLocale?.label) {
-    throw new HTTPError({ statusCode: 500, statusMessage: 'Site source locale label is missing' })
+  if (!sourceLocale) {
+    throw new HTTPError({ statusCode: 500, statusMessage: 'Site primary language is missing' })
   }
   const localeRepresentations = await listPublicLocaleRepresentations(db, {
     organizationId: page.organization_id,
     siteId,
     sourcePath: page.path,
-    sourceLabel: sourceLocale.label,
     pageId: page.page_id,
   })
-  return mapPage(page, blocks, localizedMedia, localeRepresentations)
+  const publicPage = page.locale === sourceLocale.locale
+    ? page
+    : { ...page, seo_title: page.title, seo_description: page.summary }
+  return mapPage(publicPage, blocks, localizedMedia, localeRepresentations)
 }
 
 async function resolveVariantId(db: DbClient, siteId: string, path: string, locale?: string | null): Promise<string> {

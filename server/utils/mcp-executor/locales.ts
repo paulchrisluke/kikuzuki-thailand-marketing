@@ -51,7 +51,8 @@ export async function handleLocalesTools(ctx: McpExecutorContext): Promise<unkno
     return { ...result, context: await mutationContextPayload(site) }
   }
   if (toolName === 'get_product_catalog_localization') {
-    return await getProductCatalogLocalization(site.db, site.organizationId, site.siteId, requiredString(args, 'locale'))
+    const catalog = await getProductCatalogLocalization(site.db, site.organizationId, site.siteId, requiredString(args, 'locale'))
+    return { locale: catalog.locale, products: catalog.products }
   }
   if (toolName === 'sync_product_catalog_localization') {
     const result = await syncProductCatalogLocalization(site.db, {

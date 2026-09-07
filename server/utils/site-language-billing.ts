@@ -3,8 +3,9 @@ import { HTTPError } from 'nitro'
 import { execute, executeBatch, queryAll, queryFirst, type BatchQuery, type DbClient } from '~/server/db'
 import { getOrganizationBillingProjection } from '~/server/utils/organization-billing'
 import { createStripeClient } from '~/server/utils/stripe-client'
-import { canonicalizeLocale, englishManifestHash, LANGUAGE_LICENSE_CHARGES_ENABLED } from '~/server/utils/localization'
+import { canonicalizeLocale, getPersistedSourceLocale, LANGUAGE_LICENSE_CHARGES_ENABLED } from '~/server/utils/localization'
 import { localizationError } from '~/server/utils/localization-errors'
+import { PLATFORM_LOCALES, platformLocale } from '~/shared/platform-locales'
 
 export const SITE_LANGUAGE_MONTHLY_AMOUNT_CENTS = 500
 export const SITE_LANGUAGE_ANNUAL_AMOUNT_CENTS = 6000
@@ -97,11 +98,17 @@ async function requireGrowthBilling(db: DbClient, organizationId: string): Promi
   return projection.stripeSubscriptionId
 }
 
-async function requireAvailableCatalog(db: DbClient, locale: string): Promise<void> {
-  const catalog = await queryFirst<{ status: string; source_manifest_hash: string | null }>(db, `SELECT status, source_manifest_hash FROM platform_locale_catalogs WHERE locale = ? LIMIT 1`, [locale])
-  if (!catalog || catalog.status !== 'available' || catalog.source_manifest_hash !== await englishManifestHash()) {
+function requireAvailableCatalog(locale: string) {
+  const catalog = platformLocale(locale)
+  if (!catalog) {
     localizationError(403, 'PLATFORM_LOCALE_UNAVAILABLE', 'The platform locale catalog is unavailable', { locale })
   }
+  return catalog
+}
+
+async function requireSecondaryLocale(db: DbClient, organizationId: string, siteId: string, locale: string): Promise<void> {
+  const source = await getPersistedSourceLocale(db, organizationId, siteId)
+  if (locale === source.locale) localizationError(422, 'LOCALIZATION_VALIDATION_FAILED', 'The primary language cannot be changed here')
 }
 
 async function loadLicense(db: DbClient, organizationId: string, siteId: string, locale: string): Promise<LanguageLicenseRow | null> {
@@ -123,8 +130,8 @@ async function activeLicenseQuantity(db: DbClient, organizationId: string, exclu
   return Number(row?.count ?? 0)
 }
 
-// Growth includes English plus one secondary language at no extra charge -
-// not a per-language add-on. Enforced per site, not per organization.
+// Growth includes the site's primary language plus one additional language at
+// no extra charge. Enforced per site, not per organization.
 const MAX_ACTIVE_SECONDARY_LANGUAGES_PER_SITE = 1
 
 async function assertSiteSecondaryLanguageCapacity(db: DbClient, organizationId: string, siteId: string, excludeId?: string): Promise<void> {
@@ -148,11 +155,11 @@ function providerErrorCode(error: unknown): string {
 export async function enableSiteLanguageLicense(
   db: DbClient,
   env: SiteLanguageBillingEnv,
-  input: { organizationId: string; siteId: string; locale: unknown; label: string },
+  input: { organizationId: string; siteId: string; locale: unknown },
 ) {
   const locale = canonicalizeLocale(input.locale)
-  if (locale === 'en') localizationError(422, 'LOCALIZATION_VALIDATION_FAILED', 'English is the immutable source language')
-  await requireAvailableCatalog(db, locale)
+  await requireSecondaryLocale(db, input.organizationId, input.siteId, locale)
+  const localeCatalog = requireAvailableCatalog(locale)
   let license = await loadLicense(db, input.organizationId, input.siteId, locale)
   if (license?.status === 'active') return license
   if (license?.status === 'disabling') localizationError(409, 'LANGUAGE_LICENSE_SYNCING', 'Language disable is still synchronizing', { locale })
@@ -168,7 +175,7 @@ export async function enableSiteLanguageLicense(
         query: `INSERT INTO site_locales (id, organization_id, site_id, locale, label, is_source, status, created_at, updated_at)
           VALUES (?, ?, ?, ?, ?, 0, 'published', ?, ?)
           ON CONFLICT(organization_id, site_id, locale) DO UPDATE SET label = excluded.label, status = 'published', updated_at = excluded.updated_at`,
-        params: [`locale::${input.organizationId}::${input.siteId}::${locale}`, input.organizationId, input.siteId, locale, input.label.trim() || locale, nowIso, nowIso],
+        params: [`locale::${input.organizationId}::${input.siteId}::${locale}`, input.organizationId, input.siteId, locale, localeCatalog.label, nowIso, nowIso],
       },
       {
         query: `INSERT INTO site_language_licenses
@@ -198,7 +205,7 @@ export async function enableSiteLanguageLicense(
       query: `INSERT INTO site_locales (id, organization_id, site_id, locale, label, is_source, status, created_at, updated_at)
         VALUES (?, ?, ?, ?, ?, 0, 'disabled', ?, ?)
         ON CONFLICT(organization_id, site_id, locale) DO UPDATE SET label = excluded.label, status = 'disabled', updated_at = excluded.updated_at`,
-      params: [`locale::${input.organizationId}::${input.siteId}::${locale}`, input.organizationId, input.siteId, locale, input.label.trim() || locale, new Date().toISOString(), new Date().toISOString()],
+      params: [`locale::${input.organizationId}::${input.siteId}::${locale}`, input.organizationId, input.siteId, locale, localeCatalog.label, new Date().toISOString(), new Date().toISOString()],
     },
     {
       query: `INSERT INTO site_language_licenses
@@ -249,7 +256,7 @@ export async function disableSiteLanguageLicense(
   input: { organizationId: string; siteId: string; locale: unknown },
 ) {
   const locale = canonicalizeLocale(input.locale)
-  if (locale === 'en') localizationError(422, 'LOCALIZATION_VALIDATION_FAILED', 'English cannot be disabled')
+  await requireSecondaryLocale(db, input.organizationId, input.siteId, locale)
   const license = await loadLicense(db, input.organizationId, input.siteId, locale)
   if (!license || license.status === 'disabled') return license
   if (license.status === 'enabling') localizationError(409, 'LANGUAGE_LICENSE_SYNCING', 'Language enable is still synchronizing', { locale })
@@ -378,7 +385,7 @@ export async function deleteDisabledSiteLanguageContent(
   input: { organizationId: string; siteId: string; locale: unknown },
 ): Promise<{ deleted: true; locale: string }> {
   const locale = canonicalizeLocale(input.locale)
-  if (locale === 'en') localizationError(422, 'LOCALIZATION_VALIDATION_FAILED', 'English source content cannot be deleted')
+  await requireSecondaryLocale(db, input.organizationId, input.siteId, locale)
   const license = await loadLicense(db, input.organizationId, input.siteId, locale)
   if (license && license.status !== 'disabled') localizationError(409, 'LANGUAGE_LICENSE_SYNCING', 'Disable the language before permanently deleting its content', { locale })
   const documents = await queryFirst<{ ids: string | null }>(db, `
@@ -424,39 +431,31 @@ export async function getSiteLanguageSettings(
       interval = null
     }
   }
-  const currentHash = await englishManifestHash()
-  const languages = await queryFirst<{ json: string }>(db, `
-    SELECT json_group_array(json_object(
-      'locale', sl.locale,
-      'label', sl.label,
-      'is_source', sl.is_source,
-      'locale_status', sl.status,
-      'license_status', l.status,
-      'last_error_code', l.last_error_code,
-      'catalog_status', c.status,
-      'catalog_current', CASE WHEN c.source_manifest_hash = ? THEN 1 ELSE 0 END
-    )) AS json
+  const languageRows = await queryAll<{
+    locale: string
+    is_source: number
+    locale_status: string
+    license_status: string | null
+    last_error_code: string | null
+  }>(db, `
+    SELECT sl.locale, sl.is_source, sl.status AS locale_status,
+           l.status AS license_status, l.last_error_code
       FROM site_locales sl
       LEFT JOIN site_language_licenses l
         ON l.organization_id = sl.organization_id AND l.site_id = sl.site_id AND l.locale = sl.locale
-      LEFT JOIN platform_locale_catalogs c ON c.locale = sl.locale
      WHERE sl.organization_id = ? AND sl.site_id = ?
-  `, [currentHash, input.organizationId, input.siteId])
-  const availableCatalogs = await queryFirst<{ json: string }>(db, `
-    SELECT json_group_array(json_object('locale', locale, 'label', label, 'direction', direction)) AS json
-      FROM (
-        SELECT locale, label, direction
-          FROM platform_locale_catalogs
-         WHERE status = 'available' AND source_manifest_hash = ?
-         ORDER BY locale
-      )
-  `, [currentHash])
+  `, [input.organizationId, input.siteId])
+  const languages = languageRows.map((language) => {
+    const catalog = platformLocale(language.locale)
+    if (!catalog) throw new Error(`Site language ${language.locale} does not have a bundled platform catalog`)
+    return { ...language, label: catalog.label }
+  })
   return {
     effective_plan: effectivePlan,
     billing_enabled: LANGUAGE_LICENSE_CHARGES_ENABLED,
     interval,
     unit_amount_cents: interval ? expectedAmount(interval) : null,
-    languages: languages?.json ? JSON.parse(languages.json) : [],
-    available_catalogs: availableCatalogs?.json ? JSON.parse(availableCatalogs.json) : [],
+    languages,
+    available_catalogs: PLATFORM_LOCALES.map(({ locale, label, direction }) => ({ locale, label, direction })),
   }
 }

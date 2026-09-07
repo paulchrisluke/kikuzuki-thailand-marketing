@@ -908,7 +908,6 @@ export async function getPublishedLocalizedSiteBlogPost(
         organizationId: site.organization_id,
         siteId,
         sourcePath: `/${prefix}/${slug}`,
-        sourceLabel: 'English',
         resource: { type: 'tenant_blog_post', id: post.id },
       }),
     }
@@ -954,7 +953,6 @@ export async function getPublishedLocalizedSiteBlogPost(
       organizationId: site.organization_id,
       siteId,
       sourcePath: `/${prefix}/${source.slug}`,
-      sourceLabel: 'English',
       resource: { type: 'tenant_blog_post', id: resourceId },
     }),
   }

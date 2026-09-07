@@ -5,6 +5,17 @@
         <template #leading>
           <DashboardNavbarLeading :to="experiencesPath" label="Experiences" />
         </template>
+        <template #right>
+          <DashboardResourceLocalization
+            :site-id="siteId"
+            resource-type="experience"
+            :resource-id="experienceId"
+            resource-label="experience"
+            :fields="experienceLocalizationFields"
+            :route-path="localizedExperiencePath"
+            :language-settings-path="siteLocalizationSettingsPath"
+          />
+        </template>
       </UDashboardNavbar>
     </template>
 
@@ -269,51 +280,6 @@
 
 
           </div>
-
-          <!-- Translations -->
-          <div v-else-if="editorKey === 'translations'" class="space-y-6">
-            <UFormField label="Language">
-              <USelect v-model="translationLocale" :items="localeItems" class="w-40" aria-label="Field language" />
-            </UFormField>
-            <p v-if="translationLocale === 'en'" class="text-sm text-muted">
-              English is the source language. Choose another language to translate this experience.
-            </p>
-            <template v-else>
-              <p class="text-xs text-muted">Source (English): {{ editor.form.title }}</p>
-              <UFormField :label="`Title (${translationLocale})`">
-                <UInput v-model="translationFields.title" class="w-full" />
-              </UFormField>
-              <UFormField :label="`Tagline (${translationLocale})`">
-                <UInput v-model="translationFields.tagline" class="w-full" />
-              </UFormField>
-              <UFormField :label="`Description (${translationLocale})`">
-                <UTextarea v-model="translationFields.body" :rows="5" class="w-full" />
-              </UFormField>
-              <UFormField :label="`Price note (${translationLocale})`">
-                <UInput v-model="translationFields.price" class="w-full" />
-              </UFormField>
-              <UFormField :label="`Included items (${translationLocale})`">
-                <UInputTags v-model="translationFields.included_items" add-on-blur add-on-paste class="w-full" />
-              </UFormField>
-              <UFormField :label="`What to bring (${translationLocale})`">
-                <UInputTags v-model="translationFields.what_to_bring" add-on-blur add-on-paste class="w-full" />
-              </UFormField>
-              <UFormField :label="`Meeting point (${translationLocale})`">
-                <UTextarea v-model="translationFields.meeting_point" :rows="3" class="w-full" />
-              </UFormField>
-              <UFormField :label="`Cancellation policy (${translationLocale})`">
-                <UTextarea v-model="translationFields.cancellation_policy" :rows="3" class="w-full" />
-              </UFormField>
-              <UFormField :label="`SEO title (${translationLocale})`">
-                <UInput v-model="translationFields.seo_title" class="w-full" />
-              </UFormField>
-              <UFormField :label="`SEO description (${translationLocale})`">
-                <UTextarea v-model="translationFields.seo_description" :rows="2" class="w-full" />
-              </UFormField>
-              <p v-if="translationError" class="text-sm text-error">{{ translationError }}</p>
-            </template>
-          </div>
-
         </template>
       </EditorPaneShell>
     </template>
@@ -325,6 +291,7 @@ import EditorPaneShell from '~/components/dashboard/EditorPaneShell.vue'
 import EditorNavigationList from '~/components/dashboard/EditorNavigationList.vue'
 import type { EditorNavigationGroup } from '~/components/dashboard/EditorNavigationList.vue'
 import DashboardPhotoManager from '~/components/dashboard/DashboardPhotoManager.vue'
+import DashboardResourceLocalization from '~/components/dashboard/DashboardResourceLocalization.vue'
 import BookingPolicyForm from '~/components/dashboard/BookingPolicyForm.vue'
 import type { BookingPolicyPreset } from '~/utils/booking-policy-presets'
 import { BOOKING_POLICY_PRESETS, applyBookingPolicyPreset, matchBookingPolicyPreset } from '~/utils/booking-policy-presets'
@@ -376,7 +343,6 @@ const sectionLabels: Record<string, string> = {
   discounts: 'Discounts',
   included: "What's included",
   policies: 'Policies',
-  translations: 'Translations',
 }
 const validSectionKeys = new Set(Object.keys(sectionLabels))
 
@@ -397,7 +363,7 @@ if (routeSegments.value.length > 1 || (detailKey.value && !validSectionKeys.has(
 // Photos commit as you act, so there is no pending draft for a footer to save.
 const showActions = computed(() => hasDetail.value && editorKey.value !== 'photos')
 const saveDisabled = computed(() => editorKey.value === 'details' && !editor.form.title.trim())
-const saving = computed(() => editor.saving.value || translationSaving.value)
+const saving = computed(() => editor.saving.value)
 
 // ── Load ────────────────────────────────────────────────
 const isExperiencesResponse = (value: unknown): value is { experiences: Experience[] } =>
@@ -579,21 +545,10 @@ const navigationGroups = computed<EditorNavigationGroup[]>(() => [
       { id: 'calendar', label: 'Dates and availability', summary: 'Close times or change capacity on the calendar', icon: 'i-lucide-calendar-days', to: calendarPath.value },
     ],
   },
-  {
-    id: 'manage',
-    label: 'Manage',
-    items: [
-      { id: 'translations', label: 'Translations', summary: translationLocales.value.length ? `${translationLocales.value.length} languages` : 'No other languages', icon: 'i-lucide-languages', to: `${experiencePath.value}/translations` },
-    ],
-  },
 ])
 
 // ── Save / cancel ───────────────────────────────────────
 async function saveCurrentEditor() {
-  if (editorKey.value === 'translations') {
-    await saveTranslation()
-    return
-  }
   await editor.save(experienceId.value)
 }
 
@@ -655,110 +610,20 @@ function copyRecurring(mode: 'all' | 'weekdays' | 'weekend') {
   }
 }
 
-// ── Translations ────────────────────────────────────────
-const translationLocale = ref('en')
-const translationLocales = ref<string[]>([])
-const localeItems = computed(() => ['en', ...translationLocales.value])
-const translationFields = reactive({
-  title: '', tagline: '', body: '', price: '',
-  included_items: [] as string[], what_to_bring: [] as string[],
-  meeting_point: '', cancellation_policy: '', seo_title: '', seo_description: '',
-})
-const translationError = ref<string | null>(null)
-const translationSaving = ref(false)
-
-const isLocalesResponse = (value: unknown): value is { languages: Array<{ locale: string; locale_status: string; is_source: boolean | number }> } =>
-  isRecord(value) && Array.isArray(value.languages)
-const isTranslationResponse = (value: unknown): value is { localization: { values: Record<string, unknown> } } =>
-  isRecord(value) && isRecord(value.localization) && isRecord(value.localization.values)
-
-async function loadTranslationLocales() {
-  try {
-    const response = await dashboardApi(`/api/editor/sites/${siteId}/locales`, { validate: isLocalesResponse })
-    translationLocales.value = response.languages
-      .filter(item => item.locale_status === 'published' && !item.is_source)
-      .map(item => item.locale)
-  } catch (cause) {
-    translationLocales.value = []
-    translationError.value = getErrorMessage(cause, 'Failed to load site languages')
-  }
+const siteLocalizationSettingsPath = computed(() => `/dashboard/${route.params.orgSlug}/sites/${route.params.siteSlug}/settings/localization`)
+const experienceLocalizationFields = computed(() => [
+  { key: 'title', label: 'Title', source: data.value?.experience.title },
+  { key: 'tagline', label: 'Tagline', source: data.value?.experience.tagline },
+  { key: 'body', label: 'Description', source: data.value?.experience.body, multiline: true, rows: 6 },
+  { key: 'pricing_note', label: 'Price note', source: data.value?.experience.pricing_note },
+  { key: 'included_items_json', label: 'Included items', source: data.value?.experience.included_items, kind: 'string-list' as const },
+  { key: 'what_to_bring', label: 'What to bring', source: data.value?.experience.what_to_bring, kind: 'string-list' as const },
+  { key: 'meeting_point', label: 'Meeting point', source: data.value?.experience.meeting_point, multiline: true },
+  { key: 'cancellation_policy', label: 'Cancellation policy', source: data.value?.experience.cancellation_policy, multiline: true },
+])
+function localizedExperiencePath(locale: string): string {
+  return `/${locale}/experiences/${experienceSlug.value}`
 }
-
-function resetTranslationFields() {
-  Object.assign(translationFields, {
-    title: '', tagline: '', body: '', price: '',
-    included_items: [], what_to_bring: [],
-    meeting_point: '', cancellation_policy: '', seo_title: '', seo_description: '',
-  })
-}
-
-async function loadTranslationFields() {
-  translationError.value = null
-  try {
-    const response = await dashboardApi(
-      `/api/editor/sites/${siteId}/localization/experience/${experienceId.value}/${encodeURIComponent(translationLocale.value)}`,
-      { validate: isTranslationResponse },
-    )
-    const values = response.localization.values
-    const text = (key: string) => (typeof values[key] === 'string' ? values[key] : '')
-    const list = (key: string) => (Array.isArray(values[key]) ? (values[key] as unknown[]).filter((item): item is string => typeof item === 'string') : [])
-    Object.assign(translationFields, {
-      title: text('title'),
-      tagline: text('tagline'),
-      body: text('body'),
-      price: text('price'),
-      included_items: list('included_items_json'),
-      what_to_bring: list('what_to_bring'),
-      meeting_point: text('meeting_point'),
-      cancellation_policy: text('cancellation_policy'),
-      seo_title: text('seo_title'),
-      seo_description: text('seo_description'),
-    })
-  } catch (cause) {
-    const statusCode = isRecord(cause) && typeof cause.statusCode === 'number' ? cause.statusCode : null
-    if (statusCode !== 404) translationError.value = getErrorMessage(cause, 'Failed to load translation')
-    resetTranslationFields()
-  }
-}
-
-watch(translationLocale, () => {
-  if (translationLocale.value === 'en') {
-    resetTranslationFields()
-    return
-  }
-  void loadTranslationFields()
-})
-
-async function saveTranslation() {
-  if (translationLocale.value === 'en') return
-  if (!experienceSlug.value) {
-    translationError.value = 'This experience has no slug yet, so its translated page has no address. Save it once in English first.'
-    return
-  }
-  translationSaving.value = true
-  translationError.value = null
-  try {
-    const values: Record<string, unknown> = {}
-    for (const field of ['title', 'tagline', 'body', 'price', 'meeting_point', 'cancellation_policy', 'seo_title', 'seo_description'] as const) {
-      if (translationFields[field].trim()) values[field] = translationFields[field].trim()
-    }
-    if (translationFields.included_items.length) values.included_items_json = translationFields.included_items
-    if (translationFields.what_to_bring.length) values.what_to_bring = translationFields.what_to_bring
-
-    await dashboardApi(`/api/editor/sites/${siteId}/localization/experience/${experienceId.value}/${encodeURIComponent(translationLocale.value)}`, {
-      method: 'PUT',
-      body: { values, route_path: `/${translationLocale.value}/experiences/${experienceSlug.value}` },
-      validate: isRecord,
-    })
-    toast.add({ description: 'Translation saved', color: 'success' })
-  } catch (cause) {
-    translationError.value = getErrorMessage(cause, 'Failed to save translation')
-  } finally {
-    translationSaving.value = false
-  }
-}
-
-void loadTranslationLocales()
 
 // A save rewrites the record the hub summaries and the slug read from.
 watch(() => editor.saving.value, (isSaving, wasSaving) => {

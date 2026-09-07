@@ -36,7 +36,6 @@ export function useDashboardMenu() {
     { id: 'domains', label: 'Domains', summary: 'Custom domain requests', to: '/admin/domains' },
     { id: 'users', label: 'Users', summary: 'Accounts and impersonation', to: '/admin/users' },
     { id: 'content', label: 'Content', summary: 'Marketing pages', to: '/admin/content' },
-    { id: 'localization', label: 'Localization', summary: 'Platform locale catalogs', to: '/admin/localization' },
     { id: 'blog', label: 'Blog', summary: 'Platform blog posts', to: '/admin/blog' },
     { id: 'docs', label: 'Docs', summary: 'Documentation pages', to: '/admin/docs' },
   ])

@@ -8,6 +8,16 @@
         <template #leading>
           <DashboardNavbarLeading :to="levelBackTo" :label="levelBackLabel" />
         </template>
+        <template v-if="surface === 'brand'" #right>
+          <DashboardResourceLocalization
+            :site-id="siteId"
+            resource-type="site"
+            :resource-id="siteId"
+            resource-label="brand"
+            :fields="brandLocalizationFields"
+            :language-settings-path="`${settingsPath}/localization`"
+          />
+        </template>
       </UDashboardNavbar>
     </template>
 
@@ -116,29 +126,34 @@
                   </div>
                 </div>
               </div>
+              <UCard v-for="progress in localizationProgress" :key="progress.locale" variant="soft">
+                <template #header>
+                  <div>
+                    <h3 class="font-semibold text-highlighted">Let’s translate your site</h3>
+                    <p class="mt-1 text-sm text-muted">{{ progress.completed }}/{{ progress.total }} fields translated in {{ progress.locale }}.</p>
+                  </div>
+                </template>
+                <div v-if="progress.opportunities.length" class="divide-y divide-default">
+                  <NuxtLink
+                    v-for="item in progress.opportunities"
+                    :key="item.id"
+                    :to="`${siteDashboardPath}/${item.path}`"
+                    class="flex items-center justify-between gap-4 py-3 first:pt-0 last:pb-0"
+                  >
+                    <span class="font-medium text-highlighted">{{ item.label }}</span>
+                    <span class="flex items-center gap-2 text-sm text-muted">
+                      {{ item.total - item.completed }} left
+                      <UIcon name="i-lucide-chevron-right" class="size-4" />
+                    </span>
+                  </NuxtLink>
+                </div>
+                <UAlert v-else color="success" variant="soft" title="Translation is complete" description="Every source field with content has a translation." />
+              </UCard>
+              <UAlert v-if="localizationProgressError" color="error" variant="soft" :description="localizationProgressError" />
               <p v-if="!enableableCatalogOptions.length" class="text-sm text-muted">No additional languages are available to enable right now.</p>
               <UFormField v-else label="Available language">
                 <USelect v-model="newLocale" :items="enableableCatalogOptions" :placeholder="localizationSettings.billing_enabled ? `Select a language to enable for ${formattedLanguagePrice}` : 'Select a language to enable'" size="xl" class="w-full" />
               </UFormField>
-            </template>
-          </div>
-
-          <div v-else-if="detailKey === 'site-translations'" class="space-y-6">
-            <p class="text-base text-muted">Edit the site's brand name and description in another published language. The default-language values are unaffected.</p>
-            <UFormField label="Language">
-              <select v-model="siteTranslationLocale" aria-label="Translation language" class="rounded-lg border border-default bg-default px-3 py-2">
-                <option v-for="option in siteTranslationLocaleOptions" :key="option" :value="option">{{ option }}</option>
-              </select>
-            </UFormField>
-            <p v-if="siteTranslationLocaleOptions.length === 0" class="text-sm text-muted">No additional languages are enabled for this site yet.</p>
-            <template v-else>
-              <p class="text-xs text-muted">Source (English): {{ form.brand_name }}</p>
-              <UFormField :label="`Brand name (${siteTranslationLocale})`"><UInput v-model="siteTranslationFields.brand_name" size="xl" class="w-full" /></UFormField>
-              <UFormField :label="`Description (${siteTranslationLocale})`"><UTextarea v-model="siteTranslationFields.brand_description" :rows="6" class="w-full" /></UFormField>
-              <UFormField :label="`SEO title (${siteTranslationLocale})`"><UInput v-model="siteTranslationFields.seo_title" size="xl" class="w-full" /></UFormField>
-              <UFormField :label="`SEO description (${siteTranslationLocale})`"><UTextarea v-model="siteTranslationFields.seo_description" :rows="3" class="w-full" /></UFormField>
-              <p v-if="siteTranslationError" class="text-sm text-error">{{ siteTranslationError }}</p>
-              <UButton :loading="siteTranslationSaving" label="Save translation" @click="saveSiteTranslation" />
             </template>
           </div>
 
@@ -195,6 +210,7 @@
 </template>
 
 <script setup lang="ts">
+import DashboardResourceLocalization from '~/components/dashboard/DashboardResourceLocalization.vue'
 import MediaPicker from '~/lib/components/workspace/media/MediaPicker.vue'
 import EditorPaneShell from '~/components/dashboard/EditorPaneShell.vue'
 import EditorNavigationList from '~/components/dashboard/EditorNavigationList.vue'
@@ -230,6 +246,7 @@ interface FacebookConnectionStatus { connected: boolean; facebook_page_name?: st
 interface LocalizationLanguageRow { locale: string; label: string | null; is_source: number | boolean; locale_status: string; license_status: string | null }
 interface LocalizationCatalogRow { locale: string; label: string; direction: string }
 interface LocalizationSettings { effective_plan: string; billing_enabled: boolean; interval: 'month' | 'year' | null; unit_amount_cents: number | null; languages: LocalizationLanguageRow[]; available_catalogs: LocalizationCatalogRow[] }
+interface LocalizationProgress { locale: string; completed: number; total: number; opportunities: Array<{ id: string; label: string; completed: number; total: number; path: string }> }
 interface SettingsPageResource {
   settings: { success: boolean; settings: SiteSettingsResponse }
   notifications: { success: boolean; notifications: { whatsapp_phone: string | null; channels: string[] } }
@@ -278,7 +295,7 @@ const firstSegment = computed(() => routeSegments.value[0] ?? null)
 const secondSegment = computed(() => routeSegments.value[1] ?? null)
 const detailKey = computed(() => surface.value === 'brand' ? firstSegment.value : firstSegment.value === 'search' ? secondSegment.value ?? 'search-index' : firstSegment.value)
 const validBrandKeys = new Set(['name', 'logo', 'sharing-image', 'description', 'color', 'contact', 'social'])
-const validSettingsKeys = new Set(['currency', 'notifications', 'search', 'publishing', 'localization', 'site-translations'])
+const validSettingsKeys = new Set(['currency', 'notifications', 'search', 'publishing', 'localization'])
 const validSearchKeys = new Set(['analytics', 'verification', 'visibility'])
 const routeIsCanonical = computed(() => {
   const segments = routeSegments.value
@@ -304,6 +321,8 @@ const localizationSettings = ref<LocalizationSettings | null>(null)
 const localizationLoading = ref(false)
 const localizationBusy = ref(false)
 const localizationError = ref<string | null>(null)
+const localizationProgress = ref<LocalizationProgress[]>([])
+const localizationProgressError = ref<string | null>(null)
 const newLocale = ref('')
 const loadedSettings = ref<SiteSettingsResponse | null>(null)
 const loadedNotifications = ref<{ whatsapp_phone: string | null; channels: string[] } | null>(null)
@@ -327,6 +346,10 @@ const form = reactive<SiteSettingsForm>({
   default_currency: DEFAULT_CURRENCY, google_analytics_measurement_id: '', google_site_verification: '',
   social_facebook_url: '', social_instagram_url: '', social_tiktok_url: '',
 })
+const brandLocalizationFields = computed(() => [
+  { key: 'brand_name', label: 'Brand name', source: loadedSettings.value?.brand_name },
+  { key: 'brand_description', label: 'Description', source: loadedSettings.value?.brand_description, multiline: true, rows: 6 },
+])
 const CHANNEL_OPTIONS = [{ label: 'Email', value: 'email' }, { label: 'WhatsApp', value: 'whatsapp' }]
 const hasFacebookAccess = computed(() => dashboard.site.value?.effective_plan === 'growth')
 const enableableCatalogOptions = computed(() => (localizationSettings.value?.available_catalogs ?? [])
@@ -359,7 +382,6 @@ const brandItems = computed<EditorNavigationItem[]>(() => [
 const settingsItems = computed<EditorNavigationItem[]>(() => [
   { id: 'domains', label: 'Domain', summary: domainSummary.value, icon: 'i-lucide-globe-2', to: `${settingsPath.value}/domains` },
   { id: 'localization', label: 'Localization', summary: 'Languages and localized content', icon: 'i-lucide-languages', to: `${settingsPath.value}/localization` },
-  { id: 'site-translations', label: 'Translations', summary: 'Brand name and description in other languages', icon: 'i-lucide-languages', to: `${settingsPath.value}/site-translations` },
   { id: 'currency', label: 'Currency', summary: explicitSummary(loadedSettings.value?.default_currency), icon: 'i-lucide-coins', to: `${settingsPath.value}/currency` },
   { id: 'notifications', label: 'Notifications', summary: notificationSummary.value, icon: 'i-lucide-bell', to: `${settingsPath.value}/notifications` },
   { id: 'search', label: 'Search and analytics', summary: searchSummary.value, icon: 'i-lucide-chart-no-axes-combined', to: `${settingsPath.value}/search` },
@@ -380,13 +402,13 @@ const navigationGroups = computed(() => {
   if (surface.value === 'brand') return [{ id: 'brand', items: brandItems.value }]
   if (isSearchLevel.value) return [{ id: 'search', items: searchItems.value }]
   return [
-    { id: 'site', label: 'Site', items: settingsItems.value.slice(0, 3) },
-    { id: 'connections', label: 'Connections', items: settingsItems.value.slice(3) },
+    { id: 'site', label: 'Site', items: settingsItems.value.slice(0, 2) },
+    { id: 'connections', label: 'Connections', items: settingsItems.value.slice(2) },
   ]
 })
 const activeNavigationId = computed(() => surface.value === 'brand' || isSearchLevel.value ? detailKey.value : firstSegment.value)
 const hasDetail = computed(() => detailKey.value !== null)
-const detailTitles: Record<string, string> = { 'search-index': 'Search and analytics', name: 'Brand name', logo: 'Logo', 'sharing-image': 'Social sharing image', description: 'Description', color: 'Brand color', contact: 'Contact details', social: 'Social profiles', currency: 'Currency', notifications: 'Notifications', analytics: 'Google Analytics', verification: 'Search verification', visibility: 'Search visibility', publishing: 'Facebook publishing', localization: 'Localization', 'site-translations': 'Translations' }
+const detailTitles: Record<string, string> = { 'search-index': 'Search and analytics', name: 'Brand name', logo: 'Logo', 'sharing-image': 'Social sharing image', description: 'Description', color: 'Brand color', contact: 'Contact details', social: 'Social profiles', currency: 'Currency', notifications: 'Notifications', analytics: 'Google Analytics', verification: 'Search verification', visibility: 'Search visibility', publishing: 'Facebook publishing', localization: 'Localization' }
 const detailTitle = computed(() => detailKey.value ? detailTitles[detailKey.value] : undefined)
 
 // The navbar names the level, not the open section — at `lg` the section's own
@@ -442,79 +464,8 @@ const validationMessage = computed(() => {
   }
 })
 const saveDisabled = computed(() => {
-  if (detailKey.value === 'site-translations') return siteTranslationLocaleOptions.value.length === 0
   return !dirty.value || validationMessage.value !== null
 })
-
-// ── Site translations (resource_localizations, same API as the editor CRUD) ──
-const siteTranslationLocale = ref('')
-const siteTranslationLocales = ref<string[]>([])
-const siteTranslationLocaleOptions = computed(() => siteTranslationLocales.value)
-const siteTranslationError = ref<string | null>(null)
-const siteTranslationSaving = ref(false)
-const siteTranslationFields = reactive({ brand_name: '', brand_description: '', seo_title: '', seo_description: '' })
-function isSiteTranslationLocalesResponse(value: unknown): value is { languages: Array<{ locale: string; locale_status: string; is_source: boolean | number }> } {
-  return isRecord(value) && Array.isArray(value.languages)
-}
-async function loadSiteTranslationLocales() {
-  try {
-    const response = await dashboardApi<{ languages: Array<{ locale: string; locale_status: string; is_source: boolean | number }> }>(
-      `/api/editor/sites/${siteId}/locales`,
-      { validate: isSiteTranslationLocalesResponse },
-    )
-    siteTranslationLocales.value = response.languages.filter(item => item.locale_status === 'published' && !item.is_source).map(item => item.locale)
-    if (siteTranslationLocales.value.length && !siteTranslationLocale.value) siteTranslationLocale.value = siteTranslationLocales.value[0]!
-  } catch (cause) {
-    siteTranslationLocales.value = []
-    siteTranslationError.value = cause instanceof Error ? cause.message : 'Failed to load site languages'
-  }
-}
-function isSiteTranslationResponse(value: unknown): value is { localization: { values: Record<string, unknown> } } {
-  return isRecord(value) && isRecord(value.localization) && isRecord(value.localization.values)
-}
-async function loadSiteTranslationFields() {
-  if (!siteTranslationLocale.value) return
-  siteTranslationError.value = null
-  try {
-    const response = await dashboardApi<{ localization: { values: Record<string, unknown> } }>(
-      `/api/editor/sites/${siteId}/localization/site/${siteId}/${encodeURIComponent(siteTranslationLocale.value)}`,
-      { validate: isSiteTranslationResponse },
-    )
-    const values = response.localization.values
-    siteTranslationFields.brand_name = typeof values.brand_name === 'string' ? values.brand_name : ''
-    siteTranslationFields.brand_description = typeof values.brand_description === 'string' ? values.brand_description : ''
-    siteTranslationFields.seo_title = typeof values.seo_title === 'string' ? values.seo_title : ''
-    siteTranslationFields.seo_description = typeof values.seo_description === 'string' ? values.seo_description : ''
-  } catch (cause) {
-    const statusCode = isRecord(cause) && typeof cause.statusCode === 'number' ? cause.statusCode : null
-    if (statusCode !== 404) siteTranslationError.value = cause instanceof Error ? cause.message : 'Failed to load translation'
-    siteTranslationFields.brand_name = ''; siteTranslationFields.brand_description = ''
-    siteTranslationFields.seo_title = ''; siteTranslationFields.seo_description = ''
-  }
-}
-watch(siteTranslationLocale, () => { void loadSiteTranslationFields() })
-watch(detailKey, key => { if (key === 'site-translations' && !siteTranslationLocales.value.length) loadSiteTranslationLocales() }, { immediate: true })
-async function saveSiteTranslation() {
-  if (!siteTranslationLocale.value) return
-  siteTranslationSaving.value = true; siteTranslationError.value = null
-  try {
-    const values: Record<string, string> = {}
-    if (siteTranslationFields.brand_name.trim()) values.brand_name = siteTranslationFields.brand_name.trim()
-    if (siteTranslationFields.brand_description.trim()) values.brand_description = siteTranslationFields.brand_description.trim()
-    if (siteTranslationFields.seo_title.trim()) values.seo_title = siteTranslationFields.seo_title.trim()
-    if (siteTranslationFields.seo_description.trim()) values.seo_description = siteTranslationFields.seo_description.trim()
-    await dashboardApi(`/api/editor/sites/${siteId}/localization/site/${siteId}/${encodeURIComponent(siteTranslationLocale.value)}`, {
-      method: 'PUT',
-      body: { values },
-      validate: isRecord,
-    })
-    toast.add({ description: 'Translation saved', color: 'success' })
-  } catch (cause) {
-    siteTranslationError.value = cause instanceof Error ? cause.message : 'Failed to save translation'
-  } finally {
-    siteTranslationSaving.value = false
-  }
-}
 
 function fillForm(settings: SiteSettingsResponse) {
   loadedSettings.value = settings
@@ -604,7 +555,6 @@ async function regenerateSocialCards() {
 }
 async function saveCurrentEditor() {
   if (saveDisabled.value || !detailKey.value) return
-  if (detailKey.value === 'site-translations') { await saveSiteTranslation(); return }
   saving.value = true
   try {
     switch (detailKey.value) {
@@ -644,10 +594,29 @@ async function startFacebookConnect() {
 }
 const isLocalizationSettings = (value: unknown): value is LocalizationSettings =>
   isRecord(value) && Array.isArray(value.languages) && Array.isArray(value.available_catalogs)
+const isLocalizationProgress = (value: unknown): value is LocalizationProgress =>
+  isRecord(value) && typeof value.locale === 'string' && typeof value.completed === 'number' && typeof value.total === 'number'
+  && Array.isArray(value.opportunities) && value.opportunities.every(item => isRecord(item)
+    && typeof item.id === 'string' && typeof item.label === 'string' && typeof item.path === 'string'
+    && typeof item.completed === 'number' && typeof item.total === 'number')
+async function loadLocalizationProgress() {
+  const locales = localizationSettings.value?.languages
+    .filter(language => !language.is_source && language.locale_status === 'published' && language.license_status === 'active')
+    .map(language => language.locale) ?? []
+  try {
+    localizationProgress.value = await Promise.all(locales.map(locale =>
+      dashboardApi<LocalizationProgress>(`/api/editor/sites/${siteId}/locales/${encodeURIComponent(locale)}/opportunities`, { validate: isLocalizationProgress })))
+    localizationProgressError.value = null
+  } catch (error) {
+    localizationProgress.value = []
+    localizationProgressError.value = errorMessage(error, 'Translation progress could not be loaded')
+  }
+}
 async function loadLocalizationSettings() {
   localizationLoading.value = true
   try {
     localizationSettings.value = await dashboardApi<LocalizationSettings>(`/api/editor/sites/${siteId}/locales`, { validate: isLocalizationSettings })
+    await loadLocalizationProgress()
     localizationError.value = null
   } catch (error) { localizationError.value = errorMessage(error, 'Failed to load localization settings') }
   finally { localizationLoading.value = false }

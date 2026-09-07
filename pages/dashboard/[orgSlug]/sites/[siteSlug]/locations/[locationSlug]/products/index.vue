@@ -43,11 +43,22 @@
     <UFormField label="Name">
       <UInput v-model="name" :placeholder="presentation.categoryLabel === 'Section' ? 'Appetizers' : 'Accessories'" autofocus class="w-full" />
     </UFormField>
+    <template v-if="editingId" #actions>
+      <DashboardResourceLocalization
+        :site-id="siteId"
+        resource-type="product_category"
+        :resource-id="editingId"
+        :resource-label="presentation.categoryLabel.toLowerCase()"
+        :fields="categoryLocalizationFields"
+        :language-settings-path="siteLocalizationSettingsPath"
+      />
+    </template>
   </DashboardListItemDialog>
   </div>
 </template>
 
 <script setup lang="ts">
+import DashboardResourceLocalization from '~/components/dashboard/DashboardResourceLocalization.vue'
 import DashboardListEditor from '~/components/dashboard/DashboardListEditor.vue'
 import DashboardMediaThumb from '~/components/dashboard/DashboardMediaThumb.vue'
 import DashboardListItemDialog from '~/components/dashboard/DashboardListItemDialog.vue'
@@ -59,6 +70,7 @@ import { requireProductPresentation } from '~/utils/product-presentation'
 definePageMeta({ layout: 'dashboard', cmsCapabilityKey: 'location.products' })
 
 const dashboardApi = useDashboardApi()
+const route = useRoute()
 const toast = useToast()
 const { locationPaths } = useDashboardSiteLinks()
 const siteId = await useDashboardSiteId()
@@ -88,6 +100,20 @@ const saving = ref(false)
 const removingId = ref<string | null>(null)
 
 const listItems = computed(() => categories.value.map(row => ({ id: row.id, title: row.name, row })))
+const editingCategory = computed(() => categories.value.find(row => row.id === editingId.value) ?? null)
+const categoryLocalizationFields = computed(() => [
+  { key: 'name', label: 'Name', source: editingCategory.value?.name },
+])
+const siteLocalizationSettingsPath = computed(() => `/dashboard/${route.params.orgSlug}/sites/${route.params.siteSlug}/settings/localization`)
+let openedLocalizationTarget = ''
+watch(categories, (rows) => {
+  const target = typeof route.query.localize === 'string' ? route.query.localize : ''
+  if (!target.startsWith('product_category:') || target === openedLocalizationTarget) return
+  const category = rows.find(row => target === `product_category:${row.id}`)
+  if (!category) return
+  openedLocalizationTarget = target
+  openExisting({ row: category })
+}, { immediate: true })
 
 function isCategoryList(value: unknown): value is { categories: ProductCategory[] } {
   return isRecord(value) && Array.isArray(value.categories)

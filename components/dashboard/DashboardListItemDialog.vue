@@ -59,13 +59,16 @@
         @click="$emit('remove')"
       />
       <span v-else />
-      <UButton
-        :label="saveLabel ?? 'Save'"
-        :loading="saving"
-        :disabled="saveDisabled"
-        data-testid="list-item-save"
-        @click="$emit('save')"
-      />
+      <div class="flex items-center gap-2">
+        <slot name="actions" />
+        <UButton
+          :label="saveLabel ?? 'Save'"
+          :loading="saving"
+          :disabled="saveDisabled"
+          data-testid="list-item-save"
+          @click="$emit('save')"
+        />
+      </div>
     </template>
   </UModal>
 </template>
