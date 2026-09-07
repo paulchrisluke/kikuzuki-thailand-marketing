@@ -155,11 +155,11 @@ Use the `workers/observability/telemetry/query` API or the dashboard Logs UI for
 
 **Connected, but tools/list or the first tool call breaks the stream**
 - Signals: D1 telemetry shows successful authenticated `tools/list`, token exchange and bearer-token acceptance both look normal in logs, ChatGPT still shows generic connection/stream error
-- Likely cause: not an auth problem — inspect `tools/list` shape and size after the real 200. See [local-mcp-harness.md](local-mcp-harness.md) for catalog-shape policy.
+- Likely cause: not an auth problem — inspect `tools/list` shape and size after the real 200.
 
 **Host mismatch**
-- Signals: local or staging connector connects then reconnects repeatedly, `/.well-known/oauth-protected-resource` and `issuer` do not line up with connector URL
-- Check: `BETTER_AUTH_URL`, `NUXT_PUBLIC_PLATFORM_DOMAIN`, `MCP_BASE_URL`, ChatGPT connector URL used during setup — all must point at the same origin
+- Signals: staging connector connects then reconnects repeatedly, `/.well-known/oauth-protected-resource` and `issuer` do not line up with connector URL
+- Check: `BETTER_AUTH_URL`, `NUXT_PUBLIC_PLATFORM_DOMAIN`, MCP resource metadata, and the ChatGPT connector URL used during setup must point at the same origin
 
 ## MCP Usage Telemetry
 
