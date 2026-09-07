@@ -12,7 +12,7 @@
         </template>
       </UAlert>
 
-      <form v-else class="mt-6 space-y-4" @submit.prevent="handleSubmit">
+      <form v-else method="post" class="mt-6 space-y-4" @submit.prevent="handleSubmit">
         <UFormField label="New password" name="password" :error="passwordError" size="lg">
           <UInput v-model="password" type="password" placeholder="••••••••" :disabled="loading" autocomplete="new-password" size="lg" class="w-full" />
         </UFormField>
