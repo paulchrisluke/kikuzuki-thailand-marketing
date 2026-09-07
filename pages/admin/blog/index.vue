@@ -2,9 +2,6 @@
   <UDashboardPanel id="admin-blog">
     <template #header>
       <UDashboardNavbar title="Blog">
-        <template #leading>
-          <DashboardNavbarLeading to="/admin" label="Admin" />
-        </template>
       </UDashboardNavbar>
     </template>
 

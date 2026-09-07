@@ -2,7 +2,6 @@
   <UDashboardPanel id="admin-domains">
     <template #header>
       <UDashboardNavbar title="Domains">
-        <template #leading><DashboardNavbarLeading to="/admin" label="Admin" /></template>
         <template #trailing><UButton icon="i-lucide-refresh-cw" aria-label="Refresh domains" color="neutral" variant="ghost" size="xs" :loading="loading" @click="loadDomains" /></template>
       </UDashboardNavbar>
     </template>

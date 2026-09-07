@@ -2,7 +2,6 @@
   <UDashboardPanel id="admin-work">
     <template #header>
       <UDashboardNavbar title="Work Queue">
-        <template #leading><DashboardNavbarLeading to="/admin" label="Admin" /></template>
         <template #trailing><UButton icon="i-lucide-refresh-cw" aria-label="Refresh work queue" color="neutral" variant="ghost" size="xs" :loading="loading" @click="loadWorkRequests" /></template>
       </UDashboardNavbar>
     </template>

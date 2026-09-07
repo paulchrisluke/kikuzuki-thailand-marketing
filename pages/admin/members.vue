@@ -2,9 +2,6 @@
   <UDashboardPanel id="admin-members">
     <template #header>
       <UDashboardNavbar title="Members">
-        <template #leading>
-          <DashboardNavbarLeading to="/admin" label="Admin" />
-        </template>
         <template #trailing>
           <UButton size="sm" icon="i-lucide-user-plus" label="Add team member" @click="inviteOpen = true" />
         </template>
