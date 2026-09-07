@@ -1,6 +1,6 @@
 {
   "surface": "tenant",
-  "fingerprint": "sha256:c977d931bd6b0da8ae3a6dace1ec52a05453e7f1f63f625d4612eb4ec36883f2",
+  "fingerprint": "sha256:0c024a91c1934648ff48a18550fa9379879e4e7b7186d4a7f8fea31e17b6dbbb",
   "tools": [
     {
       "name": "analyze_document",
@@ -88,14 +88,11 @@
                   "site",
                   "business_location",
                   "product",
-                  "post",
-                  "blog_post",
-                  "experience",
+                  "content_document",
                   "offering",
                   "content_block",
                   "review",
-                  "review_request",
-                  "tenant_compliance"
+                  "review_request"
                 ],
                 "type": "string"
               },
@@ -228,14 +225,11 @@
                   "site",
                   "business_location",
                   "product",
-                  "post",
-                  "blog_post",
-                  "experience",
+                  "content_document",
                   "offering",
                   "content_block",
                   "review",
-                  "review_request",
-                  "tenant_compliance"
+                  "review_request"
                 ],
                 "type": "string"
               },
@@ -868,7 +862,7 @@
       "inputSchema": {
         "additionalProperties": false,
         "properties": {
-          "expected_document_updated_at": {
+          "expected_updated_at": {
             "type": "string"
           },
           "new_path": {
@@ -885,7 +879,7 @@
         "required": [
           "variant_id",
           "new_path",
-          "expected_document_updated_at"
+          "expected_updated_at"
         ],
         "type": "object"
       },
@@ -1591,17 +1585,74 @@
             ]
           },
           "recurring_slots": {
-            "additionalProperties": {
-              "items": {
-                "type": "string"
+            "anyOf": [
+              {
+                "type": "null"
               },
-              "type": "array"
-            },
-            "description": "Per-weekday time slots in HH:MM format when the schedule differs by day. Keys must be full weekday names such as Monday or Friday. Takes priority over time_slots when set.",
-            "type": [
-              "object",
-              "null"
-            ]
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "friday": {
+                    "items": {
+                      "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+                      "type": "string"
+                    },
+                    "type": "array",
+                    "uniqueItems": true
+                  },
+                  "monday": {
+                    "items": {
+                      "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+                      "type": "string"
+                    },
+                    "type": "array",
+                    "uniqueItems": true
+                  },
+                  "saturday": {
+                    "items": {
+                      "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+                      "type": "string"
+                    },
+                    "type": "array",
+                    "uniqueItems": true
+                  },
+                  "sunday": {
+                    "items": {
+                      "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+                      "type": "string"
+                    },
+                    "type": "array",
+                    "uniqueItems": true
+                  },
+                  "thursday": {
+                    "items": {
+                      "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+                      "type": "string"
+                    },
+                    "type": "array",
+                    "uniqueItems": true
+                  },
+                  "tuesday": {
+                    "items": {
+                      "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+                      "type": "string"
+                    },
+                    "type": "array",
+                    "uniqueItems": true
+                  },
+                  "wednesday": {
+                    "items": {
+                      "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+                      "type": "string"
+                    },
+                    "type": "array",
+                    "uniqueItems": true
+                  }
+                },
+                "type": "object"
+              }
+            ],
+            "description": "Weekly start times keyed by lowercase weekday. Missing days have no starts; null is unknown."
           },
           "robots": {
             "description": "Search engine indexing directive. Leave unset for the default index,follow.",
@@ -1644,19 +1695,19 @@
             "type": "number"
           },
           "slot_start": {
-            "description": "Convenience: auto-generate slots from this \"HH:MM\" start time. Used with slot_end and slot_interval_minutes instead of typing time_slots by hand.",
+            "description": "Convenience: auto-generate slots from this \"HH:MM\" start time. Used with slot_end and slot_interval_minutes instead of typing recurring_slots by hand.",
             "type": "string"
           },
           "slot_weekday": {
-            "description": "If set alongside slot_start/slot_end/slot_interval_minutes, the generated slots are assigned to recurring_slots for this weekday instead of the flat time_slots list.",
+            "description": "Assign generated starts to this lowercase weekday. Omit to apply to every weekday.",
             "enum": [
-              "Monday",
-              "Tuesday",
-              "Wednesday",
-              "Thursday",
-              "Friday",
-              "Saturday",
-              "Sunday"
+              "sunday",
+              "monday",
+              "tuesday",
+              "wednesday",
+              "thursday",
+              "friday",
+              "saturday"
             ],
             "type": "string"
           },
@@ -1681,16 +1732,6 @@
           },
           "tags": {
             "description": "Searchable labels shared with the canonical Product model.",
-            "items": {
-              "type": "string"
-            },
-            "type": [
-              "array",
-              "null"
-            ]
-          },
-          "time_slots": {
-            "description": "Flat daily time slots in HH:MM format, used when the same schedule applies every day. Ignored if recurring_slots is set.",
             "items": {
               "type": "string"
             },
@@ -1913,73 +1954,350 @@
       "inputSchema": {
         "additionalProperties": false,
         "properties": {
+          "alert_type": {
+            "anyOf": [
+              {
+                "enum": [
+                  "covid_19"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "body": {
+            "minLength": 1,
             "type": "string"
           },
-          "cta_type": {
-            "description": "Call-to-action type shown with the post, e.g. \"book\", \"order\", \"learn_more\".",
-            "type": "string"
+          "call_to_action": {
+            "anyOf": [
+              {
+                "anyOf": [
+                  {
+                    "additionalProperties": false,
+                    "properties": {
+                      "action_type": {
+                        "enum": [
+                          "call"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "action_type"
+                    ],
+                    "type": "object"
+                  },
+                  {
+                    "additionalProperties": false,
+                    "properties": {
+                      "action_type": {
+                        "enum": [
+                          "book",
+                          "order",
+                          "shop",
+                          "learn_more",
+                          "sign_up"
+                        ]
+                      },
+                      "url": {
+                        "format": "uri",
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "action_type",
+                      "url"
+                    ],
+                    "type": "object"
+                  }
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
-          "cta_url": {
-            "description": "URL the call-to-action button links to.",
-            "type": "string"
-          },
-          "event_end": {
-            "description": "Event end datetime (ISO 8601). Use with post_type \"event\".",
-            "type": "string"
-          },
-          "event_start": {
-            "description": "Event start datetime (ISO 8601). Use with post_type \"event\".",
-            "type": "string"
-          },
-          "event_title": {
-            "description": "Event name. Use with post_type \"event\".",
-            "type": "string"
+          "event": {
+            "anyOf": [
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "recurrence_info": {
+                    "anyOf": [
+                      {
+                        "additionalProperties": false,
+                        "properties": {
+                          "kind": {
+                            "enum": [
+                              "daily"
+                            ]
+                          },
+                          "series_end_time": {
+                            "format": "date-time",
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "kind"
+                        ],
+                        "type": "object"
+                      },
+                      {
+                        "additionalProperties": false,
+                        "properties": {
+                          "days_of_week": {
+                            "items": {
+                              "enum": [
+                                "sunday",
+                                "monday",
+                                "tuesday",
+                                "wednesday",
+                                "thursday",
+                                "friday",
+                                "saturday"
+                              ]
+                            },
+                            "type": "array",
+                            "uniqueItems": true
+                          },
+                          "kind": {
+                            "enum": [
+                              "weekly"
+                            ]
+                          },
+                          "series_end_time": {
+                            "format": "date-time",
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "kind",
+                          "days_of_week"
+                        ],
+                        "type": "object"
+                      },
+                      {
+                        "additionalProperties": false,
+                        "properties": {
+                          "day_of_month": {
+                            "maximum": 31,
+                            "minimum": 1,
+                            "type": "integer"
+                          },
+                          "kind": {
+                            "enum": [
+                              "monthly"
+                            ]
+                          },
+                          "series_end_time": {
+                            "format": "date-time",
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "kind",
+                          "day_of_month"
+                        ],
+                        "type": "object"
+                      },
+                      {
+                        "additionalProperties": false,
+                        "properties": {
+                          "day_of_week_occurrence": {
+                            "enum": [
+                              "first",
+                              "second",
+                              "third",
+                              "fourth",
+                              "last"
+                            ]
+                          },
+                          "kind": {
+                            "enum": [
+                              "monthly"
+                            ]
+                          },
+                          "series_end_time": {
+                            "format": "date-time",
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "kind",
+                          "day_of_week_occurrence"
+                        ],
+                        "type": "object"
+                      }
+                    ]
+                  },
+                  "schedule": {
+                    "additionalProperties": false,
+                    "properties": {
+                      "end_date": {
+                        "format": "date",
+                        "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                        "type": "string"
+                      },
+                      "end_time": {
+                        "pattern": "^(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d{1,9})?$",
+                        "type": "string"
+                      },
+                      "start_date": {
+                        "format": "date",
+                        "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                        "type": "string"
+                      },
+                      "start_time": {
+                        "pattern": "^(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d{1,9})?$",
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "start_date",
+                      "start_time",
+                      "end_date",
+                      "end_time"
+                    ],
+                    "type": "object"
+                  },
+                  "title": {
+                    "minLength": 1,
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "title",
+                  "schedule"
+                ],
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "location_id": {
-            "description": "Restrict this post to a specific location. Omit to apply site-wide.",
-            "type": "string"
+            "anyOf": [
+              {
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
-          "offer_coupon": {
-            "description": "Coupon code for the promotion. Use with post_type \"offer\".",
-            "type": "string"
+          "media": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "asset_id": {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "slot": {
+                  "enum": [
+                    "cover",
+                    "gallery"
+                  ]
+                }
+              },
+              "required": [
+                "asset_id",
+                "slot"
+              ],
+              "type": "object"
+            },
+            "type": "array"
           },
-          "offer_terms": {
-            "description": "Terms and conditions for the promotion. Use with post_type \"offer\".",
-            "type": "string"
+          "offer": {
+            "anyOf": [
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "coupon_code": {
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  "redeem_online_url": {
+                    "format": "uri",
+                    "type": "string"
+                  },
+                  "terms_conditions": {
+                    "minLength": 1,
+                    "type": "string"
+                  }
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "post_type": {
-            "description": "Determines how the post is presented. \"offer\" = promotion, \"event\" = scheduled happening.",
             "enum": [
               "standard",
-              "offer",
               "event",
-              "update"
-            ],
-            "type": "string"
+              "offer",
+              "alert"
+            ]
           },
           "scheduled_for": {
-            "description": "If set, the post is scheduled to publish at this datetime (ISO 8601) instead of immediately.",
-            "type": "string"
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "seo_description": {
-            "description": "Optional SEO/meta description for the public post page.",
-            "type": "string"
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "seo_title": {
-            "description": "Optional SEO title for the public post page.",
-            "type": "string"
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "site_id": {
             "description": "Internal KrabiClaw site ID from get_workspace_context or list_sites, e.g. site-pottery-house. Do not pass a public URL, hostname, subdomain, custom domain, slug, or site name here.",
             "type": "string"
           },
           "slug": {
-            "description": "Optional public URL slug. If omitted, KrabiClaw generates a stable unique slug.",
-            "type": "string"
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "title": {
-            "type": "string"
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "required": [
@@ -3171,6 +3489,15 @@
             "type": "string"
           },
           "resource_type": {
+            "enum": [
+              "site",
+              "business_location",
+              "product",
+              "product_category",
+              "offering",
+              "media_asset",
+              "content_document"
+            ],
             "type": "string"
           },
           "site_id": {
@@ -3198,6 +3525,15 @@
             "type": "string"
           },
           "resource_type": {
+            "enum": [
+              "site",
+              "business_location",
+              "product",
+              "product_category",
+              "offering",
+              "media_asset",
+              "content_document"
+            ],
             "type": "string"
           }
         },
@@ -4004,15 +4340,6 @@
                     "string",
                     "null"
                   ]
-                },
-                "status": {
-                  "enum": [
-                    "new",
-                    "read",
-                    "replied",
-                    "spam"
-                  ],
-                  "type": "string"
                 }
               },
               "type": "object"
@@ -4172,9 +4499,6 @@
                   "null"
                 ]
               },
-              "is_primary": {
-                "type": "number"
-              },
               "maps_url": {
                 "type": [
                   "string",
@@ -4244,9 +4568,117 @@
                 ]
               },
               "opening_hours": {
-                "type": [
-                  "object",
-                  "null"
+                "anyOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "additionalProperties": false,
+                    "properties": {
+                      "periods": {
+                        "items": {
+                          "anyOf": [
+                            {
+                              "additionalProperties": false,
+                              "properties": {
+                                "close": {
+                                  "additionalProperties": false,
+                                  "properties": {
+                                    "day": {
+                                      "maximum": 6,
+                                      "minimum": 0,
+                                      "type": "integer"
+                                    },
+                                    "hour": {
+                                      "maximum": 23,
+                                      "minimum": 0,
+                                      "type": "integer"
+                                    },
+                                    "minute": {
+                                      "maximum": 59,
+                                      "minimum": 0,
+                                      "type": "integer"
+                                    }
+                                  },
+                                  "required": [
+                                    "day",
+                                    "hour",
+                                    "minute"
+                                  ],
+                                  "type": "object"
+                                },
+                                "open": {
+                                  "additionalProperties": false,
+                                  "properties": {
+                                    "day": {
+                                      "maximum": 6,
+                                      "minimum": 0,
+                                      "type": "integer"
+                                    },
+                                    "hour": {
+                                      "maximum": 23,
+                                      "minimum": 0,
+                                      "type": "integer"
+                                    },
+                                    "minute": {
+                                      "maximum": 59,
+                                      "minimum": 0,
+                                      "type": "integer"
+                                    }
+                                  },
+                                  "required": [
+                                    "day",
+                                    "hour",
+                                    "minute"
+                                  ],
+                                  "type": "object"
+                                }
+                              },
+                              "required": [
+                                "open",
+                                "close"
+                              ],
+                              "type": "object"
+                            },
+                            {
+                              "additionalProperties": false,
+                              "properties": {
+                                "open": {
+                                  "additionalProperties": false,
+                                  "properties": {
+                                    "day": {
+                                      "const": 0
+                                    },
+                                    "hour": {
+                                      "const": 0
+                                    },
+                                    "minute": {
+                                      "const": 0
+                                    }
+                                  },
+                                  "required": [
+                                    "day",
+                                    "hour",
+                                    "minute"
+                                  ],
+                                  "type": "object"
+                                }
+                              },
+                              "required": [
+                                "open"
+                              ],
+                              "type": "object"
+                            }
+                          ]
+                        },
+                        "type": "array"
+                      }
+                    },
+                    "required": [
+                      "periods"
+                    ],
+                    "type": "object"
+                  }
                 ]
               },
               "phone": {
@@ -4295,9 +4727,108 @@
                 "type": "string"
               },
               "special_hours": {
-                "type": [
-                  "object",
-                  "null"
+                "anyOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "items": {
+                      "anyOf": [
+                        {
+                          "additionalProperties": false,
+                          "properties": {
+                            "ends_on": {
+                              "anyOf": [
+                                {
+                                  "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                                  "type": "string"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "kind": {
+                              "const": "closure"
+                            },
+                            "note": {
+                              "maxLength": 1000,
+                              "type": [
+                                "string",
+                                "null"
+                              ]
+                            },
+                            "starts_on": {
+                              "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "kind",
+                            "starts_on",
+                            "ends_on",
+                            "note"
+                          ],
+                          "type": "object"
+                        },
+                        {
+                          "additionalProperties": false,
+                          "properties": {
+                            "date": {
+                              "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                              "type": "string"
+                            },
+                            "kind": {
+                              "const": "hours"
+                            },
+                            "note": {
+                              "maxLength": 1000,
+                              "type": [
+                                "string",
+                                "null"
+                              ]
+                            },
+                            "periods": {
+                              "items": {
+                                "additionalProperties": false,
+                                "properties": {
+                                  "close_day_offset": {
+                                    "enum": [
+                                      0,
+                                      1
+                                    ]
+                                  },
+                                  "close_time": {
+                                    "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+                                    "type": "string"
+                                  },
+                                  "open_time": {
+                                    "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+                                    "type": "string"
+                                  }
+                                },
+                                "required": [
+                                  "open_time",
+                                  "close_time",
+                                  "close_day_offset"
+                                ],
+                                "type": "object"
+                              },
+                              "type": "array"
+                            }
+                          },
+                          "required": [
+                            "kind",
+                            "date",
+                            "periods",
+                            "note"
+                          ],
+                          "type": "object"
+                        }
+                      ]
+                    },
+                    "type": "array"
+                  }
                 ]
               },
               "status": {
@@ -4366,8 +4897,68 @@
         "properties": {
           "post": {
             "properties": {
+              "alert_type": {
+                "anyOf": [
+                  {
+                    "enum": [
+                      "covid_19"
+                    ]
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
               "body": {
                 "type": "string"
+              },
+              "call_to_action": {
+                "anyOf": [
+                  {
+                    "anyOf": [
+                      {
+                        "additionalProperties": false,
+                        "properties": {
+                          "action_type": {
+                            "enum": [
+                              "call"
+                            ]
+                          }
+                        },
+                        "required": [
+                          "action_type"
+                        ],
+                        "type": "object"
+                      },
+                      {
+                        "additionalProperties": false,
+                        "properties": {
+                          "action_type": {
+                            "enum": [
+                              "book",
+                              "order",
+                              "shop",
+                              "learn_more",
+                              "sign_up"
+                            ]
+                          },
+                          "url": {
+                            "format": "uri",
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "action_type",
+                          "url"
+                        ],
+                        "type": "object"
+                      }
+                    ]
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
               },
               "canonical_url": {
                 "type": [
@@ -4419,40 +5010,175 @@
               "created_at": {
                 "type": "string"
               },
-              "cta_type": {
-                "type": [
-                  "string",
-                  "null"
-                ]
-              },
-              "cta_url": {
-                "type": [
-                  "string",
-                  "null"
-                ]
-              },
-              "event_end": {
-                "type": [
-                  "string",
-                  "null"
-                ]
-              },
-              "event_start": {
-                "type": [
-                  "string",
-                  "null"
-                ]
-              },
-              "event_title": {
-                "type": [
-                  "string",
-                  "null"
+              "event": {
+                "anyOf": [
+                  {
+                    "additionalProperties": false,
+                    "properties": {
+                      "recurrence_info": {
+                        "anyOf": [
+                          {
+                            "additionalProperties": false,
+                            "properties": {
+                              "kind": {
+                                "enum": [
+                                  "daily"
+                                ]
+                              },
+                              "series_end_time": {
+                                "format": "date-time",
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "kind"
+                            ],
+                            "type": "object"
+                          },
+                          {
+                            "additionalProperties": false,
+                            "properties": {
+                              "days_of_week": {
+                                "items": {
+                                  "enum": [
+                                    "sunday",
+                                    "monday",
+                                    "tuesday",
+                                    "wednesday",
+                                    "thursday",
+                                    "friday",
+                                    "saturday"
+                                  ]
+                                },
+                                "type": "array",
+                                "uniqueItems": true
+                              },
+                              "kind": {
+                                "enum": [
+                                  "weekly"
+                                ]
+                              },
+                              "series_end_time": {
+                                "format": "date-time",
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "kind",
+                              "days_of_week"
+                            ],
+                            "type": "object"
+                          },
+                          {
+                            "additionalProperties": false,
+                            "properties": {
+                              "day_of_month": {
+                                "maximum": 31,
+                                "minimum": 1,
+                                "type": "integer"
+                              },
+                              "kind": {
+                                "enum": [
+                                  "monthly"
+                                ]
+                              },
+                              "series_end_time": {
+                                "format": "date-time",
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "kind",
+                              "day_of_month"
+                            ],
+                            "type": "object"
+                          },
+                          {
+                            "additionalProperties": false,
+                            "properties": {
+                              "day_of_week_occurrence": {
+                                "enum": [
+                                  "first",
+                                  "second",
+                                  "third",
+                                  "fourth",
+                                  "last"
+                                ]
+                              },
+                              "kind": {
+                                "enum": [
+                                  "monthly"
+                                ]
+                              },
+                              "series_end_time": {
+                                "format": "date-time",
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "kind",
+                              "day_of_week_occurrence"
+                            ],
+                            "type": "object"
+                          }
+                        ]
+                      },
+                      "schedule": {
+                        "additionalProperties": false,
+                        "properties": {
+                          "end_date": {
+                            "format": "date",
+                            "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                            "type": "string"
+                          },
+                          "end_time": {
+                            "pattern": "^(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d{1,9})?$",
+                            "type": "string"
+                          },
+                          "start_date": {
+                            "format": "date",
+                            "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                            "type": "string"
+                          },
+                          "start_time": {
+                            "pattern": "^(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d{1,9})?$",
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "start_date",
+                          "start_time",
+                          "end_date",
+                          "end_time"
+                        ],
+                        "type": "object"
+                      },
+                      "title": {
+                        "minLength": 1,
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "title",
+                      "schedule"
+                    ],
+                    "type": "object"
+                  },
+                  {
+                    "type": "null"
+                  }
                 ]
               },
               "id": {
                 "type": "string"
               },
               "location_id": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "location_phone": {
                 "type": [
                   "string",
                   "null"
@@ -4521,26 +5247,38 @@
                 },
                 "type": "array"
               },
-              "offer_coupon": {
-                "type": [
-                  "string",
-                  "null"
-                ]
-              },
-              "offer_terms": {
-                "type": [
-                  "string",
-                  "null"
+              "offer": {
+                "anyOf": [
+                  {
+                    "additionalProperties": false,
+                    "properties": {
+                      "coupon_code": {
+                        "minLength": 1,
+                        "type": "string"
+                      },
+                      "redeem_online_url": {
+                        "format": "uri",
+                        "type": "string"
+                      },
+                      "terms_conditions": {
+                        "minLength": 1,
+                        "type": "string"
+                      }
+                    },
+                    "type": "object"
+                  },
+                  {
+                    "type": "null"
+                  }
                 ]
               },
               "post_type": {
                 "enum": [
                   "standard",
-                  "offer",
                   "event",
-                  "update"
-                ],
-                "type": "string"
+                  "offer",
+                  "alert"
+                ]
               },
               "public_path": {
                 "type": [
@@ -5247,6 +5985,15 @@
             "type": "string"
           },
           "resource_type": {
+            "enum": [
+              "site",
+              "business_location",
+              "product",
+              "product_category",
+              "offering",
+              "media_asset",
+              "content_document"
+            ],
             "type": "string"
           },
           "site_id": {
@@ -5265,56 +6012,190 @@
         "additionalProperties": false,
         "properties": {
           "localization": {
-            "additionalProperties": false,
-            "properties": {
-              "content_document": {
-                "additionalProperties": true,
-                "type": [
-                  "object",
-                  "null"
-                ]
+            "oneOf": [
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "created_at": {
+                    "type": "string"
+                  },
+                  "created_by_user_id": {
+                    "type": "string"
+                  },
+                  "id": {
+                    "type": "string"
+                  },
+                  "locale": {
+                    "type": "string"
+                  },
+                  "organization_id": {
+                    "type": "string"
+                  },
+                  "resource_id": {
+                    "type": "string"
+                  },
+                  "resource_type": {
+                    "enum": [
+                      "site",
+                      "business_location",
+                      "product",
+                      "product_category",
+                      "offering",
+                      "media_asset"
+                    ],
+                    "type": "string"
+                  },
+                  "route_path": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "site_id": {
+                    "type": "string"
+                  },
+                  "updated_at": {
+                    "type": "string"
+                  },
+                  "updated_by_user_id": {
+                    "type": "string"
+                  },
+                  "values": {
+                    "additionalProperties": true,
+                    "description": "Localized values follow the canonical owner fields. content_document uses title, summary, slug, SEO fields and typed metadata; content_blocks edits its representation. Other allowed fields depend on resource_type. For product_category, use { name }. Product values never include category; category names are localized on the category record.",
+                    "type": "object"
+                  }
+                },
+                "required": [
+                  "id",
+                  "organization_id",
+                  "site_id",
+                  "locale",
+                  "created_at",
+                  "updated_at",
+                  "resource_type",
+                  "resource_id",
+                  "values",
+                  "route_path",
+                  "created_by_user_id",
+                  "updated_by_user_id"
+                ],
+                "type": "object"
               },
-              "document_id": {
-                "type": [
-                  "string",
-                  "null"
-                ]
-              },
-              "id": {
-                "type": "string"
-              },
-              "locale": {
-                "type": "string"
-              },
-              "resource_id": {
-                "type": "string"
-              },
-              "resource_type": {
-                "type": "string"
-              },
-              "route_path": {
-                "type": [
-                  "string",
-                  "null"
-                ]
-              },
-              "values": {
-                "additionalProperties": true,
-                "description": "Localized scalar values. Allowed fields depend on resource_type. For product_category, use { name }. Product values never include category; category names are localized on the category record.",
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "content_blocks": {
+                    "items": {
+                      "additionalProperties": true,
+                      "type": "object"
+                    },
+                    "type": "array"
+                  },
+                  "created_at": {
+                    "type": "string"
+                  },
+                  "id": {
+                    "type": "string"
+                  },
+                  "kind": {
+                    "enum": [
+                      "page",
+                      "article",
+                      "platform_doc",
+                      "social_post",
+                      "qa"
+                    ],
+                    "type": "string"
+                  },
+                  "locale": {
+                    "type": "string"
+                  },
+                  "metadata": {
+                    "additionalProperties": true,
+                    "type": "object"
+                  },
+                  "organization_id": {
+                    "type": "string"
+                  },
+                  "path": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "root_id": {
+                    "type": "string"
+                  },
+                  "row_role": {
+                    "const": "representation"
+                  },
+                  "seo_description": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "seo_keywords": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "seo_title": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "site_id": {
+                    "type": "string"
+                  },
+                  "slug": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "summary": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "title": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "updated_at": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "id",
+                  "organization_id",
+                  "site_id",
+                  "locale",
+                  "created_at",
+                  "updated_at",
+                  "kind",
+                  "row_role",
+                  "root_id",
+                  "title",
+                  "summary",
+                  "slug",
+                  "path",
+                  "seo_title",
+                  "seo_description",
+                  "seo_keywords",
+                  "metadata",
+                  "content_blocks"
+                ],
                 "type": "object"
               }
-            },
-            "required": [
-              "id",
-              "resource_type",
-              "resource_id",
-              "locale",
-              "values",
-              "route_path",
-              "document_id",
-              "content_document"
-            ],
-            "type": "object"
+            ]
           }
         },
         "required": [
@@ -6082,12 +6963,6 @@
                   "null"
                 ]
               },
-              "primary_location_id": {
-                "type": [
-                  "string",
-                  "null"
-                ]
-              },
               "public_url": {
                 "type": [
                   "string",
@@ -6258,9 +7133,6 @@
                 "id": {
                   "type": "string"
                 },
-                "is_primary": {
-                  "type": "boolean"
-                },
                 "slug": {
                   "type": "string"
                 },
@@ -6276,7 +7148,6 @@
                 "slug",
                 "title",
                 "status",
-                "is_primary",
                 "active"
               ],
               "type": "object"
@@ -7768,15 +8639,72 @@
                   ]
                 },
                 "recurring_slots": {
-                  "additionalProperties": {
-                    "items": {
-                      "type": "string"
+                  "anyOf": [
+                    {
+                      "type": "null"
                     },
-                    "type": "array"
-                  },
-                  "type": [
-                    "object",
-                    "null"
+                    {
+                      "additionalProperties": false,
+                      "properties": {
+                        "friday": {
+                          "items": {
+                            "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+                            "type": "string"
+                          },
+                          "type": "array",
+                          "uniqueItems": true
+                        },
+                        "monday": {
+                          "items": {
+                            "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+                            "type": "string"
+                          },
+                          "type": "array",
+                          "uniqueItems": true
+                        },
+                        "saturday": {
+                          "items": {
+                            "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+                            "type": "string"
+                          },
+                          "type": "array",
+                          "uniqueItems": true
+                        },
+                        "sunday": {
+                          "items": {
+                            "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+                            "type": "string"
+                          },
+                          "type": "array",
+                          "uniqueItems": true
+                        },
+                        "thursday": {
+                          "items": {
+                            "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+                            "type": "string"
+                          },
+                          "type": "array",
+                          "uniqueItems": true
+                        },
+                        "tuesday": {
+                          "items": {
+                            "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+                            "type": "string"
+                          },
+                          "type": "array",
+                          "uniqueItems": true
+                        },
+                        "wednesday": {
+                          "items": {
+                            "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+                            "type": "string"
+                          },
+                          "type": "array",
+                          "uniqueItems": true
+                        }
+                      },
+                      "type": "object"
+                    }
                   ]
                 },
                 "robots": {
@@ -7887,15 +8815,6 @@
                     "type": "string"
                   },
                   "type": "array"
-                },
-                "time_slots": {
-                  "items": {
-                    "type": "string"
-                  },
-                  "type": [
-                    "array",
-                    "null"
-                  ]
                 },
                 "title": {
                   "type": "string"
@@ -8374,9 +9293,6 @@
                 "id": {
                   "type": "string"
                 },
-                "is_primary": {
-                  "type": "boolean"
-                },
                 "slug": {
                   "type": "string"
                 },
@@ -8392,7 +9308,6 @@
                 "slug",
                 "title",
                 "status",
-                "is_primary",
                 "active"
               ],
               "type": "object"
@@ -8482,8 +9397,68 @@
           "posts": {
             "items": {
               "properties": {
+                "alert_type": {
+                  "anyOf": [
+                    {
+                      "enum": [
+                        "covid_19"
+                      ]
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
                 "body": {
                   "type": "string"
+                },
+                "call_to_action": {
+                  "anyOf": [
+                    {
+                      "anyOf": [
+                        {
+                          "additionalProperties": false,
+                          "properties": {
+                            "action_type": {
+                              "enum": [
+                                "call"
+                              ]
+                            }
+                          },
+                          "required": [
+                            "action_type"
+                          ],
+                          "type": "object"
+                        },
+                        {
+                          "additionalProperties": false,
+                          "properties": {
+                            "action_type": {
+                              "enum": [
+                                "book",
+                                "order",
+                                "shop",
+                                "learn_more",
+                                "sign_up"
+                              ]
+                            },
+                            "url": {
+                              "format": "uri",
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "action_type",
+                            "url"
+                          ],
+                          "type": "object"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
                 },
                 "canonical_url": {
                   "type": [
@@ -8535,40 +9510,175 @@
                 "created_at": {
                   "type": "string"
                 },
-                "cta_type": {
-                  "type": [
-                    "string",
-                    "null"
-                  ]
-                },
-                "cta_url": {
-                  "type": [
-                    "string",
-                    "null"
-                  ]
-                },
-                "event_end": {
-                  "type": [
-                    "string",
-                    "null"
-                  ]
-                },
-                "event_start": {
-                  "type": [
-                    "string",
-                    "null"
-                  ]
-                },
-                "event_title": {
-                  "type": [
-                    "string",
-                    "null"
+                "event": {
+                  "anyOf": [
+                    {
+                      "additionalProperties": false,
+                      "properties": {
+                        "recurrence_info": {
+                          "anyOf": [
+                            {
+                              "additionalProperties": false,
+                              "properties": {
+                                "kind": {
+                                  "enum": [
+                                    "daily"
+                                  ]
+                                },
+                                "series_end_time": {
+                                  "format": "date-time",
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "kind"
+                              ],
+                              "type": "object"
+                            },
+                            {
+                              "additionalProperties": false,
+                              "properties": {
+                                "days_of_week": {
+                                  "items": {
+                                    "enum": [
+                                      "sunday",
+                                      "monday",
+                                      "tuesday",
+                                      "wednesday",
+                                      "thursday",
+                                      "friday",
+                                      "saturday"
+                                    ]
+                                  },
+                                  "type": "array",
+                                  "uniqueItems": true
+                                },
+                                "kind": {
+                                  "enum": [
+                                    "weekly"
+                                  ]
+                                },
+                                "series_end_time": {
+                                  "format": "date-time",
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "kind",
+                                "days_of_week"
+                              ],
+                              "type": "object"
+                            },
+                            {
+                              "additionalProperties": false,
+                              "properties": {
+                                "day_of_month": {
+                                  "maximum": 31,
+                                  "minimum": 1,
+                                  "type": "integer"
+                                },
+                                "kind": {
+                                  "enum": [
+                                    "monthly"
+                                  ]
+                                },
+                                "series_end_time": {
+                                  "format": "date-time",
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "kind",
+                                "day_of_month"
+                              ],
+                              "type": "object"
+                            },
+                            {
+                              "additionalProperties": false,
+                              "properties": {
+                                "day_of_week_occurrence": {
+                                  "enum": [
+                                    "first",
+                                    "second",
+                                    "third",
+                                    "fourth",
+                                    "last"
+                                  ]
+                                },
+                                "kind": {
+                                  "enum": [
+                                    "monthly"
+                                  ]
+                                },
+                                "series_end_time": {
+                                  "format": "date-time",
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "kind",
+                                "day_of_week_occurrence"
+                              ],
+                              "type": "object"
+                            }
+                          ]
+                        },
+                        "schedule": {
+                          "additionalProperties": false,
+                          "properties": {
+                            "end_date": {
+                              "format": "date",
+                              "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                              "type": "string"
+                            },
+                            "end_time": {
+                              "pattern": "^(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d{1,9})?$",
+                              "type": "string"
+                            },
+                            "start_date": {
+                              "format": "date",
+                              "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                              "type": "string"
+                            },
+                            "start_time": {
+                              "pattern": "^(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d{1,9})?$",
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "start_date",
+                            "start_time",
+                            "end_date",
+                            "end_time"
+                          ],
+                          "type": "object"
+                        },
+                        "title": {
+                          "minLength": 1,
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "title",
+                        "schedule"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "type": "null"
+                    }
                   ]
                 },
                 "id": {
                   "type": "string"
                 },
                 "location_id": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "location_phone": {
                   "type": [
                     "string",
                     "null"
@@ -8637,26 +9747,38 @@
                   },
                   "type": "array"
                 },
-                "offer_coupon": {
-                  "type": [
-                    "string",
-                    "null"
-                  ]
-                },
-                "offer_terms": {
-                  "type": [
-                    "string",
-                    "null"
+                "offer": {
+                  "anyOf": [
+                    {
+                      "additionalProperties": false,
+                      "properties": {
+                        "coupon_code": {
+                          "minLength": 1,
+                          "type": "string"
+                        },
+                        "redeem_online_url": {
+                          "format": "uri",
+                          "type": "string"
+                        },
+                        "terms_conditions": {
+                          "minLength": 1,
+                          "type": "string"
+                        }
+                      },
+                      "type": "object"
+                    },
+                    {
+                      "type": "null"
+                    }
                   ]
                 },
                 "post_type": {
                   "enum": [
                     "standard",
-                    "offer",
                     "event",
-                    "update"
-                  ],
-                  "type": "string"
+                    "offer",
+                    "alert"
+                  ]
                 },
                 "public_path": {
                   "type": [
@@ -9540,10 +10662,6 @@
       "inputSchema": {
         "additionalProperties": false,
         "properties": {
-          "expected_document_updated_at": {
-            "description": "Exact post.document_updated_at concurrency token from the latest get_blog_post or successful blog mutation.",
-            "type": "string"
-          },
           "expected_updated_at": {
             "description": "Exact post.updated_at concurrency token from the latest get_blog_post or successful blog mutation.",
             "type": "string"
@@ -9566,8 +10684,7 @@
         },
         "required": [
           "post_id",
-          "expected_updated_at",
-          "expected_document_updated_at"
+          "expected_updated_at"
         ],
         "type": "object"
       },
@@ -10043,7 +11160,7 @@
               "null"
             ]
           },
-          "expected_document_updated_at": {
+          "expected_updated_at": {
             "type": [
               "string",
               "null"
@@ -10056,6 +11173,15 @@
             "type": "string"
           },
           "resource_type": {
+            "enum": [
+              "site",
+              "business_location",
+              "product",
+              "product_category",
+              "offering",
+              "media_asset",
+              "content_document"
+            ],
             "type": "string"
           },
           "route_path": {
@@ -10070,7 +11196,7 @@
           },
           "values": {
             "additionalProperties": true,
-            "description": "Localized scalar values. Allowed fields depend on resource_type. For product_category, use { name }. Product values never include category; category names are localized on the category record.",
+            "description": "Localized values follow the canonical owner fields. content_document uses title, summary, slug, SEO fields and typed metadata; content_blocks edits its representation. Other allowed fields depend on resource_type. For product_category, use { name }. Product values never include category; category names are localized on the category record.",
             "type": "object"
           }
         },
@@ -10086,56 +11212,190 @@
         "additionalProperties": false,
         "properties": {
           "localization": {
-            "additionalProperties": false,
-            "properties": {
-              "content_document": {
-                "additionalProperties": true,
-                "type": [
-                  "object",
-                  "null"
-                ]
+            "oneOf": [
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "created_at": {
+                    "type": "string"
+                  },
+                  "created_by_user_id": {
+                    "type": "string"
+                  },
+                  "id": {
+                    "type": "string"
+                  },
+                  "locale": {
+                    "type": "string"
+                  },
+                  "organization_id": {
+                    "type": "string"
+                  },
+                  "resource_id": {
+                    "type": "string"
+                  },
+                  "resource_type": {
+                    "enum": [
+                      "site",
+                      "business_location",
+                      "product",
+                      "product_category",
+                      "offering",
+                      "media_asset"
+                    ],
+                    "type": "string"
+                  },
+                  "route_path": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "site_id": {
+                    "type": "string"
+                  },
+                  "updated_at": {
+                    "type": "string"
+                  },
+                  "updated_by_user_id": {
+                    "type": "string"
+                  },
+                  "values": {
+                    "additionalProperties": true,
+                    "description": "Localized values follow the canonical owner fields. content_document uses title, summary, slug, SEO fields and typed metadata; content_blocks edits its representation. Other allowed fields depend on resource_type. For product_category, use { name }. Product values never include category; category names are localized on the category record.",
+                    "type": "object"
+                  }
+                },
+                "required": [
+                  "id",
+                  "organization_id",
+                  "site_id",
+                  "locale",
+                  "created_at",
+                  "updated_at",
+                  "resource_type",
+                  "resource_id",
+                  "values",
+                  "route_path",
+                  "created_by_user_id",
+                  "updated_by_user_id"
+                ],
+                "type": "object"
               },
-              "document_id": {
-                "type": [
-                  "string",
-                  "null"
-                ]
-              },
-              "id": {
-                "type": "string"
-              },
-              "locale": {
-                "type": "string"
-              },
-              "resource_id": {
-                "type": "string"
-              },
-              "resource_type": {
-                "type": "string"
-              },
-              "route_path": {
-                "type": [
-                  "string",
-                  "null"
-                ]
-              },
-              "values": {
-                "additionalProperties": true,
-                "description": "Localized scalar values. Allowed fields depend on resource_type. For product_category, use { name }. Product values never include category; category names are localized on the category record.",
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "content_blocks": {
+                    "items": {
+                      "additionalProperties": true,
+                      "type": "object"
+                    },
+                    "type": "array"
+                  },
+                  "created_at": {
+                    "type": "string"
+                  },
+                  "id": {
+                    "type": "string"
+                  },
+                  "kind": {
+                    "enum": [
+                      "page",
+                      "article",
+                      "platform_doc",
+                      "social_post",
+                      "qa"
+                    ],
+                    "type": "string"
+                  },
+                  "locale": {
+                    "type": "string"
+                  },
+                  "metadata": {
+                    "additionalProperties": true,
+                    "type": "object"
+                  },
+                  "organization_id": {
+                    "type": "string"
+                  },
+                  "path": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "root_id": {
+                    "type": "string"
+                  },
+                  "row_role": {
+                    "const": "representation"
+                  },
+                  "seo_description": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "seo_keywords": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "seo_title": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "site_id": {
+                    "type": "string"
+                  },
+                  "slug": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "summary": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "title": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "updated_at": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "id",
+                  "organization_id",
+                  "site_id",
+                  "locale",
+                  "created_at",
+                  "updated_at",
+                  "kind",
+                  "row_role",
+                  "root_id",
+                  "title",
+                  "summary",
+                  "slug",
+                  "path",
+                  "seo_title",
+                  "seo_description",
+                  "seo_keywords",
+                  "metadata",
+                  "content_blocks"
+                ],
                 "type": "object"
               }
-            },
-            "required": [
-              "id",
-              "resource_type",
-              "resource_id",
-              "locale",
-              "values",
-              "route_path",
-              "document_id",
-              "content_document"
-            ],
-            "type": "object"
+            ]
           }
         },
         "required": [
@@ -10164,14 +11424,11 @@
                   "site",
                   "business_location",
                   "product",
-                  "post",
-                  "blog_post",
-                  "experience",
+                  "content_document",
                   "offering",
                   "content_block",
                   "review",
-                  "review_request",
-                  "tenant_compliance"
+                  "review_request"
                 ],
                 "type": "string"
               },
@@ -10304,14 +11561,11 @@
                   "site",
                   "business_location",
                   "product",
-                  "post",
-                  "blog_post",
-                  "experience",
+                  "content_document",
                   "offering",
                   "content_block",
                   "review",
-                  "review_request",
-                  "tenant_compliance"
+                  "review_request"
                 ],
                 "type": "string"
               },
@@ -10816,14 +12070,11 @@
                   "site",
                   "business_location",
                   "product",
-                  "post",
-                  "blog_post",
-                  "experience",
+                  "content_document",
                   "offering",
                   "content_block",
                   "review",
-                  "review_request",
-                  "tenant_compliance"
+                  "review_request"
                 ],
                 "type": "string"
               },
@@ -10956,14 +12207,11 @@
                   "site",
                   "business_location",
                   "product",
-                  "post",
-                  "blog_post",
-                  "experience",
+                  "content_document",
                   "offering",
                   "content_block",
                   "review",
-                  "review_request",
-                  "tenant_compliance"
+                  "review_request"
                 ],
                 "type": "string"
               },
@@ -11228,8 +12476,8 @@
             "minItems": 1,
             "type": "array"
           },
-          "expected_document_updated_at": {
-            "description": "Concurrency token from the post document_updated_at (get_blog_post). A stale token is rejected with a conflict.",
+          "expected_updated_at": {
+            "description": "Concurrency token from the post updated_at (get_blog_post). A stale token is rejected with a conflict.",
             "type": "string"
           },
           "post_id": {
@@ -11244,7 +12492,7 @@
         "required": [
           "post_id",
           "content_blocks",
-          "expected_document_updated_at"
+          "expected_updated_at"
         ],
         "type": "object"
       },
@@ -11877,14 +13125,11 @@
                   "site",
                   "business_location",
                   "product",
-                  "post",
-                  "blog_post",
-                  "experience",
+                  "content_document",
                   "offering",
                   "content_block",
                   "review",
-                  "review_request",
-                  "tenant_compliance"
+                  "review_request"
                 ],
                 "type": "string"
               },
@@ -12017,14 +13262,11 @@
                   "site",
                   "business_location",
                   "product",
-                  "post",
-                  "blog_post",
-                  "experience",
+                  "content_document",
                   "offering",
                   "content_block",
                   "review",
-                  "review_request",
-                  "tenant_compliance"
+                  "review_request"
                 ],
                 "type": "string"
               },
@@ -12171,9 +13413,6 @@
                 "id": {
                   "type": "string"
                 },
-                "is_primary": {
-                  "type": "boolean"
-                },
                 "slug": {
                   "type": "string"
                 },
@@ -12189,7 +13428,6 @@
                 "slug",
                 "title",
                 "status",
-                "is_primary",
                 "active"
               ],
               "type": "object"
@@ -12470,7 +13708,7 @@
                 },
                 "values": {
                   "additionalProperties": true,
-                  "description": "Localized scalar values. Allowed fields depend on resource_type. For product_category, use { name }. Product values never include category; category names are localized on the category record.",
+                  "description": "Localized values follow the canonical owner fields. content_document uses title, summary, slug, SEO fields and typed metadata; content_blocks edits its representation. Other allowed fields depend on resource_type. For product_category, use { name }. Product values never include category; category names are localized on the category record.",
                   "type": "object"
                 }
               },
@@ -13711,12 +14949,8 @@
           "excerpt": {
             "type": "string"
           },
-          "expected_document_updated_at": {
-            "description": "Required with content_blocks. Use document_updated_at returned by get_blog_post; stale tokens are rejected with a conflict.",
-            "type": "string"
-          },
           "expected_updated_at": {
-            "description": "Optional metadata concurrency token from the post updated_at field.",
+            "description": "Required with content_blocks. Use updated_at returned by get_blog_post; stale tokens are rejected with a conflict.",
             "type": "string"
           },
           "post_id": {
@@ -14406,7 +15640,7 @@
             ]
           },
           "location_id": {
-            "description": "Move this experience to a different location. Omit to leave its current location unchanged — unlike create_experience, omitting this does not fall back to the site primary location.",
+            "description": "Move this experience to the explicitly selected location. Omit to retain its current owning location.",
             "type": "string"
           },
           "max_capacity": {
@@ -14485,17 +15719,74 @@
             ]
           },
           "recurring_slots": {
-            "additionalProperties": {
-              "items": {
-                "type": "string"
+            "anyOf": [
+              {
+                "type": "null"
               },
-              "type": "array"
-            },
-            "description": "Per-weekday time slots in HH:MM format when the schedule differs by day. Keys must be full weekday names such as Monday or Friday. Takes priority over time_slots when set.",
-            "type": [
-              "object",
-              "null"
-            ]
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "friday": {
+                    "items": {
+                      "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+                      "type": "string"
+                    },
+                    "type": "array",
+                    "uniqueItems": true
+                  },
+                  "monday": {
+                    "items": {
+                      "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+                      "type": "string"
+                    },
+                    "type": "array",
+                    "uniqueItems": true
+                  },
+                  "saturday": {
+                    "items": {
+                      "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+                      "type": "string"
+                    },
+                    "type": "array",
+                    "uniqueItems": true
+                  },
+                  "sunday": {
+                    "items": {
+                      "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+                      "type": "string"
+                    },
+                    "type": "array",
+                    "uniqueItems": true
+                  },
+                  "thursday": {
+                    "items": {
+                      "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+                      "type": "string"
+                    },
+                    "type": "array",
+                    "uniqueItems": true
+                  },
+                  "tuesday": {
+                    "items": {
+                      "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+                      "type": "string"
+                    },
+                    "type": "array",
+                    "uniqueItems": true
+                  },
+                  "wednesday": {
+                    "items": {
+                      "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+                      "type": "string"
+                    },
+                    "type": "array",
+                    "uniqueItems": true
+                  }
+                },
+                "type": "object"
+              }
+            ],
+            "description": "Weekly start times keyed by lowercase weekday. Missing days have no starts; null is unknown."
           },
           "robots": {
             "description": "Search engine indexing directive. Leave unset for the default index,follow.",
@@ -14538,19 +15829,19 @@
             "type": "number"
           },
           "slot_start": {
-            "description": "Convenience: auto-generate slots from this \"HH:MM\" start time. Used with slot_end and slot_interval_minutes instead of typing time_slots by hand.",
+            "description": "Convenience: auto-generate slots from this \"HH:MM\" start time. Used with slot_end and slot_interval_minutes instead of typing recurring_slots by hand.",
             "type": "string"
           },
           "slot_weekday": {
-            "description": "If set alongside slot_start/slot_end/slot_interval_minutes, the generated slots are assigned to recurring_slots for this weekday instead of the flat time_slots list.",
+            "description": "Assign generated starts to this lowercase weekday. Omit to apply to every weekday.",
             "enum": [
-              "Monday",
-              "Tuesday",
-              "Wednesday",
-              "Thursday",
-              "Friday",
-              "Saturday",
-              "Sunday"
+              "sunday",
+              "monday",
+              "tuesday",
+              "wednesday",
+              "thursday",
+              "friday",
+              "saturday"
             ],
             "type": "string"
           },
@@ -14575,16 +15866,6 @@
           },
           "tags": {
             "description": "Searchable labels shared with the canonical Product model.",
-            "items": {
-              "type": "string"
-            },
-            "type": [
-              "array",
-              "null"
-            ]
-          },
-          "time_slots": {
-            "description": "Flat daily time slots in HH:MM format, used when the same schedule applies every day. Ignored if recurring_slots is set.",
             "items": {
               "type": "string"
             },
@@ -14675,9 +15956,9 @@
           },
           "status": {
             "enum": [
-              "pending",
               "confirmed",
-              "cancelled"
+              "cancelled",
+              "completed"
             ],
             "type": "string"
           }
@@ -14828,12 +16109,119 @@
             "type": "string"
           },
           "opening_hours": {
-            "description": "Opening hours for this location. Accepted shapes: (1) an object { weekdayDescriptions: string[] } with one entry per day, e.g. { weekdayDescriptions: [\"Monday: 9:00 AM – 5:00 PM\", \"Tuesday: 9:00 AM – 5:00 PM\", ...] } — this is also the shape returned by get_location; (2) a plain string with one day per line, e.g. \"Monday: 9:00 AM – 5:00 PM\\nTuesday: 9:00 AM – 5:00 PM\". A bare array of per-day structured objects (e.g. { openDay, openTime, closeTime }) is NOT supported — convert to weekdayDescriptions strings first. Pass null to clear.",
-            "type": [
-              "string",
-              "object",
-              "null"
-            ]
+            "anyOf": [
+              {
+                "type": "null"
+              },
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "periods": {
+                    "items": {
+                      "anyOf": [
+                        {
+                          "additionalProperties": false,
+                          "properties": {
+                            "close": {
+                              "additionalProperties": false,
+                              "properties": {
+                                "day": {
+                                  "maximum": 6,
+                                  "minimum": 0,
+                                  "type": "integer"
+                                },
+                                "hour": {
+                                  "maximum": 23,
+                                  "minimum": 0,
+                                  "type": "integer"
+                                },
+                                "minute": {
+                                  "maximum": 59,
+                                  "minimum": 0,
+                                  "type": "integer"
+                                }
+                              },
+                              "required": [
+                                "day",
+                                "hour",
+                                "minute"
+                              ],
+                              "type": "object"
+                            },
+                            "open": {
+                              "additionalProperties": false,
+                              "properties": {
+                                "day": {
+                                  "maximum": 6,
+                                  "minimum": 0,
+                                  "type": "integer"
+                                },
+                                "hour": {
+                                  "maximum": 23,
+                                  "minimum": 0,
+                                  "type": "integer"
+                                },
+                                "minute": {
+                                  "maximum": 59,
+                                  "minimum": 0,
+                                  "type": "integer"
+                                }
+                              },
+                              "required": [
+                                "day",
+                                "hour",
+                                "minute"
+                              ],
+                              "type": "object"
+                            }
+                          },
+                          "required": [
+                            "open",
+                            "close"
+                          ],
+                          "type": "object"
+                        },
+                        {
+                          "additionalProperties": false,
+                          "properties": {
+                            "open": {
+                              "additionalProperties": false,
+                              "properties": {
+                                "day": {
+                                  "const": 0
+                                },
+                                "hour": {
+                                  "const": 0
+                                },
+                                "minute": {
+                                  "const": 0
+                                }
+                              },
+                              "required": [
+                                "day",
+                                "hour",
+                                "minute"
+                              ],
+                              "type": "object"
+                            }
+                          },
+                          "required": [
+                            "open"
+                          ],
+                          "type": "object"
+                        }
+                      ]
+                    },
+                    "type": "array"
+                  }
+                },
+                "required": [
+                  "periods"
+                ],
+                "type": "object"
+              }
+            ],
+            "description": "Canonical weekly endpoint periods. Days use Sunday=0. Null means unknown; periods [] means closed. Sunday 00:00 without a close means always open."
           },
           "phone": {
             "description": "Public phone number shown to guests on the website and in booking/reservation confirmation emails.",
@@ -14872,37 +16260,110 @@
             "type": "string"
           },
           "special_hours": {
-            "description": "A temporary closure or special-hours override for this specific location, e.g. \"closed for renovations for two weeks\" or \"closed until July 17\". Shape: { closed: boolean, starts_on?: \"YYYY-MM-DD\" (defaults to today if omitted), ends_on?: \"YYYY-MM-DD\" (omit for an indefinite closure), note?: string — a short guest-facing message, e.g. \"Closed for renovations — back July 18th!\" }. Convert relative durations like \"2 weeks\" into a concrete ends_on date yourself before calling. This only affects this location's own page, never the site-wide homepage. Pass null for the whole field to clear it and reopen the location.",
-            "properties": {
-              "closed": {
-                "type": "boolean"
+            "anyOf": [
+              {
+                "type": "null"
               },
-              "ends_on": {
-                "type": [
-                  "string",
-                  "null"
-                ]
-              },
-              "note": {
-                "type": [
-                  "string",
-                  "null"
-                ]
-              },
-              "starts_on": {
-                "type": [
-                  "string",
-                  "null"
-                ]
+              {
+                "items": {
+                  "anyOf": [
+                    {
+                      "additionalProperties": false,
+                      "properties": {
+                        "ends_on": {
+                          "anyOf": [
+                            {
+                              "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "kind": {
+                          "const": "closure"
+                        },
+                        "note": {
+                          "maxLength": 1000,
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "starts_on": {
+                          "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "kind",
+                        "starts_on",
+                        "ends_on",
+                        "note"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "additionalProperties": false,
+                      "properties": {
+                        "date": {
+                          "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                          "type": "string"
+                        },
+                        "kind": {
+                          "const": "hours"
+                        },
+                        "note": {
+                          "maxLength": 1000,
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "periods": {
+                          "items": {
+                            "additionalProperties": false,
+                            "properties": {
+                              "close_day_offset": {
+                                "enum": [
+                                  0,
+                                  1
+                                ]
+                              },
+                              "close_time": {
+                                "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+                                "type": "string"
+                              },
+                              "open_time": {
+                                "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "open_time",
+                              "close_time",
+                              "close_day_offset"
+                            ],
+                            "type": "object"
+                          },
+                          "type": "array"
+                        }
+                      },
+                      "required": [
+                        "kind",
+                        "date",
+                        "periods",
+                        "note"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                },
+                "type": "array"
               }
-            },
-            "required": [
-              "closed"
             ],
-            "type": [
-              "object",
-              "null"
-            ]
+            "description": "Explicit dated hours or closures. Closure starts_on is required; ends_on is inclusive and null means indefinite. Dated hours replace regular hours; periods [] closes the date."
           },
           "tiktok_url": {
             "description": "Full TikTok profile URL for this location, e.g. https://tiktok.com/@yourhandle. Include the https:// scheme.",
@@ -15163,71 +16624,305 @@
       "inputSchema": {
         "additionalProperties": false,
         "properties": {
-          "body": {
-            "type": "string"
-          },
-          "cta_type": {
-            "description": "Call-to-action type shown with the post, e.g. \"book\", \"order\", \"learn_more\".",
-            "type": "string"
-          },
-          "cta_url": {
-            "description": "URL the call-to-action button links to.",
-            "type": "string"
-          },
-          "event_end": {
-            "description": "Event end datetime (ISO 8601). Use with post_type \"event\".",
-            "type": "string"
-          },
-          "event_start": {
-            "description": "Event start datetime (ISO 8601). Use with post_type \"event\".",
-            "type": "string"
-          },
-          "event_title": {
-            "description": "Event name. Use with post_type \"event\".",
-            "type": "string"
-          },
-          "location_id": {
-            "description": "Restrict this post to a specific location. Pass null to clear it.",
-            "type": [
-              "string",
-              "null"
+          "alert_type": {
+            "anyOf": [
+              {
+                "enum": [
+                  "covid_19"
+                ]
+              },
+              {
+                "type": "null"
+              }
             ]
           },
-          "offer_coupon": {
-            "description": "Coupon code for the promotion. Use with post_type \"offer\".",
+          "body": {
+            "minLength": 1,
             "type": "string"
           },
-          "offer_terms": {
-            "description": "Terms and conditions for the promotion. Use with post_type \"offer\".",
-            "type": "string"
+          "call_to_action": {
+            "anyOf": [
+              {
+                "anyOf": [
+                  {
+                    "additionalProperties": false,
+                    "properties": {
+                      "action_type": {
+                        "enum": [
+                          "call"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "action_type"
+                    ],
+                    "type": "object"
+                  },
+                  {
+                    "additionalProperties": false,
+                    "properties": {
+                      "action_type": {
+                        "enum": [
+                          "book",
+                          "order",
+                          "shop",
+                          "learn_more",
+                          "sign_up"
+                        ]
+                      },
+                      "url": {
+                        "format": "uri",
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "action_type",
+                      "url"
+                    ],
+                    "type": "object"
+                  }
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "event": {
+            "anyOf": [
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "recurrence_info": {
+                    "anyOf": [
+                      {
+                        "additionalProperties": false,
+                        "properties": {
+                          "kind": {
+                            "enum": [
+                              "daily"
+                            ]
+                          },
+                          "series_end_time": {
+                            "format": "date-time",
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "kind"
+                        ],
+                        "type": "object"
+                      },
+                      {
+                        "additionalProperties": false,
+                        "properties": {
+                          "days_of_week": {
+                            "items": {
+                              "enum": [
+                                "sunday",
+                                "monday",
+                                "tuesday",
+                                "wednesday",
+                                "thursday",
+                                "friday",
+                                "saturday"
+                              ]
+                            },
+                            "type": "array",
+                            "uniqueItems": true
+                          },
+                          "kind": {
+                            "enum": [
+                              "weekly"
+                            ]
+                          },
+                          "series_end_time": {
+                            "format": "date-time",
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "kind",
+                          "days_of_week"
+                        ],
+                        "type": "object"
+                      },
+                      {
+                        "additionalProperties": false,
+                        "properties": {
+                          "day_of_month": {
+                            "maximum": 31,
+                            "minimum": 1,
+                            "type": "integer"
+                          },
+                          "kind": {
+                            "enum": [
+                              "monthly"
+                            ]
+                          },
+                          "series_end_time": {
+                            "format": "date-time",
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "kind",
+                          "day_of_month"
+                        ],
+                        "type": "object"
+                      },
+                      {
+                        "additionalProperties": false,
+                        "properties": {
+                          "day_of_week_occurrence": {
+                            "enum": [
+                              "first",
+                              "second",
+                              "third",
+                              "fourth",
+                              "last"
+                            ]
+                          },
+                          "kind": {
+                            "enum": [
+                              "monthly"
+                            ]
+                          },
+                          "series_end_time": {
+                            "format": "date-time",
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "kind",
+                          "day_of_week_occurrence"
+                        ],
+                        "type": "object"
+                      }
+                    ]
+                  },
+                  "schedule": {
+                    "additionalProperties": false,
+                    "properties": {
+                      "end_date": {
+                        "format": "date",
+                        "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                        "type": "string"
+                      },
+                      "end_time": {
+                        "pattern": "^(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d{1,9})?$",
+                        "type": "string"
+                      },
+                      "start_date": {
+                        "format": "date",
+                        "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                        "type": "string"
+                      },
+                      "start_time": {
+                        "pattern": "^(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d{1,9})?$",
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "start_date",
+                      "start_time",
+                      "end_date",
+                      "end_time"
+                    ],
+                    "type": "object"
+                  },
+                  "title": {
+                    "minLength": 1,
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "title",
+                  "schedule"
+                ],
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "location_id": {
+            "anyOf": [
+              {
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "offer": {
+            "anyOf": [
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "coupon_code": {
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  "redeem_online_url": {
+                    "format": "uri",
+                    "type": "string"
+                  },
+                  "terms_conditions": {
+                    "minLength": 1,
+                    "type": "string"
+                  }
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "post_id": {
             "type": "string"
           },
           "post_type": {
-            "description": "Determines how the post is presented. \"offer\" = promotion, \"event\" = scheduled happening.",
             "enum": [
               "standard",
-              "offer",
               "event",
-              "update"
-            ],
-            "type": "string"
+              "offer",
+              "alert"
+            ]
           },
           "scheduled_for": {
-            "description": "If set, the post is scheduled to publish at this datetime (ISO 8601) instead of immediately.",
-            "type": "string"
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "seo_description": {
-            "type": [
-              "string",
-              "null"
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
             ]
           },
           "seo_title": {
-            "type": [
-              "string",
-              "null"
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
             ]
           },
           "site_id": {
@@ -15235,14 +16930,24 @@
             "type": "string"
           },
           "slug": {
-            "description": "Public URL slug. Pass null or omit to keep the current slug; pass a string to change it.",
-            "type": [
-              "string",
-              "null"
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
             ]
           },
           "title": {
-            "type": "string"
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "required": [
@@ -16354,7 +18059,7 @@
           "confirmation_token": {
             "type": "string"
           },
-          "expected_document_updated_at": {
+          "expected_updated_at": {
             "type": "string"
           },
           "pageType": {
@@ -16424,7 +18129,7 @@
         },
         "required": [
           "variant_id",
-          "expected_document_updated_at",
+          "expected_updated_at",
           "blocks"
         ],
         "type": "object"

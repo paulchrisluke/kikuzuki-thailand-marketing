@@ -2,7 +2,7 @@ import { defineHandler } from 'nitro'
 import { getRouterParam } from 'nitro/h3'
 
 import { requireSiteAccess } from '~/server/utils/location-access'
-import { getSiteLanguageSettings } from '~/server/utils/site-language-billing'
+import { getSiteLanguageSettings } from '~/server/utils/site-languages'
 
 export default defineHandler(async (event) => {
   const siteId = getRouterParam(event, 'siteId')

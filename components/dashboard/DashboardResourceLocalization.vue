@@ -114,13 +114,13 @@ interface LocalizationField {
 interface LanguageRow {
   locale: string
   label: string | null
-  locale_status: string
+  status: string
   is_source: boolean | number
 }
 
 interface LocalizationResponse {
   localization: {
-    values: Record<string, unknown>
+    [key: string]: unknown
   }
 }
 
@@ -153,6 +153,7 @@ const saving = ref(false)
 const languageError = ref<string | null>(null)
 const editorError = ref<string | null>(null)
 let requestGeneration = 0
+let documentRevision: { locale: string; updatedAt: string } | null = null
 
 const dirty = computed(() => props.fields.some(field => draft[field.key] !== baseline.value[field.key]))
 
@@ -185,12 +186,14 @@ function isLanguagesResponse(value: unknown): value is { languages: LanguageRow[
     && value.languages.every(item => isRecord(item)
       && typeof item.locale === 'string'
       && (typeof item.label === 'string' || item.label === null)
-      && typeof item.locale_status === 'string'
+      && typeof item.status === 'string'
       && (typeof item.is_source === 'boolean' || typeof item.is_source === 'number'))
 }
 
 function isLocalizationResponse(value: unknown): value is LocalizationResponse {
-  return isRecord(value) && isRecord(value.localization) && isRecord(value.localization.values)
+  return isRecord(value) && isRecord(value.localization) && (props.resourceType === 'content_document'
+    ? typeof value.localization.updated_at === 'string' && isRecord(value.localization.metadata)
+    : isRecord(value.localization.values))
 }
 
 function sourceText(field: LocalizationField): string {
@@ -208,7 +211,7 @@ function markDraftClean(): void {
 
 function applyValues(values: Record<string, unknown>): void {
   for (const field of props.fields) {
-    const value = values[field.key]
+    const value = props.loadValues ? values[field.key] : field.key.split('.').reduce<unknown>((value, key) => isRecord(value) ? value[key] : undefined, values)
     draft[field.key] = field.kind === 'string-list'
       ? (Array.isArray(value) ? value.filter(item => typeof item === 'string').join('\n') : '')
       : (typeof value === 'string' ? value : '')
@@ -223,9 +226,19 @@ function serializedValues(): Record<string, unknown> {
     if (rawValue === undefined) throw new Error(`Translation field ${field.key} is unavailable.`)
     const text = rawValue.trim()
     if (!text) continue
-    values[field.key] = field.kind === 'string-list'
+    const value = field.kind === 'string-list'
       ? text.split('\n').map(item => item.trim()).filter(Boolean)
       : text
+    if (props.saveValues) values[field.key] = value
+    else {
+      const path = field.key.split('.')
+      let target = values
+      for (const key of path.slice(0, -1)) {
+        if (!isRecord(target[key])) target[key] = {}
+        target = target[key] as Record<string, unknown>
+      }
+      target[path[path.length - 1]!] = value
+    }
   }
   return values
 }
@@ -243,10 +256,10 @@ async function loadLanguages(): Promise<void> {
       `/api/editor/sites/${props.siteId}/locales`,
       { validate: isLanguagesResponse },
     )
-    const sources = response.languages.filter(item => Boolean(item.is_source) && item.locale_status === 'published')
+    const sources = response.languages.filter(item => Boolean(item.is_source) && item.status === 'published')
     if (sources.length !== 1) throw new Error('The site source language is not configured correctly.')
     sourceLocale.value = sources[0]!.locale
-    const secondaryLanguages = response.languages.filter(item => !item.is_source && item.locale_status === 'published')
+    const secondaryLanguages = response.languages.filter(item => !item.is_source && item.status === 'published')
     if (secondaryLanguages.some(item => !item.label)) throw new Error('An enabled language is missing its display name.')
     localeOptions.value = secondaryLanguages.map(item => ({ label: `${item.label} (${item.locale})`, value: item.locale }))
     const requestedLocale = typeof route.query.locale === 'string' ? route.query.locale : ''
@@ -266,19 +279,24 @@ async function loadLanguages(): Promise<void> {
 async function load(): Promise<void> {
   const requestedLocale = locale.value
   const generation = ++requestGeneration
+  documentRevision = null
   clearDraft()
   markDraftClean()
   editorError.value = null
   if (!requestedLocale) return
   loading.value = true
   try {
-    const values = props.loadValues
-      ? await props.loadValues(requestedLocale)
-      : (await dashboardApi<LocalizationResponse>(
-          `/api/editor/sites/${props.siteId}/localization/${props.resourceType}/${props.resourceId}/${encodeURIComponent(requestedLocale)}`,
-          { validate: isLocalizationResponse },
-        )).localization.values
+    const response = props.loadValues ? null : await dashboardApi<LocalizationResponse>(
+      `/api/editor/sites/${props.siteId}/localization/${props.resourceType}/${props.resourceId}/${encodeURIComponent(requestedLocale)}`,
+      { validate: isLocalizationResponse },
+    )
+    const values = props.loadValues ? await props.loadValues(requestedLocale)
+      : props.resourceType === 'content_document' ? response!.localization : response!.localization.values
     if (generation !== requestGeneration || locale.value !== requestedLocale || !open.value) return
+    if (!isRecord(values)) throw new Error('Localized values are unavailable.')
+    if (response && typeof response.localization.updated_at === 'string') {
+      documentRevision = { locale: requestedLocale, updatedAt: response.localization.updated_at }
+    }
     applyValues(values)
   } catch (cause) {
     if (generation !== requestGeneration || locale.value !== requestedLocale || !open.value) return
@@ -305,6 +323,7 @@ async function save(): Promise<void> {
           method: 'PUT',
           body: {
             values,
+            ...(documentRevision?.locale === requestedLocale ? { expected_updated_at: documentRevision.updatedAt } : {}),
             ...(props.routePath ? { route_path: props.routePath(requestedLocale) } : {}),
           },
           validate: isLocalizationResponse,

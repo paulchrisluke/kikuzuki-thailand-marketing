@@ -40,7 +40,7 @@ function pageTypeForPage(page: string) {
   return 'recipe'
 }
 
-function blockData(page: string, rows: SeedTenantPageRow[]) {
+function blockData(page: string, rows: SeedTenantPageRow[], sourceRows = rows) {
   const blocks: Array<{ id: string; type: string; position: number; data: Record<string, unknown>; media: Array<{ asset_id: string; slot: string }> }> = []
   const hero = rows.find(row => row.field === 'hero')
   if (hero) {
@@ -59,7 +59,7 @@ function blockData(page: string, rows: SeedTenantPageRow[]) {
   const cta = rows.filter(row => row.field.startsWith('cta.'))
   if (cta.length) {
     blocks.push({
-      id: `${cta[0]!.id}-block-cta`,
+      id: `${sourceRows.find(row => row.field.startsWith('cta.'))!.id}-block-cta`,
       type: 'cta',
       position: blocks.length,
       data: {
@@ -98,9 +98,9 @@ function renderPage(
   page: string,
   locale: string,
   rows: SeedTenantPageRow[],
+  sourceRows: SeedTenantPageRow[],
   sqlValue: SqlValue,
   sqlJson: SqlJson,
-  includePageRecord: boolean,
   pathOverride?: string,
   titleOverride?: string,
 ) {
@@ -108,23 +108,23 @@ function renderPage(
   const pageKey = path.replaceAll('/', '-').replace(/^-/, '') || 'home'
   const pageId = `tenant-page-${siteId}-${pageKey}`
   const variantId = `${pageId}-${locale}`
-  const documentId = `${variantId}-document`
-  const blocks = blockData(page, rows).map(block => ({ ...block, id: `${variantId}-${block.id}` }))
+  const documentId = locale === 'en' ? pageId : `${variantId}-document`
+  const sourceBlocks = new Map(blockData(page, sourceRows).map(block => [block.id, block]))
+  const blocks = blockData(page, rows, sourceRows).map(block => {
+    if (locale !== 'en' && sourceBlocks.get(block.id)?.type !== block.type) {
+      throw new Error(`Translated seed block ${block.id} has no matching source block`)
+    }
+    return { ...block, id: `${variantId}-${block.id}`, source_block_id: locale === 'en' ? null : `${pageId}-en-${block.id}` }
+  })
   const hero = rows.find(row => row.field === 'hero')
   const title = titleOverride ?? hero?.heroTitle ?? hero?.content ?? (page === 'home' ? 'Home' : page[0]!.toUpperCase() + page.slice(1))
-  const blockSql = blocks.map(block => `INSERT OR REPLACE INTO content_blocks (id, document_id, parent_block_id, type, position, level, data_json, created_at, updated_at) VALUES (${sqlValue(block.id)}, ${sqlValue(documentId)}, NULL, ${sqlValue(block.type)}, ${block.position}, ${block.type === 'heading' ? 2 : 'NULL'}, ${sqlJson(block.data)}, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP);`).join('\n')
+  const blockSql = blocks.map(block => `INSERT OR REPLACE INTO content_blocks (id, document_id, parent_block_id, source_block_id, type, position, level, data_json, created_at, updated_at) VALUES (${sqlValue(block.id)}, ${sqlValue(documentId)}, NULL, ${sqlValue(block.source_block_id)}, ${sqlValue(block.type)}, ${block.position}, ${block.type === 'heading' ? 2 : 'NULL'}, ${sqlJson(block.data)}, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP);`).join('\n')
   const placementSql = blocks.flatMap(block => block.media.map((media, index) => `INSERT INTO media_placements (id, organization_id, site_id, owner_type, owner_id, slot, asset_id, sort_order, status, created_at, updated_at) VALUES (${sqlValue(`${block.id}-${media.slot}-${index}`)}, ${sqlValue(organizationId)}, ${sqlValue(siteId)}, 'content_block', ${sqlValue(block.id)}, ${sqlValue(media.slot)}, ${sqlValue(media.asset_id)}, ${index}, 'active', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP);`)).join('\n')
-  const pageSql = includePageRecord
-    ? `INSERT OR REPLACE INTO tenant_pages (id, organization_id, site_id, page_type, recipe, sort_order, source, updated_at)
-VALUES (${sqlValue(pageId)}, ${sqlValue(organizationId)}, ${sqlValue(siteId)}, ${sqlValue(pageTypeForPage(page))}, ${sqlValue(page)}, 0, 'fixture', CURRENT_TIMESTAMP);
-`
-    : ''
-  return `${pageSql}INSERT OR REPLACE INTO content_documents (id, owner_type, owner_id, created_at, updated_at)
-VALUES (${sqlValue(documentId)}, 'tenant_page', ${sqlValue(variantId)}, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP);
+  return `INSERT OR REPLACE INTO content_documents
+  (id, organization_id, site_id, kind, row_role, root_id, root_role, locale, path, title, source, metadata_json)
+VALUES (${sqlValue(documentId)}, ${sqlValue(organizationId)}, ${sqlValue(siteId)}, 'page', ${sqlValue(locale === 'en' ? 'root' : 'representation')}, ${sqlValue(locale === 'en' ? null : pageId)}, ${sqlValue(locale === 'en' ? null : 'root')}, ${sqlValue(locale)}, ${sqlValue(path)}, ${sqlValue(title)}, ${sqlValue(locale === 'en' ? 'fixture' : null)}, ${sqlJson({ page_type: pageTypeForPage(page), recipe: page })});
 DELETE FROM media_placements WHERE owner_type = 'content_block' AND owner_id IN (SELECT id FROM content_blocks WHERE document_id = ${sqlValue(documentId)});
 DELETE FROM content_blocks WHERE document_id = ${sqlValue(documentId)};
-INSERT OR REPLACE INTO tenant_page_variants (id, organization_id, site_id, page_id, locale, document_id, path, title, summary, seo_title, seo_description, canonical_url, robots, created_at, updated_at)
-VALUES (${sqlValue(variantId)}, ${sqlValue(organizationId)}, ${sqlValue(siteId)}, ${sqlValue(pageId)}, ${sqlValue(locale)}, ${sqlValue(documentId)}, ${sqlValue(path)}, ${sqlValue(title)}, NULL, NULL, NULL, NULL, NULL, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP);
 ${blockSql}
 ${placementSql}`
 }
@@ -141,6 +141,7 @@ export function renderTenantPagesSeedSql(input: {
   sqlValue: SqlValue
   sqlJson: SqlJson
 }) {
+  if (input.sourceLocale !== 'en') throw new Error('Canonical seed source locale must be English')
   const sourceLocale = input.locales.find(locale => locale.locale === input.sourceLocale)
   if (!sourceLocale) {
     throw new Error(`Source locale "${input.sourceLocale}" is not configured for this site`)
@@ -150,8 +151,8 @@ export function renderTenantPagesSeedSql(input: {
   }
   const pages = Array.from(new Set([...input.rows.map(row => row.page), ...(input.pages ?? []), 'home', 'about', 'contact']))
   const chunks: string[] = []
-  const publishedLocales = input.locales.filter(locale => locale.status === 'published')
-  for (const locale of publishedLocales) {
+  const configuredLocales = [...input.locales].sort((a, b) => Number(b.locale === 'en') - Number(a.locale === 'en'))
+  for (const locale of configuredLocales) {
     for (const page of pages) {
       const sourceRows = input.rows.filter(row => row.page === page)
       const localizedRows = locale.locale === input.sourceLocale
@@ -181,13 +182,13 @@ export function renderTenantPagesSeedSql(input: {
         page,
         locale.locale,
         localizedRows,
+        sourceRows,
         input.sqlValue,
         input.sqlJson,
-        locale.locale === input.sourceLocale,
       ))
     }
   }
-  for (const locale of publishedLocales) {
+  for (const locale of configuredLocales) {
     for (const page of input.additionalPages ?? []) {
       if (locale.locale !== input.sourceLocale) continue
       chunks.push(renderPage(
@@ -196,9 +197,9 @@ export function renderTenantPagesSeedSql(input: {
         page.page,
         locale.locale,
         [],
+        [],
         input.sqlValue,
         input.sqlJson,
-        locale.locale === input.sourceLocale,
         page.path,
         page.title,
       ))

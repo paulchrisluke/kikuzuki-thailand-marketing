@@ -9,7 +9,7 @@ export interface PublicTemplateDefinition {
     offeringsIndex: string | null
     offeringDetailPrefix: string | null
     articleIndex: string | null
-    articleDetailPrefix: string | null
+    articleDetailPrefix: string
   }
   sitemap: {
     exactPaths: string[]
@@ -40,7 +40,7 @@ export const publicTemplateRegistry: Record<PublicTemplateSlug, PublicTemplateDe
     slug: 'blawby',
     themeId: 'blawby-theme-v1',
     layout: 'blawby',
-    verticals: ['service', 'professional_service'],
+    verticals: ['service'],
     serviceRoutes: {
       offeringsIndex: '/services',
       offeringDetailPrefix: '/services',
@@ -60,33 +60,29 @@ export const TENANT_NON_INDEXABLE_EXACT_PATHS = new Set(
 )
 
 export function resolvePublicTemplate(input: {
-  theme?: string | null
   themeId?: string | null
   vertical?: string | null
 }): PublicTemplateDefinition {
-  const theme = String(input.theme ?? '').trim().toLowerCase()
   const themeId = String(input.themeId ?? '').trim().toLowerCase()
   const vertical = String(input.vertical ?? '').trim().toLowerCase()
 
-  if (!theme && !themeId && !vertical) {
-    throw new Error('resolvePublicTemplate() requires a theme, themeId, or vertical selector.')
+  if (!themeId && !vertical) {
+    throw new Error('resolvePublicTemplate() requires a themeId or vertical selector.')
   }
 
   const definitions = Object.values(publicTemplateRegistry)
   const match = definitions.find((definition) =>
-    (!theme || definition.slug === theme) &&
     (!themeId || definition.themeId.toLowerCase() === themeId) &&
     (!vertical || definition.verticals.includes(vertical)),
   )
 
   if (!match) {
-    throw new Error(`resolvePublicTemplate() found no compatible template for theme="${theme}" themeId="${themeId}" vertical="${vertical}".`)
+    throw new Error(`resolvePublicTemplate() found no compatible template for themeId="${themeId}" vertical="${vertical}".`)
   }
   return match
 }
 
 export function isBlawbyTemplate(input: {
-  theme?: string | null
   themeId?: string | null
   vertical?: string | null
 }) {

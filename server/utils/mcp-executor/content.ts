@@ -36,7 +36,7 @@ function tenantPageDocumentData(args: Record<string, unknown>, page: Awaited<Ret
     recipe: nullableStringArg(args, 'recipe', page.recipe),
     sortOrder: typeof args.sortOrder === 'number' ? args.sortOrder : page.sort_order,
     blocks,
-    expectedDocumentUpdatedAt: requiredString(args, 'expected_document_updated_at'),
+    expectedUpdatedAt: requiredString(args, 'expected_updated_at'),
   }
 }
 
@@ -55,9 +55,9 @@ function bookingPolicyTarget(args: Record<string, unknown>, policyType: BookingP
 function tenantPageReplacementConfirmation(page: Awaited<ReturnType<typeof getTenantPageById>>) {
   const removedBlockIds = page.blocks.map(block => block.id).sort()
   return {
-    expected_document_updated_at: page.document.updated_at,
+    expected_updated_at: page.document.updated_at,
     current_block_ids: page.blocks.map(block => block.id),
-    confirmation_format: 'tenant-page-replacement:<expected_document_updated_at>:<sorted_removed_block_ids_comma_separated>',
+    confirmation_format: 'tenant-page-replacement:<expected_updated_at>:<sorted_removed_block_ids_comma_separated>',
     confirmation_token_for_removing_all_current_blocks: buildTenantPageReplacementConfirmationToken(page.document.updated_at, removedBlockIds),
   }
 }
@@ -76,16 +76,16 @@ function assertTenantPageReplacementConfirmed(
   )
   const removedBlockIds = page.blocks.map(block => block.id).filter(id => !incomingBlockIds.has(id)).sort()
   if (!removedBlockIds.length) return
-  const expectedDocumentUpdatedAt = typeof args.expected_document_updated_at === 'string' ? args.expected_document_updated_at : ''
+  const expectedUpdatedAt = typeof args.expected_updated_at === 'string' ? args.expected_updated_at : ''
   const requestedRemovedIds = Array.isArray(args.removed_block_ids)
     ? args.removed_block_ids.filter((id): id is string => typeof id === 'string').sort()
     : []
   const confirmationToken = typeof args.confirmation_token === 'string' ? args.confirmation_token : ''
   const expectedToken = buildTenantPageReplacementConfirmationToken(page.document.updated_at, removedBlockIds)
-  if (expectedDocumentUpdatedAt !== page.document.updated_at || requestedRemovedIds.join(',') !== removedBlockIds.join(',') || confirmationToken !== expectedToken) {
+  if (expectedUpdatedAt !== page.document.updated_at || requestedRemovedIds.join(',') !== removedBlockIds.join(',') || confirmationToken !== expectedToken) {
     throw new HTTPError({
       statusCode: 409,
-      statusMessage: `Complete block replacement would remove ${removedBlockIds.length} existing block(s). Confirm with expected_document_updated_at="${page.document.updated_at}", removed_block_ids=${JSON.stringify(removedBlockIds)}, confirmation_token="${expectedToken}".`,
+      statusMessage: `Complete block replacement would remove ${removedBlockIds.length} existing block(s). Confirm with expected_updated_at="${page.document.updated_at}", removed_block_ids=${JSON.stringify(removedBlockIds)}, confirmation_token="${expectedToken}".`,
     })
   }
 }

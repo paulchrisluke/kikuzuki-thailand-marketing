@@ -31,7 +31,7 @@ const mediaMutationOutputSchema = {
 export const MEDIA_TOOLS: McpToolDefinition[] = [
   siteTool({
       name: 'set_media',
-      description: 'Assign one media asset to a single-valued CMS placement (a placement that holds at most one asset, such as a post cover, a location hero, or a site logo). Construct placement from the target entity: owner_type is its entity type, owner_id is its id, and slot is the media role. For a post cover use {owner_type:"post", owner_id:<post.id>, slot:"cover"}; for a location hero use {owner_type:"business_location", owner_id:<location.id>, slot:"hero"}. Pass asset_id:null to clear it. For an ordered collection (a gallery or a compliance document list, which can hold many assets) use attach_media, remove_media, and reorder_media instead — this tool rejects those. Video cover/hero assets must already have thumbnail_url/poster metadata.',
+      description: 'Assign one media asset to a single-valued CMS placement (a placement that holds at most one asset, such as a post cover, a location hero, or a site logo). Construct placement from the target entity: owner_type is its entity type, owner_id is its id, and slot is the media role. For a post cover use {owner_type:"content_document", owner_id:<post.id>, slot:"cover"}; for a location hero use {owner_type:"business_location", owner_id:<location.id>, slot:"hero"}. Pass asset_id:null to clear it. For an ordered collection (a gallery or a compliance document list, which can hold many assets) use attach_media, remove_media, and reorder_media instead — this tool rejects those. Video cover/hero assets must already have thumbnail_url/poster metadata.',
       domain: 'media',
       minimumRole: 'editor',
       confirmRequired: false,

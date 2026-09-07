@@ -1,7 +1,8 @@
-// Google Places API (New, v1) — server-side only. Key stored as GOOGLE_PLACES_API_KEY CF secret.
-// Never import this in client-side code.
+import { normalizeGoogleOpeningHours, type OpeningHours } from '~/shared/reservation-hours'
+import { serializeOpeningHours } from '~/server/utils/location-management'
 import type { D1Database } from '@cloudflare/workers-types'
-import { execute, executeBatch } from '~/server/db'
+import { normalizeGoogleReview, type GoogleReview } from '~/shared/google-review'
+import { executeBatch } from '~/server/db'
 
 const PLACES_BASE = 'https://places.googleapis.com/v1/places'
 
@@ -53,10 +54,6 @@ export class PlaceDetailsError extends Error {
   }
 }
 
-// Field masks — controls billing tier. We fetch all useful fields in one call.
-// Basic: id, displayName, formattedAddress, location, googleMapsUri
-// Contact (+$0.003/1k): nationalPhoneNumber, internationalPhoneNumber, websiteUri
-// Atmosphere (+$0.005/1k): rating, userRatingCount, regularOpeningHours, reviews
 const SEARCH_FIELD_MASK = [
   'places.id',
   'places.displayName',
@@ -82,6 +79,7 @@ const DETAIL_FIELD_MASK = [
   'rating',
   'userRatingCount',
   'regularOpeningHours',
+  'timeZone',
   'reviews',
 ].join(',')
 
@@ -97,13 +95,7 @@ export interface PlaceSearchResult {
   ratingCount: number | null
 }
 
-export interface PlaceReview {
-  reviewId: string
-  authorName: string
-  rating: number
-  text: string | null
-  publishedAt: string | null
-}
+export type PlaceReview = GoogleReview
 
 export interface PlaceDetails {
   placeId: string
@@ -117,16 +109,9 @@ export interface PlaceDetails {
   websiteUrl: string | null
   rating: number | null
   ratingCount: number | null
-  openingHours: string[] | null
+  timezone: string | null
+  openingHours: OpeningHours
   reviews: PlaceReview[]
-}
-
-interface RawReview {
-  name?: string
-  rating?: number
-  text?: { text?: string }
-  authorAttribution?: { displayName?: string }
-  publishTime?: string
 }
 
 interface RawPlace {
@@ -140,34 +125,17 @@ interface RawPlace {
   websiteUri?: string
   rating?: number
   userRatingCount?: number
-  regularOpeningHours?: { weekdayDescriptions?: string[] }
+  regularOpeningHours?: { periods?: unknown[] }
+  timeZone?: { id?: string }
   addressComponents?: Array<{ longText?: string; types?: string[]; languageCode?: string }>
-  reviews?: RawReview[]
-}
-
-// business_locations is source-locale (English) only — no locale column exists on it,
-// languageCode=en on both API calls is the real
-// fix; this only guards against Google still returning script-mismatched text (e.g. a
-// component Google won't localize) so it never lands silently in that table.
-const NON_LATIN_SCRIPT_RE = /[฀-๿一-鿿぀-ヿ가-힯؀-ۿЀ-ӿ]/
-
-function scrubNonLatin(value: string | null): string | null {
-  if (value && NON_LATIN_SCRIPT_RE.test(value)) return null
-  return value
+  reviews?: unknown[]
 }
 
 function extractCity(components?: RawPlace['addressComponents']): string | null {
   if (!components) return null
-  // Some Thai subdistricts (locality) have no English name in Google's dataset even
-  // with languageCode=en on the request — that field comes back Thai-only. Prefer an
-  // explicitly English-tagged component for the type, then fall through to the next
-  // type (e.g. administrative_area_level_2) rather than surfacing Thai script.
-  const cityTypes = ['locality', 'administrative_area_level_2', 'administrative_area_level_1']
-  for (const type of cityTypes) {
-    const matches = components.filter(c => c.types?.includes(type) && c.longText)
-    const preferred = matches.find(c => c.languageCode === 'en')
-      ?? matches.find(c => c.longText && !NON_LATIN_SCRIPT_RE.test(c.longText))
-    if (preferred?.longText) return preferred.longText
+  for (const type of ['locality', 'administrative_area_level_2', 'administrative_area_level_1']) {
+    const component = components.find(component => component.types?.includes(type) && component.longText)
+    if (component?.longText) return component.longText
   }
   return null
 }
@@ -176,7 +144,7 @@ function normalizeSearchResult(place: RawPlace): PlaceSearchResult {
   return {
     placeId: place.id ?? '',
     name: place.displayName?.text ?? '',
-    formattedAddress: scrubNonLatin(place.formattedAddress ?? '') ?? '',
+    formattedAddress: place.formattedAddress ?? '',
     lat: place.location?.latitude ?? null,
     lng: place.location?.longitude ?? null,
     mapsUrl: place.googleMapsUri ?? null,
@@ -190,8 +158,8 @@ function normalizeDetail(place: RawPlace): PlaceDetails {
   return {
     placeId: place.id ?? '',
     name: place.displayName?.text ?? '',
-    formattedAddress: scrubNonLatin(place.formattedAddress ?? '') ?? '',
-    city: scrubNonLatin(extractCity(place.addressComponents)),
+    formattedAddress: place.formattedAddress ?? '',
+    city: extractCity(place.addressComponents),
     lat: place.location?.latitude ?? null,
     lng: place.location?.longitude ?? null,
     mapsUrl: place.googleMapsUri ?? null,
@@ -199,15 +167,28 @@ function normalizeDetail(place: RawPlace): PlaceDetails {
     websiteUrl: place.websiteUri ?? null,
     rating: place.rating ?? null,
     ratingCount: place.userRatingCount ?? null,
-    openingHours: place.regularOpeningHours?.weekdayDescriptions ?? null,
-    reviews: (place.reviews ?? []).map(r => ({
-      reviewId: r.name ?? '',
-      authorName: r.authorAttribution?.displayName ?? '',
-      rating: Math.round(r.rating ?? 0),
-      text: r.text?.text ?? null,
-      publishedAt: r.publishTime ?? null,
-    })),
+    timezone: place.timeZone?.id ?? null,
+    openingHours: normalizeGoogleOpeningHours(place.regularOpeningHours?.periods),
+    reviews: (place.reviews ?? []).map(normalizeGoogleReview),
   }
+}
+
+export function googleReviewUpserts(scope: { organizationId: string; siteId: string; locationId: string }, reviews: PlaceReview[], now: string) {
+  const { organizationId, siteId, locationId } = scope
+  return reviews.map(review => {
+    const reviewId = `gplaces-${locationId}-${review.google_review_id.replace(/\//g, '-')}`
+    return {
+      query: `INSERT INTO reviews (id, organization_id, site_id, location_id, google_review_id, author_name, rating, content,
+        original_review_date, original_reference, google_review_metadata, status, source, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'approved', 'google_places', ?, ?)
+        ON CONFLICT(organization_id, site_id, location_id, google_review_id) DO UPDATE SET
+          author_name = excluded.author_name, rating = excluded.rating, content = excluded.content,
+          original_review_date = excluded.original_review_date, original_reference = excluded.original_reference,
+          google_review_metadata = excluded.google_review_metadata, updated_at = excluded.updated_at`,
+      params: [reviewId, organizationId, siteId, locationId, review.google_review_id, review.author_name, review.rating, review.content,
+        review.original_review_date, review.original_reference, JSON.stringify(review.google_review_metadata), now, now],
+    }
+  })
 }
 
 export async function syncPlaceToLocation(
@@ -221,28 +202,32 @@ export async function syncPlaceToLocation(
   const place = await getPlaceDetails(apiKey, placeId)
   const now = new Date().toISOString()
 
-  await execute(db, `
+  const results = await executeBatch(db, [{ query: `
     UPDATE business_locations SET
       phone = COALESCE(?, phone),
       website_url = COALESCE(?, website_url),
       city = COALESCE(?, city),
+      address = ?,
       latitude = COALESCE(?, latitude),
       longitude = COALESCE(?, longitude),
       maps_url = COALESCE(?, maps_url),
-      opening_hours = COALESCE(?, opening_hours),
+      opening_hours = ?,
+      timezone = COALESCE(?, timezone),
       rating = COALESCE(?, rating),
       review_count = COALESCE(?, review_count),
       last_synced_at = ?,
       updated_at = ?
     WHERE id = ? AND organization_id = ? AND site_id = ?
-  `, [
+  `, params: [
     place.phone,
     place.websiteUrl,
     place.city,
+    JSON.stringify({ addressLines: [place.formattedAddress] }),
     place.lat,
     place.lng,
     place.mapsUrl,
-    place.openingHours ? JSON.stringify({ weekdayDescriptions: place.openingHours }) : null,
+    serializeOpeningHours(place.openingHours),
+    place.timezone,
     place.rating,
     place.ratingCount,
     now,
@@ -250,19 +235,8 @@ export async function syncPlaceToLocation(
     locationId,
     organizationId,
     siteId
-  ])
-
-  // Upsert reviews — skip any already imported (deduped by google_review_id)
-  let reviewsUpserted = 0
-  for (const review of place.reviews) {
-    if (!review.reviewId || !review.rating) continue
-    const reviewId = `gplaces-${review.reviewId.replace(/\//g, '-')}`
-    const [result] = await executeBatch(db, [{
-      query: `INSERT OR IGNORE INTO reviews (id, organization_id, site_id, location_id, google_review_id, author_name, rating, content, status, source, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'approved', 'google_places', ?, ?)`,
-      params: [reviewId, organizationId, siteId, locationId, review.reviewId, review.authorName, review.rating, review.text, review.publishedAt ?? now, now],
-    }])
-    if (Number(result?.meta?.changes ?? 0) > 0) reviewsUpserted++
-  }
+  ] }, ...googleReviewUpserts({ organizationId, siteId, locationId }, place.reviews, now)])
+  const reviewsUpserted = results.slice(1).reduce((count, result) => count + Number(result.meta?.changes ?? 0), 0)
 
   return { place, reviewsUpserted }
 }
@@ -301,27 +275,13 @@ export async function searchPlaces(
 }
 
 function extractPlaceIdFromUrl(url: string): string | null {
+  const explicitId = new URL(url).searchParams.get('query_place_id')
+  if (explicitId) return explicitId
   const match = url.match(/!1s(ChIJ[^!&%]+)/)
   if (match?.[1]) {
     try { return decodeURIComponent(match[1]) } catch { return match[1] }
   }
   return null
-}
-
-function extractNameAndCoordsFromUrl(url: string): { name: string | null; lat: number | null; lng: number | null } {
-  let name: string | null = null
-  let lat: number | null = null
-  let lng: number | null = null
-  const pathMatch = url.match(/\/maps\/place\/([^/@]+)/)
-  if (pathMatch?.[1]) {
-    try { name = decodeURIComponent(pathMatch[1].replace(/\+/g, ' ')) } catch { name = pathMatch[1] }
-  }
-  const coordMatch = url.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/)
-  if (coordMatch?.[1] && coordMatch?.[2]) {
-    lat = parseFloat(coordMatch[1])
-    lng = parseFloat(coordMatch[2])
-  }
-  return { name, lat, lng }
 }
 
 async function resolveShortUrl(url: string): Promise<string> {
@@ -347,20 +307,7 @@ export async function getPlaceDetailsByUrl(
     return getPlaceDetails(apiKey, placeId)
   }
 
-  // URL uses hex-format or feature ID — extract name + coords and search instead
-  const { name, lat, lng } = extractNameAndCoordsFromUrl(resolved)
-  if (!name) {
-    throw new PlaceDetailsError('Could not identify the business from this URL. Copy the full Google Maps link directly from your browser address bar.', 422)
-  }
-  const locationBias = (lat !== null && lng !== null)
-    ? { latitude: lat, longitude: lng, radiusMeters: 2000 }
-    : undefined
-  const results = await searchPlaces(apiKey, name, locationBias)
-  const top = results[0]
-  if (!top?.placeId) {
-    throw new PlaceDetailsError(`Could not find "${name}" on Google. Try pasting the link from a desktop browser, or use the Facebook or manual option.`, 422)
-  }
-  return getPlaceDetails(apiKey, top.placeId)
+  throw new PlaceDetailsError('Choose a Google place and provide its place ID in the Maps URL (!1sChIJ... or query_place_id=...).', 422)
 }
 
 export async function getPlaceDetails(

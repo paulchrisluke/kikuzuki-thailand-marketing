@@ -19,10 +19,10 @@ export default defineHandler(async (event) => {
 
   const rows = await queryAll<ApiRecord>(db, `
     SELECT
-      wr.id, wr.type, wr.title, wr.description, wr.status, wr.priority, wr.source, wr.notes, wr.assigned_to, wr.created_at, wr.updated_at, wr.completed_at, wr.organization_id, s.brand_name
-    FROM work_requests wr
+      wr.id, json_extract(wr.payload_json, '$.type') AS type, json_extract(wr.payload_json, '$.title') AS title, json_extract(wr.payload_json, '$.description') AS description, wr.status, wr.priority, json_extract(wr.payload_json, '$.source') AS source, json_extract(wr.payload_json, '$.notes') AS notes, wr.assigned_to, wr.created_at, wr.updated_at, json_extract(wr.payload_json, '$.completed_at') AS completed_at, wr.organization_id, s.brand_name
+    FROM requests wr
     LEFT JOIN sites s ON s.id = wr.site_id
-    WHERE (? IS NULL OR wr.status = ?)
+    WHERE wr.kind = 'work' AND (? IS NULL OR wr.status = ?)
     AND (? = 1 OR wr.status != 'done')
     ORDER BY
       CASE wr.priority WHEN 'urgent' THEN 0 WHEN 'high' THEN 1 WHEN 'normal' THEN 2 ELSE 3 END, CASE wr.status WHEN 'in_progress' THEN 0 WHEN 'pending' THEN 1 ELSE 2 END, wr.created_at DESC

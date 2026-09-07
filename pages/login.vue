@@ -6,7 +6,7 @@
     <UAlert v-if="operationError" color="error" variant="soft" :description="operationError" class="mt-4" />
 
     <div v-if="rememberedProfile && showRememberedProfile" class="mt-8 space-y-5">
-      <PlatformButton variant="outline" size="xl" block :loading="googleLoading" class="min-h-20 text-left" @click="continueRememberedProfile">
+      <PlatformButton variant="outline" size="xl" block :loading="googleLoading" :disabled="!interactive" class="min-h-20 text-left" @click="continueRememberedProfile">
         <PlatformGoogleIcon v-if="rememberedProfile.method === 'google'" class="size-6 shrink-0" />
         <UIcon v-else :name="rememberedProfile.method === 'email' ? 'i-lucide-mail' : 'i-lucide-message-circle'" class="size-6 shrink-0" />
         <span class="min-w-0 flex-1 truncate">{{ rememberedProfile.identifier }}</span>
@@ -14,8 +14,8 @@
         <UIcon name="i-lucide-arrow-right" class="size-5 shrink-0" />
       </PlatformButton>
       <USeparator label="or" />
-      <UButton block size="xl" @click="chooseAnotherProfile">Log in with another profile</UButton>
-      <UButton block color="neutral" variant="link" size="sm" @click="forgetProfile">Forget this profile</UButton>
+      <UButton block size="xl" :disabled="!interactive" @click="chooseAnotherProfile">Log in with another profile</UButton>
+      <UButton block color="neutral" variant="link" size="sm" :disabled="!interactive" @click="forgetProfile">Forget this profile</UButton>
     </div>
 
     <AuthPhoneOtpForm v-else-if="isWhatsAppMode" default-country="TH" class="mt-6" @verified="finishPhoneSignIn" />
@@ -59,6 +59,8 @@ const redirect = computed(() => validatedInternalPath(route.query.redirect))
 const postLoginUrl = computed(() => buildPostLoginUrl({ redirect: redirect.value }))
 const signupUrl = computed(() => redirect.value ? { path: '/signup', query: { redirect: redirect.value } } : '/signup')
 const showPhone = ref(false)
+const interactive = ref(false)
+onMounted(() => { interactive.value = true })
 const lastMethod = useCookie<string | null>(LAST_LOGIN_METHOD_COOKIE)
 const lastIdentifier = useCookie<string | null>(REMEMBERED_PROFILE_COOKIE)
 const rememberedProfile = computed(() => readRememberedProfile(lastMethod.value, lastIdentifier.value))

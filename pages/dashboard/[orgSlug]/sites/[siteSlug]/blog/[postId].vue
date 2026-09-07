@@ -22,7 +22,7 @@
     <template #actions>
       <DashboardResourceLocalization
         :site-id="siteId"
-        resource-type="tenant_blog_post"
+        resource-type="content_document"
         :resource-id="postId"
         resource-label="post"
         :fields="blogLocalizationFields"
@@ -43,6 +43,7 @@ import MediaPicker from '~/lib/components/workspace/media/MediaPicker.vue'
 import type { BlogEditorBlock, BlogPost } from '~/lib/components/workspace/blog/types'
 import { blankBlogLocalizedText, blogLocalizedTextFields, writeBlogLocalizedText, type BlogLocalizedFieldPath } from '~/utils/blog-editor'
 import { tenantBlogPostPath } from '~/utils/tenant-blog-route'
+import { publicTemplateRegistry } from '~/utils/template-registry'
 
 definePageMeta({ layout: 'dashboard', cmsCapabilityKey: 'site.blog' })
 
@@ -81,10 +82,8 @@ const baseUrl = `/dashboard/${orgSlug}/sites/${siteSlug}/blog`
 
 useSeoMeta({ title: 'Edit Post | Dashboard' })
 
-// The shared localization dialog owns the interaction. This adapter only maps
-// the blog document's translatable text onto that common field contract.
 const dashboardApi = useDashboardApi()
-type BlogTranslationResponse = { localization: { values: Record<string, unknown>; content_document?: { document: { updated_at: string }; blocks: BlogEditorBlock[] } } }
+type BlogTranslationResponse = { localization: Record<string, unknown> & { metadata: Record<string, unknown>; updated_at: string; content_blocks: BlogEditorBlock[] } }
 interface BlogLocalizationState {
   locale: string
   blocks: BlogEditorBlock[]
@@ -93,11 +92,10 @@ interface BlogLocalizationState {
 let blogLocalizationState: BlogLocalizationState | null = null
 let blogLocalizationLoadGeneration = 0
 
+
 function isBlogTranslationResponse(value: unknown): value is BlogTranslationResponse {
-  if (!isRecord(value) || !isRecord(value.localization) || !isRecord(value.localization.values)) return false
-  const document = value.localization.content_document
-  return document === undefined
-    || (isRecord(document) && isRecord(document.document) && typeof document.document.updated_at === 'string' && Array.isArray(document.blocks))
+  return isRecord(value) && isRecord(value.localization) && typeof value.localization.updated_at === 'string'
+    && isRecord(value.localization.metadata) && Array.isArray(value.localization.content_blocks)
 }
 
 function blogBlockFieldKey(blockIndex: number, path: BlogLocalizedFieldPath): string {
@@ -109,10 +107,10 @@ const blogLocalizationFields = computed(() => {
   const post = postResource.value?.post
   const fields: Array<{ key: string; label: string; source: string | readonly string[] | null | undefined; kind?: 'string-list'; multiline?: boolean; rows?: number }> = [
     { key: 'title', label: 'Title', source: post?.title },
-    { key: 'excerpt', label: 'Excerpt', source: post?.excerpt, multiline: true, rows: 4 },
-    { key: 'category', label: 'Category', source: post?.category },
-    { key: 'tags_json', label: 'Tags', source: post?.tags, kind: 'string-list' },
-    { key: 'nav_title', label: 'Navigation title', source: post?.nav_title },
+    { key: 'summary', label: 'Excerpt', source: post?.excerpt, multiline: true, rows: 4 },
+    { key: 'metadata.category', label: 'Category', source: post?.category },
+    { key: 'metadata.tags', label: 'Tags', source: post?.tags, kind: 'string-list' },
+    { key: 'metadata.nav_title', label: 'Navigation title', source: post?.nav_title },
     { key: 'seo_keywords', label: 'Search keywords', source: post?.seo_keywords },
   ]
   sourceBlogBlocks.value.forEach((block, blockIndex) => {
@@ -140,12 +138,14 @@ async function loadBlogLocalization(locale: string): Promise<Record<string, unkn
   let values: Record<string, unknown> = {}
   try {
     const response = await dashboardApi<BlogTranslationResponse>(
-      `/api/editor/sites/${siteId}/localization/tenant_blog_post/${postId}/${encodeURIComponent(locale)}`,
+      `/api/editor/sites/${siteId}/localization/content_document/${postId}/${encodeURIComponent(locale)}`,
       { validate: isBlogTranslationResponse },
     )
-    values = response.localization.values
-    blocks = structuredClone(response.localization.content_document?.blocks ?? [])
-    documentUpdatedAt = response.localization.content_document?.document.updated_at ?? null
+    values = { ...response.localization, 'metadata.category': response.localization.metadata.category,
+      'metadata.tags': response.localization.metadata.tags, 'metadata.nav_title': response.localization.metadata.nav_title }
+    blocks = structuredClone(response.localization.content_blocks)
+    documentUpdatedAt = response.localization.updated_at
+
   } catch (cause) {
     const statusCode = isRecord(cause) && typeof cause.statusCode === 'number' ? cause.statusCode : null
     if (statusCode !== 404) throw cause
@@ -175,30 +175,34 @@ async function saveBlogLocalization(locale: string, submitted: Record<string, un
       if (typeof value === 'string') writeBlogLocalizedText(translated.data, field.path, value)
     })
   })
-  const values: Record<string, unknown> = {}
-  for (const key of ['title', 'excerpt', 'category', 'tags_json', 'nav_title', 'seo_keywords']) {
+  const values: Record<string, unknown> = { metadata: { category: submitted['metadata.category'],
+    tags: submitted['metadata.tags'], nav_title: submitted['metadata.nav_title'] } }
+  for (const key of ['title', 'summary', 'seo_keywords']) {
     if (Object.hasOwn(submitted, key)) values[key] = submitted[key]
   }
   const post = postResource.value?.post
   if (!post?.slug) throw new Error('Save the source post with a URL before localizing it.')
-  const sourcePath = tenantBlogPostPath({ theme: post.editor_template }, post.slug)
+  const template: unknown = post.editor_template
+  if (template !== 'saya' && template !== 'blawby') throw new Error('Article template is missing or invalid.')
+  const sourcePath = tenantBlogPostPath({ themeId: publicTemplateRegistry[template].themeId }, post.slug)
   const response = await dashboardApi<BlogTranslationResponse>(
-    `/api/editor/sites/${siteId}/localization/tenant_blog_post/${postId}/${encodeURIComponent(locale)}`,
+    `/api/editor/sites/${siteId}/localization/content_document/${postId}/${encodeURIComponent(locale)}`,
     {
       method: 'PUT',
       body: {
         values,
         route_path: `/${locale}${sourcePath}`,
         content_blocks: blocks,
-        ...(state.documentUpdatedAt ? { expected_document_updated_at: state.documentUpdatedAt } : {}),
+        ...(state.documentUpdatedAt ? { expected_updated_at: state.documentUpdatedAt } : {}),
       },
       validate: isBlogTranslationResponse,
     },
   )
   blogLocalizationState = {
     locale,
-    blocks: structuredClone(response.localization.content_document?.blocks ?? []),
-    documentUpdatedAt: response.localization.content_document?.document.updated_at ?? null,
+    blocks: structuredClone(response.localization.content_blocks),
+    documentUpdatedAt: response.localization.updated_at,
+
   }
 }
 

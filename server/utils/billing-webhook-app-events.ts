@@ -28,7 +28,6 @@ async function markSubscriptionPayment(
   subscriptionId: string,
   paymentStatus: 'paid' | 'processing' | 'failed',
   adapter: BetterAuthSubscriptionAdapter,
-  metadataOrganizationId?: string,
   event?: Stripe.Event,
   invoiceId?: string | null,
   basePlanPriceId?: string | null,
@@ -46,16 +45,10 @@ async function markSubscriptionPayment(
   }).then(row => row
     ? { organizationId: row.referenceId, customerId: row.stripeCustomerId }
     : null)
-  const legacy = await queryFirst<{ organizationId: string; customerId: string | null }>(db, `
-    SELECT organization_id AS organizationId, stripe_customer_id AS customerId
-    FROM organization_billing WHERE stripe_subscription_id = ? LIMIT 1
-  `, [subscriptionId])
-  const organizationId = local?.organizationId ?? legacy?.organizationId ?? metadataOrganizationId
-  if (!organizationId) throw new Error(`Subscription ${subscriptionId} has no organization reference; retrying`)
-  const customerId = local?.customerId ?? legacy?.customerId ?? null
+  if (!local) throw new Error('Subscription has no Better Auth organization reference; retrying')
+  const { organizationId, customerId } = local
   await markOrganizationPayment(db, {
     organizationId,
-    customerId,
     subscriptionId,
     paymentStatus,
     eventCreated: event?.created ?? 0,
@@ -158,13 +151,12 @@ async function validateSiteTransferCheckout(
   }
 
   const transferId = requiredTransferMetadata(metadata, 'transfer_request_id', session.id)
-  const organizationId = requiredTransferMetadata(metadata, 'organization_id', session.id)
-  const referenceId = requiredTransferMetadata(metadata, 'referenceId', session.id)
+  const organizationId = requiredTransferMetadata(metadata, 'referenceId', session.id)
   const siteId = requiredTransferMetadata(metadata, 'transfer_site_id', session.id)
   const plan = requiredTransferMetadata(metadata, 'plan', session.id)
   const claimingUserId = requiredTransferMetadata(metadata, 'transfer_claiming_user_id', session.id)
   const claimingOrganizationId = requiredTransferMetadata(metadata, 'transfer_claiming_organization_id', session.id)
-  if (referenceId !== organizationId || session.client_reference_id !== organizationId) {
+  if (session.client_reference_id !== organizationId) {
     throw new Error(`Checkout reference does not match site transfer ${transferId}`)
   }
 
@@ -324,7 +316,6 @@ export async function handleApplicationStripeEvent(
       subscriptionId,
       event.type === 'invoice.paid' ? 'paid' : 'failed',
       adapter,
-      undefined,
       event,
       invoice.id,
       resolved.item.price.id,
@@ -336,15 +327,8 @@ export async function handleApplicationStripeEvent(
       event.type === 'invoice.paid',
     )
 
-    // Checkout reconciliation can run before invoice.paid. Re-project after
-    // the ledger write in this same event attempt so the newly authoritative
-    // payment status is reflected in organization and site entitlements.
     await projectOrganizationSubscription(db, {
       organizationId: payment.organizationId,
-      customerId: typeof subscription.customer === 'string'
-        ? subscription.customer
-        : subscription.customer?.id ?? payment.customerId,
-      subscriptionId,
       plan: resolved.plan.name,
       status: subscription.status,
       periodEnd: new Date(periodEnd),
@@ -361,7 +345,6 @@ export async function handleApplicationStripeEvent(
   const session = event.data.object as Stripe.Checkout.Session
 
   const metadata = session.metadata ?? {}
-  const organizationId = metadata.organization_id
   if (session.mode === 'subscription' && metadata.type !== 'site_transfer') {
     // Checkout completion is only a UX/payment-processing signal. It does not
     // identify a paid billing period reliably (and may not even have a
@@ -372,17 +355,8 @@ export async function handleApplicationStripeEvent(
   }
   if (session.payment_status !== 'paid') return
 
-  if (metadata.type === 'credit_topup' || metadata.type === 'service_addon') {
-    console.info('retired_stripe_checkout_ignored', {
-      checkoutSessionId: session.id,
-      organizationId: organizationId ?? null,
-      type: metadata.type,
-    })
-    return
-  }
-
   if (metadata.type === 'site_transfer') {
     const transferId = await validateSiteTransferCheckout(db, session, metadata, adapter, stripe, loadStripePlans)
-    await completePaidSiteTransfer(env, db, transferId)
+    await completePaidSiteTransfer(db, transferId)
   }
 }

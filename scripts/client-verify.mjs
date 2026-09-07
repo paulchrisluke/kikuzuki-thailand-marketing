@@ -1,4 +1,6 @@
 #!/usr/bin/env node
+import { parseOpeningHours } from '../shared/reservation-hours.ts';
+import { formatOpeningHours } from '../utils/formatters.ts';
 /**
  * Post-deploy smoke test for a KrabiClaw tenant site.
  *
@@ -66,7 +68,7 @@ const OUT_DIR =
   args["out-dir"] ??
   (args.slug ? join(process.cwd(), "client-imports", args.slug) : null);
 
-if (VERTICAL === "professional_service") {
+if (VERTICAL === "service") {
   const blawbyArgs = ["scripts/verify-blawby-site.mjs", "--url", BASE];
   if (SITE_ID) blawbyArgs.push("--site-id", SITE_ID);
   if (args["tenant-slug"]) blawbyArgs.push("--tenant-slug", args["tenant-slug"]);
@@ -672,19 +674,8 @@ function formatHandoffAddress(value) {
 }
 
 function formatHandoffHours(value) {
-  let schedule = value;
-  if (typeof value === "string") {
-    try {
-      schedule = JSON.parse(value);
-    } catch {
-      return value.trim();
-    }
-  }
-  if (!schedule || typeof schedule !== "object" || Array.isArray(schedule)) return "";
-  if (!Array.isArray(schedule.weekdayDescriptions)) return "";
-  return schedule.weekdayDescriptions
-    .filter((entry) => typeof entry === "string" && entry.trim())
-    .join("; ");
+  const hours = parseOpeningHours(typeof value === 'string' ? JSON.parse(value) : value ?? null);
+  return formatOpeningHours(hours).map(row => row.day + ': ' + row.hours).join('; ');
 }
 
 if (OUT_DIR && failures === 0) {
@@ -763,13 +754,9 @@ if (OUT_DIR && failures === 0) {
     }
   }
 
-  // Google source URLs from client manifest
   if (existsSync(clientManifestPath)) {
     const manifest = JSON.parse(await readFile(clientManifestPath, "utf8"));
-    const sources = [
-      manifest.primary_location?.source_url,
-      ...(manifest.secondary_locations ?? []).map((l) => l.source_url),
-    ].filter(Boolean);
+    const sources = manifest.locations.map(location => location.source_url).filter(Boolean);
     if (sources.length) {
       handoffLines.push("## Google Source URLs", "");
       for (const s of sources) handoffLines.push(`- ${s}`);

@@ -1,8 +1,12 @@
+import { prepareContentDocumentDeletion, prepareContentDocumentWithBlocks } from '~/server/utils/content-documents'
+import { parseOpeningHours, parseSpecialHours } from '~/shared/reservation-hours'
+import { googleReviewUpserts } from '~/server/utils/google-places'
 import { HTTPError, defineHandler  } from 'nitro';
 
 import { cloudflareEnv, jsonResponse } from '~/server/utils/api-response'
 import { getAuthSession } from '~/server/utils/auth'
-import { execute, executeBatch, queryFirst, type BatchQuery } from '~/server/db'
+import { execute, executeBatch, queryFirst, queryAll, type BatchQuery } from '~/server/db'
+import { resourceLocalizationDeletionQueries } from '~/server/utils/localization'
 import { planProductCategories } from '~/server/utils/product-management'
 import { updateLocation } from '~/server/utils/location-management'
 import { getDraftMedia, parseOnboardingDraftPayload } from '~/server/utils/onboarding-drafts'
@@ -13,6 +17,7 @@ import { createMediaAsset, insertInitialMediaPlacements } from '~/server/utils/m
 import { resolveUserOrganization } from '~/server/utils/member-access'
 import { applyOnboardingTenantPages } from '~/server/utils/tenant-pages'
 import type { SiteVertical } from '~/utils/vertical-copy'
+import { isValidTimezone } from '~/utils/timezone'
 
 type SiteEnv = Parameters<typeof runSiteCreation>[0]
 
@@ -47,7 +52,6 @@ function onboardingPageBlocks(rows: Array<{ id?: string; field: string; content:
       blocks.push({ id: row.id ?? crypto.randomUUID(), type, position: blocks.length, data: type === 'heading' ? { field: row.field, text: row.content, level: 2 } : { field: row.field, markdown: row.content } })
     }
   }
-  if (!blocks.length) blocks.push({ id: crypto.randomUUID(), type: 'hero', position: 0, data: { title: 'Welcome', subtitle: null } })
   return blocks
 }
 
@@ -89,6 +93,10 @@ export default defineHandler(async (event) => {
   if (!defaultCurrency) {
     return jsonResponse({ error: 'Choose a currency before creating your site.' }, { status: 400 })
   }
+  const timezone = payload.source.details.timezone
+  if (!isValidTimezone(timezone)) {
+    return jsonResponse({ error: 'Choose a valid location timezone before creating your site.' }, { status: 400 })
+  }
 
   // Atomic draft status transition: claim draft before site creation to prevent duplicates
   const claimResult = await execute(db, `
@@ -128,12 +136,16 @@ export default defineHandler(async (event) => {
       WHERE id = ? AND organization_id = ?
     `, [defaultCurrency, new Date().toISOString(), siteId, organizationId])
 
+    await execute(db, `
+      UPDATE sites SET settings_json = json_set(settings_json, '$.config.default_timezone', ?)
+      WHERE organization_id = ? AND id = ?
+    `, [timezone, organizationId, siteId])
+
     const locationRow = await queryFirst<{ id: string; slug: string | null }>(db, `
       SELECT id, slug FROM business_locations
-      WHERE site_id = ? AND organization_id = ? AND status = 'active'
-      ORDER BY is_primary DESC, created_at ASC
+      WHERE id = ? AND site_id = ? AND organization_id = ? AND status = 'active'
       LIMIT 1
-    `, [siteId, organizationId])
+    `, [result.data.locationId, siteId, organizationId])
 
     if (!locationRow?.id) {
       throw new Error('No active location found for this site. Site creation may have failed.')
@@ -155,18 +167,18 @@ export default defineHandler(async (event) => {
       await executeBatch(db, insertInitialMediaPlacements({ organizationId, siteId, placement: { owner_type: 'business_location', owner_id: locationRow.id, slot: 'hero' }, media: [{ asset_id: heroDraftImage.draftAssetId }] }))
     }
 
-    const primaryLocation = payload.preview.locations[0]
+    const draftLocation = payload.preview.locations.find(location => location.id === 'draft-location-main')
     let updatedSlug: string | null = locationRow.slug ?? null
-    if (primaryLocation) {
-      updatedSlug = primaryLocation.slug || locationRow.slug || slugify(primaryLocation.title)
+    if (draftLocation) {
+      updatedSlug = draftLocation.slug || locationRow.slug || slugify(draftLocation.title)
       const updateResult = await updateLocation(db, organizationId, siteId, locationRow.id, {
-        title: primaryLocation.title, slug: updatedSlug, city: primaryLocation.city, address: primaryLocation.address, description: primaryLocation.description, phone: primaryLocation.phone, website_url: primaryLocation.website_url, opening_hours: primaryLocation.opening_hours, rating: primaryLocation.rating, review_count: primaryLocation.review_count, notification_phone: payload.source.details.notificationPhone, timezone: payload.source.details.timezone, is_primary: true, status: 'active', maps_url: payload.source.place?.mapsUrl, google_place_id: payload.source.place?.placeId, }, session.user.id, env)
+        title: draftLocation.title, slug: updatedSlug, city: draftLocation.city, address: draftLocation.address, description: draftLocation.description, phone: draftLocation.phone, website_url: draftLocation.website_url, opening_hours: parseOpeningHours(draftLocation.opening_hours), special_hours: parseSpecialHours(draftLocation.special_hours), rating: draftLocation.rating, review_count: draftLocation.review_count, notification_phone: payload.source.details.notificationPhone, timezone: payload.source.details.timezone, status: 'active', maps_url: payload.source.place?.mapsUrl, google_place_id: payload.source.place?.placeId, }, session.user.id, env)
 
       if (updateResult.status !== 200) {
         throw new Error(
           typeof updateResult.data?.error === 'string'
             ? updateResult.data.error
-            : 'Primary location update failed.', )
+            : 'Location update failed.', )
       }
     }
 
@@ -189,9 +201,8 @@ export default defineHandler(async (event) => {
         if (!assetId) continue
         const block = await queryFirst<{ id: string }>(db, `
           SELECT cb.id FROM content_blocks cb
-          JOIN content_documents d ON d.id = cb.document_id AND d.owner_type = 'tenant_page'
-          JOIN tenant_page_variants v ON v.id = d.owner_id
-          WHERE v.site_id = ? AND v.path = ?
+          JOIN content_documents d ON d.id = cb.document_id AND d.kind = 'page' AND d.row_role = 'root'
+          WHERE d.site_id = ? AND d.path = ?
             AND (cb.type = 'hero' AND ? = 'hero' OR json_extract(cb.data_json, '$.field') = ?)
           ORDER BY cb.position LIMIT 1
         `, [siteId, onboardingPagePath(pageName), row.field, row.field])
@@ -212,11 +223,16 @@ export default defineHandler(async (event) => {
       db, organizationId, siteId, locationId: locationRow.id, actor: session.user.id,
       names: [...orderedProducts.filter(product => product.is_visible), ...orderedProducts.filter(product => !product.is_visible)].map(product => product.category),
     })
-    const batchQueries: BatchQuery[] = [...categoryPlan.inserts]
+    const standardProducts = { query: "SELECT id FROM products WHERE organization_id = ? AND site_id = ? AND product_type = 'standard'", params: [organizationId, siteId] }
+    const batchQueries: BatchQuery[] = [
+      ...categoryPlan.inserts,
+      ...resourceLocalizationDeletionQueries('product', standardProducts),
+      { query: `DELETE FROM media_placements WHERE owner_type = 'review' AND owner_id IN (SELECT id FROM reviews WHERE product_id IN (${standardProducts.query}))`, params: standardProducts.params },
+    ]
 
     batchQueries.push({
-      query: `DELETE FROM media_placements WHERE owner_type = 'product' AND owner_id IN (SELECT id FROM products WHERE site_id = ?)`,
-      params: [siteId],
+      query: `DELETE FROM media_placements WHERE owner_type = 'product' AND owner_id IN (${standardProducts.query})`,
+      params: standardProducts.params,
     })
     batchQueries.push({ query: `DELETE FROM reviews WHERE product_id IN (SELECT id FROM products WHERE site_id = ? AND product_type = 'standard')`, params: [siteId] })
     batchQueries.push({ query: `DELETE FROM products WHERE organization_id = ? AND site_id = ? AND product_type = 'standard'`, params: [organizationId, siteId] })
@@ -250,46 +266,21 @@ export default defineHandler(async (event) => {
       })
     }
 
-    batchQueries.push({ query: `DELETE FROM location_qa WHERE organization_id = ? AND site_id = ?`, params: [organizationId, siteId] })
-    for (const item of payload.preview.qa) {
-      // Draft Q&A is template boilerplate, not owner-authored — mark 'template'.
-      batchQueries.push({
-        query: `
-          INSERT INTO location_qa
-            (id, organization_id, site_id, location_id, question, answer, answer_author, is_owner_answer, source, status, sort_order, created_at, updated_at)
-          VALUES (?, ?, ?, ?, ?, ?, ?, 1, 'template', 'published', ?, ?, ?)
-        `, params: [
-          item.id, organizationId, siteId, locationRow.id, item.question, item.answer, item.answer_author, item.sort_order, now, now, ], })
-    }
+    const replaced = await queryAll<{ id: string }>(db, "SELECT id FROM content_documents WHERE organization_id = ? AND site_id = ? AND row_role = 'root' AND kind IN ('qa','social_post')", [organizationId, siteId])
+    for (const document of replaced) batchQueries.push(...prepareContentDocumentDeletion({ documentId: document.id, organizationId, siteId }))
+    for (const item of payload.preview.qa) batchQueries.push(...prepareContentDocumentWithBlocks({
+      id: item.id, organizationId, siteId, kind: 'qa', rowRole: 'root', locale: 'en', locationId: locationRow.id,
+      title: item.question, summary: item.answer, source: 'template', status: 'published', sortOrder: item.sort_order,
+      metadata: { answer_author: item.answer_author, is_owner_answer: 1, upvote_count: 0 },
+    }, []).queries)
+    for (const post of payload.preview.posts) batchQueries.push(...prepareContentDocumentWithBlocks({
+      id: post.id, organizationId, siteId, kind: 'social_post', rowRole: 'root', locale: 'en', locationId: locationRow.id,
+      title: post.title, summary: post.body, status: post.status, publishedAt: post.published_at, source: 'template',
+      createdBy: session.user.id, metadata: { post_type: 'standard', channels: {} },
+    }, []).queries)
 
-    batchQueries.push({
-      query: `DELETE FROM media_placements WHERE organization_id = ? AND site_id = ? AND owner_type = 'post' AND owner_id IN (SELECT id FROM posts WHERE organization_id = ? AND site_id = ?)`,
-      params: [organizationId, siteId, organizationId, siteId],
-    })
-    batchQueries.push({ query: `DELETE FROM posts WHERE organization_id = ? AND site_id = ?`, params: [organizationId, siteId] })
-    for (const post of payload.preview.posts) {
-      // Draft "welcome" posts are auto-generated, not owner-authored — mark 'template'.
-      batchQueries.push({
-        query: `
-          INSERT INTO posts
-            (id, organization_id, site_id, location_id, post_type, title, body, status, published_at, created_by, source, created_at, updated_at)
-          VALUES (?, ?, ?, ?, 'standard', ?, ?, ?, ?, ?, 'template', ?, ?)
-        `, params: [
-          post.id, organizationId, siteId, locationRow.id, post.title, post.body, post.status, post.published_at, session.user.id, now, now, ], })
-    }
+    batchQueries.push(...googleReviewUpserts({ organizationId, siteId, locationId: locationRow.id }, payload.preview.reviews, now))
 
-    for (const review of payload.preview.reviews) {
-      if (!review.rating) continue
-      batchQueries.push({
-        query: `
-          INSERT OR IGNORE INTO reviews
-            (id, organization_id, site_id, location_id, google_review_id, author_name, rating, title, content, owner_reply, owner_reply_at, status, source, created_at, updated_at)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'approved', ?, ?, ?)
-        `, params: [
-          review.id, organizationId, siteId, locationRow.id, null, review.author_name, review.rating, review.title, review.content, review.owner_reply, review.owner_reply_at, review.source ?? 'direct', review.created_at ?? now, now, ], })
-    }
-
-    // Finalize draft status to committed in the same batch as the rebuild
     batchQueries.push({
       query: `
         UPDATE onboarding_drafts

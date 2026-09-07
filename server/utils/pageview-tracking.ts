@@ -119,44 +119,32 @@ export async function recordTenantPageview(db: AppDb, input: TenantPageviewInput
   }
   await executeBatch(db, [
     {
-      query: `INSERT OR IGNORE INTO site_pageview_events (
-        id, site_id, location_id, page_path, page_id, page_type, recipe, locale, revision_id,
-        referrer, user_agent, ip_hash, session_id, visitor_id, duration_seconds, country, region, city, created_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?, ?, ?, NULL, ?, ?, ?, ?)`,
+      query: `INSERT OR IGNORE INTO analytics_events (
+        id, kind, site_id, location_id, page_path, session_id, visitor_id, payload_json, created_at
+      ) VALUES (?, 'pageview', ?, ?, ?, ?, ?, ?, ?)`,
       params: [
-        input.eventId, input.siteId, input.locationId, input.pagePath, input.pageId, input.pageType,
-        input.recipe, input.locale, input.referrerHost, input.userAgent, input.ipHash,
-        input.sessionId, input.visitorId, input.country, input.region, input.city, input.now,
+        input.eventId, input.siteId, input.locationId, input.pagePath, input.sessionId, input.visitorId,
+        JSON.stringify({ page_id: input.pageId, page_type: input.pageType, recipe: input.recipe,
+          locale: input.locale, revision_id: null, referrer: input.referrerHost, user_agent: input.userAgent,
+          ip_hash: input.ipHash, country: input.country, region: input.region, city: input.city }), input.now,
       ],
     },
     {
-      query: `INSERT INTO site_analytics_sessions (
-        id, organization_id, site_id, session_id, visitor_id, started_at, last_seen_at, landing_path,
-        last_touch_source, last_touch_medium, last_touch_campaign, last_touch_term, last_touch_content,
-        last_touch_referrer_host, last_touch_gclid, last_touch_gbraid, last_touch_wbraid,
-        last_touch_fbclid, last_touch_msclkid, last_touch_at, created_at, updated_at
-      ) SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+      query: `INSERT INTO analytics_summaries (
+        id, kind, organization_id, site_id, date, key, payload_json, created_at, updated_at
+      ) SELECT ?, 'session', ?, ?, '', ?, ?, ?, ?
         WHERE changes() = 1
-      ON CONFLICT(site_id, session_id) DO UPDATE SET
-        last_seen_at = excluded.last_seen_at, updated_at = excluded.updated_at,
-        last_touch_source = CASE WHEN excluded.last_touch_at IS NULL THEN site_analytics_sessions.last_touch_source ELSE excluded.last_touch_source END,
-        last_touch_medium = CASE WHEN excluded.last_touch_at IS NULL THEN site_analytics_sessions.last_touch_medium ELSE excluded.last_touch_medium END,
-        last_touch_campaign = CASE WHEN excluded.last_touch_at IS NULL THEN site_analytics_sessions.last_touch_campaign ELSE excluded.last_touch_campaign END,
-        last_touch_term = CASE WHEN excluded.last_touch_at IS NULL THEN site_analytics_sessions.last_touch_term ELSE excluded.last_touch_term END,
-        last_touch_content = CASE WHEN excluded.last_touch_at IS NULL THEN site_analytics_sessions.last_touch_content ELSE excluded.last_touch_content END,
-        last_touch_referrer_host = CASE WHEN excluded.last_touch_at IS NULL THEN site_analytics_sessions.last_touch_referrer_host ELSE excluded.last_touch_referrer_host END,
-        last_touch_gclid = CASE WHEN excluded.last_touch_at IS NULL THEN site_analytics_sessions.last_touch_gclid ELSE excluded.last_touch_gclid END,
-        last_touch_gbraid = CASE WHEN excluded.last_touch_at IS NULL THEN site_analytics_sessions.last_touch_gbraid ELSE excluded.last_touch_gbraid END,
-        last_touch_wbraid = CASE WHEN excluded.last_touch_at IS NULL THEN site_analytics_sessions.last_touch_wbraid ELSE excluded.last_touch_wbraid END,
-        last_touch_fbclid = CASE WHEN excluded.last_touch_at IS NULL THEN site_analytics_sessions.last_touch_fbclid ELSE excluded.last_touch_fbclid END,
-        last_touch_msclkid = CASE WHEN excluded.last_touch_at IS NULL THEN site_analytics_sessions.last_touch_msclkid ELSE excluded.last_touch_msclkid END,
-        last_touch_at = CASE WHEN excluded.last_touch_at IS NULL THEN site_analytics_sessions.last_touch_at ELSE excluded.last_touch_at END`,
+      ON CONFLICT(site_id, kind, date, key) DO UPDATE SET updated_at = excluded.updated_at,
+        payload_json = json_set(analytics_summaries.payload_json,
+          '$.last_seen_at', json_extract(excluded.payload_json, '$.last_seen_at'),
+          '$.attribution', CASE WHEN json_extract(excluded.payload_json, '$.last_touch_at') IS NULL
+            THEN json_extract(analytics_summaries.payload_json, '$.attribution') ELSE json_extract(excluded.payload_json, '$.attribution') END,
+          '$.last_touch_at', COALESCE(json_extract(excluded.payload_json, '$.last_touch_at'), json_extract(analytics_summaries.payload_json, '$.last_touch_at')))`,
       params: [
-        crypto.randomUUID(), input.organizationId, input.siteId, input.sessionId, input.visitorId,
-        input.now, input.now, input.pagePath,
-        initial.source, initial.medium, initial.campaign, initial.term, initial.content, initial.referrerHost,
-        initial.gclid, initial.gbraid, initial.wbraid, initial.fbclid, initial.msclkid,
-        touch ? input.now : null, input.now, input.now,
+        crypto.randomUUID(), input.organizationId, input.siteId, input.sessionId,
+        JSON.stringify({ visitor_id: input.visitorId, started_at: input.now, last_seen_at: input.now,
+          landing_path: input.pagePath, duration_seconds: 0, attribution: initial, last_touch_at: touch ? input.now : null }),
+        input.now, input.now,
       ],
     },
   ], { operation: 'record tenant analytics pageview' })
@@ -167,13 +155,13 @@ export async function updateTenantPageviewDuration(db: AppDb, input: {
 }): Promise<void> {
   await executeBatch(db, [
     {
-      query: `UPDATE site_pageview_events SET duration_seconds = ? WHERE id = ? AND site_id = ? AND session_id = ?`,
+      query: `UPDATE analytics_events SET duration_seconds = ? WHERE kind = 'pageview' AND id = ? AND site_id = ? AND session_id = ?`,
       params: [input.durationSeconds, input.eventId, input.siteId, input.sessionId],
     },
     {
-      query: `UPDATE site_analytics_sessions SET
-        duration_seconds = COALESCE((SELECT SUM(duration_seconds) FROM site_pageview_events WHERE site_id = ? AND session_id = ?), 0),
-        last_seen_at = ?, updated_at = ? WHERE site_id = ? AND session_id = ? AND changes() = 1`,
+      query: `UPDATE analytics_summaries SET payload_json = json_set(payload_json,
+        '$.duration_seconds', COALESCE((SELECT SUM(duration_seconds) FROM analytics_events WHERE kind = 'pageview' AND site_id = ? AND session_id = ?), 0),
+        '$.last_seen_at', ?), updated_at = ? WHERE kind = 'session' AND site_id = ? AND key = ? AND changes() = 1`,
       params: [input.siteId, input.sessionId, input.now, input.now, input.siteId, input.sessionId],
     },
   ], { operation: 'update exact tenant pageview duration' })
@@ -183,18 +171,19 @@ export async function recordPlatformPageview(db: AppDb, input: {
   eventId: string; pagePath: string; referrerHost: string | null; userAgent: string; ipHash: string;
   sessionId: string; visitorId: string; country: string | null; region: string | null; city: string | null; now: string
 }): Promise<void> {
-  await execute(db, `INSERT OR IGNORE INTO site_pageview_events (
-    id, site_id, page_path, referrer, user_agent, ip_hash, session_id, visitor_id, duration_seconds, country, region, city, created_at
-  ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?, ?)`, [
-    input.eventId, PLATFORM_SITE_ID, input.pagePath, input.referrerHost, input.userAgent, input.ipHash,
-    input.sessionId, input.visitorId, input.country, input.region, input.city, input.now,
+  await execute(db, `INSERT OR IGNORE INTO analytics_events (
+    id, kind, site_id, page_path, session_id, visitor_id, payload_json, created_at
+  ) VALUES (?, 'pageview', ?, ?, ?, ?, ?, ?)`, [
+    input.eventId, PLATFORM_SITE_ID, input.pagePath, input.sessionId, input.visitorId,
+    JSON.stringify({ referrer: input.referrerHost, user_agent: input.userAgent, ip_hash: input.ipHash,
+      country: input.country, region: input.region, city: input.city }), input.now,
   ])
 }
 
 export async function updatePlatformPageviewDuration(db: AppDb, input: {
   eventId: string; sessionId: string; durationSeconds: number
 }): Promise<void> {
-  await execute(db, `UPDATE site_pageview_events SET duration_seconds = ? WHERE site_id = ? AND id = ? AND session_id = ?`, [
+  await execute(db, `UPDATE analytics_events SET duration_seconds = ? WHERE kind = 'pageview' AND site_id = ? AND id = ? AND session_id = ?`, [
     input.durationSeconds, PLATFORM_SITE_ID, input.eventId, input.sessionId,
   ])
 }

@@ -13,7 +13,6 @@ export interface PlatformBlogPostRequestBody extends PlatformContentNavRequestBo
   title?: string
   slug?: string | null
   content_blocks?: ContentBlockInput[]
-  expected_document_updated_at?: string
   expected_updated_at?: string
   excerpt?: string
   category?: string
@@ -31,7 +30,7 @@ export interface PlatformBlogPostRequestBody extends PlatformContentNavRequestBo
 export interface PlatformDocRequestBody extends PlatformContentNavRequestBody {
   title?: string
   content_blocks?: ContentBlockInput[]
-  expected_document_updated_at?: string
+  expected_updated_at?: string
   excerpt?: string
   category?: string
   seo_description?: string

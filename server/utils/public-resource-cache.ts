@@ -82,13 +82,12 @@ export async function drainPublicResourceCacheInvalidations(
       const domains = await queryAll<{ domain: string }>(db, `
         SELECT domain FROM site_domains WHERE site_id = ? AND status = 'active'
       `, [row.site_id])
-      const sites = await queryAll<{ subdomain: string | null; custom_domain: string | null }>(db, `
-        SELECT subdomain, custom_domain FROM sites WHERE id = ? LIMIT 1
+      const sites = await queryAll<{ subdomain: string | null }>(db, `
+        SELECT subdomain FROM sites WHERE id = ? LIMIT 1
       `, [row.site_id])
       const site = sites[0]
       const hostnames = new Set<string>(domains.map(domain => domain.domain))
       if (site?.subdomain) hostnames.add(`${site.subdomain}.${freeSiteDomain}`)
-      if (site?.custom_domain) hostnames.add(site.custom_domain)
       await purgeSiteKvCache(kv, [...hostnames])
       const finalized = await execute(db, `
         UPDATE public_resource_cache_invalidations
@@ -176,13 +175,6 @@ export async function putPublicResourceCache(
 
 /**
  * Purge all cached public resource entries for a site.
- * Called after any write to public-resource tables (tenant pages, products,
- * business_locations, experiences, blog_posts, location_qa, media_assets,
- * site_config, site_locales) so the next read reflects the edit immediately
- * instead of waiting out the TTL.
- *
- * KV keys are structured as: public~<siteId>~...
- * We list by prefix public~<siteId>~ and delete all matches.
  */
 export async function purgePublicResourceCache(kv: KVNamespace, siteId: string): Promise<void> {
   const prefix = `public~${encodeKeyField(siteId)}~`

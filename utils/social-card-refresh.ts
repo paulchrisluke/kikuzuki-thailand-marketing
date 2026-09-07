@@ -15,6 +15,7 @@ export interface SocialCardRefreshNotice {
 
 export interface SocialCardRegenerationResponse {
   summary: SocialCardRefreshSummary
+  next_cursor: string | null
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -47,13 +48,13 @@ export function isSocialCardRefreshSummary(value: unknown): value is SocialCardR
 }
 
 export function isSocialCardRegenerationResponse(value: unknown): value is SocialCardRegenerationResponse {
-  return isRecord(value) && isSocialCardRefreshSummary(value.summary)
+  return isRecord(value) && isSocialCardRefreshSummary(value.summary) && (value.next_cursor === null || typeof value.next_cursor === 'string')
 }
 
 export function socialCardRefreshNotice(summary: SocialCardRefreshSummary): SocialCardRefreshNotice {
   const completed = summary.generated + summary.reused
   const detail = `${summary.generated} generated, ${summary.reused} reused, ${summary.skipped} skipped`
-  if (summary.failed === 0) {
+  if (summary.failed === 0 && summary.skipped === 0) {
     return { message: `Social cards regenerated: ${detail}.`, color: 'success' }
   }
   if (summary.failed === summary.total) {

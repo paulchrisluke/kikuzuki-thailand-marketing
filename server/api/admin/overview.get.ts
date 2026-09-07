@@ -5,7 +5,7 @@ import { listOrganizationMembers } from '~/server/utils/member-access'
 
 interface OrganizationRow { id: string; name: string; slug: string | null; impersonation_user_id: string | null }
 interface SiteRow { id: string; organization_id: string; slug: string; brand_name: string | null; subdomain: string | null; status: string | null }
-interface LocationRow { id: string; site_id: string; slug: string; title: string; city: string | null; is_primary: number }
+interface LocationRow { id: string; site_id: string; slug: string; title: string; city: string | null; }
 
 export default defineHandler(async (event) => {
   const env = cloudflareEnv(event)
@@ -21,9 +21,9 @@ export default defineHandler(async (event) => {
         FROM sites
         ORDER BY COALESCE(brand_name, slug) ASC
       `), queryAll<LocationRow>(db, `
-        SELECT id, site_id, slug, title, city, is_primary
+        SELECT id, site_id, slug, title, city
         FROM business_locations
-        ORDER BY is_primary DESC, title ASC
+        ORDER BY title ASC
       `), ])
     const organizationRows: OrganizationRow[] = await Promise.all(organizations.map(async (organization) => {
       const members = await listOrganizationMembers(env, organization.id)
@@ -48,7 +48,7 @@ export default defineHandler(async (event) => {
       organizations: organizationRows.map(organization => ({
         id: organization.id, name: organization.name, slug: organization.slug, impersonationUserId: organization.impersonation_user_id, sites: (sitesByOrganization.get(organization.id) || []).map(site => ({
           id: site.id, slug: site.slug, name: site.brand_name || site.slug, subdomain: site.subdomain, status: site.status, locations: (locationsBySite.get(site.id) || []).map(location => ({
-            id: location.id, slug: location.slug, title: location.title, city: location.city, isPrimary: Boolean(location.is_primary), })), })), })), })
+            id: location.id, slug: location.slug, title: location.title, city: location.city, })), })), })), })
   } catch (error) {
     const { statusCode, message } = platformPermissionError(error, 'Failed to load organizations')
     return jsonResponse({ error: message }, { status: statusCode })

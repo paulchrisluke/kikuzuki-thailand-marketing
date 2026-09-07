@@ -2,6 +2,16 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { describeErrorForTelemetry } from "../../server/utils/error-telemetry.ts";
+import { summarizeForTelemetry } from "../../server/utils/mcp-telemetry.ts";
+
+test("oversized MCP summaries remain parseable JSON with redaction", () => {
+  const summary = summarizeForTelemetry(Object.fromEntries(Array.from({ length: 100 }, (_, index) => [`field_${index}`, '"\\\n'.repeat(80)])));
+  assert.ok(summary);
+  const parsed = JSON.parse(summary);
+  assert.equal(parsed.truncated, true);
+  assert.ok(parsed.summary.length <= 4000);
+  assert.equal(JSON.parse(summarizeForTelemetry({ password: 'secret' })!).password, '[redacted]');
+});
 
 test("describeErrorForTelemetry preserves a nested database root cause", () => {
   const cause = new Error("D1_ERROR: CHECK constraint failed: media_assets_category_check");

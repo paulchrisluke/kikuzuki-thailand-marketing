@@ -1,4 +1,4 @@
-import { execute, queryAll, queryFirst } from '~/server/db'
+import { execute, queryAll, queryFirst, type DbClient } from '~/server/db'
 import { d1JsonStringSet } from '~/server/db/d1-limits'
 import type { CloudflareEnv } from '~/server/utils/auth'
 import { listUserOrganizations, resolveOrganizationMembership } from '~/server/utils/member-access'
@@ -24,7 +24,6 @@ export interface McpSiteSummary {
   status: string
   onboarding_status: string
   role: string
-  primary_location_id: string | null
 }
 
 export interface McpOrganizationSummary {
@@ -39,7 +38,6 @@ export interface McpLocationSummary {
   title: string
   city: string | null
   status: string
-  is_primary: boolean
 }
 
 export interface ResolvedMcpWorkspace {
@@ -71,7 +69,7 @@ export async function getMcpWorkspacePreference(
 ) {
   return await queryFirst<McpWorkspacePreferenceRow>(db, `
     SELECT user_id, organization_id, site_id, location_id, created_at, updated_at
-    FROM mcp_workspace_preferences
+    FROM user_workspace_state
     WHERE user_id = ?
     LIMIT 1
   `, [userId])
@@ -92,8 +90,8 @@ export async function listAccessibleSitesForMcp(
     ? [[organizations[index]!.id, membership.role] as const]
     : []))
   const rows = await queryAll<Omit<McpSiteSummary, 'organization_name' | 'organization_slug' | 'role'>>(db, `
-    SELECT id, organization_id, brand_name, subdomain, custom_domain, public_url, status,
-           onboarding_status, primary_location_id
+    SELECT id, organization_id, brand_name, subdomain, (SELECT domain FROM site_domains WHERE site_id = sites.id AND role = 'canonical' AND status = 'active' AND type = 'custom') AS custom_domain, (SELECT 'https://' || domain FROM site_domains WHERE site_id = sites.id AND role = 'canonical' AND status = 'active') AS public_url, status,
+           onboarding_status
     FROM sites
     WHERE organization_id IN (SELECT value FROM json_each(?))
     ORDER BY updated_at DESC, created_at DESC
@@ -118,18 +116,14 @@ export async function listLocationsForMcp(
     title: string
     city: string | null
     status: string
-    is_primary: number | boolean
   }>(db, `
-    SELECT id, slug, title, city, status, is_primary
+    SELECT id, slug, title, city, status
     FROM business_locations
     WHERE organization_id = ? AND site_id = ?
-    ORDER BY is_primary DESC, title ASC
+    ORDER BY title ASC
   `, [organizationId, siteId])
 
-  return results.map((location) => ({
-    ...location,
-    is_primary: Boolean(location.is_primary),
-  }))
+  return results
 }
 
 export async function resolveMcpWorkspace(
@@ -178,6 +172,11 @@ export async function resolveMcpWorkspace(
       null
     : null
 
+  if (requestedSiteId && !site) {
+    const domain = await queryFirst<{ site_id: string }>(db, "SELECT site_id FROM site_domains WHERE domain = ? AND status = 'active' LIMIT 1", [requestedSiteId])
+    site = scopedSites.find(entry => entry.id === domain?.site_id) ?? null
+  }
+
   if (!requestedSiteId) {
     if (!site && preferredSiteId) {
       site = scopedSites.find((entry) => entry.id === preferredSiteId) ?? null
@@ -209,30 +208,13 @@ export async function resolveMcpWorkspace(
     : []
 
   const requestedLocationId = normalizeId(options.locationId)
-  const preferredLocationId = normalizeId(preference?.location_id)
-  let location = requestedLocationId
+  const location = requestedLocationId
     ? locations.find((entry) => entry.id === requestedLocationId) ??
       locations.find((entry) => entry.slug === requestedLocationId) ??
       null
     : null
 
-  if (!requestedLocationId) {
-    if (!location && preferredLocationId) {
-      location = locations.find((entry) => entry.id === preferredLocationId) ?? null
-    }
-    if (!location && site?.primary_location_id) {
-      location = locations.find((entry) => entry.id === site.primary_location_id) ?? null
-    }
-    if (!location && locations.length === 1) {
-      location = locations[0] ?? null
-    }
-  }
-
   if (options.requireLocation && !location) {
-    // A caller who named a location and a caller who named none have failed for
-    // different reasons, and telling the first to "pass location_id explicitly"
-    // sends them looking for a mistake they did not make. Name the id that did
-    // not resolve instead, so a wrong or out-of-site id reads as what it is.
     if (requestedLocationId) {
       throw new Error(
         `Location "${requestedLocationId}" was not found on the active site.`,
@@ -267,7 +249,7 @@ export async function upsertMcpWorkspacePreference(
 ) {
   const now = new Date().toISOString()
   await execute(db, `
-    INSERT INTO mcp_workspace_preferences (
+    INSERT INTO user_workspace_state (
       user_id, organization_id, site_id, location_id, created_at, updated_at
     ) VALUES (?, ?, ?, ?, ?, ?)
     ON CONFLICT(user_id) DO UPDATE SET
@@ -282,5 +264,64 @@ export async function upsertMcpWorkspacePreference(
     input.locationId,
     now,
     now,
+  ])
+}
+
+export type JsonSerializable = string | number | boolean | null | { [key: string]: JsonSerializable } | JsonSerializable[]
+
+function nowIso() {
+  return new Date().toISOString()
+}
+
+function jsonOrNull(value: JsonSerializable | null | undefined): string | null {
+  return value == null ? null : JSON.stringify(value)
+}
+
+export async function getWhatsAppWorkspaceState(
+  db: DbClient,
+  userId: string,
+): Promise<{
+  user_id: string
+  pending_confirmation: string | null
+  last_inbound_id: string | null
+  updated_at: string
+} | null> {
+  const result = await queryFirst<{
+    user_id: string
+    pending_confirmation: string | null
+    last_inbound_id: string | null
+    updated_at: string
+  }>(db, `
+    SELECT user_id, whatsapp_pending_confirmation AS pending_confirmation, whatsapp_last_inbound_id AS last_inbound_id, whatsapp_updated_at AS updated_at
+      FROM user_workspace_state
+     WHERE user_id = ? AND whatsapp_updated_at IS NOT NULL LIMIT 1
+  `, [userId])
+  return result ?? null
+}
+
+export async function patchWhatsAppWorkspaceState(
+  db: DbClient,
+  opts: {
+    userId: string
+    pendingConfirmation?: JsonSerializable | null
+    lastInboundId?: string | null
+  }
+): Promise<void> {
+  const updateFields: string[] = []
+  if ('pendingConfirmation' in opts) updateFields.push('whatsapp_pending_confirmation = excluded.whatsapp_pending_confirmation')
+  if ('lastInboundId' in opts) updateFields.push('whatsapp_last_inbound_id = excluded.whatsapp_last_inbound_id')
+  updateFields.push('whatsapp_updated_at = excluded.whatsapp_updated_at')
+
+  await execute(db, `
+    INSERT INTO user_workspace_state
+      (user_id, whatsapp_pending_confirmation, whatsapp_last_inbound_id, whatsapp_updated_at)
+    VALUES (?, ?, ?, ?)
+    ON CONFLICT(user_id) DO UPDATE SET
+      ${updateFields.join(',\n      ')}
+  `, [
+    opts.userId,
+    jsonOrNull(opts.pendingConfirmation),
+    opts.lastInboundId ?? null,
+    nowIso(),
   ])
 }

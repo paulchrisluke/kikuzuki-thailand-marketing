@@ -36,7 +36,6 @@ async function migratedCacheD1() {
       await db.prepare(statement).run()
     }
   }
-  await db.prepare("INSERT INTO themes (id, name, slug) VALUES ('saya-theme-v1', 'Saya', 'saya')").run()
   await db.prepare("INSERT INTO organization (id, name, slug) VALUES ('org', 'Org', 'org')").run()
   await db.prepare("INSERT INTO sites (id, organization_id, slug, subdomain) VALUES ('site', 'org', 'site', 'site')").run()
   return { miniflare, db, kv }

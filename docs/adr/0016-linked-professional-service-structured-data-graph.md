@@ -13,8 +13,8 @@ Professional-service tenants need a schema.org graph generated from canonical pl
 
 `tenant_compliance.address_visibility` (`visible`/`hidden`) gates whether a resolved street address is included in the graph at all; the address data itself is read from the existing `business_locations` table (`address`, `city` columns) rather than duplicated into `tenant_compliance`, since address data is not compliance metadata and `business_locations` already exists as the canonical location model.
 
-- **Org-level address**: the primary active `business_locations` row (`is_primary` first, then deterministic title/id ordering) supplies the org-level `PostalAddress` on the shared Organization node that appears on every page, gated by `tenant_compliance.address_visibility`.
-- **Offering-level address**: an offering associated with its own location (`offerings.location_id`) can carry that location's `PostalAddress` on its service-detail page's `LegalService`/`Service` node. `LegalService`/`ProfessionalService` are valid schema.org `LocalBusiness` subtypes, so an offering-level `address` is legitimate schema.org usage, not an extension. The graph builder supports `offering.addressVisible` as an explicit override of `org.addressVisible`. The current public renderer does not pass that offering-level value, so it inherits organization visibility and cannot expose an address when the organization address is hidden.
+Organizations have no postal address. The shared Organization node does not select or publish a business location address.
+An offering associated with a location through `offerings.location_id` can publish that location's `PostalAddress` on its service-detail `LegalService` or `Service` node. `tenant_compliance.address_visibility` is the single permission for publishing offering location addresses.
 
 ## Dashboard/MCP parity
 

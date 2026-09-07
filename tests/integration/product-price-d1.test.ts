@@ -41,7 +41,6 @@ async function migratedD1() {
       await db.prepare(statement).run()
     }
   }
-  await db.prepare("INSERT INTO themes (id, name, slug) VALUES ('saya-theme-v1', 'Saya', 'saya')").run()
   await db.prepare("INSERT INTO user (id, name, email) VALUES ('actor', 'Actor', 'actor@example.com')").run()
   await db.prepare("INSERT INTO organization (id, name, slug) VALUES ('org', 'Org', 'org')").run()
   await db.prepare("INSERT INTO sites (id, organization_id, slug, subdomain) VALUES ('site', 'org', 'site', 'site')").run()
@@ -49,9 +48,6 @@ async function migratedD1() {
   await db.prepare("INSERT INTO business_locations (id, organization_id, site_id, slug, title) VALUES ('primary', 'org', 'site', 'primary', 'Primary')").run()
   await db.prepare("INSERT INTO business_locations (id, organization_id, site_id, slug, title) VALUES ('secondary', 'org', 'site', 'secondary', 'Secondary')").run()
   await db.prepare("INSERT INTO business_locations (id, organization_id, site_id, slug, title) VALUES ('other-site-location', 'org', 'other-site', 'other', 'Other')").run()
-  await db.prepare("UPDATE sites SET primary_location_id = 'primary' WHERE id = 'site'").run()
-  // Products need a category at their own location, so the fixture creates one
-  // per location up front and every seeded Product references it.
   for (const [categoryId, siteId, locationId] of [
     ['cat-primary', 'site', 'primary'],
     ['cat-secondary', 'site', 'secondary'],
@@ -215,7 +211,7 @@ async function countCacheInvalidations(db: D1Database, siteId: string): Promise<
   return Number(row?.count ?? 0)
 }
 
-test('location-scoped Product writes never fall back to the primary location', async () => {
+test('location-scoped Product writes require the supplied owning location', async () => {
   const { miniflare, db } = await migratedD1()
   try {
     await seedProduct(db, 'secondary-owned')
@@ -355,7 +351,6 @@ test('Product catalog localization reads category records from the current schem
     await seedProduct(db, 'localized-product')
     await db.prepare("INSERT INTO organization_billing (organization_id, access_plan) VALUES ('org', 'growth')").run()
     await db.prepare("INSERT INTO site_locales (id, organization_id, site_id, locale, is_source, status) VALUES ('en', 'org', 'site', 'en', 1, 'published'), ('th', 'org', 'site', 'th', 0, 'published')").run()
-    await db.prepare("INSERT INTO site_language_licenses (id, organization_id, site_id, locale, status) VALUES ('license', 'org', 'site', 'th', 'active')").run()
     const catalog = await getProductCatalogLocalization(db, 'org', 'site', 'th')
     assert.deepEqual(catalog.categories, [
       { id: 'cat-primary', location_id: 'primary', source: { name: 'Food' }, localization: null },

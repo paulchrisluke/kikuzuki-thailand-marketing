@@ -16,7 +16,6 @@ export interface DashboardHomeLocation {
   city: string | null
   rating: number | null
   review_count: number | null
-  is_primary: boolean
   status: string
   updated_at: string
   address: { addressLines?: string[] } | null
@@ -99,7 +98,7 @@ export async function getDashboardHomeData(
     queryAll<{
       id: string; slug: string; title: string; city: string | null
       rating: number | null; review_count: number | null
-      is_primary: number; status: string; updated_at: string
+    status: string; updated_at: string
       address: string | null; maps_url: string | null
       latitude: number | null; longitude: number | null
       card_asset_id: string | null; card_kind: string | null; card_public_url: string | null
@@ -107,7 +106,7 @@ export async function getDashboardHomeData(
     }>(db, `
       SELECT bl.id, bl.slug, bl.title, bl.city, bl.rating, bl.review_count,
              bl.address, bl.maps_url, bl.latitude, bl.longitude,
-             bl.is_primary, bl.status, bl.updated_at,
+             bl.status, bl.updated_at,
              ma_card.id AS card_asset_id, ma_card.kind AS card_kind,
              ma_card.public_url AS card_public_url,
              ma_card.thumbnail_url AS card_thumbnail_url
@@ -119,7 +118,7 @@ export async function getDashboardHomeData(
         AND ma_card.organization_id = bl.organization_id AND ma_card.site_id = bl.site_id AND ma_card.status = 'active'
       WHERE bl.organization_id = ? AND bl.site_id = ?
       ${locationScopeClause}
-      ORDER BY bl.is_primary DESC, bl.title ASC
+      ORDER BY bl.title ASC
     `, [organizationId, siteId, ...scopedParams]),
 
     queryAll<{
@@ -128,12 +127,13 @@ export async function getDashboardHomeData(
       metadata: string | null; created_at: string
       location_title: string | null
     }>(db, `
-      SELECT e.id, e.event_type, e.entity_type, e.entity_id,
-             e.location_id, e.metadata, e.created_at,
+      SELECT e.id, e.event_name AS event_type, json_extract(e.payload_json, '$.entityType') AS entity_type, json_extract(e.payload_json, '$.entityId') AS entity_id,
+             e.location_id, json_extract(e.payload_json, '$.metadata') AS metadata, e.created_at,
              l.title as location_title
-      FROM organization_events e
+      FROM activity_entries e
+    LEFT JOIN sites event_site ON event_site.id = e.site_id
       LEFT JOIN business_locations l ON l.id = e.location_id
-      WHERE e.organization_id = ? AND e.site_id = ?
+      WHERE e.kind = 'audit' AND event_site.organization_id = ? AND e.site_id = ?
       ${eventScopeClause}
       ORDER BY e.created_at DESC
       LIMIT 15
@@ -157,7 +157,6 @@ export async function getDashboardHomeData(
       const { card_asset_id, card_kind, card_public_url, card_thumbnail_url, ...location } = l
       return {
         ...location,
-        is_primary: Boolean(l.is_primary),
         address,
         media: card_asset_id && card_public_url ? [{ asset_id: card_asset_id, slot: 'social_card' as const, public_url: card_public_url, thumbnail_url: card_thumbnail_url, kind: card_kind }] : [],
         map_embed_url: calculateMapEmbedUrl({ ...l, address: address?.addressLines?.[0] ?? null }),

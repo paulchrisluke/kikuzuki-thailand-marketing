@@ -19,7 +19,7 @@ export default defineHandler(async (event) => {
     const authApi = authAdminApi(env)
     const headers = adminHeadersForEvent(event)
     const [totalUsers, organizationCount, totalSites, totalPosts, totalProducts, totalLocations] = await Promise.all([
-      countPlatformUsers(authApi, headers), countPlatformOrganizations(env), queryFirst<{ count: number }>(db, `SELECT COUNT(*) as count FROM sites`), queryFirst<{ count: number }>(db, `SELECT COUNT(*) as count FROM posts`), queryFirst<{ count: number }>(db, `SELECT COUNT(*) as count FROM products`), queryFirst<{ count: number }>(db, `SELECT COUNT(*) as count FROM business_locations`), ])
+      countPlatformUsers(authApi, headers), countPlatformOrganizations(env), queryFirst<{ count: number }>(db, `SELECT COUNT(*) as count FROM sites`), queryFirst<{ count: number }>(db, `SELECT COUNT(*) as count FROM content_documents WHERE kind = 'social_post' AND row_role = 'root'`), queryFirst<{ count: number }>(db, `SELECT COUNT(*) as count FROM products`), queryFirst<{ count: number }>(db, `SELECT COUNT(*) as count FROM business_locations`), ])
 
     const recentSites = await queryAll<{ id: string; brand_name: string | null; subdomain: string; created_at: string }>(
       db, `SELECT id, brand_name, subdomain, created_at FROM sites ORDER BY created_at DESC LIMIT 10`, )

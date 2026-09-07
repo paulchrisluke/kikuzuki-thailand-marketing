@@ -60,27 +60,15 @@ export function buildCanonicalNotificationInsert(
   return {
     id,
     query: `
-      INSERT INTO notifications
-      (id, organization_id, site_id, location_id, source_entry_id, scope, severity,
-       target_user_id, deep_link, message, template, title, created_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO activity_entries
+        (id, kind, scope_kind, organization_id, context_site_id, location_id, parent_id, actor_kind, target_user_id, body, event_name, payload_json, dedupe_key, occurred_at, created_at)
+      VALUES (?, 'notification', ?, ?, ?, ?, ?, 'system', ?, ?, ?, ?, ?, ?, ?)
       ON CONFLICT DO NOTHING
     `,
-    params: [
-      id,
-      input.organizationId ?? null,
-      input.siteId ?? null,
-      input.locationId ?? null,
-      input.sourceEntryId ?? null,
-      input.scope,
-      input.severity ?? 'info',
-      input.targetUserId ?? null,
-      input.deepLink ?? null,
-      input.message ?? null,
-      input.template,
-      input.title,
-      now,
-    ],
+    params: [id, input.scope === 'platform' ? 'platform' : 'organization', input.organizationId ?? null, input.siteId ?? null,
+      input.locationId ?? null, input.sourceEntryId ?? null, input.targetUserId ?? null, input.message ?? null, input.template,
+      JSON.stringify({ visibility_scope: input.scope, severity: input.severity ?? 'info', title: input.title, deep_link: input.deepLink ?? null }),
+      `notification:${input.idempotencyKey ?? id}`, now, now],
   }
 }
 

@@ -3,7 +3,6 @@ import type { GuestThreadSubmissionType } from './types'
 const OPERATIONAL_STATUS_LABELS: Record<GuestThreadSubmissionType, Record<string, string>> = {
   contact: {},
   reservation: {
-    new: 'Pending',
     pending: 'Pending',
     confirmed: 'Confirmed',
     completed: 'Completed',

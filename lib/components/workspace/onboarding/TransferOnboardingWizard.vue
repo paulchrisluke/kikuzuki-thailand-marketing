@@ -226,7 +226,7 @@ interface Props {
 const props = defineProps<Props>()
 const emit = defineEmits<{ done: [] }>()
 const siteVertical = computed<SiteVertical>(() => props.vertical)
-const transferStarterPrompt = computed(() => props.vertical === 'professional_service'
+const transferStarterPrompt = computed(() => props.vertical === 'service'
   ? 'Audit this imported site and help me improve it. Start with hero copy, brand story, missing photos, and any weak services pages.'
   : props.vertical === 'experience'
   ? 'Audit this imported site and help me improve it. Start with hero copy, brand story, missing photos, and any weak experience pages.'

@@ -1,64 +1,25 @@
-import { queryAll } from '~/server/db'
+import type { CloudflareEnv } from '~/server/utils/auth'
 import { defineScheduledTask } from '~/server/utils/scheduled-task'
-import { refreshSocialCard, type SocialCardOwner } from '~/server/utils/social-card'
+import { listSocialCardOwners, refreshSocialCard } from '~/server/utils/social-card'
+import { summarizeSocialCardRefreshResults } from '~/utils/social-card-refresh'
 
-/**
- * Owners per run. Each one renders an image and uploads it, so this is bounded
- * by the work rather than by the number of sites: a single site with a full
- * menu is a hundred renders, which is not something to do in one scheduled
- * invocation. A backlog drains a little each night.
- */
 const OWNERS_PER_RUN = 25
-
-/** Only the owners regenerateSiteSocialCards supports, with their own filters. */
-const OWNER_SOURCES: ReadonlyArray<{ table: string; ownerType: SocialCardOwner['owner_type']; filter?: string }> = [
-  { table: 'sites', ownerType: 'site' },
-  { table: 'business_locations', ownerType: 'business_location', filter: "status = 'active'" },
-  { table: 'products', ownerType: 'product', filter: "is_visible = 1 AND product_type = 'standard'" },
-  { table: 'experiences', ownerType: 'experience' },
-  { table: 'posts', ownerType: 'post', filter: "status = 'published'" },
-  { table: 'blog_posts', ownerType: 'blog_post', filter: "status = 'published'" },
-  { table: 'offerings', ownerType: 'offering' },
-  { table: 'reviews', ownerType: 'review', filter: "status = 'approved'" },
-  { table: 'tenant_page_variants', ownerType: 'tenant_page', filter: "path != '/'" },
-]
+const CURSOR_KEY = 'social-card-backfill:cursor'
 
 export default defineScheduledTask({
-  meta: { name: 'social-card-backfill', description: 'Generate social cards for owners that have none' },
-  async run({ context }): Promise<{ result: { generated: number; failed: number; hasMore: boolean; skipped?: string } }> {
-    const environment = (context as { cloudflare?: { env?: Record<string, unknown> } } | undefined)?.cloudflare?.env
-    const db = environment?.DB as D1Database | undefined
-    if (!db && import.meta.dev) return { result: { generated: 0, failed: 0, hasMore: false, skipped: 'DB unavailable in local scheduled task context' } }
-    if (!db) throw new Error('DB is required')
-
-    // Cards are generated whenever content or media changes through the API, so
-    // an owner reaches this task only when its rows were written some other way —
-    // an import or a seed writing SQL directly. Without this those pages would
-    // serve no og:image at all until somebody noticed.
-    const owners = await queryAll<{ owner_type: SocialCardOwner['owner_type']; owner_id: string }>(db, `
-      ${OWNER_SOURCES.map(({ table, ownerType, filter }) => `
-        SELECT '${ownerType}' AS owner_type, ${table}.id AS owner_id, ${table}.created_at AS created_at
-          FROM ${table}
-         WHERE ${filter ? `${filter} AND ` : ''}NOT EXISTS (
-           SELECT 1 FROM media_placements mp
-            WHERE mp.owner_type = '${ownerType}' AND mp.owner_id = ${table}.id
-              AND mp.slot = 'social_card' AND mp.status = 'active'
-         )`).join('\n        UNION ALL')}
-      ORDER BY created_at ASC
-      LIMIT ?
-    `, [OWNERS_PER_RUN + 1])
-
-    let generated = 0
-    let failed = 0
+  meta: { name: 'social-card-backfill', description: 'Reconcile a bounded page of social cards' },
+  async run({ context }) {
+    const env = (context as { cloudflare?: { env?: CloudflareEnv } } | undefined)?.cloudflare?.env
+    if (!env?.DB || !env.SITE_CACHE) throw new Error('DB and SITE_CACHE are required')
+    const after = await env.SITE_CACHE.get(CURSOR_KEY)
+    const owners = await listSocialCardOwners(env.DB, { after, limit: OWNERS_PER_RUN + 1 })
+    const results = []
     for (const owner of owners.slice(0, OWNERS_PER_RUN)) {
-      const result = await refreshSocialCard({ db, env: environment as never, owner: owner as SocialCardOwner })
-      if (result.kind === 'generated') generated += 1
-      if (result.kind === 'failed') failed += 1
+      results.push(await refreshSocialCard({ db: env.DB, env, owner: { owner_type: owner.owner_type, owner_id: owner.owner_id } }))
+      await env.SITE_CACHE.put(CURSOR_KEY, owner.cursor)
     }
-    // One extra row is fetched purely to know whether a backlog remains; the
-    // size of that backlog is not counted, and reporting a number here would be
-    // inventing one. Owners that failed still have no card and are selected
-    // again on the next run.
-    return { result: { generated, failed, hasMore: owners.length > OWNERS_PER_RUN } }
+    const hasMore = owners.length > OWNERS_PER_RUN
+    if (!hasMore) await env.SITE_CACHE.delete(CURSOR_KEY)
+    return { result: { ...summarizeSocialCardRefreshResults(results), hasMore, outcomes: results } }
   },
 })

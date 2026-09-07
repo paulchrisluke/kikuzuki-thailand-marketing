@@ -1,6 +1,5 @@
 import type Stripe from 'stripe'
 import type { DbClient } from '~/server/db'
-import { queryFirst } from '~/server/db'
 import type { CloudflareEnv } from '~/server/utils/auth'
 import { invoiceSubscriptionId } from '~/server/utils/better-auth-stripe'
 import {
@@ -233,15 +232,6 @@ interface StripeGa4Context {
   customerId: string | null
 }
 
-async function organizationIdForSubscription(db: DbClient, subscriptionId: string, metadata?: Stripe.Metadata): Promise<string | null> {
-  return stripeMetadataValue(metadata, 'referenceId', 'organization_id')
-    ?? (await queryFirst<{ organizationId: string }>(db, `
-      SELECT organization_id AS organizationId
-        FROM organization_billing WHERE stripe_subscription_id = ? LIMIT 1
-    `, [subscriptionId]))?.organizationId
-    ?? null
-}
-
 async function customerMetadata(
   stripe: Stripe,
   customerId: string | null,
@@ -260,7 +250,12 @@ async function resolveStripeGa4Context(
   const metadata = subscription.metadata
   const customerId = customerIdValue(subscription.customer)
   const customerMeta = await customerMetadata(stripe, customerId)
-  const organizationId = await organizationIdForSubscription(db, subscription.id, metadata)
+  const organizationId = customerMeta?.customerType === 'organization'
+    ? customerMeta.organizationId ?? null
+    : null
+  if (subscription.status !== 'canceled' && organizationId && metadata.referenceId !== organizationId) {
+    throw new Error('Subscription metadata does not match its canonical customer owner')
+  }
 
   let intent = await findPendingStripeGa4Intent(db, subscription.id)
   if (!intent && organizationId && purchaseType === 'initial_subscription') {
@@ -436,7 +431,7 @@ async function attachCheckoutIntent(
     ? session.subscription
     : session.subscription?.id ?? null
   if (!subscriptionId) return
-  const organizationId = stripeMetadataValue(session.metadata, 'referenceId', 'organization_id')
+  const organizationId = stripeMetadataValue(session.metadata, 'referenceId')
   const userId = stripeMetadataValue(session.metadata, 'user_id', 'userId')
   if (!organizationId) return
   const intent = await findPendingInitialStripeGa4Intent(db, organizationId, userId)

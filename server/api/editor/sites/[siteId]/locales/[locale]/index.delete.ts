@@ -2,7 +2,7 @@ import { defineHandler } from 'nitro'
 import { getRouterParam } from 'nitro/h3'
 
 import { requireSiteAccess } from '~/server/utils/location-access'
-import { deleteDisabledSiteLanguageContent } from '~/server/utils/site-language-billing'
+import { deleteDisabledSiteLanguageContent } from '~/server/utils/site-languages'
 import { isDemoOrg } from '~/server/utils/demo'
 import { hasPlatformEventPermission } from '~/server/utils/platform-admin-users'
 

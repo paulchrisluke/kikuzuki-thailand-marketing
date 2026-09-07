@@ -1,4 +1,4 @@
-import { cloudflareEnv, jsonResponse } from '~/server/utils/api-response'
+import { cloudflareEnv, jsonResponse, readStrictBody } from '~/server/utils/api-response'
 import { getAuthSession } from '~/server/utils/auth'
 import { ensurePlatformMediaScope } from '~/server/utils/platform-media'
 import { platformPermissionJsonResponse } from '~/server/utils/platform-admin-users'
@@ -16,6 +16,7 @@ export default defineHandler(async (event) => {
   const session = await getAuthSession(event, env)
   if (!session?.user?.id) return jsonResponse({ error: 'Authentication required' }, { status: 401 })
   await ensurePlatformMediaScope(env, db)
-  const results = await regenerateSiteSocialCards({ db, env, siteId: PLATFORM_SITE_ID, actorId: session.user.id })
-  return jsonResponse({ results, summary: summarizeSocialCardRefreshResults(results) })
+  const { after } = await readStrictBody<{ after?: string | null }>(event, { after: 'nullable-string' })
+  const { results, next_cursor } = await regenerateSiteSocialCards({ db, env, siteId: PLATFORM_SITE_ID, actorId: session.user.id, after })
+  return jsonResponse({ results, next_cursor, summary: summarizeSocialCardRefreshResults(results) })
 })

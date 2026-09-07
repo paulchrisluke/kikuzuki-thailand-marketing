@@ -1,8 +1,8 @@
 import type { DbClient } from '~/server/db'
-import { getAdapter } from './adapters/registry'
+import { getGuestRequest, requestSummary, requestActions } from '~/server/domain/requests'
+import { formatOperationalStatusLabel } from './status-labels'
 import { listThreadEntries, parseEntryPayload } from './entries'
 import { getDeliveryRetryEligibility, listDeliveryFailures } from './deliveries'
-import { getGuestThreadById } from './repository'
 import { CONVERSATION_STATE_LABELS } from './types'
 import type { GuestThreadDetailViewModel, GuestThreadEntryViewModel } from './types'
 
@@ -12,12 +12,9 @@ export async function getGuestThreadDetail(
   threadId: string,
   siteId: string,
 ): Promise<GuestThreadDetailViewModel | null> {
-  const thread = await getGuestThreadById(db, threadId, siteId)
+  const thread = await getGuestRequest(db, threadId, siteId)
   if (!thread) return null
 
-  const adapter = getAdapter(thread.submission_type)
-  const source = await adapter.loadSource({ db }, thread.submission_id)
-  if (!source) return null
 
   const [entryRows, deliveryFailureRows] = await Promise.all([
     listThreadEntries(db, threadId),
@@ -38,22 +35,22 @@ export async function getGuestThreadDetail(
     occurredAt: entry.occurred_at,
   }))
 
-  const summary = adapter.summarize(source)
+  const summary = await requestSummary(db, thread)
 
   return {
     id: thread.id,
     guestName: summary.guestName,
     guestEmail: summary.guestEmail,
     guestPhone: summary.guestPhone,
-    submissionType: thread.submission_type,
-    submissionId: thread.submission_id,
+    submissionType: thread.kind,
+    submissionId: thread.id,
     contextLabel: summary.contextLabel,
     locationLabel: summary.locationTitle,
     conversationState: thread.conversation_state,
     conversationStateLabel: CONVERSATION_STATE_LABELS[thread.conversation_state],
-    source: adapter.buildCurrentDetail(source),
+    source: { submissionType: thread.kind, submissionId: thread.id, operationalStatus: thread.status, operationalStatusLabel: thread.status ? formatOperationalStatusLabel(thread.kind, thread.status) : null, fields: thread.kind === 'contact' ? { subject: thread.payload.subject, message: thread.payload.message, locationTitle: summary.locationTitle, experienceTitle: summary.productTitle } : { date: thread.booking_date, time: thread.time_slot, guests: `${thread.party_size}${thread.payload.party_size_is_minimum ? '+' : ''}`, requests: thread.payload.notes, bookingDate: thread.booking_date, timeSlot: thread.time_slot, partySize: thread.party_size, notes: thread.payload.notes, locationTitle: summary.locationTitle, experienceTitle: summary.productTitle } },
     entries,
-    availableActions: adapter.listAvailableActions(source),
+    availableActions: requestActions(thread),
     deliveryFailures: deliveryFailureRows.map(d => ({
       id: d.id,
       channel: d.channel,

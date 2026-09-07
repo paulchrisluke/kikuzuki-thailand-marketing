@@ -46,34 +46,19 @@ export async function verifyReplyToken(
   return verifyReplyTokenValue(env.EMAIL_REPLY_SECRET, submissionType, submissionId, token)
 }
 
-export function parseReplyToAddress(address: string): { submissionType: string; submissionId: string; token: string } | null {
-  const local = address.split('@')[0] ?? ''
-  return parseReplyLocalPart(local)
-}
-
-const SUBMISSION_TABLES: Record<SubmissionType, string> = {
-  contact: 'contact_submissions',
-  reservation: 'reservation_submissions',
-  experience_booking: 'experience_bookings',
+export function parseReplyToAddress(env: ReplyAddressEnv, address: string): { submissionType: ReplySubmissionType; submissionId: string; token: string } | null {
+  const parts = address.split('@')
+  if (parts.length !== 2 || parts[1]?.toLowerCase() !== getReplyDomain(env).toLowerCase()) return null
+  return parseReplyLocalPart(parts[0] ?? '')
 }
 
 export function isSubmissionType(value: string): value is SubmissionType {
-  return value in SUBMISSION_TABLES
+  return value === 'contact' || value === 'reservation' || value === 'experience_booking'
 }
 
-// Looks up organization/site scoping for a submission by type+id alone — used by the inbound
-// email handler, which only has the type+id encoded in the reply-to address, not a siteId.
-export async function getSubmissionOrgSite(
-  db: DbClient,
-  submissionType: SubmissionType,
-  submissionId: string,
-): Promise<{ organizationId: string; siteId: string } | null> {
-  const table = SUBMISSION_TABLES[submissionType]
-  const row = await queryFirst<{ organization_id: string; site_id: string }>(db, `
-    SELECT organization_id, site_id FROM ${table} WHERE id = ? LIMIT 1
-  `, [submissionId])
-  if (!row) return null
-  return { organizationId: row.organization_id, siteId: row.site_id }
+export async function getSubmissionOrgSite(db: DbClient, submissionType: SubmissionType, submissionId: string): Promise<{ organizationId: string; siteId: string } | null> {
+  const row = await queryFirst<{ organization_id: string; site_id: string }>(db, 'SELECT organization_id, site_id FROM requests WHERE kind = ? AND id = ?', [submissionType, submissionId])
+  return row ? { organizationId: row.organization_id, siteId: row.site_id } : null
 }
 
 export interface SubmissionContact {
@@ -83,31 +68,8 @@ export interface SubmissionContact {
   siteId: string
 }
 
-export async function getSubmissionContact(
-  db: DbClient,
-  siteId: string,
-  submissionType: SubmissionType,
-  submissionId: string,
-): Promise<SubmissionContact | null> {
-  if (submissionType === 'contact') {
-    const row = await queryFirst<{ email: string; organization_id: string; site_id: string }>(db, `
-      SELECT email, organization_id, site_id FROM contact_submissions WHERE id = ? AND site_id = ? LIMIT 1
-    `, [submissionId, siteId])
-    if (!row) return null
-    return { email: row.email, phone: null, organizationId: row.organization_id, siteId: row.site_id }
-  }
-  if (submissionType === 'reservation') {
-    const row = await queryFirst<{ email: string; phone: string | null; organization_id: string; site_id: string }>(db, `
-      SELECT email, phone, organization_id, site_id FROM reservation_submissions WHERE id = ? AND site_id = ? LIMIT 1
-    `, [submissionId, siteId])
-    if (!row) return null
-    return { email: row.email, phone: row.phone, organizationId: row.organization_id, siteId: row.site_id }
-  }
-  const row = await queryFirst<{ guest_email: string; guest_phone: string | null; organization_id: string; site_id: string }>(db, `
-    SELECT guest_email, guest_phone, organization_id, site_id FROM experience_bookings WHERE id = ? AND site_id = ? LIMIT 1
-  `, [submissionId, siteId])
-  if (!row) return null
-  return { email: row.guest_email, phone: row.guest_phone, organizationId: row.organization_id, siteId: row.site_id }
+export async function getSubmissionContact(db: DbClient, siteId: string, submissionType: SubmissionType, submissionId: string): Promise<SubmissionContact | null> {
+  return queryFirst<SubmissionContact>(db, `SELECT organization_id AS organizationId, site_id AS siteId, json_extract(payload_json, '$.guest.email') AS email, json_extract(payload_json, '$.guest.phone') AS phone FROM requests WHERE id = ? AND site_id = ? AND kind = ?`, [submissionId, siteId, submissionType])
 }
 
 export interface SubmissionMatch {
@@ -117,41 +79,11 @@ export interface SubmissionMatch {
   siteId: string
 }
 
-// Used by the WhatsApp inbound webhook to find which open thread a customer's message belongs to,
-// since customers aren't KrabiClaw accounts and can't be matched by verified user phone number.
-// Accepts optional organizationId/siteId for tenant scoping when context is known (e.g., email inbound).
 export async function findSubmissionByPhone(db: DbClient, phone: string, organizationId?: string, siteId?: string): Promise<SubmissionMatch | null> {
-  const reservationQuery = `
-    SELECT id, organization_id, site_id FROM reservation_submissions
-    WHERE phone = ? AND status != 'cancelled'
-    ${organizationId ? 'AND organization_id = ?' : ''}
-    ${siteId ? 'AND site_id = ?' : ''}
-    ORDER BY created_at DESC LIMIT 1
-  `
-  const reservationParams: (string | number)[] = [phone]
-  if (organizationId) reservationParams.push(organizationId)
-  if (siteId) reservationParams.push(siteId)
-  const reservation = await queryFirst<{ id: string; organization_id: string; site_id: string }>(db, reservationQuery, reservationParams)
-  if (reservation) {
-    return { submissionType: 'reservation', submissionId: reservation.id, organizationId: reservation.organization_id, siteId: reservation.site_id }
-  }
-
-  const bookingQuery = `
-    SELECT id, organization_id, site_id FROM experience_bookings
-    WHERE guest_phone = ? AND status != 'cancelled'
-    ${organizationId ? 'AND organization_id = ?' : ''}
-    ${siteId ? 'AND site_id = ?' : ''}
-    ORDER BY created_at DESC LIMIT 1
-  `
-  const bookingParams: (string | number)[] = [phone]
-  if (organizationId) bookingParams.push(organizationId)
-  if (siteId) bookingParams.push(siteId)
-  const booking = await queryFirst<{ id: string; organization_id: string; site_id: string }>(db, bookingQuery, bookingParams)
-  if (booking) {
-    return { submissionType: 'experience_booking', submissionId: booking.id, organizationId: booking.organization_id, siteId: booking.site_id }
-  }
-
-  return null
+  return queryFirst<SubmissionMatch>(db, `SELECT kind AS submissionType, id AS submissionId, organization_id AS organizationId, site_id AS siteId FROM requests
+    WHERE kind IN ('reservation', 'experience_booking') AND json_extract(payload_json, '$.guest.phone') = ? AND status != 'cancelled'
+    ${organizationId ? 'AND organization_id = ?' : ''} ${siteId ? 'AND site_id = ?' : ''}
+    ORDER BY created_at DESC LIMIT 1`, [phone, ...(organizationId ? [organizationId] : []), ...(siteId ? [siteId] : [])])
 }
 
 export interface SendReplyEmailResult {

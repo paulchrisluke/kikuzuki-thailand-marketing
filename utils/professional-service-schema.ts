@@ -50,8 +50,7 @@ export interface ProfessionalServiceOrgIdentity {
   /** ISO date string. */
   foundingDate?: string | null
   contactPoints?: ProfessionalServiceContactPoint[] | null
-  address?: ProfessionalServiceAddress | null
-  /** Whether the street address should be included in the public graph. Defaults to false (service-area-only orgs commonly withhold a street address). */
+  /** Whether offering location addresses may be published. */
   addressVisible?: boolean | null
 }
 
@@ -120,16 +119,8 @@ export interface ProfessionalServiceSchemaInput {
     description?: string | null
     schemaType?: string | null
     offers?: ProfessionalServiceOffer[] | null
-    /**
-     * Real business_locations data for this offering's own location
-     * (offerings.location_id), when one is set and distinct from the org's
-     * primary location. LegalService/ProfessionalService types are valid
-     * schema.org LocalBusiness subtypes, so an offering-level `address` is
-     * legitimate — this does not touch the shared Organization node's address.
-     */
+    /** The address belongs to this offering's explicit location. */
     address?: ProfessionalServiceAddress | null
-    /** Same visibility contract as org.addressVisible — an offering's own location address must still be explicitly visible. Defaults to the org's addressVisible when omitted. */
-    addressVisible?: boolean | null
   } | null
 
   /** services-index / blog-index */
@@ -174,7 +165,7 @@ function resolveUrl(value: string, origin: string) {
 // --- nonprofit status normalization ---------------------------------------
 
 const NONPROFIT_501C_MAX = 28
-const NONPROFIT_STATUS_CANONICAL = new Set<string>([
+export const NONPROFIT_STATUS_CANONICAL = new Set<string>([
   ...Array.from({ length: NONPROFIT_501C_MAX }, (_, index) => `https://schema.org/Nonprofit501c${index + 1}`),
   'https://schema.org/NonprofitANBI',
   'https://schema.org/NonprofitSBBI',
@@ -237,16 +228,6 @@ function buildContactPointNodes(contactPoints: ProfessionalServiceContactPoint[]
   return nodes.length ? nodes : undefined
 }
 
-/**
- * Builds a PostalAddress node from real business_locations data. Exported so
- * both the shared Organization node (org-level primary location) and a
- * service-detail offering's own node (offering-specific location) can turn a
- * resolved address into schema.org markup without duplicating field mapping.
- * Returns undefined when there's no address data at all — callers are
- * responsible for the address-visibility check (see buildAddressNode below
- * and the `offering.addressVisible` handling in buildProfessionalServiceGraph)
- * so an org that has withheld its address never leaks one through a side door.
- */
 export function buildPostalAddressNode(address: ProfessionalServiceAddress | null | undefined) {
   if (!address) return undefined
   const hasAny = address.street_address || address.locality || address.region || address.postal_code || address.country
@@ -258,11 +239,6 @@ export function buildPostalAddressNode(address: ProfessionalServiceAddress | nul
   if (address.postal_code) node.postalCode = address.postal_code
   if (address.country) node.addressCountry = address.country
   return node
-}
-
-function buildAddressNode(org: ProfessionalServiceOrgIdentity) {
-  if (!org.addressVisible) return undefined
-  return buildPostalAddressNode(org.address)
 }
 
 /** Builds the shared Organization node. `@id` is stable per-origin (`${origin}/#organization`). */
@@ -292,8 +268,6 @@ export function buildOrganizationNode(org: ProfessionalServiceOrgIdentity, origi
   if (org.foundingDate) node.foundingDate = org.foundingDate
   const contactPoints = buildContactPointNodes(org.contactPoints)
   if (contactPoints) node.contactPoint = contactPoints
-  const address = buildAddressNode(org)
-  if (address) node.address = address
 
   return node
 }
@@ -411,7 +385,7 @@ export function buildProfessionalServiceGraph(input: ProfessionalServiceSchemaIn
     }
     if (input.offering.schemaType) mainEntityNode['@type'] = input.offering.schemaType
     if (input.offering.description) mainEntityNode.description = input.offering.description
-    const offeringAddressVisible = input.offering.addressVisible ?? input.org.addressVisible ?? false
+    const offeringAddressVisible = input.org.addressVisible === true
     if (offeringAddressVisible) {
       const offeringAddress = buildPostalAddressNode(input.offering.address)
       if (offeringAddress) mainEntityNode.address = offeringAddress

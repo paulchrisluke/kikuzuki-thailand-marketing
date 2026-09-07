@@ -376,10 +376,7 @@ section('Client manifest: two Maps URLs recorded')
 const manifestPath = join(process.cwd(), 'client-imports', SLUG, 'client-manifest.json')
 if (existsSync(manifestPath)) {
   const manifest = JSON.parse(readFileSync(manifestPath, 'utf8'))
-  const hasPrimary   = !!manifest.primary_location?.source_url
-  const hasSecondary = (manifest.secondary_locations ?? []).length >= 1
-  assert('Primary Maps URL recorded in manifest', hasPrimary, true)
-  assert('At least one secondary (beachfront) Maps URL recorded', hasSecondary, true)
+  assert('Both Maps URLs recorded in manifest', manifest.locations.filter(location => location.source_url).length >= 2, true)
 } else {
   console.log('  (skipped — no client manifest found locally; run client:import --dry-run first)')
 }

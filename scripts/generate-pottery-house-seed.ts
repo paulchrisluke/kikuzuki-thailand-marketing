@@ -46,8 +46,6 @@ const sql = `-- Pottery House Krabi seed
 PRAGMA foreign_keys = ON;
 
 -- Theme is shared platform data, not client-owned.
-INSERT OR IGNORE INTO themes (id, name, slug, version, description, status)
-VALUES ('saya-theme-v1', 'Saya', 'saya', '1.0.0', 'Restaurant website theme', 'active');
 
 -- Cleanly replace the protected pottery-house tenant. Deleting the site first
 -- keeps the seed idempotent even if a prior run left the subdomain row behind.

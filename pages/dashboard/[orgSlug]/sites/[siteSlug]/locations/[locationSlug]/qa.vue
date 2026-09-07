@@ -48,7 +48,7 @@
     <template v-if="editingId" #actions>
       <DashboardResourceLocalization
         :site-id="siteId"
-        resource-type="location_qa"
+        resource-type="content_document"
         :resource-id="editingId"
         resource-label="question"
         :fields="qaLocalizationFields"
@@ -186,10 +186,11 @@ async function loadQa() {
 
 const editingQa = computed(() => qaRows.value.find(row => row.id === editingId.value) ?? null)
 const qaLocalizationFields = computed(() => [
-  { key: 'question', label: 'Question', source: editingQa.value?.question },
-  { key: 'answer', label: 'Answer', source: editingQa.value?.answer, multiline: true, rows: 4 },
+  { key: 'title', label: 'Question', source: editingQa.value?.question },
+  { key: 'summary', label: 'Answer', source: editingQa.value?.answer, multiline: true, rows: 4 },
 ])
 const siteLocalizationSettingsPath = computed(() => `/dashboard/${route.params.orgSlug}/sites/${route.params.siteSlug}/settings/localization`)
+
 
 async function saveQa() {
   if (!locationId.value) return

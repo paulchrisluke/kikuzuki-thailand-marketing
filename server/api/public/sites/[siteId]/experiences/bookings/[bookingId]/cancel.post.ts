@@ -1,10 +1,10 @@
+import { getGuestRequest, cancelBookingRequest, requestSummary } from '~/server/domain/requests'
 import { queryFirst } from '~/server/db'
 import { cloudflareEnv, jsonResponse } from '~/server/utils/api-response'
 import { notifyExperienceBookingCancelled } from '~/server/utils/notifications'
 import { hashReservationCancelToken, readBearerToken } from '~/server/utils/reservation-cancel-token'
 import { getClientIp, hashClientIp, incrementHourlyRateLimit } from '~/server/utils/hourly-rate-limit'
 import { publishGuestInboxThreadEvent } from '~/server/cloudflare/guest-inbox-events'
-import { getGuestThreadBySubmission } from '~/server/domain/guest-threads/repository'
 
 const IP_HOURLY_LIMIT = 20
 const BOOKING_HOURLY_LIMIT = 5
@@ -37,64 +37,13 @@ export default defineHandler(async (event) => {
 
   const tokenHash = await hashReservationCancelToken(token)
   const now = new Date().toISOString()
-  const cancellable = await queryFirst<{
-    organization_id: string
-    site_id: string
-    guest_name: string
-    guest_email: string
-    guest_phone: string | null
-    booking_date: string
-    time_slot: string
-    party_size: number
-    location_id: string | null
-    status: 'pending' | 'confirmed'
-  }>(
-    db, `
-    SELECT organization_id, site_id, guest_name, guest_email, guest_phone, booking_date, time_slot, party_size, location_id, status
-    FROM experience_bookings
-    WHERE id = ?
-      AND site_id = ?
-      AND cancellation_token_hash = ?
-      AND cancellation_token_used_at IS NULL
-      AND cancellation_token_expires_at > ?
-      AND status IN ('pending', 'confirmed')
-    LIMIT 1
-  `, [bookingId, siteId, tokenHash, now], )
+  const cancelled = await cancelBookingRequest(db, { id: bookingId, siteId, kind: 'experience_booking', tokenHash, now })
+  if (!cancelled) return jsonResponse({ error: 'Booking not found or already cancelled' }, { status: 404 })
+  const booking = cancelled.request
+  const summary = await requestSummary(db, booking)
+  if (summary.productTitle === null) throw new Error('Booked product is missing')
 
-  if (!cancellable) {
-    return jsonResponse({ error: 'Booking not found or already cancelled' }, { status: 404 })
-  }
-
-  const booking = await queryFirst<{
-    organization_id: string
-    site_id: string
-    guest_name: string
-    guest_email: string
-    guest_phone: string | null
-    booking_date: string
-    time_slot: string
-    party_size: number
-    notes: string | null
-    location_id: string | null
-    experience_title: string
-  }>(
-    db, `
-    UPDATE experience_bookings
-    SET status = 'cancelled', cancellation_token_used_at = ?
-    WHERE id = ?
-      AND site_id = ?
-      AND cancellation_token_hash = ?
-      AND cancellation_token_used_at IS NULL
-      AND cancellation_token_expires_at > ?
-      AND status IN ('pending', 'confirmed')
-    RETURNING organization_id, site_id, guest_name, guest_email, guest_phone, booking_date, time_slot, party_size, notes, location_id, (SELECT name FROM products WHERE id = experience_bookings.experience_id) AS experience_title
-  `, [now, bookingId, siteId, tokenHash, now], )
-
-  if (!booking) {
-    return jsonResponse({ error: 'Booking not found or already cancelled' }, { status: 404 })
-  }
-
-  const thread = await getGuestThreadBySubmission(db, 'experience_booking', bookingId)
+  const thread = await getGuestRequest(db, bookingId, undefined, 'experience_booking')
   if (thread) {
     await publishGuestInboxThreadEvent(env, db, { threadId: thread.id, type: 'thread.changed' })
   }
@@ -104,7 +53,7 @@ export default defineHandler(async (event) => {
 
   try {
     await notifyExperienceBookingCancelled(env, db, {
-      organizationId: booking.organization_id, siteId: booking.site_id, siteName: site?.brand_name, locationId: booking.location_id, bookingId, guestName: booking.guest_name, email: booking.guest_email, guestPhone: booking.guest_phone, experienceTitle: booking.experience_title, bookingDate: booking.booking_date, timeSlot: booking.time_slot, partySize: booking.party_size, notes: booking.notes, wasConfirmed: cancellable.status === 'confirmed'
+      organizationId: booking.organization_id, siteId: booking.site_id, siteName: site?.brand_name, locationId: booking.location_id, bookingId, guestName: booking.payload.guest.name, email: booking.payload.guest.email, guestPhone: booking.payload.guest.phone, experienceTitle: summary.productTitle, bookingDate: booking.booking_date, timeSlot: booking.time_slot, partySize: booking.party_size, notes: booking.payload.notes, wasConfirmed: cancelled.wasConfirmed
     })
   } catch (error) {
     console.error('experience_booking_cancellation_notification_failed', {

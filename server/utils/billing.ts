@@ -1,9 +1,12 @@
 import type Stripe from 'stripe'
 import { HTTPError } from 'nitro';
-import { queryFirst, type DbClient } from '~/server/db'
+import { queryFirst } from '~/server/db'
+import type { DbClient } from '~/server/db'
+import type { Subscription } from '@better-auth/stripe'
+import { betterAuthTimestampToIso } from '~/server/utils/better-auth-timestamps'
 import { createAuth, type CloudflareEnv } from '~/server/utils/auth'
 import { getOrgAdapter, hasPermission } from 'better-auth/plugins'
-import { getPlanEntitlements, type EntitlementsMap } from '~/server/utils/billing-entitlements'
+import type { EntitlementsMap } from '~/server/utils/billing-entitlements'
 import { getOrganizationBillingProjection } from '~/server/utils/organization-billing'
 import { createStripeClient } from '~/server/utils/stripe-client'
 import { organizationAccessControl, organizationRoles } from '~/utils/organization-access'
@@ -40,42 +43,54 @@ export function getStripe(env: BillingEnv): Stripe {
   return createStripeClient(env.STRIPE_SECRET_KEY)
 }
 
-// ── Per-site billing status ───────────────────────────────────────────────────
 
 export async function getSiteBillingStatus(
-  env: BillingEnv,
-  db: D1Database,
+  env: CloudflareEnv,
+  db: DbClient,
   siteId: string,
 ): Promise<SiteBillingStatus> {
   const site = await queryFirst<{ organization_id: string }>(db, `
     SELECT organization_id FROM sites WHERE id = ? LIMIT 1
   `, [siteId])
-  if (!site) {
-    return {
-      plan: 'free',
-      subscriptionStatus: 'free',
-      paymentStatus: 'unknown',
-      entitlements: getPlanEntitlements('free'),
-    }
-  }
+  if (!site) throw new HTTPError({ statusCode: 404, statusMessage: 'Site not found' })
   return getOrganizationBillingStatus(env, db, site.organization_id)
 }
 
 export async function getOrganizationBillingStatus(
-  env: BillingEnv,
-  db: D1Database,
+  env: CloudflareEnv,
+  db: DbClient,
   organizationId: string,
 ): Promise<SiteBillingStatus> {
-  void env
-  const projection = await getOrganizationBillingProjection(db, organizationId)
+  const authContext = await createAuth(env).$context
+  const organizationAdapter = getOrgAdapter(authContext as Parameters<typeof getOrgAdapter>[0], {})
+  const [projection, organization, subscriptions] = await Promise.all([
+    getOrganizationBillingProjection(db, organizationId),
+    organizationAdapter.findOrganizationById(organizationId),
+    authContext.adapter.findMany<Subscription>({
+      model: 'subscription',
+      where: [{ field: 'referenceId', value: organizationId }],
+      limit: 100,
+    }),
+  ])
+  if (!organization) throw new HTTPError({ statusCode: 404, statusMessage: 'Organization not found' })
+  if (subscriptions.length === 100) throw new Error('Organization subscription history exceeded its bound')
+  const current = subscriptions.filter(row => row.status !== 'canceled' && row.status !== 'incomplete_expired')
+  if (current.length > 1) throw new Error('Organization has multiple current subscriptions')
+  const subscription = current[0]
+  const customerId = 'stripeCustomerId' in organization && typeof organization.stripeCustomerId === 'string'
+    ? organization.stripeCustomerId
+    : undefined
+  if (subscription?.stripeCustomerId && subscription.stripeCustomerId !== customerId) {
+    throw new Error('Subscription customer does not match its organization')
+  }
   return {
     plan: projection.effectivePlan,
-    stripeCustomerId: projection.stripeCustomerId ?? undefined,
-    stripeSubscriptionId: projection.stripeSubscriptionId ?? undefined,
-    subscriptionStatus: projection.status,
+    stripeCustomerId: customerId,
+    stripeSubscriptionId: subscription?.stripeSubscriptionId ?? undefined,
+    subscriptionStatus: subscription?.status ?? undefined,
     paymentStatus: projection.paymentStatus,
-    currentPeriodEnd: projection.currentPeriodEnd ?? undefined,
-    cancelAtPeriodEnd: projection.cancelAtPeriodEnd,
+    currentPeriodEnd: subscription?.periodEnd ? betterAuthTimestampToIso(subscription.periodEnd, 'subscription.periodEnd') : undefined,
+    cancelAtPeriodEnd: subscription ? Boolean(subscription.cancelAtPeriodEnd) : undefined,
     entitlements: projection.entitlements,
   }
 }
@@ -92,7 +107,7 @@ export async function hasSiteEntitlement(db: DbClient, siteId: string, key: stri
 }
 
 export async function hasOrganizationEntitlement(
-  db: D1Database,
+  db: DbClient,
   organizationId: string,
   key: string,
 ): Promise<boolean> {
@@ -142,7 +157,7 @@ export async function getPriceIdForPlan(env: BillingEnv, plan: string, interval:
 
 export async function requireBillingAccess(
   env: CloudflareEnv,
-  db: D1Database,
+  db: DbClient,
   organizationId: string,
   userId: string,
 ): Promise<void> {

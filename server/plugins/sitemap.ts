@@ -1,6 +1,6 @@
 import type { SitemapUrlInput } from '#sitemap/types'
 
-import { definePlugin } from 'nitro';
+import { definePlugin, HTTPError } from 'nitro'
 import { queryAll, queryFirst, type DbClient } from '~/server/db'
 import { cloudflareEnv } from '~/server/utils/api-response'
 import { isNonIndexableHost, PLATFORM_SITEMAP_ROUTES } from '~/server/utils/seo-policy'
@@ -20,8 +20,8 @@ interface SitemapEntry {
 async function listPublishedTenantSitemapPages(db: DbClient, siteId: string) {
   return await queryAll<{ path: string | null; lastmod: string | null; robots: string | null }>(db, `
     SELECT v.path, v.updated_at AS lastmod, v.robots
-      FROM tenant_page_variants v
-     WHERE v.site_id = ?
+      FROM content_documents v
+     WHERE v.site_id = ? AND v.kind = 'page' AND v.row_role = 'root'
      ORDER BY lastmod ASC, path ASC
   `, [siteId])
 }
@@ -67,15 +67,16 @@ export default definePlugin((nitroApp) => {
       const [docs, posts] = await Promise.all([
         queryAll<ApiRecord>(
           db,
-          `SELECT slug, category, updated_at
-           FROM platform_docs
-           WHERE robots IS NULL OR robots NOT LIKE '%noindex%'`,
+          `SELECT slug, (metadata_json ->> '$.category') AS category, updated_at
+           FROM content_documents
+           WHERE kind = 'platform_doc' AND row_role = 'root' AND site_id = '${PLATFORM_SITE_ID}'
+             AND (robots IS NULL OR robots NOT LIKE '%noindex%')`,
         ),
         queryAll<ApiRecord>(
           db,
-          `SELECT slug, category, updated_at
-           FROM blog_posts
-           WHERE (scheduled_for IS NULL OR scheduled_for <= datetime('now'))
+          `SELECT slug, (metadata_json ->> '$.category') AS category, updated_at
+           FROM content_documents
+           WHERE kind = 'article' AND row_role = 'root' AND status = 'published'
              AND site_id = '${PLATFORM_SITE_ID}'
              AND visibility = 'public'
              AND (robots IS NULL OR robots NOT LIKE '%noindex%')`,
@@ -133,29 +134,34 @@ export default definePlugin((nitroApp) => {
 
     const localizedLocales = await queryAll<{ locale: string; organization_id: string }>(db, `
       SELECT l.locale, l.organization_id
-        FROM site_language_licenses l
-       WHERE l.site_id = ? AND l.status = 'active'
+        FROM site_locales l
+       WHERE l.site_id = ? AND l.is_source = 0 AND l.status = 'published'
        ORDER BY l.locale
     `, [siteId])
     for (const candidate of localizedLocales) {
       try {
         await assertSiteLanguageEntitlement(db, candidate.organization_id, siteId, candidate.locale)
-      } catch {
-        continue
+      } catch (error) {
+        if (error instanceof HTTPError && (error.data?.code === 'LANGUAGE_ENTITLEMENT_REQUIRED' || error.data?.code === 'PLATFORM_LOCALE_UNAVAILABLE')) continue
+        throw error
       }
       const [resources, pages] = await Promise.all([
-        queryAll<{ route_path: string; updated_at: number }>(db, `
+        queryAll<{ route_path: string; updated_at: string }>(db, `
           SELECT route_path, updated_at FROM resource_localizations
            WHERE site_id = ? AND locale = ? AND route_path IS NOT NULL
            ORDER BY route_path
         `, [siteId, candidate.locale]),
         queryAll<{ path: string; updated_at: string; robots: string | null }>(db, `
-          SELECT path, updated_at, robots FROM tenant_page_variants
-           WHERE site_id = ? AND locale = ?
-           ORDER BY path
+          SELECT d.path, d.updated_at, d.robots FROM content_documents d
+            JOIN content_documents root ON root.id = d.root_id AND root.row_role = 'root'
+           WHERE d.site_id = ? AND d.locale = ? AND d.row_role = 'representation' AND d.path IS NOT NULL
+             AND (root.robots IS NULL OR root.robots NOT LIKE '%noindex%')
+             AND (root.kind = 'page' OR (root.kind = 'article' AND root.status = 'published' AND root.visibility = 'public')
+               OR (root.kind = 'social_post' AND root.status = 'published'))
+           ORDER BY d.path
         `, [siteId, candidate.locale]),
       ])
-      for (const resource of resources) entries.push({ loc: resource.route_path, lastmod: new Date(resource.updated_at * 1000).toISOString() })
+      for (const resource of resources) entries.push({ loc: resource.route_path, lastmod: resource.updated_at })
       for (const page of pages) {
         if (/noindex/i.test(page.robots || '')) continue
         const localizedPath = page.path === '/' ? `/${candidate.locale}` : `/${candidate.locale}${page.path}`
@@ -180,9 +186,8 @@ export default definePlugin((nitroApp) => {
         queryAll<ApiRecord>(
           db,
           `SELECT slug, updated_at
-           FROM blog_posts
-           WHERE site_id = ?
-             AND (scheduled_for IS NULL OR scheduled_for <= datetime('now'))
+           FROM content_documents
+           WHERE site_id = ? AND kind = 'article' AND row_role = 'root' AND status = 'published'
              AND visibility = 'public'
              AND (robots IS NULL OR robots NOT LIKE '%noindex%')`,
           [siteId],
@@ -233,7 +238,7 @@ export default definePlugin((nitroApp) => {
           AND bl.organization_id = p.organization_id
           AND bl.site_id = p.site_id
           AND bl.status = 'active'
-         WHERE p.site_id = ?
+         WHERE p.site_id = ? AND p.product_type = 'standard'
            AND p.is_visible = 1
            AND (p.robots IS NULL OR p.robots NOT LIKE '%noindex%')
          ORDER BY p.location_id, p.sort_order, p.id`,
@@ -242,8 +247,8 @@ export default definePlugin((nitroApp) => {
       queryAll<ApiRecord>(
         db,
         `SELECT slug, updated_at
-         FROM blog_posts
-         WHERE site_id = ?
+         FROM content_documents
+         WHERE site_id = ? AND kind = 'article' AND row_role = 'root'
            AND status = 'published'
            AND visibility = 'public'
            AND (robots IS NULL OR robots NOT LIKE '%noindex%')`,
@@ -251,11 +256,12 @@ export default definePlugin((nitroApp) => {
       ),
       queryAll<ApiRecord>(
         db,
-        `SELECT slug, location_id, updated_at
-         FROM experiences
-         WHERE site_id = ?
-           AND status != 'inactive'
-           AND (robots IS NULL OR robots NOT LIKE '%noindex%')`,
+        `SELECT p.slug, p.location_id, p.updated_at
+         FROM products p
+         JOIN business_locations bl ON bl.id = p.location_id AND bl.site_id = p.site_id AND bl.organization_id = p.organization_id
+         WHERE p.site_id = ? AND p.product_type = 'experience' AND bl.status = 'active'
+           AND p.is_visible = 1
+           AND (p.robots IS NULL OR p.robots NOT LIKE '%noindex%')`,
         [siteId],
       ),
       listPublishedTenantSitemapPages(db, siteId),

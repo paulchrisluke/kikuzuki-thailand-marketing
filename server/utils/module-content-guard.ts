@@ -22,8 +22,8 @@ async function productsHaveLiveData(db: DbClient, scope: ModuleContentGuardScope
 
 async function experiencesHasLiveData(db: DbClient, scope: ModuleContentGuardScope): Promise<boolean> {
   const row = await queryFirst<{ id: string }>(db, `
-    SELECT id FROM experiences
-    WHERE site_id = ? ${scope.locationId ? 'AND location_id = ?' : ''} AND status = 'active'
+    SELECT p.id FROM products p
+    WHERE p.product_type = \'experience\' AND p.site_id = ? ${scope.locationId ? 'AND p.location_id = ?' : ''} AND p.is_visible = 1 AND p.available = 1
     LIMIT 1
   `, scope.locationId ? [scope.siteId, scope.locationId] : [scope.siteId])
   return Boolean(row)
@@ -32,9 +32,9 @@ async function experiencesHasLiveData(db: DbClient, scope: ModuleContentGuardSco
 async function reservationsHasLiveData(db: DbClient, scope: ModuleContentGuardScope): Promise<boolean> {
   const today = new Date().toISOString().slice(0, 10)
   const row = await queryFirst<{ id: string }>(db, `
-    SELECT id FROM reservation_submissions
-    WHERE site_id = ? ${scope.locationId ? 'AND location_id = ?' : ''}
-      AND status NOT IN ('cancelled', 'completed') AND date >= ?
+    SELECT id FROM requests
+    WHERE kind = 'reservation' AND site_id = ? ${scope.locationId ? 'AND location_id = ?' : ''}
+      AND status NOT IN ('cancelled', 'completed') AND booking_date >= ?
     LIMIT 1
   `, scope.locationId ? [scope.siteId, scope.locationId, today] : [scope.siteId, today])
   return Boolean(row)

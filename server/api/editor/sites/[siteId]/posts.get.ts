@@ -29,7 +29,7 @@ export default defineHandler(async (event) => {
   await assertResourceAccess(db, {
     env,
     memberId: site.member_id, role: site.member_role, organizationId: site.organization_id, siteId, resourceLocationId: locationId ?? null, })
-  const posts = await listPosts(db, site.organization_id, siteId, env, status, locationId)
+  const posts = await listPosts(db, site.organization_id, siteId, status, locationId)
   return jsonResponse({ success: true, posts })
 })
 import { defineHandler } from 'nitro';

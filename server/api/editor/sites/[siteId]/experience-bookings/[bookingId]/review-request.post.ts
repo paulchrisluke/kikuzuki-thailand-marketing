@@ -12,8 +12,8 @@ export default defineHandler(async (event) => {
   const { env, db, site } = await requireSiteAccess(event, siteId, 'context')
   const booking = await queryFirst<{ id: string; location_id: string }>(db, `
     SELECT eb.id, eb.location_id
-    FROM experience_bookings eb
-    WHERE eb.id = ? AND eb.site_id = ?
+    FROM requests eb
+    WHERE eb.kind = 'experience_booking' AND eb.id = ? AND eb.site_id = ?
     LIMIT 1
   `, [bookingId, siteId])
   if (!booking) return jsonResponse({ error: 'Booking not found or access denied' }, { status: 404 })

@@ -501,9 +501,8 @@ function handleContactSubmit(contactData: ContactFormState) {
   submitBooking()
 }
 
-// ── Booking form ──────────────────────────────────────────────────────────────
 
-const hasAnySlots = computed(() => Boolean(experience.value?.recurring_slots || experience.value?.time_slots?.length))
+const hasAnySlots = computed(() => Boolean(experience.value?.recurring_slots))
 const availabilityDates = ref<RawDateAvailability[]>([])
 const availabilityLoading = ref(false)
 
@@ -639,7 +638,7 @@ useBreadcrumbSchema([
 
 // JSON-LD — @graph with WebPage + Product/Service + Organization
 // Event entities are omitted until the booking system exposes real dated sessions
-// (Google requires startDate for Event rich results; time_slots are times-only strings)
+// (Google requires startDate for Event rich results; recurring starts contain no dates)
 useHead({
   script: [
     {
@@ -681,8 +680,6 @@ useHead({
               price: priceNum,
               priceCurrency: currency,
               ...(val.price?.valid_until ? { priceValidUntil: val.price.valid_until } : {}),
-              // Matches the same availability_state canonical mapping used for
-              // the card badge/booking UI — see computeExperienceAvailabilitySummary.
               availability: (() => {
                 switch (val.availability_state) {
                   case 'sold_out': return 'https://schema.org/SoldOut'

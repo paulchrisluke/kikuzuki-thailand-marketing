@@ -1,3 +1,4 @@
+import { parseRecurringSlots, type RecurringSlots } from '~/shared/reservation-hours'
 import type { Experience, WeekdayName } from '~/server/utils/experiences'
 import type { BookingPolicyPatch, RenderedBookingPolicySummary } from '~/server/utils/booking-policies'
 import type { CurrencyCode } from '~/shared/currencies'
@@ -5,7 +6,7 @@ import { majorAmountToMinor, minorAmountToMajor } from '~/shared/prices'
 import { getErrorMessage } from '~/utils/errors'
 
 export const WEEKDAY_NAMES = [
-  'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday',
+  'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday',
 ] as const satisfies readonly WeekdayName[]
 
 export interface ExperienceMediaItem {
@@ -48,7 +49,7 @@ function emptyForm() {
     valid_until: '',
     duration_minutes: null as number | null,
     max_capacity: null as number | null,
-        included_items: [] as string[],
+    included_items: [] as string[],
     what_to_bring: [] as string[],
     meeting_point: '',
     status: 'active' as 'active' | 'inactive' | 'sold_out',
@@ -79,14 +80,9 @@ export function useExperienceEditor(
   const toast = useToast()
 
   const form = reactive(emptyForm())
-  const slotsMode = ref<'flat' | 'recurring'>('flat')
-  const timeSlots = ref<string[]>([])
-  const recurringSlots = reactive<Record<WeekdayName, string[]>>({
-    Monday: [], Tuesday: [], Wednesday: [], Thursday: [], Friday: [], Saturday: [], Sunday: [],
-  })
+  const recurringSlots = ref<RecurringSlots>(null)
 
   const bookingPolicyDraft = ref<BookingPolicyPatch>({})
-  /** The policy as loaded, so a save that never touched it does not rewrite it. */
   const savedPolicy = ref('{}')
   const bookingPolicySummary = ref<RenderedBookingPolicySummary | null>(null)
   const bookingPolicyId = ref<string | null>(null)
@@ -110,9 +106,7 @@ export function useExperienceEditor(
 
   function reset() {
     Object.assign(form, emptyForm())
-    slotsMode.value = 'flat'
-    timeSlots.value = []
-    for (const day of WEEKDAY_NAMES) recurringSlots[day] = []
+    recurringSlots.value = null
     bookingPolicyDraft.value = {}
     savedPolicy.value = '{}'
     bookingPolicySummary.value = null
@@ -136,13 +130,12 @@ export function useExperienceEditor(
       pricing_note: experience.pricing_note ?? '',
       price_major: experience.price ? Number(minorAmountToMajor(experience.price.amount_minor, experience.price.currency)) : null,
       compare_at_major: experience.price?.compare_at_amount_minor != null
-        ? Number(minorAmountToMajor(experience.price.compare_at_amount_minor, experience.price.currency))
-        : null,
+        ? Number(minorAmountToMajor(experience.price.compare_at_amount_minor, experience.price.currency)) : null,
       valid_from: experience.price?.valid_from ? String(experience.price.valid_from).slice(0, 10) : '',
       valid_until: experience.price?.valid_until ? String(experience.price.valid_until).slice(0, 10) : '',
       duration_minutes: experience.duration_minutes ?? null,
       max_capacity: experience.max_capacity ?? null,
-            included_items: Array.isArray(experience.included_items) ? [...experience.included_items] : [],
+      included_items: Array.isArray(experience.included_items) ? [...experience.included_items] : [],
       what_to_bring: Array.isArray(experience.what_to_bring) ? [...experience.what_to_bring] : [],
       meeting_point: experience.meeting_point ?? '',
       status: experience.status ?? 'active',
@@ -159,14 +152,9 @@ export function useExperienceEditor(
       pricing_note: form.pricing_note,
     }
 
-    timeSlots.value = Array.isArray(experience.time_slots)
-      ? [...experience.time_slots]
-      : (experience.time_slots ? String(experience.time_slots).split(',').map(slot => slot.trim()).filter(Boolean) : [])
-    for (const day of WEEKDAY_NAMES) recurringSlots[day] = experience.recurring_slots?.[day] ? [...experience.recurring_slots[day]!] : []
-    slotsMode.value = experience.recurring_slots ? 'recurring' : 'flat'
+    recurringSlots.value = parseRecurringSlots(experience.recurring_slots)
   }
 
-  // ── Gallery ─────────────────────────────────────────────
   function addMedia() {
     form.media.push({ _key: crypto.randomUUID(), asset_id: null, url: null, thumbnail_url: null, kind: 'image' })
   }
@@ -305,14 +293,9 @@ export function useExperienceEditor(
       duration_minutes: parseNumber(form.duration_minutes),
       max_capacity: parseNumber(form.max_capacity),
       featured_sort_order: parseNumber(form.featured_sort_order) ?? 0,
-      time_slots: slotsMode.value === 'flat' && timeSlots.value.length ? [...timeSlots.value] : null,
-      recurring_slots: slotsMode.value === 'recurring'
-        ? Object.fromEntries(WEEKDAY_NAMES.filter(day => recurringSlots[day].length).map(day => [day, [...recurringSlots[day]]]))
-        : null,
+      recurring_slots: parseRecurringSlots(recurringSlots.value),
       included_items: [...form.included_items],
       what_to_bring: [...form.what_to_bring],
-      // A brand-new experience seeds its gallery inline; an edit reconciles it
-      // through syncMedia so nothing already removed gets resurrected.
       ...(isEdit ? {} : { media: mediaIds.map(asset_id => ({ asset_id })) }),
     }
   }
@@ -417,8 +400,6 @@ export function useExperienceEditor(
 
   return {
     form,
-    slotsMode,
-    timeSlots,
     recurringSlots,
     bookingPolicyDraft,
     bookingPolicySummary,

@@ -8,10 +8,12 @@
       <UButton color="neutral" variant="soft" icon="i-lucide-external-link" :to="publicLinksUrl || undefined" target="_blank" :disabled="!publicLinksUrl">Open</UButton>
       <DashboardResourceLocalization
         :site-id="siteId"
-        resource-type="site_link_page"
+        resource-type="content_document"
         :resource-id="form.id"
         resource-label="links page"
         :fields="linksPageLocalizationFields"
+        :load-values="loadLinksLocalization"
+        :save-values="saveLinksLocalization"
         :route-path="localizedLinksPath"
         :language-settings-path="siteLocalizationSettingsPath"
       />
@@ -59,6 +61,7 @@
         </div>
       </UCard>
 
+
       <DashboardListEditor
         v-model:editing="editing"
         title="Links"
@@ -102,10 +105,12 @@
         <template v-if="persistedEditingItem" #actions>
           <DashboardResourceLocalization
             :site-id="siteId"
-            resource-type="site_link_item"
+            resource-type="content_block"
             :resource-id="persistedEditingItem.id"
             resource-label="link"
             :fields="linkItemLocalizationFields"
+            :load-values="locale => loadLinksLocalization(locale, persistedEditingItem!.id)"
+            :save-values="(locale, values) => saveLinksLocalization(locale, values, persistedEditingItem!.id)"
             :language-settings-path="siteLocalizationSettingsPath"
           />
         </template>
@@ -220,6 +225,8 @@ const form = reactive<LinksPage>({
 const items = ref<LinkItem[]>([])
 const linksPageLocalizationFields = computed(() => [
   { key: 'title', label: 'Title', source: data.value?.page.title },
+  { key: 'seo_title', label: 'SEO title', source: data.value?.page.seo_title },
+  { key: 'seo_description', label: 'SEO description', source: data.value?.page.seo_description, multiline: true },
 ])
 const persistedEditingItem = computed(() => data.value?.items.find(item => item.id === editingId.value) ?? null)
 const linkItemLocalizationFields = computed(() => [
@@ -297,6 +304,57 @@ const { data, pending, refresh } = await useAsyncData(
   { server: false },
 )
 
+interface LinksTranslation {
+  title: string | null
+  seo_title: string | null
+  seo_description: string | null
+  updated_at: string
+  content_blocks: Array<{ id?: string; source_block_id: string | null; type: 'cta'; data: Record<string, unknown> }>
+}
+const linkLocalizationStates = new Map<string, { locale: string; translation: LinksTranslation | null }>()
+const linkLocalizationGenerations = new Map<string, number>()
+function isLinksTranslation(value: unknown): value is { localization: LinksTranslation } {
+  return isRecord(value) && isRecord(value.localization) && typeof value.localization.updated_at === 'string' && Array.isArray(value.localization.content_blocks)
+}
+async function loadLinksLocalization(locale: string, itemId?: string): Promise<Record<string, unknown>> {
+  const key = itemId ?? form.id
+  const generation = (linkLocalizationGenerations.get(key) ?? 0) + 1
+  linkLocalizationGenerations.set(key, generation)
+  let translation: LinksTranslation | null = null
+  try {
+    const response = await dashboardApi<{ localization: LinksTranslation }>(
+      `/api/editor/sites/${siteId}/localization/content_document/${form.id}/${encodeURIComponent(locale)}`, { validate: isLinksTranslation })
+    translation = response.localization
+  } catch (cause) {
+    if (!isRecord(cause) || cause.statusCode !== 404) throw cause
+  }
+  if (generation !== linkLocalizationGenerations.get(key)) return {}
+  linkLocalizationStates.set(key, { locale, translation })
+  if (itemId) return { label: translation?.content_blocks.find(block => block.source_block_id === itemId)?.data.label }
+  return { title: translation?.title, seo_title: translation?.seo_title, seo_description: translation?.seo_description }
+}
+async function saveLinksLocalization(locale: string, submitted: Record<string, unknown>, itemId?: string): Promise<void> {
+  const key = itemId ?? form.id
+  const state = linkLocalizationStates.get(key)
+  if (!state || state.locale !== locale) throw new Error('Choose the language again before saving.')
+  const values = { title: state.translation?.title ?? null, seo_title: state.translation?.seo_title ?? null, seo_description: state.translation?.seo_description ?? null }
+  let blocks = structuredClone(state.translation?.content_blocks ?? [])
+  if (itemId) {
+    const existing = blocks.find(block => block.source_block_id === itemId)
+    const label = typeof submitted.label === 'string' ? submitted.label.trim() : ''
+    blocks = blocks.filter(block => block.source_block_id !== itemId)
+    if (label) blocks.push({ id: existing?.id, source_block_id: itemId, type: 'cta', data: { label } })
+  } else {
+    for (const field of ['title', 'seo_title', 'seo_description'] as const) values[field] = typeof submitted[field] === 'string' ? submitted[field] : null
+  }
+  const response = await dashboardApi<{ localization: LinksTranslation }>(
+    `/api/editor/sites/${siteId}/localization/content_document/${form.id}/${encodeURIComponent(locale)}`, {
+      method: 'PUT', body: { values, route_path: `/${locale}/links`, content_blocks: blocks,
+        ...(state.translation ? { expected_updated_at: state.translation.updated_at } : {}) }, validate: isLinksTranslation,
+    })
+  linkLocalizationStates.set(key, { locale, translation: response.localization })
+}
+
 let openedLocalizationTarget = ''
 watch(data, (value) => {
   if (!value) return
@@ -308,8 +366,8 @@ watch(data, (value) => {
   items.value = value.items
   savedSnapshot.value = serializeState()
   const target = typeof route.query.localize === 'string' ? route.query.localize : ''
-  if (target.startsWith('site_link_item:') && target !== openedLocalizationTarget) {
-    const item = value.items.find(row => target === `site_link_item:${row.id}`)
+  if (target.startsWith('content_block:') && target !== openedLocalizationTarget) {
+    const item = value.items.find(row => target === `content_block:${row.id}`)
     if (item) {
       openedLocalizationTarget = target
       openExisting({ id: item.id })
@@ -411,5 +469,6 @@ onBeforeRouteLeave(() => {
   if (!dirty.value || !import.meta.client) return true
   return window.confirm('Discard unsaved links page changes?')
 })
+
 
 </script>

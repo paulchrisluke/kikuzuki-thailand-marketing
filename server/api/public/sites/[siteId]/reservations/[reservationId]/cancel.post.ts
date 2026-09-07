@@ -1,10 +1,10 @@
+import { getGuestRequest, cancelBookingRequest, requestSummary } from '~/server/domain/requests'
 import { queryFirst } from '~/server/db'
 import { cloudflareEnv, jsonResponse } from '~/server/utils/api-response'
 import { notifyReservationCancelled } from '~/server/utils/notifications'
 import { hashReservationCancelToken, readBearerToken } from '~/server/utils/reservation-cancel-token'
 import { getClientIp, hashClientIp, incrementHourlyRateLimit } from '~/server/utils/hourly-rate-limit'
 import { publishGuestInboxThreadEvent } from '~/server/cloudflare/guest-inbox-events'
-import { getGuestThreadBySubmission } from '~/server/domain/guest-threads/repository'
 
 const IP_HOURLY_LIMIT = 20
 const RESERVATION_HOURLY_LIMIT = 5
@@ -37,64 +37,13 @@ export default defineHandler(async (event) => {
 
   const tokenHash = await hashReservationCancelToken(token)
   const now = new Date().toISOString()
-  const cancellable = await queryFirst<{
-    organization_id: string
-    site_id: string
-    name: string
-    email: string
-    phone: string
-    date: string
-    time: string
-    guests: string
-    location_id: string | null
-    status: 'new' | 'confirmed'
-  }>(
-    db, `
-    SELECT organization_id, site_id, name, email, phone, date, time, guests, location_id, status
-    FROM reservation_submissions
-    WHERE id = ?
-      AND site_id = ?
-      AND cancellation_token_hash = ?
-      AND cancellation_token_used_at IS NULL
-      AND cancellation_token_expires_at > ?
-      AND status IN ('new', 'confirmed')
-    LIMIT 1
-  `, [reservationId, siteId, tokenHash, now], )
+  const cancelled = await cancelBookingRequest(db, { id: reservationId, siteId, kind: 'reservation', tokenHash, now })
+  if (!cancelled) return jsonResponse({ error: 'Booking not found or already cancelled' }, { status: 404 })
+  const reservation = cancelled.request
+  if (reservation.kind !== 'reservation') throw new Error('Cancellation returned another booking kind')
+  const summary = await requestSummary(db, reservation)
 
-  if (!cancellable) {
-    return jsonResponse({ error: 'Reservation not found or already cancelled' }, { status: 404 })
-  }
-
-  const reservation = await queryFirst<{
-    organization_id: string
-    site_id: string
-    name: string
-    email: string
-    phone: string
-    date: string
-    time: string
-    guests: string
-    requests: string | null
-    location_id: string | null
-    location_name: string | null
-  }>(
-    db, `
-    UPDATE reservation_submissions
-    SET status = 'cancelled', cancellation_token_used_at = ?
-    WHERE id = ?
-      AND site_id = ?
-      AND cancellation_token_hash = ?
-      AND cancellation_token_used_at IS NULL
-      AND cancellation_token_expires_at > ?
-      AND status IN ('new', 'confirmed')
-    RETURNING organization_id, site_id, name, email, phone, date, time, guests, requests, location_id, (SELECT title FROM business_locations WHERE id = reservation_submissions.location_id) AS location_name
-  `, [now, reservationId, siteId, tokenHash, now], )
-
-  if (!reservation) {
-    return jsonResponse({ error: 'Reservation not found or already cancelled' }, { status: 404 })
-  }
-
-  const thread = await getGuestThreadBySubmission(db, 'reservation', reservationId)
+  const thread = await getGuestRequest(db, reservationId, undefined, 'reservation')
   if (thread) {
     await publishGuestInboxThreadEvent(env, db, { threadId: thread.id, type: 'thread.changed' })
   }
@@ -104,7 +53,7 @@ export default defineHandler(async (event) => {
 
   try {
     await notifyReservationCancelled(env, db, {
-      organizationId: reservation.organization_id, siteId: reservation.site_id, siteName: site?.brand_name, locationId: reservation.location_id, locationName: reservation.location_name, reservationId, guestName: reservation.name, email: reservation.email, phone: reservation.phone, date: reservation.date, time: reservation.time, guests: reservation.guests, requests: reservation.requests, wasConfirmed: cancellable.status === 'confirmed'
+      organizationId: reservation.organization_id, siteId: reservation.site_id, siteName: site?.brand_name, locationId: reservation.location_id, locationName: summary.locationTitle, reservationId, guestName: reservation.payload.guest.name, email: reservation.payload.guest.email, phone: reservation.payload.guest.phone, date: reservation.booking_date, time: reservation.time_slot, guests: `${reservation.party_size}${reservation.payload.party_size_is_minimum ? '+' : ''}`, requests: reservation.payload.notes, wasConfirmed: cancelled.wasConfirmed
     })
   } catch (error) {
     console.error('reservation_cancellation_notification_failed', {

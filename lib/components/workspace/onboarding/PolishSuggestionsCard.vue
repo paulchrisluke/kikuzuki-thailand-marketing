@@ -79,12 +79,12 @@ const items = computed(() => [
     icon: 'i-lucide-file-text',
     title: props.vertical === 'experience'
       ? 'Add your headline experiences'
-      : props.vertical === 'professional_service'
+      : props.vertical === 'service'
         ? 'Add your core services'
         : 'Add your core menu or offerings',
     body: props.vertical === 'experience'
       ? 'Start with the signature experiences people book first, then expand the catalog.'
-      : props.vertical === 'professional_service'
+      : props.vertical === 'service'
         ? 'Start with the services or practice areas clients ask about most, then fill in the rest.'
         : 'Start with the best sellers and key sections, then fill in the rest once the structure feels right.',
   },

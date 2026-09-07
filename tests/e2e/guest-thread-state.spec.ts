@@ -21,7 +21,7 @@ interface NotificationList {
 
 interface DeliveryView {
   id: string
-  thread_id: string
+  request_id: string
   entry_id: string
   purpose: string
   status: string
@@ -109,6 +109,14 @@ test('guest thread state stays source-owned, per-user, tenant-isolated, and idem
     expect(ownerListBefore.threads).toHaveLength(1)
     expect(secondOwnerListBefore.threads).toHaveLength(1)
     const threadId = ownerListBefore.threads[0]!.id
+    const organizationList = await owner.get('/api/dashboard/guest-threads', {
+      params: { org: 'pottery-house-krabi', search: guestName },
+    })
+    await expectStatus(organizationList, 200)
+    expect(await organizationList.json()).toMatchObject({ threads: [{ id: threadId }] })
+    await expectStatus(await foreignOwner.get('/api/dashboard/guest-threads', {
+      params: { org: 'pottery-house-krabi', search: guestName },
+    }), 404)
     expect(secondOwnerListBefore.threads[0]!.id).toBe(threadId)
     expect(ownerListBefore.threads[0]).toMatchObject({ guestName, submissionType: 'contact', unread: true })
     expect(secondOwnerListBefore.threads[0]).toMatchObject({ guestName, submissionType: 'contact', unread: true })
@@ -124,6 +132,8 @@ test('guest thread state stays source-owned, per-user, tenant-isolated, and idem
       submissionType: 'contact',
       source: {
         submissionType: 'contact',
+        operationalStatus: null,
+        operationalStatusLabel: null,
         fields: { subject, message },
       },
     })
@@ -131,10 +141,10 @@ test('guest thread state stays source-owned, per-user, tenant-isolated, and idem
     expect(openingEntries).toHaveLength(1)
     expect(openingEntries[0]).toMatchObject({
       actorKind: 'guest',
-      channel: 'system',
+      channel: 'web',
       body: null,
-      eventName: 'contact_submitted',
-      payload: null,
+      eventName: null,
+      payload: { kind: 'contact' },
     })
 
     const [ownerListAfterRead, ownerNotificationsAfterRead, secondOwnerListStillUnread, secondOwnerNotificationsStillUnread] = await Promise.all([
@@ -192,7 +202,7 @@ test('guest thread state stays source-owned, per-user, tenant-isolated, and idem
     })
     await expectStatus(deliveryResponse, 200)
     const deliveries = (await deliveryResponse.json() as DeliveryList).deliveries.filter(row =>
-      row.thread_id === threadId && row.purpose === 'member_reply',
+      row.request_id === threadId && row.purpose === 'member_reply',
     )
     expect(deliveries).toHaveLength(1)
     expect(deliveries[0]!.entry_id).toBe(replyEntries[0]!.id)

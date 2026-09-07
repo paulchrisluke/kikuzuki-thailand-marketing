@@ -1,4 +1,4 @@
-import { execute, queryAll } from '~/server/db'
+import { execute, queryAll, queryFirst } from '~/server/db'
 import { platformAnalyticsHostnames, type DomainEnv } from '~/server/utils/domains'
 import { ZARAZ_ANALYTICS_PURPOSE, ZARAZ_ANALYTICS_PURPOSE_ID } from '~/utils/zaraz-consent'
 
@@ -67,8 +67,7 @@ type CloudflareEnvelope<T> = {
 }
 
 const CF_API_BASE = 'https://api.cloudflare.com/client/v4'
-const LOCK_ID = 'zone'
-const LOCK_STALE_MS = 30_000
+const LOCK_STALE_MS = 60_000
 const LOCK_RETRY_DELAYS_MS = [100, 250, 500, 1_000, 2_000]
 const ANALYTICS_KEY_PREFIX = 'ga-'
 const TENANT_KEY_PREFIX = 'ga-tenant-'
@@ -85,6 +84,7 @@ async function zarazRequest<T>(env: ZarazEnv, init: RequestInit = {}): Promise<T
   requireZarazEnv(env)
   const response = await fetch(`${CF_API_BASE}/zones/${env.CF_ZONE_ID}/settings/zaraz/config`, {
     ...init,
+    signal: AbortSignal.timeout(15_000),
     headers: {
       Authorization: `Bearer ${env.CLOUDFLARE_API_TOKEN}`,
       'Content-Type': 'application/json',
@@ -107,24 +107,26 @@ export async function putZarazConfig(env: ZarazEnv, config: ZarazConfig): Promis
   return await zarazRequest<ZarazConfig>(env, { method: 'PUT', body: JSON.stringify(config) })
 }
 
-async function acquireLock(db: D1Database): Promise<string> {
-  await execute(db, `INSERT OR IGNORE INTO zaraz_sync_lock (id, locked_at) VALUES (?, NULL)`, [LOCK_ID])
+async function acquireLock(db: D1Database, zoneId: string): Promise<number> {
+  const key = 'lease:zaraz:' + zoneId
   for (const delay of LOCK_RETRY_DELAYS_MS) {
     const now = new Date()
-    const staleBefore = new Date(now.getTime() - LOCK_STALE_MS).toISOString()
-    const result = await execute(db, `
-      UPDATE zaraz_sync_lock
-      SET locked_at = ?
-      WHERE id = ? AND (locked_at IS NULL OR locked_at < ?)
-    `, [now.toISOString(), LOCK_ID, staleBefore])
-    if ((result.meta?.changes ?? 0) > 0) return now.toISOString()
+    const lease = await queryFirst<{ count: number }>(db, `
+      INSERT INTO rate_limits (key, count, updated_at, expires_at) VALUES (?, 1, ?, ?)
+      ON CONFLICT(key) DO UPDATE SET count = rate_limits.count + 1,
+        updated_at = excluded.updated_at, expires_at = excluded.expires_at
+      WHERE rate_limits.expires_at <= excluded.updated_at
+      RETURNING count
+    `, [key, now.toISOString(), new Date(now.getTime() + LOCK_STALE_MS).toISOString()])
+    if (lease) return lease.count
     await new Promise(resolve => setTimeout(resolve, delay))
   }
   throw new Error('Timed out waiting for Zaraz configuration sync lock')
 }
 
-async function releaseLock(db: D1Database, lockedAt: string): Promise<void> {
-  await execute(db, `UPDATE zaraz_sync_lock SET locked_at = NULL WHERE id = ? AND locked_at = ?`, [LOCK_ID, lockedAt])
+async function releaseLock(db: D1Database, zoneId: string, generation: number): Promise<void> {
+  await execute(db, `UPDATE rate_limits SET expires_at = ? WHERE key = ? AND count = ?`,
+    [new Date().toISOString(), 'lease:zaraz:' + zoneId, generation])
 }
 
 function tenantKey(siteId: string): string {
@@ -352,25 +354,18 @@ export async function reconcileZarazAnalytics(
 ): Promise<ZarazAnalyticsReconciliationResult> {
   const rows = await queryAll<ActiveTenantAnalyticsRow>(db, `
     SELECT site.id AS site_id,
-           COALESCE(connection.ga4_measurement_id, setting.value) AS ga4_measurement_id,
+           json_extract(site.integrations_json, '$.google.ga4_measurement_id') AS ga4_measurement_id,
            domain.domain
       FROM sites site
-      LEFT JOIN google_analytics_connections connection
-        ON connection.site_id = site.id
-       AND connection.organization_id = site.organization_id
-       AND connection.status = 'active'
-      LEFT JOIN site_config setting
-        ON setting.site_id = site.id
-       AND setting.organization_id = site.organization_id
-       AND setting.key = 'google_analytics_measurement_id'
       JOIN site_domains domain
         ON domain.site_id = site.id
        AND domain.organization_id = site.organization_id
      WHERE site.status = 'active'
        AND site.onboarding_status = 'active'
+       AND json_extract(site.integrations_json, '$.google.status') = 'active'
        AND domain.status = 'active'
-       AND COALESCE(connection.ga4_measurement_id, setting.value) IS NOT NULL
-       AND COALESCE(connection.ga4_measurement_id, setting.value) <> ''
+       AND json_extract(site.integrations_json, '$.google.ga4_measurement_id') IS NOT NULL
+       AND json_extract(site.integrations_json, '$.google.ga4_measurement_id') <> ''
      ORDER BY site.id, domain.domain
   `)
 
@@ -390,7 +385,7 @@ export async function reconcileZarazAnalytics(
     })
   }
 
-  const lockedAt = await acquireLock(db)
+  const lockedAt = await acquireLock(db, env.CF_ZONE_ID!)
   try {
     const config = await getZarazConfig(env)
     const result = reconcileZarazAnalyticsConfig(config, {
@@ -405,6 +400,6 @@ export async function reconcileZarazAnalytics(
     if (result.updated) await putZarazConfig(env, config)
     return result
   } finally {
-    await releaseLock(db, lockedAt)
+    await releaseLock(db, env.CF_ZONE_ID!, lockedAt)
   }
 }

@@ -78,8 +78,10 @@ function renderMcpFixtureOrg(orgId: string, userId: string, name: string, slug: 
     sqlJson,
   })
   const selectionSite = includeSelectionSite ? `
-INSERT OR REPLACE INTO sites (id, organization_id, theme_id, theme, slug, subdomain, brand_name, public_url, status, onboarding_status, default_currency, vertical, created_at, updated_at)
-VALUES ('site-mcp-growth-service-selection', ${sqlValue(orgId)}, 'saya-theme-v1', 'saya', 'mcp-growth-service-selection', 'mcp-growth-service-selection', 'MCP Selection Fixture', 'https://mcp-growth-service-selection.krabiclaw.com', 'active', 'active', 'USD', 'restaurant', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP);
+INSERT OR REPLACE INTO sites (id, organization_id, theme_id, slug, subdomain, brand_name, status, onboarding_status, default_currency, vertical, created_at, updated_at)
+VALUES ('site-mcp-growth-service-selection', ${sqlValue(orgId)}, 'saya-theme-v1', 'mcp-growth-service-selection', 'mcp-growth-service-selection', 'MCP Selection Fixture', 'active', 'active', 'USD', 'restaurant', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP);
+INSERT OR REPLACE INTO site_domains (id, organization_id, site_id, domain, type, role, status, dns_status)
+VALUES ('domain-mcp-growth-service-selection', ${sqlValue(orgId)}, 'site-mcp-growth-service-selection', 'mcp-growth-service-selection.krabiclaw.com', 'subdomain', 'canonical', 'active', 'valid');
 
 INSERT OR REPLACE INTO site_locales
   (id, organization_id, site_id, locale, label, is_source, status)
@@ -95,26 +97,19 @@ VALUES (${sqlValue(orgId)}, ${sqlValue(name)}, ${sqlValue(slug)}, unixepoch());
 INSERT INTO member (id, organizationId, userId, role, createdAt)
 VALUES (${sqlValue(`member-${orgId}`)}, ${sqlValue(orgId)}, ${sqlValue(userId)}, 'owner', unixepoch());
 
-INSERT OR REPLACE INTO sites (id, organization_id, theme_id, theme, slug, subdomain, brand_name, public_url, status, onboarding_status, default_currency, vertical, created_at, updated_at)
-VALUES (${sqlValue(siteId)}, ${sqlValue(orgId)}, 'saya-theme-v1', 'saya', ${sqlValue(slug)}, ${sqlValue(slug)}, ${sqlValue(name)}, ${sqlValue(`https://${slug}.krabiclaw.com`)}, 'active', 'active', 'USD', 'restaurant', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP);
+INSERT OR REPLACE INTO sites (id, organization_id, theme_id, slug, subdomain, brand_name, status, onboarding_status, default_currency, vertical, created_at, updated_at)
+VALUES (${sqlValue(siteId)}, ${sqlValue(orgId)}, 'saya-theme-v1', ${sqlValue(slug)}, ${sqlValue(slug)}, ${sqlValue(name)}, 'active', 'active', 'USD', 'restaurant', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP);
+INSERT OR REPLACE INTO site_domains (id, organization_id, site_id, domain, type, role, status, dns_status)
+VALUES (${sqlValue('domain-' + siteId)}, ${sqlValue(orgId)}, ${sqlValue(siteId)}, ${sqlValue(slug + '.krabiclaw.com')}, 'subdomain', 'canonical', 'active', 'valid');
 
 INSERT OR REPLACE INTO site_locales
   (id, organization_id, site_id, locale, label, is_source, status)
 VALUES
   (${sqlValue(`locale::${orgId}::${siteId}::en`)}, ${sqlValue(orgId)}, ${sqlValue(siteId)}, 'en', 'English', 1, 'published');
 
-INSERT OR IGNORE INTO business_locations (id, organization_id, site_id, slug, title, city, address, phone, email, maps_url, opening_hours, status, is_primary, created_at, updated_at)
-VALUES (${sqlValue(locationId)}, ${sqlValue(orgId)}, ${sqlValue(siteId)}, 'main', ${sqlValue(name)}, 'Krabi', ${sqlJson({ addressLines: [] })}, NULL, NULL, NULL, ${sqlJson([
-    { openDay: 'MONDAY', openTime: '11:00', closeTime: '22:00' },
-    { openDay: 'TUESDAY', openTime: '11:00', closeTime: '22:00' },
-    { openDay: 'WEDNESDAY', openTime: '11:00', closeTime: '22:00' },
-    { openDay: 'THURSDAY', openTime: '11:00', closeTime: '22:00' },
-    { openDay: 'FRIDAY', openTime: '11:00', closeTime: '22:00' },
-    { openDay: 'SATURDAY', openTime: '11:00', closeTime: '22:00' },
-    { openDay: 'SUNDAY', openTime: '11:00', closeTime: '22:00' },
-  ])}, 'active', 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP);
+INSERT OR IGNORE INTO business_locations (id, organization_id, site_id, slug, title, city, address, phone, email, maps_url, opening_hours, timezone, status, created_at, updated_at)
+VALUES (${sqlValue(locationId)}, ${sqlValue(orgId)}, ${sqlValue(siteId)}, 'main', ${sqlValue(name)}, 'Krabi', ${sqlJson({ addressLines: [] })}, NULL, NULL, NULL, ${sqlJson({ periods: Array.from({ length: 7 }, (_, day) => ({ open: { day, hour: 11, minute: 0 }, close: { day, hour: 22, minute: 0 } })) })}, 'Asia/Bangkok', 'active', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP);
 
-UPDATE sites SET primary_location_id = ${sqlValue(locationId)} WHERE id = ${sqlValue(siteId)};
 
 INSERT OR REPLACE INTO media_assets
   (id, organization_id, site_id, kind, provider, source,
@@ -187,80 +182,22 @@ function renderAnalyticsFixtureSeed() {
     const visitors = Math.round(sessions * 0.86)
     const dateSql = `date('now', '-${ago} days')`
 
-    daily.push(`  ('analytics-demo-daily-${ago}', 'org-demo', 'site-demo', ${dateSql}, ${views}, ${sessions}, ${120 + (ago % 5) * 11}, ${visitors}, 2.4, ${Math.round(visitors * 0.22)}, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`)
+    daily.push(`  ('analytics-demo-daily-${ago}', 'site_day', 'org-demo', 'site-demo', ${dateSql}, '', ${sqlJson({ page_views: views, unique_sessions: sessions, avg_session_duration: 120 + (ago % 5) * 11, unique_visitors: visitors, pages_per_session: 2.4, returning_visitors: Math.round(visitors * 0.22) })})`)
     for (const [path, share] of pagePaths) {
-      pages.push(`  ('analytics-demo-page-${ago}-${path.replace(/\W+/g, '') || 'home'}', 'org-demo', 'site-demo', ${dateSql}, '${path}', ${Math.max(1, Math.round(views * share))}, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`)
+      pages.push(`  ('analytics-demo-page-${ago}-${path.replace(/\W+/g, '') || 'home'}', 'page_day', 'org-demo', 'site-demo', ${dateSql}, ${sqlValue(path)}, ${sqlJson({ page_views: Math.max(1, Math.round(views * share)) })})`)
     }
     for (const [dimension, value, subvalue, share] of dimensions) {
-      dims.push(`  ('analytics-demo-dim-${ago}-${dimension}-${value}', 'org-demo', 'site-demo', ${dateSql}, '${dimension}', '${value}', ${subvalue ? `'${subvalue}'` : 'NULL'}, ${Math.max(1, Math.round(views * share))}, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`)
+      dims.push(`  ('analytics-demo-dim-${ago}-${dimension}-${value}', 'dimension_day', 'org-demo', 'site-demo', ${dateSql}, ${sqlJson([dimension, value, subvalue ?? ''])}, ${sqlJson({ page_views: Math.max(1, Math.round(views * share)) })})`)
     }
   }
 
   return `-- Local-only rolling analytics for the dashboard Insights page.
 -- Stable IDs make this safe to re-run without accumulating fixture records.
 
-INSERT OR REPLACE INTO site_analytics_daily
-  (id, organization_id, site_id, date, page_views, unique_sessions, avg_session_duration,
-   unique_visitors, pages_per_session, returning_visitors, created_at, updated_at)
+INSERT OR REPLACE INTO analytics_summaries
+  (id, kind, organization_id, site_id, date, key, payload_json)
 VALUES
-${daily.join(',\n')};
-
-INSERT OR REPLACE INTO site_analytics_page_daily
-  (id, organization_id, site_id, date, page_path, page_views, created_at, updated_at)
-VALUES
-${pages.join(',\n')};
-
-INSERT OR REPLACE INTO site_analytics_dimension_daily
-  (id, organization_id, site_id, date, dimension, value, subvalue, page_views, created_at, updated_at)
-VALUES
-${dims.join(',\n')};
-`
-}
-
-function renderTodayFixtureSeed() {
-  return `-- Local-only rolling data for the dashboard Today page.
--- Stable IDs make this safe to re-run without accumulating fixture records.
-
-INSERT OR REPLACE INTO reservation_submissions
-  (id, organization_id, site_id, location_id, name, email, phone, date, time, guests, requests, status, created_at, updated_at)
-VALUES
-  ('reservation-demo-today-maya', 'org-demo', 'site-demo', 'loc-demo', 'Maya Chen', 'maya.today@example.test', '+1-555-0101', date('now'), '12:30', '2', 'Window table if available.', 'confirmed', strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
-  ('reservation-demo-today-daniel', 'org-demo', 'site-demo', 'loc-demo-2', 'Daniel Ortiz', 'daniel.today@example.test', '+1-555-0102', date('now'), '19:30', '4', NULL, 'confirmed', strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
-  ('reservation-demo-upcoming-priya', 'org-demo', 'site-demo', 'loc-demo', 'Priya Shah', 'priya.upcoming@example.test', '+1-555-0103', date('now', '+3 days'), '18:00', '3', NULL, 'confirmed', strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), strftime('%Y-%m-%dT%H:%M:%fZ', 'now'));
-
-INSERT OR REPLACE INTO experience_bookings
-  (id, experience_id, organization_id, site_id, location_id, guest_name, guest_email, guest_phone, party_size, booking_date, time_slot, status, notes, created_at, updated_at)
-VALUES
-  ('booking-demo-today-sophie', 'exp-demo-pizza-class', 'org-demo', 'site-demo', 'loc-demo', 'Sophie Laurent', 'sophie.today@example.test', '+1-555-0104', 3, date('now'), '14:00', 'confirmed', NULL, strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
-  ('booking-demo-upcoming-jordan', 'exp-demo-pizza-class', 'org-demo', 'site-demo', 'loc-demo', 'Jordan Lee', 'jordan.upcoming@example.test', '+1-555-0105', 2, date('now', '+7 days'), '14:00', 'confirmed', NULL, strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), strftime('%Y-%m-%dT%H:%M:%fZ', 'now'));
-
-INSERT OR REPLACE INTO guest_threads
-  (id, organization_id, site_id, location_id, submission_type, submission_id,
-   conversation_state, resolved_at, created_at, updated_at)
-VALUES
-  ('thread-reservation-demo-today-maya', 'org-demo', 'site-demo', 'loc-demo', 'reservation', 'reservation-demo-today-maya',
-   'needs_attention', NULL,
-   strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
-  ('thread-reservation-demo-today-daniel', 'org-demo', 'site-demo', 'loc-demo-2', 'reservation', 'reservation-demo-today-daniel',
-   'needs_attention', NULL,
-   strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
-  ('thread-reservation-demo-upcoming-priya', 'org-demo', 'site-demo', 'loc-demo', 'reservation', 'reservation-demo-upcoming-priya',
-   'needs_attention', NULL,
-   strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), strftime('%Y-%m-%dT%H:%M:%fZ', 'now'));
-
-INSERT OR REPLACE INTO guest_thread_entries
-  (id, thread_id, kind, actor_kind, actor_user_id, channel, body, event_name,
-   payload_json, dedupe_key, sequence, occurred_at, created_at)
-VALUES
-  ('entry-reservation-demo-today-maya', 'thread-reservation-demo-today-maya', 'submission', 'guest', NULL, 'system', NULL, 'reservation_submitted',
-   json_object('schemaVersion', 1, 'submissionType', 'reservation', 'submissionId', 'reservation-demo-today-maya'), 'submission:reservation:reservation-demo-today-maya', 1,
-   strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
-  ('entry-reservation-demo-today-daniel', 'thread-reservation-demo-today-daniel', 'submission', 'guest', NULL, 'system', NULL, 'reservation_submitted',
-   json_object('schemaVersion', 1, 'submissionType', 'reservation', 'submissionId', 'reservation-demo-today-daniel'), 'submission:reservation:reservation-demo-today-daniel', 1,
-   strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
-  ('entry-reservation-demo-upcoming-priya', 'thread-reservation-demo-upcoming-priya', 'submission', 'guest', NULL, 'system', NULL, 'reservation_submitted',
-   json_object('schemaVersion', 1, 'submissionType', 'reservation', 'submissionId', 'reservation-demo-upcoming-priya'), 'submission:reservation:reservation-demo-upcoming-priya', 1,
-   strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), strftime('%Y-%m-%dT%H:%M:%fZ', 'now'));
+${[...daily, ...pages, ...dims].join(',\n')};
 `
 }
 
@@ -294,16 +231,8 @@ const sql = `-- Demo seed for local development - Saya theme showcase
 PRAGMA foreign_keys = ON;
 
 -- Theme is shared platform data, not demo-owned data.
-INSERT OR IGNORE INTO themes (id, name, slug, version, description, status)
-VALUES ('saya-theme-v1', 'Saya', 'saya', '1.0.0', 'Restaurant website theme', 'active');
 
 -- Cleanly replace the protected demo tenant and MCP fixture orgs.
--- Every org-scoped table declares ON DELETE CASCADE back to organization(id),
--- and D1 honors that cascade within a single wrangler d1 execute --file run
--- (verified: deleting organization cascades through sites -> experiences ->
--- experience_bookings without a constraint error). So deleting the org row
--- is sufficient; there is no need to hand-maintain a child-table delete list
--- that has to be kept in sync with every new table added to the schema.
 DELETE FROM organization WHERE id IN ('org-demo', 'org_demo', 'org-mcp-free', 'org-mcp-growth', 'org-mcp-growth-service', 'org-mcp-managed', 'org-transfer-recipient');
 
 -- Better Auth subscriptions do not reference organization with a foreign key.
@@ -379,7 +308,7 @@ ${renderCompiledDemoTenantPagesBlock()}
 
 ${renderCompiledDemoBillingBlock()}
 
-${renderTodayFixtureSeed()}
+
 
 ${renderAnalyticsFixtureSeed()}
 `

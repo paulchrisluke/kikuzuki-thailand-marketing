@@ -1,10 +1,11 @@
 #!/usr/bin/env node
 
-import { mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
+import { readFileSync, readdirSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { basename, join, resolve } from 'node:path'
 import { spawnSync } from 'node:child_process'
 import process from 'node:process'
+import { fileURLToPath } from 'node:url'
 
 const ROOT = resolve(import.meta.dirname, '..')
 const WRANGLER_CONFIG = join(ROOT, 'wrangler.toml')
@@ -89,7 +90,7 @@ function referencedTables(sql) {
   return references
 }
 
-function orderForDrop(objects) {
+export function orderForDrop(objects) {
   const views = objects
     .filter(object => object.type === 'view')
     .sort((left, right) => left.name.localeCompare(right.name))
@@ -99,26 +100,41 @@ function orderForDrop(objects) {
     table.name,
     new Set(referencedTables(table.sql).filter(name => tableNames.has(name) && name !== table.name)),
   ]))
-  const dependents = new Map(tables.map(table => [table.name, new Set()]))
-  for (const [child, parents] of dependencies) {
-    for (const parent of parents) dependents.get(parent).add(child)
-  }
+  const indices = new Map()
+  const lowLinks = new Map()
+  const stack = []
+  const onStack = new Set()
+  const components = []
+  let nextIndex = 0
 
-  const remaining = new Set(tableNames)
-  const orderedNames = []
-  while (remaining.size) {
-    const ready = [...remaining]
-      .filter(name => [...dependents.get(name)].every(child => !remaining.has(child)))
-      .sort()
-    if (!ready.length) {
-      orderedNames.push(...[...remaining].sort())
-      break
+  function visit(name) {
+    indices.set(name, nextIndex)
+    lowLinks.set(name, nextIndex++)
+    stack.push(name)
+    onStack.add(name)
+    for (const parent of [...dependencies.get(name)].sort()) {
+      if (!indices.has(parent)) {
+        visit(parent)
+        lowLinks.set(name, Math.min(lowLinks.get(name), lowLinks.get(parent)))
+      } else if (onStack.has(parent)) {
+        lowLinks.set(name, Math.min(lowLinks.get(name), indices.get(parent)))
+      }
     }
-    for (const name of ready) {
-      orderedNames.push(name)
-      remaining.delete(name)
+    if (lowLinks.get(name) === indices.get(name)) {
+      const component = []
+      let member
+      do {
+        member = stack.pop()
+        onStack.delete(member)
+        component.push(member)
+      } while (member !== name)
+      components.push(component.sort())
     }
   }
+  for (const name of [...tableNames].sort()) {
+    if (!indices.has(name)) visit(name)
+  }
+  const orderedNames = components.reverse().flat()
   const byName = new Map(tables.map(table => [table.name, table]))
   return [...views, ...orderedNames.map(name => byName.get(name))]
 }
@@ -175,60 +191,48 @@ function main() {
     throw new Error('Refusing reset: --confirm must exactly match the configured preview database ID')
   }
 
-  const temporaryDirectory = mkdtempSync(join(tmpdir(), 'krabiclaw-preview-reset-'))
-  try {
-    runWrangler([
-      'd1', 'execute', preview.name,
-      '--env', 'preview',
-      '--remote',
-      '--command', `CREATE TABLE IF NOT EXISTS ${quoteIdentifier(RESET_SENTINEL)} (id INTEGER PRIMARY KEY)`,
-    ])
-    const resetSqlPath = join(temporaryDirectory, 'reset-preview.sql')
-    const statements = [
-      'PRAGMA defer_foreign_keys=ON;',
-      ...objects.map(object => `DROP ${object.type.toUpperCase()} IF EXISTS ${quoteIdentifier(object.name)};`),
-      'PRAGMA defer_foreign_keys=OFF;',
-    ]
-    writeFileSync(resetSqlPath, `${statements.join('\n')}\n`)
-    const resetResult = spawnSync(process.execPath, [
-      '--experimental-strip-types',
-      join(ROOT, 'scripts', 'execute-preview-d1-sql.ts'),
-      resetSqlPath,
-    ], {
-      cwd: ROOT,
-      env: WRANGLER_ENV,
-      stdio: 'inherit',
-    })
-    if (resetResult.error) throw resetResult.error
-    if (resetResult.status !== 0) throw new Error('Preview schema drop failed')
+  runWrangler([
+    'd1', 'execute', preview.name,
+    '--env', 'preview',
+    '--remote',
+    '--command', `CREATE TABLE IF NOT EXISTS ${quoteIdentifier(RESET_SENTINEL)} (id INTEGER PRIMARY KEY)`,
+  ])
+  const statements = [
+    'PRAGMA defer_foreign_keys=ON;',
+    ...objects.map(object => `DROP ${object.type.toUpperCase()} IF EXISTS ${quoteIdentifier(object.name)};`),
+    'PRAGMA defer_foreign_keys=OFF;',
+  ]
+  runWrangler([
+    'd1', 'execute', preview.name,
+    '--env', 'preview',
+    '--remote',
+    '--command', statements.join('\n'),
+  ])
 
-    const remaining = queryRows(preview.name, 'PRAGMA table_list').filter(isApplicationObject)
-    if (remaining.length) {
-      throw new Error(`Preview reset left application objects: ${remaining.map(row => row.name).join(', ')}`)
-    }
-
-    runWrangler(['d1', 'migrations', 'apply', preview.name, '--env', 'preview', '--remote'])
-
-    const applied = queryRows(preview.name, 'SELECT name FROM d1_migrations ORDER BY name')
-      .map(row => row.name)
-    const expected = expectedMigrations(preview.migrationsDir)
-    if (JSON.stringify(applied) !== JSON.stringify(expected)) {
-      throw new Error(`Migration ledger mismatch: expected ${expected.length}, found ${applied.length}`)
-    }
-    const foreignKeyFailures = queryRows(preview.name, 'PRAGMA foreign_key_check')
-    if (foreignKeyFailures.length) {
-      throw new Error(`Foreign key check failed: ${JSON.stringify(foreignKeyFailures)}`)
-    }
-    runWrangler([
-      'd1', 'execute', preview.name,
-      '--env', 'preview',
-      '--remote',
-      '--command', `DROP TABLE ${quoteIdentifier(RESET_SENTINEL)}`,
-    ])
-    console.log(`Reset complete: ${basename(preview.migrationsDir)} replayed with ${applied.length} migrations`)
-  } finally {
-    rmSync(temporaryDirectory, { recursive: true, force: true })
+  const remaining = queryRows(preview.name, 'PRAGMA table_list').filter(isApplicationObject)
+  if (remaining.length) {
+    throw new Error(`Preview reset left application objects: ${remaining.map(row => row.name).join(', ')}`)
   }
+
+  runWrangler(['d1', 'migrations', 'apply', preview.name, '--env', 'preview', '--remote'])
+
+  const applied = queryRows(preview.name, 'SELECT name FROM d1_migrations ORDER BY name')
+    .map(row => row.name)
+  const expected = expectedMigrations(preview.migrationsDir)
+  if (JSON.stringify(applied) !== JSON.stringify(expected)) {
+    throw new Error(`Migration ledger mismatch: expected ${expected.length}, found ${applied.length}`)
+  }
+  const foreignKeyFailures = queryRows(preview.name, 'PRAGMA foreign_key_check')
+  if (foreignKeyFailures.length) {
+    throw new Error(`Foreign key check failed: ${JSON.stringify(foreignKeyFailures)}`)
+  }
+  runWrangler([
+    'd1', 'execute', preview.name,
+    '--env', 'preview',
+    '--remote',
+    '--command', `DROP TABLE ${quoteIdentifier(RESET_SENTINEL)}`,
+  ])
+  console.log(`Reset complete: ${basename(preview.migrationsDir)} replayed with ${applied.length} migrations`)
 }
 
-main()
+if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) main()

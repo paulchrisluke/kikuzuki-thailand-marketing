@@ -8,7 +8,7 @@
         <template #right>
           <DashboardResourceLocalization
             :site-id="siteId"
-            resource-type="site_post"
+            resource-type="content_document"
             :resource-id="postId"
             resource-label="post"
             :fields="postLocalizationFields"
@@ -31,6 +31,8 @@
 
       <div v-else class="space-y-4">
         <PostEditor
+          v-model:topic="editor.form.topic"
+          show-topic
           v-model:title="editor.form.title"
           v-model:body="editor.form.body"
           v-model:media="editor.form.media"
@@ -52,6 +54,7 @@
           @publish="openPublish"
           @delete="onDelete"
         />
+
 
         <div v-if="publicPath" class="flex flex-wrap items-center gap-2">
           <UButton :to="publicPath" target="_blank" size="sm" color="neutral" variant="soft" icon="i-lucide-external-link">
@@ -210,15 +213,16 @@ async function copyPublicLink() {
 const siteLocalizationSettingsPath = computed(() => `/dashboard/${route.params.orgSlug}/sites/${route.params.siteSlug}/settings/localization`)
 const postLocalizationFields = computed(() => [
   { key: 'title', label: 'Title', source: post.value?.title },
-  { key: 'body', label: 'Body', source: post.value?.body, multiline: true, rows: 6 },
-  { key: 'event_title', label: 'Event title', source: post.value?.event_title },
-  { key: 'offer_terms', label: 'Offer terms', source: post.value?.offer_terms, multiline: true },
+  { key: 'summary', label: 'Body', source: post.value?.body, multiline: true, rows: 6 },
+  ...(post.value?.event ? [{ key: 'metadata.event.title', label: 'Event title', source: post.value.event.title }] : []),
+  ...(post.value?.post_type === 'offer' ? [{ key: 'metadata.offer.terms_conditions', label: 'Offer terms', source: post.value.offer?.terms_conditions, multiline: true }] : []),
 ])
 function localizedPostPath(locale: string): string {
   const slug = post.value?.slug
   if (typeof slug !== 'string' || !slug) throw new Error('The post slug is unavailable.')
   return `/${locale}/posts/${slug}`
 }
+
 
 useSeoMeta({ title: () => `${editor.form.title || 'Post'} | KrabiClaw Dashboard`, robots: 'noindex, nofollow' })
 </script>

@@ -17,7 +17,7 @@
           <DashboardResourceLocalization
             v-if="selected?.id"
             :site-id="resolvedSiteId"
-            resource-type="tenant_page"
+            resource-type="content_document"
             :resource-id="selected.page_id"
             resource-label="page"
             :fields="pageLocalizationFields"
@@ -349,7 +349,7 @@ async function save() {
       recipe: selected.value.recipe || null,
       sortOrder: selected.value.sort_order,
       blocks: selected.value.blocks,
-      expectedDocumentUpdatedAt: selected.value.id ? selected.value.document.updated_at : undefined,
+      expectedUpdatedAt: selected.value.id ? selected.value.document.updated_at : undefined,
     }
     const response = selected.value.id
       ? await dashboardApi<{ page: PageDetailResponse }>(`/api/editor/sites/${siteId}/pages/${selected.value.id}`, { method: 'PATCH', body, validate: validatePage })
@@ -470,7 +470,7 @@ async function savePageLocalization(locale: string, submitted: Record<string, un
     recipe: source.recipe || null,
     sortOrder: source.sort_order,
     blocks,
-    expectedDocumentUpdatedAt: state.variant?.document.updated_at,
+    expectedUpdatedAt: state.variant?.document.updated_at,
   }
   const response = state.variant
     ? await dashboardApi<{ page: PageDetailResponse }>(`/api/editor/sites/${siteId}/pages/${state.variant.id}`, { method: 'PATCH', body, validate: validatePage })

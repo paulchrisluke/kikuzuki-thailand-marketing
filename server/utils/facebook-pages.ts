@@ -1,4 +1,7 @@
+import type { IntegrationVersion, FacebookIntegration } from '~/shared/site-settings'
 import type { D1Database } from '@cloudflare/workers-types'
+import { prepareContentDocumentWithBlocks } from './content-documents'
+import { parsePostInput } from '~/shared/posts'
 import { execute, executeBatch, queryFirst } from '~/server/db'
 import { encryptSecret, decryptSecret, encryptionEnv } from './encryption'
 import { uploadToR2, buildR2Key } from './cloudflare-r2'
@@ -16,21 +19,9 @@ export interface FacebookEnv {
   CONNECTOR_TOKEN_ENCRYPTION_KEY?: string
 }
 
-export interface FacebookPagesConnection {
-  id: string
+export interface FacebookPagesConnection extends Omit<FacebookIntegration, 'kind' | 'revision'>, IntegrationVersion {
   organization_id: string
   site_id: string
-  connected_by_user_id: string
-  facebook_user_id: string
-  facebook_page_id?: string
-  facebook_page_name?: string
-  encrypted_user_token: string
-  encrypted_page_token?: string
-  user_token_expires_at?: string
-  scopes?: string
-  status: 'active' | 'disabled' | 'error'
-  created_at: string
-  updated_at: string
 }
 
 export interface FacebookPage {
@@ -242,7 +233,8 @@ export const publishToPage = async (
 
 export const storeFacebookPagesConnection = async (
   env: FacebookEnv,
-  connection: Omit<FacebookPagesConnection, 'id' | 'created_at' | 'updated_at'>
+  connection: Omit<FacebookPagesConnection, 'id' | 'created_at' | 'updated_at' | keyof IntegrationVersion>,
+  expected: IntegrationVersion
 ): Promise<string> => {
   if (!env.DB) throw new Error('Database not available')
 
@@ -255,40 +247,21 @@ export const storeFacebookPagesConnection = async (
     ? await encryptSecret(connection.encrypted_page_token, tokenEnv)
     : null
 
-  await execute(env.DB, `
-    INSERT INTO facebook_pages_connections
-    (id, organization_id, site_id, connected_by_user_id,
-     facebook_user_id, facebook_page_id, facebook_page_name,
-     encrypted_user_token, encrypted_page_token,
-     user_token_expires_at, scopes, status, created_at, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    ON CONFLICT(organization_id, site_id) DO UPDATE SET
-      connected_by_user_id = excluded.connected_by_user_id,
-      facebook_user_id = excluded.facebook_user_id,
-      facebook_page_id = excluded.facebook_page_id,
-      facebook_page_name = excluded.facebook_page_name,
-      encrypted_user_token = excluded.encrypted_user_token,
-      encrypted_page_token = excluded.encrypted_page_token,
-      user_token_expires_at = excluded.user_token_expires_at,
-      scopes = excluded.scopes,
-      status = excluded.status,
-      updated_at = excluded.updated_at
-  `, [
-    connectionId,
-    connection.organization_id,
-    connection.site_id,
-    connection.connected_by_user_id,
-    connection.facebook_user_id,
-    connection.facebook_page_id ?? null,
-    connection.facebook_page_name ?? null,
-    encryptedUserToken,
-    encryptedPageToken,
-    connection.user_token_expires_at ?? null,
-    connection.scopes ?? null,
-    connection.status,
-    now,
-    now
-  ])
+  const { organization_id: organizationId, site_id: siteId, ...providerState } = connection
+  const payload = JSON.stringify({
+    ...providerState, id: connectionId, kind: 'oauth', revision: crypto.randomUUID(),
+    encrypted_user_token: encryptedUserToken,
+    encrypted_page_token: encryptedPageToken, updated_at: now,
+  })
+  const result = await execute(env.DB, `
+    UPDATE sites SET integrations_json = json_set(integrations_json, '$.facebook',
+      json_set(json(?),
+        '$.created_at', COALESCE(json_extract(integrations_json, '$.facebook.created_at'), ?)))
+    WHERE id = ? AND organization_id = ?
+      AND json_extract(integrations_json, '$.facebook.revision') IS ?
+      AND json_extract(settings_json, '$.config.resource_team_generation') IS ?
+  `, [payload, now, siteId, organizationId, expected.revision, expected.transfer_generation])
+  if (result.meta?.changes !== 1) throw new Error('Site ownership or facebook connection changed during authorization')
 
   return connectionId
 }
@@ -301,9 +274,26 @@ export const getFacebookPagesConnection = async (
   if (!env.DB) return null
 
   const connection = await queryFirst<FacebookPagesConnection>(env.DB, `
-    SELECT * FROM facebook_pages_connections
-    WHERE organization_id = ? AND site_id = ? AND status = 'active'
-    LIMIT 1
+    SELECT id AS site_id, organization_id,
+           json_extract(integrations_json, '$.facebook.id') AS id,
+           json_extract(integrations_json, '$.facebook.revision') AS revision,
+           json_extract(settings_json, '$.config.resource_team_generation') AS transfer_generation,
+           json_extract(integrations_json, '$.facebook.connected_by_user_id') AS connected_by_user_id,
+           json_extract(integrations_json, '$.facebook.facebook_user_id') AS facebook_user_id,
+           json_extract(integrations_json, '$.facebook.facebook_page_id') AS facebook_page_id,
+           json_extract(integrations_json, '$.facebook.facebook_page_name') AS facebook_page_name,
+           json_extract(integrations_json, '$.facebook.encrypted_user_token') AS encrypted_user_token,
+           json_extract(integrations_json, '$.facebook.encrypted_page_token') AS encrypted_page_token,
+           json_extract(integrations_json, '$.facebook.user_token_expires_at') AS user_token_expires_at,
+           json_extract(integrations_json, '$.facebook.scopes') AS scopes,
+           json_extract(integrations_json, '$.facebook.status') AS status,
+           json_extract(integrations_json, '$.facebook.created_at') AS created_at,
+           json_extract(integrations_json, '$.facebook.updated_at') AS updated_at
+      FROM sites
+     WHERE organization_id = ? AND id = ?
+       AND json_extract(integrations_json, '$.facebook.kind') = 'oauth'
+       AND json_extract(integrations_json, '$.facebook.status') = 'active'
+     LIMIT 1
   `, [organizationId, siteId])
 
   if (!connection) return null
@@ -382,39 +372,6 @@ export const publishToInstagram = async (
   })
 }
 
-export const syncPageInfoToLocation = async (
-  env: FacebookEnv,
-  page: FacebookPageInfo,
-  connectionId: string,
-  organizationId: string,
-  siteId: string,
-  locationId: string
-): Promise<void> => {
-  if (!env.DB) throw new Error('Database not available')
-
-  const now = new Date().toISOString()
-  const updates: string[] = ['facebook_page_id = ?', 'facebook_connection_id = ?', 'last_synced_at = ?', 'updated_at = ?']
-  const values: (string | number | null)[] = [page.id, connectionId, now, now]
-
-  if (page.phone) { updates.push('phone = ?'); values.push(page.phone) }
-  if (page.website) { updates.push('website_url = ?'); values.push(page.website) }
-  if (page.location?.city) { updates.push('city = ?'); values.push(page.location.city) }
-  if (page.location?.latitude != null) { updates.push('latitude = ?'); values.push(page.location.latitude) }
-  if (page.location?.longitude != null) { updates.push('longitude = ?'); values.push(page.location.longitude) }
-  if (page.about || page.description) {
-    updates.push('short_description = ?')
-    values.push(page.about ?? page.description ?? '')
-  }
-
-  values.push(organizationId, siteId, locationId)
-  await execute(env.DB, `
-    UPDATE business_locations
-    SET ${updates.join(', ')}
-    WHERE organization_id = ? AND site_id = ? AND id = ?
-  `, values)
-}
-
-// Sync Instagram media to posts table
 export const syncInstagramPosts = async (
   env: FacebookEnv,
   organizationId: string,
@@ -432,11 +389,9 @@ export const syncInstagramPosts = async (
 
   for (const item of media) {
     try {
-      // Check if post already exists
       const existing = await queryFirst(env.DB,
-        `SELECT p.id FROM post_channel_jobs j
-         JOIN posts p ON p.id = j.post_id
-         WHERE j.channel = 'instagram' AND j.provider_post_id = ? AND p.site_id = ? LIMIT 1`,
+        `SELECT id FROM content_documents WHERE kind = 'social_post' AND row_role = 'root'
+          AND (metadata_json ->> '$.channels.instagram.provider_post_id') = ? AND site_id = ? LIMIT 1`,
         [item.id, siteId]
       )
 
@@ -445,7 +400,10 @@ export const syncInstagramPosts = async (
         continue
       }
 
-      // Download image from Instagram
+      const captionLines = item.caption?.split('\n').filter(Boolean) ?? []
+      const title = captionLines[0] ?? null
+      const { body } = parsePostInput({ body: item.caption, post_type: 'standard' })
+
       const imageUrl = item.media_type === 'VIDEO' ? item.thumbnail_url : item.media_url
       if (!imageUrl) {
         skipped++
@@ -463,16 +421,9 @@ export const syncInstagramPosts = async (
       const r2Key = buildR2Key(siteId, assetId, `instagram-${item.id}.jpg`)
       const publicUrl = await uploadToR2(env, r2Key, imageBuffer, 'image/jpeg')
 
-      // Extract title from caption (first line or default)
-      const captionLines = item.caption?.split('\n').filter(Boolean) ?? []
-      const title = captionLines[0] || 'Instagram Update'
-      const body = item.caption || ''
-
-      // Create post record
       const postId = `ig-post-${item.id}`
       const now = new Date().toISOString()
 
-      // Use D1 batch to make asset creation and post insert atomic
       await executeBatch(env.DB, [
         buildMediaAssetInsertQuery({
           id: assetId,
@@ -488,37 +439,14 @@ export const syncInstagramPosts = async (
           file_size: imageBuffer.byteLength,
           status: 'active',
         }, now),
-        {
-          query: `
-          INSERT INTO posts (
-            id, organization_id, site_id, location_id, post_type,
-            title, body, cta_url, status, published_at,
-            created_by, created_at, updated_at
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        `,
-          params: [
-            postId,
-            organizationId,
-            siteId,
-            null,
-            'standard',
-            title,
-            body,
-            item.permalink,
-            'published',
-            item.timestamp,
-            'instagram-sync',
-            now,
-            now
-          ]
-        },
-        buildMediaPlacementInsertQuery({ organizationId, siteId, ownerType: 'post', ownerId: postId, slot: 'cover', assetId, sortOrder: 0, createdAt: now, updatedAt: now }),
-        {
-          query: `INSERT INTO post_channel_jobs
-            (id, post_id, channel, status, provider_post_id, published_at, created_at)
-            VALUES (?, ?, 'instagram', 'published', ?, ?, ?)`,
-          params: [`ig-job-${item.id}`, postId, item.id, item.timestamp, now],
-        },
+        ...prepareContentDocumentWithBlocks({ id: postId, organizationId, siteId, kind: 'social_post',
+          rowRole: 'root', locale: 'en', title, summary: body, status: 'published', source: 'manual',
+          publishedAt: item.timestamp, createdBy: 'instagram-sync',
+          metadata: { post_type: 'standard', event: null, offer: null, call_to_action: null, alert_type: null,
+            channels: { instagram: { status: 'published', provider_post_id: item.id, error_message: null,
+              published_at: item.timestamp, created_at: now } } },
+        }, []).queries,
+        buildMediaPlacementInsertQuery({ organizationId, siteId, ownerType: 'content_document', ownerId: postId, slot: 'cover', assetId, sortOrder: 0, createdAt: now, updatedAt: now }),
       ])
 
       success++
@@ -531,7 +459,6 @@ export const syncInstagramPosts = async (
   return { success, errors, skipped }
 }
 
-// Sync Facebook posts to posts table
 export const syncFacebookPosts = async (
   env: FacebookEnv,
   organizationId: string,
@@ -549,11 +476,9 @@ export const syncFacebookPosts = async (
 
   for (const item of posts) {
     try {
-      // Check if post already exists
       const existing = await queryFirst(env.DB,
-        `SELECT p.id FROM post_channel_jobs j
-         JOIN posts p ON p.id = j.post_id
-         WHERE j.channel = 'facebook' AND j.provider_post_id = ? AND p.site_id = ? LIMIT 1`,
+        `SELECT id FROM content_documents WHERE kind = 'social_post' AND row_role = 'root'
+          AND (metadata_json ->> '$.channels.facebook.provider_post_id') = ? AND site_id = ? LIMIT 1`,
         [item.id, siteId]
       )
 
@@ -562,7 +487,11 @@ export const syncFacebookPosts = async (
         continue
       }
 
-      // Download image from Facebook
+      const content = item.message || item.story || ''
+      const contentLines = content.split('\n').filter(Boolean)
+      const title = contentLines[0] ?? null
+      const { body } = parsePostInput({ body: content, post_type: 'standard' })
+
       const imageUrl = item.full_picture
       if (!imageUrl) {
         skipped++
@@ -580,17 +509,9 @@ export const syncFacebookPosts = async (
       const r2Key = buildR2Key(siteId, assetId, `facebook-${item.id}.jpg`)
       const publicUrl = await uploadToR2(env, r2Key, imageBuffer, 'image/jpeg')
 
-      // Extract title from message/story (first line or default)
-      const content = item.message || item.story || ''
-      const contentLines = content.split('\n').filter(Boolean)
-      const title = contentLines[0] || 'Facebook Update'
-      const body = content
-
-      // Create post record
       const postId = `fb-post-${item.id}`
       const now = new Date().toISOString()
 
-      // Use D1 batch to make asset creation and post insert atomic
       await executeBatch(env.DB, [
         buildMediaAssetInsertQuery({
           id: assetId,
@@ -606,37 +527,14 @@ export const syncFacebookPosts = async (
           file_size: imageBuffer.byteLength,
           status: 'active',
         }, now),
-        {
-          query: `
-          INSERT INTO posts (
-            id, organization_id, site_id, location_id, post_type,
-            title, body, cta_url, status, published_at,
-            created_by, created_at, updated_at
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        `,
-          params: [
-            postId,
-            organizationId,
-            siteId,
-            null,
-            'standard',
-            title,
-            body,
-            item.permalink_url,
-            'published',
-            item.created_time,
-            'facebook-sync',
-            now,
-            now
-          ]
-        },
-        buildMediaPlacementInsertQuery({ organizationId, siteId, ownerType: 'post', ownerId: postId, slot: 'cover', assetId, sortOrder: 0, createdAt: now, updatedAt: now }),
-        {
-          query: `INSERT INTO post_channel_jobs
-            (id, post_id, channel, status, provider_post_id, published_at, created_at)
-            VALUES (?, ?, 'facebook', 'published', ?, ?, ?)`,
-          params: [`fb-job-${item.id}`, postId, item.id, item.created_time, now],
-        },
+        ...prepareContentDocumentWithBlocks({ id: postId, organizationId, siteId, kind: 'social_post',
+          rowRole: 'root', locale: 'en', title, summary: body, status: 'published', source: 'manual',
+          publishedAt: item.created_time, createdBy: 'facebook-sync',
+          metadata: { post_type: 'standard', event: null, offer: null, call_to_action: null, alert_type: null,
+            channels: { facebook: { status: 'published', provider_post_id: item.id, error_message: null,
+              published_at: item.created_time, created_at: now } } },
+        }, []).queries,
+        buildMediaPlacementInsertQuery({ organizationId, siteId, ownerType: 'content_document', ownerId: postId, slot: 'cover', assetId, sortOrder: 0, createdAt: now, updatedAt: now }),
       ])
 
       success++

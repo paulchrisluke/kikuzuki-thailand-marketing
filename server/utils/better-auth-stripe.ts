@@ -1,5 +1,5 @@
 import type Stripe from 'stripe'
-import type { StripePlan, Subscription as BetterAuthSubscription } from '@better-auth/stripe'
+import type { StripePlan } from '@better-auth/stripe'
 import { execute, executeBatch, queryFirst, type DbClient } from '~/server/db'
 import { getPlanEntitlements, type EntitlementsMap } from '~/server/utils/billing-entitlements'
 import { getEffectiveAccessPlan, PAST_DUE_GRACE_PERIOD_MS } from '~/server/utils/billing-access'
@@ -176,8 +176,6 @@ export function createStripePlanLoader(
 
 export interface SubscriptionProjectionInput {
   organizationId: string
-  customerId: string | null
-  subscriptionId: string | null
   plan: string
   status: string
   paymentStatus?: string | null
@@ -232,21 +230,16 @@ export async function projectOrganizationSubscription(
   })
   await execute(db, `
     INSERT INTO organization_billing
-      (organization_id, stripe_customer_id, stripe_subscription_id,
-       payment_status, paid_through, past_due_since, last_paid_invoice_id,
+      (organization_id, payment_status, paid_through, past_due_since, last_paid_invoice_id,
        access_plan, access_expires_at, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     ON CONFLICT(organization_id) DO UPDATE SET
-      stripe_customer_id = excluded.stripe_customer_id,
-      stripe_subscription_id = excluded.stripe_subscription_id,
       payment_status = excluded.payment_status,
       access_plan = excluded.access_plan,
       access_expires_at = excluded.access_expires_at,
       updated_at = excluded.updated_at
   `, [
     input.organizationId,
-    input.customerId,
-    input.subscriptionId,
     paymentStatus,
     paymentRow?.paid_through ?? null,
     paymentRow?.past_due_since ?? null,
@@ -255,43 +248,6 @@ export async function projectOrganizationSubscription(
     accessExpiry(input, paymentRow ?? { paid_through: null, past_due_since: null }, accessPlan),
     now,
   ])
-}
-
-function stripeCustomerId(customer: Stripe.Subscription['customer']): string | null {
-  if (!customer) return null
-  return typeof customer === 'string' ? customer : customer.id
-}
-
-export async function projectBetterAuthSubscription(
-  db: DbClient,
-  subscription: BetterAuthSubscription,
-  stripeSubscription: Stripe.Subscription,
-): Promise<void> {
-  await projectOrganizationSubscription(db, {
-    organizationId: subscription.referenceId,
-    customerId: subscription.stripeCustomerId ?? stripeCustomerId(stripeSubscription.customer),
-    subscriptionId: subscription.stripeSubscriptionId ?? stripeSubscription.id ?? null,
-    plan: subscription.plan,
-    status: subscription.status,
-    periodEnd: subscription.periodEnd ?? null,
-    cancelAtPeriodEnd: subscription.cancelAtPeriodEnd,
-  })
-}
-
-export async function projectDeletedBetterAuthSubscription(
-  db: DbClient,
-  subscription: BetterAuthSubscription,
-  stripeSubscription: Stripe.Subscription,
-): Promise<void> {
-  await projectOrganizationSubscription(db, {
-    organizationId: subscription.referenceId,
-    customerId: subscription.stripeCustomerId ?? stripeCustomerId(stripeSubscription.customer),
-    subscriptionId: subscription.stripeSubscriptionId ?? stripeSubscription.id ?? null,
-    plan: subscription.plan,
-    status: 'canceled',
-    periodEnd: subscription.periodEnd ?? null,
-    cancelAtPeriodEnd: false,
-  })
 }
 
 interface ReconciledSubscriptionRow {
@@ -306,7 +262,6 @@ interface ReconciledSubscriptionRow {
   cancelAtPeriodEnd: boolean | number | null
   trialStart?: Date | number | string | null
   trialEnd?: Date | number | string | null
-  limits?: string | null
 }
 
 export interface BetterAuthSubscriptionAdapter {
@@ -455,18 +410,8 @@ async function findExistingSubscription(
   return existing
 }
 
-/**
- * Better Auth's Stripe plugin uses `referenceId` as the subscription owner.
- * Transfer checkouts historically also emitted `organization_id`; accept that
- * key only as a compatibility fallback and fail closed when the two disagree.
- */
 function organizationReferenceFromMetadata(metadata: Record<string, string>): string | null {
-  const referenceId = metadata.referenceId?.trim() || null
-  const legacyOrganizationId = metadata.organization_id?.trim() || null
-  if (referenceId && legacyOrganizationId && referenceId !== legacyOrganizationId) {
-    throw new Error('Stripe subscription metadata has conflicting organization references; retrying')
-  }
-  return referenceId ?? legacyOrganizationId
+  return metadata.referenceId?.trim() || null
 }
 
 async function repairBetterAuthSubscriptionRow(
@@ -526,13 +471,11 @@ async function repairBetterAuthSubscriptionRow(
     endedAt: deleted || !stripeSubscription.ended_at ? null : new Date(stripeSubscription.ended_at * 1000),
     trialStart: !deleted && stripeSubscription.trial_start ? new Date(stripeSubscription.trial_start * 1000) : null,
     trialEnd: !deleted && stripeSubscription.trial_end ? new Date(stripeSubscription.trial_end * 1000) : null,
-    limits: resolved.plan.limits ? JSON.stringify(resolved.plan.limits) : null,
     seats: quantity,
     billingInterval: resolved.item.price.recurring?.interval,
     stripeScheduleId: deleted || !stripeSubscription.schedule
       ? null
       : typeof stripeSubscription.schedule === 'string' ? stripeSubscription.schedule : stripeSubscription.schedule.id,
-    updatedAt: new Date(),
   }
 
   const repaired = existing?.id
@@ -569,8 +512,6 @@ async function projectCurrentStripeSubscription(
     : new Date(betterAuthTimestampToIso(subscription.periodEnd as number | string, 'subscription.periodEnd'))
   await projectOrganizationSubscription(db, {
     organizationId: subscription.referenceId,
-    customerId: subscription.stripeCustomerId ?? stripeCustomerIdValue(stripeSubscription.customer),
-    subscriptionId: subscription.stripeSubscriptionId ?? stripeSubscription.id,
     plan: subscription.plan,
     status: deleted ? 'canceled' : subscription.status,
     periodEnd,
@@ -742,7 +683,6 @@ export async function markOrganizationPayment(
   db: DbClient,
   input: {
     organizationId: string
-    customerId: string | null
     subscriptionId: string
     paymentStatus: 'paid' | 'processing' | 'failed'
     eventCreated: number
@@ -903,10 +843,9 @@ export async function markOrganizationPayment(
     {
       query: `
         INSERT INTO organization_billing
-          (organization_id, stripe_customer_id, stripe_subscription_id,
-           payment_status, paid_through, past_due_since, last_paid_invoice_id,
+          (organization_id, payment_status, paid_through, past_due_since, last_paid_invoice_id,
            last_payment_event_created, last_payment_event_id, updated_at)
-        VALUES (?, ?, ?,
+        VALUES (?,
           (SELECT status FROM stripe_invoice_payments WHERE organization_id = ? ORDER BY last_event_created DESC, last_event_id DESC, stripe_invoice_id DESC LIMIT 1),
           (SELECT period_end FROM stripe_invoice_payments WHERE organization_id = ? AND status = 'paid' AND base_plan_price_id IS NOT NULL AND period_end IS NOT NULL ORDER BY period_end DESC, last_event_created DESC, last_event_id DESC, stripe_invoice_id DESC LIMIT 1),
           (SELECT past_due_since FROM stripe_invoice_payments WHERE organization_id = ? AND status = 'failed' ORDER BY last_event_created DESC, last_event_id DESC, stripe_invoice_id DESC LIMIT 1),
@@ -915,8 +854,6 @@ export async function markOrganizationPayment(
           (SELECT last_event_id FROM stripe_invoice_payments WHERE organization_id = ? ORDER BY last_event_created DESC, last_event_id DESC, stripe_invoice_id DESC LIMIT 1),
           ?)
         ON CONFLICT(organization_id) DO UPDATE SET
-          stripe_customer_id = COALESCE(excluded.stripe_customer_id, organization_billing.stripe_customer_id),
-          stripe_subscription_id = COALESCE(excluded.stripe_subscription_id, organization_billing.stripe_subscription_id),
           payment_status = excluded.payment_status,
           paid_through = excluded.paid_through,
           past_due_since = excluded.past_due_since,
@@ -927,8 +864,6 @@ export async function markOrganizationPayment(
       `,
       params: [
         input.organizationId,
-        input.customerId,
-        input.subscriptionId,
         input.organizationId,
         input.organizationId,
         input.organizationId,

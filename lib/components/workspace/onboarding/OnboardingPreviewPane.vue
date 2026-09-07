@@ -19,15 +19,14 @@
         </UButton>
       </div>
 
-      <UButton
+      <USelect
         v-if="currentTabIsLocationScoped && siteLocations.length > 0"
-        color="neutral"
-        variant="outline"
-        icon="i-lucide-map-pin"
-        @click="cycleLocation"
-      >
-        {{ selectedLocationLabel }}
-      </UButton>
+        :model-value="selectedLocationId ?? undefined"
+        :items="siteLocations.map(location => ({ label: location.title, value: location.id }))"
+        placeholder="Select a location"
+        aria-label="Preview location"
+        @update:model-value="$emit('select-location', $event)"
+      />
 
       <div class="ml-auto flex items-center gap-2">
         <UBadge
@@ -85,6 +84,9 @@
         sandbox="allow-same-origin allow-scripts allow-forms"
         class="size-full min-h-0 flex-1 border-0 bg-default"
       />
+      <div v-else-if="currentTabIsLocationScoped && !selectedLocationId" class="flex flex-1 items-center justify-center p-6 text-muted">
+        Select a location to preview this page.
+      </div>
       <div v-else-if="emptyVisualUrl" :key="emptyVisualUrl" class="relative min-h-0 flex-1 overflow-hidden bg-default">
         <div class="flex h-full w-full items-center justify-center bg-muted p-4 sm:p-6 lg:p-8">
           <div class="relative w-full max-w-4xl">
@@ -117,7 +119,7 @@ import type { SiteVertical } from '~/utils/vertical-copy'
 
 const props = withDefaults(defineProps<{
   iframeSrc: string
-  siteLocations: Array<{ id: string; slug: string; title: string; is_primary: boolean }>
+  siteLocations: Array<{ id: string; slug: string; title: string }>
   selectedLocationId: string | null
   selectedPage: string
   siteStatus: 'setup' | 'progress' | 'ready' | 'live'
@@ -133,48 +135,37 @@ const props = withDefaults(defineProps<{
   emptyVisualAlt: '',
 })
 
-const emit = defineEmits<{
+defineEmits<{
   'select-page': [page: string]
   'select-location': [id: string]
 }>()
 const previewFrameId = useId()
 
 const secondaryTab = computed(() => {
-  if (props.vertical === 'professional_service') {
+  if (props.vertical === 'service') {
     const offeringsPath = resolvePublicTemplate({ vertical: props.vertical }).serviceRoutes.offeringsIndex
     if (!offeringsPath) return null
-    return { id: offeringsPath.replace(/^\//, ''), label: 'Services', enabled: !!props.iframeSrc, locationScoped: false }
+    return { id: offeringsPath.replace(/^\//, ''), label: 'Services', enabled: !!props.iframeSrc || props.siteLocations.length > 0, locationScoped: false }
   }
   const template = resolvePublicTemplate({ vertical: props.vertical })
   const match = getEditablePages(props.vertical, template.slug).find(page => page.id === 'menu' || page.id === 'experiences')
   if (!match) return null
   const locationScoped = match.scope === 'location'
-  const enabled = !!props.iframeSrc && (!locationScoped || props.siteLocations.length > 0)
+  const enabled = locationScoped ? props.siteLocations.length > 0 : !!props.iframeSrc || props.siteLocations.length > 0
   return { id: match.id, label: match.label, enabled, locationScoped }
 })
 
 const tabs = computed(() => {
-  const list = [{ id: 'home', label: 'Home', enabled: !!props.iframeSrc, locationScoped: false }]
+  const list = [{ id: 'home', label: 'Home', enabled: !!props.iframeSrc || props.siteLocations.length > 0, locationScoped: false }]
   if (props.homeOnly) return list
   if (secondaryTab.value) list.push(secondaryTab.value)
-  list.push({ id: 'about', label: 'About', enabled: !!props.iframeSrc, locationScoped: false })
-  list.push({ id: 'contact', label: 'Contact', enabled: !!props.iframeSrc, locationScoped: false })
+  list.push({ id: 'about', label: 'About', enabled: !!props.iframeSrc || props.siteLocations.length > 0, locationScoped: false })
+  list.push({ id: 'contact', label: 'Contact', enabled: !!props.iframeSrc || props.siteLocations.length > 0, locationScoped: false })
   return list
 })
 
 const currentTabIsLocationScoped = computed(() => tabs.value.find(tab => tab.id === props.selectedPage)?.locationScoped === true)
 
-const selectedLocation = computed(() =>
-  props.siteLocations.find(l => l.id === props.selectedLocationId) ?? props.siteLocations[0] ?? null
-)
-const selectedLocationLabel = computed(() => selectedLocation.value?.title ?? 'All locations')
-
-const cycleLocation = () => {
-  if (!props.siteLocations.length) return
-  const idx = props.siteLocations.findIndex(l => l.id === props.selectedLocationId)
-  const next = props.siteLocations[(idx + 1) % props.siteLocations.length]
-  if (next) emit('select-location', next.id)
-}
 </script>
 
 <style scoped>

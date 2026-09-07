@@ -65,7 +65,6 @@
                           <p class="truncate text-xs text-muted">{{ location.city || location.slug }}</p>
                         </div>
                       </div>
-                      <UBadge v-if="location.isPrimary" color="primary" variant="subtle" label="Primary" />
                     </div>
                   </div>
                   <p v-else class="text-xs text-muted">No locations.</p>
@@ -85,7 +84,7 @@
 definePageMeta({ layout: 'dashboard' })
 useSeoMeta({ title: 'Organizations | KrabiClaw Admin', robots: 'noindex, nofollow' })
 
-interface AdminLocation { id: string; slug: string; title: string; city: string | null; isPrimary: boolean }
+interface AdminLocation { id: string; slug: string; title: string; city: string | null; }
 interface AdminSite { id: string; slug: string; name: string; subdomain: string | null; status: string | null; locations: AdminLocation[] }
 interface AdminOrganization { id: string; name: string; slug: string | null; impersonationUserId: string | null; sites: AdminSite[] }
 

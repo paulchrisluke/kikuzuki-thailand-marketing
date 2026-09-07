@@ -13,14 +13,13 @@ interface DashboardSite {
   id: string
   organization_id: string
   brand_name: string | null
-  vertical: 'restaurant' | 'experience' | 'service' | 'professional_service' | null
+  vertical: 'restaurant' | 'experience' | 'service' | null
   subdomain: string | null
   custom_domain: string | null
   public_url: string | null
   status: string
   onboarding_status: string
   effective_plan: string
-  primary_location_id: string | null
   default_currency: string | null
   feature_overrides: string | null
 }
@@ -30,7 +29,7 @@ interface DashboardSiteSummary {
   team_id: string | null
   brand_name: string | null
   subdomain: string | null
-  vertical: 'restaurant' | 'experience' | 'service' | 'professional_service' | null
+  vertical: 'restaurant' | 'experience' | 'service' | null
   status: string | null
   onboarding_status: string | null
   effective_plan: string
@@ -42,7 +41,6 @@ interface DashboardLocation {
   id: string
   slug: string
   title: string
-  is_primary: boolean
   status: string
   city: string | null
   address: { addressLines?: string[] } | null
@@ -89,7 +87,6 @@ const isDashboardLocation = (value: unknown): value is DashboardLocation =>
   && typeof value.id === 'string'
   && typeof value.slug === 'string'
   && typeof value.title === 'string'
-  && typeof value.is_primary === 'boolean'
   && typeof value.status === 'string'
   && isSocialImage(value.social_image)
   && Array.isArray(value.media)

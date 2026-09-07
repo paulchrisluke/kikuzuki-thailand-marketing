@@ -47,7 +47,7 @@ export const EXPERIENCES_TOOLS: McpToolDefinition[] = [
       inputSchema: {
         experience_id: { type: 'string', description: 'Experience id or slug.' },
         ...experienceUpdateWriteSchema,
-        location_id: { type: 'string', description: 'Move this experience to a different location. Omit to leave its current location unchanged — unlike create_experience, omitting this does not fall back to the site primary location.' },
+        location_id: { type: 'string', description: 'Move this experience to the explicitly selected location. Omit to retain its current owning location.' },
       },
       required: ['experience_id'],
       outputSchema: experienceMutationResultObject,
@@ -106,11 +106,11 @@ export const EXPERIENCES_TOOLS: McpToolDefinition[] = [
     }),
   siteTool({
       name: 'update_experience_booking',
-      description: 'Update a booking\'s status (pending, confirmed, or cancelled) and refresh its guest-inbox thread. Returns the full booking, including the guest\'s name, email, and phone number.',
+      description: 'Update a booking\'s status (confirmed, cancelled, or completed), record the action in its guest conversation, and send the applicable guest notification. Returns the full booking, including the guest\'s name, email, and phone number.',
       domain: 'experiences',
       minimumRole: 'editor',
       confirmRequired: false,
-      inputSchema: { experience_id: { type: 'string', description: 'Experience id or slug.' }, booking_id: { type: 'string' }, status: { type: 'string', enum: ['pending', 'confirmed', 'cancelled'] } },
+      inputSchema: { experience_id: { type: 'string', description: 'Experience id or slug.' }, booking_id: { type: 'string' }, status: { type: 'string', enum: ['confirmed', 'cancelled', 'completed'] } },
       required: ['experience_id', 'booking_id', 'status'],
       outputSchema: {
         type: 'object',

@@ -18,18 +18,17 @@ export default defineHandler(async (event) => {
   if (!customer) return jsonResponse({ error: 'Customer not found' }, { status: 404 })
 
   const reservations = await queryAll<ApiRecord>(db, `
-    SELECT id, location_id, name, email, phone, date, time, guests, status, completed_at, completion_source, review_request_sent_at, review_reminder_sent_at, review_submitted_at, review_id, created_at
-    FROM reservation_submissions
-    WHERE site_id = ? AND customer_id = ?
+    SELECT id, location_id, json_extract(payload_json, '$.guest.name') AS name, json_extract(payload_json, '$.guest.email') AS email, json_extract(payload_json, '$.guest.phone') AS phone, booking_date AS date, time_slot AS time, party_size || CASE WHEN json_extract(payload_json, '$.party_size_is_minimum') THEN '+' ELSE '' END AS guests, status, json_extract(payload_json, '$.completion.at') AS completed_at, json_extract(payload_json, '$.completion.source') AS completion_source, json_extract(payload_json, '$.review.request_sent_at') AS review_request_sent_at, json_extract(payload_json, '$.review.reminder_sent_at') AS review_reminder_sent_at, json_extract(payload_json, '$.review.submitted_at') AS review_submitted_at, review_id, created_at
+    FROM requests WHERE kind = 'reservation' AND site_id = ? AND customer_id = ?
     ORDER BY date DESC, time DESC, created_at DESC
     LIMIT 25
   `, [siteId, customerId])
 
   const experienceBookings = await queryAll<ApiRecord>(db, `
-    SELECT eb.id, eb.location_id, eb.experience_id, p.name AS experience_title, eb.guest_name, eb.guest_email, eb.guest_phone, eb.booking_date, eb.time_slot, eb.party_size, eb.status, eb.completed_at, eb.completion_source, eb.review_request_sent_at, eb.review_reminder_sent_at, eb.review_submitted_at, eb.review_id, eb.created_at
-    FROM experience_bookings eb
-    LEFT JOIN products p ON p.id = eb.experience_id
-    WHERE eb.site_id = ? AND eb.customer_id = ?
+    SELECT eb.id, eb.location_id, eb.product_id AS experience_id, p.name AS experience_title, json_extract(eb.payload_json, '$.guest.name') AS guest_name, json_extract(eb.payload_json, '$.guest.email') AS guest_email, json_extract(eb.payload_json, '$.guest.phone') AS guest_phone, eb.booking_date, eb.time_slot, eb.party_size, eb.status, json_extract(eb.payload_json, '$.completion.at') AS completed_at, json_extract(eb.payload_json, '$.completion.source') AS completion_source, json_extract(eb.payload_json, '$.review.request_sent_at') AS review_request_sent_at, json_extract(eb.payload_json, '$.review.reminder_sent_at') AS review_reminder_sent_at, json_extract(eb.payload_json, '$.review.submitted_at') AS review_submitted_at, eb.review_id, eb.created_at
+    FROM requests eb
+    LEFT JOIN products p ON p.id = eb.product_id
+    WHERE eb.kind = 'experience_booking' AND eb.site_id = ? AND eb.customer_id = ?
     ORDER BY eb.booking_date DESC, eb.time_slot DESC, eb.created_at DESC
     LIMIT 25
   `, [siteId, customerId])

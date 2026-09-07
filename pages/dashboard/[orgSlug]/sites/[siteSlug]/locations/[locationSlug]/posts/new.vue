@@ -9,11 +9,9 @@
     </template>
 
     <template #body>
-      <!--
-        Creating a post only writes it. Choosing where it goes out is the next
-        step, on the post's own route, once there is something to publish.
-      -->
       <PostEditor
+        v-model:topic="editor.form.topic"
+        show-topic
         v-model:title="editor.form.title"
         v-model:body="editor.form.body"
         v-model:media="editor.form.media"

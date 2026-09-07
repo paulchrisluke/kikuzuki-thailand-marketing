@@ -131,23 +131,24 @@ export const kikuzukiFixture: CuratedSiteDefinition = {
     brandName: 'Kikuzuki Krabi Thailand',
     media: [{ asset_id: 'media-kiku-logo', slot: 'logo' }, { asset_id: 'media-kiku-logo', slot: 'favicon' }],
     themeId: 'saya-theme-v1',
-    theme: 'saya',
     brandDescription:
       'Welcome to Kikuzuki, where we celebrate the vibrant flavors and rich traditions of Japanese cuisine.',
     status: 'active',
     onboardingStatus: 'active',
-    primaryLocationId: 'loc-kikuzuki',
     contactEmail: null,
-    publicUrl: 'https://www.kikuzuki-thailand.com',
     defaultCurrency: 'THB',
     vertical: 'restaurant',
   },
-  siteConfig: [
-    { key: 'source_locale', value: 'en' },
-    { key: 'brand_color', value: '#ea201c' },
-    { key: 'whatsapp_phone', value: '+66952932112' },
-    { key: 'owner_notification_channels', value: '["whatsapp"]' },
-  ],
+  settings: {
+    "config": {
+      "default_timezone": "Asia/Bangkok",
+      "brand_color": "#ea201c",
+      "whatsapp_phone": "+66952932112",
+      "owner_notification_channels": [
+        "whatsapp"
+      ]
+    }
+  },
   siteLocales: [
     {
       id: 'locale::org-kikuzuki::site-kikuzuki::en',
@@ -158,14 +159,6 @@ export const kikuzukiFixture: CuratedSiteDefinition = {
     },
   ],
   siteDomains: [
-    {
-      id: 'domain-kikuzuki-local',
-      domain: 'kikuzuki-krabi-thailand.localhost',
-      type: 'subdomain',
-      role: 'secondary',
-      status: 'active',
-      dnsStatus: 'valid',
-    },
     {
       id: 'domain-kikuzuki-prod',
       domain: 'kikuzuki-krabi-thailand.krabiclaw.com',
@@ -213,15 +206,15 @@ export const kikuzukiFixture: CuratedSiteDefinition = {
         'Kikuzuki Japanese Restaurant, nestled in the heart of Krabi, Thailand, is a culinary haven that specialises in the artful fusion of robatayaki and sushi. Beyond the sliding glazed door entrance and the Kikuzuki Giant red lucky cat, you are welcomed into a little piece of Japan. The aroma of robatayaki and the artistry of sushi converge in an ambiance of warm wood and subtle lighting that transports diners to the heart of Japan.',
       shortDescription:
         'Japanese robatayaki and sushi restaurant in Ao Nang, Krabi. Traditional techniques, modern presentation.',
-      openingHours: [
-        { openDay: 'MONDAY', openTime: '14:00', closeTime: '23:00' },
-        { openDay: 'TUESDAY', openTime: '14:00', closeTime: '23:00' },
-        { openDay: 'WEDNESDAY', openTime: '14:00', closeTime: '23:00' },
-        { openDay: 'THURSDAY', openTime: '14:00', closeTime: '23:00' },
-        { openDay: 'FRIDAY', openTime: '14:00', closeTime: '23:00' },
-        { openDay: 'SATURDAY', openTime: '14:00', closeTime: '23:00' },
-        { openDay: 'SUNDAY', openTime: '14:00', closeTime: '23:00' },
-      ],
+      openingHours: { periods: [
+        { open: { day: 1, hour: 14, minute: 0 }, close: { day: 1, hour: 23, minute: 0 } },
+        { open: { day: 2, hour: 14, minute: 0 }, close: { day: 2, hour: 23, minute: 0 } },
+        { open: { day: 3, hour: 14, minute: 0 }, close: { day: 3, hour: 23, minute: 0 } },
+        { open: { day: 4, hour: 14, minute: 0 }, close: { day: 4, hour: 23, minute: 0 } },
+        { open: { day: 5, hour: 14, minute: 0 }, close: { day: 5, hour: 23, minute: 0 } },
+        { open: { day: 6, hour: 14, minute: 0 }, close: { day: 6, hour: 23, minute: 0 } },
+        { open: { day: 0, hour: 14, minute: 0 }, close: { day: 0, hour: 23, minute: 0 } },
+      ] },
       // Verified against the live Google Places API 2026-07-06.
       rating: 4.7,
       reviewCount: 440,
@@ -231,7 +224,6 @@ export const kikuzukiFixture: CuratedSiteDefinition = {
       categories: ['Japanese Restaurant', 'Robatayaki', 'Sushi', 'Izakaya'],
       instagramUrl: '',
       facebookUrl: '',
-      isPrimary: true,
       status: 'active',
       media: [
         { asset_id: 'media-kiku-location-hero-video', slot: 'hero' },
@@ -259,14 +251,14 @@ export const kikuzukiFixture: CuratedSiteDefinition = {
       description:
         "Take Me Away by KIKUZUKI is the Kikuzuki group's second location, serving fresh sushi, sashimi, and yakiniku skewers just behind Klong Muang Beach in Krabi.",
       shortDescription: 'Sushi, sashimi, and yakiniku near Klong Muang Beach, Krabi.',
-      openingHours: [
-        { openDay: 'TUESDAY', openTime: '12:00', closeTime: '22:30' },
-        { openDay: 'WEDNESDAY', openTime: '12:00', closeTime: '22:30' },
-        { openDay: 'THURSDAY', openTime: '12:00', closeTime: '22:30' },
-        { openDay: 'FRIDAY', openTime: '12:00', closeTime: '22:30' },
-        { openDay: 'SATURDAY', openTime: '12:00', closeTime: '22:30' },
-        { openDay: 'SUNDAY', openTime: '12:00', closeTime: '22:30' },
-      ],
+      openingHours: { periods: [
+        { open: { day: 2, hour: 12, minute: 0 }, close: { day: 2, hour: 22, minute: 30 } },
+        { open: { day: 3, hour: 12, minute: 0 }, close: { day: 3, hour: 22, minute: 30 } },
+        { open: { day: 4, hour: 12, minute: 0 }, close: { day: 4, hour: 22, minute: 30 } },
+        { open: { day: 5, hour: 12, minute: 0 }, close: { day: 5, hour: 22, minute: 30 } },
+        { open: { day: 6, hour: 12, minute: 0 }, close: { day: 6, hour: 22, minute: 30 } },
+        { open: { day: 0, hour: 12, minute: 0 }, close: { day: 0, hour: 22, minute: 30 } },
+      ] },
       // Verified against the live Google Places API 2026-07-06.
       rating: 4.9,
       reviewCount: 59,
@@ -276,7 +268,6 @@ export const kikuzukiFixture: CuratedSiteDefinition = {
       categories: ['Japanese Restaurant', 'Sushi'],
       instagramUrl: '',
       facebookUrl: '',
-      isPrimary: false,
       status: 'active',
       media: [
         { asset_id: 'media-tkma-hero', slot: 'hero' },
@@ -318,7 +309,7 @@ export const kikuzukiFixture: CuratedSiteDefinition = {
       altText: 'Kikuzuki restaurant atmosphere',
       category: 'interior',
     },
-    // Hero video (primary location)
+    // Kikuzuki hero video
     {
       id: 'media-kiku-location-hero-video',
       kind: 'video',
@@ -553,7 +544,7 @@ export const kikuzukiFixture: CuratedSiteDefinition = {
       priceAmount: 4500,
       durationMinutes: 90,
       maxCapacity: 6,
-      timeSlots: ['15:00', '17:00', '19:00', '21:00'],
+      recurringSlots: { sunday: ['15:00', '17:00', '19:00', '21:00'], monday: ['15:00', '17:00', '19:00', '21:00'], tuesday: ['15:00', '17:00', '19:00', '21:00'], wednesday: ['15:00', '17:00', '19:00', '21:00'], thursday: ['15:00', '17:00', '19:00', '21:00'], friday: ['15:00', '17:00', '19:00', '21:00'], saturday: ['15:00', '17:00', '19:00', '21:00'] },
       status: 'active',
       sortOrder: 1,
       featured: true,
@@ -618,14 +609,7 @@ export const compiledKikuzukiSeed = compileCuratedSiteFixture(kikuzukiFixture)
 export function renderKikuzukiCoreSeedBlock(): string {
   const { site, identity } = compiledKikuzukiSeed
 
-  const siteConfigRows = compiledKikuzukiSeed.siteConfig
-    .map((entry) => `  (${[
-      sqlValue(identity.organizationId),
-      sqlValue(identity.siteId),
-      sqlValue(entry.key),
-      sqlValue(entry.value),
-    ].join(', ')})`)
-    .join(',\n')
+  const settings = compiledKikuzukiSeed.settings
 
   const siteLocaleRows = compiledKikuzukiSeed.siteLocales
     .map((entry) => `  (${[
@@ -654,33 +638,28 @@ export function renderKikuzukiCoreSeedBlock(): string {
 
   return `-- BEGIN GENERATED: kikuzuki_core
 INSERT OR REPLACE INTO sites (
-  id, organization_id, theme_id, theme, slug, subdomain,
-  public_url, brand_name, brand_description,
-  status, onboarding_status, primary_location_id,
-  contact_email, contact_phone, default_currency, vertical, analytics_data_start_at
+  id, organization_id, theme_id, slug, subdomain,
+  brand_name, brand_description,
+  status, onboarding_status,
+  contact_email, contact_phone, default_currency, vertical, settings_json, analytics_data_start_at
 ) VALUES (
   ${sqlValue(identity.siteId)},
   ${sqlValue(identity.organizationId)},
   ${sqlValue(site.themeId)},
-  ${sqlValue(site.theme)},
   ${sqlValue(site.slug)},
   ${sqlValue(site.subdomain)},
-  ${sqlValue(site.publicUrl)},
   ${sqlValue(site.brandName)},
   ${sqlValue(site.brandDescription)},
   ${sqlValue(site.status)},
   ${sqlValue(site.onboardingStatus)},
-  NULL,
   ${sqlValue(site.contactEmail)},
   NULL,
   ${sqlValue(site.defaultCurrency)},
   ${sqlValue(site.vertical)},
+  ${sqlJson(settings)},
   strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
 );
 
-INSERT OR REPLACE INTO site_config (organization_id, site_id, key, value)
-VALUES
-${siteConfigRows};
 
 INSERT OR REPLACE INTO site_locales
   (id, organization_id, site_id, locale, label, is_source, status)
@@ -750,7 +729,6 @@ export function renderKikuzukiMediaBlock(): string {
       sqlJson(location.categories),
       sqlValue(location.instagramUrl),
       sqlValue(location.facebookUrl),
-      sqlValue(location.isPrimary),
       sqlValue(location.status),
       sqlValue('Asia/Bangkok'),
       sqlValue(location.notificationPhone ?? null),
@@ -767,7 +745,7 @@ INSERT OR REPLACE INTO business_locations (
   rating, review_count, google_place_id, last_synced_at,
   price_level, categories,
   instagram_url, facebook_url,
-  is_primary, status, timezone, notification_phone
+  status, timezone, notification_phone
 ) VALUES
 ${locationRowsNoHero};
 
@@ -784,7 +762,6 @@ INSERT OR REPLACE INTO media_placements
 VALUES
 ${mediaPlacementRows};
 
-UPDATE sites SET primary_location_id = ${sqlValue(compiledKikuzukiSeed.site.primaryLocationId)} WHERE id = ${sqlValue(identity.siteId)};
 -- END GENERATED: kikuzuki_media`
 }
 
@@ -920,24 +897,7 @@ export function renderKikuzukiExperienceBlock(): string {
       sqlValue(experience.featured), sqlValue(experience.featuredSortOrder), sqlValue(sortOrderFor(experience.id)),
       sqlJson(experience.tags), sqlJson(experience.details), sqlValue(experience.seoTitle), sqlValue(experience.seoDescription),
       sqlValue('template'), sqlValue('seed:kikuzuki'), sqlValue('seed:kikuzuki'),
-    ].join(', ')})`)
-    .join(',\n')
-  const experienceRows = compiledKikuzukiSeed.experiences
-    .map((experience) => `  (${[
-      sqlValue(experience.id),
-      sqlValue(identity.organizationId),
-      sqlValue(identity.siteId),
-      sqlValue(experience.locationId),
-      sqlValue(experience.tagline),
-      sqlValue(experience.priceAmount == null ? experience.price : null),
-      sqlValue(experience.durationMinutes),
-      sqlValue(experience.maxCapacity),
-      experience.timeSlots.length > 0 ? sqlJson(experience.timeSlots) : 'NULL',
-      'NULL',
-      (experience.includedItems?.length ?? 0) > 0 ? sqlJson(experience.includedItems) : 'NULL',
-      (experience.whatToBring?.length ?? 0) > 0 ? sqlJson(experience.whatToBring) : 'NULL',
-      sqlValue(experience.meetingPoint),
-      sqlValue(experience.cancellationPolicy),
+      sqlJson({ tagline: experience.tagline, pricing_note: experience.priceAmount == null ? experience.price : null, duration_minutes: experience.durationMinutes, max_capacity: experience.maxCapacity, recurring_slots: experience.recurringSlots, included_items: experience.includedItems?.length ? experience.includedItems : null, what_to_bring: experience.whatToBring?.length ? experience.whatToBring : null, meeting_point: experience.meetingPoint ?? null, cancellation_policy: experience.cancellationPolicy ?? null }),
     ].join(', ')})`)
     .join(',\n')
   const experiencePriceRows = compiledKikuzukiSeed.experiences
@@ -964,7 +924,7 @@ ${experienceMedia
     sqlValue(`em-${experience.id}-${media.slot}-${index}`),
     sqlValue(identity.organizationId),
     sqlValue(identity.siteId),
-    sqlValue('experience'), sqlValue(experience.id), sqlValue(media.slot),
+    sqlValue('product'), sqlValue(experience.id), sqlValue(media.slot),
     sqlValue(media.asset_id),
     index, sqlValue('active'),
   ].join(', ')})`)
@@ -980,15 +940,9 @@ ${experienceCategoryRows};
 INSERT OR REPLACE INTO products
   (id, organization_id, site_id, location_id, product_type, category_id, name, slug, description,
    is_visible, available, featured, featured_sort_order, sort_order, tags_json, details_json,
-   seo_title, seo_description, source, created_by, updated_by)
+   seo_title, seo_description, source, created_by, updated_by, experience_json)
 VALUES
 ${experienceProductRows};
-
-INSERT OR REPLACE INTO experiences
-  (id, organization_id, site_id, location_id, tagline, pricing_note, duration_minutes, max_capacity,
-   time_slots, recurring_slots, included_items, what_to_bring, meeting_point, cancellation_policy)
-VALUES
-${experienceRows};
 
 INSERT OR REPLACE INTO prices
   (id, organization_id, site_id, location_id, product_id, amount_minor, currency, unit, tax_behavior,

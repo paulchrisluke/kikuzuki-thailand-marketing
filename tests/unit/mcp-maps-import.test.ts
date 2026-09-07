@@ -5,9 +5,20 @@ import { resolveGoogleMapsPlace } from '../../server/utils/mcp-executor/shared.t
 import { MCP_ERROR } from '../../server/utils/mcp-protocol.ts'
 import { validateArguments } from '../../server/utils/mcp-tool-validation.ts'
 import { ONBOARDING_TOOLS } from '../../server/utils/mcp-tools/onboarding.ts'
-import { parseWeekdayHoursFromDescriptions } from '../../shared/reservation-hours.ts'
+import { normalizeGoogleOpeningHours } from '../../shared/reservation-hours.ts'
 
 const fullMapsUrl = 'https://www.google.com/maps/place/Pottery+House/@8.054,98.91,17z'
+
+test('Google hours preserve unknown hours and every supplied opening period', () => {
+  assert.equal(normalizeGoogleOpeningHours(undefined), null)
+  assert.equal(normalizeGoogleOpeningHours(null), null)
+  assert.deepEqual(normalizeGoogleOpeningHours([]), { periods: [] })
+  const periods = [
+    { open: { day: 1, hour: 9, minute: 15 }, close: { day: 1, hour: 12, minute: 30 } },
+    { open: { day: 1, hour: 17, minute: 0 }, close: { day: 2, hour: 1, minute: 45 } },
+  ]
+  assert.deepEqual(normalizeGoogleOpeningHours(periods), { periods })
+})
 
 function importFromMapsSchema(): Record<string, unknown> {
   const tool = ONBOARDING_TOOLS.find(candidate => candidate.name === 'import_from_maps')
@@ -150,21 +161,44 @@ test('a canonical ChIJ URL needs no redirect or text-search fallback', async () 
   assert.equal(result.usedTextSearch, false)
 })
 
-test('Google weekday descriptions never fill unknown days with invented hours', () => {
-  const parsed = parseWeekdayHoursFromDescriptions([
-    'Monday: 9:00 AM – 6:00 PM',
-    'Tuesday: Closed',
-    'Wednesday: whenever we feel like it',
-  ])
+import { normalizeGoogleReview, parseGoogleReviewMetadata } from '../../shared/google-review.ts'
 
-  assert.deepEqual(parsed.get('Monday'), { open: '09:00', close: '18:00', closed: false })
-  assert.deepEqual(parsed.get('Tuesday'), { open: '', close: '', closed: true })
+const providerReview = {
+  name: 'places/place-id/reviews/review-id',
+  authorAttribution: { displayName: 'สมชาย', uri: 'https://maps.google.com/profile/author', photoUri: 'https://example.com/avatar.jpg' },
+  rating: 4,
+  text: { text: 'อาหารดี', languageCode: 'th' },
+  originalText: { text: 'อาหารดี', languageCode: 'th' },
+  publishTime: '2026-07-06T05:00:33.994123456Z',
+  googleMapsUri: 'https://maps.google.com/review/review-id',
+  flagContentUri: 'https://maps.google.com/report/review-id',
+  visitDate: { year: 2026, month: 7 },
+}
 
-  // Unparseable and absent days are omitted so the onboarding hours card leaves
-  // them blank instead of persisting a fabricated 09:00–18:00 working day.
-  for (const unknownDay of ['Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']) {
-    assert.equal(parsed.has(unknownDay), false)
-  }
+test('Google review import preserves author, text, timestamp precision and attribution', () => {
+  const result = normalizeGoogleReview(providerReview)
+  assert.equal(result.author_name, providerReview.authorAttribution.displayName)
+  assert.equal(result.content, providerReview.text.text)
+  assert.equal(result.original_review_date, providerReview.publishTime)
+  assert.equal(result.original_reference, providerReview.googleMapsUri)
+  assert.deepEqual(parseGoogleReviewMetadata(JSON.stringify(result.google_review_metadata)), result.google_review_metadata)
+  assert.equal(result.google_review_metadata.author_photo_uri, providerReview.authorAttribution.photoUri)
+  assert.deepEqual(result.google_review_metadata.visit_date, providerReview.visitDate)
+})
 
-  assert.equal(parseWeekdayHoursFromDescriptions(null).size, 0)
+test('rating-only reviews keep absent provider facts null', () => {
+  const result = normalizeGoogleReview({ name: providerReview.name, authorAttribution: { displayName: 'Author' }, rating: 5, publishTime: providerReview.publishTime })
+  assert.equal(result.content, null)
+  assert.equal(result.original_reference, null)
+  assert.equal(result.google_review_metadata.original_text, null)
+})
+
+test('invalid provider identity, rating and attribution fail at import', () => {
+  for (const value of [
+    { ...providerReview, name: 'places/other' },
+    { ...providerReview, rating: Number.NaN },
+    { ...providerReview, rating: 6 },
+    { ...providerReview, publishTime: 'yesterday' },
+    { ...providerReview, googleMapsUri: 'javascript:alert(1)' },
+  ]) assert.throws(() => normalizeGoogleReview(value))
 })

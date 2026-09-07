@@ -12,15 +12,16 @@
       />
     </div>
     <p class="text-sm leading-relaxed text-default">"{{ review.content }}"</p>
-    <div class="mt-6 flex items-center justify-between gap-3 border-t border-default pt-4">
+    <div class="mt-6 flex flex-wrap items-center justify-between gap-3 border-t border-default pt-4">
       <p class="text-sm font-medium text-default">{{ review.author }}</p>
       <span
         v-if="review.locationTitle"
-        class="shrink-0 rounded-full border border-default px-2 py-0.5 text-xs text-muted"
+        class="max-w-full rounded-full border border-default px-2 py-0.5 text-xs break-words text-muted"
       >
         {{ review.locationTitle }}
       </span>
     </div>
+    <GoogleReviewAttribution v-if="review.source === 'google_places'" :metadata="review.google_review_metadata ?? null" :source-url="review.original_reference ?? null" />
   </div>
 
   <article v-else class="rounded-3xl border border-default bg-default p-8 sm:p-9">
@@ -65,11 +66,13 @@
     </div>
     <p class="text-sm leading-relaxed text-default">{{ review.content }}</p>
 
+    <GoogleReviewAttribution v-if="review.source === 'google_places'" :metadata="review.google_review_metadata ?? null" :source-url="review.original_reference ?? null" />
     <slot />
   </article>
 </template>
 
 <script setup lang="ts">
+import type { GoogleReviewMetadata } from '~/shared/google-review'
 const { t } = useI18n()
 
 const props = defineProps<{
@@ -82,6 +85,8 @@ const props = defineProps<{
     title?: string | null
     dateLabel?: string | null
     source?: string | null
+    original_reference?: string | null
+    google_review_metadata?: GoogleReviewMetadata | null
     locationTitle?: string | null
   }
   variant?: 'compact' | 'full'

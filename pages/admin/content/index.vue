@@ -60,11 +60,16 @@ async function saveSocialShare() {
 async function regenerateCards() {
   regenerating.value = true
   try {
-    const response = await applicationFetch<SocialCardRegenerationResponse>('/api/admin/platform/social-cards/regenerate', {
-      method: 'POST',
-      validate: isSocialCardRegenerationResponse,
-    })
-    const notice = socialCardRefreshNotice(response.summary)
+    const summary = { generated: 0, reused: 0, skipped: 0, failed: 0, total: 0 }
+    let after: string | null = null
+    do {
+      const response: SocialCardRegenerationResponse = await applicationFetch<SocialCardRegenerationResponse>('/api/admin/platform/social-cards/regenerate', {
+        method: 'POST', body: { after }, validate: isSocialCardRegenerationResponse,
+      })
+      for (const key of ['generated', 'reused', 'skipped', 'failed', 'total'] as const) summary[key] += response.summary[key]
+      after = response.next_cursor
+    } while (after)
+    const notice = socialCardRefreshNotice(summary)
     toast.add({ title: notice.message, color: notice.color })
   } finally {
     regenerating.value = false

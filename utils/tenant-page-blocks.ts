@@ -22,6 +22,7 @@ export type TenantPageBlockType =
 export type TenantPageType = 'custom' | 'recipe' | 'legal' | 'system'
 
 export interface TenantPageBlock {
+  source_block_id?: string | null
   id: string
   type: TenantPageBlockType
   position: number
@@ -220,7 +221,6 @@ const TRANSLATABLE_DATA_FIELDS = new Set([
   'intro', 'label', 'markdown', 'name', 'note', 'prompt', 'question', 'short_description',
   'subtitle', 'summary', 'text', 'title', 'cta_label',
 ])
-const TRANSLATION_SOURCE_BLOCK_ID_FIELD = '_localization_source_block_id'
 
 export interface TenantPageLocalizedTextField {
   path: Array<string | number>
@@ -270,7 +270,7 @@ function clearTenantPageTranslationText(value: unknown, key = ''): unknown {
 }
 
 export function tenantPageTranslationSourceBlockId(block: TenantPageBlock): string {
-  const value = block.data[TRANSLATION_SOURCE_BLOCK_ID_FIELD]
+  const value = block.source_block_id
   if (typeof value !== 'string' || !value) {
     throw new Error('A translated page block is missing its canonical source block identity.')
   }
@@ -285,10 +285,8 @@ function blankTenantPageTranslationBlock(block: TenantPageBlock, id: string = cr
   return {
     ...block,
     id,
-    data: {
-      ...(clearTenantPageTranslationText(structuredClone(block.data)) as Record<string, unknown>),
-      [TRANSLATION_SOURCE_BLOCK_ID_FIELD]: block.id,
-    },
+    source_block_id: block.id,
+    data: clearTenantPageTranslationText(structuredClone(block.data)) as Record<string, unknown>,
     media: block.media.map(item => ({ ...item, alt_text: null })),
   }
 }
@@ -336,6 +334,7 @@ export function normalizeTenantPageBlocks(value: unknown): TenantPageBlock[] {
     const type = asString(block.type, 'blocks[' + index + '].type', true) as TenantPageBlockType
     if (!BLOCK_TYPES.has(type)) throw new Error('blocks[' + index + '].type "' + type + '" is not registered.')
     const id = asString(block.id, 'blocks[' + index + '].id') || crypto.randomUUID()
+    const sourceBlockId = block.source_block_id == null ? null : asString(block.source_block_id, 'blocks[' + index + '].source_block_id', true)
     const data = asRecord(block.data ?? {}, 'blocks[' + index + '].data')
     const media = block.media === undefined ? [] : block.media
     if (!Array.isArray(media)) throw new Error('blocks[' + index + '].media must be an array.')
@@ -361,7 +360,7 @@ export function normalizeTenantPageBlocks(value: unknown): TenantPageBlock[] {
     }
     if (byteLength(data) > 32 * 1024) throw new Error('blocks[' + index + '] exceeds the 32KB payload limit.')
     const normalized = validateBlockData(type, data)
-    return { id, type, position: index, data: normalized, media: normalizedMedia }
+    return { id, source_block_id: sourceBlockId, type, position: index, data: normalized, media: normalizedMedia }
   })
 }
 

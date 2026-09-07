@@ -251,7 +251,7 @@ interface Doc {
   robots?: string | null
   media?: Array<{ asset_id: string; slot: string }>
   content_blocks: import('~/lib/components/workspace/blog/types').BlogEditorBlock[]
-  document_updated_at: string
+  updated_at: string
 }
 
 interface DocResponse {
@@ -264,7 +264,7 @@ const isDocResponse = (value: unknown): value is DocResponse =>
   && typeof value.doc.id === 'string'
   && typeof value.doc.title === 'string'
   && Array.isArray(value.doc.content_blocks)
-  && typeof value.doc.document_updated_at === 'string'
+  && typeof value.doc.updated_at === 'string'
 
 definePageMeta({ layout: 'dashboard' })
 
@@ -328,7 +328,7 @@ function buildPayload() {
   return {
     ...fields,
     content_blocks: docFormContentBlocks(form),
-    expected_document_updated_at: doc.value?.document_updated_at,
+    expected_updated_at: doc.value?.updated_at,
     canonical_url: form.canonical_url.trim() || null,
     robots: form.robots.trim() || null,
     nav_section: form.nav_section.trim() || null,

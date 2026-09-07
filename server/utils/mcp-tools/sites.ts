@@ -82,7 +82,6 @@ export const SITES_TOOLS: McpToolDefinition[] = [
               subdomain: { type: 'string' },
               theme: { type: 'string' },
               status: { type: 'string' },
-              primary_location_id: { type: ['string', 'null'] },
               public_url: { type: ['string', 'null'] },
               custom_domain_status: { type: ['string', 'null'] },
               brand_name: { type: ['string', 'null'] },

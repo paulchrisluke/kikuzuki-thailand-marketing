@@ -1,7 +1,7 @@
 import { HTTPError } from 'nitro';
 import { queryAll, queryFirst, type DbClient } from '~/server/db'
 import { d1JsonStringSet } from '~/server/db/d1-limits'
-import { listPageQa, type LocationQaRow } from '~/server/utils/location-qa'
+import { listPageQa, type QaDocument } from '~/server/utils/location-qa'
 import { listSiteReviews } from '~/server/utils/site-reviews'
 import { getTenantPageForEditor, getPublishedTenantPage, listPublishedTenantPagePaths, type TenantPageDto } from '~/server/utils/tenant-pages'
 import type { TenantPageBlock } from '~/utils/tenant-page-blocks'
@@ -14,7 +14,7 @@ import {
   projectLocalizedMediaAlt,
   type ExactPublicLocalization,
 } from '~/server/utils/public-localization'
-import { listPublicLocaleRepresentations } from '~/server/utils/public-locale-representations'
+import { listPublicLocaleRepresentations, resolvePublicDocumentSourcePath } from '~/server/utils/public-locale-representations'
 import type { PublicLocaleRepresentation } from '~/utils/public-resource-contracts'
 
 export interface PublicTenantPage {
@@ -53,7 +53,7 @@ export interface PublicTenantPageOfferingRow {
 
 export interface PublicTenantPageHydrationResources {
   offerings?: Promise<PublicTenantPageOfferingRow[]>
-  qaRows?: Promise<LocationQaRow[]>
+  qaRows?: Promise<QaDocument[]>
 }
 
 export async function listPublicTenantPageOfferingRows(
@@ -82,6 +82,7 @@ async function hydrateBlocks(
   db: DbClient,
   siteId: string,
   pagePath: string,
+  locale: string,
   blocks: TenantPageBlock[],
   resources: PublicTenantPageHydrationResources = {},
   localizations: readonly ExactPublicLocalization[] | null = null,
@@ -139,29 +140,20 @@ async function hydrateBlocks(
       })
     : sourceLocations
   const [sourceQaRows, sourceReviewRows, sourcePostRows] = await Promise.all([
-    hasQaSource ? (resources.qaRows ?? listPageQa(db, siteId, pagePath, true)) : Promise.resolve([]),
+    hasQaSource ? (locale === 'en' && resources.qaRows ? resources.qaRows : listPageQa(db, siteId, pagePath, true, locale)) : Promise.resolve([]),
     hasReviewSource ? listSiteReviews(db, siteId, { publishedOnly: true }) : Promise.resolve([]),
     hasPostSource ? queryAll<{ id: string; title: string; slug: string; excerpt: string | null; canonical_url: string | null; asset_id: string | null; public_url: string | null; thumbnail_url: string | null; kind: string | null; alt_text: string | null }>(db, `
-      SELECT p.id, p.title, p.slug, p.excerpt, p.canonical_url, ma.id AS asset_id, ma.public_url, ma.thumbnail_url, ma.kind, ma.alt_text
-        FROM blog_posts p
-        LEFT JOIN media_placements mp ON mp.owner_type = 'blog_post' AND mp.owner_id = p.id AND mp.slot = 'featured' AND mp.sort_order = 0 AND mp.status = 'active'
+      SELECT p.id, p.title, p.slug, p.summary AS excerpt, p.canonical_url, ma.id AS asset_id, ma.public_url, ma.thumbnail_url, ma.kind, ma.alt_text
+        FROM content_documents root JOIN content_documents p ON COALESCE(p.root_id,p.id) = root.id AND p.locale = ?
+        LEFT JOIN media_placements mp ON mp.owner_type = 'content_document' AND mp.owner_id = p.id AND mp.slot = 'featured' AND mp.sort_order = 0 AND mp.status = 'active'
         LEFT JOIN media_assets ma ON ma.id = mp.asset_id AND ma.status = 'active'
-       WHERE p.site_id = ? AND p.status = 'published' AND p.visibility = 'public'
-       ORDER BY COALESCE(p.featured_order, 999999), p.published_at IS NULL, p.published_at DESC, p.id DESC
-    `, [siteId]) : Promise.resolve([]),
+       WHERE root.kind = 'article' AND root.row_role = 'root' AND p.site_id = ? AND root.status = 'published' AND root.visibility = 'public'
+       ORDER BY COALESCE((root.metadata_json ->> '$.featured_order'), 999999), root.published_at IS NULL, root.published_at DESC, p.id DESC
+    `, [locale, siteId]) : Promise.resolve([]),
   ])
-  const qaRows = localizations ? projectExactLocalizedCollection('location_qa', sourceQaRows, localizations) : sourceQaRows
+  const qaRows = sourceQaRows
   const reviewRows = sourceReviewRows
-  const postRows = localizations
-    ? projectExactLocalizedCollection('tenant_blog_post', sourcePostRows, localizations).map((post) => {
-        const representation = localizations.find(item => item.resourceType === 'tenant_blog_post' && item.resourceId === post.id)
-        const slug = representation?.routePath?.split('/').filter(Boolean).at(-1)
-        if (!representation?.routePath?.startsWith('/') || !slug) {
-          throw new HTTPError({ statusCode: 500, statusMessage: 'Stored localized blog route is invalid', data: { code: 'INVALID_STORED_CONTENT' } })
-        }
-        return { ...post, slug, canonical_url: representation.routePath }
-      })
-    : sourcePostRows
+  const postRows = sourcePostRows
   const sourceOfferingById = new Map(sourceOfferings.map(item => [item.id, item]))
   const offeringById = new Map(offerings.map(item => [item.id, item]))
   const sourceLocationById = new Map(sourceLocations.map(item => [item.id, item]))
@@ -290,8 +282,8 @@ export async function getPublicTenantPageForPath(
     ? null
     : options.localizations ?? await loadExactPublicLocalizations(db, page.organization_id, siteId, page.locale)
   const [blocks, media, sourceLocale] = await Promise.all([
-    hydrateBlocks(db, siteId, page.path, page.blocks, options.hydrationResources, localizations),
-    loadPublicSocialMedia(db, siteId, 'tenant_page', [page.id]),
+    hydrateBlocks(db, siteId, page.path, page.locale, page.blocks, options.hydrationResources, localizations),
+    loadPublicSocialMedia(db, siteId, 'content_document', [page.id]),
     queryFirst<{ locale: string }>(db, `
       SELECT locale FROM site_locales
        WHERE organization_id = ? AND site_id = ? AND is_source = 1
@@ -318,8 +310,8 @@ export async function getPublicTenantPageForPath(
   const localeRepresentations = await listPublicLocaleRepresentations(db, {
     organizationId: page.organization_id,
     siteId,
-    sourcePath: page.path,
-    pageId: page.page_id,
+    sourcePath: await resolvePublicDocumentSourcePath(db, siteId, page.page_id),
+    documentId: page.page_id,
   })
   const publicPage = page.locale === sourceLocale.locale
     ? page
@@ -330,8 +322,8 @@ export async function getPublicTenantPageForPath(
 async function resolveVariantId(db: DbClient, siteId: string, path: string, locale?: string | null): Promise<string> {
   const row = await queryFirst<{ id: string } | null>(db, `
     SELECT v.id
-      FROM tenant_page_variants v
-     WHERE v.site_id = ? AND v.path = ?
+      FROM content_documents v
+     WHERE v.kind = 'page' AND v.row_role IN ('root','representation') AND v.site_id = ? AND v.path = ?
        AND (? IS NULL OR v.locale = ?)
      ORDER BY v.locale ASC
      LIMIT 1

@@ -357,7 +357,7 @@ const googleBusiness = computed(() => {
     ...gb,
     reviews: ((supplemental?.reviews ?? gb.reviews) || []).map((r) => ({
       ...r,
-      author_name: r.author || r.reviewer?.displayName || r.author_name || '',
+      author_name: r.author_name ?? '',
       date: r.date || r.createTime || r.updateTime
     })),
     posts: supplemental?.posts ?? gb.posts ?? [],
@@ -492,7 +492,10 @@ const hasGoogleBusiness = computed(() => !!googleBusiness.value?.business)
 const featuredReviews = computed(() =>
   googleReviews.value.slice(0, 3).map((review, i) => ({
     id: review.id ?? review.name ?? i,
-    author: review.reviewer?.displayName || review.author_name || '',
+    author: review.author_name ?? '',
+    source: review.source,
+    original_reference: review.original_reference,
+    google_review_metadata: review.google_review_metadata,
     content: review.comment?.text || review.content || '',
     rating: googleReviewRating(review),
     locationTitle: locations.value.length > 1 ? review.location_title || null : null,

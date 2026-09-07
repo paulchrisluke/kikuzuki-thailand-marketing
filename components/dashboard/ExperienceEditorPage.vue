@@ -8,7 +8,7 @@
         <template #right>
           <DashboardResourceLocalization
             :site-id="siteId"
-            resource-type="experience"
+            resource-type="product"
             :resource-id="experienceId"
             resource-label="experience"
             :fields="experienceLocalizationFields"
@@ -151,46 +151,24 @@
               <UInputNumber v-model="editor.form.duration_minutes" :min="0" class="w-full" />
             </UFormField>
             <p class="border-t border-default pt-6 text-sm font-semibold text-highlighted">Times</p>
-            <UTabs v-model="editor.slotsMode.value" :items="slotModes" :content="false" />
 
-            <UCard :ui="{ body: 'p-4 sm:p-4' }">
-              <div class="grid grid-cols-3 items-end gap-2">
-                <UFormField label="Start" size="xs">
-                  <UInput v-model="generator.start" type="time" class="w-full" />
-                </UFormField>
-                <UFormField label="End" size="xs">
-                  <UInput v-model="generator.end" type="time" class="w-full" />
-                </UFormField>
-                <UFormField label="Every" size="xs">
-                  <USelect v-model="generator.interval" :items="intervalOptions" class="w-full" />
-                </UFormField>
-              </div>
-              <UButton
-                v-if="editor.slotsMode.value === 'flat'"
-                size="xs"
-                class="mt-3"
-                color="neutral"
-                variant="soft"
-                :loading="generating"
-                @click="runGenerator()"
-              >
-                Generate slots
-              </UButton>
-              <p v-else class="mt-3 text-xs text-muted">Set times above, then use the bolt icon on a day to apply.</p>
-            </UCard>
+            <UCheckbox :model-value="editor.recurringSlots.value !== null" label="Set weekly start times" @update:model-value="editor.recurringSlots.value = $event === true ? {} : null" />
+            <template v-if="editor.recurringSlots.value !== null">
+              <UCard :ui="{ body: 'p-4 sm:p-4' }">
+                <div class="grid grid-cols-3 items-end gap-2">
+                  <UFormField label="Start" size="xs">
+                    <UInput v-model="generator.start" type="time" class="w-full" />
+                  </UFormField>
+                  <UFormField label="End" size="xs">
+                    <UInput v-model="generator.end" type="time" class="w-full" />
+                  </UFormField>
+                  <UFormField label="Every" size="xs">
+                    <USelect v-model="generator.interval" :items="intervalOptions" class="w-full" />
+                  </UFormField>
+                </div>
+                <p class="mt-3 text-xs text-muted">Set times above, then use the bolt icon on a day to apply.</p>
+              </UCard>
 
-            <UInputTags
-              v-if="editor.slotsMode.value === 'flat'"
-              v-model="editor.timeSlots.value"
-              placeholder="18:00"
-              delimiter=","
-              add-on-blur
-              add-on-paste
-              class="w-full"
-              aria-label="Time slots"
-            />
-
-            <template v-else>
               <div class="flex flex-wrap gap-2">
                 <UButton size="xs" color="neutral" variant="soft" @click="copyRecurring('all')">Copy first day to all</UButton>
                 <UButton size="xs" color="neutral" variant="soft" @click="copyRecurring('weekdays')">Copy to Mon–Fri</UButton>
@@ -199,7 +177,7 @@
               <div v-for="day in weekdayNames" :key="day" class="grid grid-cols-[5.5rem_1fr_auto] items-center gap-2">
                 <span class="text-sm font-medium text-highlighted">{{ day }}</span>
                 <UInputTags
-                  v-model="editor.recurringSlots[day]"
+                  v-model="editor.recurringSlots.value[day]"
                   placeholder="18:00"
                   delimiter=","
                   add-on-blur
@@ -505,12 +483,8 @@ const guestsSummary = computed(() => {
 const itinerarySummary = computed(() => {
   const parts: string[] = []
   if (editor.form.duration_minutes) parts.push(`${editor.form.duration_minutes} min`)
-  if (editor.slotsMode.value === 'flat') {
-    if (editor.timeSlots.value.length) parts.push(`${editor.timeSlots.value.length} times daily`)
-  } else {
-    const days = weekdayNames.filter(day => editor.recurringSlots[day].length).length
-    if (days) parts.push(`${days} ${days === 1 ? 'day' : 'days'} a week`)
-  }
+  const days = weekdayNames.filter(day => editor.recurringSlots.value?.[day]?.length).length
+  if (days) parts.push(`${days} ${days === 1 ? 'day' : 'days'} a week`)
   return parts.join(' · ') || 'No times set'
 })
 
@@ -564,10 +538,7 @@ const statusOptions = [
   { label: 'Inactive', value: 'inactive' },
   { label: 'Sold out', value: 'sold_out' },
 ]
-const slotModes = [
-  { label: 'Same times every day', value: 'flat' },
-  { label: 'Different times per day', value: 'recurring' },
-]
+
 const intervalOptions = [
   { label: '15 min', value: 15 },
   { label: '30 min', value: 30 },
@@ -580,15 +551,14 @@ const generating = ref(false)
 const isSlotsResponse = (value: unknown): value is { slots: string[] } =>
   isRecord(value) && Array.isArray(value.slots) && value.slots.every(slot => typeof slot === 'string')
 
-async function runGenerator(day?: WeekdayName) {
+async function runGenerator(day: WeekdayName) {
   generating.value = true
   try {
     const res = await dashboardApi('/api/utils/generate-slots', {
       query: { start: generator.start, end: generator.end, interval_minutes: generator.interval },
       validate: isSlotsResponse,
     })
-    if (day) editor.recurringSlots[day] = res.slots
-    else editor.timeSlots.value = res.slots
+    if (editor.recurringSlots.value !== null) editor.recurringSlots.value[day] = res.slots
   } catch {
     toast.add({ description: 'Could not generate slots — check start/end/interval.', color: 'error' })
   } finally {
@@ -597,29 +567,30 @@ async function runGenerator(day?: WeekdayName) {
 }
 
 function copyRecurring(mode: 'all' | 'weekdays' | 'weekend') {
-  const slots = editor.recurringSlots
+  const slots = editor.recurringSlots.value
+  if (slots === null) return
   if (mode === 'all') {
-    const first = [...slots[weekdayNames[0]]]
+    const first = [...(slots[weekdayNames[0]] ?? [])]
     for (const day of weekdayNames) slots[day] = [...first]
   } else if (mode === 'weekdays') {
-    const monday = [...slots.Monday]
-    for (const day of ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'] as WeekdayName[]) slots[day] = [...monday]
+    const monday = [...(slots.monday ?? [])]
+    for (const day of ['monday', 'tuesday', 'wednesday', 'thursday', 'friday'] as WeekdayName[]) slots[day] = [...monday]
   } else {
-    const friday = [...slots.Friday]
-    for (const day of ['Friday', 'Saturday'] as WeekdayName[]) slots[day] = [...friday]
+    const friday = [...(slots.friday ?? [])]
+    for (const day of ['friday', 'saturday'] as WeekdayName[]) slots[day] = [...friday]
   }
 }
 
 const siteLocalizationSettingsPath = computed(() => `/dashboard/${route.params.orgSlug}/sites/${route.params.siteSlug}/settings/localization`)
 const experienceLocalizationFields = computed(() => [
-  { key: 'title', label: 'Title', source: data.value?.experience.title },
-  { key: 'tagline', label: 'Tagline', source: data.value?.experience.tagline },
-  { key: 'body', label: 'Description', source: data.value?.experience.body, multiline: true, rows: 6 },
-  { key: 'pricing_note', label: 'Price note', source: data.value?.experience.pricing_note },
-  { key: 'included_items_json', label: 'Included items', source: data.value?.experience.included_items, kind: 'string-list' as const },
-  { key: 'what_to_bring', label: 'What to bring', source: data.value?.experience.what_to_bring, kind: 'string-list' as const },
-  { key: 'meeting_point', label: 'Meeting point', source: data.value?.experience.meeting_point, multiline: true },
-  { key: 'cancellation_policy', label: 'Cancellation policy', source: data.value?.experience.cancellation_policy, multiline: true },
+  { key: 'name', label: 'Title', source: data.value?.experience.title },
+  { key: 'experience.tagline', label: 'Tagline', source: data.value?.experience.tagline },
+  { key: 'description', label: 'Description', source: data.value?.experience.body, multiline: true, rows: 6 },
+  { key: 'experience.pricing_note', label: 'Price note', source: data.value?.experience.pricing_note },
+  { key: 'experience.included_items', label: 'Included items', source: data.value?.experience.included_items, kind: 'string-list' as const },
+  { key: 'experience.what_to_bring', label: 'What to bring', source: data.value?.experience.what_to_bring, kind: 'string-list' as const },
+  { key: 'experience.meeting_point', label: 'Meeting point', source: data.value?.experience.meeting_point, multiline: true },
+  { key: 'experience.cancellation_policy', label: 'Cancellation policy', source: data.value?.experience.cancellation_policy, multiline: true },
 ])
 function localizedExperiencePath(locale: string): string {
   return `/${locale}/experiences/${experienceSlug.value}`

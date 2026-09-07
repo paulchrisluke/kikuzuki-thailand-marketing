@@ -114,7 +114,7 @@ export async function loadPublicShellSource(
     }
     payload.platformMessages = entitlement.platform_messages
     const localizedRows = await queryAll<StoredPublicLocalizationRow>(db, `
-      SELECT resource_type, resource_id, locale, values_json, route_path, document_id
+      SELECT resource_type, resource_id, locale, values_json, route_path
        FROM resource_localizations
        WHERE organization_id = ? AND site_id = ? AND locale = ?
          AND resource_type IN ('site', 'business_location')

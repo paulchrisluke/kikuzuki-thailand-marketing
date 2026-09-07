@@ -36,7 +36,7 @@ export async function loadMemberSiteRow(db: DbClient, env: CloudflareEnv, siteId
   // the scope check inside assertSiteWideAccess/assertLocationAccess/
   // assertSiteContextAccess (isScopedRole/isOrganizationWideRole both false).
   const site = await queryFirst<Omit<SiteAccessRow, 'organization_slug' | 'organization_name' | 'member_id' | 'member_role'>>(db, `
-    SELECT id, organization_id, brand_name, subdomain, public_url, status, onboarding_status,
+    SELECT id, organization_id, brand_name, subdomain, (SELECT 'https://' || domain FROM site_domains WHERE site_id = sites.id AND role = 'canonical' AND status = 'active') AS public_url, status, onboarding_status,
            vertical, theme_id, feature_overrides
     FROM sites WHERE id = ? LIMIT 1
   `, [siteId])

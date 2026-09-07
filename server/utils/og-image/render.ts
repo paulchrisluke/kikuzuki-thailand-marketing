@@ -124,6 +124,7 @@ export async function renderOgImagePng(
   if (!rawBackgroundImageDataUri) {
     throw new Error(`OG page media could not be loaded: ${payload.backgroundImageUrl}`)
   }
+  if (payload.logoUrl && !rawLogoDataUri) throw new Error(`OG logo could not be loaded: ${payload.logoUrl}`)
 
   const [backgroundImageDataUri, logoDataUri] = await Promise.all([
     resolveWebpSafeDataUri(rawBackgroundImageDataUri, deps),

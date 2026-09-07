@@ -99,6 +99,7 @@
 </template>
 
 <script setup lang="ts">
+import { getTodayHoursLabel } from '~/shared/reservation-hours'
 definePageMeta({ layout: 'saya' })
 
 type AddressInput = string | { addressLines?: string[]; locality?: string; administrativeArea?: string; postalCode?: string } | null | undefined
@@ -126,15 +127,7 @@ function locationAddress(location: ApiRecord): string {
 }
 
 function todayHours(location: ApiRecord): string {
-  if (locale.value === 'en') return typeof location.hours_today === 'string' ? location.hours_today : ''
-  if (!Array.isArray(location.opening_hours_translated)) return ''
-  const weekday = new Intl.DateTimeFormat('en-US', {
-    weekday: 'long',
-    timeZone: typeof location.timezone === 'string' ? location.timezone : undefined,
-  }).format(new Date()).toUpperCase()
-  const index = ['MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY', 'SUNDAY'].indexOf(weekday)
-  const value = index >= 0 ? location.opening_hours_translated[index] : undefined
-  return typeof value === 'string' ? value : ''
+  return getTodayHoursLabel(location.opening_hours, t('saya.location.closed'), location.timezone, new Date(), location.special_hours, locale.value) ?? ''
 }
 
 const siteName = computed(() => unref(site)?.brand_name || '')

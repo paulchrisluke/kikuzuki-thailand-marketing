@@ -7,8 +7,7 @@ import { execute, queryFirst } from '~/server/db'
 import {
   completePaidSiteTransfer, executeSiteTransfer, isTransferCheckoutPending, isTransferClaimSentinel, newTransferClaimSentinel, } from '~/server/utils/site-transfer'
 import { createOrganizationForSite, findOldestOwnedOrganization } from '~/server/utils/site-creation'
-import { getStripe, getPriceIdForPlan } from '~/server/utils/billing'
-import { getOrganizationBillingProjection } from '~/server/utils/organization-billing'
+import { getStripe, getPriceIdForPlan, getOrganizationBillingStatus  } from '~/server/utils/billing'
 import { assertNewSalePlan, type NewSalePlanId } from '~/shared/billing-model'
 import { getOrgAdapter } from 'better-auth/plugins'
 import type Stripe from 'stripe'
@@ -32,16 +31,7 @@ function stripeCustomerId(customer: Stripe.Checkout.Session['customer']): string
 
 function assertOrganizationStripeCustomer(customer: Stripe.Customer, organizationId: string): void {
   const metadata = customer.metadata ?? {}
-  const camelOrganizationId = metadata.organizationId?.trim() || null
-  const snakeOrganizationId = metadata.organization_id?.trim() || null
-  const customerType = metadata.customerType?.trim() || null
-  if (
-    (!camelOrganizationId && !snakeOrganizationId)
-    || (camelOrganizationId && camelOrganizationId !== organizationId)
-    || (snakeOrganizationId && snakeOrganizationId !== organizationId)
-    || (camelOrganizationId && snakeOrganizationId && camelOrganizationId !== snakeOrganizationId)
-    || (customerType && customerType !== 'organization')
-  ) {
+  if (metadata.organizationId !== organizationId || metadata.customerType !== 'organization') {
     throw new Error(`Stripe customer ${customer.id} is not owned by organization ${organizationId}`)
   }
 }
@@ -59,7 +49,7 @@ function checkoutSessionIsReusable(
 
   const metadata = session.metadata ?? {}
   const expectedMetadata: Record<string, string> = {
-    type: 'site_transfer', referenceId: expected.organizationId, organization_id: expected.organizationId, plan: expected.plan, transfer_request_id: expected.transferId, transfer_site_id: expected.siteId, transfer_claiming_user_id: expected.userId, transfer_claiming_organization_id: expected.organizationId, }
+    type: 'site_transfer', referenceId: expected.organizationId, plan: expected.plan, transfer_request_id: expected.transferId, transfer_site_id: expected.siteId, transfer_claiming_user_id: expected.userId, transfer_claiming_organization_id: expected.organizationId }
   const expectedMetadataEntries = Object.entries(expectedMetadata)
   if (
     Object.keys(metadata).length !== expectedMetadataEntries.length
@@ -110,14 +100,6 @@ function transferCustomerIdempotencyKey(organizationId: string, staleCustomerId:
   return staleCustomerId
     ? `krabiclaw:organization-customer:${organizationId}:replacement:${staleCustomerId}`
     : `krabiclaw:organization-customer:${organizationId}`
-}
-
-function hasActiveOrganizationSubscription(projection: Awaited<ReturnType<typeof getOrganizationBillingProjection>>): boolean {
-  const plan = projection.plan.trim().toLowerCase()
-  const status = projection.status.trim().toLowerCase()
-  return Boolean(projection.stripeSubscriptionId)
-    && plan === 'growth'
-    && ['active', 'trialing', 'past_due', 'processing', 'pending'].includes(status)
 }
 
 export default defineHandler(async (event) => {
@@ -189,20 +171,12 @@ export default defineHandler(async (event) => {
       error: 'This handoff is already being accepted. Retry after the current attempt finishes.', }, { status: 409 })
   }
 
-  // A real stored Checkout is reusable only by its exact claimant/org. A
-  // legacy pending row with an unowned real session is unsafe to continue and
-  // must be reissued by an operator rather than risking a duplicate charge.
   if (transfer.status === 'pending' && transfer.stripe_checkout_session_id && !checkoutPending) {
     return jsonResponse({
       error: 'This handoff has an unowned Checkout session. Ask an operator to reissue it.', }, { status: 409 })
   }
 
   if (transfer.status !== 'pending') {
-    // An entitled handoff claims the site before the legacy custom-domain
-    // restoration saga runs. Only that same claimant may retry the
-    // accepted/payment-pending completion. Platform control-plane permission
-    // is not tenant ownership; operators use the separately authorized exact
-    // recipient force-accept route.
     if (
       transfer.status === 'accepted'
       && (transfer.requires_payment === 1 || Boolean(transfer.invited_plan))
@@ -213,7 +187,7 @@ export default defineHandler(async (event) => {
         return jsonResponse({ error: 'You no longer own the organization reserved for this handoff.' }, { status: 409 })
       }
       try {
-        await completePaidSiteTransfer(env, db, transfer.id)
+        await completePaidSiteTransfer(db, transfer.id)
       } catch (error) {
         console.error('accepted_site_transfer_completion_retry_failed', {
           transferId: transfer.id, siteId: transfer.site_id, error, })
@@ -376,35 +350,29 @@ export default defineHandler(async (event) => {
         error: 'This handoff is missing a supported billing plan. Ask the sender to reissue it with Growth.', }, { status: 409 })
     }
 
-    // Billing is organization-scoped. An entitled recipient already has the
-    // one subscription this handoff needs; attach the site to that authority
-    // instead of creating a second Stripe subscription.
-    let recipientBilling: Awaited<ReturnType<typeof getOrganizationBillingProjection>>
+    let recipientBilling: Awaited<ReturnType<typeof getOrganizationBillingStatus>>
     try {
-      recipientBilling = await getOrganizationBillingProjection(db, toOrgId)
+      recipientBilling = await getOrganizationBillingStatus(env, db, toOrgId)
     } catch (error) {
       console.error('transfer_recipient_billing_projection_failed', {
         transferId: transfer.id, organizationId: toOrgId, error, })
       await releaseClaim()
       return jsonResponse({ error: 'Recipient billing state is unavailable. Please retry.' }, { status: 503 })
     }
-    if (hasActiveOrganizationSubscription(recipientBilling)) {
-      if (recipientBilling.effectivePlan !== 'growth') {
-        await releaseClaim()
-        return jsonResponse({
-          error: 'Your existing subscription needs attention before this handoff can be completed.', }, { status: 409 })
-      }
+    if (recipientBilling.stripeSubscriptionId && recipientBilling.plan !== 'growth') {
+      await releaseClaim()
+      return jsonResponse({
+        error: 'Your existing subscription needs attention before this handoff can be completed.', }, { status: 409 })
+    }
+    if (recipientBilling.plan === 'growth') {
       try {
         if (!await assertClaimHeld()) {
           return jsonResponse({ error: 'This handoff was cancelled while it was being accepted.' }, { status: 409 })
         }
-        // Keep the transfer accepted but payment-pending until any historical
-        // paused-domain snapshot has been restored. If the external saga
-        // fails, the same claimant can retry through the accepted branch.
         await executeSiteTransfer(
           db, transfer.site_id, transfer.from_organization_id, toOrgId, transfer.id, userId, {
             expectedCheckoutSessionId: activeClaimSessionId, expectedClaimingUserId: userId, expectedClaimingOrganizationId: toOrgId, }, )
-        await completePaidSiteTransfer(env, db, transfer.id)
+        await completePaidSiteTransfer(db, transfer.id)
       } catch (error) {
         console.error('entitled_site_transfer_completion_failed', {
           transferId: transfer.id, siteId: transfer.site_id, error, })
@@ -436,25 +404,14 @@ export default defineHandler(async (event) => {
       const priceId = await getPriceIdForPlan(env, validatedPlan, interval)
       stripe = getStripe(env)
 
-      // Get or create Stripe customer for the new org
       const orgAdapter = await organizationAdapter()
       const organization = await orgAdapter.findOrganizationById(toOrgId)
-      const billingRow = await queryFirst<{ stripe_customer_id: string | null }>(
-        db, `SELECT stripe_customer_id FROM organization_billing WHERE organization_id = ? LIMIT 1`, [toOrgId], )
       if (!organization) throw new HTTPError({ statusCode: 404, statusMessage: 'Organization not found' })
       const organizationStripeCustomerId = typeof (organization as unknown as { stripeCustomerId?: unknown }).stripeCustomerId === 'string'
         ? (organization as unknown as { stripeCustomerId: string }).stripeCustomerId.trim()
         : ''
-      const projectedStripeCustomerId = typeof billingRow?.stripe_customer_id === 'string'
-        ? billingRow.stripe_customer_id.trim()
-        : ''
-      const orgRow = {
-        name: organization.name, slug: organization.slug, // Better Auth owns the organization Stripe customer. The app-owned
-        // projection is retained only as a compatibility fallback for rows
-        // created before the organization field was populated.
-        stripe_customer_id: organizationStripeCustomerId || projectedStripeCustomerId || null, }
-
-      let customerId = orgRow.stripe_customer_id
+      const orgRow = { name: organization.name, slug: organization.slug }
+      let customerId: string | null = organizationStripeCustomerId || null
       let staleCustomerId: string | null = null
       if (customerId) {
         const candidateCustomerId = customerId
@@ -477,7 +434,7 @@ export default defineHandler(async (event) => {
         if (!userEmail) throw new Error('User email required to create Stripe customer')
         const customer = await stripe.customers.create({
           email: userEmail, name: orgRow.name, metadata: {
-            organizationId: toOrgId, customerType: 'organization', organization_id: toOrgId, }, }, {
+            organizationId: toOrgId, customerType: 'organization', }, }, {
           idempotencyKey: transferCustomerIdempotencyKey(toOrgId, staleCustomerId), })
         customerId = customer.id
       }
@@ -555,9 +512,9 @@ export default defineHandler(async (event) => {
 
       const checkoutParams: Parameters<typeof stripe.checkout.sessions.create>[0] = {
         customer: customerId, mode: 'subscription', line_items: [{ price: priceId, quantity: 1 }], client_reference_id: toOrgId, success_url: `${origin}/dashboard/${slug}/onboarding?new=true&transfer=${encodeURIComponent(transfer.id)}`, cancel_url: `${origin}/dashboard/${slug}/onboarding?new=true&payment=cancelled&transfer=${encodeURIComponent(transfer.id)}`, metadata: {
-          type: 'site_transfer', referenceId: toOrgId, organization_id: toOrgId, plan: validatedPlan, transfer_request_id: transfer.id, transfer_site_id: transfer.site_id, transfer_claiming_user_id: userId, transfer_claiming_organization_id: toOrgId, }, subscription_data: {
+          type: 'site_transfer', referenceId: toOrgId, plan: validatedPlan, transfer_request_id: transfer.id, transfer_site_id: transfer.site_id, transfer_claiming_user_id: userId, transfer_claiming_organization_id: toOrgId }, subscription_data: {
           metadata: {
-            referenceId: toOrgId, organization_id: toOrgId, plan: validatedPlan, transfer_request_id: transfer.id, }, }, }
+            referenceId: toOrgId, plan: validatedPlan, transfer_request_id: transfer.id, }, }, }
 
       if (transfer.invited_coupon) {
         checkoutParams.discounts = [{ coupon: transfer.invited_coupon }]

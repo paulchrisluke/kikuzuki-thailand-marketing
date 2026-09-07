@@ -45,7 +45,7 @@ definePageMeta({ layout: 'dashboard' })
 const VERTICAL_OPTIONS: { label: string; value: SiteVertical }[] = [
   { label: 'Restaurant, café or bar', value: 'restaurant' },
   { label: 'Experience, class or activity', value: 'experience' },
-  { label: 'Legal or professional services', value: 'professional_service' },
+  { label: 'Legal or professional services', value: 'service' },
 ]
 
 const route = useRoute()

@@ -13,7 +13,7 @@ function env(name, opts = {}) {
 }
 
 function sqlEscape(value) {
-  return String(value).replace(/\\/g, '\\\\').replace(/'/g, "''")
+  return String(value).replace(/'/g, "''")
 }
 
 function describeError(error) {
@@ -128,10 +128,10 @@ async function main() {
   while (Date.now() < deadline) {
     const rows = d1Query(`
       SELECT d.id, d.channel, d.purpose, d.status, d.provider_message_id, d.error, d.created_at,
-             gt.submission_type, gt.submission_id
+             gt.kind, gt.id
       FROM guest_thread_deliveries d
-      JOIN guest_thread_entries e ON e.id = d.entry_id
-      JOIN guest_threads gt ON gt.id = e.thread_id
+      JOIN activity_entries e ON e.id = d.entry_id
+      JOIN requests gt ON gt.id = e.request_id
       WHERE gt.organization_id = '${sqlEscape(orgId)}'
         AND gt.site_id = '${sqlEscape(siteId)}'
         AND d.purpose = 'owner_alert'
@@ -153,10 +153,10 @@ async function main() {
   if ((!emailRow && !emailQuotaBlocked) || !whatsappRow) {
     const rows = d1Query(`
       SELECT d.id, d.channel, d.purpose, d.status, d.provider_message_id, d.error, d.created_at,
-             gt.submission_type, gt.submission_id
+             gt.kind, gt.id
       FROM guest_thread_deliveries d
-      JOIN guest_thread_entries e ON e.id = d.entry_id
-      JOIN guest_threads gt ON gt.id = e.thread_id
+      JOIN activity_entries e ON e.id = d.entry_id
+      JOIN requests gt ON gt.id = e.request_id
       WHERE gt.organization_id = '${sqlEscape(orgId)}'
         AND gt.site_id = '${sqlEscape(siteId)}'
         AND d.purpose = 'owner_alert'
@@ -195,13 +195,13 @@ async function main() {
   while (Date.now() < cancelDeadline) {
     const rows = d1Query(`
       SELECT d.id, d.channel, d.purpose, d.status, d.provider_message_id, d.error, d.created_at,
-             gt.submission_type, gt.submission_id
+             gt.kind, gt.id
       FROM guest_thread_deliveries d
-      JOIN guest_thread_entries e ON e.id = d.entry_id
-      JOIN guest_threads gt ON gt.id = e.thread_id
+      JOIN activity_entries e ON e.id = d.entry_id
+      JOIN requests gt ON gt.id = e.request_id
       WHERE gt.organization_id = '${sqlEscape(orgId)}'
         AND gt.site_id = '${sqlEscape(siteId)}'
-        AND gt.submission_type = 'reservation'
+        AND gt.kind = 'reservation'
         AND d.purpose = 'owner_alert'
         AND d.created_at >= '${sqlEscape(cancelSince)}'
       ORDER BY d.created_at DESC
@@ -220,59 +220,16 @@ async function main() {
 
   const runId = `canary-notify-${crypto.randomUUID()}`
 
-  // Write canary_runs audit for successful contact/reservation checks before
-  // asserting on cancellation, so a reservation_cancelled regression doesn't
-  // prevent any run record from being persisted.
-  d1Raw(`
-    INSERT INTO canary_runs (id, run_type, environment, status, organization_id, site_id, details_json, created_at)
-    VALUES (
-      '${sqlEscape(runId)}',
-      'notifications',
-      'production',
-      'pass',
-      '${sqlEscape(orgId)}',
-      '${sqlEscape(siteId)}',
-      '${sqlEscape(JSON.stringify({
-        started_at: since,
-        completed_at: nowIso(),
-        base_url: baseUrl,
-        triggers: {
-          contact_status: contact.res.status,
-          reservation_status: reservation.res.status,
-          reservation_id: reservationId,
-          reservation_cancel_status: cancelRes.status,
-        },
-        notification_ids: {
-          email: emailRow?.id ?? null,
-          whatsapp: whatsappRow.id,
-          cancellation_email: cancelEmailRow?.id ?? null,
-          cancellation_whatsapp: cancelWhatsappRow?.id ?? null,
-        },
-        provider_message_ids: {
-          email: emailRow?.provider_message_id ?? null,
-          whatsapp: whatsappRow.provider_message_id,
-          cancellation_email: cancelEmailRow?.provider_message_id ?? null,
-          cancellation_whatsapp: cancelWhatsappRow?.provider_message_id ?? null,
-        },
-        provider_degraded: (emailQuotaBlocked || cancelEmailQuotaBlocked) ? {
-          email_daily_quota_exceeded: true,
-          affected_notification_ids: [...quotaBlockedEmailRows, ...cancelQuotaBlockedEmailRows].map((row) => row.id),
-        } : null,
-      }))}',
-      '${sqlEscape(nowIso())}'
-    )
-  `, 'canary success audit')
-
   if ((!cancelEmailRow && !cancelEmailQuotaBlocked) || !cancelWhatsappRow) {
     const rows = d1Query(`
       SELECT d.id, d.channel, d.purpose, d.status, d.provider_message_id, d.error, d.created_at,
-             gt.submission_type, gt.submission_id
+             gt.kind, gt.id
       FROM guest_thread_deliveries d
-      JOIN guest_thread_entries e ON e.id = d.entry_id
-      JOIN guest_threads gt ON gt.id = e.thread_id
+      JOIN activity_entries e ON e.id = d.entry_id
+      JOIN requests gt ON gt.id = e.request_id
       WHERE gt.organization_id = '${sqlEscape(orgId)}'
         AND gt.site_id = '${sqlEscape(siteId)}'
-        AND gt.submission_type = 'reservation'
+        AND gt.kind = 'reservation'
         AND d.purpose = 'owner_alert'
         AND d.created_at >= '${sqlEscape(cancelSince)}'
       ORDER BY d.created_at DESC
@@ -281,7 +238,35 @@ async function main() {
     throw new Error(`Provider-level cancellation canary assertions failed. email_sent=${Boolean(cancelEmailRow)} whatsapp_sent=${Boolean(cancelWhatsappRow)} rows=${JSON.stringify(rows)}`)
   }
 
-  console.log(JSON.stringify({ status: 'pass', run_id: runId }, null, 2))
+  console.log(JSON.stringify({
+    status: 'pass',
+    run_id: runId,
+    started_at: since,
+    completed_at: nowIso(),
+    base_url: baseUrl,
+    triggers: {
+      contact_status: contact.res.status,
+      reservation_status: reservation.res.status,
+      reservation_id: reservationId,
+      reservation_cancel_status: cancelRes.status,
+    },
+    notification_ids: {
+      email: emailRow?.id ?? null,
+      whatsapp: whatsappRow.id,
+      cancellation_email: cancelEmailRow?.id ?? null,
+      cancellation_whatsapp: cancelWhatsappRow?.id ?? null,
+    },
+    provider_message_ids: {
+      email: emailRow?.provider_message_id ?? null,
+      whatsapp: whatsappRow.provider_message_id,
+      cancellation_email: cancelEmailRow?.provider_message_id ?? null,
+      cancellation_whatsapp: cancelWhatsappRow?.provider_message_id ?? null,
+    },
+    provider_degraded: (emailQuotaBlocked || cancelEmailQuotaBlocked) ? {
+      email_daily_quota_exceeded: true,
+      affected_notification_ids: [...quotaBlockedEmailRows, ...cancelQuotaBlockedEmailRows].map(row => row.id),
+    } : null,
+  }, null, 2))
 
   if (emailQuotaBlocked || cancelEmailQuotaBlocked) {
     console.warn('canary:notifications passed with degraded email provider capacity (daily quota exceeded)')
@@ -289,32 +274,6 @@ async function main() {
 }
 
 main().catch((error) => {
-  const orgId = process.env.CANARY_ORG_ID
-  const siteId = process.env.CANARY_SITE_ID
-  try {
-    if (orgId && siteId) {
-      const failure = {
-        failed_at: nowIso(),
-        error: describeError(error),
-      }
-      d1Raw(`
-        INSERT INTO canary_runs (id, run_type, environment, status, organization_id, site_id, details_json, created_at)
-        VALUES (
-          'canary-notify-${sqlEscape(crypto.randomUUID())}',
-          'notifications',
-          'production',
-          'fail',
-          '${sqlEscape(orgId)}',
-          '${sqlEscape(siteId)}',
-          '${sqlEscape(JSON.stringify(failure))}',
-          '${sqlEscape(nowIso())}'
-        )
-      `, 'canary failure audit')
-    }
-  } catch {
-    // Best-effort failure audit; do not mask original canary error.
-  }
-
   console.error('canary:notifications failed')
   console.error(JSON.stringify(describeError(error), null, 2))
   process.exit(1)

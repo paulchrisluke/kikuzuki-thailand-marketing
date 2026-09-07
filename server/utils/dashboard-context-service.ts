@@ -13,7 +13,7 @@ import { recordRequestPhase } from '~/server/utils/request-metrics'
 
 export async function loadDashboardContext(
   event: H3Event,
-  scope?: { orgSlug?: string | null; siteId?: string | null; siteSlug?: string | null; afterTransfer?: boolean },
+  scope?: { orgSlug?: string | null; siteId?: string | null; siteSlug?: string | null },
 ) {
   const contextStartedAt = performance.now()
   const env = cloudflareEnv(event)
@@ -21,7 +21,6 @@ export async function loadDashboardContext(
   const { db, organization, site, userId } = await getDashboardContext(event, {
     requireSite: false,
     requireOrganization: scope?.orgSlug ? true : false,
-    allowTransferFallback: scope?.afterTransfer,
     organizationSlug: scope?.orgSlug,
     siteId: scope?.siteId,
     siteSlug: scope?.siteSlug,

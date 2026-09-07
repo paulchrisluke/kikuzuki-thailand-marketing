@@ -1,3 +1,6 @@
+import { loadMemberSiteRow } from '~/server/utils/location-access'
+import { assertSiteWideAccess } from '~/server/utils/member-access'
+import type { IntegrationOAuthState } from '~/shared/site-settings'
 import { defineHandler } from 'nitro';
 import { cloudflareEnv } from '~/server/utils/api-response'
 import { exchangeGoogleAnalyticsCode, storeGoogleAnalyticsConnection } from '~/server/utils/google-analytics'
@@ -23,8 +26,8 @@ export default defineHandler(async (event) => {
   if (!hmacSecret) {
     return new Response('Server misconfiguration.', { status: 500 })
   }
-  const stateData = await verifyOAuthState<{ siteId: string; organizationId: string; userId: string; timestamp: number }>(hmacSecret, state)
-  if (!stateData) {
+  const stateData = await verifyOAuthState<IntegrationOAuthState>(hmacSecret, state)
+  if (!stateData || !(stateData.revision === null || typeof stateData.revision === 'string') || !(stateData.transfer_generation === null || typeof stateData.transfer_generation === 'string')) {
     return new Response(null, { status: 302, headers: { Location: '/dashboard?ga=error' } })
   }
 
@@ -52,6 +55,10 @@ export default defineHandler(async (event) => {
   }
 
   try {
+    if (!env.DB) throw new Error('Database unavailable')
+    const access = await loadMemberSiteRow(env.DB, env, siteId, userId)
+    if (!access || access.organization_id !== organizationId) throw new Error('Access denied')
+    await assertSiteWideAccess(env.DB, { env, memberId: access.member_id, role: access.member_role, organizationId, siteId })
     const tokenData = await exchangeGoogleAnalyticsCode(env, code)
 
     const userInfoResponse = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
@@ -67,7 +74,7 @@ export default defineHandler(async (event) => {
 
     await storeGoogleAnalyticsConnection(env, {
       organization_id: organizationId, site_id: siteId, connected_by_user_id: userId, provider_account_email: userInfo.email, encrypted_access_token: tokenData.accessToken, encrypted_refresh_token: tokenData.refreshToken, scopes: tokenData.scope, expires_at: new Date(Date.now() + tokenData.expiresIn * 1000).toISOString(), status: 'active'
-    })
+    }, stateData)
 
     return new Response(null, { status: 302, headers: { Location: await connectionRedirect('connected') } })
   } catch (error) {

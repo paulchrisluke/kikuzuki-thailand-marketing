@@ -1,3 +1,4 @@
+import { getGuestRequest } from '~/server/domain/requests'
 import { renderEmail } from '~/server/emails/vue-email'
 import { queryFirst, type DbClient } from '~/server/db'
 import { getEmailDeliveryMode, hashEmail, isReservedTestDomain, sendEmail } from '~/server/utils/email-delivery'
@@ -26,7 +27,6 @@ import { createCanonicalNotification } from '~/server/utils/notification-center'
 import { buildOwnerThreadInboxUrl, getPlatformDomain, resolveSiteLocationSlugs } from '~/server/utils/dashboard-notification-links'
 import { claimDelivery, createDeliveryReceipt, getDeliveryClaimEligibility, recordDeliveryOutcome } from '~/server/domain/guest-threads/deliveries'
 import { appendEntry, findEntryByDedupeKey } from '~/server/domain/guest-threads/entries'
-import { getGuestThreadBySubmission } from '~/server/domain/guest-threads/repository'
 import { publishGuestInboxThreadEvent } from '~/server/cloudflare/guest-inbox-events'
 import type { GuestThreadDeliveryPurpose } from '~/server/domain/guest-threads/types'
 
@@ -244,14 +244,9 @@ async function buildOwnerInboxUrl(
 ): Promise<string | null> {
   const submissionType = opts.tab === 'contact' ? 'contact' : opts.tab === 'reservations' ? 'reservation' : 'experience_booking'
   try {
-    // Deferred import: the reservation/experience-booking adapters pull in mcp-workflows.ts
-    // and experiences.ts, whose own dependency graphs import this file —
-    // a static top-level import here would be a circular import.
-    const [{ ensureGuestThread }, { getAdapter }] = await Promise.all([
-      import('~/server/domain/guest-threads/repository'),
-      import('~/server/domain/guest-threads/adapters/registry'),
-    ])
-    const thread = await ensureGuestThread(db, getAdapter(submissionType), opts.submissionId, { publishEnv: env })
+    const thread = await getGuestRequest(db, opts.submissionId, opts.siteId, submissionType)
+    if (!thread) throw new Error('Submission not found')
+    await publishGuestInboxThreadEvent(env, db, { threadId: thread.id, type: 'thread.created' })
     return await buildOwnerThreadInboxUrl(env, db, {
       organizationId: opts.organizationId,
       siteId: opts.siteId,
@@ -287,8 +282,7 @@ async function getOwnerNotificationChannels(
   hasWhatsAppPhone: boolean
 ): Promise<NotificationChannel[]> {
   const row = await queryFirst<{ value?: string }>(db, `
-    SELECT value FROM site_config
-    WHERE organization_id = ? AND site_id = ? AND key = 'owner_notification_channels'
+    SELECT json_extract(settings_json, '$.config.owner_notification_channels') AS value FROM sites WHERE organization_id = ? AND id = ?
     LIMIT 1
   `, [opts.organizationId, opts.siteId])
 
@@ -447,11 +441,11 @@ async function getOpeningThreadContext(
   db: DbClient,
   submissionType: 'contact' | 'reservation' | 'experience_booking',
   submissionId: string,
-): Promise<{ guestThreadId: string; sourceEntryId: string } | null> {
-  const thread = await getGuestThreadBySubmission(db, submissionType, submissionId)
-  if (!thread) return null
-  const entry = await findEntryByDedupeKey(db, `submission:${submissionType}:${submissionId}`)
-  if (!entry) return null
+): Promise<{ guestThreadId: string; sourceEntryId: string }> {
+  const thread = await getGuestRequest(db, submissionId, undefined, submissionType)
+  if (!thread) throw new Error('Submission notification has no canonical request')
+  const entry = await findEntryByDedupeKey(db, `request:${submissionId}:submission`)
+  if (!entry) throw new Error('Submission notification has no opening activity entry')
   return { guestThreadId: thread.id, sourceEntryId: entry.id }
 }
 
@@ -483,7 +477,7 @@ async function recordGuestCancellation(
     wasConfirmed: boolean
   },
 ): Promise<{ guestThreadId: string; sourceEntryId: string } | null> {
-  const thread = await getGuestThreadBySubmission(db, input.submissionType, input.submissionId)
+  const thread = await getGuestRequest(db, input.submissionId, undefined, input.submissionType)
   if (!thread) return null
   const entry = await appendEntry(db, {
     threadId: thread.id,
@@ -1345,7 +1339,7 @@ export async function notifyBookingChangeOwner(
     template: `${noun}.change_${opts.status}`,
     title,
     payload: {
-      thread_id: opts.threadId,
+      request_id: opts.threadId,
       submission_type: opts.submissionType,
       submission_id: opts.submissionId,
       status: opts.status,
@@ -1402,7 +1396,7 @@ async function notifyGuestThreadReplyInner(
   })
 
   const payload = {
-    thread_id: opts.threadId,
+    request_id: opts.threadId,
     submission_type: opts.submissionType,
     submission_id: opts.submissionId,
     guest_name: opts.guestName,

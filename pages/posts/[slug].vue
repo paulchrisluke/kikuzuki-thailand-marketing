@@ -5,6 +5,7 @@
 </template>
 
 <script setup lang="ts">
+import type { PostTopic } from '~/shared/posts'
 definePageMeta({ layout: 'saya' })
 
 interface PublicPostMedia {
@@ -19,13 +20,12 @@ interface PublicPostMedia {
   height: number | null
 }
 
-interface PublicPost {
+type PublicPost = PostTopic & {
   id: string
   slug: string
   title: string
   body: string
   summary: string
-  post_type: 'standard' | 'offer' | 'event' | 'update'
   published_at: string | null
   public_path: string
   canonical_url: string | null
@@ -33,13 +33,7 @@ interface PublicPost {
   seo_description?: string | null
   media: PublicPostMedia[]
   social_image: import('~/utils/social-metadata').SocialImageSource | null
-  cta_type: string | null
-  cta_url: string | null
-  event_title: string | null
-  event_start: string | null
-  event_end: string | null
-  offer_coupon: string | null
-  offer_terms: string | null
+  location_phone: string | null
   location?: { id: string; title: string | null; slug: string | null } | null
   localeRepresentations: Array<{ locale: string; label: string; route_path: string; source: 'source' | 'localized' }>
 }
@@ -85,7 +79,7 @@ const { data, error } = await useAsyncData(
       const env = cloudflareEnv(requestEvent)
       const db = env.DB
       if (!db) throw createError({ statusCode: 500, statusMessage: 'Database not available' })
-      post = await getPublishedPostByPublicRoute(db, siteId, slug.value, locale.value, env) as PublicPost | null
+      post = await getPublishedPostByPublicRoute(db, siteId, slug.value, locale.value) as PublicPost | null
     } else {
       const payload = await publicApiRequest<{ post: PublicPost }>(
         `/api/public/sites/${siteId}/posts/${encodeURIComponent(slug.value)}`,

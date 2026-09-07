@@ -19,7 +19,7 @@ export default defineHandler(async (event) => {
   if (!experienceRaw || experienceRaw.status === 'inactive') {
     return jsonResponse({ error: 'Experience not found' }, { status: 404 })
   }
-  const [experience] = await attachAvailabilitySummaries(db, site.organization_id, siteId, [experienceRaw])
+  const [experience] = await attachAvailabilitySummaries(db, siteId, [experienceRaw])
 
   return jsonResponse({ experience })
 })

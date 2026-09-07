@@ -28,12 +28,12 @@ export async function listDashboardEvents(
   query: DashboardEventsQuery,
 ): Promise<{ events: DashboardEvent[]; nextCursor: string | null }> {
   const limit = Math.max(1, Math.min(query.limit || 20, 50))
-  const conditions = ['e.organization_id = ?']
+  const conditions = ["e.kind = 'audit'", "(CASE WHEN e.scope_kind = 'site' THEN event_site.organization_id ELSE e.organization_id END) = ?"]
   const params: unknown[] = [organizationId]
   if (query.siteId) { conditions.push('e.site_id = ?'); params.push(query.siteId) }
   if (query.locationId) { conditions.push('e.location_id = ?'); params.push(query.locationId) }
-  if (query.eventType) { conditions.push('e.event_type = ?'); params.push(query.eventType) }
-  if (query.actorId) { conditions.push('e.actor_id = ?'); params.push(query.actorId) }
+  if (query.eventType) { conditions.push('e.event_name = ?'); params.push(query.eventType) }
+  if (query.actorId) { conditions.push('e.actor_user_id = ?'); params.push(query.actorId) }
   if (query.before) {
     const separator = query.before.lastIndexOf('|')
     if (separator === -1) {
@@ -48,10 +48,11 @@ export async function listDashboardEvents(
   params.push(limit)
 
   const rows = await queryAll<DashboardEvent & { metadata: string | null }>(db, `
-    SELECT e.id, e.event_type, e.site_id, e.location_id, e.entity_type, e.entity_id, e.metadata, e.created_at,
-           e.actor_id,
+    SELECT e.id, e.event_name AS event_type, e.site_id, e.location_id, json_extract(e.payload_json, '$.entityType') AS entity_type, json_extract(e.payload_json, '$.entityId') AS entity_id, json_extract(e.payload_json, '$.metadata') AS metadata, e.created_at,
+           e.actor_user_id AS actor_id,
            l.title AS location_title
-    FROM organization_events e
+    FROM activity_entries e
+    LEFT JOIN sites event_site ON event_site.id = e.site_id
     LEFT JOIN business_locations l ON l.id = e.location_id
     WHERE ${conditions.join(' AND ')}
     ORDER BY e.created_at DESC, e.id DESC

@@ -8,8 +8,6 @@ import { getAuthSession } from '~/server/utils/auth'
 import { assertResourceAccess } from '~/server/utils/member-access'
 import { loadMemberSiteRow } from '~/server/utils/location-access'
 import { queryFirst } from '~/server/db'
-import { reservationAdapter } from '~/server/domain/guest-threads/adapters/reservation'
-import { ensureGuestThread } from '~/server/domain/guest-threads/repository'
 import { executeGuestThreadOperation } from '~/server/domain/guest-threads/operations'
 import { publishDashboardInvalidation } from '~/server/cloudflare/guest-inbox-events'
 
@@ -31,7 +29,7 @@ export default defineHandler(async (event) => {
   const site = await loadMemberSiteRow(db, env, siteId, session.user.id)
   if (!site) return jsonResponse({ error: 'Site not found or access denied' }, { status: 404 })
 
-  const submission = await queryFirst<{ location_id: string; status: string; updated_at: string }>(db, `SELECT location_id, status, updated_at FROM reservation_submissions WHERE id = ? AND site_id = ? LIMIT 1`, [submissionId, siteId])
+  const submission = await queryFirst<{ location_id: string; status: string; updated_at: string }>(db, `SELECT location_id, status, updated_at FROM requests WHERE kind = \'reservation\' AND id = ? AND site_id = ? LIMIT 1`, [submissionId, siteId])
   if (!submission) return jsonResponse({ error: 'Reservation not found' }, { status: 404 })
 
   await assertResourceAccess(db, {
@@ -45,10 +43,9 @@ export default defineHandler(async (event) => {
     return jsonResponse({ error: 'Invalid status. Must be one of: confirmed, cancelled, completed' }, { status: 400 })
   }
 
-  const thread = await ensureGuestThread(db, reservationAdapter, submissionId)
 
   const outcome = await executeGuestThreadOperation(db, {
-    threadId: thread.id, siteId, action, actorUserId: session.user.id, env, idempotencyKey: `editor:reservation:${submissionId}:${submission.status}:${submission.updated_at}:${action}`, })
+    threadId: submissionId, siteId, action, actorUserId: session.user.id, env, idempotencyKey: `editor:reservation:${submissionId}:${submission.status}:${submission.updated_at}:${action}`, })
 
   if (!outcome.ok) {
     if (outcome.reason === 'thread_not_found' || outcome.reason === 'source_not_found') {

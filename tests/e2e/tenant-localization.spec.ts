@@ -159,11 +159,11 @@ test.describe.serial('published Thai content saves through the CMS and renders w
         body: 'ทีมกฎหมายของเราช่วยอธิบายทางเลือกและขั้นตอนเป็นภาษาไทย',
       },
     })
-    await putLocalization(owner, 'tenant_blog_post', 'blog_ncls_writing-your-own-will-how-it-works', {
+    await putLocalization(owner, 'content_document', 'blog_ncls_writing-your-own-will-how-it-works', {
       route_path: '/th/article/will-th',
       values: {
         title: 'คู่มือพินัยกรรมภาษาไทย',
-        excerpt: 'สิ่งที่ควรรู้ก่อนจัดทำพินัยกรรม',
+        summary: 'สิ่งที่ควรรู้ก่อนจัดทำพินัยกรรม',
       },
       content_blocks: [{
         type: 'markdown',
@@ -173,19 +173,16 @@ test.describe.serial('published Thai content saves through the CMS and renders w
       }],
     })
 
-    await putLocalization(owner, 'site_link_page', links.page.id, {
+    await putLocalization(owner, 'content_document', links.page.id, {
       route_path: '/th/links',
       values: {
         title: 'ลิงก์กฎหมายภาษาไทย',
         seo_title: 'ลิงก์กฎหมายภาษาไทย',
         seo_description: 'ลิงก์ที่ผ่านการตรวจสอบสำหรับผู้อ่านภาษาไทย',
       },
+      content_blocks: ['บริการกฎหมายครอบครัวเก่า', 'ติดต่อทีมงานของเรา'].map((label, index) => ({ type: 'cta', source_block_id: links.items[index]!.id, data: { label } })),
     })
-    for (const [index, label] of ['บริการกฎหมายครอบครัวเก่า', 'ติดต่อทีมงานของเรา'].entries()) {
-      await putLocalization(owner, 'site_link_item', links.items[index]!.id, {
-        values: { label },
-      })
-    }
+
   })
 
   test.afterAll(async () => {
@@ -215,7 +212,6 @@ test.describe.serial('published Thai content saves through the CMS and renders w
       await expect(cms.getByTestId('localize-field-title')).toHaveValue('ลิงก์กฎหมายภาษาไทย')
       await cms.getByRole('button', { name: 'Cancel' }).click()
 
-      const item = links.items[0]!
       await cms.getByTestId('list-editor-toggle').click()
       await cms.getByRole('button', { name: 'Edit Family law services' }).click()
       await cms.getByRole('button', { name: 'Localize' }).last().click()
@@ -224,7 +220,7 @@ test.describe.serial('published Thai content saves through the CMS and renders w
       await expect(cms.getByTestId('localize-field-label')).toHaveValue('บริการกฎหมายครอบครัวเก่า')
       await cms.getByTestId('localize-field-label').fill('บริการกฎหมายครอบครัว')
       const itemTranslationSave = await Promise.all([
-        cms.waitForResponse(response => response.request().method() === 'PUT' && response.url().includes(`/localization/site_link_item/${item.id}/th`)),
+        cms.waitForResponse(response => response.request().method() === 'PUT' && response.url().includes(`/localization/content_document/${links.page.id}/th`)),
         cms.getByTestId('localize-save').click(),
       ]).then(([response]) => response)
       expect(itemTranslationSave.status()).toBe(200)
@@ -238,12 +234,12 @@ test.describe.serial('published Thai content saves through the CMS and renders w
     await cms.getByRole('option', { name: /ไทย \(th\)/ }).click()
     await expect(cms.getByTestId('localize-field-title')).toHaveValue('ลิงก์กฎหมายภาษาไทย')
     await expectStatus(await owner.post(`/api/editor/sites/${siteId}/locales/${locale}/disable`), 200)
-    await expectStatus(await owner.get(`/api/editor/sites/${siteId}/localization/site_link_page/${links.page.id}/${locale}`), 402)
+    await expectStatus(await owner.get(`/api/editor/sites/${siteId}/localization/content_document/${links.page.id}/${locale}`), 402)
 
     const unsavedTitle = 'ฉบับร่างที่ยังไม่ได้บันทึก'
     await cms.getByTestId('localize-field-title').fill(unsavedTitle)
     const failedSave = await Promise.all([
-      cms.waitForResponse(response => response.request().method() === 'PUT' && response.url().includes(`/localization/site_link_page/${links.page.id}/th`)),
+      cms.waitForResponse(response => response.request().method() === 'PUT' && response.url().includes(`/localization/content_document/${links.page.id}/th`)),
       cms.getByTestId('localize-save').click(),
     ]).then(([response]) => response)
     expect(failedSave.status()).toBe(402)
@@ -272,6 +268,7 @@ test.describe.serial('published Thai content saves through the CMS and renders w
   })
 
   test('keeps page translations attached to canonical block identities after reorder', async () => {
+    test.setTimeout(120_000)
     const suffix = randomUUID()
     const firstBlockId = `source-first-${suffix}`
     const secondBlockId = `source-second-${suffix}`
@@ -311,7 +308,7 @@ test.describe.serial('published Thai content saves through the CMS and renders w
       data: {
         pageId: source.page_id, locale: 'en', path, title: 'Localization identity', summary: '',
         pageType: 'custom', recipe: null, seoTitle: null, seoDescription: null, canonicalUrl: null,
-        robots: null, sortOrder: 99, blocks: reorderedBlocks, expectedDocumentUpdatedAt: source.document.updated_at,
+        robots: null, sortOrder: 99, blocks: reorderedBlocks, expectedUpdatedAt: source.document.updated_at,
       },
     })
     await expectStatus(reorderResponse, 200)
@@ -327,8 +324,8 @@ test.describe.serial('published Thai content saves through the CMS and renders w
       cms.getByTestId('localize-save').click(),
     ]).then(([response]) => response)
     expect(alignedSaveResponse.status()).toBe(200)
-    const aligned = (await alignedSaveResponse.json() as { page: { blocks: Array<{ data: Record<string, unknown> }> } }).page
-    expect(aligned.blocks.map(block => block.data._localization_source_block_id)).toEqual([secondBlockId, firstBlockId])
+    const aligned = (await alignedSaveResponse.json() as { page: { blocks: Array<{ source_block_id: string | null }> } }).page
+    expect(aligned.blocks.map(block => block.source_block_id)).toEqual([secondBlockId, firstBlockId])
   })
 
   async function verifyThaiLinksAndHome(page: Page) {

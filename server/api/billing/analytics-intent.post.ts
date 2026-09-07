@@ -1,7 +1,7 @@
+import { queryFirst } from '~/server/db'
 import { HTTPError, defineHandler  } from 'nitro';
 
 import { cloudflareEnv, jsonResponse } from '~/server/utils/api-response'
-import { queryFirst } from '~/server/db'
 import { getAuthSession } from '~/server/utils/auth'
 import { getOrganizationBillingStatus, getStripe, requireBillingAccess } from '~/server/utils/billing'
 import { resolveRequestedOrganization } from '~/server/utils/dashboard-context'
@@ -39,10 +39,7 @@ async function updateStripeAttribution(
     : null
   const customerId = subscription
     ? (typeof subscription.customer === 'string' ? subscription.customer : subscription.customer?.id ?? null)
-    : (await queryFirst<{ stripeCustomerId: string | null }>(env.DB, `
-        SELECT stripe_customer_id AS stripeCustomerId
-          FROM organization_billing WHERE organization_id = ? LIMIT 1
-      `, [organizationId]))?.stripeCustomerId ?? null
+    : (await getOrganizationBillingStatus(env, env.DB, organizationId)).stripeCustomerId ?? null
   const contextMetadata: Record<string, string> = buildStripeSubscriptionMetadata(action, {
     gaClientId: optionalString(body.gaClientId), gaSessionId: optionalString(body.gaSessionId, 64), gaSessionCapturedAt: body.gaSessionCapturedAt, }, userId, optionalString(body.previousPriceId), optionalString(body.newPriceId))
   if (action !== 'initial_subscription') {

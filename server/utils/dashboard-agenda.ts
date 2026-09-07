@@ -175,7 +175,7 @@ function scopeConditions(query: AgendaQuery, alias: string): string {
 
 function mediaUrlSelect(
   alias: string,
-  ownerType: 'business_location' | 'experience' | 'post' | 'site',
+  ownerType: 'business_location' | 'product' | 'content_document' | 'site',
   ownerId: string,
   slots: string[],
 ): string {
@@ -267,32 +267,32 @@ export async function listAgenda(
     SELECT ${alias}.id, '${kind}' AS kind, ${fields}, ${alias}.site_id,
            COALESCE(s.subdomain, s.id) AS site_slug, ${alias}.location_id,
            l.slug AS location_slug, l.title AS location_title,
-           COALESCE(l.timezone, primary_location.timezone) AS timezone,
+           CASE WHEN ${alias}.location_id IS NULL THEN json_extract(s.settings_json, '$.config.default_timezone') ELSE l.timezone END AS timezone,
            NULL AS guest_image_url,
            ${enrichment.resourceImage ?? `COALESCE(${locationMediaUrlSelect(alias)}, ${siteMediaUrlSelect(alias)})`} AS resource_image_url,
            ${enrichment.resourceTitle ?? 'COALESCE(l.title, s.brand_name, s.subdomain, s.id)'} AS resource_title
-    FROM ${kind === 'reservation' ? 'reservation_submissions' : kind === 'experience_booking' ? 'experience_bookings' : 'posts'} ${alias}
+    FROM ${kind === 'post' ? 'content_documents' : 'requests'} ${alias}
     JOIN sites s ON s.id = ${alias}.site_id AND s.organization_id = ${alias}.organization_id
     LEFT JOIN business_locations l ON l.id = ${alias}.location_id AND l.site_id = ${alias}.site_id
-    LEFT JOIN business_locations primary_location ON primary_location.id = s.primary_location_id AND primary_location.site_id = s.id
+    
     ${enrichment.joins ?? ''}
-    WHERE ${alias}.organization_id = ? ${scopeConditions(query, alias)}
+    WHERE ${kind === 'post' ? `${alias}.kind = 'social_post' AND ${alias}.row_role = 'root' AND ` : `${alias}.kind = '${kind}' AND `}${alias}.organization_id = ? ${scopeConditions(query, alias)}
   `
   const params = () => scopeParams(organizationId, query)
 
-  if (requestedKinds.has('reservation')) sourceQueries.push(queryAll(db, `${commonSelect('r', 'reservation', `r.date AS local_date, r.time AS local_time, NULL AS starts_at, NULL AS ends_at,
-    r.name AS title, printf('%s guests', r.guests) AS subtitle, CAST(r.guests AS INTEGER) AS party_size, r.status`)} AND r.date BETWEEN ? AND ?`, [...params(), query.from, query.to]))
+  if (requestedKinds.has('reservation')) sourceQueries.push(queryAll(db, `${commonSelect('r', 'reservation', `r.booking_date AS local_date, r.time_slot AS local_time, NULL AS starts_at, NULL AS ends_at,
+    json_extract(r.payload_json, '$.guest.name') AS title, printf('%d%s guests', r.party_size, CASE json_extract(r.payload_json, '$.party_size_is_minimum') WHEN 1 THEN '+' ELSE '' END) AS subtitle, r.party_size, r.status`)} AND r.booking_date BETWEEN ? AND ?`, [...params(), query.from, query.to]))
   if (requestedKinds.has('experience_booking')) sourceQueries.push(queryAll(db, `${commonSelect('b', 'experience_booking', `b.booking_date AS local_date, b.time_slot AS local_time, NULL AS starts_at, NULL AS ends_at,
-    b.guest_name AS title, printf('%d guests', b.party_size) AS subtitle, b.party_size AS party_size, b.status`, {
-    joins: `LEFT JOIN products agenda_product ON agenda_product.id = b.experience_id AND agenda_product.organization_id = b.organization_id AND agenda_product.site_id = b.site_id`,
-    resourceImage: `COALESCE(${mediaUrlSelect('b', 'experience', 'b.experience_id', ['gallery'])}, ${locationMediaUrlSelect('b')}, ${siteMediaUrlSelect('b')})`,
+    json_extract(b.payload_json, '$.guest.name') AS title, printf('%d guests', b.party_size) AS subtitle, b.party_size AS party_size, b.status`, {
+    joins: `LEFT JOIN products agenda_product ON agenda_product.id = b.product_id AND agenda_product.organization_id = b.organization_id AND agenda_product.site_id = b.site_id`,
+    resourceImage: `COALESCE(${mediaUrlSelect('b', 'product', 'b.product_id', ['gallery'])}, ${locationMediaUrlSelect('b')}, ${siteMediaUrlSelect('b')})`,
     resourceTitle: 'COALESCE(agenda_product.name, l.title, s.brand_name, s.subdomain, s.id)',
   })} AND b.booking_date BETWEEN ? AND ?`, [...params(), query.from, query.to]))
-  if (requestedKinds.has('post')) sourceQueries.push(queryAll(db, `${commonSelect('p', 'post', `NULL AS local_date, NULL AS local_time, CASE WHEN p.status = 'published' AND p.published_at IS NOT NULL THEN p.published_at ELSE COALESCE(p.scheduled_for, p.published_at, p.event_start) END AS starts_at, p.event_end AS ends_at,
-    NULLIF(COALESCE(NULLIF(p.title, ''), NULLIF(p.event_title, '')), '') AS title, p.post_type AS subtitle, NULL AS party_size, p.status`, {
-    resourceImage: `COALESCE(${mediaUrlSelect('p', 'post', 'p.id', ['cover'])}, ${locationMediaUrlSelect('p')}, ${siteMediaUrlSelect('p')})`,
+  if (requestedKinds.has('post')) sourceQueries.push(queryAll(db, `${commonSelect('p', 'post', `NULL AS local_date, NULL AS local_time, CASE WHEN p.status = 'published' AND p.published_at IS NOT NULL THEN p.published_at ELSE COALESCE(p.scheduled_for, p.published_at) END AS starts_at, NULL AS ends_at,
+    NULLIF(COALESCE(NULLIF(p.title, ''), json_extract(p.metadata_json, '$.event.title')), '') AS title, json_extract(p.metadata_json, '$.post_type') AS subtitle, NULL AS party_size, p.status`, {
+    resourceImage: `COALESCE(${mediaUrlSelect('p', 'content_document', 'p.id', ['cover'])}, ${locationMediaUrlSelect('p')}, ${siteMediaUrlSelect('p')})`,
   })}
-    AND CASE WHEN p.status = 'published' AND p.published_at IS NOT NULL THEN p.published_at ELSE COALESCE(p.scheduled_for, p.published_at, p.event_start) END BETWEEN ? AND ?`, [...params(), broadFrom, broadTo]))
+    AND CASE WHEN p.status = 'published' AND p.published_at IS NOT NULL THEN p.published_at ELSE COALESCE(p.scheduled_for, p.published_at) END BETWEEN ? AND ?`, [...params(), broadFrom, broadTo]))
 
   const rows = (await Promise.all(sourceQueries)).flat().filter((row) => {
     if (!scoped) return true
@@ -301,7 +301,8 @@ export async function listAgenda(
   })
   const organizationSlug = query.organizationSlug ?? organizationId
   const items = rows.flatMap<AgendaItem>((row) => {
-    const timeZone = validTimeZone(row.timezone) ?? 'UTC'
+    const timeZone = validTimeZone(row.timezone)
+    if (!timeZone) throw new Error(`Timezone is not configured for agenda item ${row.id}`)
     const startsAt = row.local_date
       ? localDateTimeToIso(row.local_date, row.local_time, timeZone)
       : row.starts_at && !Number.isNaN(Date.parse(row.starts_at)) ? new Date(row.starts_at).toISOString() : ''
@@ -316,10 +317,9 @@ export async function listAgenda(
     return [{
       id: `${row.kind}:${row.id}`, kind: row.kind, startsAt,
       endsAt: row.ends_at && !Number.isNaN(Date.parse(row.ends_at)) ? new Date(row.ends_at).toISOString() : null,
-      dayKey, timeZone, showTimeZone: !validTimeZone(row.timezone), title: row.title,
+      dayKey, timeZone, showTimeZone: false, title: row.title,
       subtitle: row.subtitle, status: row.status, siteId: row.site_id,
       locationId: row.location_id, locationTitle: row.location_title,
-      // Guest avatars are intentionally absent: tenant customer records have no avatar field.
       guestImageUrl: row.guest_image_url, resourceImageUrl: row.resource_image_url,
       resourceTitle: row.resource_title, partySize: row.party_size, to,
     }]

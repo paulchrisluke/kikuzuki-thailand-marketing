@@ -104,9 +104,6 @@
             @update:model-value="submitAfterSelection"
           />
         </UFormField>
-        <div v-if="section === 'location' && showPrimaryToggle">
-          <UCheckbox v-model="form.isPrimary" label="Make this the primary location" />
-        </div>
       </div>
 
       <div class="grid gap-3">
@@ -148,7 +145,6 @@ type IntakeForm = {
   country: string
   phone: string
   currency: CurrencyCode | undefined
-  isPrimary: boolean
 }
 
 const form = defineModel<IntakeForm>('form', { required: true })
@@ -156,7 +152,6 @@ const form = defineModel<IntakeForm>('form', { required: true })
 const props = defineProps<{
   actionLabel: string
   requireLocationBasics: boolean
-  showPrimaryToggle: boolean
   section: 'location' | 'contact' | 'currency'
   loading?: boolean
   disabled?: boolean

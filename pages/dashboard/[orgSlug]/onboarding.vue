@@ -82,13 +82,12 @@ const transferQueryScope = parseTransferOnboardingQuery(route.query)
 if (transferQueryScope.kind === 'invalid') {
   throw createError({ statusCode: 400, statusMessage: transferQueryScope.message })
 }
-const transferId = computed(() => transferQueryScope.kind === 'exact' ? transferQueryScope.transferId : null)
+const transferId = computed(() => transferQueryScope.transferId)
 
 interface LocationRow {
   id: string
   title: string
   slug: string
-  is_primary: boolean
   notification_phone: string | null
 }
 
@@ -133,7 +132,7 @@ const requiredSiteVertical = computed<SiteVertical>(() => {
 })
 
 const previewLocations = computed(() =>
-  locations.value.map(l => ({ id: l.id, slug: l.slug, title: l.title, is_primary: l.is_primary }))
+  locations.value.map(l => ({ id: l.id, slug: l.slug, title: l.title, }))
 )
 
 const selectedLocation = computed(() =>
@@ -208,8 +207,6 @@ function applyTransferContext(ctx: TransferOnboardingContext) {
   }
 
   locations.value = ctx.locations ?? []
-  const primary = locations.value.find(l => l.is_primary) ?? locations.value[0]
-  if (primary) selectedLocationId.value = primary.id
 
   if (ctx.notifications?.whatsapp_phone) {
     ownerPhone.value = ctx.notifications.whatsapp_phone
@@ -232,17 +229,17 @@ const loadTransferContextResource = async (): Promise<TransferOnboardingContext>
     const { loadTransferOnboardingContext } = await import('~/server/utils/transfer-onboarding-context')
     return await loadTransferOnboardingContext(requestEvent, {
       orgSlug: orgSlug.value,
-      ...(transferId.value ? { transferId: transferId.value } : {}),
+      transferId: transferId.value,
     })
   }
   return await dashboardApi<TransferOnboardingContext>('/api/dashboard/transfer-onboarding-context', {
-    query: transferId.value ? { transfer: transferId.value } : undefined,
+    query: { transfer: transferId.value },
     validate: isTransferOnboardingContext,
   })
 }
 
 const { data: transferContext, error: initialTransferContextError, refresh: refreshTransferContext } =
-  await useAsyncData(`transfer-onboarding-context-${orgSlug.value}-${transferId.value ?? 'legacy'}`, loadTransferContextResource)
+  await useAsyncData(`transfer-onboarding-context-${orgSlug.value}-${transferId.value}`, loadTransferContextResource)
 
 onMounted(() => {
   hydrated.value = true

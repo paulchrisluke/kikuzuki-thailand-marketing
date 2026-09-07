@@ -1,11 +1,11 @@
 import type { D1Database } from '@cloudflare/workers-types'
 import { queryAll } from '~/server/db'
 import { resolveLocationTimezone } from '~/server/utils/site-config'
-import { markBookingCompleted, type ReviewBookingType } from '~/server/utils/review-requests'
+import type { ReviewBookingType } from '~/server/utils/review-requests'
+import { executeGuestThreadOperation } from '~/server/domain/guest-threads/operations'
 import { sendReviewRequestForBooking } from '~/server/utils/review-request-delivery'
 import { defineScheduledTask } from '~/server/utils/scheduled-task'
 import { collectScheduledPaidRows } from '~/server/utils/scheduled-billing-access'
-import { getGuestThreadBySubmission } from '~/server/domain/guest-threads/repository'
 import { publishGuestInboxThreadEvent } from '~/server/cloudflare/guest-inbox-events'
 
 interface ReviewRequestTaskContext {
@@ -20,8 +20,6 @@ interface AutoCompleteRow {
   booking_date: string
   time_slot: string
   duration_minutes: number | null
-  stripe_customer_id: string | null
-  stripe_subscription_id: string | null
   access_plan: string | null
   access_expires_at: string | null
   payment_status: string | null
@@ -35,8 +33,6 @@ interface SendDueRow {
   organization_id: string
   site_id: string
   booking_type: ReviewBookingType
-  stripe_customer_id: string | null
-  stripe_subscription_id: string | null
   access_plan: string | null
   access_expires_at: string | null
   payment_status: string | null
@@ -75,69 +71,27 @@ function nowComparableMs(timezone: string): number {
   return localComparableMs(`${get('year')}-${get('month')}-${get('day')}`, `${get('hour')}:${get('minute')}`)
 }
 
-async function autoCompleteReservations(db: D1Database, env: ApiRecord): Promise<number> {
+async function autoCompleteBookings(db: D1Database, env: ApiRecord, kind: ReviewBookingType): Promise<number> {
   const rows = await collectScheduledPaidRows((limit, offset) => queryAll<AutoCompleteRow>(db, `
-      SELECT rs.id, rs.organization_id, rs.site_id, rs.location_id,
-             rs.date AS booking_date, rs.time AS time_slot, NULL AS duration_minutes,
-             ob.stripe_customer_id, ob.stripe_subscription_id, ob.access_plan,
-             ob.access_expires_at, ob.payment_status, ob.paid_through, ob.past_due_since, ob.updated_at
-        FROM reservation_submissions rs
-        INNER JOIN organization_billing ob
-          ON ob.organization_id = rs.organization_id
-         AND ob.access_plan = 'growth'
-       WHERE rs.status = 'confirmed'
-         AND rs.completed_at IS NULL
-       ORDER BY rs.id
-       LIMIT ? OFFSET ?
-    `, [limit, offset]), 'review_requests')
-
+      SELECT r.id, r.organization_id, r.site_id, r.location_id, r.booking_date, r.time_slot,
+             json_extract(p.experience_json, '$.duration_minutes') AS duration_minutes,
+             ob.access_plan, ob.access_expires_at, ob.payment_status, ob.paid_through, ob.past_due_since, ob.updated_at
+        FROM requests r LEFT JOIN products p ON p.id = r.product_id
+        JOIN organization_billing ob ON ob.organization_id = r.organization_id AND ob.access_plan = 'growth'
+       WHERE r.kind = ? AND r.status = 'confirmed' AND json_extract(r.payload_json, '$.completion.at') IS NULL
+       ORDER BY r.id LIMIT ? OFFSET ?
+    `, [kind, limit, offset]), 'review_requests')
   let completed = 0
   for (const row of rows) {
     const timezone = await resolveLocationTimezone(db, row.organization_id, row.site_id, row.location_id)
-    const dueAt = localComparableMs(row.booking_date, row.time_slot) + 3 * 3_600_000
-    if (nowComparableMs(timezone) >= dueAt) {
-      if (await markBookingCompleted(db, 'reservation', row.id, 'auto')) {
-        completed += 1
-        const thread = await getGuestThreadBySubmission(db, 'reservation', row.id)
-        if (thread) {
-          await publishGuestInboxThreadEvent(env, db, { threadId: thread.id, type: 'thread.changed' })
-        }
-      }
-    }
-  }
-  return completed
-}
-
-async function autoCompleteExperienceBookings(db: D1Database, env: ApiRecord): Promise<number> {
-  const rows = await collectScheduledPaidRows((limit, offset) => queryAll<AutoCompleteRow>(db, `
-      SELECT eb.id, eb.organization_id, eb.site_id, eb.location_id,
-             eb.booking_date, eb.time_slot, e.duration_minutes,
-             ob.stripe_customer_id, ob.stripe_subscription_id, ob.access_plan,
-             ob.access_expires_at, ob.payment_status, ob.paid_through, ob.past_due_since, ob.updated_at
-        FROM experience_bookings eb
-        JOIN experiences e ON e.id = eb.experience_id
-        INNER JOIN organization_billing ob
-          ON ob.organization_id = eb.organization_id
-         AND ob.access_plan = 'growth'
-       WHERE eb.status = 'confirmed'
-         AND eb.completed_at IS NULL
-       ORDER BY eb.id
-       LIMIT ? OFFSET ?
-    `, [limit, offset]), 'review_requests')
-
-  let completed = 0
-  for (const row of rows) {
-    const timezone = await resolveLocationTimezone(db, row.organization_id, row.site_id, row.location_id)
-    const durationMs = (row.duration_minutes ?? 360) * 60_000
-    const dueAt = localComparableMs(row.booking_date, row.time_slot) + durationMs
-    if (nowComparableMs(timezone) >= dueAt) {
-      if (await markBookingCompleted(db, 'experience_booking', row.id, 'auto')) {
-        completed += 1
-        const thread = await getGuestThreadBySubmission(db, 'experience_booking', row.id)
-        if (thread) {
-          await publishGuestInboxThreadEvent(env, db, { threadId: thread.id, type: 'thread.changed' })
-        }
-      }
+    const duration = kind === 'reservation' ? 180 : row.duration_minutes ?? 360
+    if (nowComparableMs(timezone) < localComparableMs(row.booking_date, row.time_slot) + duration * 60_000) continue
+    const outcome = await executeGuestThreadOperation(db, { threadId: row.id, siteId: row.site_id, action: 'complete', actorUserId: null, completionSource: 'auto', env, idempotencyKey: `auto-complete:${row.id}` })
+    if (outcome.ok) {
+      completed += 1
+      await publishGuestInboxThreadEvent(env, db, { threadId: row.id, type: 'thread.changed' })
+    } else if (outcome.status !== 409) {
+      throw new Error(`Automatic completion failed: ${outcome.reason}`)
     }
   }
   return completed
@@ -147,37 +101,18 @@ async function sendDue(db: D1Database, env: ApiRecord, kind: 'first' | 'reminder
   const reservationDelay = kind === 'first' ? '-2 hours' : '-5 days'
   const experienceDelay = kind === 'first' ? '-24 hours' : '-5 days'
   const rows = await collectScheduledPaidRows((limit, offset) => queryAll<SendDueRow>(db, `
-      SELECT * FROM (
-        SELECT rs.id, rs.organization_id, rs.site_id, 'reservation' AS booking_type,
-               ob.stripe_customer_id, ob.stripe_subscription_id, ob.access_plan,
-               ob.access_expires_at, ob.payment_status, ob.paid_through, ob.past_due_since, ob.updated_at
-          FROM reservation_submissions rs
-          JOIN customers c ON c.id = rs.customer_id
-          INNER JOIN organization_billing ob
-            ON ob.organization_id = rs.organization_id
-           AND ob.access_plan = 'growth'
-         WHERE rs.status = 'completed'
-           AND rs.completed_at IS NOT NULL
-           AND rs.review_submitted_at IS NULL
-           AND c.review_request_opted_out_at IS NULL
-           AND ${kind === 'first' ? "rs.review_request_sent_at IS NULL AND rs.completed_at <= datetime('now', ?)" : "rs.review_request_sent_at IS NOT NULL AND rs.review_reminder_sent_at IS NULL AND rs.review_request_sent_at <= datetime('now', ?)"}
-        UNION ALL
-        SELECT eb.id, eb.organization_id, eb.site_id, 'experience_booking' AS booking_type,
-               ob.stripe_customer_id, ob.stripe_subscription_id, ob.access_plan,
-               ob.access_expires_at, ob.payment_status, ob.paid_through, ob.past_due_since, ob.updated_at
-          FROM experience_bookings eb
-          JOIN customers c ON c.id = eb.customer_id
-          INNER JOIN organization_billing ob
-            ON ob.organization_id = eb.organization_id
-           AND ob.access_plan = 'growth'
-         WHERE eb.status = 'confirmed'
-           AND eb.completed_at IS NOT NULL
-           AND eb.review_submitted_at IS NULL
-           AND c.review_request_opted_out_at IS NULL
-           AND ${kind === 'first' ? "eb.review_request_sent_at IS NULL AND eb.completed_at <= datetime('now', ?)" : "eb.review_request_sent_at IS NOT NULL AND eb.review_reminder_sent_at IS NULL AND eb.review_request_sent_at <= datetime('now', ?)"}
-      ) AS candidates
-      ORDER BY booking_type, id
-      LIMIT ? OFFSET ?
+      SELECT r.id, r.organization_id, r.site_id, r.kind AS booking_type,
+             ob.access_plan, ob.access_expires_at, ob.payment_status, ob.paid_through, ob.past_due_since, ob.updated_at
+        FROM requests r JOIN customers c ON c.id = r.customer_id
+        JOIN organization_billing ob ON ob.organization_id = r.organization_id AND ob.access_plan = 'growth'
+       WHERE r.kind IN ('reservation', 'experience_booking') AND r.status = 'completed'
+         AND json_extract(r.payload_json, '$.completion.at') IS NOT NULL
+         AND json_extract(r.payload_json, '$.review.submitted_at') IS NULL
+         AND c.review_request_opted_out_at IS NULL
+         AND ${kind === 'first'
+           ? "json_extract(r.payload_json, '$.review.request_sent_at') IS NULL AND datetime(json_extract(r.payload_json, '$.completion.at')) <= datetime('now', CASE r.kind WHEN 'reservation' THEN ? ELSE ? END)"
+           : "json_extract(r.payload_json, '$.review.request_sent_at') IS NOT NULL AND json_extract(r.payload_json, '$.review.reminder_sent_at') IS NULL AND datetime(json_extract(r.payload_json, '$.review.request_sent_at')) <= datetime('now', CASE r.kind WHEN 'reservation' THEN ? ELSE ? END)"}
+       ORDER BY booking_type, r.id LIMIT ? OFFSET ?
     `, [reservationDelay, experienceDelay, limit, offset]), 'review_requests')
 
   let sent = 0
@@ -209,8 +144,8 @@ export default defineScheduledTask({
     }
     if (!db) throw new Error('DB is required')
 
-    const reservationsCompleted = await autoCompleteReservations(db, env)
-    const experiencesCompleted = await autoCompleteExperienceBookings(db, env)
+    const reservationsCompleted = await autoCompleteBookings(db, env, 'reservation')
+    const experiencesCompleted = await autoCompleteBookings(db, env, 'experience_booking')
     const first = await sendDue(db, env, 'first')
     const reminders = await sendDue(db, env, 'reminder')
 

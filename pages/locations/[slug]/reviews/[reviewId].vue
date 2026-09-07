@@ -22,6 +22,7 @@
         <p class="mt-3 text-sm text-muted">
           {{ review.author_name || 'Guest' }} / {{ formatDate(String(review.created_at)) }}
         </p>
+        <GoogleReviewAttribution v-if="review.source === 'google_places'" :metadata="review.google_review_metadata" :source-url="review.original_reference" />
         <p class="mt-8 whitespace-pre-line text-base leading-8">{{ review.content }}</p>
 
         <div v-if="mediaItems.length" class="mt-8 grid grid-cols-2 gap-3 sm:grid-cols-3">

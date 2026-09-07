@@ -1,3 +1,4 @@
+import { resourceLocalizationDeletionQueries } from '~/server/utils/localization'
 import { HTTPError } from 'nitro'
 import type { CloudflareEnv } from '~/server/utils/auth'
 import { d1JsonArray, executeBatch, queryAll, queryFirst, type BatchQuery, type DbClient } from '~/server/db'
@@ -1341,6 +1342,8 @@ export async function deleteProduct(
   const remainingIds = (await categoryProductIds({ db, organizationId, siteId, locationId }, existing.category_id)).filter(id => id !== productId)
   const now = new Date().toISOString()
   await executeBatch(db, [
+    ...resourceLocalizationDeletionQueries('product', { query: 'SELECT id FROM products WHERE id = ? AND site_id = ?', params: [productId, siteId] }),
+    { query: `DELETE FROM media_placements WHERE owner_type = 'review' AND owner_id IN (SELECT id FROM reviews WHERE product_id = ?)`, params: [productId] },
     { query: `DELETE FROM reviews WHERE product_id = ?`, params: [productId] },
     { query: `DELETE FROM media_placements WHERE owner_type = 'product' AND owner_id = ? AND organization_id = ? AND site_id = ?`, params: [productId, organizationId, siteId] },
     { query: `DELETE FROM products WHERE id = ? AND organization_id = ? AND site_id = ? AND location_id = ? AND product_type = 'standard'`, params: [productId, organizationId, siteId, locationId] },
@@ -1371,6 +1374,9 @@ export async function deleteProductCategory(
     .filter(id => id !== categoryId)
   const now = new Date().toISOString()
   await executeBatch(db, [
+    ...resourceLocalizationDeletionQueries('product', { query: 'SELECT value FROM json_each(?)', params: [idJson] }),
+    ...resourceLocalizationDeletionQueries('product_category', { query: 'SELECT id FROM product_categories WHERE id = ? AND site_id = ?', params: [categoryId, siteId] }),
+    { query: `DELETE FROM media_placements WHERE owner_type = 'review' AND owner_id IN (SELECT id FROM reviews WHERE product_id IN (SELECT value FROM json_each(?)))`, params: [idJson] },
     { query: `DELETE FROM reviews WHERE product_id IN (SELECT value FROM json_each(?))`, params: [idJson] },
     { query: `DELETE FROM media_placements WHERE owner_type = 'product' AND owner_id IN (SELECT value FROM json_each(?)) AND organization_id = ? AND site_id = ?`, params: [idJson, organizationId, siteId] },
     { query: `DELETE FROM products WHERE category_id = ? AND organization_id = ? AND site_id = ? AND location_id = ? AND product_type = 'standard'`, params: [categoryId, organizationId, siteId, locationId] },

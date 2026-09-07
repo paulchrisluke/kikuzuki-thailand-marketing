@@ -67,7 +67,9 @@ export default defineConfig({
   workers: process.env.PLAYWRIGHT_WORKERS
     ? Number(process.env.PLAYWRIGHT_WORKERS)
     : process.env.CI ? 2 : undefined,
-  reporter: process.env.CI ? [['list'], ['html', { open: 'never' }]] : 'list',
+  reporter: process.env.CI
+    ? [['list'], ['./tests/e2e/progress-reporter.ts'], ['html', { open: 'never' }]]
+    : [['list'], ['./tests/e2e/progress-reporter.ts']],
   use: {
     baseURL,
     trace: 'retain-on-failure',

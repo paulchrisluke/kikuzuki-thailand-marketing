@@ -1,4 +1,4 @@
-import { execute, executeBatch, queryAll, queryFirst, type DbClient } from '~/server/db'
+import { execute, queryAll, queryFirst, type DbClient } from '~/server/db'
 import { d1JsonStringSet } from '~/server/db/d1-limits'
 import {
   isOrganizationWideRole,
@@ -7,139 +7,17 @@ import {
 } from '~/server/utils/member-access'
 import { CONVERSATION_STATE_LABELS } from './types'
 import type {
-  AnyGuestThreadSourceAdapter,
   ConversationState,
   GuestThreadListItemViewModel,
   GuestThreadRow,
-  GuestThreadSubmissionType,
   ListGuestThreadsOptions,
 } from './types'
 import { formatOperationalStatusLabel } from './status-labels'
-import { publishGuestInboxThreadEvent, type GuestInboxPublicationEnv } from '~/server/cloudflare/guest-inbox-events'
 
-const SOURCE_GUEST_NAME_SQL = 'COALESCE(rs.name, eb.guest_name, cs.name)'
-const SOURCE_GUEST_EMAIL_SQL = 'COALESCE(rs.email, eb.guest_email, cs.email)'
-const SOURCE_GUEST_PHONE_SQL = 'COALESCE(rs.phone, eb.guest_phone)'
-const SOURCE_PREVIEW_SQL = `CASE gt.submission_type
-  WHEN 'contact' THEN SUBSTR(TRIM(cs.message), 1, 160)
-  WHEN 'reservation' THEN SUBSTR(COALESCE(NULLIF(TRIM(rs.requests), ''), rs.date || ' ' || rs.time || ' · ' || rs.guests || ' guests'), 1, 160)
-  WHEN 'experience_booking' THEN SUBSTR(COALESCE(NULLIF(TRIM(eb.notes), ''), eb.booking_date || ' ' || eb.time_slot || ' · ' || eb.party_size || ' guests'), 1, 160)
-END`
-
-export async function getGuestThreadBySubmission(
-  db: DbClient,
-  submissionType: GuestThreadSubmissionType,
-  submissionId: string,
-): Promise<GuestThreadRow | null> {
-  return await queryFirst<GuestThreadRow>(db, `
-    SELECT * FROM guest_threads
-    WHERE submission_type = ? AND submission_id = ?
-    LIMIT 1
-  `, [submissionType, submissionId])
-}
-
-export async function getGuestThreadById(
-  db: DbClient,
-  threadId: string,
-  siteId?: string,
-): Promise<GuestThreadRow | null> {
-  return await queryFirst<GuestThreadRow>(db, `
-    SELECT * FROM guest_threads
-    WHERE id = ?
-    ${siteId ? 'AND site_id = ?' : ''}
-    LIMIT 1
-  `, siteId ? [threadId, siteId] : [threadId])
-}
-
-/**
- * Idempotently creates the thread aggregate for a submission, atomically persisting the
- * immutable opening `submission` marker alongside it in a single D1 batch (issue
- * #442 Locked Decision #3 — the opening submission must never exist without its entry,
- * or vice versa). Safe to call repeatedly; returns the existing thread on subsequent
- * calls without re-appending the opening entry.
- */
-export async function ensureGuestThread(
-  db: DbClient,
-  adapter: AnyGuestThreadSourceAdapter,
-  submissionId: string,
-  options: { publishEnv?: GuestInboxPublicationEnv } = {},
-): Promise<GuestThreadRow> {
-  const existing = await getGuestThreadBySubmission(db, adapter.type, submissionId)
-  const source = await adapter.loadSource({ db }, submissionId)
-  if (!source) throw new Error('Submission not found')
-
-  const summary = adapter.summarize(source)
-
-  if (existing) {
-    if ((existing.location_id ?? null) !== (summary.locationId ?? null)) {
-      const now = new Date().toISOString()
-      await execute(db, `
-        UPDATE guest_threads SET location_id = ?, updated_at = ? WHERE id = ?
-      `, [summary.locationId, now, existing.id])
-      if (options.publishEnv) {
-        await publishGuestInboxThreadEvent(options.publishEnv, db, { threadId: existing.id, type: 'thread.changed' })
-      }
-      return { ...existing, location_id: summary.locationId, updated_at: now }
-    }
-    return existing
-  }
-
-  const threadId = crypto.randomUUID()
-  const entryId = crypto.randomUUID()
-  const now = new Date().toISOString()
-
-  try {
-    await executeBatch(db, [
-      {
-        query: `
-          INSERT INTO guest_threads
-            (id, organization_id, site_id, location_id, submission_type, submission_id,
-             conversation_state, created_at, updated_at)
-          VALUES (?, ?, ?, ?, ?, ?, 'needs_attention', ?, ?)
-        `,
-        params: [
-          threadId,
-          summary.organizationId,
-          summary.siteId,
-          summary.locationId,
-          adapter.type,
-          submissionId,
-          summary.createdAt,
-          now,
-        ],
-      },
-      {
-        query: `
-          INSERT INTO guest_thread_entries
-            (id, thread_id, kind, actor_kind, channel, event_name, dedupe_key, sequence, occurred_at, created_at)
-          VALUES (?, ?, 'submission', 'guest', 'system', ?, ?, 1, ?, ?)
-        `,
-        params: [
-          entryId,
-          threadId,
-          `${adapter.type}_submitted`,
-          `submission:${adapter.type}:${submissionId}`,
-          summary.createdAt,
-          now,
-        ],
-      },
-    ])
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error)
-    if (/UNIQUE constraint failed/i.test(message)) {
-      const concurrent = await getGuestThreadBySubmission(db, adapter.type, submissionId)
-      if (concurrent) return concurrent
-    }
-    throw error instanceof Error ? error : new Error(message)
-  }
-
-  const created = await getGuestThreadById(db, threadId)
-  if (!created) throw new Error('Failed to load guest thread')
-  if (options.publishEnv) {
-    await publishGuestInboxThreadEvent(options.publishEnv, db, { threadId: created.id, type: 'thread.created' })
-  }
-  return created
-}
+const SOURCE_GUEST_NAME_SQL = "json_extract(gt.payload_json, '$.guest.name')"
+const SOURCE_GUEST_EMAIL_SQL = "json_extract(gt.payload_json, '$.guest.email')"
+const SOURCE_GUEST_PHONE_SQL = "json_extract(gt.payload_json, '$.guest.phone')"
+const SOURCE_PREVIEW_SQL = `SUBSTR(CASE WHEN gt.kind = 'contact' THEN json_extract(gt.payload_json, '$.message') ELSE COALESCE(NULLIF(TRIM(json_extract(gt.payload_json, '$.notes')), ''), gt.booking_date || ' ' || gt.time_slot || ' - ' || gt.party_size || CASE WHEN json_extract(gt.payload_json, '$.party_size_is_minimum') THEN '+' ELSE '' END || ' guests') END, 1, 160)`
 
 export interface OperationSummary {
   openThreads: number
@@ -202,10 +80,10 @@ export async function getGuestThreadOperationSummary(
     SELECT
       SUM(CASE WHEN gt.conversation_state != 'resolved' THEN 1 ELSE 0 END) AS openThreads,
       0 AS unreadThreads,
-      SUM(CASE WHEN gt.conversation_state != 'resolved' AND gt.submission_type = 'reservation' THEN 1 ELSE 0 END) AS reservations,
-      SUM(CASE WHEN gt.conversation_state != 'resolved' AND gt.submission_type = 'experience_booking' THEN 1 ELSE 0 END) AS experienceBookings
-    FROM guest_threads gt
-    WHERE ${where}
+      SUM(CASE WHEN gt.conversation_state != 'resolved' AND gt.kind = 'reservation' THEN 1 ELSE 0 END) AS reservations,
+      SUM(CASE WHEN gt.conversation_state != 'resolved' AND gt.kind = 'experience_booking' THEN 1 ELSE 0 END) AS experienceBookings
+    FROM requests gt
+    WHERE gt.kind IN ('contact', 'reservation', 'experience_booking') AND ${where}
   `, params)
 
   const unreadThreads = opts.userId
@@ -228,21 +106,21 @@ async function countUnreadThreadIds(
 ): Promise<number> {
   const rows = await queryAll<{ id: string }>(db, `
     SELECT gt.id
-    FROM guest_threads gt
-    WHERE ${where}
+    FROM requests gt
+    WHERE gt.kind IN ('contact', 'reservation', 'experience_booking') AND ${where}
       AND EXISTS (
-        SELECT 1 FROM notifications n
-        JOIN guest_thread_entries notification_entry ON notification_entry.id = n.source_entry_id
-        LEFT JOIN notification_reads nr ON nr.notification_id = n.id AND nr.user_id = ?
-        WHERE notification_entry.thread_id = gt.id
+        SELECT 1 FROM activity_entries n
+        JOIN activity_entries notification_entry ON notification_entry.id = n.parent_id
+        LEFT JOIN activity_entries nr ON nr.parent_id = n.id AND nr.actor_user_id = ? AND nr.kind = 'acknowledgement'
+        WHERE notification_entry.request_id = gt.id
           AND (n.target_user_id IS NULL OR n.target_user_id = ?)
-          AND nr.notification_id IS NULL
+          AND nr.id IS NULL AND n.kind = 'notification'
       )
   `, [...params, userId, userId])
   return rows.length
 }
 
-interface GuestThreadListRow extends GuestThreadRow {
+type GuestThreadListRow = GuestThreadRow & {
   guest_name: string
   location_title: string | null
   site_name?: string | null
@@ -279,7 +157,7 @@ export async function listGuestThreads(
     }
   }
   if (opts.type) {
-    where += ' AND gt.submission_type = ?'
+    where += ' AND gt.kind = ?'
     params.push(opts.type)
   }
   if (opts.conversationState) {
@@ -297,12 +175,12 @@ export async function listGuestThreads(
   const unreadFilter = opts.unreadOnly && opts.userId
     ? `
       AND EXISTS (
-        SELECT 1 FROM notifications n
-        JOIN guest_thread_entries notification_entry ON notification_entry.id = n.source_entry_id
-        LEFT JOIN notification_reads nr ON nr.notification_id = n.id AND nr.user_id = ?
-        WHERE notification_entry.thread_id = gt.id
+        SELECT 1 FROM activity_entries n
+        JOIN activity_entries notification_entry ON notification_entry.id = n.parent_id
+        LEFT JOIN activity_entries nr ON nr.parent_id = n.id AND nr.actor_user_id = ? AND nr.kind = 'acknowledgement'
+        WHERE notification_entry.request_id = gt.id
           AND (n.target_user_id IS NULL OR n.target_user_id = ?)
-          AND nr.notification_id IS NULL
+          AND nr.id IS NULL AND n.kind = 'notification'
       )
     `
     : ''
@@ -313,27 +191,20 @@ export async function listGuestThreads(
       ${SOURCE_GUEST_NAME_SQL} AS guest_name,
       bl.title AS location_title,
       (
-        SELECT body FROM guest_thread_entries
-        WHERE thread_id = gt.id AND kind = 'message'
+        SELECT body FROM activity_entries
+        WHERE request_id = gt.id AND kind = 'message'
         ORDER BY sequence DESC LIMIT 1
       ) AS latest_message_body,
       (
-        SELECT kind FROM guest_thread_entries
-        WHERE thread_id = gt.id AND kind = 'message'
+        SELECT kind FROM activity_entries
+        WHERE request_id = gt.id AND kind = 'message'
         ORDER BY sequence DESC LIMIT 1
       ) AS latest_message_kind,
       ${SOURCE_PREVIEW_SQL} AS source_preview,
-      CASE gt.submission_type
-        WHEN 'reservation' THEN rs.status
-        WHEN 'experience_booking' THEN eb.status
-        WHEN 'contact' THEN cs.status
-      END AS operational_status
-    FROM guest_threads gt
+      gt.status AS operational_status
+    FROM requests gt
     LEFT JOIN business_locations bl ON bl.id = gt.location_id
-    LEFT JOIN reservation_submissions rs ON gt.submission_type = 'reservation' AND rs.id = gt.submission_id
-    LEFT JOIN experience_bookings eb ON gt.submission_type = 'experience_booking' AND eb.id = gt.submission_id
-    LEFT JOIN contact_submissions cs ON gt.submission_type = 'contact' AND cs.id = gt.submission_id
-    WHERE ${where}
+    WHERE gt.kind IN ('contact', 'reservation', 'experience_booking') AND ${where}
     ${unreadFilter}
     ORDER BY gt.updated_at DESC
     LIMIT ?
@@ -348,13 +219,13 @@ export async function listGuestThreads(
     items.push({
       id: row.id,
       guestName: row.guest_name,
-      submissionType: row.submission_type,
+      submissionType: row.kind,
       contextLabel: row.source_preview ?? '',
       locationLabel: row.location_title,
       conversationState: row.conversation_state,
       conversationStateLabel: CONVERSATION_STATE_LABELS[row.conversation_state],
       operationalStatus: row.operational_status,
-      operationalStatusLabel: row.operational_status ? formatOperationalStatusLabel(row.submission_type, row.operational_status) : null,
+      operationalStatusLabel: row.operational_status ? formatOperationalStatusLabel(row.kind, row.operational_status) : null,
       unread,
       unreadCount: unread ? 1 : 0,
       preview: row.latest_message_kind === 'message'
@@ -400,7 +271,7 @@ export async function listOrganizationGuestThreads(
     return []
   }
   if (opts.type) {
-    where += ' AND gt.submission_type = ?'
+    where += ' AND gt.kind = ?'
     params.push(opts.type)
   }
   if (opts.conversationState) {
@@ -418,12 +289,12 @@ export async function listOrganizationGuestThreads(
   const unreadFilter = opts.unreadOnly && opts.userId
     ? `
       AND EXISTS (
-        SELECT 1 FROM notifications n
-        JOIN guest_thread_entries notification_entry ON notification_entry.id = n.source_entry_id
-        LEFT JOIN notification_reads nr ON nr.notification_id = n.id AND nr.user_id = ?
-        WHERE notification_entry.thread_id = gt.id
+        SELECT 1 FROM activity_entries n
+        JOIN activity_entries notification_entry ON notification_entry.id = n.parent_id
+        LEFT JOIN activity_entries nr ON nr.parent_id = n.id AND nr.actor_user_id = ? AND nr.kind = 'acknowledgement'
+        WHERE notification_entry.request_id = gt.id
           AND (n.target_user_id IS NULL OR n.target_user_id = ?)
-          AND nr.notification_id IS NULL
+          AND nr.id IS NULL AND n.kind = 'notification'
       )
     `
     : ''
@@ -436,28 +307,21 @@ export async function listOrganizationGuestThreads(
       s.brand_name AS site_name,
       s.subdomain AS site_slug,
       (
-        SELECT body FROM guest_thread_entries
-        WHERE thread_id = gt.id AND kind = 'message'
+        SELECT body FROM activity_entries
+        WHERE request_id = gt.id AND kind = 'message'
         ORDER BY sequence DESC LIMIT 1
       ) AS latest_message_body,
       (
-        SELECT kind FROM guest_thread_entries
-        WHERE thread_id = gt.id AND kind = 'message'
+        SELECT kind FROM activity_entries
+        WHERE request_id = gt.id AND kind = 'message'
         ORDER BY sequence DESC LIMIT 1
       ) AS latest_message_kind,
       ${SOURCE_PREVIEW_SQL} AS source_preview,
-      CASE gt.submission_type
-        WHEN 'reservation' THEN rs.status
-        WHEN 'experience_booking' THEN eb.status
-        WHEN 'contact' THEN cs.status
-      END AS operational_status
-    FROM guest_threads gt
+      gt.status AS operational_status
+    FROM requests gt
     LEFT JOIN business_locations bl ON bl.id = gt.location_id
     LEFT JOIN sites s ON s.id = gt.site_id
-    LEFT JOIN reservation_submissions rs ON gt.submission_type = 'reservation' AND rs.id = gt.submission_id
-    LEFT JOIN experience_bookings eb ON gt.submission_type = 'experience_booking' AND eb.id = gt.submission_id
-    LEFT JOIN contact_submissions cs ON gt.submission_type = 'contact' AND cs.id = gt.submission_id
-    WHERE ${where}
+    WHERE gt.kind IN ('contact', 'reservation', 'experience_booking') AND ${where}
     ${unreadFilter}
     ORDER BY gt.updated_at DESC
     LIMIT ?
@@ -479,13 +343,13 @@ export async function listOrganizationGuestThreads(
       siteId: row.site_id,
       siteSlug,
       guestName: row.guest_name,
-      submissionType: row.submission_type,
+      submissionType: row.kind,
       contextLabel,
       locationLabel: row.location_title,
       conversationState: row.conversation_state,
       conversationStateLabel: CONVERSATION_STATE_LABELS[row.conversation_state],
       operationalStatus: row.operational_status,
-      operationalStatusLabel: row.operational_status ? formatOperationalStatusLabel(row.submission_type, row.operational_status) : null,
+      operationalStatusLabel: row.operational_status ? formatOperationalStatusLabel(row.kind, row.operational_status) : null,
       unread,
       unreadCount: unread ? 1 : 0,
       preview: row.latest_message_kind === 'message'
@@ -500,20 +364,20 @@ export async function listOrganizationGuestThreads(
 
 async function listUnreadThreadIds(db: DbClient, threadIds: string[], userId: string): Promise<string[]> {
   if (threadIds.length === 0) return []
-  const rows = await queryAll<{ thread_id: string }>(db, `
-    SELECT gt.id AS thread_id
-    FROM guest_threads gt
+  const rows = await queryAll<{ request_id: string }>(db, `
+    SELECT gt.id AS request_id
+    FROM requests gt
     WHERE gt.id IN (SELECT value FROM json_each(?))
       AND EXISTS (
-        SELECT 1 FROM notifications n
-        JOIN guest_thread_entries notification_entry ON notification_entry.id = n.source_entry_id
-        LEFT JOIN notification_reads nr ON nr.notification_id = n.id AND nr.user_id = ?
-        WHERE notification_entry.thread_id = gt.id
+        SELECT 1 FROM activity_entries n
+        JOIN activity_entries notification_entry ON notification_entry.id = n.parent_id
+        LEFT JOIN activity_entries nr ON nr.parent_id = n.id AND nr.actor_user_id = ? AND nr.kind = 'acknowledgement'
+        WHERE notification_entry.request_id = gt.id
           AND (n.target_user_id IS NULL OR n.target_user_id = ?)
-          AND nr.notification_id IS NULL
+          AND nr.id IS NULL AND n.kind = 'notification'
       )
   `, [d1JsonStringSet(threadIds), userId, userId])
-  return (rows ?? []).map(row => row.thread_id)
+  return (rows ?? []).map(row => row.request_id)
 }
 
 export async function updateThreadProjection(
@@ -523,7 +387,7 @@ export async function updateThreadProjection(
 ): Promise<void> {
   const now = new Date().toISOString()
   await execute(db, `
-    UPDATE guest_threads
+    UPDATE requests
     SET conversation_state = ?, resolved_at = ?, updated_at = ?
     WHERE id = ?
   `, [update.conversationState, update.conversationState === 'resolved' ? now : null, now, threadId])
@@ -537,18 +401,18 @@ export async function updateThreadProjectionIfLatestEntry(
 ): Promise<void> {
   const now = new Date().toISOString()
   await execute(db, `
-    UPDATE guest_threads
+    UPDATE requests
     SET conversation_state = ?, resolved_at = ?, updated_at = ?
     WHERE id = ?
       AND EXISTS (
         SELECT 1
-        FROM guest_thread_entries projected
+        FROM activity_entries projected
         WHERE projected.id = ?
-          AND projected.thread_id = guest_threads.id
+          AND projected.request_id = requests.id
           AND NOT EXISTS (
             SELECT 1
-            FROM guest_thread_entries later
-            WHERE later.thread_id = projected.thread_id
+            FROM activity_entries later
+            WHERE later.request_id = projected.request_id
               AND later.sequence > projected.sequence
           )
       )

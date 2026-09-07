@@ -137,3 +137,65 @@ never place a key in a plan file or commit it.
 
 There is no live-mode apply path. A live key may be used for read-only planning,
 but a plan generated from live state cannot be applied by this command.
+
+## Organization metadata and webhook cutover
+
+The same operator script has an explicit `--ownership-file` mode for the Epoch 5
+handoff. Catalog mutation still requires a test key. Ownership mode accepts the
+inventory's exact account and mode, including live, and changes only Customer
+metadata, non-canceled Subscription metadata, and the existing webhook URL. Run
+this during the canonical release cutover, before removing the old webhook route
+from production. The current request authorizes staging only; production execution
+belongs to the owner.
+
+Create a private JSON inventory from the verified epoch export's Better Auth
+Organization customer IDs and the read-only Stripe endpoint census:
+
+```json
+{
+  "accountId": "acct_REPLACE",
+  "mode": "live",
+  "organizations": [{ "organizationId": "REPLACE", "customerId": "cus_REPLACE" }],
+  "webhook": {
+    "endpointId": "we_REPLACE",
+    "fromUrl": "https://krabiclaw.com/api/billing/webhook",
+    "toUrl": "https://krabiclaw.com/api/auth/stripe/webhook"
+  }
+}
+```
+
+Use the configured environment key. Keep inventory, plan and journal outside Git;
+the plan includes provider identifiers and ownership metadata.
+
+```sh
+node scripts/seed-stripe.mjs --ownership-file /private/ownership.json --dry-run --plan-file /private/ownership-plan.json
+node scripts/seed-stripe.mjs --ownership-file /private/ownership.json --apply --plan-file /private/ownership-plan.json --confirm-sha256 REVIEWED_SHA --journal-file /private/ownership-journal.json
+node scripts/seed-stripe.mjs --ownership-file /private/ownership.json --verify-ownership
+```
+
+The plan records original and proposed values. It sets Customer
+`organizationId`/`customerType=organization` and Subscription `referenceId`,
+removes the obsolete `organization_id` metadata key, and preserves all other
+metadata. Canceled subscriptions cannot be updated through Stripe: their exact
+metadata is retained, and ownership is established by their customer. Prices,
+quantities, invoices, subscription lifecycle fields, webhook ID, events, status,
+API version and signing secret are unchanged. The script rejects conflicting
+ownership, account/mode mismatch, new/deleted provider objects and drift from the
+reviewed snapshot. A retry with the same plan accepts already-applied operations;
+request idempotency keys and a private journal protect partial completion.
+
+For rollback while the reviewed provider state still matches, use the same plan
+and hash with `--rollback-ownership --apply` and a separate journal path. This
+restores exact original metadata and endpoint URL. Generate a fresh plan before
+any later forward cutover so it receives new request idempotency keys. If the snapshot changed,
+reconcile the changes under the release rollback procedure; do not force this
+command through drift. The post-apply read verifies the full reviewed object
+snapshot, including unchanged billing terms. Verify the Worker receives a signed
+webhook at the canonical path and use the existing event replay/reconciliation
+operator path for retained failed events. Preserve expired dead-letter tombstones;
+provider-retention expiry does not justify creating replacement historical events.
+
+Supported provider APIs: [Customer metadata update](https://docs.stripe.com/api/customers/update),
+[Subscription metadata update](https://docs.stripe.com/api/subscriptions/update),
+[Webhook endpoint URL update](https://docs.stripe.com/api/webhook_endpoints/update),
+and [canceled subscription restrictions](https://docs.stripe.com/billing/subscriptions/cancel).

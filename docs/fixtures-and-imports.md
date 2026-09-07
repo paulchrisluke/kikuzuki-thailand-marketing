@@ -40,13 +40,15 @@ Typed fixtures must use the same media storage contract as production CMS upload
 Real client data goes through the approved import pipeline:
 
 ```text
-client:import --organization-id <existing-better-auth-organization-id> --dry-run
+client:import --organization-id <existing-better-auth-organization-id> --brand-name "<approved brand name>" --dry-run
                         → reviewable manifests in client-imports/<slug>/
 human review
 client:import --approve   → signs the manifest hash
 client:import --apply     → executes only the approved seed
 client:verify             → all checks must pass
 ```
+
+Imports use Places v1 with `GOOGLE_PLACES_API_KEY`. Each Maps URL must contain its selected place ID (`!1sChIJ...` or `query_place_id=...`). Supply the approved site name with `--brand-name`; location ordering never chooses site identity. Corrections use `client:override --slug <slug> --place-id <place-id> --set email=<email>` and are stored by place ID. Regenerate the dry run after any correction.
 
 `approved.json` is the gate. No client site is applied without it.
 

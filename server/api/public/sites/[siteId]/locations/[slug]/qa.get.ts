@@ -16,9 +16,9 @@ export default defineHandler(async (event) => {
   if (!location) return jsonResponse({ error: 'Location not found' }, { status: 404 })
 
   const results = await queryAll(
-    db, `SELECT id, question, question_author, question_date, answer, answer_author, answer_date, is_owner_answer, upvote_count
-     FROM location_qa
-     WHERE location_id = ? AND status = 'published'
+    db, `SELECT id, title AS question, summary AS answer, (metadata_json ->> '$.question_author') AS question_author, (metadata_json ->> '$.question_date') AS question_date, (metadata_json ->> '$.answer_author') AS answer_author, (metadata_json ->> '$.answer_date') AS answer_date, (metadata_json ->> '$.is_owner_answer') AS is_owner_answer, (metadata_json ->> '$.upvote_count') AS upvote_count
+     FROM content_documents
+     WHERE kind = 'qa' AND row_role = 'root' AND location_id = ? AND status = 'published'
      ORDER BY is_owner_answer DESC, upvote_count DESC, sort_order, created_at`, [location.id], )
 
   return jsonResponse({ qa: results ?? [] })

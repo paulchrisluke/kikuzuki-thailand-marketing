@@ -1,4 +1,4 @@
-import { normalizeOpeningHours, isOpenNow } from '../shared/reservation-hours.ts'
+import { getDateIntervals, isOpenNow, localNow, closureOnDate, fmt12Hour, toTimeString, shiftDate, type OpeningHours, type SpecialHours, type Closure } from '../shared/reservation-hours.ts'
 /** Derives up to 2 uppercase initials from a display name, for UAvatar's `text` fallback. */
 export function getInitials(name: string | null | undefined): string {
   const value = name?.trim()
@@ -40,287 +40,30 @@ export const formatDate = (dateString: string | null | undefined) => {
   })
 }
 
-export const formatGoogleTime = (time: { hours?: number; minutes?: number } | null | undefined) => {
-  if (!time || time.hours === undefined || time.minutes === undefined) return ''
-  const h = time.hours % 12 || 12
-  const m = time.minutes.toString().padStart(2, '0')
-  const ampm = time.hours >= 12 ? 'PM' : 'AM'
-  return `${h}:${m} ${ampm}`
+export const getActiveSpecialClosure = (hours: SpecialHours, timezone?: string | null, date?: string): Closure | undefined => {
+  if (!date && !timezone) return undefined
+  return closureOnDate(hours, date ?? localNow(timezone!).date)
 }
-
-interface GoogleTime {
-  hours?: number
-  minutes?: number
-}
-
-interface GoogleRegularPeriod {
-  openDay: string
-  openTime?: GoogleTime
-  closeTime?: GoogleTime
-}
-
-interface GoogleRegularHours {
-  periods?: GoogleRegularPeriod[]
-  // Simple string-time format used by seed/manual entry: openTime/closeTime are "HH:MM"
-  // weekdayDescriptions format written by ChowBot
-  weekdayDescriptions?: string[]
-}
-
-// Parse "HH:MM" string into {hours, minutes} object
-function parseTimeStr(t: unknown): GoogleTime | null {
-  if (typeof t === 'object' && t !== null) return t as GoogleTime
-  if (t === null || t === undefined) return null
-  const str = String(t).trim()
-  if (!str) return null
-  const [hoursRaw, minutesRaw] = str.split(':')
-  const h = Number(hoursRaw)
-  const m = Number(minutesRaw)
-  if (isNaN(h)) return null
-  return { hours: h, minutes: isNaN(m) ? 0 : m }
-}
-
-interface GoogleDate {
-  year: number
-  month: number
-  day: number
-}
-
-interface GoogleSpecialPeriod {
-  startDate: GoogleDate
-  endDate?: GoogleDate
-  isClosed?: boolean
-  openTime?: GoogleTime
-  closeTime?: GoogleTime
-  note?: string
-}
-
-interface GoogleSpecialHours {
-  specialHourPeriods?: GoogleSpecialPeriod[]
-}
-
-function compareGoogleDates(a: GoogleDate, b: GoogleDate): number {
-  if (a.year !== b.year) return a.year - b.year
-  if (a.month !== b.month) return a.month - b.month
-  return a.day - b.day
-}
-
-// Resolves "today" as a calendar date in the location's own timezone, since a
-// closure spanning e.g. "July 4 - July 18" must compare against the
-// location's local date, not the server's or visitor's.
-function todayInTimezone(timezone?: string | null): GoogleDate {
-  try {
-    const parts = new Intl.DateTimeFormat('en-CA', {
-      timeZone: timezone || undefined,
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-    }).formatToParts(new Date())
-    const get = (type: string) => Number(parts.find(p => p.type === type)?.value)
-    return { year: get('year'), month: get('month'), day: get('day') }
-  } catch {
-    const now = new Date()
-    return { year: now.getFullYear(), month: now.getMonth() + 1, day: now.getDate() }
-  }
-}
-
-// Resolves the current weekday name and minutes-since-midnight in the
-// location's own timezone, since the server (Cloudflare Workers) runs in UTC
-// and comparing UTC wall-clock time against a location's local business hours
-// produces wrong open/closed results (and can roll the weekday over early/late).
-export function nowInTimezone(timezone?: string | null): { weekday: string; minutes: number } {
-  try {
-    const parts = new Intl.DateTimeFormat('en-US', {
-      timeZone: timezone || undefined,
-      weekday: 'long',
-      hour: '2-digit',
-      minute: '2-digit',
-      hourCycle: 'h23',
-    }).formatToParts(new Date())
-    const weekday = parts.find(p => p.type === 'weekday')?.value?.toUpperCase()
-    const hour = Number(parts.find(p => p.type === 'hour')?.value)
-    const minute = Number(parts.find(p => p.type === 'minute')?.value)
-    if (!weekday || Number.isNaN(hour) || Number.isNaN(minute)) throw new Error('invalid parts')
-    return { weekday, minutes: hour * 60 + minute }
-  } catch {
-    const days = ['SUNDAY', 'MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY']
-    const now = new Date()
-    return { weekday: days[now.getDay()] as string, minutes: now.getHours() * 60 + now.getMinutes() }
-  }
-}
-
-export const formatGoogleDate = (date: GoogleDate): string => {
-  const d = new Date(Date.UTC(date.year, date.month - 1, date.day))
-  return d.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric', timeZone: 'UTC' })
-}
-
-// Finds an active date-specific closure/special-hours period for "today" in the
-// location's timezone. special_hours is stored as { specialHourPeriods: [...] },
-// possibly JSON-stringified. Returns undefined when no closure is currently active.
-export const getActiveSpecialClosure = (
-  specialHours: string | GoogleSpecialHours | null | undefined,
-  timezone?: string | null,
-  todayOverride?: GoogleDate,
-): GoogleSpecialPeriod | undefined => {
-  if (!specialHours) return undefined
-  let parsed: GoogleSpecialHours | null
-  if (typeof specialHours === 'string') {
-    try {
-      parsed = JSON.parse(specialHours)
-    } catch {
-      return undefined
-    }
-  } else {
-    parsed = specialHours
-  }
-
-  const periods = parsed?.specialHourPeriods ?? []
-  if (!periods.length) return undefined
-
-  const today = todayOverride ?? todayInTimezone(timezone)
-
-  return periods.find((period) => {
-    if (!period.isClosed || !period.startDate) return false
-    const end = period.endDate ?? period.startDate
-    return compareGoogleDates(today, period.startDate) >= 0 && compareGoogleDates(today, end) <= 0
-  })
-}
-
-// Guest-facing message for an active closure, e.g. "Temporarily closed —
-// reopening July 18, 2026". Shared by the location page banner and by
-// anything (experience cards/detail) that needs to explain why booking is
-// unavailable for a location currently under a special_hours closure.
-export const formatClosureMessage = (closure: GoogleSpecialPeriod | null | undefined): string | null => {
+export const formatClosureMessage = (closure: Closure | null | undefined): string | null => {
   if (!closure) return null
   if (closure.note) return closure.note
-  if (!closure.endDate) return 'Temporarily closed until further notice'
-  // endDate is the last closed day (getActiveSpecialClosure treats the range as
-  // inclusive), so the location reopens the day after it, not on it.
-  const e = closure.endDate
-  const next = new Date(Date.UTC(e.year, e.month - 1, e.day + 1))
-  const reopenDate = { year: next.getUTCFullYear(), month: next.getUTCMonth() + 1, day: next.getUTCDate() }
-  return `Temporarily closed — reopening ${formatGoogleDate(reopenDate)}`
+  return closure.ends_on ? `Temporarily closed. Reopening ${formatDate(shiftDate(closure.ends_on, 1))}` : 'Temporarily closed until further notice'
 }
-
-export const formatGoogleHours = (
-  regularHours: GoogleRegularHours | GoogleRegularPeriod[] | string[] | null | undefined,
-  locale = 'en',
-  closedLabel = 'Closed',
-) => {
-  const days = ['MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY', 'SUNDAY']
-
-  const descriptions: string[] | undefined = Array.isArray(regularHours) && regularHours.every((value): value is string => typeof value === 'string')
-    ? regularHours as string[]
-    : !Array.isArray(regularHours) ? regularHours?.weekdayDescriptions : undefined
-
-  // Handle weekdayDescriptions format (ChowBot plain-text storage)
-  if (descriptions?.length) {
-    return descriptions.map(line => {
-      const [dayPart, ...rest] = line.split(/:\s*/)
-      return { day: (dayPart ?? line).trim(), hours: rest.join(': ').trim() || line }
-    })
-  }
-
-  // Handle flat array format: [{openDay, openTime, closeTime}]
-  // openTime/closeTime may be "HH:MM" strings or {hours, minutes} objects
-  const periods: GoogleRegularPeriod[] = Array.isArray(regularHours)
-    ? (regularHours as GoogleRegularPeriod[])
-    : (regularHours as GoogleRegularHours)?.periods ?? []
-
-  if (!periods.length) return []
-
-  return days.map(day => {
-    const period = periods.find((p) => p.openDay === day)
+export const formatOpeningHours = (hours: OpeningHours, locale = 'en', closedLabel = 'Closed', timezone?: string | null) => {
+  if (hours === null) return []
+  const today = timezone ? localNow(timezone).date : null
+  const todayDay = today ? new Date(`${today}T00:00:00Z`).getUTCDay() : null
+  return Array.from({ length: 7 }, (_, index) => {
+    const date = shiftDate('2024-01-01', index)
+    const periods = getDateIntervals(hours, null, date) ?? []
     return {
-      day: new Intl.DateTimeFormat(locale, { weekday: 'long', timeZone: 'UTC' })
-        .format(new Date(Date.UTC(2024, 0, 1 + days.indexOf(day)))),
-      today: days[new Date().getDay() === 0 ? 6 : new Date().getDay() - 1] === day,
-      hours: period
-        ? `${formatGoogleTime(parseTimeStr(period.openTime))} – ${formatGoogleTime(parseTimeStr(period.closeTime))}`
-        : closedLabel
+      day: new Intl.DateTimeFormat(locale, { weekday: 'long', timeZone: 'UTC' }).format(new Date(`${date}T00:00:00Z`)),
+      today: (index + 1) % 7 === todayDay,
+      hours: periods.length ? periods.map(p => `${fmt12Hour(toTimeString(Math.max(0, p.start)), locale)} to ${fmt12Hour(toTimeString(Math.min(p.end, 1440)), locale)}`).join(', ') : closedLabel,
     }
   })
 }
-
-export const getIsOpenNow = (regularHours: GoogleRegularHours | GoogleRegularPeriod[] | null | undefined, timezone?: string | null): boolean | undefined => {
-  if (!regularHours) return undefined
-  return isOpenNow(normalizeOpeningHours(regularHours), timezone)
-}
-
-export const getTodayGoogleHours = (regularHours: GoogleRegularHours | GoogleRegularPeriod[] | null | undefined, todayOverride?: string) => {
-  const days = ['SUNDAY', 'MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY']
-  const today = todayOverride ? todayOverride.toUpperCase() : days[new Date().getDay()]
-  const descriptions = !Array.isArray(regularHours)
-    ? (regularHours as GoogleRegularHours)?.weekdayDescriptions ?? []
-    : []
-  const todayDescription = descriptions.find(line => line.trim().toUpperCase().startsWith(`${today}:`))
-
-  const periods: GoogleRegularPeriod[] = Array.isArray(regularHours)
-    ? (regularHours as GoogleRegularPeriod[])
-    : (regularHours as GoogleRegularHours)?.periods ?? []
-
-  if (!periods.length) return todayDescription || 'Contact us for hours'
-
-  const period = periods.find((p) => p.openDay === today)
-  if (!period) return todayDescription || 'Closed today'
-
-  return `${formatGoogleTime(parseTimeStr(period.openTime))} – ${formatGoogleTime(parseTimeStr(period.closeTime))}`
-}
-
-export const getSchemaOpeningHours = (regularHours: GoogleRegularHours | null | undefined) => {
-  if (!regularHours?.periods?.length) {
-    return [{
-      '@type': 'OpeningHoursSpecification',
-      dayOfWeek: ['Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'],
-      opens: '12:00',
-      closes: '22:30'
-    }]
-  }
-
-  const dayMap: Record<string, string> = {
-    MONDAY: 'Monday',
-    TUESDAY: 'Tuesday',
-    WEDNESDAY: 'Wednesday',
-    THURSDAY: 'Thursday',
-    FRIDAY: 'Friday',
-    SATURDAY: 'Saturday',
-    SUNDAY: 'Sunday'
-  }
-
-  return regularHours.periods.map((p) => {
-    const pad = (n?: number) => n?.toString().padStart(2, '0') || '00'
-    return {
-      '@type': 'OpeningHoursSpecification',
-      dayOfWeek: [dayMap[p.openDay] ?? 'Monday'],
-      opens: `${pad(p.openTime?.hours)}:${pad(p.openTime?.minutes)}`,
-      closes: `${pad(p.closeTime?.hours)}:${pad(p.closeTime?.minutes)}`
-    }
-  })
-}
-
-export const getSpecialHoursNotice = (specialHours: GoogleSpecialHours | null | undefined) => {
-  if (!specialHours?.specialHourPeriods?.length) return null
-
-  const now = new Date()
-  const todayDate = {
-    year: now.getFullYear(),
-    month: now.getMonth() + 1,
-    day: now.getDate()
-  }
-
-  const special = specialHours.specialHourPeriods.find((p) => 
-    p.startDate.year === todayDate.year && 
-    p.startDate.month === todayDate.month && 
-    p.startDate.day === todayDate.day
-  )
-
-  if (!special) return null
-
-  if (special.isClosed) {
-    return 'Closed today for holiday/special event'
-  }
-
-  return `Special holiday hours today: ${formatGoogleTime(special.openTime ?? {})} – ${formatGoogleTime(special.closeTime ?? {})}`
-}
+export const getIsOpenNow = (hours: OpeningHours, timezone?: string | null, special: SpecialHours = null): boolean | undefined => isOpenNow(hours, timezone, new Date(), special)
 
 /**
  * Returns '#ffffff' or '#000000' based on the luminance of the provided hex color.

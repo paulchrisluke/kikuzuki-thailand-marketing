@@ -164,7 +164,10 @@ const reviews = computed<PublicSiteReview[]>(() => arrayRecords(reviewsBlock.val
   title: null,
   content: stringValue(item.description),
   original_review_date: null,
-  verified: true,
+  verified: false,
+  source: null,
+  original_reference: null,
+  google_review_metadata: null,
 })).filter(item => item.id && item.author_name))
 
 const pricingBlock = computed(() => block('offering_grid', data => data.section === 'pricing'))

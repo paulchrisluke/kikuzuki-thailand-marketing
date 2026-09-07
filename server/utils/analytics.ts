@@ -15,16 +15,16 @@ export async function getPlatformAnalyticsSummary(db: DbClient, startDate: strin
   const { start, end } = utcBounds(startDate, endDate)
   const [daily, totals, topPages, signups, dailySignups] = await Promise.all([
     queryAll<Record<string, unknown>>(db, `SELECT substr(created_at, 1, 10) date, COUNT(*) page_views,
-      COUNT(DISTINCT session_id) unique_sessions FROM site_pageview_events
-      WHERE site_id = ? AND created_at >= ? AND created_at < ? GROUP BY 1 ORDER BY 1`, [PLATFORM_SITE_ID, start, end]),
+      COUNT(DISTINCT session_id) unique_sessions FROM analytics_events
+      WHERE kind = 'pageview' AND site_id = ? AND created_at >= ? AND created_at < ? GROUP BY 1 ORDER BY 1`, [PLATFORM_SITE_ID, start, end]),
     queryFirst<Record<string, unknown>>(db, `SELECT COUNT(*) page_views, COUNT(DISTINCT session_id) sessions,
-      COUNT(DISTINCT visitor_id) visitors FROM site_pageview_events WHERE site_id = ? AND created_at >= ? AND created_at < ?`, [PLATFORM_SITE_ID, start, end]),
-    queryAll<Record<string, unknown>>(db, `SELECT page_path, COUNT(*) views FROM site_pageview_events
-      WHERE site_id = ? AND created_at >= ? AND created_at < ? GROUP BY page_path ORDER BY views DESC LIMIT 10`, [PLATFORM_SITE_ID, start, end]),
-    queryFirst<{ count: number }>(db, `SELECT COUNT(*) count FROM notifications WHERE scope = 'platform'
-      AND template = 'platform.user_signup' AND created_at >= ? AND created_at < ?`, [start, end]),
-    queryAll<Record<string, unknown>>(db, `SELECT substr(created_at, 1, 10) date, COUNT(*) count FROM notifications
-      WHERE scope = 'platform' AND template = 'platform.user_signup' AND created_at >= ? AND created_at < ? GROUP BY 1`, [start, end]),
+      COUNT(DISTINCT visitor_id) visitors FROM analytics_events WHERE kind = 'pageview' AND site_id = ? AND created_at >= ? AND created_at < ?`, [PLATFORM_SITE_ID, start, end]),
+    queryAll<Record<string, unknown>>(db, `SELECT page_path, COUNT(*) views FROM analytics_events
+      WHERE kind = 'pageview' AND site_id = ? AND created_at >= ? AND created_at < ? GROUP BY page_path ORDER BY views DESC LIMIT 10`, [PLATFORM_SITE_ID, start, end]),
+    queryFirst<{ count: number }>(db, `SELECT COUNT(*) count FROM activity_entries WHERE kind = 'notification' AND scope_kind = 'platform'
+      AND event_name = 'platform.user_signup' AND created_at >= ? AND created_at < ?`, [start, end]),
+    queryAll<Record<string, unknown>>(db, `SELECT substr(created_at, 1, 10) date, COUNT(*) count FROM activity_entries
+      WHERE kind = 'notification' AND scope_kind = 'platform' AND event_name = 'platform.user_signup' AND created_at >= ? AND created_at < ? GROUP BY 1`, [start, end]),
   ])
   const pageViews = n(totals?.page_views)
   const signupByDate = new Map(dailySignups.map(row => [String(row.date), n(row.count)]))

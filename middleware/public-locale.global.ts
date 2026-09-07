@@ -10,23 +10,21 @@ export default defineNuxtRouteMiddleware(async (to) => {
     if (!$setAppLocale) throw new Error('Application locale setter is unavailable')
     $setAppLocale(locale, messages)
   }
-  // The tenant's localized routes are handled by the catch-all page, so Nuxt
-  // exposes `tenantPath` rather than a named `locale` param. On the server,
-  // resolve the first path segment against this site's published locales before
-  // layouts request the shared shell. On the client, use the route's published
-  // representations to distinguish a locale prefix from a source path.
+  const explicitLocale = typeof to.params.locale === 'string' ? to.params.locale : null
   if (import.meta.client) {
     const representations = useState<Array<{ locale: string; source: 'source' | 'localized' }>>('public-locale-representations', () => [])
-    if (!representations.value.length) return
-    const candidate = splitLocalePrefix(to.path).localeSegment
-    const source = representations.value.find(item => item.source === 'source')
-    if (!source) throw createError({ statusCode: 500, statusMessage: 'Site primary language is unavailable' })
-    const localized = candidate ? representations.value.find(item => item.source === 'localized' && item.locale === candidate) : undefined
-    if (candidate && platformLocale(candidate) && !localized) {
-      throw createError({ statusCode: 404, statusMessage: 'Language is not available for this page' })
+    let locale: string
+    if (explicitLocale) {
+      locale = explicitLocale
     }
-    let locale = source.locale
-    if (localized) locale = localized.locale
+    else {
+      if (!representations.value.length) return
+      const candidate = splitLocalePrefix(to.path).localeSegment
+      const source = representations.value.find(item => item.source === 'source')
+      if (!source) throw createError({ statusCode: 500, statusMessage: 'Site primary language is unavailable' })
+      const destinationCatalog = candidate ? platformLocale(candidate) : null
+      locale = destinationCatalog ? destinationCatalog.locale : source.locale
+      }
     state.value = locale
     const catalog = platformLocale(locale)
     if (!catalog) throw createError({ statusCode: 500, statusMessage: 'Application language catalog is unavailable' })

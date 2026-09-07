@@ -35,7 +35,6 @@ interface EditorLocationRow {
   id: string
   slug: string
   title: string
-  is_primary: number | boolean
   status: 'active' | 'inactive' | 'sync_error'
   feature_overrides: string | null
 }
@@ -55,16 +54,15 @@ export async function loadDashboardEditorContext(event: H3Event, siteId: string)
   const accessibleLocationIds = await listAccessibleLocationIds(db, principal)
   const [locationRows, billing] = await Promise.all([
     queryAll<EditorLocationRow>(db, `
-      SELECT id, slug, title, is_primary, status, feature_overrides
+      SELECT id, slug, title, status, feature_overrides
         FROM business_locations
        WHERE organization_id = ? AND site_id = ? AND status = 'active'
-       ORDER BY is_primary DESC, title ASC
+       ORDER BY title ASC
     `, [site.organization_id, siteId]),
     getOrganizationBillingProjection(db, site.organization_id),
   ])
   const locations = locationRows
     .filter(location => accessibleLocationIds === null || accessibleLocationIds.includes(location.id))
-    .map(location => ({ ...location, is_primary: Boolean(location.is_primary) }))
   const entitlements = billing.entitlements
   if (typeof env.PREVIEW_SECRET !== 'string' || !env.PREVIEW_SECRET) {
     throw new HTTPError({ statusCode: 500, statusMessage: 'PREVIEW_SECRET is required for editor previews' })
@@ -249,12 +247,12 @@ async function loadLocationContentCounts(
          AND ma.status = 'active'
         WHERE mp.site_id = ? AND mp.owner_type = 'business_location' AND mp.owner_id = ?
           AND mp.slot IN ('hero', 'gallery') AND mp.status = 'active') AS photos,
-      (SELECT COUNT(*) FROM experiences WHERE site_id = ? AND location_id = ?) AS experiences,
-      (SELECT COUNT(*) FROM posts WHERE site_id = ? AND location_id = ? AND status = 'published') AS posts,
-      (SELECT COUNT(*) FROM location_qa WHERE site_id = ? AND location_id = ?) AS qa,
-      (SELECT COUNT(*) FROM reservation_submissions
-        WHERE site_id = ? AND location_id = ? AND status IN ('new', 'confirmed')
-          AND date >= date('now')) AS upcoming_reservations
+      (SELECT COUNT(*) FROM products WHERE product_type = 'experience' AND site_id = ? AND location_id = ?) AS experiences,
+      (SELECT COUNT(*) FROM content_documents WHERE kind = 'social_post' AND row_role = 'root' AND site_id = ? AND location_id = ? AND status = 'published') AS posts,
+      (SELECT COUNT(*) FROM content_documents WHERE kind = 'qa' AND row_role = 'root' AND site_id = ? AND location_id = ?) AS qa,
+      (SELECT COUNT(*) FROM requests
+        WHERE kind = 'reservation' AND site_id = ? AND location_id = ? AND status IN ('pending', 'confirmed')
+          AND booking_date >= date('now')) AS upcoming_reservations
   `, Array.from({ length: 5 }, () => [siteId, locationId]).flat())
   return {
     photos: row?.photos ?? 0,
@@ -391,7 +389,7 @@ export async function loadDashboardLocationPosts(
 ) {
   const { env, db, site } = await requireLocationAccess(event, siteId, locationId)
   const [posts, connection] = await Promise.all([
-    listPosts(db, site.organization_id, siteId, env, status, locationId),
+    listPosts(db, site.organization_id, siteId, status, locationId),
     getFacebookPagesConnection(env, site.organization_id, siteId),
   ])
   return {

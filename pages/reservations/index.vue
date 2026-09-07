@@ -46,11 +46,11 @@
             </div>
             <ClientOnly>
               <div
-                v-if="getTodayHoursLabel(loc.opening_hours, resCopy.closedLabel, loc.timezone)"
+                v-if="getTodayHoursLabel(loc.opening_hours, resCopy.closedLabel, loc.timezone, new Date(), loc.special_hours, locale)"
                 class="absolute bottom-4 left-4 inline-flex items-center gap-2 rounded-full bg-default/95 px-4 py-2 text-xs font-medium uppercase tracking-wide text-default"
               >
-                <span class="size-1.5 rounded-full" :class="isOpenNow(loc.opening_hours, loc.timezone) ? 'bg-green-500' : 'bg-zinc-400'" />
-                {{ isOpenNow(loc.opening_hours, loc.timezone) ? resCopy.openNowLabel : resCopy.closedLabel }} · {{ getTodayHoursLabel(loc.opening_hours, resCopy.closedLabel, loc.timezone) }}
+                <span class="size-1.5 rounded-full" :class="isOpenNow(loc.opening_hours, loc.timezone, new Date(), loc.special_hours) ? 'bg-green-500' : 'bg-zinc-400'" />
+                {{ isOpenNow(loc.opening_hours, loc.timezone, new Date(), loc.special_hours) ? resCopy.openNowLabel : resCopy.closedLabel }} · {{ getTodayHoursLabel(loc.opening_hours, resCopy.closedLabel, loc.timezone, new Date(), loc.special_hours, locale) }}
               </div>
             </ClientOnly>
           </div>
@@ -212,17 +212,7 @@ const selectedLocation = computed(() =>
   locations.value.find(location => typeof location.id === 'string' && location.id === reservationForm.value.location_id),
 )
 
-function localizedHoursToday(location: ApiRecord): string | null {
-  if (!Array.isArray(location.opening_hours_translated)) return null
-  const weekday = new Intl.DateTimeFormat('en-US', {
-    weekday: 'long',
-    timeZone: typeof location.timezone === 'string' ? location.timezone : undefined,
-  }).format(new Date()).toUpperCase()
-  const index = ['MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY', 'SUNDAY'].indexOf(weekday)
-  if (index < 0) return null
-  const value = location.opening_hours_translated[index]
-  return typeof value === 'string' ? value : null
-}
+
 
 function bookingLocationAddress(location: ApiRecord): unknown {
   if (locale.value === 'en') return location.address
@@ -232,9 +222,7 @@ function bookingLocationAddress(location: ApiRecord): unknown {
 const bookingLocations = computed(() => locations.value.map(location => ({
   ...location,
   address: bookingLocationAddress(location),
-  todayHours: locale.value === 'en'
-    ? getTodayHoursLabel(location.opening_hours, resCopy.value.closedLabel, location.timezone)
-    : localizedHoursToday(location),
+  todayHours: getTodayHoursLabel(location.opening_hours, resCopy.value.closedLabel, location.timezone, new Date(), location.special_hours, locale.value),
 })))
 
 function formatLocationAddress(address: unknown): string | null {

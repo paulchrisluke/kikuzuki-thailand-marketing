@@ -1,3 +1,4 @@
+import { parseRecurringSlots, type RecurringSlots } from '~/shared/reservation-hours'
 import { jsonResponse, readRequiredBody } from '~/server/utils/api-response'
 import { createExperience } from '~/server/utils/experiences'
 import { parseMediaAssetRefs } from '~/server/utils/media-asset-manager'
@@ -19,19 +20,13 @@ export default defineHandler(async (event) => {
   if (!siteId) return jsonResponse({ error: 'siteId required' }, { status: 400 })
 
   const { env, db, session, site } = await requireSiteAccess(event, siteId, 'context')
-  const siteRecord = await queryFirst<{ primary_location_id: string | null }>(
-    db, 'SELECT primary_location_id FROM sites WHERE id = ? AND organization_id = ? LIMIT 1', [siteId, site.organization_id], )
-  if (!siteRecord) return jsonResponse({ error: 'Site not found or access denied' }, { status: 404 })
-
   let body: Record<string, ApiValue>
   try { body = await readRequiredBody<Record<string, ApiValue>>(event) } catch { return jsonResponse({ error: 'Invalid request body' }, { status: 400 }) }
 
   const title = String(body.title ?? '').trim()
   if (!title) return jsonResponse({ error: 'title is required' }, { status: 400 })
 
-  const locationId = ('location_id' in body && body.location_id !== undefined && body.location_id !== null)
-    ? String(body.location_id)
-    : siteRecord.primary_location_id
+  const locationId = typeof body.location_id === 'string' ? body.location_id.trim() : ''
   if (!locationId) {
     return jsonResponse({ error: 'location_id is required' }, { status: 400 })
   }
@@ -50,6 +45,11 @@ export default defineHandler(async (event) => {
     if (parsed === null) return jsonResponse({ error: 'featured_sort_order must be an integer' }, { status: 400 })
   }
 
+  let recurringSlots: RecurringSlots
+  try { recurringSlots = parseRecurringSlots(body.recurring_slots ?? null) } catch (error) {
+    return jsonResponse({ error: error instanceof Error ? error.message : 'Invalid recurring_slots' }, { status: 400 })
+  }
+
   let includedItems: string[] | null
   let whatToBring: string[] | null
   let media: Array<{ asset_id: string }> | undefined
@@ -63,9 +63,7 @@ export default defineHandler(async (event) => {
   }
 
   const experience = await createExperience(db, site.organization_id, siteId, {
-    title, tagline: body.tagline ? String(body.tagline).trim() : null, body: body.body ? String(body.body).trim() : null, media, tags: body.tags as string[] | undefined, details: body.details as ProductDetail[] | undefined, included_items: includedItems, what_to_bring: whatToBring, meeting_point: body.meeting_point ? String(body.meeting_point).trim() : null, pricing_note: body.pricing_note ? String(body.pricing_note).trim() : null, price: body.price === null ? null : body.price as PriceInput | undefined, duration_minutes: optionalInteger(body.duration_minutes), max_capacity: optionalInteger(body.max_capacity), time_slots: Array.isArray(body.time_slots) ? body.time_slots.map(String) : null, recurring_slots: body.recurring_slots && typeof body.recurring_slots === 'object' && !Array.isArray(body.recurring_slots)
-      ? (body.recurring_slots as Record<string, string[]>)
-      : null, status: (['active', 'inactive', 'sold_out'].includes(String(body.status)) ? String(body.status) : 'active') as 'active' | 'inactive' | 'sold_out', sort_order: optionalInteger(body.sort_order) ?? 0, featured: typeof body.featured === 'boolean' ? body.featured : false, featured_sort_order: optionalInteger(body.featured_sort_order) ?? 0, location_id: locationId, seo_title: body.seo_title ? String(body.seo_title).trim() : null, seo_description: body.seo_description ? String(body.seo_description).trim() : null, }, session.user.id, env)
+    title, tagline: body.tagline ? String(body.tagline).trim() : null, body: body.body ? String(body.body).trim() : null, media, tags: body.tags as string[] | undefined, details: body.details as ProductDetail[] | undefined, included_items: includedItems, what_to_bring: whatToBring, meeting_point: body.meeting_point ? String(body.meeting_point).trim() : null, pricing_note: body.pricing_note ? String(body.pricing_note).trim() : null, price: body.price === null ? null : body.price as PriceInput | undefined, duration_minutes: optionalInteger(body.duration_minutes), max_capacity: optionalInteger(body.max_capacity), recurring_slots: recurringSlots, status: (['active', 'inactive', 'sold_out'].includes(String(body.status)) ? String(body.status) : 'active') as 'active' | 'inactive' | 'sold_out', sort_order: optionalInteger(body.sort_order) ?? 0, featured: typeof body.featured === 'boolean' ? body.featured : false, featured_sort_order: optionalInteger(body.featured_sort_order) ?? 0, location_id: locationId, seo_title: body.seo_title ? String(body.seo_title).trim() : null, seo_description: body.seo_description ? String(body.seo_description).trim() : null, }, session.user.id, env)
 
   return jsonResponse({ experience }, { status: 201 })
 })
