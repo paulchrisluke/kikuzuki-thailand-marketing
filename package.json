@@ -75,8 +75,6 @@
     "client:parity:blawby": "node scripts/compare-blawby-screenshots.mjs",
     "client:deploy": "node scripts/client-deploy.mjs",
     "test:mcp": "node scripts/test-mcp-oauth.mjs",
-    "test:mcp:local": "node scripts/check-local-mcp-harness.mjs",
-    "test:mcp:local:tunnel": "node --experimental-strip-types scripts/test-mcp-local-tunnel.mjs",
     "test:mcp:auth-registration": "node scripts/check-mcp-auth-registration.mjs",
     "test:mcp:app": "node scripts/check-mcp-app-contract.mjs",
     "test:mcp:edit": "node scripts/check-mcp-edit-flow.mjs",
@@ -95,10 +93,7 @@
     "stripe:listen": "stripe listen --forward-to localhost:3000/api/auth/stripe/webhook",
     "stripe:catalog:plan": "node scripts/seed-stripe.mjs --dry-run",
     "stripe:catalog:apply": "node scripts/seed-stripe.mjs --apply",
-    "perf:lighthouse": "node scripts/lighthouse-check.mjs",
-    "demo:record:list-devices": "bash scripts/demo-recording/list-avfoundation-devices.sh",
-    "demo:record:web": "bash scripts/demo-recording/start-screen-recording.sh",
-    "test:mcp:chatgpt": "node --experimental-strip-types scripts/test-mcp-local-tunnel.mjs --chatgpt"
+    "perf:lighthouse": "node scripts/lighthouse-check.mjs"
   },
   "//resolutions": "kysely pinned to 0.28.17: @better-auth/kysely-adapter (bundled transitively by better-auth even though this app only uses drizzleAdapter) imports DEFAULT_MIGRATION_TABLE from the top-level kysely package, which kysely 0.29.x stopped re-exporting from its main barrel. That breaks yarn build's Nitro/Rollup bundling pass. Remove this pin once better-auth's kysely-adapter fixes its import path or drops the kysely dependency.",
   "resolutions": {

@@ -79,11 +79,6 @@ setup keeps minting a throwaway and the route answers 400.
 stale, run the whole command again and then sign in again. Do not run an
 individual seed or provisioning script as an alternate repair path.
 
-Automated Playwright, preview, and public-tunnel gates generate or require their
-own test secrets internally. Those are test inputs, not additional local
-developer accounts. The public ChatGPT tunnel contract is documented separately
-in [local-mcp-harness.md](local-mcp-harness.md).
-
 ## Dashboard URLs
 
 Follow links rendered by the dashboard whenever possible. When constructing a

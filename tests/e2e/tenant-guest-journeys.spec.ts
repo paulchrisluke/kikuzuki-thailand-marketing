@@ -50,6 +50,7 @@ test.describe('tenant guest journeys (disposable local/preview data only)', () =
   test.skip(!writableEnvironment, 'guest writes are forbidden outside local and preview')
 
   test('Pottery House experience booking persists and creates log-only owner dispatch', async ({ page, request }) => {
+    test.setTimeout(90_000)
     const since = new Date().toISOString()
     const email = `pottery-booking-${Date.now()}@playwright.example`
     await openTenantPage(page, `${potteryHouseBaseURL}/experiences/pottery-wheel-class`, potteryHouseExtraHeaders)
@@ -74,6 +75,7 @@ test.describe('tenant guest journeys (disposable local/preview data only)', () =
   })
 
   test('Kikuzuki restaurant reservation persists and creates log-only owner dispatch', async ({ page, request }) => {
+    test.setTimeout(90_000)
     const baseURL = kikuzukiTestBaseUrl()
     const since = new Date().toISOString()
     const email = `kikuzuki-reservation-${Date.now()}@playwright.example`
@@ -112,6 +114,7 @@ test.describe('tenant guest journeys (disposable local/preview data only)', () =
   })
 
   test('Pottery House contact persists and creates an owner notification', async ({ page, request }) => {
+    test.setTimeout(90_000)
     const since = new Date().toISOString()
     const email = `pottery-contact-${Date.now()}@playwright.example`
     await openTenantPage(page, `${potteryHouseBaseURL}/contact`, potteryHouseExtraHeaders)

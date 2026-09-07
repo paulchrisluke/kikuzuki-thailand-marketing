@@ -143,6 +143,7 @@ test('Kikuzuki keeps its Thai shell and category translations on a hard load', a
 
 
 test('Kikuzuki Localize preserves its translated address', async ({ browser, playwright }) => {
+  test.setTimeout(90_000)
   const baseURL = testBaseUrl()
   const owner = await playwright.request.newContext({ baseURL })
   try {

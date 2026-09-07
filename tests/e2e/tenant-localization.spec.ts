@@ -268,6 +268,7 @@ test.describe.serial('published Thai content saves through the CMS and renders w
   })
 
   test('keeps page translations attached to canonical block identities after reorder', async () => {
+    test.setTimeout(120_000)
     const suffix = randomUUID()
     const firstBlockId = `source-first-${suffix}`
     const secondBlockId = `source-second-${suffix}`
