@@ -1,6 +1,6 @@
 # Database epoch 5 cutover
 
-**Status: Production promotion authorized; frozen transfer verified September 7, 2026.**
+**Status: Production promotion authorized; qualification runs before maintenance.**
 **Issue:** #829
 
 Epoch 5 replaces the released Epoch 4 schema on a new D1 resource. The generated
@@ -27,7 +27,8 @@ resource or edit a Wrangler migration ledger.
 | Purpose | Retained resource |
 | --- | --- |
 | Retained production rollback, Epoch 4 | `krabiclaw-db-epoch4-final`, `736830db-4922-4594-bca6-731df2450a23` |
-| Verified production, Epoch 5 | `krabiclaw-db-epoch5-final`, `10d03f30-c9db-49f9-af47-0c5d7c5738eb` |
+| Aborted cutover snapshot, never promoted | `krabiclaw-db-epoch5-final`, `10d03f30-c9db-49f9-af47-0c5d7c5738eb` |
+| Empty production candidate, Epoch 5 | `krabiclaw-db-epoch5-production`, `58c0932a-fe6e-4062-8155-1bfd8a86c495` |
 | Prior staging, Epoch 4 | `krabiclaw-db-staging-epoch4-final`, `ec6c7ee3-a75f-4445-b445-1addfe78482f` |
 | Final staging, 53-table baseline | `krabiclaw-db-staging-epoch5-final`, `e1683b37-39cb-4d46-b299-7cf0b4401147` |
 | Earlier staging candidate, obsolete 94-table baseline | `krabiclaw-db-staging-epoch5`, `47a27e3a-2720-4dec-8e1e-fbca6345c0c3` |
@@ -236,22 +237,41 @@ forwarding rules are unchanged. A real SMTP reply from the authorized canary
 inbox persisted once in its demo-site conversation. The old bridge Worker is
 disconnected from routing.
 
-After the documented freeze and drain, the final production export transformed
+During the first attempt, the frozen production export transformed
 into 53 tables and 41,949 rows. The data-only import into the fresh APAC resource
 was re-exported and independently verified against the frozen source and the
 typed local projection. Schema, every table's data, retained source archive,
 foreign keys, integrity and all nine invariants passed. Private exports and
-credentials remain outside Git. The normal promotion changes only production's
-D1 binding and omits the freeze flag. Production browser verification remains
-required after deployment; social-card generation remains prohibited.
+credentials remain outside Git. Staging's final browser checks then failed on
+shared media during maintenance; Cloudflare recorded 122 media-host 503 responses
+in that test window. The prior production Worker was restored before promotion.
+Writes resumed on Epoch 4, so that verified snapshot is stale and must never be
+promoted or refilled. It remains retained as evidence of the aborted attempt.
+
+Qualify the final staging commit while production is online. Commit the fresh
+empty candidate's production binding before those checks, as in the
+[Epoch 4 procedure](epoch-4-cutover.md#production). This configuration does not
+change the running production Worker. Build that exact qualified commit before
+maintenance. For the maintenance deployment, use its full Wrangler configuration
+with only the old production D1 identity and freeze flag substituted; preserve
+every other setting and resolve relative paths against the checkout. The narrow
+D1 initialization configuration must never be deployed as a Worker.
+
+After the fresh frozen transfer and destination verification pass, merge the
+already-qualified staging commit into main without another staging push. Record
+the final snapshot evidence in the promotion PR. The normal main deployment
+uses the new binding and omits the freeze flag. Production browser verification
+remains required afterward; social-card generation remains prohibited.
 
 Follow [release-and-outage-prevention.md](../operations/release-and-outage-prevention.md)
 and [release-flow.md](../operations/release-flow.md). Prepare a fresh APAC
 production resource and apply the committed baseline without importing prior
-migration history. Keep production configuration changes out of the staging
-qualification deployment.
+migration history. Keep the staging Worker's deployed bindings unchanged while
+qualifying the candidate production configuration.
 
-1. Complete provider prerequisites and verify the exact reviewed candidate.
+1. Complete provider prerequisites and qualify the exact staged candidate before
+   maintenance. Its new production database must contain only the committed
+   baseline, with all application tables empty.
 2. Deploy the candidate with the retained Epoch 4 binding and
    `DB_WRITE_FROZEN = "true"`; drain prior requests for at least 60 seconds.
 3. Take the final production export. Transform and independently verify it.
