@@ -112,9 +112,28 @@ interface BlawbyRouteDescriptor {
 // Placeholder route metadata — see file-header ASSUMPTIONS. Real route keys
 // and paths must be added here (never accepted from a caller) as U5/U6 learn
 // U8's actual contract.
+//
+// U5 additions (ALL placeholder paths, unverified — see U5 report for the
+// same PLACEHOLDER flag U2 already carries for engagementAcceptance/
+// practiceRead above):
+//   - practiceMutate: staff practice-profile updates.
+//   - connectStart: begins a Blawby Connect onboarding flow, returning an
+//     onboarding-link URL (validated against a Stripe-origin allowlist by
+//     the route, R30) and binding it to the caller-supplied Connect
+//     request key (forwarded as requestReference).
+//   - intakeList / intakeAccept: staff intake review and payment-required
+//     intake acceptance.
+//   - engagementContractsList: staff engagement-contract listing.
+// engagement-contracts accept reuses engagementAcceptance verbatim rather
+// than adding a duplicate route key.
 const BLAWBY_BEARER_ROUTES = {
   engagementAcceptance: { path: '/legal/engagements/accept', includeClientIp: true },
   practiceRead: { path: '/legal/practice', includeClientIp: false },
+  practiceMutate: { path: '/legal/practice/update', includeClientIp: false },
+  connectStart: { path: '/legal/connect/onboard', includeClientIp: false },
+  intakeList: { path: '/legal/intakes', includeClientIp: false },
+  intakeAccept: { path: '/legal/intakes/accept', includeClientIp: false },
+  engagementContractsList: { path: '/legal/engagements', includeClientIp: false },
 } as const satisfies Record<string, BlawbyRouteDescriptor>
 
 export type BlawbyRouteKey = keyof typeof BLAWBY_BEARER_ROUTES

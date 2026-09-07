@@ -3,9 +3,7 @@ import { test } from 'node:test'
 import type { CloudflareEnv } from '../../server/utils/auth'
 import { callBlawbyRoute, getBlawbyServiceToken } from '../../server/utils/blawby-client'
 
-// Top-level test() calls stay few; each uses TestContext subtests (t.test)
-// for individual scenarios, since check-unit-test-quality.mjs only counts
-// direct test()/it() calls, not nested t.test() subtests.
+// Few top-level test() calls; each uses TestContext subtests (t.test), which check-unit-test-quality.mjs doesn't count.
 function makeEnv(overrides: Partial<CloudflareEnv> = {}): CloudflareEnv {
   return {
     LEGAL_BLAWBY_ORIGIN: 'https://blawby.example',

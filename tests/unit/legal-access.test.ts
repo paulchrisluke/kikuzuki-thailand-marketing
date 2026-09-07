@@ -2,17 +2,10 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import type { CloudflareEnv } from '../../server/utils/auth'
 import {
-  emitLegalSecurityEvent,
-  isLegalOperationEnabled,
-  legalBudgetKey,
-  parseLegalBudgetPositiveInt,
-  resolveLegalPublicActor,
-  validateLegalMutationOrigin,
-  type LegalOperation,
-} from '../../server/utils/legal-access'
-
-// Few top-level test() calls, many t.test() subtests: check-unit-test-quality.mjs
-// only counts direct test()/it() calls (see tests/unit/blawby-client.test.ts).
+  assertLegalStaffMutationOrigin, emitLegalSecurityEvent, isLegalOperationEnabled, legalBudgetKey,
+  legalJsonResponse, parseLegalBudgetPositiveInt, resolveLegalDashboardOrigin, resolveLegalPublicActor,
+  validateLegalMutationOrigin, type LegalOperation } from '../../server/utils/legal-access'
+// Few top-level test(), many t.test() subtests (only test()/it() count, see blawby-client.test.ts).
 
 test('rollout-group flags and R19 budget config/key logic are independent and fail closed', async (t) => {
   const flagCases: Array<[LegalOperation, string]> = [
@@ -73,6 +66,15 @@ test('R13/R26 origin validation and R29 security-event redaction', async (t) => 
     assert.equal(validateLegalMutationOrigin(eventWithOrigin('http://client-site.example'), canonicalOrigin), false)
     assert.equal(validateLegalMutationOrigin(eventWithOrigin(), canonicalOrigin), false)
     assert.equal(validateLegalMutationOrigin(eventWithOrigin('not a url'), canonicalOrigin), false)
+  })
+
+  await t.test('U5: resolveLegalDashboardOrigin/legalJsonResponse/assertLegalStaffMutationOrigin', () => {
+    assert.equal(resolveLegalDashboardOrigin({ NUXT_PUBLIC_PLATFORM_DOMAIN: 'dashboard.example' } as unknown as CloudflareEnv), 'https://dashboard.example')
+    assert.equal(resolveLegalDashboardOrigin({} as CloudflareEnv), null)
+    assert.equal(legalJsonResponse({ ok: true }).headers.get('cache-control'), 'no-store')
+    const dashEnv = { NUXT_PUBLIC_PLATFORM_DOMAIN: 'dashboard.example' } as unknown as CloudflareEnv
+    assert.throws(() => assertLegalStaffMutationOrigin(eventWithOrigin('https://attacker.example'), dashEnv))
+    assert.throws(() => assertLegalStaffMutationOrigin(eventWithOrigin(), {} as CloudflareEnv)); assertLegalStaffMutationOrigin(eventWithOrigin('https://dashboard.example'), dashEnv)
   })
 
   await t.test('security events carry only the R29 diagnostic fields, never a token/payload/request-reference/session-id/body', () => {

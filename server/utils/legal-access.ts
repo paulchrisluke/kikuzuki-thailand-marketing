@@ -17,8 +17,8 @@ import { HTTPError } from 'nitro'
 import type { H3Event } from 'nitro'
 
 import { queryFirst, type DbClient } from '~/server/db'
-import { getAuthSession, type CloudflareEnv } from '~/server/utils/auth'
-import { cloudflareEnv } from '~/server/utils/api-response'
+import { getAuthSession, normalizeOrigin, type CloudflareEnv } from '~/server/utils/auth'
+import { cloudflareEnv, jsonResponse } from '~/server/utils/api-response'
 import { getDashboardContext } from '~/server/utils/dashboard-context'
 import { assertOrganizationAccess } from '~/server/utils/member-access'
 import { getActiveBlawbySite } from '~/server/utils/professional-services'
@@ -495,4 +495,52 @@ export async function assertLegalPublicActorBudgets(
       })
     }
   }
+}
+
+// -- U5: staff mutation-origin pre-check + shared no-store response --------
+
+// R26/U5's origin-before-eligibility ordering: the plan's step 3 says
+// "validate mutation origin against the exact dashboard origin before
+// eligibility or token acquisition." No dedicated dashboard-origin
+// CloudflareEnv field exists in this repo (grepped LEGAL_/CONNECT/ORIGIN
+// prefixes in server/utils/auth.ts) — flagged as a brief defect in the U5
+// report. NUXT_PUBLIC_PLATFORM_DOMAIN is the closest existing candidate
+// (it's already the dashboard's own trusted-origin entry in
+// trustedOriginsForAuth) and is reused here rather than inventing a new
+// env var, but it was not purpose-built for this check and should be
+// replaced by a dedicated field once U8/U10 make the real requirement
+// concrete.
+export function resolveLegalDashboardOrigin(env: CloudflareEnv): string | null {
+  return normalizeOrigin(env.NUXT_PUBLIC_PLATFORM_DOMAIN)
+}
+
+// Called as the FIRST statement in every staff legal mutation route,
+// strictly before resolveLegalStaffAccess (which does session/membership/
+// site/flag/entitlement resolution) — a fast, cheap, pre-session reject.
+// Emits R29 with organizationId/siteId null (neither is known yet at this
+// point) and actorKind 'staff' since only staff routes call this.
+export function assertLegalStaffMutationOrigin(event: H3Event, env: CloudflareEnv): void {
+  const dashboardOrigin = resolveLegalDashboardOrigin(env)
+  if (!dashboardOrigin) {
+    denyLegal({
+      event, reason: 'origin_unresolved', organizationId: null, siteId: null, actorKind: 'staff',
+      statusCode: 403, message: 'Dashboard origin could not be resolved',
+    })
+  }
+  if (!validateLegalMutationOrigin(event, dashboardOrigin)) {
+    denyLegal({
+      event, reason: 'origin_invalid', organizationId: null, siteId: null, actorKind: 'staff',
+      statusCode: 403, message: 'Request origin is not trusted for this dashboard',
+    })
+  }
+}
+
+// R26's "every legal response is Cache-Control: no-store", applied once
+// here instead of by hand in every U5 route file. Wraps jsonResponse
+// (which does not set this header) rather than duplicating its
+// content-type logic.
+export function legalJsonResponse(body: ApiValue, init: ResponseInit = {}): Response {
+  const headers = new Headers(init.headers)
+  headers.set('cache-control', 'no-store')
+  return jsonResponse(body, { ...init, headers })
 }

@@ -183,7 +183,10 @@ export function shouldBypassE2eAuthRateLimit(
 // WeakMap keyed on the D1 binding instance — safe for the Worker lifecycle
 const authCache = new WeakMap<D1Database, unknown>()
 
-function normalizeOrigin(value: string | undefined): string | null {
+// Exported for U5's legal-access dashboard-origin resolution (see
+// server/utils/legal-access.ts) — the same normalization every other
+// trusted-origin comparison in this file already relies on.
+export function normalizeOrigin(value: string | undefined): string | null {
   const trimmed = value?.trim().replace(/\/$/, '')
   if (!trimmed) return null
   const withProtocol = /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`
