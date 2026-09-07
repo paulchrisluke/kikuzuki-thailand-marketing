@@ -1,5 +1,22 @@
 <template>
-  <UDashboardPanel id="location-experience-detail">
+  <!--
+    With no section open this experience is its parent's detail column, so it
+    renders its rows and nothing else. It becomes the index column only once a
+    section is open.
+  -->
+  <div v-if="frame.mode.value === 'index'">
+    <UAlert
+      v-if="loadError"
+      color="error"
+      variant="soft"
+      icon="i-lucide-triangle-alert"
+      title="Could not load this experience"
+      :description="loadError"
+    />
+    <EditorNavigationList v-else :groups="navigationGroups" />
+  </div>
+
+  <UDashboardPanel v-else id="location-experience-detail">
     <template #header>
       <UDashboardNavbar :title="editor.form.title || 'Experience'" :toggle="false">
         <template #leading>
@@ -31,7 +48,7 @@
 
       <EditorPaneShell
         v-else
-        :has-detail="hasDetail"
+        has-detail
         show-desktop-detail
         :show-actions="showActions"
         :saving="saving"
@@ -281,7 +298,7 @@ import {
 import type { Experience, WeekdayName } from '~/server/utils/experiences'
 import { formatMinorAmount, majorAmountToMinor } from '~/shared/prices'
 import type { CurrencyCode } from '~/shared/currencies'
-import { getErrorMessage } from '~/utils/errors'
+import { getErrorMessage, isNotFoundError } from '~/utils/errors'
 
 const route = useRoute()
 const dashboardApi = useDashboardApi()
@@ -330,8 +347,9 @@ const routeSegments = computed(() => {
   return segments ? [String(segments)] : []
 })
 const detailKey = computed(() => routeSegments.value[0] ?? null)
+// Only read while a section is open; nothing defaults a section into the pane.
 const editorKey = computed(() => detailKey.value ?? 'details')
-const hasDetail = computed(() => Boolean(detailKey.value))
+const frame = useEditorFrame(experiencePath)
 
 // An unsupported route 404s rather than silently showing the first section.
 if (routeSegments.value.length > 1 || (detailKey.value && !validSectionKeys.has(detailKey.value))) {
@@ -339,7 +357,7 @@ if (routeSegments.value.length > 1 || (detailKey.value && !validSectionKeys.has(
 }
 
 // Photos commit as you act, so there is no pending draft for a footer to save.
-const showActions = computed(() => hasDetail.value && editorKey.value !== 'photos')
+const showActions = computed(() => editorKey.value !== 'photos')
 const saveDisabled = computed(() => editorKey.value === 'details' && !editor.form.title.trim())
 const saving = computed(() => editor.saving.value)
 
@@ -367,7 +385,11 @@ const { data, error, refresh } = await useAsyncData(
   { watch: [experienceId, currentLocationId] },
 )
 
-const loadError = computed(() => (error.value ? getErrorMessage(error.value, 'Could not load this experience') : null))
+// An experience that is not there is not a page; a request that failed is a state.
+watchEffect(() => {
+  if (isNotFoundError(error.value)) showError(createError({ statusCode: 404, statusMessage: 'Experience not found' }))
+})
+const loadError = computed(() => (error.value && !isNotFoundError(error.value) ? getErrorMessage(error.value, 'Could not load this experience') : null))
 
 // The list validator only asserts `id`, so a slug can be missing. A localization
 // route built on an empty slug would publish `/th/experiences/`.
