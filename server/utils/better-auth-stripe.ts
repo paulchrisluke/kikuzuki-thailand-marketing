@@ -257,11 +257,11 @@ interface ReconciledSubscriptionRow {
   stripeCustomerId: string | null
   stripeSubscriptionId: string | null
   status: string
-  periodStart: Date | number | string | null
-  periodEnd: Date | number | string | null
+  periodStart: Date | null
+  periodEnd: Date | null
   cancelAtPeriodEnd: boolean | number | null
-  trialStart?: Date | number | string | null
-  trialEnd?: Date | number | string | null
+  trialStart?: Date | null
+  trialEnd?: Date | null
 }
 
 export interface BetterAuthSubscriptionAdapter {
@@ -507,9 +507,8 @@ async function projectCurrentStripeSubscription(
   metadataFallback?: Record<string, string> | null,
 ): Promise<void> {
   const subscription = await repairBetterAuthSubscriptionRow(db, stripe, stripeSubscription, event, deleted, adapter, loadPlans, metadataFallback)
-  const periodEnd = subscription.periodEnd instanceof Date
-    ? subscription.periodEnd
-    : new Date(betterAuthTimestampToIso(subscription.periodEnd as number | string, 'subscription.periodEnd'))
+  if (!subscription.periodEnd) throw new Error('Better Auth subscription.periodEnd is required')
+  const periodEnd = new Date(betterAuthTimestampToIso(subscription.periodEnd, 'subscription.periodEnd'))
   await projectOrganizationSubscription(db, {
     organizationId: subscription.referenceId,
     plan: subscription.plan,

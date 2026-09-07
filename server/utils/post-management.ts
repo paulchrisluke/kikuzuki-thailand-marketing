@@ -657,8 +657,8 @@ export async function publishDuePosts(db: DbClient, now = new Date()) {
   const due = await queryAll<DuePostRow>(db, `
     SELECT id, organization_id, site_id, location_id, (metadata_json ->> '$.post_type') AS post_type, scheduled_for, updated_at
       FROM content_documents
-     WHERE kind = 'social_post' AND row_role = 'root' AND status = 'scheduled' AND julianday(scheduled_for) <= julianday(?)
-     ORDER BY julianday(scheduled_for) ASC, id ASC
+     WHERE kind = 'social_post' AND row_role = 'root' AND status = 'scheduled' AND scheduled_for <= ?
+     ORDER BY scheduled_for ASC, id ASC
      LIMIT 100
   `, [nowIso])
   let published = 0
@@ -671,10 +671,10 @@ export async function publishDuePosts(db: DbClient, now = new Date()) {
         query: `
           UPDATE content_documents
              SET status = 'published', scheduled_for = NULL,
-                 published_at = COALESCE(published_at, scheduled_for, ?), updated_at = ?
-           WHERE kind = 'social_post' AND row_role = 'root' AND id = ? AND status = 'scheduled' AND scheduled_for = ? AND julianday(scheduled_for) <= julianday(?) AND updated_at = ?
+                 published_at = scheduled_for, updated_at = ?
+           WHERE kind = 'social_post' AND row_role = 'root' AND id = ? AND status = 'scheduled' AND scheduled_for = ? AND scheduled_for <= ? AND updated_at = ?
         `,
-        params: [nowIso, updatedAt, post.id, post.scheduled_for, nowIso, post.updated_at],
+        params: [updatedAt, post.id, post.scheduled_for, nowIso, post.updated_at],
       },
       publicResourceCacheInvalidationQuery(post.site_id, 'post-scheduled-publish'),
     ])

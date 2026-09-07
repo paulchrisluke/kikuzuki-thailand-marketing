@@ -87,7 +87,7 @@
 </template>
 
 <script setup lang="ts">
-import { formatDate } from '~/utils/formatters'
+const { formatDate } = useLocaleDate()
 definePageMeta({ layout: 'dashboard' })
 useSeoMeta({ title: 'Work Queue | KrabiClaw Admin', robots: 'noindex, nofollow' })
 

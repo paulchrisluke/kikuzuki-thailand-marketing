@@ -309,7 +309,7 @@
 </template>
 
 <script setup lang="ts">
-import { formatDate } from '~/utils/formatters'
+const { formatDate } = useLocaleDate()
 import { getErrorMessage } from '~/utils/errors'
 import { NEW_SALE_PAID_PLAN_IDS } from '~/shared/billing-model'
 

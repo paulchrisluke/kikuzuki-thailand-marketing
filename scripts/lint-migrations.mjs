@@ -21,7 +21,7 @@ import { DatabaseSync, constants } from 'node:sqlite'
 
 const ROOT = process.cwd()
 const MIGRATIONS_DIR = join(ROOT, 'migrations')
-const EPOCH_BASELINE = '0000_epoch_5_baseline.sql'
+const EPOCH_BASELINE = '0000_epoch_6_baseline.sql'
 
 function stripTriggerBodies(sql) {
   // Replace with an equal number of newlines (not '') so line numbers for any
@@ -61,7 +61,7 @@ function lintEpochBaseline(presentFiles) {
   if (names[0] === EPOCH_BASELINE) return []
   return [{
     file: `migrations/${EPOCH_BASELINE}`,
-    message: 'Epoch 5 must start with its generated baseline. Production history is immutable after cutover; an unreleased staging Epoch 5 candidate may be reset and reprovisioned from this baseline.',
+    message: 'Epoch 6 must start with its generated baseline. Production history is immutable after cutover; an unreleased staging Epoch 6 candidate may be reset and reprovisioned from this baseline.',
   }]
 }
 

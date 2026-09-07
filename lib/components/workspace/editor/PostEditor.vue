@@ -86,8 +86,8 @@
               <USelect v-else v-model="topic.event.recurrence_info.day_of_week_occurrence" :items="['first', 'second', 'third', 'fourth', 'last']" />
               <p class="text-xs text-muted">Weekday occurrences use the start date's weekday. Months without the selected date are skipped.</p>
             </template>
-            <UFormField v-if="topic.event.recurrence_info" label="Series ends" description="Optional RFC 3339 timestamp with timezone, such as 2026-12-31T23:59:59+07:00.">
-              <UInput :model-value="topic.event.recurrence_info.series_end_time ?? ''" class="w-full" @update:model-value="setSeriesEnd" />
+            <UFormField v-if="topic.event.recurrence_info" label="Series ends (UTC)" description="Optional end date and time.">
+              <UInput :model-value="topic.event.recurrence_info.series_end_time ? instantDate(topic.event.recurrence_info.series_end_time).toISOString().slice(0, -1) : ''" type="datetime-local" step="any" class="w-full" @update:model-value="setSeriesEnd" />
             </UFormField>
           </template>
           <template v-if="topic.offer">
@@ -100,8 +100,8 @@
             <p v-if="topic.call_to_action?.action_type === 'call'" class="text-xs text-muted">Calls the phone number saved on this location.</p>
             <UFormField v-else-if="topic.call_to_action" label="Destination URL" required><UInput v-model="topic.call_to_action.url" type="url" class="w-full" /></UFormField>
           </template>
-          <UFormField label="Publish at" description="Leave empty to publish now. To schedule, enter an RFC 3339 timestamp with timezone.">
-            <UInput :model-value="topic.scheduled_for ?? ''" class="w-full" @update:model-value="topic.scheduled_for = String($event).trim() || null" />
+          <UFormField label="Publish at (UTC)" description="Leave empty to publish now.">
+            <UInput :model-value="topic.scheduled_for ? instantDate(topic.scheduled_for).toISOString().slice(0, -1) : ''" type="datetime-local" step="any" class="w-full" @update:model-value="topic.scheduled_for = $event ? instantDate(`${String($event).length === 16 ? `${$event}:00` : $event}Z`).toISOString() : null" />
           </UFormField>
         </div>
 
@@ -198,6 +198,7 @@
 </template>
 
 <script setup lang="ts">
+import { formatTimestamp, instantDate } from '~/utils/timezone'
 import DashboardCoverPhotoField from '~/components/dashboard/DashboardCoverPhotoField.vue'
 import DashboardMediaGalleryField from '~/components/dashboard/DashboardMediaGalleryField.vue'
 import { POST_TYPES, POST_ACTIONS, POST_WEEKDAYS, type PostMutation } from '~/shared/posts'
@@ -229,7 +230,7 @@ function setMonthlyRule(value: string) {
 function setSeriesEnd(value: string | number) {
   const rule = topic.value.event?.recurrence_info
   if (!rule) return
-  if (String(value).trim()) rule.series_end_time = String(value).trim()
+  if (String(value).trim()) rule.series_end_time = instantDate(`${String(value).length === 16 ? `${value}:00` : value}Z`).toISOString()
   else delete rule.series_end_time
 }
 function setOffer(field: 'coupon_code' | 'redeem_online_url' | 'terms_conditions', value: string | number) {
@@ -378,7 +379,7 @@ const formattedPublishedAt = computed(() => {
   if (!props.publishedAt) return ''
   const publishedAt = new Date(props.publishedAt)
   if (Number.isNaN(publishedAt.getTime())) return ''
-  return publishedAt.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
+  return formatTimestamp(publishedAt, 'en', 'UTC', { dateStyle: 'medium' })
 })
 
 function handleImageChange(asset: { asset_id: string; public_url: string | null; thumbnail_url: string | null; kind?: string | null } | null) {

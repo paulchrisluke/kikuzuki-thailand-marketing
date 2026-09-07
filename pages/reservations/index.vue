@@ -132,7 +132,7 @@
       <div v-if="bookingStep === 3" class="flex-1 overflow-y-auto">
         <BookingRecap
           v-if="timeSelection"
-          :main-line="`${timeSelection.label.split(',')[0]} · ${fmt12Hour(timeSelection.time)}`"
+          :main-line="`${timeSelection.label.split(',')[0]} · ${formatTime(timeSelection.time, locale)}`"
           :meta-line="`${guests >= 8 ? '8+' : guests} ${guests === 1 ? resCopy.guestLabel : resCopy.guestsLabelPlural}`"
           @edit="bookingStep = 2"
         />
@@ -159,7 +159,8 @@ import BookingModal from '@/components/booking/BookingModal.vue'
 import BookingRecap from '@/components/booking/BookingRecap.vue'
 import BookingTimeStep, { type RawDateAvailability, type TimeSlotSelection } from '@/components/booking/BookingTimeStep.vue'
 import { useBreadcrumbSchema } from '~/composables/useSchemaOrg'
-import { fmt12Hour, getTodayHoursLabel, isOpenNow } from '~/shared/reservation-hours'
+import { getTodayHoursLabel, isOpenNow } from '~/shared/reservation-hours'
+import { formatTime } from '~/utils/timezone'
 import { setBookingConfirmation } from '~/composables/useBookingHandoff'
 
 function formatTitleItalics(text: string | null | undefined): string {

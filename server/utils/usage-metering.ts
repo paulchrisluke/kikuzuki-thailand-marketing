@@ -1,3 +1,4 @@
+import { instantDate } from '~/utils/timezone'
 import { execute, executeBatch, queryAll, type DbClient } from '~/server/db'
 
 export type UsageResource =
@@ -30,7 +31,7 @@ export interface QuotaGrantInput {
   unit: string
   periodKey: string
   periodStart: string
-  periodEnd?: string | null
+  periodEnd: string
   grantType: 'plan' | 'reset' | 'manual'
   reason: string
   createdBy?: string | null
@@ -66,27 +67,16 @@ function assertQuantity(quantity: number): void {
   parseLedgerQuantity(quantity, 'Usage quantity')
 }
 
-function parseDate(value: string, label: string): Date {
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) throw new Error(`${label} must be a valid date.`)
-  return date
-}
-
-function defaultPeriodEnd(periodStart: string): string {
-  return new Date(parseDate(periodStart, 'Quota period start').getTime() + 7 * 24 * 60 * 60 * 1000).toISOString()
-}
-
-function normalizedPeriodEnd(periodStart: string, periodEnd?: string | null): string | null {
-  if (!periodEnd) return defaultPeriodEnd(periodStart)
-  const start = parseDate(periodStart, 'Quota period start')
-  const end = parseDate(periodEnd, 'Quota period end')
+function normalizedPeriodEnd(periodStart: string, periodEnd: string): string {
+  const start = instantDate(periodStart)
+  const end = instantDate(periodEnd)
   if (end.getTime() <= start.getTime()) throw new Error('Quota period end must be after period start.')
   return end.toISOString()
 }
 
-function isPeriodActive(row: { period_start: string; period_end: string | null }, now: Date): boolean {
-  const start = parseDate(row.period_start, 'Quota period start')
-  const end = parseDate(row.period_end ?? defaultPeriodEnd(row.period_start), 'Quota period end')
+function isPeriodActive(row: { period_start: string; period_end: string }, now: Date): boolean {
+  const start = instantDate(row.period_start)
+  const end = instantDate(row.period_end)
   return now.getTime() >= start.getTime() && now.getTime() < end.getTime()
 }
 
@@ -98,9 +88,9 @@ function utcWeekStart(now: Date): Date {
   return start
 }
 
-function isCurrentWeeklyBaseline(row: { period_start: string; period_end: string | null }, now: Date): boolean {
-  const start = parseDate(row.period_start, 'Quota period start')
-  const end = parseDate(row.period_end ?? defaultPeriodEnd(row.period_start), 'Quota period end')
+function isCurrentWeeklyBaseline(row: { period_start: string; period_end: string }, now: Date): boolean {
+  const start = instantDate(row.period_start)
+  const end = instantDate(row.period_end)
   return start.getTime() === utcWeekStart(now).getTime()
     && end.getTime() === new Date(utcWeekStart(now).getTime() + 7 * 24 * 60 * 60 * 1000).getTime()
 }
@@ -136,7 +126,7 @@ export async function getCurrentCreditGrantProjection(
     id: string
     quantity: number
     period_start: string
-    period_end: string | null
+    period_end: string
     grant_type: 'plan' | 'reset' | 'manual'
     created_at: string
   }>(db, `
@@ -185,7 +175,7 @@ export async function getCurrentCreditGrantProjection(
     baselineGrantType: baseline.grant_type,
     baselineCreatedAt: baseline.created_at,
     periodStart: baseline.period_start,
-    periodEnd: baseline.period_end ?? defaultPeriodEnd(baseline.period_start),
+    periodEnd: baseline.period_end,
     consumptionStart: baseline.grant_type === 'reset' ? baseline.created_at : baseline.period_start,
   }
 }
@@ -252,7 +242,7 @@ export async function grantQuota(db: DbClient, input: QuotaGrantInput): Promise<
       input.quantity,
       input.unit,
       input.periodKey,
-      input.periodStart,
+      instantDate(input.periodStart).toISOString(),
       periodEnd,
       input.grantType,
       input.reason,
@@ -307,7 +297,7 @@ export async function resetOrganizationQuota(
         grant.quantity,
         grant.unit,
         `reset:${input.resetId}`,
-        grant.periodStart,
+        instantDate(grant.periodStart).toISOString(),
         normalizedPeriodEnd(grant.periodStart, grant.periodEnd),
         input.reason,
         input.createdBy ?? null,

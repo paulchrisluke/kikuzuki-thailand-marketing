@@ -33,6 +33,7 @@
 </template>
 
 <script setup lang="ts">
+import { formatTimestamp } from '~/utils/timezone'
 import type { AgendaItem } from '~/server/utils/dashboard-agenda'
 
 const props = defineProps<{
@@ -40,11 +41,7 @@ const props = defineProps<{
   referenceDay: string
 }>()
 
-const formattedTime = computed(() => new Intl.DateTimeFormat('en-US', {
-  timeZone: props.item.timeZone,
-  hour: 'numeric',
-  minute: '2-digit',
-}).format(new Date(props.item.startsAt)))
+const formattedTime = computed(() => formatTimestamp(props.item.startsAt, 'en', props.item.timeZone, { hour: 'numeric', minute: '2-digit' }))
 
 const headline = computed(() => {
   const dayDistance = differenceInDays(props.referenceDay, props.item.dayKey)

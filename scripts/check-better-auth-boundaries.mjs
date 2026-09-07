@@ -109,7 +109,6 @@ function isAlwaysAllowed(file) {
 
 function isAllowed(file, patternId) {
   return isAlwaysAllowed(file)
-    || (patternId === 'direct_oauth_token_sql' && file === 'tests/integration/epoch5-data.test.mjs')
     || EXISTING_DEBT_ALLOWLIST[patternId]?.has(file)
 }
 

@@ -1,5 +1,28 @@
 # ChatGPT submission readiness review
 
+## Epoch 6 date/time contract — 2026-09-07
+
+The expanded PR standardizes persisted application instants as UTC with
+millisecond precision. MCP date, scheduling and price-validity schemas now use
+the same validation primitives as the shared domain. Explicit offsets are
+required for instants; invalid calendar dates and ambiguous local booking times
+fail. Civil dates and wall times remain distinct from instants. Customer booking
+and review timestamp summaries are deleted from storage and runtime code.
+
+Compared with submitted source `0c51d393`, the current tenant registry still has
+98 tool names (97 exposed by default), with no additions or removals; 35 tools
+now differ in input or output schema. This adds seven to the Epoch 5 audit below.
+Tool names alone cannot
+show compatibility: input validation and output shapes are part of the public
+MCP contract. Rescan and resubmit after the corrected production endpoint is
+verified. No compatibility fields or permissive legacy date readers are retained.
+
+Local qualification includes 189 unit tests, 23 real D1 tests, 9 migration/epoch
+CLI tests, and the affected MCP/public/guest browser workflows. The corrected
+browser run passed 27 of 28 cases; fixing the confirmation page's fabricated
+offsetless timestamp then passed all four guest journeys. Quality checks pass.
+The final local CodeRabbit review and remote release qualification are pending.
+
 ## Epoch 5 contract correction — 2026-09-07
 
 The portal shows version 1.0.0 in Review. The September 6 submission source

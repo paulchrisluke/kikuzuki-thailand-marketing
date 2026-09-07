@@ -10894,6 +10894,7 @@ __metadata:
     "@cloudflare/workers-types": "npm:^5.20260828.1"
     "@iconify-json/lucide": "npm:^1.2.126"
     "@iconify/utils": "npm:^3.1.4"
+    "@internationalized/date": "npm:^3.12.3"
     "@jsquash/png": "npm:^3.1.1"
     "@jsquash/webp": "npm:^1.5.0"
     "@noble/hashes": "npm:^2.4.0"

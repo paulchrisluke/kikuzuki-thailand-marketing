@@ -43,11 +43,12 @@
 <script setup lang="ts">
 import { getBookingConfirmation, type BookingConfirmation as BookingConfirmationData } from '~/composables/useBookingHandoff'
 import BookingConfirmation from '~/components/booking/BookingConfirmation.vue'
-import { fmt12Hour } from '~/shared/reservation-hours'
+import { formatTime } from '~/utils/timezone'
 import type { RenderedBookingPolicySummaryItem } from '~/server/utils/booking-policies'
 
 definePageMeta({ layout: 'saya' })
 
+const { locale } = useI18n()
 const { formatDate } = useLocaleDate()
 const justCopied = ref(false)
 const { siteId } = useTenantSite()
@@ -63,7 +64,7 @@ onMounted(() => {
 
 const readableDate = computed(() => {
   if (!confirmation.value?.date) return ''
-  return formatDate(`${confirmation.value.date}T12:00:00`)
+  return formatDate(confirmation.value.date)
 })
 
 const receiptRows = computed(() => {
@@ -72,7 +73,7 @@ const receiptRows = computed(() => {
   if (confirmation.value.title) rows.push({ label: 'Experience', value: confirmation.value.title })
   if (confirmation.value.locationName) rows.push({ label: 'Location', value: confirmation.value.locationName })
   rows.push({ label: 'Date', value: readableDate.value })
-  rows.push({ label: 'Time', value: fmt12Hour(confirmation.value.time) })
+  rows.push({ label: 'Time', value: formatTime(confirmation.value.time, locale.value) })
   rows.push({ label: 'Guests', value: String(confirmation.value.guests) })
   if (confirmation.value.requests) rows.push({ label: 'Requests', value: confirmation.value.requests })
   return rows
@@ -92,7 +93,7 @@ const policyLines = computed(() => (resolvedPolicySummary.value?.items ?? []).ma
 
 async function share() {
   if (!confirmation.value) return
-  const text = `I'm booked for ${confirmation.value.title ?? confirmation.value.siteName} on ${readableDate.value} at ${fmt12Hour(confirmation.value.time)}.`
+  const text = `I'm booked for ${confirmation.value.title ?? confirmation.value.siteName} on ${readableDate.value} at ${formatTime(confirmation.value.time, locale.value)}.`
   if (import.meta.client && navigator.share) {
     try {
       await navigator.share({ title: 'Booking confirmed', text, url: window.location.origin })

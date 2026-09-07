@@ -1,3 +1,4 @@
+import { instantDate, isValidInstant } from '~/utils/timezone'
 import { resourceLocalizationDeletionQueries } from '~/server/utils/localization'
 import { HTTPError } from 'nitro'
 import type { CloudflareEnv } from '~/server/utils/auth'
@@ -16,7 +17,7 @@ import { loadPublicSocialMedia } from '~/server/utils/public-social-image'
 import { publicResourceCacheInvalidationQuery } from '~/server/utils/public-resource-cache'
 import { fireOrganizationEventSafe, type OrganizationEventType } from '~/server/utils/organization-events'
 import { isCurrencyCode, type CurrencyCode } from '~/shared/currencies'
-import { isIsoInstant, PRICE_TAX_BEHAVIORS, PRICE_UNITS, type Price, type PriceInput, type PriceTaxBehavior, type PriceUnit } from '~/shared/prices'
+import { PRICE_TAX_BEHAVIORS, PRICE_UNITS, type Price, type PriceInput, type PriceTaxBehavior, type PriceUnit } from '~/shared/prices'
 import {
   PRODUCT_LIMITS,
   assertNoPriceNoteContradiction,
@@ -182,13 +183,13 @@ export function normalizePriceInput(input: PriceInput | null | undefined, defaul
   const validFromProvided = input.valid_from !== undefined
   const validFrom = validFromProvided ? input.valid_from : new Date().toISOString()
   if (typeof validFrom !== 'string') throw new HTTPError({ statusCode: 400, statusMessage: `${field}.valid_from must be an ISO UTC instant (YYYY-MM-DDTHH:mm:ss[.SSS]Z)` })
-  if (!isIsoInstant(validFrom)) throw new HTTPError({ statusCode: 400, statusMessage: `${field}.valid_from must be an ISO UTC instant (YYYY-MM-DDTHH:mm:ss[.SSS]Z)` })
+  if (!isValidInstant(validFrom)) throw new HTTPError({ statusCode: 400, statusMessage: `${field}.valid_from must be an ISO UTC instant (YYYY-MM-DDTHH:mm:ss[.SSS]Z)` })
   const validUntilProvided = input.valid_until !== undefined
   const validUntil = input.valid_until ?? null
-  if (validUntil !== null && (typeof validUntil !== 'string' || !isIsoInstant(validUntil) || validUntil <= validFrom)) {
+  if (validUntil !== null && (typeof validUntil !== 'string' || !isValidInstant(validUntil) || Date.parse(validUntil) <= Date.parse(validFrom))) {
     throw new HTTPError({ statusCode: 400, statusMessage: `${field}.valid_until must be an ISO UTC instant after valid_from` })
   }
-  return { amountMinor, currency, unit, taxBehavior, compareAt, validFrom, validUntil, provenance, validFromProvided, validUntilProvided }
+  return { amountMinor, currency, unit, taxBehavior, compareAt, validFrom: instantDate(validFrom).toISOString(), validUntil: validUntil === null ? null : instantDate(validUntil).toISOString(), provenance, validFromProvided, validUntilProvided }
 }
 
 async function siteDefaultCurrency(db: DbClient, organizationId: string, siteId: string): Promise<CurrencyCode> {

@@ -295,11 +295,7 @@ export async function markReviewSubmittedForRequest(
     WHERE id = ?
   `, [submittedAt, reviewId, submittedAt, request.booking_id])
 
-  await execute(db, `
-    UPDATE customers
-    SET last_review_at = ?, updated_at = ?
-    WHERE id = ?
-  `, [submittedAt, submittedAt, request.customer_id])
+
 }
 
 export async function optOutCustomerReviewRequests(

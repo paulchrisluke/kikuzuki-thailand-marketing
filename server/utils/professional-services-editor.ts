@@ -284,7 +284,7 @@ export async function upsertProfessionalServiceContent(
         (id, organization_id, site_id, location_id, name, slug, label, summary, short_description, body,
          features, faqs, cta_label, cta_url, schema_type, seo_title, seo_description, canonical_path,
          sort_order, featured, source, source_ref, updated_at, updated_by)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, ?)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), ?)
       ON CONFLICT(organization_id, site_id, slug) DO UPDATE SET
         location_id = excluded.location_id, name = excluded.name, label = excluded.label,
         summary = excluded.summary, short_description = excluded.short_description, body = excluded.body,
@@ -293,7 +293,7 @@ export async function upsertProfessionalServiceContent(
         schema_type = excluded.schema_type, seo_title = excluded.seo_title,
         seo_description = excluded.seo_description, canonical_path = excluded.canonical_path,
         sort_order = excluded.sort_order, featured = excluded.featured,
-        source = excluded.source, source_ref = excluded.source_ref, updated_at = CURRENT_TIMESTAMP,
+        source = excluded.source, source_ref = excluded.source_ref, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now'),
         updated_by = excluded.updated_by
     `,
       params: [
@@ -432,9 +432,9 @@ export async function upsertProfessionalServiceContent(
           'contact_points', json(?),
           'address_visibility', ?,
           'metadata_json', json(?),
-          'created_at', COALESCE(json_extract(settings_json, '$.compliance.created_at'), CURRENT_TIMESTAMP),
-          'updated_at', CURRENT_TIMESTAMP, 'updated_by', ?
-        )), updated_at = CURRENT_TIMESTAMP
+          'created_at', COALESCE(json_extract(settings_json, '$.compliance.created_at'), strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+          'updated_at', strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), 'updated_by', ?
+        )), updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
       WHERE id = ? AND organization_id = ?
     `,
       params: [
@@ -479,9 +479,9 @@ export async function upsertProfessionalServiceContent(
       UPDATE sites SET settings_json = json_set(settings_json, '$.consultation', json_object(
           'mode', ?, 'cta_label', ?, 'external_url', ?, 'schedule_path', ?, 'confirmation_path', ?,
           'tracking_enabled', json(CASE WHEN ? THEN 'true' ELSE 'false' END), 'metadata_json', json(?),
-          'created_at', COALESCE(json_extract(settings_json, '$.consultation.created_at'), CURRENT_TIMESTAMP),
-          'updated_at', CURRENT_TIMESTAMP, 'updated_by', ?
-        )), updated_at = CURRENT_TIMESTAMP
+          'created_at', COALESCE(json_extract(settings_json, '$.consultation.created_at'), strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+          'updated_at', strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), 'updated_by', ?
+        )), updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
       WHERE id = ? AND organization_id = ?
     `,
       params: [
@@ -506,9 +506,9 @@ export async function upsertProfessionalServiceContent(
       query: `
       UPDATE sites SET settings_json = json_set(settings_json, '$.theme_by_template.blawby', json_object(
         'tokens', json(?), 'status', 'active',
-        'created_at', COALESCE(json_extract(settings_json, '$.theme_by_template.blawby.created_at'), CURRENT_TIMESTAMP),
-        'updated_at', CURRENT_TIMESTAMP, 'updated_by', ?
-      )), updated_at = CURRENT_TIMESTAMP
+        'created_at', COALESCE(json_extract(settings_json, '$.theme_by_template.blawby.created_at'), strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+        'updated_at', strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), 'updated_by', ?
+      )), updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
       WHERE id = ? AND organization_id = ?
     `,
       params: [json(themeTokens), updatedBy, siteId, organizationId],

@@ -1,3 +1,4 @@
+import { isValidInstant } from '~/utils/timezone'
 import { executeBatch, queryFirst, type DbClient } from '~/server/db'
 import {
   createOperatorApprovalToken,
@@ -159,7 +160,7 @@ function quotaStateInteger(value: unknown, label: string): number {
 
 function quotaStateTimestamp(value: unknown, label: string, nullable = false): string | null {
   if (nullable && value === null) return null
-  if (typeof value !== 'string' || !value.trim() || Number.isNaN(Date.parse(value))) {
+  if (!isValidInstant(value)) {
     fail('quota_state_invalid', 500, `${label} must be a valid timestamp.`)
   }
   return value

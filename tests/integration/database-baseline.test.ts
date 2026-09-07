@@ -6,11 +6,11 @@ import Database from 'better-sqlite3'
 function baselineDatabase() {
   const database = new Database(':memory:')
   database.pragma('foreign_keys = ON')
-  database.exec(readFileSync('migrations/0000_epoch_5_baseline.sql', 'utf8'))
+  database.exec(readFileSync('migrations/0000_epoch_6_baseline.sql', 'utf8'))
   return database
 }
 
-test('epoch-5 baseline creates the complete schema from zero', () => {
+test('epoch-6 baseline creates the complete schema from zero', () => {
   const database = baselineDatabase()
   try {
     const tableCount = database.prepare(`
@@ -33,7 +33,7 @@ test('epoch-5 baseline creates the complete schema from zero', () => {
   }
 })
 
-test('epoch-5 baseline enforces canonical cross-scope and value constraints', () => {
+test('epoch-6 baseline enforces canonical cross-scope and value constraints', () => {
   const database = baselineDatabase()
   try {
     database.prepare("INSERT INTO organization (id, name, slug) VALUES ('org', 'Org', 'org')").run()
@@ -117,7 +117,7 @@ test('epoch-5 baseline enforces canonical cross-scope and value constraints', ()
   }
 })
 
-test('epoch-5 rejects unknown content, localization, and media owners at the SQLite boundary', () => {
+test('epoch-6 rejects unknown content, localization, and media owners at the SQLite boundary', () => {
   const database = baselineDatabase()
   try {
     database.prepare("INSERT INTO organization (id, name, slug) VALUES ('org', 'Org', 'org')").run()

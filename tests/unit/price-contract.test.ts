@@ -1,10 +1,10 @@
+import { isValidInstant } from '../../utils/timezone.ts'
 import assert from 'node:assert/strict'
 import test from 'node:test'
 
 import {
   assertNonOverlappingPrices,
   formatMinorAmount,
-  isIsoInstant,
   majorAmountToMinor,
   priceAt,
   replacePrice,
@@ -62,7 +62,7 @@ test('Product price normalization distinguishes no price from a complete fixed p
   assert.equal(defaulted.taxBehavior, 'unspecified')
   assert.equal(defaulted.provenance, 'manual')
   assert.equal(defaulted.validFromProvided, false)
-  assert.equal(isIsoInstant(defaulted.validFrom), true)
+  assert.equal(isValidInstant(defaulted.validFrom), true)
   assert.throws(
     () => normalizePriceInput({ amount_minor: 500, provenance: 'caller' }, 'THB', 'manual'),
     /assigned by the server/,
@@ -104,10 +104,10 @@ test('Product media extraction preserves canonical no-price details and rejects 
 })
 
 test('priceAt selects one active interval and rejects overlapping schedules', () => {
-  assert.equal(isIsoInstant('2026-02-28T12:34:56Z'), true)
-  assert.equal(isIsoInstant('2026-02-28T12:34:56.789Z'), true)
-  assert.equal(isIsoInstant('2026-02-30T12:34:56Z'), false)
-  assert.equal(isIsoInstant('2026-04-31T12:34:56.000Z'), false)
+  assert.equal(isValidInstant('2026-02-28T12:34:56Z'), true)
+  assert.equal(isValidInstant('2026-02-28T12:34:56.789Z'), true)
+  assert.equal(isValidInstant('2026-02-30T12:34:56Z'), false)
+  assert.equal(isValidInstant('2026-04-31T12:34:56.000Z'), false)
   const future = { ...base, id: 'price-2', amount_minor: 1500, valid_from: '2026-06-01T00:00:00.000Z' }
   const closed = { ...base, valid_until: future.valid_from }
   assert.equal(priceAt([closed, future], '2026-05-01T00:00:00.000Z')?.id, 'price-1')

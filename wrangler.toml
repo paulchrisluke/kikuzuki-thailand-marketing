@@ -80,8 +80,8 @@ WHATSAPP_DELIVERY_MODE = "provider"
 
 [[d1_databases]]
 binding = "DB"
-database_name = "krabiclaw-db-epoch5-production"
-database_id = "58c0932a-fe6e-4062-8155-1bfd8a86c495"
+database_name = "krabiclaw-db-epoch6-production"
+database_id = "c38458ef-eb4f-4bc2-8922-13cec27237dd"
 migrations_dir = "migrations"
 remote = false
 
@@ -250,8 +250,8 @@ E2E_ALLOW_DEV_ROUTES = "true"
 
 [[env.staging.d1_databases]]
 binding = "DB"
-database_name = "krabiclaw-db-staging-epoch5-final"
-database_id = "e1683b37-39cb-4d46-b299-7cf0b4401147"
+database_name = "krabiclaw-db-staging-epoch6"
+database_id = "e93edb59-fe24-4da4-99df-0957be6e6660"
 migrations_dir = "migrations"
 remote = false
 

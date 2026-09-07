@@ -1,6 +1,6 @@
 {
   "surface": "tenant",
-  "fingerprint": "sha256:f41bb178755b3a19271ae785b8c2da26760154adc0b1e39aba1f4138c26baa7d",
+  "fingerprint": "sha256:bc13723ae44c46cbc9f523bc984b62c1ba7823c8e82b919c0d7ddd3b114e2d3b",
   "tools": [
     {
       "name": "analyze_document",
@@ -997,6 +997,8 @@
           },
           "scheduled_for": {
             "description": "Optional future ISO 8601 datetime with timezone. Omit or pass null to publish immediately.",
+            "format": "date-time",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}T(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d{1,9})?(?:Z|[+-](?:[01]\\d|2[0-3]):[0-5]\\d)$",
             "type": [
               "string",
               "null"
@@ -1298,6 +1300,9 @@
                 ]
               },
               "scheduled_for": {
+                "description": "RFC 3339 instant with an explicit Z or numeric UTC offset. Offsetless timestamps are invalid.",
+                "format": "date-time",
+                "pattern": "^\\d{4}-\\d{2}-\\d{2}T(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d{1,9})?(?:Z|[+-](?:[01]\\d|2[0-3]):[0-5]\\d)$",
                 "type": [
                   "string",
                   "null"
@@ -1555,9 +1560,15 @@
                 "type": "string"
               },
               "valid_from": {
+                "description": "RFC 3339 instant with an explicit Z or numeric UTC offset. Offsetless timestamps are invalid.",
+                "format": "date-time",
+                "pattern": "^\\d{4}-\\d{2}-\\d{2}T(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d{1,9})?(?:Z|[+-](?:[01]\\d|2[0-3]):[0-5]\\d)$",
                 "type": "string"
               },
               "valid_until": {
+                "description": "RFC 3339 instant with an explicit Z or numeric UTC offset. Offsetless timestamps are invalid.",
+                "format": "date-time",
+                "pattern": "^\\d{4}-\\d{2}-\\d{2}T(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d{1,9})?(?:Z|[+-](?:[01]\\d|2[0-3]):[0-5]\\d)$",
                 "type": [
                   "string",
                   "null"
@@ -1589,7 +1600,8 @@
                 "properties": {
                   "friday": {
                     "items": {
-                      "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+                      "description": "Local wall-clock time, HH:mm (24-hour), in the explicitly selected location timezone.",
+                      "pattern": "^(?:[01]\\d|2[0-3]):[0-5]\\d$",
                       "type": "string"
                     },
                     "type": "array",
@@ -1597,7 +1609,8 @@
                   },
                   "monday": {
                     "items": {
-                      "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+                      "description": "Local wall-clock time, HH:mm (24-hour), in the explicitly selected location timezone.",
+                      "pattern": "^(?:[01]\\d|2[0-3]):[0-5]\\d$",
                       "type": "string"
                     },
                     "type": "array",
@@ -1605,7 +1618,8 @@
                   },
                   "saturday": {
                     "items": {
-                      "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+                      "description": "Local wall-clock time, HH:mm (24-hour), in the explicitly selected location timezone.",
+                      "pattern": "^(?:[01]\\d|2[0-3]):[0-5]\\d$",
                       "type": "string"
                     },
                     "type": "array",
@@ -1613,7 +1627,8 @@
                   },
                   "sunday": {
                     "items": {
-                      "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+                      "description": "Local wall-clock time, HH:mm (24-hour), in the explicitly selected location timezone.",
+                      "pattern": "^(?:[01]\\d|2[0-3]):[0-5]\\d$",
                       "type": "string"
                     },
                     "type": "array",
@@ -1621,7 +1636,8 @@
                   },
                   "thursday": {
                     "items": {
-                      "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+                      "description": "Local wall-clock time, HH:mm (24-hour), in the explicitly selected location timezone.",
+                      "pattern": "^(?:[01]\\d|2[0-3]):[0-5]\\d$",
                       "type": "string"
                     },
                     "type": "array",
@@ -1629,7 +1645,8 @@
                   },
                   "tuesday": {
                     "items": {
-                      "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+                      "description": "Local wall-clock time, HH:mm (24-hour), in the explicitly selected location timezone.",
+                      "pattern": "^(?:[01]\\d|2[0-3]):[0-5]\\d$",
                       "type": "string"
                     },
                     "type": "array",
@@ -1637,7 +1654,8 @@
                   },
                   "wednesday": {
                     "items": {
-                      "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+                      "description": "Local wall-clock time, HH:mm (24-hour), in the explicitly selected location timezone.",
+                      "pattern": "^(?:[01]\\d|2[0-3]):[0-5]\\d$",
                       "type": "string"
                     },
                     "type": "array",
@@ -2029,7 +2047,9 @@
                             ]
                           },
                           "series_end_time": {
+                            "description": "RFC 3339 instant with an explicit Z or numeric UTC offset. Offsetless timestamps are invalid.",
                             "format": "date-time",
+                            "pattern": "^\\d{4}-\\d{2}-\\d{2}T(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d{1,9})?(?:Z|[+-](?:[01]\\d|2[0-3]):[0-5]\\d)$",
                             "type": "string"
                           }
                         },
@@ -2062,7 +2082,9 @@
                             ]
                           },
                           "series_end_time": {
+                            "description": "RFC 3339 instant with an explicit Z or numeric UTC offset. Offsetless timestamps are invalid.",
                             "format": "date-time",
+                            "pattern": "^\\d{4}-\\d{2}-\\d{2}T(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d{1,9})?(?:Z|[+-](?:[01]\\d|2[0-3]):[0-5]\\d)$",
                             "type": "string"
                           }
                         },
@@ -2086,7 +2108,9 @@
                             ]
                           },
                           "series_end_time": {
+                            "description": "RFC 3339 instant with an explicit Z or numeric UTC offset. Offsetless timestamps are invalid.",
                             "format": "date-time",
+                            "pattern": "^\\d{4}-\\d{2}-\\d{2}T(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d{1,9})?(?:Z|[+-](?:[01]\\d|2[0-3]):[0-5]\\d)$",
                             "type": "string"
                           }
                         },
@@ -2114,7 +2138,9 @@
                             ]
                           },
                           "series_end_time": {
+                            "description": "RFC 3339 instant with an explicit Z or numeric UTC offset. Offsetless timestamps are invalid.",
                             "format": "date-time",
+                            "pattern": "^\\d{4}-\\d{2}-\\d{2}T(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d{1,9})?(?:Z|[+-](?:[01]\\d|2[0-3]):[0-5]\\d)$",
                             "type": "string"
                           }
                         },
@@ -2130,20 +2156,24 @@
                     "additionalProperties": false,
                     "properties": {
                       "end_date": {
+                        "description": "Gregorian calendar date, YYYY-MM-DD. No timezone conversion.",
                         "format": "date",
                         "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
                         "type": "string"
                       },
                       "end_time": {
+                        "description": "Local wall-clock time, HH:mm:ss with optional fractional seconds. Not a UTC instant.",
                         "pattern": "^(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d{1,9})?$",
                         "type": "string"
                       },
                       "start_date": {
+                        "description": "Gregorian calendar date, YYYY-MM-DD. No timezone conversion.",
                         "format": "date",
                         "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
                         "type": "string"
                       },
                       "start_time": {
+                        "description": "Local wall-clock time, HH:mm:ss with optional fractional seconds. Not a UTC instant.",
                         "pattern": "^(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d{1,9})?$",
                         "type": "string"
                       }
@@ -2242,7 +2272,9 @@
           "scheduled_for": {
             "anyOf": [
               {
+                "description": "RFC 3339 instant with an explicit Z or numeric UTC offset. Offsetless timestamps are invalid.",
                 "format": "date-time",
+                "pattern": "^\\d{4}-\\d{2}-\\d{2}T(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d{1,9})?(?:Z|[+-](?:[01]\\d|2[0-3]):[0-5]\\d)$",
                 "type": "string"
               },
               {
@@ -3846,6 +3878,9 @@
                 ]
               },
               "scheduled_for": {
+                "description": "RFC 3339 instant with an explicit Z or numeric UTC offset. Offsetless timestamps are invalid.",
+                "format": "date-time",
+                "pattern": "^\\d{4}-\\d{2}-\\d{2}T(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d{1,9})?(?:Z|[+-](?:[01]\\d|2[0-3]):[0-5]\\d)$",
                 "type": [
                   "string",
                   "null"
@@ -4730,6 +4765,8 @@
                             "ends_on": {
                               "anyOf": [
                                 {
+                                  "description": "Gregorian calendar date, YYYY-MM-DD. No timezone conversion.",
+                                  "format": "date",
                                   "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
                                   "type": "string"
                                 },
@@ -4749,6 +4786,8 @@
                               ]
                             },
                             "starts_on": {
+                              "description": "Gregorian calendar date, YYYY-MM-DD. No timezone conversion.",
+                              "format": "date",
                               "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
                               "type": "string"
                             }
@@ -4765,6 +4804,8 @@
                           "additionalProperties": false,
                           "properties": {
                             "date": {
+                              "description": "Gregorian calendar date, YYYY-MM-DD. No timezone conversion.",
+                              "format": "date",
                               "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
                               "type": "string"
                             },
@@ -4789,11 +4830,13 @@
                                     ]
                                   },
                                   "close_time": {
-                                    "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+                                    "description": "Local wall-clock time, HH:mm (24-hour), in the explicitly selected location timezone.",
+                                    "pattern": "^(?:[01]\\d|2[0-3]):[0-5]\\d$",
                                     "type": "string"
                                   },
                                   "open_time": {
-                                    "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+                                    "description": "Local wall-clock time, HH:mm (24-hour), in the explicitly selected location timezone.",
+                                    "pattern": "^(?:[01]\\d|2[0-3]):[0-5]\\d$",
                                     "type": "string"
                                   }
                                 },
@@ -4831,7 +4874,8 @@
                 ]
               },
               "timezone": {
-                "description": "IANA time zone identifier for this location, e.g. Asia/Bangkok. Used to interpret opening hours and booking slots.",
+                "description": "Explicit IANA timezone identifier, such as Asia/Bangkok. Missing timezone is an error, never the browser timezone.",
+                "minLength": 1,
                 "type": [
                   "string",
                   "null"
@@ -5016,7 +5060,9 @@
                                 ]
                               },
                               "series_end_time": {
+                                "description": "RFC 3339 instant with an explicit Z or numeric UTC offset. Offsetless timestamps are invalid.",
                                 "format": "date-time",
+                                "pattern": "^\\d{4}-\\d{2}-\\d{2}T(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d{1,9})?(?:Z|[+-](?:[01]\\d|2[0-3]):[0-5]\\d)$",
                                 "type": "string"
                               }
                             },
@@ -5049,7 +5095,9 @@
                                 ]
                               },
                               "series_end_time": {
+                                "description": "RFC 3339 instant with an explicit Z or numeric UTC offset. Offsetless timestamps are invalid.",
                                 "format": "date-time",
+                                "pattern": "^\\d{4}-\\d{2}-\\d{2}T(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d{1,9})?(?:Z|[+-](?:[01]\\d|2[0-3]):[0-5]\\d)$",
                                 "type": "string"
                               }
                             },
@@ -5073,7 +5121,9 @@
                                 ]
                               },
                               "series_end_time": {
+                                "description": "RFC 3339 instant with an explicit Z or numeric UTC offset. Offsetless timestamps are invalid.",
                                 "format": "date-time",
+                                "pattern": "^\\d{4}-\\d{2}-\\d{2}T(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d{1,9})?(?:Z|[+-](?:[01]\\d|2[0-3]):[0-5]\\d)$",
                                 "type": "string"
                               }
                             },
@@ -5101,7 +5151,9 @@
                                 ]
                               },
                               "series_end_time": {
+                                "description": "RFC 3339 instant with an explicit Z or numeric UTC offset. Offsetless timestamps are invalid.",
                                 "format": "date-time",
+                                "pattern": "^\\d{4}-\\d{2}-\\d{2}T(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d{1,9})?(?:Z|[+-](?:[01]\\d|2[0-3]):[0-5]\\d)$",
                                 "type": "string"
                               }
                             },
@@ -5117,20 +5169,24 @@
                         "additionalProperties": false,
                         "properties": {
                           "end_date": {
+                            "description": "Gregorian calendar date, YYYY-MM-DD. No timezone conversion.",
                             "format": "date",
                             "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
                             "type": "string"
                           },
                           "end_time": {
+                            "description": "Local wall-clock time, HH:mm:ss with optional fractional seconds. Not a UTC instant.",
                             "pattern": "^(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d{1,9})?$",
                             "type": "string"
                           },
                           "start_date": {
+                            "description": "Gregorian calendar date, YYYY-MM-DD. No timezone conversion.",
                             "format": "date",
                             "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
                             "type": "string"
                           },
                           "start_time": {
+                            "description": "Local wall-clock time, HH:mm:ss with optional fractional seconds. Not a UTC instant.",
                             "pattern": "^(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d{1,9})?$",
                             "type": "string"
                           }
@@ -5289,6 +5345,9 @@
                 ]
               },
               "scheduled_for": {
+                "description": "RFC 3339 instant with an explicit Z or numeric UTC offset. Offsetless timestamps are invalid.",
+                "format": "date-time",
+                "pattern": "^\\d{4}-\\d{2}-\\d{2}T(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d{1,9})?(?:Z|[+-](?:[01]\\d|2[0-3]):[0-5]\\d)$",
                 "type": [
                   "string",
                   "null"
@@ -7776,6 +7835,9 @@
             "items": {
               "properties": {
                 "booking_date": {
+                  "description": "Gregorian calendar date, YYYY-MM-DD. No timezone conversion.",
+                  "format": "date",
+                  "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
                   "type": [
                     "string",
                     "null"
@@ -8117,6 +8179,9 @@
                   ]
                 },
                 "scheduled_for": {
+                  "description": "RFC 3339 instant with an explicit Z or numeric UTC offset. Offsetless timestamps are invalid.",
+                  "format": "date-time",
+                  "pattern": "^\\d{4}-\\d{2}-\\d{2}T(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d{1,9})?(?:Z|[+-](?:[01]\\d|2[0-3]):[0-5]\\d)$",
                   "type": [
                     "string",
                     "null"
@@ -8256,6 +8321,9 @@
             "items": {
               "properties": {
                 "booking_date": {
+                  "description": "Gregorian calendar date, YYYY-MM-DD. No timezone conversion.",
+                  "format": "date",
+                  "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
                   "type": [
                     "string",
                     "null"
@@ -8585,9 +8653,15 @@
                       "type": "string"
                     },
                     "valid_from": {
+                      "description": "RFC 3339 instant with an explicit Z or numeric UTC offset. Offsetless timestamps are invalid.",
+                      "format": "date-time",
+                      "pattern": "^\\d{4}-\\d{2}-\\d{2}T(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d{1,9})?(?:Z|[+-](?:[01]\\d|2[0-3]):[0-5]\\d)$",
                       "type": "string"
                     },
                     "valid_until": {
+                      "description": "RFC 3339 instant with an explicit Z or numeric UTC offset. Offsetless timestamps are invalid.",
+                      "format": "date-time",
+                      "pattern": "^\\d{4}-\\d{2}-\\d{2}T(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d{1,9})?(?:Z|[+-](?:[01]\\d|2[0-3]):[0-5]\\d)$",
                       "type": [
                         "string",
                         "null"
@@ -8638,7 +8712,8 @@
                       "properties": {
                         "friday": {
                           "items": {
-                            "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+                            "description": "Local wall-clock time, HH:mm (24-hour), in the explicitly selected location timezone.",
+                            "pattern": "^(?:[01]\\d|2[0-3]):[0-5]\\d$",
                             "type": "string"
                           },
                           "type": "array",
@@ -8646,7 +8721,8 @@
                         },
                         "monday": {
                           "items": {
-                            "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+                            "description": "Local wall-clock time, HH:mm (24-hour), in the explicitly selected location timezone.",
+                            "pattern": "^(?:[01]\\d|2[0-3]):[0-5]\\d$",
                             "type": "string"
                           },
                           "type": "array",
@@ -8654,7 +8730,8 @@
                         },
                         "saturday": {
                           "items": {
-                            "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+                            "description": "Local wall-clock time, HH:mm (24-hour), in the explicitly selected location timezone.",
+                            "pattern": "^(?:[01]\\d|2[0-3]):[0-5]\\d$",
                             "type": "string"
                           },
                           "type": "array",
@@ -8662,7 +8739,8 @@
                         },
                         "sunday": {
                           "items": {
-                            "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+                            "description": "Local wall-clock time, HH:mm (24-hour), in the explicitly selected location timezone.",
+                            "pattern": "^(?:[01]\\d|2[0-3]):[0-5]\\d$",
                             "type": "string"
                           },
                           "type": "array",
@@ -8670,7 +8748,8 @@
                         },
                         "thursday": {
                           "items": {
-                            "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+                            "description": "Local wall-clock time, HH:mm (24-hour), in the explicitly selected location timezone.",
+                            "pattern": "^(?:[01]\\d|2[0-3]):[0-5]\\d$",
                             "type": "string"
                           },
                           "type": "array",
@@ -8678,7 +8757,8 @@
                         },
                         "tuesday": {
                           "items": {
-                            "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+                            "description": "Local wall-clock time, HH:mm (24-hour), in the explicitly selected location timezone.",
+                            "pattern": "^(?:[01]\\d|2[0-3]):[0-5]\\d$",
                             "type": "string"
                           },
                           "type": "array",
@@ -8686,7 +8766,8 @@
                         },
                         "wednesday": {
                           "items": {
-                            "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+                            "description": "Local wall-clock time, HH:mm (24-hour), in the explicitly selected location timezone.",
+                            "pattern": "^(?:[01]\\d|2[0-3]):[0-5]\\d$",
                             "type": "string"
                           },
                           "type": "array",
@@ -8741,9 +8822,15 @@
                         "type": "string"
                       },
                       "valid_from": {
+                        "description": "RFC 3339 instant with an explicit Z or numeric UTC offset. Offsetless timestamps are invalid.",
+                        "format": "date-time",
+                        "pattern": "^\\d{4}-\\d{2}-\\d{2}T(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d{1,9})?(?:Z|[+-](?:[01]\\d|2[0-3]):[0-5]\\d)$",
                         "type": "string"
                       },
                       "valid_until": {
+                        "description": "RFC 3339 instant with an explicit Z or numeric UTC offset. Offsetless timestamps are invalid.",
+                        "format": "date-time",
+                        "pattern": "^\\d{4}-\\d{2}-\\d{2}T(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d{1,9})?(?:Z|[+-](?:[01]\\d|2[0-3]):[0-5]\\d)$",
                         "type": [
                           "string",
                           "null"
@@ -9516,7 +9603,9 @@
                                   ]
                                 },
                                 "series_end_time": {
+                                  "description": "RFC 3339 instant with an explicit Z or numeric UTC offset. Offsetless timestamps are invalid.",
                                   "format": "date-time",
+                                  "pattern": "^\\d{4}-\\d{2}-\\d{2}T(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d{1,9})?(?:Z|[+-](?:[01]\\d|2[0-3]):[0-5]\\d)$",
                                   "type": "string"
                                 }
                               },
@@ -9549,7 +9638,9 @@
                                   ]
                                 },
                                 "series_end_time": {
+                                  "description": "RFC 3339 instant with an explicit Z or numeric UTC offset. Offsetless timestamps are invalid.",
                                   "format": "date-time",
+                                  "pattern": "^\\d{4}-\\d{2}-\\d{2}T(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d{1,9})?(?:Z|[+-](?:[01]\\d|2[0-3]):[0-5]\\d)$",
                                   "type": "string"
                                 }
                               },
@@ -9573,7 +9664,9 @@
                                   ]
                                 },
                                 "series_end_time": {
+                                  "description": "RFC 3339 instant with an explicit Z or numeric UTC offset. Offsetless timestamps are invalid.",
                                   "format": "date-time",
+                                  "pattern": "^\\d{4}-\\d{2}-\\d{2}T(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d{1,9})?(?:Z|[+-](?:[01]\\d|2[0-3]):[0-5]\\d)$",
                                   "type": "string"
                                 }
                               },
@@ -9601,7 +9694,9 @@
                                   ]
                                 },
                                 "series_end_time": {
+                                  "description": "RFC 3339 instant with an explicit Z or numeric UTC offset. Offsetless timestamps are invalid.",
                                   "format": "date-time",
+                                  "pattern": "^\\d{4}-\\d{2}-\\d{2}T(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d{1,9})?(?:Z|[+-](?:[01]\\d|2[0-3]):[0-5]\\d)$",
                                   "type": "string"
                                 }
                               },
@@ -9617,20 +9712,24 @@
                           "additionalProperties": false,
                           "properties": {
                             "end_date": {
+                              "description": "Gregorian calendar date, YYYY-MM-DD. No timezone conversion.",
                               "format": "date",
                               "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
                               "type": "string"
                             },
                             "end_time": {
+                              "description": "Local wall-clock time, HH:mm:ss with optional fractional seconds. Not a UTC instant.",
                               "pattern": "^(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d{1,9})?$",
                               "type": "string"
                             },
                             "start_date": {
+                              "description": "Gregorian calendar date, YYYY-MM-DD. No timezone conversion.",
                               "format": "date",
                               "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
                               "type": "string"
                             },
                             "start_time": {
+                              "description": "Local wall-clock time, HH:mm:ss with optional fractional seconds. Not a UTC instant.",
                               "pattern": "^(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d{1,9})?$",
                               "type": "string"
                             }
@@ -9789,6 +9888,9 @@
                   ]
                 },
                 "scheduled_for": {
+                  "description": "RFC 3339 instant with an explicit Z or numeric UTC offset. Offsetless timestamps are invalid.",
+                  "format": "date-time",
+                  "pattern": "^\\d{4}-\\d{2}-\\d{2}T(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d{1,9})?(?:Z|[+-](?:[01]\\d|2[0-3]):[0-5]\\d)$",
                   "type": [
                     "string",
                     "null"
@@ -10662,6 +10764,8 @@
           },
           "scheduled_for": {
             "description": "Optional future ISO 8601 datetime with timezone. Omit or pass null to publish immediately.",
+            "format": "date-time",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}T(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d{1,9})?(?:Z|[+-](?:[01]\\d|2[0-3]):[0-5]\\d)$",
             "type": [
               "string",
               "null"
@@ -10928,6 +11032,9 @@
                 ]
               },
               "scheduled_for": {
+                "description": "RFC 3339 instant with an explicit Z or numeric UTC offset. Offsetless timestamps are invalid.",
+                "format": "date-time",
+                "pattern": "^\\d{4}-\\d{2}-\\d{2}T(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d{1,9})?(?:Z|[+-](?:[01]\\d|2[0-3]):[0-5]\\d)$",
                 "type": [
                   "string",
                   "null"
@@ -11876,6 +11983,9 @@
                   ]
                 },
                 "scheduled_for": {
+                  "description": "RFC 3339 instant with an explicit Z or numeric UTC offset. Offsetless timestamps are invalid.",
+                  "format": "date-time",
+                  "pattern": "^\\d{4}-\\d{2}-\\d{2}T(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d{1,9})?(?:Z|[+-](?:[01]\\d|2[0-3]):[0-5]\\d)$",
                   "type": [
                     "string",
                     "null"
@@ -12731,6 +12841,9 @@
                 ]
               },
               "scheduled_for": {
+                "description": "RFC 3339 instant with an explicit Z or numeric UTC offset. Offsetless timestamps are invalid.",
+                "format": "date-time",
+                "pattern": "^\\d{4}-\\d{2}-\\d{2}T(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d{1,9})?(?:Z|[+-](?:[01]\\d|2[0-3]):[0-5]\\d)$",
                 "type": [
                   "string",
                   "null"
@@ -14735,6 +14848,9 @@
                 ]
               },
               "scheduled_for": {
+                "description": "RFC 3339 instant with an explicit Z or numeric UTC offset. Offsetless timestamps are invalid.",
+                "format": "date-time",
+                "pattern": "^\\d{4}-\\d{2}-\\d{2}T(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d{1,9})?(?:Z|[+-](?:[01]\\d|2[0-3]):[0-5]\\d)$",
                 "type": [
                   "string",
                   "null"
@@ -15253,6 +15369,9 @@
                 ]
               },
               "scheduled_for": {
+                "description": "RFC 3339 instant with an explicit Z or numeric UTC offset. Offsetless timestamps are invalid.",
+                "format": "date-time",
+                "pattern": "^\\d{4}-\\d{2}-\\d{2}T(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d{1,9})?(?:Z|[+-](?:[01]\\d|2[0-3]):[0-5]\\d)$",
                 "type": [
                   "string",
                   "null"
@@ -15664,9 +15783,15 @@
                 "type": "string"
               },
               "valid_from": {
+                "description": "RFC 3339 instant with an explicit Z or numeric UTC offset. Offsetless timestamps are invalid.",
+                "format": "date-time",
+                "pattern": "^\\d{4}-\\d{2}-\\d{2}T(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d{1,9})?(?:Z|[+-](?:[01]\\d|2[0-3]):[0-5]\\d)$",
                 "type": "string"
               },
               "valid_until": {
+                "description": "RFC 3339 instant with an explicit Z or numeric UTC offset. Offsetless timestamps are invalid.",
+                "format": "date-time",
+                "pattern": "^\\d{4}-\\d{2}-\\d{2}T(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d{1,9})?(?:Z|[+-](?:[01]\\d|2[0-3]):[0-5]\\d)$",
                 "type": [
                   "string",
                   "null"
@@ -15698,7 +15823,8 @@
                 "properties": {
                   "friday": {
                     "items": {
-                      "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+                      "description": "Local wall-clock time, HH:mm (24-hour), in the explicitly selected location timezone.",
+                      "pattern": "^(?:[01]\\d|2[0-3]):[0-5]\\d$",
                       "type": "string"
                     },
                     "type": "array",
@@ -15706,7 +15832,8 @@
                   },
                   "monday": {
                     "items": {
-                      "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+                      "description": "Local wall-clock time, HH:mm (24-hour), in the explicitly selected location timezone.",
+                      "pattern": "^(?:[01]\\d|2[0-3]):[0-5]\\d$",
                       "type": "string"
                     },
                     "type": "array",
@@ -15714,7 +15841,8 @@
                   },
                   "saturday": {
                     "items": {
-                      "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+                      "description": "Local wall-clock time, HH:mm (24-hour), in the explicitly selected location timezone.",
+                      "pattern": "^(?:[01]\\d|2[0-3]):[0-5]\\d$",
                       "type": "string"
                     },
                     "type": "array",
@@ -15722,7 +15850,8 @@
                   },
                   "sunday": {
                     "items": {
-                      "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+                      "description": "Local wall-clock time, HH:mm (24-hour), in the explicitly selected location timezone.",
+                      "pattern": "^(?:[01]\\d|2[0-3]):[0-5]\\d$",
                       "type": "string"
                     },
                     "type": "array",
@@ -15730,7 +15859,8 @@
                   },
                   "thursday": {
                     "items": {
-                      "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+                      "description": "Local wall-clock time, HH:mm (24-hour), in the explicitly selected location timezone.",
+                      "pattern": "^(?:[01]\\d|2[0-3]):[0-5]\\d$",
                       "type": "string"
                     },
                     "type": "array",
@@ -15738,7 +15868,8 @@
                   },
                   "tuesday": {
                     "items": {
-                      "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+                      "description": "Local wall-clock time, HH:mm (24-hour), in the explicitly selected location timezone.",
+                      "pattern": "^(?:[01]\\d|2[0-3]):[0-5]\\d$",
                       "type": "string"
                     },
                     "type": "array",
@@ -15746,7 +15877,8 @@
                   },
                   "wednesday": {
                     "items": {
-                      "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+                      "description": "Local wall-clock time, HH:mm (24-hour), in the explicitly selected location timezone.",
+                      "pattern": "^(?:[01]\\d|2[0-3]):[0-5]\\d$",
                       "type": "string"
                     },
                     "type": "array",
@@ -15945,6 +16077,9 @@
           "booking": {
             "properties": {
               "booking_date": {
+                "description": "Gregorian calendar date, YYYY-MM-DD. No timezone conversion.",
+                "format": "date",
+                "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
                 "type": [
                   "string",
                   "null"
@@ -16243,6 +16378,8 @@
                         "ends_on": {
                           "anyOf": [
                             {
+                              "description": "Gregorian calendar date, YYYY-MM-DD. No timezone conversion.",
+                              "format": "date",
                               "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
                               "type": "string"
                             },
@@ -16262,6 +16399,8 @@
                           ]
                         },
                         "starts_on": {
+                          "description": "Gregorian calendar date, YYYY-MM-DD. No timezone conversion.",
+                          "format": "date",
                           "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
                           "type": "string"
                         }
@@ -16278,6 +16417,8 @@
                       "additionalProperties": false,
                       "properties": {
                         "date": {
+                          "description": "Gregorian calendar date, YYYY-MM-DD. No timezone conversion.",
+                          "format": "date",
                           "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
                           "type": "string"
                         },
@@ -16302,11 +16443,13 @@
                                 ]
                               },
                               "close_time": {
-                                "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+                                "description": "Local wall-clock time, HH:mm (24-hour), in the explicitly selected location timezone.",
+                                "pattern": "^(?:[01]\\d|2[0-3]):[0-5]\\d$",
                                 "type": "string"
                               },
                               "open_time": {
-                                "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+                                "description": "Local wall-clock time, HH:mm (24-hour), in the explicitly selected location timezone.",
+                                "pattern": "^(?:[01]\\d|2[0-3]):[0-5]\\d$",
                                 "type": "string"
                               }
                             },
@@ -16674,7 +16817,9 @@
                             ]
                           },
                           "series_end_time": {
+                            "description": "RFC 3339 instant with an explicit Z or numeric UTC offset. Offsetless timestamps are invalid.",
                             "format": "date-time",
+                            "pattern": "^\\d{4}-\\d{2}-\\d{2}T(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d{1,9})?(?:Z|[+-](?:[01]\\d|2[0-3]):[0-5]\\d)$",
                             "type": "string"
                           }
                         },
@@ -16707,7 +16852,9 @@
                             ]
                           },
                           "series_end_time": {
+                            "description": "RFC 3339 instant with an explicit Z or numeric UTC offset. Offsetless timestamps are invalid.",
                             "format": "date-time",
+                            "pattern": "^\\d{4}-\\d{2}-\\d{2}T(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d{1,9})?(?:Z|[+-](?:[01]\\d|2[0-3]):[0-5]\\d)$",
                             "type": "string"
                           }
                         },
@@ -16731,7 +16878,9 @@
                             ]
                           },
                           "series_end_time": {
+                            "description": "RFC 3339 instant with an explicit Z or numeric UTC offset. Offsetless timestamps are invalid.",
                             "format": "date-time",
+                            "pattern": "^\\d{4}-\\d{2}-\\d{2}T(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d{1,9})?(?:Z|[+-](?:[01]\\d|2[0-3]):[0-5]\\d)$",
                             "type": "string"
                           }
                         },
@@ -16759,7 +16908,9 @@
                             ]
                           },
                           "series_end_time": {
+                            "description": "RFC 3339 instant with an explicit Z or numeric UTC offset. Offsetless timestamps are invalid.",
                             "format": "date-time",
+                            "pattern": "^\\d{4}-\\d{2}-\\d{2}T(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d{1,9})?(?:Z|[+-](?:[01]\\d|2[0-3]):[0-5]\\d)$",
                             "type": "string"
                           }
                         },
@@ -16775,20 +16926,24 @@
                     "additionalProperties": false,
                     "properties": {
                       "end_date": {
+                        "description": "Gregorian calendar date, YYYY-MM-DD. No timezone conversion.",
                         "format": "date",
                         "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
                         "type": "string"
                       },
                       "end_time": {
+                        "description": "Local wall-clock time, HH:mm:ss with optional fractional seconds. Not a UTC instant.",
                         "pattern": "^(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d{1,9})?$",
                         "type": "string"
                       },
                       "start_date": {
+                        "description": "Gregorian calendar date, YYYY-MM-DD. No timezone conversion.",
                         "format": "date",
                         "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
                         "type": "string"
                       },
                       "start_time": {
+                        "description": "Local wall-clock time, HH:mm:ss with optional fractional seconds. Not a UTC instant.",
                         "pattern": "^(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d{1,9})?$",
                         "type": "string"
                       }
@@ -16867,7 +17022,9 @@
           "scheduled_for": {
             "anyOf": [
               {
+                "description": "RFC 3339 instant with an explicit Z or numeric UTC offset. Offsetless timestamps are invalid.",
                 "format": "date-time",
+                "pattern": "^\\d{4}-\\d{2}-\\d{2}T(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d{1,9})?(?:Z|[+-](?:[01]\\d|2[0-3]):[0-5]\\d)$",
                 "type": "string"
               },
               {

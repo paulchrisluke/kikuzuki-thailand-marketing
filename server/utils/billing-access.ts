@@ -1,26 +1,19 @@
+import { instantDate } from '~/utils/timezone'
+
 export const PAST_DUE_GRACE_PERIOD_MS = 7 * 24 * 60 * 60 * 1000
 
 export interface SubscriptionAccessInput {
   plan: string | null | undefined
   status: string | null | undefined
   paymentStatus: string | null | undefined
-  trialEnd?: Date | string | number | null
-  periodEnd?: Date | string | number | null
-  paidThrough?: Date | string | number | null
-  pastDueSince?: Date | string | number | null
+  trialEnd?: Date | string | null
+  periodEnd?: Date | string | null
+  paidThrough?: Date | string | null
+  pastDueSince?: Date | string | null
 }
 
 function periodEndMs(value: SubscriptionAccessInput['periodEnd']): number | null {
-  if (value instanceof Date) return Number.isNaN(value.getTime()) ? null : value.getTime()
-  if (typeof value === 'number') {
-    const milliseconds = Math.abs(value) >= 100_000_000_000 ? value : value * 1000
-    return Number.isFinite(milliseconds) ? milliseconds : null
-  }
-  if (typeof value === 'string' && value.trim()) {
-    const parsed = Date.parse(value)
-    return Number.isNaN(parsed) ? null : parsed
-  }
-  return null
+  return value == null ? null : instantDate(value).getTime()
 }
 
 /**
@@ -35,7 +28,7 @@ export function getEffectiveAccessPlan(
   const plan = input.plan?.trim()
   if (!plan) return 'free'
   if (input.status === 'trialing') {
-    const trialEnd = periodEndMs(input.trialEnd ?? input.periodEnd)
+    const trialEnd = periodEndMs(input.trialEnd)
     if (trialEnd === null || now.getTime() > trialEnd) return 'free'
     return plan
   }
@@ -46,7 +39,7 @@ export function getEffectiveAccessPlan(
   }
 
   if (input.status === 'past_due') {
-    const graceAnchor = periodEndMs(input.paidThrough) ?? periodEndMs(input.pastDueSince)
+    const graceAnchor = periodEndMs(input.pastDueSince)
     if (graceAnchor !== null && now.getTime() <= graceAnchor + PAST_DUE_GRACE_PERIOD_MS) return plan
   }
 

@@ -1,6 +1,6 @@
+import { assertCalendarDate, localNow, MINUTE_TIME_PATTERN, isValidTimezone } from '~/utils/timezone'
 import { HTTPError } from 'nitro'
 import { execute, queryFirst, type DbClient } from '~/server/db'
-import { isValidTimeZone } from '~/server/utils/analytics-calendar'
 
 export interface SiteConfig {
   brand_color?: string
@@ -65,38 +65,15 @@ export const resolveLocationTimezone = async (
  * than compared against `new Date()` directly — otherwise bookings/reservations near midnight
  * are wrongly accepted/rejected for venues whose local day hasn't rolled over yet (or already has).
  */
-export const isDateBeforeTimezoneToday = (dateStr: string, timezone: string): boolean => {
-  const todayInZone = new Intl.DateTimeFormat('en-CA', {
-    timeZone: timezone,
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  }).format(new Date())
-  return dateStr < todayInZone
+export const isDateBeforeTimezoneToday = (date: string, timezone: string): boolean => {
+  assertCalendarDate(date)
+  return date < localNow(timezone).date
 }
-
-/**
- * Returns true if `dateStr` + `timeStr` ("HH:MM") is at or before the current moment as observed
- * in `timezone`. Used to strip/reject same-day slots whose start time has already passed — a slot
- * list built only from opening_hours (see shared/reservation-hours.ts generateReservationTimes)
- * still includes every slot for today regardless of the current wall-clock time, so this is the
- * second, orthogonal check needed to keep "today" from showing/accepting already-passed times.
- */
-export const isTimeSlotInPast = (dateStr: string, timeStr: string, timezone: string, now: Date = new Date()): boolean => {
-  const parts = new Intl.DateTimeFormat('en-CA', {
-    timeZone: timezone,
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-    hourCycle: 'h23',
-  }).formatToParts(now)
-  const get = (type: string) => parts.find(p => p.type === type)?.value ?? '00'
-  const nowDateStr = `${get('year')}-${get('month')}-${get('day')}`
-  const nowTimeStr = `${get('hour')}:${get('minute')}`
-  if (dateStr !== nowDateStr) return dateStr < nowDateStr
-  return timeStr <= nowTimeStr
+export const isTimeSlotInPast = (date: string, time: string, timezone: string, now = new Date()): boolean => {
+  assertCalendarDate(date)
+  if (!MINUTE_TIME_PATTERN.test(time)) throw new Error('Invalid booking time')
+  const current = localNow(timezone, now)
+  return date === current.date ? time <= current.time : date < current.date
 }
 
 export const setConfig = async (
@@ -106,7 +83,7 @@ export const setConfig = async (
   key: keyof SiteConfig,
   value: string
 ) => {
-  if (key === 'default_timezone' && !isValidTimeZone(value)) throw new HTTPError({ statusCode: 422, statusMessage: 'A valid analytics timezone is required' })
+  if (key === 'default_timezone' && !isValidTimezone(value)) throw new HTTPError({ statusCode: 422, statusMessage: 'A valid analytics timezone is required' })
   if (key === 'social_facebook' || key === 'social_instagram' || key === 'social_tiktok') {
     const result = await execute(db, `UPDATE sites SET ${key}_url = ?, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE organization_id = ? AND id = ?`, [value || null, organizationId, siteId])
     if (result.meta?.changes !== 1) throw new HTTPError({ statusCode: 409, statusMessage: 'Site ownership changed. Reload before saving.' })

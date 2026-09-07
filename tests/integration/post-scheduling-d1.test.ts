@@ -1,3 +1,4 @@
+import { parsePostInput } from '../../shared/posts.ts'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import test from 'node:test'
@@ -12,7 +13,7 @@ test('scheduled posts compare instants across timezone offsets and publish once'
   } }] })
   try {
     const db = await runtime.getD1Database('DB')
-    for (const statement of readFileSync('migrations/0000_epoch_5_baseline.sql', 'utf8').split('--> statement-breakpoint').map(sql => sql.trim()).filter(Boolean)) {
+    for (const statement of readFileSync('migrations/0000_epoch_6_baseline.sql', 'utf8').split('--> statement-breakpoint').map(sql => sql.trim()).filter(Boolean)) {
       await db.prepare(statement).run()
     }
     for (const statement of [
@@ -28,14 +29,14 @@ test('scheduled posts compare instants across timezone offsets and publish once'
       await db.prepare(`
         INSERT INTO content_documents (id, organization_id, site_id, kind, row_role, locale, summary, status, source, metadata_json, scheduled_for, created_by, updated_at)
         VALUES (?, 'org-proof', 'site-proof', 'social_post', 'root', 'en', 'Scheduled proof', 'scheduled', 'manual', '{"post_type":"standard","channels":{}}', ?, 'user-proof', '2098-12-31T00:00:00.000Z')
-      `).bind(id, scheduledFor).run()
+      `).bind(id, parsePostInput({ body: 'Scheduled proof', scheduled_for: scheduledFor }).scheduled_for).run()
     }
     const cutoff = new Date('2099-01-01T10:00:00.000Z')
     assert.deepEqual(await publishDuePosts(db, cutoff), { published: 1 })
     const rows = await db.prepare("SELECT id, status, scheduled_for, published_at FROM content_documents WHERE kind = 'social_post' ORDER BY id").all()
     assert.deepEqual(rows.results, [
-      { id: 'negative-offset', status: 'scheduled', scheduled_for: '2099-01-01T09:00:00-05:00', published_at: null },
-      { id: 'positive-offset', status: 'published', scheduled_for: null, published_at: '2099-01-01T11:00:00+02:00' },
+      { id: 'negative-offset', status: 'scheduled', scheduled_for: '2099-01-01T14:00:00.000Z', published_at: null },
+      { id: 'positive-offset', status: 'published', scheduled_for: null, published_at: '2099-01-01T09:00:00.000Z' },
     ])
     assert.deepEqual(await publishDuePosts(db, cutoff), { published: 0 })
     const finalCutoff = new Date('2099-01-01T14:00:00.000Z')

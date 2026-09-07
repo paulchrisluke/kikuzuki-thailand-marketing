@@ -11,8 +11,8 @@ export function testBaseUrl() {
   const previewUrl = process.env.PLAYWRIGHT_PREVIEW_URL
   if (previewUrl) return previewUrl
 
-  let port = Number.parseInt(process.env.PORT ?? '', 10)
-  if (Number.isNaN(port) || port <= 0) port = 3000
+  const port = Number(process.env.PLAYWRIGHT_PORT ?? 3000)
+  if (!Number.isInteger(port) || port <= 0 || port > 65535) throw new Error('PLAYWRIGHT_PORT must be a valid port')
 
   // Local E2E should target the webServer port explicitly instead of a stale
   // app domain from .env, otherwise tests can hit an unrelated process.

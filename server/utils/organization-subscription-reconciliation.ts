@@ -290,11 +290,7 @@ function nullableBoolean(value: unknown): boolean | null {
 
 function safeTimestamp(value: unknown, field: string): string | null {
   if (value === null || value === undefined || value === '') return null
-  try {
-    return betterAuthTimestampToIso(value as BetterAuthTimestamp, field)
-  } catch {
-    return null
-  }
+  return betterAuthTimestampToIso(value as BetterAuthTimestamp, field)
 }
 
 function isoFromUnix(value: unknown): string | null {

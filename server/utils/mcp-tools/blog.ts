@@ -1,3 +1,4 @@
+import { instantSchema } from '~/utils/timezone'
 import type { McpToolDefinition } from './shared'
 import { BLOG_NAV_FIELDS_SCHEMA, ROBOTS_DIRECTIVE_ENUM, blogPostMutationResultObject, blogPostObject, blogPostSummaryObject, pageInfoObject, paginationInputSchema, siteTool } from './shared'
 import { PUBLICATION_CONTENT_BLOCK_TYPES } from '~/shared/content-registries'
@@ -74,7 +75,7 @@ export const BLOG_TOOLS: McpToolDefinition[] = [
         canonical_url: { type: 'string' },
         robots: { type: ['string', 'null'], enum: [...ROBOTS_DIRECTIVE_ENUM, null] },
         visibility: { type: 'string', enum: ['public', 'unlisted'], description: 'Unlisted posts work by direct URL but are excluded from indexes, search, feeds, and sitemap.' },
-        scheduled_for: { type: ['string', 'null'], description: 'Optional future ISO 8601 datetime with timezone. Omit or pass null to publish immediately.' },
+        scheduled_for: { ...instantSchema, type: ['string', 'null'], description: 'Optional future ISO 8601 datetime with timezone. Omit or pass null to publish immediately.' },
       },
       required: ['title', 'content_blocks'],
       outputSchema: blogPostMutationResultObject,
@@ -154,7 +155,7 @@ export const BLOG_TOOLS: McpToolDefinition[] = [
       inputSchema: {
         post_id: { type: 'string', description: 'Post id or slug.' },
         expected_updated_at: { type: 'string', description: 'Exact post.updated_at concurrency token from the latest get_blog_post or successful blog mutation.' },
-        scheduled_for: { type: ['string', 'null'], description: 'Optional future ISO 8601 datetime with timezone. Omit or pass null to publish immediately.' },
+        scheduled_for: { ...instantSchema, type: ['string', 'null'], description: 'Optional future ISO 8601 datetime with timezone. Omit or pass null to publish immediately.' },
       },
       required: ['post_id', 'expected_updated_at'],
       outputSchema: blogPostMutationResultObject,

@@ -1,3 +1,4 @@
+import { assertCalendarDate, addLocalDays, localNow, formatTime, MINUTE_TIME_PATTERN, calendarDateSchema as dateSchema, minuteTimeSchema as timeSchema } from '../utils/timezone.ts'
 export const WEEKDAYS = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'] as const
 export type Weekday = (typeof WEEKDAYS)[number]
 export type WeekPoint = { day: number; hour: number; minute: number }
@@ -10,7 +11,7 @@ export type RecurringSlots = Partial<Record<Weekday, string[]>> | null
 export type HoursInterval = { start: number; end: number }
 const DAY = 1440
 const WEEK = DAY * 7
-export const TIME_PATTERN = /^([01]\d|2[0-3]):[0-5]\d$/
+export const TIME_PATTERN = MINUTE_TIME_PATTERN
 
 const pointSchema = { type: 'object', additionalProperties: false, required: ['day', 'hour', 'minute'], properties: {
   day: { type: 'integer', minimum: 0, maximum: 6 }, hour: { type: 'integer', minimum: 0, maximum: 23 }, minute: { type: 'integer', minimum: 0, maximum: 59 },
@@ -21,9 +22,7 @@ export const openingHoursSchema = { anyOf: [{ type: 'null' }, { type: 'object', 
     { type: 'object', additionalProperties: false, required: ['open'], properties: { open: { type: 'object', additionalProperties: false, required: ['day', 'hour', 'minute'], properties: { day: { const: 0 }, hour: { const: 0 }, minute: { const: 0 } } } } },
   ] } },
 } }] }
-const dateSchema = { type: 'string', pattern: '^\\d{4}-\\d{2}-\\d{2}$' }
 const noteSchema = { type: ['string', 'null'], maxLength: 1000 }
-const timeSchema = { type: 'string', pattern: '^([01]\\d|2[0-3]):[0-5]\\d$' }
 export const specialHoursSchema = { anyOf: [{ type: 'null' }, { type: 'array', items: { anyOf: [
   { type: 'object', additionalProperties: false, required: ['kind', 'starts_on', 'ends_on', 'note'], properties: { kind: { const: 'closure' }, starts_on: dateSchema, ends_on: { anyOf: [dateSchema, { type: 'null' }] }, note: noteSchema } },
   { type: 'object', additionalProperties: false, required: ['kind', 'date', 'periods', 'note'], properties: { kind: { const: 'hours' }, date: dateSchema, note: noteSchema, periods: { type: 'array', items: { type: 'object', additionalProperties: false, required: ['open_time', 'close_time', 'close_day_offset'], properties: { open_time: timeSchema, close_time: timeSchema, close_day_offset: { enum: [0, 1] } } } } } },
@@ -33,11 +32,6 @@ export const recurringSlotsSchema = { anyOf: [{ type: 'null' }, { type: 'object'
 function record(value: unknown, keys: string[]): Record<string, unknown> {
   if (!value || typeof value !== 'object' || Array.isArray(value) || Object.keys(value).some(key => !keys.includes(key))) throw new Error('Invalid hours object or unsupported field')
   return value as Record<string, unknown>
-}
-export function assertCalendarDate(value: unknown): asserts value is string {
-  if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value)) throw new Error('Date must be YYYY-MM-DD')
-  const date = new Date(`${value}T00:00:00Z`)
-  if (!Number.isFinite(date.getTime()) || date.toISOString().slice(0, 10) !== value) throw new Error('Invalid calendar date')
 }
 function point(value: unknown): WeekPoint {
   const p = record(value, ['day', 'hour', 'minute'])
@@ -120,11 +114,6 @@ export function parseRecurringSlots(value: unknown): RecurringSlots {
   }
   return result
 }
-export function shiftDate(date: string, days: number): string {
-  const value = new Date(`${date}T00:00:00Z`)
-  value.setUTCDate(value.getUTCDate() + days)
-  return value.toISOString().slice(0, 10)
-}
 export function closureOnDate(special: SpecialHours, date: string): Closure | undefined {
   return special?.find((p): p is Closure => p.kind === 'closure' && p.starts_on <= date && (p.ends_on === null || p.ends_on >= date))
 }
@@ -134,9 +123,9 @@ export function datedHours(special: SpecialHours, date: string) {
 export function getDateIntervals(hours: OpeningHours, special: SpecialHours, date: string): HoursInterval[] | null {
   if (closureOnDate(special, date)) return []
   const dated = datedHours(special, date)
-  const previousDate = shiftDate(date, -1)
+  const previousDate = addLocalDays(date, -1)
   const previous = datedHours(special, previousDate)
-  const nextDate = shiftDate(date, 1)
+  const nextDate = addLocalDays(date, 1)
   const nextReplacesSpill = Boolean(datedHours(special, nextDate) || closureOnDate(special, nextDate))
   const bounds = new Date(`${date}T00:00:00Z`).getUTCDay() * DAY
   let periods: HoursInterval[]
@@ -177,17 +166,11 @@ export function generateReservationTimes(hours: OpeningHours, date: string, { in
 export function resolveExperienceScheduleSlots(experience: { recurring_slots: RecurringSlots }, date: string): string[] {
   return experience.recurring_slots?.[WEEKDAYS[new Date(`${date}T00:00:00Z`).getUTCDay()]!] ?? []
 }
-export function localNow(timezone: string, now = new Date()): { date: string; time: string } {
-  const parts = new Intl.DateTimeFormat('en-CA', { timeZone: timezone, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).formatToParts(now)
-  const get = (type: string) => parts.find(p => p.type === type)!.value
-  return { date: `${get('year')}-${get('month')}-${get('day')}`, time: `${get('hour')}:${get('minute')}` }
-}
-export const fmt12Hour = (time: string, locale = 'en'): string => new Intl.DateTimeFormat(locale, { hour: 'numeric', minute: '2-digit', timeZone: 'UTC' }).format(new Date(`2024-01-01T${time}:00Z`))
 export function getTodayHoursLabel(hours: OpeningHours, closedLabel: string, timezone?: string | null, now = new Date(), special: SpecialHours = null, locale = 'en'): string | null {
   if (!timezone) return null
   const intervals = getDateIntervals(hours, special, localNow(timezone, now).date)
   if (intervals === null) return null
-  return intervals.length ? intervals.map(p => `${fmt12Hour(toTimeString(Math.max(0, p.start)), locale)} – ${fmt12Hour(toTimeString(p.end), locale)}`).join(', ') : closedLabel
+  return intervals.length ? intervals.map(p => `${formatTime(toTimeString(Math.max(0, p.start)), locale)} – ${formatTime(toTimeString(p.end), locale)}`).join(', ') : closedLabel
 }
 export function isOpenNow(hours: OpeningHours, timezone?: string | null, now = new Date(), special: SpecialHours = null): boolean | undefined {
   if (!timezone) return undefined

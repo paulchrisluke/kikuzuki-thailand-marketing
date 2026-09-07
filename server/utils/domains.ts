@@ -1,3 +1,4 @@
+import { instantDate } from '~/utils/timezone'
 // Cloudflare for SaaS custom domain management.
 
 import { execute, queryAll, queryFirst } from '~/server/db'
@@ -630,7 +631,7 @@ async function persistCloudflareState(
     activatedAt,
     certificateLastActiveAt,
     renewalIssueStartedAt,
-    hostname.ssl?.expires_on ?? before.certificate_expires_at ?? null,
+    hostname.ssl?.expires_on == null ? null : instantDate(hostname.ssl.expires_on).toISOString(),
     errors,
     JSON.stringify({
       cloudflare_created_at: hostname.created_at ?? null,

@@ -1,6 +1,7 @@
 import { HTTPError } from 'nitro'
 import { executeBatch, queryAll, queryFirst, type BatchQuery, type DbClient } from '~/server/db'
-import { assertCalendarDate, generateReservationTimes, parseOpeningHours, parseSpecialHours, parseRecurringSlots, resolveExperienceScheduleSlots, closureOnDate, datedHours, getDateIntervals, toMinutes, localNow, shiftDate, type OpeningHours, type SpecialHours, type RecurringSlots } from '~/shared/reservation-hours'
+import { generateReservationTimes, parseOpeningHours, parseSpecialHours, parseRecurringSlots, resolveExperienceScheduleSlots, closureOnDate, datedHours, getDateIntervals, toMinutes, type OpeningHours, type SpecialHours, type RecurringSlots } from '~/shared/reservation-hours'
+import { assertCalendarDate, localNow, addLocalDays, localDateTimeToInstant, isValidTimezone } from '~/utils/timezone'
 import { isTimeSlotInPast } from '~/server/utils/site-config'
 
 const TIME_SLOT_PATTERN = /^([01]\d|2[0-3]):[0-5]\d$/
@@ -278,8 +279,8 @@ export async function readAvailability(db: DbClient, input: {
   if (rows.length !== input.owners.length) throw new HTTPError({ statusCode: 404, statusMessage: 'Availability owner not found' })
   const snapshots = rows.map((row): AvailabilitySnapshot => {
     const timezone = row.timezone
-    if (!timezone) throw new HTTPError({ statusCode: 409, statusMessage: 'Set the location timezone before offering bookings' })
-    const dates = Array.isArray(input.dates) ? [...new Set(input.dates)] : Array.from({ length: input.dates.daysFromToday }, (_, i) => shiftDate(localNow(timezone).date, i))
+    if (!isValidTimezone(timezone)) throw new HTTPError({ statusCode: 409, statusMessage: 'Set the location timezone before offering bookings' })
+    const dates = Array.isArray(input.dates) ? [...new Set(input.dates)] : Array.from({ length: input.dates.daysFromToday }, (_, i) => addLocalDays(localNow(timezone).date, i))
     dates.forEach(date => assertAvailabilityDate(date))
     return {
       owner: row.owner_type === 'location' ? { kind: 'location', locationId: row.owner_id } : { kind: 'experience', experienceId: row.owner_id },
@@ -312,16 +313,10 @@ export async function readAvailability(db: DbClient, input: {
 }
 
 function civilTimeExists(date: string, time: string, timezone: string): boolean {
-  const nominal = new Date(`${date}T${time}:00Z`).getTime()
-  const offsets = new Set<number>()
-  for (const delta of [-DAY_MS, 0, DAY_MS]) {
-    const instant = new Date(nominal + delta)
-    const local = localNow(timezone, instant)
-    offsets.add(new Date(`${local.date}T${local.time}:00Z`).getTime() - instant.getTime())
-  }
-  return [...offsets].some(offset => { const local = localNow(timezone, new Date(nominal - offset)); return local.date === date && local.time === time })
+  try { localDateTimeToInstant(date, time, timezone); return true }
+  catch (error) { if (error instanceof RangeError) return false; throw error }
 }
-const DAY_MS = 86_400_000
+
 function calculateAvailabilityDay(snapshot: AvailabilitySnapshot, date: string, includePast: boolean) {
   const { row, hours, special, recurring, timezone } = snapshot
   const periods = getDateIntervals(hours, special, date)

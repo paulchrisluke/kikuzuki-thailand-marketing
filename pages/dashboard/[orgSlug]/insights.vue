@@ -58,6 +58,7 @@
                   :label="preset.label"
                   :variant="activePreset === preset.key ? 'soft' : 'ghost'"
                   :color="activePreset === preset.key ? 'primary' : 'neutral'"
+                  :disabled="loading || !analytics || !!loadError"
                   block
                   class="justify-start"
                   @click="applyPreset(preset.key)"
@@ -315,7 +316,7 @@ const dashboardApi = useDashboardApi()
 definePageMeta({ layout: 'dashboard' })
 
 import DashboardAnalyticsRow from '~/lib/components/workspace/dashboard/AnalyticsRow.vue'
-import { getLocalTimezone } from '~/utils/timezone'
+import { localDateAt, addLocalDays, formatCalendarDate } from '~/utils/timezone'
 
 type PresetKey = 'last_52_weeks' | 'last_30_days' | 'last_7_days' | 'current_month' | 'custom'
 
@@ -395,7 +396,7 @@ const activePreset = ref<PresetKey>('last_30_days')
 const loading = ref(true)
 const loadError = ref<string | null>(null)
 const analytics = ref<AnalyticsResponse | null>(null)
-const range = reactive(presetRange('last_30_days', getLocalTimezone()))
+const range = reactive({ startDate: '', endDate: '' })
 const isNumberField = (row: unknown, ...fields: string[]): boolean =>
   isRecord(row) && fields.every(field => typeof row[field] === 'number')
 const isLabelled = (row: unknown, label: string, ...numbers: string[]): boolean =>
@@ -452,7 +453,7 @@ const initialRange = { ...range }
 let latestManualRequestId = 0
 
 /** One read for the filter's options and the figures, so they cannot disagree. */
-async function fetchInsights(query: { startDate: string; endDate: string }) {
+async function fetchInsights(query: { startDate?: string; endDate?: string }) {
   return await dashboardApi<InsightsResponse>('/api/dashboard/analytics', {
     query: { ...query, ...(selectedSiteId.value ? { siteId: selectedSiteId.value } : {}) },
     validate: isInsightsResponse,
@@ -462,7 +463,7 @@ async function fetchInsights(query: { startDate: string; endDate: string }) {
 const { data: insightsResource, pending: analyticsPending, error: analyticsResourceError } =
   await useAsyncData(
     `dashboard-org-insights:${initialRange.startDate}:${initialRange.endDate}:${selectedSiteId.value ?? 'all'}`,
-    () => fetchInsights(initialRange),
+    () => fetchInsights({}),
     { lazy: import.meta.client },
   )
 
@@ -477,6 +478,7 @@ watch([insightsResource, analyticsPending, analyticsResourceError], ([resource, 
     sites.value = resource.sites
     selectedSiteId.value = resource.siteId
     analytics.value = resource.report
+    Object.assign(range, { startDate: resource.report.period.startDate, endDate: resource.report.period.endDate })
     reviews.value = resource.reviews
     setup.value = resource.setup
     loadError.value = null
@@ -507,33 +509,19 @@ const metricCards = computed(() => {
   ]
 })
 
-function todayInTimeZone(timeZone: string): string {
-  const parts = new Intl.DateTimeFormat('en-CA', {
-    timeZone, year: 'numeric', month: '2-digit', day: '2-digit',
-  }).formatToParts(new Date())
-  const values = Object.fromEntries(parts.map(part => [part.type, part.value]))
-  return `${values.year}-${values.month}-${values.day}`
-}
-
-function addCalendarDays(date: string, days: number): string {
-  const [year, month, day] = date.split('-').map(Number)
-  const shifted = new Date(Date.UTC(year!, month! - 1, day!))
-  shifted.setUTCDate(shifted.getUTCDate() + days)
-  return shifted.toISOString().slice(0, 10)
-}
-
 function presetRange(key: PresetKey, timeZone: string): { startDate: string; endDate: string } {
-  const endDate = todayInTimeZone(timeZone)
+  const endDate = localDateAt(new Date(), timeZone)
   let startDate = endDate
-  if (key === 'last_52_weeks') startDate = addCalendarDays(endDate, -363)
-  if (key === 'last_30_days') startDate = addCalendarDays(endDate, -29)
-  if (key === 'last_7_days') startDate = addCalendarDays(endDate, -6)
+  if (key === 'last_52_weeks') startDate = addLocalDays(endDate, -363)
+  if (key === 'last_30_days') startDate = addLocalDays(endDate, -29)
+  if (key === 'last_7_days') startDate = addLocalDays(endDate, -6)
   if (key === 'current_month') startDate = `${endDate.slice(0, 8)}01`
   return { startDate, endDate }
 }
 
 function currentTimeZone(): string {
-  return analytics.value?.period.timezone || getLocalTimezone()
+  if (!analytics.value) throw new Error('Load the selected analytics timezone before choosing dates')
+  return analytics.value.period.timezone
 }
 
 function applyPreset(key: PresetKey) {
@@ -557,6 +545,7 @@ async function loadAnalytics() {
     sites.value = response.sites
     selectedSiteId.value = response.siteId
     analytics.value = response.report
+    Object.assign(range, { startDate: response.report.period.startDate, endDate: response.report.period.endDate })
     reviews.value = response.reviews
     setup.value = response.setup
   } catch (error) {
@@ -611,8 +600,7 @@ function formatDuration(seconds: number): string {
 }
 
 function formatDate(value: string): string {
-  const date = new Date(`${value}T00:00:00.000Z`)
-  return new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' }).format(date)
+  return formatCalendarDate(value, 'en')
 }
 
 function countryFlag(countryCode: string): string {

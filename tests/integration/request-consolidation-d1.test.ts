@@ -57,8 +57,8 @@ test('canonical requests claim one seat and update independent owner slots atomi
       VALUES ('work-proof','work','org-proof','pending','normal','user-proof','{"type":"technical","title":"Task","source":"dashboard"}')`).run()
     assert.equal(await db.prepare("SELECT assigned_to FROM requests WHERE id='work-proof'").first('assigned_to'), 'user-proof')
     await assert.rejects(() => db.prepare("UPDATE requests SET payload_json='{}' WHERE id=?").bind(winner).run(), /CHECK constraint/)
-    await db.prepare("UPDATE requests SET payload_json=json_set(payload_json,'$.cancellation.token_hash','hash','$.cancellation.expires_at','2099-01-01T00:00:00Z') WHERE id=?").bind(winner).run()
-    const cancellations = await Promise.all([1, 2].map(() => cancelBookingRequest(db, { id: winner!, siteId: 'site-proof', kind: 'reservation', tokenHash: 'hash', now: '2098-01-01T00:00:00Z' })))
+    await db.prepare("UPDATE requests SET payload_json=json_set(payload_json,'$.cancellation.token_hash','hash','$.cancellation.expires_at','2099-01-01T00:00:00.000Z') WHERE id=?").bind(winner).run()
+    const cancellations = await Promise.all([1, 2].map(() => cancelBookingRequest(db, { id: winner!, siteId: 'site-proof', kind: 'reservation', tokenHash: 'hash', now: '2098-01-01T00:00:00.000Z' })))
     assert.equal(cancellations.filter(Boolean).length, 1)
     const entryId = await db.prepare('SELECT id FROM activity_entries').first<string>('id')
     const notification = buildCanonicalNotificationInsert({ scope: 'site', organizationId: 'org-proof', siteId: 'site-proof', title: 'Reply', template: 'guest.reply', sourceEntryId: entryId }, 'notification-proof')
@@ -80,8 +80,8 @@ test('canonical requests claim one seat and update independent owner slots atomi
     assert.equal(policy.reschedule_allowed, false)
     assert.equal(policy.minimum_guest_age, 18)
     await db.prepare("INSERT INTO customers (id,organization_id,site_id,source) VALUES ('customer-proof','org-proof','site-proof','manual')").run()
-    await assert.rejects(() => db.prepare("INSERT INTO review_requests (id,organization_id,site_id,customer_id,booking_type,booking_id,token_hash,expires_at) VALUES ('wrong-review','org-proof','site-proof','customer-proof','experience_booking',?,'wrong-token','2099-01-01T00:00:00Z')").bind(winner).run(), /FOREIGN KEY constraint/)
-    await db.prepare("INSERT INTO review_requests (id,organization_id,site_id,customer_id,booking_type,booking_id,token_hash,expires_at) VALUES ('valid-review','org-proof','site-proof','customer-proof','reservation',?,'valid-token','2099-01-01T00:00:00Z')").bind(winner).run()
+    await assert.rejects(() => db.prepare("INSERT INTO review_requests (id,organization_id,site_id,customer_id,booking_type,booking_id,token_hash,expires_at) VALUES ('wrong-review','org-proof','site-proof','customer-proof','experience_booking',?,'wrong-token','2099-01-01T00:00:00.000Z')").bind(winner).run(), /FOREIGN KEY constraint/)
+    await db.prepare("INSERT INTO review_requests (id,organization_id,site_id,customer_id,booking_type,booking_id,token_hash,expires_at) VALUES ('valid-review','org-proof','site-proof','customer-proof','reservation',?,'valid-token','2099-01-01T00:00:00.000Z')").bind(winner).run()
     const now = new Date().toISOString()
     const bookingWrites = requestInsertQueries({ id: 'experience-booking-proof', kind: 'experience_booking', organization_id: 'org-proof', site_id: 'site-proof', location_id: 'location-proof', product_id: experience.id, customer_id: null, review_id: null, status: 'confirmed', booking_date: date, time_slot: '18:30', party_size: 1, conversation_state: 'needs_attention', resolved_at: null, payload: bookingPayloadForGuest({ name: 'Guest', email: 'guest@proof.example' }), created_at: now, updated_at: now })
     await db.batch(bookingWrites.map(write => db.prepare(write.query).bind(...write.params)))
@@ -101,7 +101,7 @@ test('canonical requests claim one seat and update independent owner slots atomi
       "INSERT INTO organization (id,name,slug) VALUES ('org-former','Former','former')",
       "INSERT INTO organization (id,name,slug) VALUES ('org-current','Current','current')",
       "INSERT INTO sites (id,organization_id,slug,subdomain) VALUES ('site-transferred','org-current','transferred','transferred')",
-      "INSERT INTO activity_entries (id,kind,scope_kind,site_id,actor_kind,event_name,payload_json,dedupe_key,occurred_at) VALUES ('audit-proof','audit','site','site-transferred','system','site.changed','{\"sourceOrganizationId\":\"org-former\"}','audit-proof','2026-09-01T00:00:00Z')",
+      "INSERT INTO activity_entries (id,kind,scope_kind,site_id,actor_kind,event_name,payload_json,dedupe_key,occurred_at) VALUES ('audit-proof','audit','site','site-transferred','system','site.changed','{\"sourceOrganizationId\":\"org-former\"}','audit-proof','2026-09-01T00:00:00.000Z')",
     ].map(statement => db.prepare(statement)))
     const historicalNotification = buildCanonicalNotificationInsert({ scope: 'site', organizationId: 'org-proof', siteId: 'site-transferred', title: 'Original notification', template: 'site.changed' }, 'historical-notification')
     await db.prepare(historicalNotification.query).bind(...historicalNotification.params).run()

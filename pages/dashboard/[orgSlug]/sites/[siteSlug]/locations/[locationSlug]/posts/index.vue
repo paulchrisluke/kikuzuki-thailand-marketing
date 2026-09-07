@@ -58,6 +58,7 @@
 </template>
 
 <script setup lang="ts">
+import { formatTimestamp } from '~/utils/timezone'
 import { normalizePostMediaForForm } from '~/composables/useLocationPostEditor'
 import { getErrorMessage } from '~/utils/errors'
 
@@ -137,7 +138,7 @@ function coverUrl(post: ApiRecord): string | null {
 
 function formatDate(iso: string) {
   if (!iso) return ''
-  return new Date(iso).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
+  return formatTimestamp(iso, 'en', 'UTC', { dateStyle: 'medium' })
 }
 
 useSeoMeta({ title: 'Posts | KrabiClaw Dashboard', robots: 'noindex, nofollow' })

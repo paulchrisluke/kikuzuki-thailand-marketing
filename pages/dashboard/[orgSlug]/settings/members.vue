@@ -266,6 +266,7 @@
 </template>
 
 <script setup lang="ts">
+import { formatTimestamp } from '~/utils/timezone'
 import OrganizationSettingsShell from '~/components/dashboard/OrganizationSettingsShell.vue'
 
 const dashboardApi = useDashboardApi()
@@ -671,7 +672,7 @@ async function removeMember(memberId: string) {
 }
 
 function formatDate(value: string) {
-  return new Intl.DateTimeFormat(undefined, { dateStyle: 'medium' }).format(new Date(value))
+  return formatTimestamp(value, 'en', 'UTC', { dateStyle: 'medium' })
 }
 
 onBeforeUnmount(() => {

@@ -41,11 +41,10 @@ export const customers = sqliteTable("customers", {
 	source: text().notNull(),
 	status: text().default("active").notNull(),
 	review_request_opted_out_at: text(),
-	last_booking_at: text(),
-	last_review_at: text(),
 	created_at: text().default(sql`(strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))`).notNull(),
 	updated_at: text().default(sql`(strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))`).notNull(),
 }, (table) => [
+	check("customers_instants_check", sql`(review_request_opted_out_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', review_request_opted_out_at, '+0 days') IS review_request_opted_out_at) AND (created_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', created_at, '+0 days') IS created_at) AND (updated_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', updated_at, '+0 days') IS updated_at)`),
 	foreignKey({ columns: [table.organization_id, table.site_id], foreignColumns: [sites.organization_id, sites.id], name: "customers_site_scope_fk" }).onDelete("cascade"),
 	uniqueIndex("idx_customers_site_email_normalized_unique").on(table.site_id, table.email_normalized).where(sql`email_normalized IS NOT NULL`),
 	uniqueIndex("idx_customers_stripe_customer_id_unique").on(table.stripe_customer_id).where(sql`stripe_customer_id IS NOT NULL`),
@@ -108,6 +107,7 @@ export const business_locations = sqliteTable("business_locations", {
 	team_id: text().references((): AnySQLiteColumn => team.id, { onDelete: "set null" } ),
 	feature_overrides: text(),
 }, (table) => [
+	check("business_locations_instants_check", sql`(last_synced_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', last_synced_at, '+0 days') IS last_synced_at) AND (created_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', created_at, '+0 days') IS created_at) AND (updated_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', updated_at, '+0 days') IS updated_at)`),
  check("business_locations_booking_check", sql`json_valid(booking_json) AND json_type(booking_json) = 'object'`),
 	foreignKey({ columns: [table.organization_id, table.site_id], foreignColumns: [sites.organization_id, sites.id], name: "business_locations_site_scope_fk" }).onDelete("cascade"),
 	check("business_locations_address_check", sql`address IS NULL OR (json_valid(address) AND json_type(address) IS 'object')`),
@@ -142,6 +142,7 @@ export const requests = sqliteTable("requests", {
  created_at: text().default(sql`(strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))`).notNull(),
  updated_at: text().default(sql`(strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))`).notNull(),
 }, table => [
+	check("requests_instants_check", sql`(resolved_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', resolved_at, '+0 days') IS resolved_at) AND (created_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', created_at, '+0 days') IS created_at) AND (updated_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', updated_at, '+0 days') IS updated_at)`),
  foreignKey({ columns: [table.organization_id, table.site_id], foreignColumns: [sites.organization_id, sites.id], name: "requests_site_scope_fk" }).onDelete("cascade"),
  foreignKey({ columns: [table.organization_id, table.site_id, table.location_id], foreignColumns: [business_locations.organization_id, business_locations.site_id, business_locations.id], name: "requests_location_scope_fk" }),
  foreignKey({ columns: [table.organization_id, table.site_id, table.product_id], foreignColumns: [products.organization_id, products.site_id, products.id], name: "requests_product_site_scope_fk" }),
@@ -153,7 +154,7 @@ export const requests = sqliteTable("requests", {
  check("requests_work_payload_check", sql`kind != 'work' OR (json_type(payload_json, '$.title') IS 'text' AND (payload_json ->> '$.type') IN ('content_update', 'product_update', 'seo', 'google_places', 'seasonal', 'photo_update', 'social_media', 'technical', 'other') AND (payload_json ->> '$.source') IN ('dashboard', 'whatsapp')) IS TRUE`),
  check("requests_message_payload_check", sql`kind NOT IN ('contact', 'platform_contact') OR json_type(payload_json, '$.message') IS 'text'`),
  check("requests_scope_check", sql`(kind = 'platform_contact' AND organization_id IS NULL AND site_id IS NULL AND location_id IS NULL AND product_id IS NULL AND customer_id IS NULL) OR (kind = 'work' AND organization_id IS NOT NULL AND location_id IS NULL AND product_id IS NULL AND customer_id IS NULL) OR (kind IN ('contact', 'reservation', 'experience_booking') AND organization_id IS NOT NULL AND site_id IS NOT NULL)`),
- check("requests_booking_check", sql`(kind IN ('reservation', 'experience_booking') AND location_id IS NOT NULL AND booking_date IS NOT NULL AND time_slot IS NOT NULL AND party_size IS NOT NULL AND party_size > 0 AND status IS NOT NULL AND status IN ('pending', 'confirmed', 'cancelled', 'completed') AND (kind != 'experience_booking' OR product_id IS NOT NULL) AND (kind != 'reservation' OR product_id IS NULL)) OR (kind NOT IN ('reservation', 'experience_booking') AND booking_date IS NULL AND time_slot IS NULL AND party_size IS NULL)`),
+ check("requests_booking_check", sql`(kind IN ('reservation', 'experience_booking') AND location_id IS NOT NULL AND booking_date IS NOT NULL AND date(booking_date, '+0 days') IS booking_date AND time_slot IS NOT NULL AND time_slot GLOB '[0-2][0-9]:[0-5][0-9]' AND time_slot < '24:00' AND party_size IS NOT NULL AND party_size > 0 AND status IS NOT NULL AND status IN ('pending', 'confirmed', 'cancelled', 'completed') AND (kind != 'experience_booking' OR product_id IS NOT NULL) AND (kind != 'reservation' OR product_id IS NULL)) OR (kind NOT IN ('reservation', 'experience_booking') AND booking_date IS NULL AND time_slot IS NULL AND party_size IS NULL)`),
  check("requests_state_check", sql`(kind = 'work' AND status IS NOT NULL AND status IN ('pending', 'in_progress', 'done', 'cancelled') AND priority IS NOT NULL AND priority IN ('low', 'normal', 'high', 'urgent') AND conversation_state IS NULL) OR (kind IN ('contact', 'reservation', 'experience_booking') AND conversation_state IS NOT NULL AND conversation_state IN ('needs_attention', 'waiting_on_guest', 'resolved') AND priority IS NULL AND assigned_to IS NULL AND (kind != 'contact' OR status IS NULL)) OR (kind = 'platform_contact' AND status IS NULL AND priority IS NULL AND conversation_state IS NULL AND assigned_to IS NULL)`),
  uniqueIndex("requests_review_owner_unique").on(table.organization_id, table.site_id, table.id, table.kind),
  uniqueIndex("requests_scope_id_unique").on(table.organization_id, table.site_id, table.id),
@@ -188,6 +189,7 @@ export const activity_entries = sqliteTable("activity_entries", {
  occurred_at: text().notNull(),
  created_at: text().default(sql`(strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))`).notNull(),
 }, table => [
+	check("activity_entries_instants_check", sql`(occurred_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', occurred_at, '+0 days') IS occurred_at) AND (created_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', created_at, '+0 days') IS created_at)`),
  check("activity_entries_kind_check", sql`kind IN ('submission', 'message', 'operation', 'assignment', 'resolution', 'notification', 'acknowledgement', 'audit')`),
  check("activity_entries_scope_check", sql`(scope_kind = 'request' AND request_id IS NOT NULL AND organization_id IS NULL AND site_id IS NULL AND context_site_id IS NULL AND location_id IS NULL) OR (scope_kind = 'site' AND kind = 'audit' AND site_id IS NOT NULL AND context_site_id IS NULL AND organization_id IS NULL AND request_id IS NULL) OR (scope_kind = 'organization' AND organization_id IS NOT NULL AND site_id IS NULL AND request_id IS NULL) OR (scope_kind = 'platform' AND organization_id IS NULL AND site_id IS NULL AND context_site_id IS NULL AND request_id IS NULL)`),
  check("activity_entries_actor_check", sql`actor_kind IN ('guest', 'member', 'system', 'cloudflare')`),
@@ -217,6 +219,7 @@ export const guest_thread_deliveries = sqliteTable("guest_thread_deliveries", {
 	created_at: text().default(sql`(strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))`).notNull(),
 	updated_at: text().default(sql`(strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))`).notNull(),
 }, (table) => [
+	check("guest_thread_deliveries_instants_check", sql`(created_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', created_at, '+0 days') IS created_at) AND (updated_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', updated_at, '+0 days') IS updated_at)`),
 	uniqueIndex("guest_thread_deliveries_provider_message_unique").on(table.provider, table.provider_message_id).where(sql`provider_message_id IS NOT NULL`),
 	index("guest_thread_deliveries_entry_status_idx").on(table.entry_id, table.status),
 	check("guest_thread_deliveries_channel_check", sql`channel IN ('email', 'whatsapp')`),
@@ -281,6 +284,7 @@ export const media_assets = sqliteTable("media_assets", {
 	created_at: text().default(sql`(strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))`).notNull(),
 	updated_at: text().default(sql`(strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))`).notNull(),
 }, (table) => [
+	check("media_assets_instants_check", sql`(created_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', created_at, '+0 days') IS created_at) AND (updated_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', updated_at, '+0 days') IS updated_at)`),
 	foreignKey({ columns: [table.organization_id, table.site_id], foreignColumns: [sites.organization_id, sites.id], name: "media_assets_site_scope_fk" }).onDelete("cascade"),
 	check("media_assets_kind_check", sql`${table.kind} IN ('image', 'video', 'file')`),
 	check("media_assets_category_check", sql`category IS NULL OR category IN ('exterior', 'interior', 'food', 'menu', 'team', 'other', 'logo', 'blog')`),
@@ -304,6 +308,7 @@ export const media_placements = sqliteTable("media_placements", {
 	created_at: text().default(sql`(strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))`).notNull(),
 	updated_at: text().default(sql`(strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))`).notNull(),
 }, (table) => [
+	check("media_placements_instants_check", sql`(created_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', created_at, '+0 days') IS created_at) AND (updated_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', updated_at, '+0 days') IS updated_at)`),
 	foreignKey({
 		columns: [table.organization_id, table.site_id, table.asset_id],
 		foreignColumns: [media_assets.organization_id, media_assets.site_id, media_assets.id],
@@ -369,6 +374,7 @@ export const product_categories = sqliteTable("product_categories", {
 	created_by: text().notNull(),
 	updated_by: text().notNull(),
 }, (table) => [
+	check("product_categories_instants_check", sql`(created_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', created_at, '+0 days') IS created_at) AND (updated_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', updated_at, '+0 days') IS updated_at)`),
 	foreignKey({
 		columns: [table.organization_id, table.site_id, table.location_id],
 		foreignColumns: [business_locations.organization_id, business_locations.site_id, business_locations.id],
@@ -416,6 +422,7 @@ export const products = sqliteTable("products", {
 	created_by: text().notNull(),
 	updated_by: text().notNull(),
 }, (table) => [
+	check("products_instants_check", sql`(created_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', created_at, '+0 days') IS created_at) AND (updated_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', updated_at, '+0 days') IS updated_at)`),
 	foreignKey({
 		columns: [table.organization_id, table.site_id, table.location_id],
 		foreignColumns: [business_locations.organization_id, business_locations.site_id, business_locations.id],
@@ -465,6 +472,7 @@ export const prices = sqliteTable("prices", {
 	created_by: text().notNull(),
 	created_at: text().default(sql`(strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))`).notNull(),
 }, (table) => [
+	check("prices_instants_check", sql`(strftime('%Y-%m-%dT%H:%M:%fZ', valid_from, '+0 days') IS valid_from) AND (valid_until IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', valid_until, '+0 days') IS valid_until) AND (created_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', created_at, '+0 days') IS created_at)`),
 	foreignKey({
 		columns: [table.organization_id, table.site_id, table.location_id, table.product_id],
 		foreignColumns: [products.organization_id, products.site_id, products.location_id, products.id],
@@ -652,6 +660,7 @@ export const organization_billing = sqliteTable("organization_billing", {
 	access_expires_at: text(),
 	updated_at: text().default(sql`(strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))`).notNull(),
 }, (table) => [
+	check("organization_billing_instants_check", sql`(access_expires_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', access_expires_at, '+0 days') IS access_expires_at) AND (updated_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', updated_at, '+0 days') IS updated_at) AND (paid_through IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', paid_through, '+0 days') IS paid_through) AND (past_due_since IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', past_due_since, '+0 days') IS past_due_since)`),
 	check("organization_billing_payment_status_check", sql`payment_status IN ('unknown', 'paid', 'processing', 'failed', 'pending', 'trialing', 'past_due')`),
 	check("organization_billing_access_plan_check", sql`${table.access_plan} IN ('free', 'growth')`),
 ]);
@@ -671,6 +680,7 @@ export const onboarding_drafts = sqliteTable("onboarding_drafts", {
 	created_at: text().default(sql`(strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))`).notNull(),
 	updated_at: text().default(sql`(strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))`).notNull(),
 }, (table) => [
+	check("onboarding_drafts_instants_check", sql`(committed_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', committed_at, '+0 days') IS committed_at) AND (created_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', created_at, '+0 days') IS created_at) AND (updated_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', updated_at, '+0 days') IS updated_at)`),
 	check("onboarding_drafts_source_type_check", sql`source_type IN ('google_places', 'manual')`),
 	check("onboarding_drafts_payload_json_check", sql`payload_json IS NULL OR (json_valid(payload_json) AND json_type(payload_json) IS 'object')`),
 	uniqueIndex("idx_onboarding_drafts_active_user_unique").on(table.user_id).where(sql`status = 'active'`),
@@ -684,6 +694,7 @@ export const rate_limits = sqliteTable("rate_limits", {
 	updated_at: text().default(sql`(strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))`).notNull(),
 	expires_at: text(),
 }, (table) => [
+	check("rate_limits_instants_check", sql`(updated_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', updated_at, '+0 days') IS updated_at) AND (expires_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', expires_at, '+0 days') IS expires_at)`),
 	index("idx_rate_limits_expires").on(table.expires_at),
 ]);
 
@@ -711,6 +722,7 @@ export const review_requests = sqliteTable("review_requests", {
 	created_at: text().default(sql`(strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))`).notNull(),
 	updated_at: text().default(sql`(strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))`).notNull(),
 }, (table) => [
+	check("review_requests_instants_check", sql`(expires_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', expires_at, '+0 days') IS expires_at) AND (first_sent_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', first_sent_at, '+0 days') IS first_sent_at) AND (reminder_sent_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', reminder_sent_at, '+0 days') IS reminder_sent_at) AND (submitted_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', submitted_at, '+0 days') IS submitted_at) AND (clicked_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', clicked_at, '+0 days') IS clicked_at) AND (revoked_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', revoked_at, '+0 days') IS revoked_at) AND (created_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', created_at, '+0 days') IS created_at) AND (updated_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', updated_at, '+0 days') IS updated_at)`),
  foreignKey({ columns: [table.organization_id, table.site_id, table.booking_id, table.booking_type], foreignColumns: [requests.organization_id, requests.site_id, requests.id, requests.kind], name: "review_requests_booking_scope_fk" }).onDelete("cascade"),
 	foreignKey({ columns: [table.organization_id, table.site_id], foreignColumns: [sites.organization_id, sites.id], name: "review_requests_site_scope_fk" }).onDelete("cascade"),
 	uniqueIndex("idx_review_requests_active_booking_unique")
@@ -753,6 +765,7 @@ export const reviews = sqliteTable("reviews", {
 	created_at: text().default(sql`(strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))`).notNull(),
 	updated_at: text().default(sql`(strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))`).notNull(),
 }, (table) => [
+	check("reviews_instants_check", sql`(owner_reply_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', owner_reply_at, '+0 days') IS owner_reply_at) AND (created_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', created_at, '+0 days') IS created_at) AND (updated_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', updated_at, '+0 days') IS updated_at)`),
 	foreignKey({ columns: [table.organization_id, table.site_id], foreignColumns: [sites.organization_id, sites.id], name: "reviews_site_scope_fk" }).onDelete("cascade"),
 	check("reviews_status_check", sql`status IN ('pending', 'approved', 'rejected')`),
 	check("reviews_google_review_metadata_check", sql`google_review_metadata IS NULL OR (json_valid(google_review_metadata) AND json_type(google_review_metadata) IS 'object')`),
@@ -820,6 +833,7 @@ export const offerings = sqliteTable("offerings", {
 	updated_at: text().default(sql`(strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))`).notNull(),
 	updated_by: text(),
 }, (table) => [
+	check("offerings_instants_check", sql`(created_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', created_at, '+0 days') IS created_at) AND (updated_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', updated_at, '+0 days') IS updated_at)`),
 	foreignKey({ columns: [table.organization_id, table.site_id], foreignColumns: [sites.organization_id, sites.id], name: "offerings_site_scope_fk" }).onDelete("cascade"),
 	check("offerings_features_check", sql`features IS NULL OR (json_valid(features) AND json_type(features) IS 'array')`),
 	check("offerings_faqs_check", sql`faqs IS NULL OR (json_valid(faqs) AND json_type(faqs) IS 'array')`),
@@ -843,6 +857,7 @@ export const site_redirects = sqliteTable("site_redirects", {
 	created_at: text().default(sql`(strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))`).notNull(),
 	updated_at: text().default(sql`(strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))`).notNull(),
 }, (table) => [
+	check("site_redirects_instants_check", sql`(created_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', created_at, '+0 days') IS created_at) AND (updated_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', updated_at, '+0 days') IS updated_at)`),
 	foreignKey({ columns: [table.organization_id, table.site_id], foreignColumns: [sites.organization_id, sites.id], name: "site_redirects_site_scope_fk" }).onDelete("cascade"),
 	unique("site_redirects_site_locale_from_path_unique").on(table.site_id, table.locale, table.from_path),
 	check("site_redirects_from_path_check", sql`from_path LIKE '/%'`),
@@ -901,6 +916,7 @@ export const site_domains = sqliteTable("site_domains", {
 	created_at: text().default(sql`(strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))`).notNull(),
 	updated_at: text().default(sql`(strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))`).notNull(),
 }, (table) => [
+	check("site_domains_instants_check", sql`(retired_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', retired_at, '+0 days') IS retired_at) AND (reconciliation_expires_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', reconciliation_expires_at, '+0 days') IS reconciliation_expires_at) AND (dns_last_resolved_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', dns_last_resolved_at, '+0 days') IS dns_last_resolved_at) AND (last_synced_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', last_synced_at, '+0 days') IS last_synced_at) AND (next_check_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', next_check_at, '+0 days') IS next_check_at) AND (activated_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', activated_at, '+0 days') IS activated_at) AND (certificate_last_active_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', certificate_last_active_at, '+0 days') IS certificate_last_active_at) AND (renewal_issue_started_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', renewal_issue_started_at, '+0 days') IS renewal_issue_started_at) AND (renewal_notification_sent_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', renewal_notification_sent_at, '+0 days') IS renewal_notification_sent_at) AND (certificate_expires_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', certificate_expires_at, '+0 days') IS certificate_expires_at) AND (created_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', created_at, '+0 days') IS created_at) AND (updated_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', updated_at, '+0 days') IS updated_at)`),
 	check("site_domains_owner_check", sql`(status = 'retired' AND type = 'subdomain' AND role = 'secondary' AND organization_id IS NULL AND site_id IS NULL AND former_site_id IS NOT NULL AND retired_at IS NOT NULL) OR (status <> 'retired' AND organization_id IS NOT NULL AND site_id IS NOT NULL AND former_site_id IS NULL AND retired_at IS NULL AND successor_domain IS NULL)`),
 	check("site_domains_desired_state_check", sql`desired_state IN ('active', 'deleted') AND (desired_state <> 'deleted' OR type = 'custom')`),
 	check("site_domains_lease_check", sql`(reconciliation_token IS NULL) = (reconciliation_expires_at IS NULL)`),
@@ -932,6 +948,7 @@ export const site_locales = sqliteTable("site_locales", {
 	created_at: text().default(sql`(strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))`).notNull(),
 	updated_at: text().default(sql`(strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))`).notNull(),
 }, (table) => [
+	check("site_locales_instants_check", sql`(activated_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', activated_at, '+0 days') IS activated_at) AND (disabled_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', disabled_at, '+0 days') IS disabled_at) AND (created_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', created_at, '+0 days') IS created_at) AND (updated_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', updated_at, '+0 days') IS updated_at)`),
 	uniqueIndex("site_locales_secondary_published_unique").on(table.organization_id, table.site_id).where(sql`is_source = 0 AND status = 'published'`),
 	foreignKey({ columns: [table.organization_id, table.site_id], foreignColumns: [sites.organization_id, sites.id], name: "site_locales_site_scope_fk" }).onDelete("cascade"),
 	check("site_locales_source_boolean_check", sql`is_source IN (0, 1)`),
@@ -971,6 +988,7 @@ export const mcp_tool_call_events = sqliteTable("mcp_tool_call_events", {
 	duration_ms: integer(),
 	created_at: text().default(sql`(strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))`).notNull(),
 }, (table) => [
+	check("mcp_tool_call_events_instants_check", sql`(created_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', created_at, '+0 days') IS created_at)`),
 	check("mcp_tool_call_events_arguments_summary_json_check", sql`arguments_summary_json IS NULL OR (json_valid(arguments_summary_json))`),
 	check("mcp_tool_call_events_result_summary_json_check", sql`result_summary_json IS NULL OR (json_valid(result_summary_json))`),
 	check("mcp_tool_call_events_status_check", sql`status IN ('success', 'error', 'auth_required', 'blocked')`),
@@ -1010,6 +1028,7 @@ export const site_transfer_requests = sqliteTable("site_transfer_requests", {
 	reminder_count: integer().default(0).notNull(),
 	invited_interval: text().default("month").notNull(),
 }, (table) => [
+	check("site_transfer_requests_instants_check", sql`(payment_completed_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', payment_completed_at, '+0 days') IS payment_completed_at) AND (created_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', created_at, '+0 days') IS created_at) AND (completed_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', completed_at, '+0 days') IS completed_at) AND (last_reminder_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', last_reminder_at, '+0 days') IS last_reminder_at)`),
 	check("site_transfer_requests_status_check", sql`status IN ('pending', 'accepted', 'cancelled')`),
 	check("site_transfer_requests_invited_plan_check", sql`invited_plan IN ('growth')`),
 	check("site_transfer_requests_invited_interval_check", sql`invited_interval IN ('month', 'year')`),
@@ -1061,6 +1080,7 @@ export const sites = sqliteTable("sites", {
 	feature_overrides: text(),
 	analytics_data_start_at: text(),
 }, (table) => [
+	check("sites_instants_check", sql`(last_published_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', last_published_at, '+0 days') IS last_published_at) AND (created_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', created_at, '+0 days') IS created_at) AND (updated_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', updated_at, '+0 days') IS updated_at) AND (analytics_data_start_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', analytics_data_start_at, '+0 days') IS analytics_data_start_at)`),
 	check("sites_settings_json_check", sql`json_valid(settings_json) AND json_type(settings_json) IS 'object'`),
 	check("sites_integrations_json_check", sql`json_valid(integrations_json) AND json_type(integrations_json) IS 'object'`),
 	check("sites_config_brand_color_check", sql`json_type(settings_json, '$.config.brand_color') IS NULL OR json_type(settings_json, '$.config.brand_color') IS 'text'`),
@@ -1124,6 +1144,7 @@ export const stripe_webhook_events = sqliteTable("stripe_webhook_events", {
 	attempt_count: integer().default(0).notNull(),
 	created_at: text().default(sql`(strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))`).notNull(),
 }, (table) => [
+	check("stripe_webhook_events_instants_check", sql`(claimed_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', claimed_at, '+0 days') IS claimed_at) AND (lease_expires_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', lease_expires_at, '+0 days') IS lease_expires_at) AND (next_attempt_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', next_attempt_at, '+0 days') IS next_attempt_at) AND (dead_lettered_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', dead_lettered_at, '+0 days') IS dead_lettered_at) AND (created_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', created_at, '+0 days') IS created_at)`),
 	check("stripe_webhook_events_status_check", sql`status IN ('pending', 'processed', 'failed', 'dead_letter')`),
 	check("stripe_webhook_events_payload_check", sql`payload IS NULL OR (json_valid(payload))`),
 	index("stripe_webhook_events_retry_idx").on(table.status, table.next_attempt_at),
@@ -1134,7 +1155,9 @@ export const stripe_subscription_versions = sqliteTable("stripe_subscription_ver
 	last_event_created: integer().notNull(),
 	last_event_id: text().notNull(),
 	updated_at: text().default(sql`(strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))`).notNull(),
-});
+}, () => [
+	check("stripe_subscription_versions_instants_check", sql`(updated_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', updated_at, '+0 days') IS updated_at)`),
+]);
 
 export const stripe_invoice_payments = sqliteTable("stripe_invoice_payments", {
 	stripe_invoice_id: text().primaryKey(),
@@ -1155,6 +1178,7 @@ export const stripe_invoice_payments = sqliteTable("stripe_invoice_payments", {
 	ga4_purchase_error: text(),
 	updated_at: text().default(sql`(strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))`).notNull(),
 }, (table) => [
+	check("stripe_invoice_payments_instants_check", sql`(ga4_purchase_claimed_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', ga4_purchase_claimed_at, '+0 days') IS ga4_purchase_claimed_at) AND (ga4_purchase_sent_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', ga4_purchase_sent_at, '+0 days') IS ga4_purchase_sent_at) AND (updated_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', updated_at, '+0 days') IS updated_at) AND (period_start IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', period_start, '+0 days') IS period_start) AND (period_end IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', period_end, '+0 days') IS period_end) AND (past_due_since IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', past_due_since, '+0 days') IS past_due_since)`),
 	check("stripe_invoice_payments_status_check", sql`status IN ('paid', 'processing', 'failed')`),
 	check("stripe_invoice_payments_ga4_purchase_status_check", sql`ga4_purchase_status IN ('pending', 'sending', 'sent', 'failed')`),
 	index("stripe_invoice_payments_organization_idx").on(table.organization_id, table.period_end),
@@ -1183,6 +1207,7 @@ export const stripe_ga4_subscription_intents = sqliteTable("stripe_ga4_subscript
 	created_at: text().default(sql`(strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))`).notNull(),
 	updated_at: text().default(sql`(strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))`).notNull(),
 }, (table) => [
+	check("stripe_ga4_subscription_intents_instants_check", sql`(lifecycle_sent_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', lifecycle_sent_at, '+0 days') IS lifecycle_sent_at) AND (consumed_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', consumed_at, '+0 days') IS consumed_at) AND (expires_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', expires_at, '+0 days') IS expires_at) AND (created_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', created_at, '+0 days') IS created_at) AND (updated_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', updated_at, '+0 days') IS updated_at)`),
 	index("stripe_ga4_subscription_intents_subscription_idx").on(table.stripe_subscription_id, table.status, table.created_at),
 	index("stripe_ga4_subscription_intents_organization_idx").on(table.organization_id, table.status, table.created_at),
 	index("stripe_ga4_subscription_intents_expiry_idx").on(table.status, table.expires_at),
@@ -1219,6 +1244,7 @@ export const usage_events = sqliteTable("usage_events", {
 	idempotency_key: text().notNull(),
 	created_at: text().default(sql`(strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))`).notNull(),
 }, (table) => [
+	check("usage_events_instants_check", sql`(created_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', created_at, '+0 days') IS created_at)`),
 	check("usage_events_metadata_json_check", sql`metadata_json IS NULL OR (json_valid(metadata_json))`),
 	unique("usage_events_organization_id_idempotency_key_unique").on(table.organization_id, table.idempotency_key),
 	index("usage_events_organization_resource_created_idx").on(table.organization_id, table.resource, table.created_at),
@@ -1233,7 +1259,7 @@ export const usage_quota_grants = sqliteTable("usage_quota_grants", {
 	unit: text().notNull(),
 	period_key: text().notNull(),
 	period_start: text().notNull(),
-	period_end: text(),
+	period_end: text().notNull(),
 	grant_type: text().notNull(),
 	reason: text().notNull(),
 	created_by: text().references(() => user.id, { onDelete: "set null" } ),
@@ -1241,6 +1267,7 @@ export const usage_quota_grants = sqliteTable("usage_quota_grants", {
 	applied_at: text(),
 	created_at: text().default(sql`(strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))`).notNull(),
 }, (table) => [
+	check("usage_quota_grants_instants_check", sql`(applied_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', applied_at, '+0 days') IS applied_at) AND (created_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', created_at, '+0 days') IS created_at) AND (period_start IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', period_start, '+0 days') IS period_start) AND (period_end IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', period_end, '+0 days') IS period_end)`),
 	check("usage_quota_grants_grant_type_check", sql`grant_type IN ('plan', 'reset', 'manual')`),
 	unique("usage_quota_grants_organization_id_idempotency_key_unique").on(table.organization_id, table.idempotency_key),
 	index("usage_quota_grants_active_idx").on(table.organization_id, table.resource, table.period_start, table.period_end),
@@ -1289,6 +1316,7 @@ export const user_workspace_state = sqliteTable("user_workspace_state", {
 	whatsapp_last_inbound_id: text(),
 	whatsapp_updated_at: text(),
 }, (table) => [
+	check("user_workspace_state_instants_check", sql`(created_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', created_at, '+0 days') IS created_at) AND (updated_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', updated_at, '+0 days') IS updated_at) AND (whatsapp_updated_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', whatsapp_updated_at, '+0 days') IS whatsapp_updated_at)`),
 	check("user_workspace_state_whatsapp_pending_check", sql`whatsapp_pending_confirmation IS NULL OR (json_valid(whatsapp_pending_confirmation) AND json_type(whatsapp_pending_confirmation) IS 'object')`),
 	foreignKey({ columns: [table.organization_id, table.site_id], foreignColumns: [sites.organization_id, sites.id], name: "user_workspace_state_site_scope_fk" }),
 ]);
@@ -1329,6 +1357,7 @@ export const content_documents = sqliteTable("content_documents", {
 	created_at: text().default(sql`(strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))`).notNull(),
 	updated_at: text().default(sql`(strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))`).notNull(),
 }, (table) => [
+	check("content_documents_instants_check", sql`(published_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', published_at, '+0 days') IS published_at) AND (first_published_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', first_published_at, '+0 days') IS first_published_at) AND (scheduled_for IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', scheduled_for, '+0 days') IS scheduled_for) AND (created_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', created_at, '+0 days') IS created_at) AND (updated_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', updated_at, '+0 days') IS updated_at)`),
 	foreignKey({ columns: [table.organization_id, table.site_id, table.location_id], foreignColumns: [business_locations.organization_id, business_locations.site_id, business_locations.id], name: "content_documents_location_scope_fk" }).onDelete("cascade"),
 	unique("content_documents_scope_role_unique").on(table.organization_id, table.site_id, table.id, table.row_role, table.kind),
 	foreignKey({ columns: [table.organization_id, table.site_id], foreignColumns: [sites.organization_id, sites.id], name: "content_documents_site_scope_fk" }).onDelete("cascade"),
@@ -1383,6 +1412,7 @@ export const resource_localizations = sqliteTable("resource_localizations", {
 	updated_at: text().default(sql`(strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))`).notNull(),
 	updated_by_user_id: text().notNull(),
 }, (table) => [
+	check("resource_localizations_instants_check", sql`(created_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', created_at, '+0 days') IS created_at) AND (updated_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', updated_at, '+0 days') IS updated_at)`),
 	foreignKey({
 		columns: [table.organization_id, table.site_id, table.locale],
 		foreignColumns: [site_locales.organization_id, site_locales.site_id, site_locales.locale],
@@ -1418,6 +1448,7 @@ export const content_blocks = sqliteTable("content_blocks", {
 	created_at: text().default(sql`(strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))`).notNull(),
 	updated_at: text().default(sql`(strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))`).notNull(),
 }, (table) => [
+	check("content_blocks_instants_check", sql`(created_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', created_at, '+0 days') IS created_at) AND (updated_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', updated_at, '+0 days') IS updated_at)`),
 	index("content_blocks_document_position_idx").on(table.document_id, table.position),
 	foreignKey({ columns: [table.source_block_id], foreignColumns: [table.id], name: "content_blocks_source_fk" }).onDelete("cascade"),
 	uniqueIndex("content_blocks_document_source_unique").on(table.document_id, table.source_block_id).where(sql`source_block_id IS NOT NULL`),
@@ -1443,6 +1474,7 @@ export const public_resource_cache_invalidations = sqliteTable("public_resource_
 	last_error: text(),
 	created_at: text().default(sql`(strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))`).notNull(),
 }, (table) => [
+	check("public_resource_cache_invalidations_instants_check", sql`(claimed_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', claimed_at, '+0 days') IS claimed_at) AND (processed_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', processed_at, '+0 days') IS processed_at) AND (created_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', created_at, '+0 days') IS created_at)`),
 	index("public_resource_cache_invalidations_status_idx").on(table.status, table.created_at),
 	index("public_resource_cache_invalidations_site_idx").on(table.site_id, table.status),
 	check("public_resource_cache_invalidations_status_check", sql`status IN ('pending', 'processing', 'processed', 'failed')`),
@@ -1462,6 +1494,7 @@ export const analytics_events = sqliteTable("analytics_events", {
   payload_json: text().notNull(),
   created_at: text().default(sql`(strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))`).notNull(),
 }, table => [
+	check("analytics_events_instants_check", sql`(created_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', created_at, '+0 days') IS created_at)`),
   foreignKey({ columns: [table.organization_id, table.site_id], foreignColumns: [sites.organization_id, sites.id], name: "analytics_events_site_scope_fk" }).onDelete("cascade"),
   check("analytics_events_kind_check", sql`kind IN ('pageview', 'conversion')`),
   check("analytics_events_payload_check", sql`json_valid(payload_json) AND json_type(payload_json) IS 'object'`),
@@ -1490,6 +1523,7 @@ export const analytics_summaries = sqliteTable("analytics_summaries", {
   created_at: text().default(sql`(strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))`).notNull(),
   updated_at: text().default(sql`(strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))`).notNull(),
 }, table => [
+	check("analytics_summaries_instants_check", sql`(created_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', created_at, '+0 days') IS created_at) AND (updated_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', updated_at, '+0 days') IS updated_at)`),
   foreignKey({ columns: [table.organization_id, table.site_id], foreignColumns: [sites.organization_id, sites.id], name: "analytics_summaries_site_scope_fk" }).onDelete("cascade"),
   check("analytics_summaries_kind_check", sql`kind IN ('session', 'site_day', 'page_day', 'dimension_day')`),
   check("analytics_summaries_payload_check", sql`json_valid(payload_json) AND json_type(payload_json) IS 'object'`),
