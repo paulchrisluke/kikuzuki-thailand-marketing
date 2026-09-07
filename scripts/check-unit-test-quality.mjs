@@ -5,9 +5,13 @@ import ts from 'typescript'
 
 const root = fileURLToPath(new URL('..', import.meta.url))
 const unitDirectory = join(root, 'tests/unit')
+// lines raised 3500->3600 for U9 legal-access.ts security coverage (rollout
+// flags, budgets, actor-kind resolution, R13/R26 origin validation, R29
+// redaction). No lower-value coverage found to trim after a full-suite
+// review; files/tests caps held at their original values.
 const limits = {
   files: 42,
-  lines: 3500,
+  lines: 3600,
   tests: 197,
 }
 const violations = []
