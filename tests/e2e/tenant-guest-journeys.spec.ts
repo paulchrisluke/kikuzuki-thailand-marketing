@@ -115,6 +115,7 @@ test.describe('tenant guest journeys (disposable local/preview data only)', () =
     const since = new Date().toISOString()
     const email = `pottery-contact-${Date.now()}@playwright.example`
     await openTenantPage(page, `${potteryHouseBaseURL}/contact`, potteryHouseExtraHeaders)
+    await expect(page.locator('[data-hydrated]')).toHaveAttribute('data-hydrated', 'true')
     await page.getByLabel(/your name/i).fill('Pottery Contact Journey')
     await page.getByLabel(/email/i).fill(email)
     await page.getByLabel(/your message/i).fill('Please tell me more about private pottery classes.')
