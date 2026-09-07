@@ -4,6 +4,8 @@ import { buildSeedExperienceCategories, buildSeedProductCategories } from './con
 import { renderCanonicalBillingSql } from './billing-sql.ts'
 import { renderTenantPagesSeedSql } from './tenant-pages.ts'
 
+const DEMO_TIMEZONE = 'America/New_York'
+
 function escapeSql(value: string): string {
   return value.replace(/'/g, "''")
 }
@@ -46,7 +48,7 @@ export const demoFixture: CuratedSiteDefinition = {
   },
   settings: {
     "config": {
-      "default_timezone": "America/New_York",
+      "default_timezone": DEMO_TIMEZONE,
       "brand_color": "#C2410C"
     }
   },
@@ -1318,7 +1320,7 @@ export function renderCompiledDemoMediaBlock(): string {
       sqlValue(location.instagramUrl),
       sqlValue(location.facebookUrl),
       sqlValue(location.status),
-      sqlValue('America/New_York'),
+      sqlValue(DEMO_TIMEZONE),
     ].join(', ')})`)
     .join(',\n')
 
@@ -1671,7 +1673,12 @@ ${experiencePriceRows};${coverBlock}
 
 export function renderCompiledDemoInboxBlock(): string {
   const now = new Date().toISOString()
-  const day = (offset: number) => new Date(Date.now() + offset * 86_400_000).toISOString().slice(0, 10)
+  const today = new Intl.DateTimeFormat('en-CA', { timeZone: DEMO_TIMEZONE, year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(now))
+  const day = (offset: number) => {
+    const date = new Date(today + 'T00:00:00.000Z')
+    date.setUTCDate(date.getUTCDate() + offset)
+    return date.toISOString().slice(0, 10)
+  }
   const requests: Array<{
     id: string; kind: 'contact' | 'reservation' | 'experience_booking'; location: string;
     name: string; email: string; phone: string | null; notes: string | null;
