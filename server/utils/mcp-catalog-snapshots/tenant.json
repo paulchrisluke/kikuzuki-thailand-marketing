@@ -1,6 +1,6 @@
 {
   "surface": "tenant",
-  "fingerprint": "sha256:0c024a91c1934648ff48a18550fa9379879e4e7b7186d4a7f8fea31e17b6dbbb",
+  "fingerprint": "sha256:f41bb178755b3a19271ae785b8c2da26760154adc0b1e39aba1f4138c26baa7d",
   "tools": [
     {
       "name": "analyze_document",
@@ -1168,10 +1168,6 @@
               "created_at": {
                 "type": "string"
               },
-              "document_updated_at": {
-                "description": "Concurrency token required when replacing content_blocks or changing publication state.",
-                "type": "string"
-              },
               "edit_url": {
                 "type": [
                   "string",
@@ -1393,8 +1389,7 @@
               "public_url",
               "preview_url",
               "view_url",
-              "content_blocks",
-              "document_updated_at"
+              "content_blocks"
             ],
             "type": "object"
           }
@@ -3721,10 +3716,6 @@
               "created_at": {
                 "type": "string"
               },
-              "document_updated_at": {
-                "description": "Concurrency token required when replacing content_blocks or changing publication state.",
-                "type": "string"
-              },
               "edit_url": {
                 "type": [
                   "string",
@@ -3946,8 +3937,7 @@
               "public_url",
               "preview_url",
               "view_url",
-              "content_blocks",
-              "document_updated_at"
+              "content_blocks"
             ],
             "type": "object"
           }
@@ -4561,7 +4551,7 @@
                 ]
               },
               "notification_phone": {
-                "description": "WhatsApp number for internal booking/reservation alerts to this location's manager. Not shown to guests. Falls back to the site-level whatsapp_phone if null.",
+                "description": "WhatsApp number for internal booking/reservation alerts to this location's manager. Not shown to guests. Null means no location-specific recipient is configured. Site-wide recipients are configured independently.",
                 "type": [
                   "string",
                   "null"
@@ -10808,10 +10798,6 @@
               "created_at": {
                 "type": "string"
               },
-              "document_updated_at": {
-                "description": "Concurrency token required when replacing content_blocks or changing publication state.",
-                "type": "string"
-              },
               "edit_url": {
                 "type": [
                   "string",
@@ -11033,8 +11019,7 @@
               "public_url",
               "preview_url",
               "view_url",
-              "content_blocks",
-              "document_updated_at"
+              "content_blocks"
             ],
             "type": "object"
           }
@@ -12616,10 +12601,6 @@
               "created_at": {
                 "type": "string"
               },
-              "document_updated_at": {
-                "description": "Concurrency token required when replacing content_blocks or changing publication state.",
-                "type": "string"
-              },
               "edit_url": {
                 "type": [
                   "string",
@@ -12841,8 +12822,7 @@
               "public_url",
               "preview_url",
               "view_url",
-              "content_blocks",
-              "document_updated_at"
+              "content_blocks"
             ],
             "type": "object"
           }
@@ -14625,10 +14605,6 @@
               "created_at": {
                 "type": "string"
               },
-              "document_updated_at": {
-                "description": "Concurrency token required when replacing content_blocks or changing publication state.",
-                "type": "string"
-              },
               "edit_url": {
                 "type": [
                   "string",
@@ -14850,8 +14826,7 @@
               "public_url",
               "preview_url",
               "view_url",
-              "content_blocks",
-              "document_updated_at"
+              "content_blocks"
             ],
             "type": "object"
           }
@@ -15148,10 +15123,6 @@
               "created_at": {
                 "type": "string"
               },
-              "document_updated_at": {
-                "description": "Concurrency token required when replacing content_blocks or changing publication state.",
-                "type": "string"
-              },
               "edit_url": {
                 "type": [
                   "string",
@@ -15373,8 +15344,7 @@
               "public_url",
               "preview_url",
               "view_url",
-              "content_blocks",
-              "document_updated_at"
+              "content_blocks"
             ],
             "type": "object"
           }

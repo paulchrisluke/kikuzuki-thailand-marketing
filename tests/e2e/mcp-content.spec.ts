@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test'
+import Ajv from 'ajv'
 import { loginAs } from './helpers/auth'
 import { MCP_FREE_USER_ID, MCP_GROWTH_SERVICE_USER_ID } from './helpers/plan-fixtures'
 import { MCP_VERSION, MCP_GROWTH_SERVICE_SITE_ID, mcpRequest, mcpData } from './helpers/mcp'
@@ -176,6 +177,12 @@ test.describe('stateless MCP server', () => {
     test.setTimeout(120_000)
     await loginAs(request, baseURL!, MCP_FREE_USER_ID)
     const siteId = 'site-mcp-free'
+    const discovery = await mcpRequest(request, baseURL!, { method: 'tools/list' })
+    expect(discovery.status()).toBe(200)
+    const catalog = await discovery.json() as { result: { tools: Array<{ name: string; outputSchema: object }> } }
+    const blogTool = catalog.result.tools.find(tool => tool.name === 'get_blog_post')
+    expect(blogTool).toBeDefined()
+    const validateBlog = new Ajv({ strict: false, allErrors: true }).compile(blogTool!.outputSchema)
     let postId = ''
     try {
       const legacy = await mcpRequest(request, baseURL!, {
@@ -212,7 +219,9 @@ test.describe('stateless MCP server', () => {
         args: { site_id: siteId, post_id: postId },
       })
       expect(get.status()).toBe(200)
-      const readPost = mcpData<{ post: Record<string, unknown> & { updated_at: string; content_blocks: Array<{ type: string }> } }>(await get.json()).post
+      const readData = mcpData<{ post: Record<string, unknown> & { updated_at: string; content_blocks: Array<{ type: string }> } }>(await get.json())
+      expect(validateBlog(readData), JSON.stringify(validateBlog.errors)).toBe(true)
+      const readPost = readData.post
       expect(readPost.updated_at).toEqual(created.updated_at)
       expect(readPost.content_blocks.map(block => block.type)).toEqual(['heading', 'markdown'])
       expect(readPost).not.toHaveProperty('body')

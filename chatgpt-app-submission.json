@@ -1031,13 +1031,13 @@
     "update_experience_booking": {
       "annotations": {
         "readOnlyHint": false,
-        "openWorldHint": false,
+        "openWorldHint": true,
         "destructiveHint": true
       },
       "justifications": {
-        "read_only_justification": "Overwrites a booking status and emits an internal inbox event; cancellation also revokes its review request. This changes persisted state or consumes credits.",
-        "open_world_justification": "Overwrites a booking status and emits an internal inbox event; cancellation also revokes its review request. It does not publish content or write to an external service.",
-        "destructive_justification": "Overwrites a booking status and emits an internal inbox event; cancellation also revokes its review request. Existing state is deleted, replaced or overwritten rather than only appended."
+        "read_only_justification": "Confirms, cancels, or completes a booking through its guest conversation. Confirmation and cancellation send the applicable guest email notification; cancellation also revokes its review request. This changes persisted state or consumes credits.",
+        "open_world_justification": "Confirms, cancels, or completes a booking through its guest conversation. Confirmation and cancellation send the applicable guest email notification; cancellation also revokes its review request. Its effects can change content or behavior on the public website.",
+        "destructive_justification": "Confirms, cancels, or completes a booking through its guest conversation. Confirmation and cancellation send the applicable guest email notification; cancellation also revokes its review request. Existing state is deleted, replaced or overwritten rather than only appended."
       }
     },
     "update_location": {

@@ -99,7 +99,7 @@ const effects = {
   update_blog_post: 'Overwrites supplied fields of an existing tenant blog article.',
   update_booking_policy: 'Overwrites booking rules, including cancellation and deposit terms, for the selected site or location.',
   update_experience: 'Overwrites experience content, price, capacity, status or schedule as requested.',
-  update_experience_booking: 'Overwrites a booking status and emits an internal inbox event; cancellation also revokes its review request.',
+  update_experience_booking: 'Confirms, cancels, or completes a booking through its guest conversation. Confirmation and cancellation send the applicable guest email notification; cancellation also revokes its review request.',
   update_location: 'Overwrites supplied location fields, including public hours and contact details or operational capacity and notification settings.',
   update_location_qa: 'Overwrites the selected location question or answer.',
   update_media_asset: 'Overwrites media metadata such as alt text or category.',

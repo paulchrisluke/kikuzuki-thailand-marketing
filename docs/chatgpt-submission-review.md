@@ -1,5 +1,37 @@
 # ChatGPT submission readiness review
 
+## Epoch 5 contract correction — 2026-09-07
+
+The portal shows version 1.0.0 in Review. The September 6 submission source
+(`0c51d393`) and Epoch 5 main (`f7e2d899`) retain all 98 registry tool names
+(97 exposed by default), but 28 tools changed input or output schemas.
+Posts, hours, experience schedules, media ownership, localization, concurrency
+arguments, booking statuses, and primary-location projections changed. The
+submitted metadata must be rescanned after the corrected release reaches
+production; unchanged tool names do not establish contract compatibility.
+
+The correction removes obsolete `document_updated_at` from the shared blog
+output schema, leaving the canonical `updated_at` token. Booking transitions
+advertise `openWorldHint: true` and disclose guest confirmation/cancellation
+emails. Location notification-phone metadata states that site-wide recipients
+are configured independently; it no longer promises a fallback. The existing
+page-edit verification script now supplies `expected_updated_at`.
+
+Both generated artifacts were regenerated through the canonical commands.
+Local validation passed quality, 187 unit tests, 23 D1 integration tests,
+8 migration integration tests, catalog/submission checks, schema drift,
+migration and seed guards, and 13 MCP content/owner Playwright workflows against
+the production Worker build. The existing blog workflow now validates the real
+response against its authenticated `tools/list` output schema.
+
+Release and portal work remain pending. After production verification, cancel
+the current review, rescan the same version draft, import the current submission
+artifact, review the changed metadata and reviewer cases, and resubmit. Do not
+restore retired fields or owner aliases for the old snapshot. This MCP check
+does not establish completion of the broader #829 release checklist.
+
+The September 6 review below is historical evidence, not the current portal status.
+
 Reviewed 2026-09-06 against `origin/main` commit `002f289c` in branch `codex/chatgpt-app-submission`.
 
 **Status: approved source changes implemented; portal submission remains pending.** Removed `create_site`, `create_location`, `delete_location`, and `copy_location_batch` from the MCP registry and dispatcher. Deleted the MCP-only location-overwrite helper. Retained media and experience deletion as requested. CMS creation/deletion handlers and their canonical domain operations remain available.

@@ -138,7 +138,7 @@ async function main() {
   }
   const save = await mcp(headers, 'update_tenant_page', {
     variant_id: homeVariant.id,
-    expected_document_updated_at: pageBefore.document.updated_at,
+    expected_updated_at: pageBefore.document.updated_at,
     blocks: blocks.map(block => ({
       id: block.id,
       type: block.type,
