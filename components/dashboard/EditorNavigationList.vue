@@ -12,13 +12,15 @@
         link" — which the whole list already says.
       -->
       <div v-if="variant === 'cards'" class="space-y-3">
-        <NuxtLink
+        <component
+          :is="item.to ? NuxtLink : 'button'"
           v-for="item in group.items"
           :key="item.id"
-          :to="item.to"
-          class="block rounded-2xl bg-elevated p-5 transition-colors hover:bg-accented focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+          v-bind="item.to ? { to: item.to } : { type: 'button' }"
+          class="block w-full rounded-2xl bg-elevated p-5 text-left transition-colors hover:bg-accented focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
           :class="item.id === activeItem ? 'ring-2 ring-primary' : ''"
           :aria-current="item.id === activeItem ? 'page' : undefined"
+          @click="item.to ? undefined : $emit('select', item.id)"
         >
           <span class="block text-[15px] font-semibold text-highlighted">{{ item.label }}</span>
           <span v-if="item.summary" class="mt-1 line-clamp-2 block text-sm text-muted">{{ item.summary }}</span>
@@ -37,7 +39,7 @@
               <img :src="preview" alt="" class="size-full object-cover" loading="lazy" decoding="async">
             </span>
           </span>
-        </NuxtLink>
+        </component>
       </div>
 
       <!-- Rows: settings, where the chevron marks a push into a deeper screen. -->
@@ -47,11 +49,12 @@
         class="overflow-hidden rounded-2xl"
         :ui="{ body: 'p-0! sm:p-0!' }"
       >
-        <NuxtLink
+        <component
+          :is="item.to ? NuxtLink : 'button'"
           v-for="(item, index) in group.items"
           :key="item.id"
-          :to="item.to"
-          class="group flex min-h-20 items-center gap-4 px-5 py-4 transition-colors hover:bg-elevated focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-primary"
+          v-bind="item.to ? { to: item.to } : { type: 'button' }"
+          class="group flex min-h-20 w-full items-center gap-4 text-left px-5 py-4 transition-colors hover:bg-elevated focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-primary"
           :class="[
             index > 0 ? 'border-t border-default' : '',
             item.id === activeItem ? 'bg-elevated' : '',
@@ -60,22 +63,35 @@
         >
           <span class="min-w-0 flex-1">
             <span class="block font-semibold text-highlighted">{{ item.label }}</span>
-            <span v-if="item.summary" class="mt-1 line-clamp-2 block text-sm text-muted">{{ item.summary }}</span>
+            <span
+              v-if="item.summary"
+              class="mt-1 line-clamp-2 block text-sm"
+              :class="item.placeholder ? 'italic text-dimmed' : 'text-muted'"
+            >{{ item.summary }}</span>
           </span>
           <UIcon name="i-lucide-chevron-right" class="size-5 shrink-0 text-muted transition-transform group-hover:translate-x-0.5" />
-        </NuxtLink>
+        </component>
       </UCard>
     </section>
   </div>
 </template>
 
 <script setup lang="ts">
+import { NuxtLink } from '#components'
+
 export interface EditorNavigationItem {
   id: string
   label: string
   summary?: string
   icon?: string
-  to: string
+  /**
+   * Where the row goes. Omitted where the row opens a sheet in place — a Move
+   * flow changes which parent a record belongs to rather than pushing into a
+   * deeper editor.
+   */
+  to?: string
+  /** Renders the summary as absent rather than as a value. */
+  placeholder?: boolean
   /** Thumbnails of what the section holds. Cards variant only. */
   previews?: string[]
 }
@@ -92,4 +108,9 @@ withDefaults(defineProps<{
   /** 'cards' for an editor hub, 'rows' for a settings list. */
   variant?: 'cards' | 'rows'
 }>(), { variant: 'rows' })
+
+defineEmits<{
+  /** Emitted by a row with no `to`, carrying the item id. */
+  select: [id: string]
+}>()
 </script>
