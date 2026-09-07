@@ -1210,6 +1210,76 @@ export const demoFixture: CuratedSiteDefinition = {
       sortOrder: 2,
     },
   ],
+  qaTranslations: [
+    {
+      id: 'qa-demo-1-th',
+      originalId: 'qa-demo-1',
+      question: 'คุณรับจองโต๊ะไหม',
+      answer: 'ใช่ เราจัดที่ว่างสำหรับลูกค้าเดินเข้ามา แต่ขอแนะนำให้จองสำหรับมื้อเย็นและวันหยุด',
+    },
+    {
+      id: 'qa-demo-2-th',
+      originalId: 'qa-demo-2',
+      question: 'คุณมีแป้งไร์กลูเตนฟรีไหม',
+      answer: 'ยังไม่ ห้องผสมแป้งของเราใช้แป้งสาลีตลอดทั้งวัน ดังนั้นเราไม่สามารถรับประกันแป้งไร์กลูเตนฟรีได้อย่างปลอดภัย',
+    },
+    {
+      id: 'qa-demo-3-th',
+      originalId: 'qa-demo-3',
+      question: 'ฉันสามารถสั่งทานบ้านได้ไหม',
+      answer: 'ใช่ โทรหาเราโดยตรงเพื่อรับของ พิซซ่าเตาฟืนเดินทางได้ดีที่สุดเมื่อหยิบใกล้เวลาย่าง',
+    },
+    {
+      id: 'qa-demo-4-th',
+      originalId: 'qa-demo-4',
+      question: 'เวลาที่แออัดที่สุดคือเมื่อไร',
+      answer: 'วันศุกร์และวันเสาร์ตั้งแต่ 7 ถึง 9 โมงเย็นคือช่วงพีค มื้อเย็นตั้งแต่ต้นหรืออาหารกลางวันวันอาทิตย์จะสงบกว่า',
+    },
+    {
+      id: 'qa-demo-5-th',
+      originalId: 'qa-demo-5',
+      question: 'คุณมีตัวเลือกมังสวิรัติไหม',
+      answer: 'แน่นอน มาร์เกอริต้า ฟันจี บิองโก บูร์ราตา การ์ลิกน็อต และริกาโตนีโปโมโดโรเป็นมังสวิรัติ',
+    },
+    {
+      id: 'qa-demo2-1-th',
+      originalId: 'qa-demo2-1',
+      question: 'คุณมีที่นั่งกลางแจ้งไหม',
+      answer: 'แน่นอน! เรามีการจัดเตรียมพาทิโอที่สวยงามสำหรับเดือนที่อบอุ่น',
+    },
+    {
+      id: 'qa-demo2-2-th',
+      originalId: 'qa-demo2-2',
+      question: 'คุณเสนอแป้งไร์กลูเตนฟรีไหม',
+      answer: 'ใช่ เราเสนอแป้งไร์กลูเตนฟรีสำหรับพิซซ่าเตาฟืนทุกชนิดโดยเสียค่าใช้จ่ายเพิ่มเติม',
+    },
+  ],
+  postTranslations: [
+    {
+      id: 'post-demo-1-th',
+      originalId: 'post-demo-1',
+      title: 'อาหารกลางวันวันหยุดเริ่มตั้งแต่ 11 โมง',
+      body: 'เตาจะติดไฟเร็วขึ้นในวันเสาร์และวันอาทิตย์ มาทานพิซซ่ากลางวัน การ์ลิกน็อต และสปริตซ์ตั้งแต่ 11 โมงเช้า',
+    },
+    {
+      id: 'post-demo-2-th',
+      originalId: 'post-demo-2',
+      title: null,
+      body: 'ฟันจี บิองโกของเรากลับมาแล้วด้วยเห็ดย่าง ครีมริคอตต้า ใบสะระแหน่ และหิมะเปคโคริโนเล็กน้อยที่เคาน์เตอร์',
+    },
+    {
+      id: 'post-demo-3-th',
+      originalId: 'post-demo-3',
+      title: 'มาร์เกอริต้าวันจันทร์',
+      body: 'ทุกวันจันทร์ในเดือนพฤษภาคม: พิซซ่ามาร์เกอริต้าราคา 14 ดอลลาร์ตั้งแต่เปิดถึงปิด ทานในร้านเท่านั้น หนึ่งต่อคน',
+    },
+    {
+      id: 'post-demo-4-th',
+      originalId: 'post-demo-4',
+      title: 'มื้ออาหารโต๊ะยาวเก็บเกี่ยว',
+      body: 'ร่วมกับเราสำหรับมื้ออาหารครอบครัวแบบครั้งเดียวที่สร้างขึ้นรอบผลผลิตปลายฤดูร้อนและเตาฟืนไม้',
+    },
+  ],
   posts: [
     {
       id: 'post-demo-1',
@@ -1434,6 +1504,101 @@ export const demoFixture: CuratedSiteDefinition = {
       sourceHash: 'demo-pizza-location-2-v1',
       translatedAt: '2026-05-01T00:00:00.000Z',
       reviewedAt: '2026-05-01T00:00:00.000Z',
+    },
+  ],
+  resourceLocalizations: [
+    // Product translations
+    {
+      id: 'rl-demo-th-margherita',
+      resourceType: 'product',
+      resourceId: 'mi-1',
+      locale: 'th',
+      valuesJson: { name: 'มาร์เกอริต้า', description: 'มะเขือเทศซานมาร์นา ฟิออร์ดีลาตเต้ ใบบาซิลิก น้ำมันมะกอกคั่นเย็น และเกลือทะเล' },
+    },
+    {
+      id: 'rl-demo-th-pepperoni',
+      resourceType: 'product',
+      resourceId: 'mi-2',
+      locale: 'th',
+      valuesJson: { name: 'เป็ปเปอโรนีคาลาเบรเซ', description: 'มะเขือเทศ มอซซาเรลล่า เป็ปเปอโรนีคัพปิ้ง พริกแคลเบรเซียน และโอริกาโน' },
+    },
+    {
+      id: 'rl-demo-th-funghi',
+      resourceType: 'product',
+      resourceId: 'mi-3',
+      locale: 'th',
+      valuesJson: { name: 'ฟันจี บิองโก', description: 'เห็ดย่าง ครีมริคอตต้า กระเทียม ใบสะระแหน่ มอซซาเรลล่า และเปคโคริโน' },
+    },
+    {
+      id: 'rl-demo-th-soppressata',
+      resourceType: 'product',
+      resourceId: 'mi-4',
+      locale: 'th',
+      valuesJson: { name: 'ซอปเปรสซาตาฮอนนี่ฮันนี่', description: 'ซอปเปรสซาตาเผ็ด มะเขือเทศ มอซซาเรลล่า พริกเฟรสโน่ดอง และฮอนนี่ฮันนี่บรูคลิน' },
+    },
+    {
+      id: 'rl-demo-th-burrata',
+      resourceType: 'product',
+      resourceId: 'mi-5',
+      locale: 'th',
+      valuesJson: { name: 'บูร์ราตา', description: 'บูร์ราตาเนียนครีม มะเขือเทศย่าง น้ำมันใบบาซิลิก และขนมปังซาวโดว์ย่าง' },
+    },
+    {
+      id: 'rl-demo-th-knots',
+      resourceType: 'product',
+      resourceId: 'mi-6',
+      locale: 'th',
+      valuesJson: { name: 'การ์ลิกน็อต', description: 'ขนมปังซาวโดว์ผูกมัด พร้อมซอสมะเขือเทศมารินารา' },
+    },
+    {
+      id: 'rl-demo-th-caesar',
+      resourceType: 'product',
+      resourceId: 'mi-7',
+      locale: 'th',
+      valuesJson: { name: 'ซีซาร์เล็ตเทอซิทเจม', description: 'ผักเล็ตเทอซิท ซอสแอนโชวี่ ครัมบ์ขนมปังซาวโดว์ และเปคโคริโนขูด' },
+    },
+    {
+      id: 'rl-demo-th-rigatoni',
+      resourceType: 'product',
+      resourceId: 'mi-8',
+      locale: 'th',
+      valuesJson: { name: 'ริกาโตนีโปโมโดโร', description: 'ริกาโตนี ซอสมะเขือเทศสูตรช้า ใบบาซิลิก และพาร์เมซาน' },
+    },
+    {
+      id: 'rl-demo-th-lemonade',
+      resourceType: 'product',
+      resourceId: 'mi-9',
+      locale: 'th',
+      valuesJson: { name: 'สปาร์กกลิ้งเลมอเนด', description: 'คอร์ดเดิลเลมอนบ้าน โซดา และโรสแมรี่' },
+    },
+    {
+      id: 'rl-demo-th-italian-soda',
+      resourceType: 'product',
+      resourceId: 'mi-10',
+      locale: 'th',
+      valuesJson: { name: 'อิตาเลียนโซดา', description: 'ส้มแดง เกรปฟรูต หรือลิโมนาตา' },
+    },
+    // Experience translations
+    {
+      id: 'rl-demo-th-pizza-class',
+      resourceType: 'product',
+      resourceId: 'exp-demo-pizza-class',
+      locale: 'th',
+      valuesJson: { name: 'คลาสทำพิซซ่า', tagline: 'ยืดแป้ง ตกแต่งพิซซ่า และย่างเอง' },
+    },
+    {
+      id: 'rl-demo-th-wine-night',
+      resourceType: 'product',
+      resourceId: 'exp-demo-wine-night',
+      locale: 'th',
+      valuesJson: { name: 'ค่ำคืนไวน์ธรรมชาติและพิซซ่า', tagline: 'เสิร์ฟเล็กน้อย พิซซ่าร้อน และบรรยากาศโต๊ะยาว' },
+    },
+    {
+      id: 'rl-demo-th-family-night',
+      resourceType: 'product',
+      resourceId: 'exp-demo-family-night',
+      locale: 'th',
+      valuesJson: { name: 'ค่ำคืนพิซซ่าครอบครัว', tagline: 'มื้ออาหารโต๊ะยาว เวลาผ่อนคลาย และพิซซ่าสำหรับทุกวัย' },
     },
   ],
   aiCredits: {
@@ -1751,12 +1916,36 @@ export function renderCompiledDemoQaBlock(): string {
     ].join(', ')})`)
     .join(',\n')
 
+  const qaTranslations = compiledDemoSeed.qaTranslations?.map((qa) => {
+    const originalQa = compiledDemoSeed.locationQa.find(q => q.id === qa.originalId)
+    if (!originalQa) throw new Error(`Original Q&A not found: ${qa.originalId}`)
+    return `INSERT OR IGNORE INTO content_documents
+  (id, organization_id, site_id, location_id, title, summary, kind, row_role, locale, root_id, root_role, metadata_json, source, status, sort_order)
+VALUES (
+  ${sqlValue(`qa-${qa.id}`)},
+  ${sqlValue(originalQa.organizationId)},
+  ${sqlValue(originalQa.siteId)},
+  ${sqlValue(originalQa.locationId)},
+  ${sqlValue(qa.question)},
+  ${sqlValue(qa.answer)},
+  'qa', 'representation', 'th',
+  ${sqlValue(originalQa.id)},
+  'root',
+  ${sqlJson({ question_author: originalQa.questionAuthor, answer_author: originalQa.answerAuthor, is_owner_answer: Boolean(originalQa.isOwnerAnswer), upvote_count: originalQa.upvoteCount })},
+  ${sqlValue(originalQa.source)},
+  ${sqlValue(originalQa.status)},
+  ${sqlValue(originalQa.sortOrder)}
+);`
+  }).join('\n') || ''
+
   return `-- BEGIN GENERATED: demo_qa
 -- Location Q&A for the demo tenant.
 INSERT OR IGNORE INTO content_documents
   (id, organization_id, site_id, location_id, title, summary, kind, row_role, locale, metadata_json, source, status, sort_order)
 VALUES
 ${qaRows};
+
+${qaTranslations}
 -- END GENERATED: demo_qa`
 }
 
@@ -1780,6 +1969,30 @@ export function renderCompiledDemoPostsBlock(): string {
     sqlValue(`placement-post-${post.id}-${media.slot}-${index}`), sqlValue(post.organizationId), sqlValue(post.siteId),
     sqlValue('content_document'), sqlValue(post.id), sqlValue(media.slot), sqlValue(media.asset_id), index, sqlValue('active'),
   ].join(', ')})`)).join(',\n')
+
+  const postTranslations = compiledDemoSeed.postTranslations?.map((post) => {
+    const originalPost = compiledDemoSeed.posts.find(p => p.id === post.originalId)
+    if (!originalPost) throw new Error(`Original post not found: ${post.originalId}`)
+    return `INSERT OR IGNORE INTO content_documents
+  (id, organization_id, site_id, location_id, title, summary, kind, row_role, locale, root_id, root_role, source, metadata_json, status, published_at, created_by)
+VALUES (
+  ${sqlValue(`post-${post.id}`)},
+  ${sqlValue(originalPost.organizationId)},
+  ${sqlValue(originalPost.siteId)},
+  ${sqlValue(originalPost.locationId)},
+  ${sqlValue(post.title)},
+  ${sqlValue(post.body)},
+  'social_post', 'representation', 'th',
+  ${sqlValue(originalPost.id)},
+  'root',
+  'template',
+  ${sqlJson({ post_type: originalPost.post_type, call_to_action: originalPost.call_to_action, event: originalPost.event, offer: originalPost.offer, alert_type: originalPost.alert_type })},
+  ${sqlValue(originalPost.status)},
+  ${sqlValue(originalPost.publishedAt)},
+  ${sqlValue(originalPost.createdBy)}
+);`
+  }).join('\n') || ''
+
   return `-- BEGIN GENERATED: demo_posts
 INSERT OR IGNORE INTO content_documents
   (id, organization_id, site_id, location_id, title, summary, kind, row_role, locale, source, metadata_json, status, published_at, created_by)
@@ -1791,7 +2004,30 @@ ${postMediaRows ? `INSERT OR REPLACE INTO media_placements
 VALUES
 ${postMediaRows};` : ''}
 
+${postTranslations}
 -- END GENERATED: demo_posts`
+}
+
+export function renderCompiledDemoResourceLocalizationsBlock(): string {
+  const resourceRows = compiledDemoSeed.resourceLocalizations?.map((rl) => `  (${[
+    sqlValue(rl.id),
+    sqlValue(compiledDemoSeed.identity.organizationId),
+    sqlValue(compiledDemoSeed.identity.siteId),
+    sqlValue(rl.resourceType),
+    sqlValue(rl.resourceId),
+    sqlValue(rl.locale),
+    sqlJson(rl.valuesJson),
+    sqlValue('seed:demo'),
+    sqlValue('seed:demo'),
+  ].join(', ')})`).join(',\n') || ''
+
+  return `-- BEGIN GENERATED: demo_resource_localizations
+-- Resource localizations for the demo tenant.
+INSERT OR IGNORE INTO resource_localizations
+  (id, organization_id, site_id, resource_type, resource_id, locale, values_json, created_by_user_id, updated_by_user_id)
+VALUES
+${resourceRows};
+-- END GENERATED: demo_resource_localizations`
 }
 
 export function renderCompiledDemoBlogBlock(): string {

@@ -16,6 +16,7 @@ import {
   renderCompiledDemoReviewsBlock,
   renderCompiledDemoBillingBlock,
   renderCompiledDemoInboxBlock,
+  renderCompiledDemoResourceLocalizationsBlock,
   renderDemoExperienceSeedBlock,
 } from '../seed-definitions/demo.ts'
 import { renderCanonicalBillingSql } from '../seed-definitions/billing-sql.ts'
@@ -292,6 +293,8 @@ ${renderCompiledDemoMediaBlock()}
 ${renderCompiledDemoReviewsBlock()}
 
 ${renderCompiledDemoProductsBlock()}
+
+${renderCompiledDemoResourceLocalizationsBlock()}
 
 ${renderCompiledDemoQaBlock()}
 

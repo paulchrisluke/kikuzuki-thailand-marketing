@@ -54,6 +54,9 @@ export function compileCuratedSiteFixture(
   uniqueStrings(fixture.posts.map((p) => p.id), 'post id')
   uniqueStrings((fixture.tenantPageLocaleFields ?? []).map((entry) => entry.id), 'tenant page locale field id')
   uniqueStrings((fixture.businessLocationTranslations ?? []).map((entry) => entry.id), 'business location translation id')
+  uniqueStrings((fixture.resourceLocalizations ?? []).map((entry) => entry.id), 'resource localization id')
+  uniqueStrings((fixture.qaTranslations ?? []).map((entry) => entry.id), 'qa translation id')
+  uniqueStrings((fixture.postTranslations ?? []).map((entry) => entry.id), 'post translation id')
   uniqueStrings(fixture.publicRoutes.map((r) => r.path), 'public route path')
 
   const validatedSiteMedia = validateMedia(fixture.site.media, mediaIds, 'Site')
@@ -321,6 +324,9 @@ export function compileCuratedSiteFixture(
     posts,
     tenantPageLocaleFields,
     businessLocationTranslations,
+    resourceLocalizations: fixture.resourceLocalizations ?? [],
+    qaTranslations: fixture.qaTranslations ?? [],
+    postTranslations: fixture.postTranslations ?? [],
     publicRoutes: fixture.publicRoutes.map((route) => ({ ...route })),
     routeManifest: {
       locations: fixture.locations.map((l) => `/locations/${l.slug}`),

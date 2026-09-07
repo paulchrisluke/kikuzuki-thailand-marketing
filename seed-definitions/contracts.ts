@@ -46,6 +46,9 @@ export interface CuratedSiteDefinition extends CuratedSiteIdentity {
   posts: CuratedPostDefinition[]
   tenantPageLocaleFields?: CuratedTenantPageLocaleFieldDefinition[]
   businessLocationTranslations?: CuratedBusinessLocationTranslationDefinition[]
+  resourceLocalizations?: CuratedResourceLocalizationDefinition[]
+  qaTranslations?: CuratedQaTranslationDefinition[]
+  postTranslations?: CuratedPostTranslationDefinition[]
   publicRoutes: SeedPublicRouteExpectation[]
   aiCredits?: {
     balance: number
@@ -259,6 +262,28 @@ export interface CuratedBusinessLocationTranslationDefinition {
   reviewedAt: string | null
 }
 
+export interface CuratedResourceLocalizationDefinition {
+  id: string
+  resourceType: 'site' | 'business_location' | 'product' | 'product_category' | 'offering' | 'media_asset'
+  resourceId: string
+  locale: string
+  valuesJson: Record<string, string>
+}
+
+export interface CuratedQaTranslationDefinition {
+  id: string
+  originalId: string
+  question: string
+  answer: string
+}
+
+export interface CuratedPostTranslationDefinition {
+  id: string
+  originalId: string
+  title: string | null
+  body: string
+}
+
 // Compiled/normalized interfaces
 
 interface CompiledSeedMediaAssetBase {
@@ -444,6 +469,9 @@ export interface CompiledCuratedSiteBundle {
   posts: CompiledSeedPost[]
   tenantPageLocaleFields: CompiledSeedTenantPageLocaleField[]
   businessLocationTranslations: CompiledSeedBusinessLocationTranslation[]
+  resourceLocalizations?: CuratedResourceLocalizationDefinition[]
+  qaTranslations?: CuratedQaTranslationDefinition[]
+  postTranslations?: CuratedPostTranslationDefinition[]
   publicRoutes: SeedPublicRouteExpectation[]
   routeManifest: {
     locations: string[]
