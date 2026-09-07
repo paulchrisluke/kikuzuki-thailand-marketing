@@ -5,29 +5,23 @@
         <template #leading>
           <DashboardNavbarLeading to="/admin" label="Admin" />
         </template>
-        <template #trailing>
-          <UButton size="sm" to="/admin/docs/new">New doc</UButton>
-        </template>
       </UDashboardNavbar>
     </template>
 
     <template #body>
-      <div class="space-y-4">
-        <div v-if="docsError" class="text-sm text-error">{{ docsError }}</div>
-        <div v-else-if="docs.length === 0" class="text-sm text-muted py-4">No docs yet.</div>
-        <div v-else class="divide-y divide-default rounded-xl border border-default overflow-hidden">
-          <div v-for="doc in docs" :key="doc.id" class="flex items-center justify-between px-5 py-4">
-            <div class="min-w-0">
-              <p class="font-medium text-default truncate">{{ doc.title }}</p>
-              <p class="text-xs text-muted truncate">{{ doc.category }}<template v-if="doc.slug"> · {{ doc.slug }}</template></p>
-            </div>
-            <div class="flex gap-2 shrink-0">
-              <UButton size="xs" variant="outline" :to="`/admin/docs/${doc.id}`">Edit</UButton>
-              <UButton size="xs" variant="outline" color="error" :loading="deletingDocId === doc.id" @click="openDeleteConfirm(doc.id)">Delete</UButton>
-            </div>
-          </div>
-        </div>
-      </div>
+      <DashboardListEditor
+        :items="listItems"
+        title="Documentation"
+        description="Manage the platform help library and its navigation metadata."
+        empty-title="No docs yet"
+        empty-icon="i-lucide-book-open"
+        add-label="Add documentation"
+        :error="docsError"
+        :removing-id="deletingDocId"
+        @add="addDoc"
+        @open="openDoc"
+        @remove="openDeleteConfirm"
+      />
     </template>
   </UDashboardPanel>
 
@@ -46,6 +40,8 @@
 </template>
 
 <script setup lang="ts">
+import DashboardListEditor from '~/components/dashboard/DashboardListEditor.vue'
+
 definePageMeta({ layout: 'dashboard' })
 useSeoMeta({ title: 'Docs | KrabiClaw Admin', robots: 'noindex, nofollow' })
 
@@ -67,6 +63,13 @@ const docsError = ref('')
 const deleteConfirmOpen = ref(false)
 const pendingDeleteDocId = ref<string | null>(null)
 const deletingDocId = ref<string | null>(null)
+const listItems = computed(() => docs.value.map(doc => ({
+    ...doc,
+    summary: [doc.category, doc.slug].filter(Boolean).join(' · '),
+  })))
+
+function addDoc() { navigateTo('/admin/docs/new') }
+function openDoc(doc: Doc) { navigateTo(`/admin/docs/${encodeURIComponent(doc.id)}`) }
 
 async function loadDocs() {
   try {
@@ -78,9 +81,9 @@ async function loadDocs() {
   }
 }
 
-function openDeleteConfirm(id: string) {
+function openDeleteConfirm(doc: Doc) {
   if (deletingDocId.value !== null) return
-  pendingDeleteDocId.value = id
+  pendingDeleteDocId.value = doc.id
   deleteConfirmOpen.value = true
 }
 

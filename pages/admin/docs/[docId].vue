@@ -1,7 +1,7 @@
 <template>
-  <UDashboardPanel id="admin-docs-edit">
+  <UDashboardPanel :id="isNew ? 'admin-docs-new' : 'admin-docs-edit'">
     <template #header>
-      <UDashboardNavbar title="Edit Documentation">
+      <UDashboardNavbar :title="isNew ? 'New Documentation' : 'Edit Documentation'">
         <template #leading>
           <DashboardNavbarLeading to="/admin/docs" label="Docs" />
         </template>
@@ -212,10 +212,10 @@
         </div>
 
         <div class="flex flex-wrap items-center gap-2 border-t border-default pt-4">
-          <UButton :loading="saving" :disabled="!canSave" @click="update">
-            Save live changes
+          <UButton :loading="saving" :disabled="!canPublish" @click="save">
+            {{ isNew ? 'Publish' : 'Save live changes' }}
           </UButton>
-          <UButton color="error" variant="ghost" :loading="saving" @click="remove">
+          <UButton v-if="!isNew" color="error" variant="ghost" :loading="saving" @click="remove">
             Delete
           </UButton>
         </div>
@@ -270,8 +270,9 @@ definePageMeta({ layout: 'dashboard' })
 
 const route = useRoute()
 const docId = route.params.docId as string
+const isNew = docId === 'new'
 
-const { form, canSave, featuredAssetId } = useDocForm()
+const { form, canPublish, featuredAssetId } = useDocForm()
 const categoryItems = computed(() => categories.map((item) => ({ label: item, value: item })))
 const difficultyItems = computed(() => difficultyLevels.map((item) => ({ label: item, value: item })))
 const navSectionItems = computed(() => [
@@ -291,13 +292,15 @@ const componentStatusItems = [
 ]
 
 const doc = ref<Doc | null>(null)
-const loadPending = ref(true)
+const loadPending = ref(!isNew)
 const loadError = ref('')
 const saving = ref(false)
 const errorMessage = ref('')
 const successMessage = ref('')
 
-onMounted(loadDoc)
+onMounted(() => {
+  if (!isNew) loadDoc()
+})
 
 function addFaqItem() {
   form.faq_items.push(createEmptyFaqItem())
@@ -371,7 +374,7 @@ async function loadDoc() {
   }
 }
 
-async function update() {
+async function save() {
   if (!form.title.trim() || !form.body.trim()) {
     errorMessage.value = 'Title and body are required.'
     return
@@ -380,15 +383,24 @@ async function update() {
   errorMessage.value = ''
   successMessage.value = ''
   try {
-    const updated = await applicationFetch<DocResponse>(`/api/admin/docs/${docId}`, {
-      method: 'PATCH',
-      body: buildPayload(),
-      validate: isDocResponse,
-    })
-    if (!updated.doc) throw new Error('Doc not found after save')
-    doc.value = updated.doc
-    hydrateDocFormContent(form, updated.doc.content_blocks)
-    successMessage.value = 'Live changes saved.'
+    if (isNew) {
+      const created = await applicationFetch<{ id: string | number }>('/api/admin/docs', {
+        method: 'POST',
+        body: buildPayload(),
+        validate: (value): value is { id: string | number } => isRecord(value) && (typeof value.id === 'string' || typeof value.id === 'number'),
+      })
+      await navigateTo(`/admin/docs/${created.id}`)
+    } else {
+      const updated = await applicationFetch<DocResponse>(`/api/admin/docs/${docId}`, {
+        method: 'PATCH',
+        body: buildPayload(),
+        validate: isDocResponse,
+      })
+      if (!updated.doc) throw new Error('Doc not found after save')
+      doc.value = updated.doc
+      hydrateDocFormContent(form, updated.doc.content_blocks)
+      successMessage.value = 'Live changes saved.'
+    }
   } catch (err) {
     errorMessage.value = getErrorMessage(err, 'Failed to save.')
   } finally {
@@ -397,6 +409,7 @@ async function update() {
 }
 
 async function remove() {
+  if (isNew) return
   if (!confirm('Delete this doc permanently?')) return
   saving.value = true
   errorMessage.value = ''
@@ -413,5 +426,5 @@ async function remove() {
   }
 }
 
-useSeoMeta({ title: 'Edit Documentation | Admin' })
+useSeoMeta({ title: isNew ? 'New Documentation | Admin' : 'Edit Documentation | Admin' })
 </script>

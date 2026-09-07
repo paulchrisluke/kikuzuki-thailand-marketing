@@ -5,29 +5,23 @@
         <template #leading>
           <DashboardNavbarLeading to="/admin" label="Admin" />
         </template>
-        <template #trailing>
-          <UButton size="sm" to="/admin/blog/new">New post</UButton>
-        </template>
       </UDashboardNavbar>
     </template>
 
     <template #body>
-      <div class="space-y-4">
-        <div v-if="blogError" class="text-sm text-error">{{ blogError }}</div>
-        <div v-else-if="blogPosts.length === 0" class="text-sm text-muted py-4">No posts yet.</div>
-        <div v-else class="divide-y divide-default rounded-xl border border-default overflow-hidden">
-          <div v-for="post in blogPosts" :key="post.id" class="flex items-center justify-between px-5 py-4">
-            <div>
-              <p class="font-medium text-default">{{ post.title }}</p>
-              <p class="text-xs text-muted">{{ post.status === 'scheduled' ? `Scheduled ${formatDate(post.scheduled_for)}` : formatDate(post.published_at) }}</p>
-            </div>
-            <div class="flex gap-2">
-              <UButton size="xs" variant="outline" :to="`/admin/blog/${post.id}`">Edit</UButton>
-              <UButton size="xs" variant="outline" color="error" :loading="deletingPostId === post.id" @click="openDeleteConfirm(post.id)">Delete</UButton>
-            </div>
-          </div>
-        </div>
-      </div>
+      <DashboardListEditor
+        :items="listItems"
+        title="Posts"
+        description="Publish updates and stories for the platform site."
+        empty-title="No posts yet"
+        empty-icon="i-lucide-newspaper"
+        add-label="Add a post"
+        :error="blogError"
+        :removing-id="deletingPostId"
+        @add="addPost"
+        @open="openPost"
+        @remove="openDeleteConfirm"
+      />
     </template>
   </UDashboardPanel>
 
@@ -46,6 +40,7 @@
 </template>
 
 <script setup lang="ts">
+import DashboardListEditor from '~/components/dashboard/DashboardListEditor.vue'
 import { formatDate } from '~/utils/formatters'
 definePageMeta({ layout: 'dashboard' })
 useSeoMeta({ title: 'Blog | KrabiClaw Admin', robots: 'noindex, nofollow' })
@@ -59,6 +54,13 @@ const blogError = ref('')
 const deleteConfirmOpen = ref(false)
 const pendingDeletePostId = ref<string | null>(null)
 const deletingPostId = ref<string | null>(null)
+const listItems = computed(() => blogPosts.value.map(post => ({
+    ...post,
+    summary: post.status === 'scheduled' ? `Scheduled ${formatDate(post.scheduled_for)}` : `Published ${formatDate(post.published_at)}`,
+  })))
+
+function addPost() { navigateTo('/admin/blog/new') }
+function openPost(post: BlogPost) { navigateTo(`/admin/blog/${encodeURIComponent(post.id)}`) }
 
 async function loadBlogPosts() {
   try {
@@ -72,9 +74,9 @@ async function loadBlogPosts() {
   }
 }
 
-function openDeleteConfirm(id: string) {
+function openDeleteConfirm(post: BlogPost) {
   if (deletingPostId.value !== null) return
-  pendingDeletePostId.value = id
+  pendingDeletePostId.value = post.id
   deleteConfirmOpen.value = true
 }
 

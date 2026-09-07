@@ -9,7 +9,7 @@ import { dashboardScopeHeaderModelKey } from '~/lib/components/workspace/dashboa
 // Admin keeps four links in the bar and the rest in the menu: ten will not fit a
 // centred bar, and splitting them is what lets admin share the tenant chrome
 // instead of earning a second layout.
-const ADMIN_PRIMARY = ['/admin/clients', '/admin/users', '/admin/content', '/admin/analytics']
+const ADMIN_PRIMARY = ['/admin/organizations', '/admin/users', '/admin/content', '/admin/analytics']
 
 export function useDashboardMenu() {
   const route = useRoute()
@@ -30,12 +30,12 @@ export function useDashboardMenu() {
 
   const adminItems = computed(() => [
     ...(dashboard.managedServiceEnabled.value ? [{ id: 'work', label: 'Work Queue', summary: 'Managed service queue', to: '/admin/work' }] : []),
-    { id: 'clients', label: 'Clients', summary: 'Client organizations and onboarding', to: '/admin/clients' },
+    { id: 'organizations', label: 'Organizations', summary: 'Sites, billing, and operations', to: '/admin/organizations' },
     { id: 'members', label: 'Members', summary: 'Platform staff access', to: '/admin/members' },
     { id: 'analytics', label: 'Analytics', summary: 'Platform-wide usage', to: '/admin/analytics' },
     { id: 'domains', label: 'Domains', summary: 'Custom domain requests', to: '/admin/domains' },
     { id: 'users', label: 'Users', summary: 'Accounts and impersonation', to: '/admin/users' },
-    { id: 'content', label: 'Content', summary: 'Marketing pages', to: '/admin/content' },
+    { id: 'content', label: 'Platform Content', summary: 'Default social sharing media', to: '/admin/content' },
     { id: 'blog', label: 'Blog', summary: 'Platform blog posts', to: '/admin/blog' },
     { id: 'docs', label: 'Docs', summary: 'Documentation pages', to: '/admin/docs' },
   ])

@@ -387,6 +387,7 @@ export default defineNuxtConfig({
 
   // Nitro configuration for Cloudflare deployment
   nitro: {
+    builder: process.env.NODE_ENV === 'development' ? 'rollup' : undefined,
     preset: 'cloudflare-module',
     cloudflare: {
       deployConfig: false,

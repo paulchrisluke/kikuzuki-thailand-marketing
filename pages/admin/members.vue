@@ -5,6 +5,9 @@
         <template #leading>
           <DashboardNavbarLeading to="/admin" label="Admin" />
         </template>
+        <template #trailing>
+          <UButton size="sm" icon="i-lucide-user-plus" label="Add team member" @click="inviteOpen = true" />
+        </template>
       </UDashboardNavbar>
     </template>
 
@@ -39,21 +42,27 @@
             </div>
           </div>
 
-          <template #footer>
-            <div class="flex gap-2">
-              <UInput v-model="teamInviteEmail" placeholder="name@email.com" class="flex-1" @keyup.enter="inviteTeamMember" />
-              <UInput v-model="teamInviteName" placeholder="Name (optional)" class="w-40" />
-              <UButton :loading="invitingTeam" @click="inviteTeamMember">Add to team</UButton>
-            </div>
-            <p v-if="teamInviteResult" class="mt-2 text-sm" :class="teamInviteResult.error ? 'text-error' : 'text-success'">
-              {{ teamInviteResult.message }}
-            </p>
-          </template>
         </UCard>
 
       </div>
     </template>
   </UDashboardPanel>
+
+  <UModal v-model:open="inviteOpen" title="Add team member" description="Give a colleague platform administrator access." :dismissible="!invitingTeam" :ui="{ content: 'max-w-md' }">
+    <template #body>
+      <div class="space-y-4">
+        <UFormField label="Email" required><UInput v-model="teamInviteEmail" type="email" placeholder="name@email.com" class="w-full" @keyup.enter="inviteTeamMember" /></UFormField>
+        <UFormField label="Name"><UInput v-model="teamInviteName" placeholder="Optional" class="w-full" @keyup.enter="inviteTeamMember" /></UFormField>
+        <UAlert v-if="teamInviteResult" :color="teamInviteResult.error ? 'error' : 'success'" variant="soft" :description="teamInviteResult.message" />
+      </div>
+    </template>
+    <template #footer>
+      <div class="flex w-full justify-end gap-2">
+        <UButton label="Cancel" color="neutral" variant="ghost" :disabled="invitingTeam" @click="closeInvite" />
+        <UButton label="Add to team" :loading="invitingTeam" :disabled="!teamInviteEmail.trim()" @click="inviteTeamMember" />
+      </div>
+    </template>
+  </UModal>
 </template>
 
 <script setup lang="ts">
@@ -67,6 +76,7 @@ const toast = useToast()
 interface TeamMember { id: string; name: string | null; email: string; image: string | null; role: string; createdAt: string }
 
 const team = ref<TeamMember[]>([])
+const inviteOpen = ref(false)
 const membersLoading = ref(false)
 const teamInviteEmail = ref('')
 const teamInviteName = ref('')
@@ -110,11 +120,18 @@ async function inviteTeamMember() {
     teamInviteEmail.value = ''
     teamInviteName.value = ''
     await loadMembers()
+    inviteOpen.value = false
+    toast.add({ title: 'Team member added', color: 'success' })
   } catch (err: unknown) {
     teamInviteResult.value = { error: true, message: getErrorMessage(err, 'Failed to add team member') }
   } finally {
     invitingTeam.value = false
   }
+}
+
+function closeInvite() {
+  inviteOpen.value = false
+  teamInviteResult.value = null
 }
 
 onMounted(loadMembers)
