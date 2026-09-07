@@ -18,7 +18,7 @@
           </span>
         </h1>
         <p class="text-lg sm:text-xl text-muted leading-relaxed m-0 text-balance">
-          Dedicated practice area URLs, consultation booking flows, regulatory compliance pages, and canonical LegalService structured data — without \$10,000 agency retainers.
+          Dedicated practice area URLs, consultation booking flows, regulatory compliance pages, and canonical LegalService structured data — without $10,000 agency retainers.
         </p>
         <div class="flex flex-wrap items-center justify-center gap-4 mt-2">
           <PlatformButton to="/signup" size="lg" class="shadow-sm transition-transform hover:-translate-y-0.5">
@@ -43,7 +43,7 @@
             <ul class="space-y-4 p-0 list-none text-sm text-muted">
               <li class="flex items-start gap-3">
                 <span class="size-5 rounded-full bg-red-500/10 text-red-500 flex items-center justify-center shrink-0 mt-0.5 font-bold text-xs">✕</span>
-                <span><strong>High Ongoing Costs:</strong> Boutique agencies charge \$5,000–\$15,000 upfront plus monthly maintenance retainers for static pages.</span>
+                <span><strong>High Ongoing Costs:</strong> Boutique agencies charge $5,000–$15,000 upfront plus monthly maintenance retainers for static pages.</span>
               </li>
               <li class="flex items-start gap-3">
                 <span class="size-5 rounded-full bg-red-500/10 text-red-500 flex items-center justify-center shrink-0 mt-0.5 font-bold text-xs">✕</span>
@@ -334,6 +334,10 @@ const faqs = [
   }
 ]
 
+const config = useRuntimeConfig()
+const requestURL = useRequestURL()
+const siteUrl = config.public.siteUrl || requestURL.origin
+
 useSocialMetadata({
   template: 'platform',
   path: '/legal',
@@ -342,8 +346,16 @@ useSocialMetadata({
   schemaPageType: 'ItemPage',
   breadcrumbs: [
     { name: 'Home', url: '/' },
-    { name: 'Solutions', url: '/legal' },
     { name: 'Legal Services', url: '/legal' },
+  ],
+  schemaNodes: [
+    {
+      '@type': 'LegalService',
+      '@id': `${siteUrl}/legal#service`,
+      name: 'KrabiClaw for Legal Services',
+      description: 'Modern law practice websites with structured practice areas, consultation intake flows, and canonical schema.org LegalService graphs.',
+      url: `${siteUrl}/legal`,
+    },
   ],
   faqItems: faqs.map(f => ({ question: f.q, answer: f.a })),
 })

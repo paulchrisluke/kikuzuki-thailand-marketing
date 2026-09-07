@@ -22,7 +22,7 @@
             <span>Solutions</span>
             <PlatformIcon name="chevron-down" class="size-3.5 transition-transform duration-200 group-hover:rotate-180" />
           </button>
-          <div class="absolute left-0 top-full pt-2 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-150 z-50">
+          <div class="absolute left-0 top-full pt-2 opacity-0 invisible group-hover:opacity-100 group-hover:visible group-focus-within:opacity-100 group-focus-within:visible transition-all duration-150 z-50">
             <div class="w-60 p-1.5 rounded-2xl bg-default/95 backdrop-blur-md border border-default shadow-xl flex flex-col gap-0.5">
               <NuxtLink
                 v-for="sol in solutionItems"
@@ -124,7 +124,7 @@ const route = useRoute()
 const mobileMenu = ref<HTMLDetailsElement | null>(null)
 
 const isSolutionsActive = computed(() =>
-  solutionItems.some(sol => route.fullPath === sol.to || route.fullPath.startsWith(`${sol.to}/`))
+  solutionItems.some(sol => route.path === sol.to || route.path.startsWith(`${sol.to}/`))
 )
 
 function closeMobileMenu() {

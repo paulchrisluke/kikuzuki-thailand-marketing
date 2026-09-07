@@ -41,8 +41,8 @@
           </li>
           <li class="rounded-2xl border border-default bg-elevated p-6">
             <span class="flex size-10 items-center justify-center rounded-xl bg-(--kc-teal) text-lg font-bold text-white">2</span>
-            <h3 class="mt-4 font-bold text-default">Add the connection</h3>
-            <p class="mt-2 text-sm leading-relaxed text-muted">Open your ChatGPT <strong>Connectors / Plugins</strong> menu, select the plus button, name the connection <strong>KrabiClaw</strong>, and enter this HTTPS MCP endpoint. Create it and review the discovered tools.</p>
+            <h3 class="mt-4 font-bold text-default">Add the custom MCP app</h3>
+            <p class="mt-2 text-sm leading-relaxed text-muted">Navigate to <strong>Settings → Apps → Advanced Settings</strong> to enable Developer Mode and create your custom MCP app with the HTTPS endpoint below. In chats, select KrabiClaw from the <strong>Apps</strong> menu. (Note: Custom MCP apps currently require an eligible ChatGPT Pro, Team, Business, or Enterprise/Edu plan and workspace permissions).</p>
             <div class="mt-4 flex items-center gap-2 rounded-xl border border-default bg-muted/50 px-3 py-2 font-mono text-xs">
               <span class="truncate">https://krabiclaw.com/api/mcp</span>
               <button class="ml-auto cursor-pointer" aria-label="Copy MCP server URL" @click="copyUrl"><PlatformIcon :name="copied ? 'check' : 'clipboard'" class="size-4" /></button>
@@ -67,7 +67,7 @@
             <h3 class="font-bold text-default m-0">OpenAI Directory Submission Status</h3>
           </div>
           <p class="text-sm text-muted m-0">
-            KrabiClaw has officially been submitted to the OpenAI ChatGPT Directory and is currently under review. In the meantime, any user can connect immediately using Developer Mode above.
+            KrabiClaw has officially been submitted to the OpenAI ChatGPT Directory and is currently under review. Once approved, KrabiClaw will be available directly to all ChatGPT users. In the meantime, users with Developer Mode access on supported ChatGPT plans (subject to workspace settings and administrator approval) can connect via the custom MCP endpoint above.
           </p>
         </div>
       </section>

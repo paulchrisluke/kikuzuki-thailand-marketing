@@ -334,6 +334,10 @@ const faqs = [
   }
 ]
 
+const config = useRuntimeConfig()
+const requestURL = useRequestURL()
+const siteUrl = config.public.siteUrl || requestURL.origin
+
 useSocialMetadata({
   template: 'platform',
   path: '/restaurants',
@@ -342,8 +346,17 @@ useSocialMetadata({
   schemaPageType: 'ItemPage',
   breadcrumbs: [
     { name: 'Home', url: '/' },
-    { name: 'Solutions', url: '/restaurants' },
     { name: 'Restaurants', url: '/restaurants' },
+  ],
+  schemaNodes: [
+    {
+      '@type': 'Product',
+      '@id': `${siteUrl}/restaurants#product`,
+      name: 'KrabiClaw for Restaurants',
+      description: 'Zero-commission restaurant websites with crawlable HTML menus and Google Places sync, managed via ChatGPT.',
+      url: `${siteUrl}/restaurants`,
+      category: 'SoftwareApplication',
+    },
   ],
   faqItems: faqs.map(f => ({ question: f.q, answer: f.a })),
 })

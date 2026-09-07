@@ -334,6 +334,10 @@ const faqs = [
   }
 ]
 
+const config = useRuntimeConfig()
+const requestURL = useRequestURL()
+const siteUrl = config.public.siteUrl || requestURL.origin
+
 useSocialMetadata({
   template: 'platform',
   path: '/experiences',
@@ -342,8 +346,17 @@ useSocialMetadata({
   schemaPageType: 'ItemPage',
   breadcrumbs: [
     { name: 'Home', url: '/' },
-    { name: 'Solutions', url: '/experiences' },
     { name: 'Experiences', url: '/experiences' },
+  ],
+  schemaNodes: [
+    {
+      '@type': 'Product',
+      '@id': `${siteUrl}/experiences#product`,
+      name: 'KrabiClaw for Experiences',
+      description: 'Direct booking and ticketing websites for workshops, studios, and tours with zero booking fees, managed via ChatGPT.',
+      url: `${siteUrl}/experiences`,
+      category: 'SoftwareApplication',
+    },
   ],
   faqItems: faqs.map(f => ({ question: f.q, answer: f.a })),
 })
