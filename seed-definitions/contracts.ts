@@ -1,6 +1,7 @@
 import type { SiteSettings } from '../shared/site-settings.ts'
 import type { PostMutation, PostTopic } from '../shared/posts.ts'
 import type { OpeningHours, RecurringSlots } from '../shared/reservation-hours.ts'
+import type { LocalizedValues } from '../server/utils/localization-registry.ts'
 export interface SeedPublicRouteExpectation {
   path: string
   title: RegExp
@@ -264,14 +265,16 @@ export interface CuratedBusinessLocationTranslationDefinition {
 
 export interface CuratedResourceLocalizationDefinition {
   id: string
-  resourceType: 'site' | 'business_location' | 'product' | 'product_category' | 'offering' | 'media_asset'
+  resourceType: 'product'
   resourceId: string
+  routePath?: string | null
   locale: string
-  valuesJson: Record<string, string>
+  valuesJson: LocalizedValues
 }
 
 export interface CuratedQaTranslationDefinition {
   id: string
+  locale: string
   originalId: string
   question: string
   answer: string
@@ -279,9 +282,11 @@ export interface CuratedQaTranslationDefinition {
 
 export interface CuratedPostTranslationDefinition {
   id: string
+  locale: string
   originalId: string
   title: string | null
   body: string
+  metadata?: { event?: { title: string }; offer?: { terms_conditions: string } }
 }
 
 // Compiled/normalized interfaces

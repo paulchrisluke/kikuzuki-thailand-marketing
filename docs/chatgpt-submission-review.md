@@ -2,6 +2,10 @@
 
 ## Epoch 6 date/time contract — 2026-09-07
 
+The owner has cancelled the existing ChatGPT app review and will handle the next
+submission after production qualification. Release contributors own current
+tooling, generated artifacts and deployed MCP verification, not portal resubmission.
+
 The expanded PR standardizes persisted application instants as UTC with
 millisecond precision. MCP date, scheduling and price-validity schemas now use
 the same validation primitives as the shared domain. Explicit offsets are
@@ -26,6 +30,15 @@ propagation; both are fixed. Billing projection and reconciliation now share the
 same access/expiry calculation, with a separate provider paid-invoice comparison
 to detect stale payment evidence. Real D1 coverage verifies trial, paid and grace
 expiry sources and missing-date behavior. Remote release qualification is pending.
+
+The consolidated CMS/demo candidate additionally passed 39 affected runtime journeys,
+then all 32 rendering/navigation/localization cases with the final diagnostics
+(including ten new Thai demo routes). CI run `34110539544` on pre-consolidation
+`929ab2f6` failed six generic hydration checks and one 30-second localization test.
+The final build preserves Vue mismatch details; the CMS test logs request timings
+and correlation IDs and has a 60-second whole-journey budget backed by observed
+remote timings. Local success does not resolve the remote hydration cause. The
+combined preview must pass before staging or production promotion.
 
 ## Epoch 5 contract correction — 2026-09-07
 

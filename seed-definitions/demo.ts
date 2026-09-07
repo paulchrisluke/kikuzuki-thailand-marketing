@@ -1,3 +1,4 @@
+import { postPublicPath } from '../utils/post-slugs.ts'
 import { compileCuratedSiteFixture } from './compile.ts'
 import type { CuratedProductDefinition, CuratedSiteDefinition } from './contracts.ts'
 import { buildSeedExperienceCategories, buildSeedProductCategories } from './contracts.ts'
@@ -1213,42 +1214,49 @@ export const demoFixture: CuratedSiteDefinition = {
   qaTranslations: [
     {
       id: 'qa-demo-1-th',
+      locale: 'th',
       originalId: 'qa-demo-1',
       question: 'คุณรับจองโต๊ะไหม',
       answer: 'ใช่ เราจัดที่ว่างสำหรับลูกค้าเดินเข้ามา แต่ขอแนะนำให้จองสำหรับมื้อเย็นและวันหยุด',
     },
     {
       id: 'qa-demo-2-th',
+      locale: 'th',
       originalId: 'qa-demo-2',
       question: 'คุณมีแป้งไร์กลูเตนฟรีไหม',
       answer: 'ยังไม่ ห้องผสมแป้งของเราใช้แป้งสาลีตลอดทั้งวัน ดังนั้นเราไม่สามารถรับประกันแป้งไร์กลูเตนฟรีได้อย่างปลอดภัย',
     },
     {
       id: 'qa-demo-3-th',
+      locale: 'th',
       originalId: 'qa-demo-3',
       question: 'ฉันสามารถสั่งทานบ้านได้ไหม',
       answer: 'ใช่ โทรหาเราโดยตรงเพื่อรับของ พิซซ่าเตาฟืนเดินทางได้ดีที่สุดเมื่อหยิบใกล้เวลาย่าง',
     },
     {
       id: 'qa-demo-4-th',
+      locale: 'th',
       originalId: 'qa-demo-4',
       question: 'เวลาที่แออัดที่สุดคือเมื่อไร',
       answer: 'วันศุกร์และวันเสาร์ตั้งแต่ 7 ถึง 9 โมงเย็นคือช่วงพีค มื้อเย็นตั้งแต่ต้นหรืออาหารกลางวันวันอาทิตย์จะสงบกว่า',
     },
     {
       id: 'qa-demo-5-th',
+      locale: 'th',
       originalId: 'qa-demo-5',
       question: 'คุณมีตัวเลือกมังสวิรัติไหม',
       answer: 'แน่นอน มาร์เกอริต้า ฟันจี บิองโก บูร์ราตา การ์ลิกน็อต และริกาโตนีโปโมโดโรเป็นมังสวิรัติ',
     },
     {
       id: 'qa-demo2-1-th',
+      locale: 'th',
       originalId: 'qa-demo2-1',
       question: 'คุณมีที่นั่งกลางแจ้งไหม',
       answer: 'แน่นอน! เรามีการจัดเตรียมพาทิโอที่สวยงามสำหรับเดือนที่อบอุ่น',
     },
     {
       id: 'qa-demo2-2-th',
+      locale: 'th',
       originalId: 'qa-demo2-2',
       question: 'คุณเสนอแป้งไร์กลูเตนฟรีไหม',
       answer: 'ใช่ เราเสนอแป้งไร์กลูเตนฟรีสำหรับพิซซ่าเตาฟืนทุกชนิดโดยเสียค่าใช้จ่ายเพิ่มเติม',
@@ -1257,27 +1265,33 @@ export const demoFixture: CuratedSiteDefinition = {
   postTranslations: [
     {
       id: 'post-demo-1-th',
+      locale: 'th',
       originalId: 'post-demo-1',
       title: 'อาหารกลางวันวันหยุดเริ่มตั้งแต่ 11 โมง',
       body: 'เตาจะติดไฟเร็วขึ้นในวันเสาร์และวันอาทิตย์ มาทานพิซซ่ากลางวัน การ์ลิกน็อต และสปริตซ์ตั้งแต่ 11 โมงเช้า',
     },
     {
       id: 'post-demo-2-th',
+      locale: 'th',
       originalId: 'post-demo-2',
       title: null,
       body: 'ฟันจี บิองโกของเรากลับมาแล้วด้วยเห็ดย่าง ครีมริคอตต้า ใบสะระแหน่ และหิมะเปคโคริโนเล็กน้อยที่เคาน์เตอร์',
     },
     {
       id: 'post-demo-3-th',
+      locale: 'th',
       originalId: 'post-demo-3',
       title: 'มาร์เกอริต้าวันจันทร์',
       body: 'ทุกวันจันทร์ในเดือนพฤษภาคม: พิซซ่ามาร์เกอริต้าราคา 14 ดอลลาร์ตั้งแต่เปิดถึงปิด ทานในร้านเท่านั้น หนึ่งต่อคน',
+      metadata: { event: { title: 'ข้อเสนอมาร์เกอริต้าวันจันทร์' }, offer: { terms_conditions: 'ทานในร้านทุกวันจันทร์ในเดือนพฤษภาคม จำกัดพิซซ่ามาร์เกอริต้าหนึ่งถาดต่อคน' } },
     },
     {
       id: 'post-demo-4-th',
+      locale: 'th',
       originalId: 'post-demo-4',
       title: 'มื้ออาหารโต๊ะยาวเก็บเกี่ยว',
       body: 'ร่วมกับเราสำหรับมื้ออาหารครอบครัวแบบครั้งเดียวที่สร้างขึ้นรอบผลผลิตปลายฤดูร้อนและเตาฟืนไม้',
+      metadata: { event: { title: 'มื้ออาหารโต๊ะยาวเก็บเกี่ยว' } },
     },
   ],
   posts: [
@@ -1583,31 +1597,34 @@ export const demoFixture: CuratedSiteDefinition = {
       id: 'rl-demo-th-pizza-class',
       resourceType: 'product',
       resourceId: 'exp-demo-pizza-class',
+      routePath: '/th/experiences/pizza-making-class',
       locale: 'th',
-      valuesJson: { name: 'คลาสทำพิซซ่า', tagline: 'ยืดแป้ง ตกแต่งพิซซ่า และย่างเอง' },
+      valuesJson: { name: 'คลาสทำพิซซ่า', experience: { tagline: 'ยืดแป้ง ตกแต่งพิซซ่า และย่างเอง' } },
     },
     {
       id: 'rl-demo-th-wine-night',
       resourceType: 'product',
       resourceId: 'exp-demo-wine-night',
+      routePath: '/th/experiences/natural-wine-and-pizza-night',
       locale: 'th',
-      valuesJson: { name: 'ค่ำคืนไวน์ธรรมชาติและพิซซ่า', tagline: 'เสิร์ฟเล็กน้อย พิซซ่าร้อน และบรรยากาศโต๊ะยาว' },
+      valuesJson: { name: 'ค่ำคืนไวน์ธรรมชาติและพิซซ่า', experience: { tagline: 'เสิร์ฟเล็กน้อย พิซซ่าร้อน และบรรยากาศโต๊ะยาว' } },
     },
     {
       id: 'rl-demo-th-family-night',
       resourceType: 'product',
       resourceId: 'exp-demo-family-night',
+      routePath: '/th/experiences/family-pizza-night',
       locale: 'th',
-      valuesJson: { name: 'ค่ำคืนพิซซ่าครอบครัว', tagline: 'มื้ออาหารโต๊ะยาว เวลาผ่อนคลาย และพิซซ่าสำหรับทุกวัย' },
+      valuesJson: { name: 'ค่ำคืนพิซซ่าครอบครัว', experience: { tagline: 'มื้ออาหารโต๊ะยาว เวลาผ่อนคลาย และพิซซ่าสำหรับทุกวัย' } },
     },
   ],
   aiCredits: {
-    balance: 500,
+    balance: 2000,
     lifetimeUsed: 127,
   },
   organizationBilling: {
-    status: 'free',
-    plan: 'free',
+    status: 'active',
+    plan: 'growth',
   },
   publicRoutes: [
     { path: '/experiences', title: /Experiences \| Ember & Slice/, text: 'Pizza Making Class' },
@@ -1922,7 +1939,7 @@ export function renderCompiledDemoQaBlock(): string {
     return `INSERT INTO content_documents
   (id, organization_id, site_id, title, summary, kind, row_role, locale, root_id, root_role, source, status, visibility)
 VALUES (${sqlValue(qa.id)}, ${sqlValue(originalQa.organizationId)}, ${sqlValue(originalQa.siteId)},
-  ${sqlValue(qa.question)}, ${sqlValue(qa.answer)}, 'qa', 'representation', 'th',
+  ${sqlValue(qa.question)}, ${sqlValue(qa.answer)}, 'qa', 'representation', ${sqlValue(qa.locale)},
   ${sqlValue(originalQa.id)}, 'root', NULL, NULL, NULL);`
   }).join('\n') ?? ''
 
@@ -1962,10 +1979,10 @@ export function renderCompiledDemoPostsBlock(): string {
     const originalPost = compiledDemoSeed.posts.find(p => p.id === post.originalId)
     if (!originalPost) throw new Error(`Original post not found: ${post.originalId}`)
     return `INSERT INTO content_documents
-  (id, organization_id, site_id, title, summary, kind, row_role, locale, root_id, root_role, source, status, visibility)
+  (id, organization_id, site_id, title, summary, kind, row_role, locale, root_id, root_role, source, status, visibility, path, metadata_json)
 VALUES (${sqlValue(post.id)}, ${sqlValue(originalPost.organizationId)}, ${sqlValue(originalPost.siteId)},
-  ${sqlValue(post.title)}, ${sqlValue(post.body)}, 'social_post', 'representation', 'th',
-  ${sqlValue(originalPost.id)}, 'root', NULL, NULL, NULL);`
+  ${sqlValue(post.title)}, ${sqlValue(post.body)}, 'social_post', 'representation', ${sqlValue(post.locale)},
+  ${sqlValue(originalPost.id)}, 'root', NULL, NULL, NULL, ${sqlValue(postPublicPath(originalPost.id))}, ${sqlJson(post.metadata ?? {})});`
   }).join('\n') ?? ''
 
   return `-- BEGIN GENERATED: demo_posts
@@ -1991,6 +2008,7 @@ export function renderCompiledDemoResourceLocalizationsBlock(): string {
     sqlValue(rl.resourceType),
     sqlValue(rl.resourceId),
     sqlValue(rl.locale),
+    sqlValue(rl.routePath ?? null),
     sqlJson(rl.valuesJson),
     sqlValue('seed:demo'),
     sqlValue('seed:demo'),
@@ -1998,8 +2016,8 @@ export function renderCompiledDemoResourceLocalizationsBlock(): string {
 
   return `-- BEGIN GENERATED: demo_resource_localizations
 -- Resource localizations for the demo tenant.
-INSERT OR IGNORE INTO resource_localizations
-  (id, organization_id, site_id, resource_type, resource_id, locale, values_json, created_by_user_id, updated_by_user_id)
+INSERT INTO resource_localizations
+  (id, organization_id, site_id, resource_type, resource_id, locale, route_path, values_json, created_by_user_id, updated_by_user_id)
 VALUES
 ${resourceRows};
 -- END GENERATED: demo_resource_localizations`
@@ -2031,7 +2049,7 @@ We want the room to feel energetic but never rushed, whether you come in for one
 INSERT INTO content_documents
   (id, organization_id, site_id, title, slug, summary, metadata_json, status,
    author_id, published_at, created_at, updated_at,
-   seo_description, seo_keywords, canonical_url, robots, kind, row_role, locale, visibility)
+   seo_description, seo_keywords, path, robots, kind, row_role, locale, visibility)
 VALUES (
   ${sqlValue(postId)},
   ${sqlValue('org-demo')},
@@ -2281,7 +2299,7 @@ Ember & Slice ไม่ได้เริ่มต้นด้วยแผนธ
     return `INSERT INTO content_documents
   (id, organization_id, site_id, title, slug, summary, metadata_json, status,
    author_id, published_at, created_at, updated_at,
-   seo_description, seo_keywords, canonical_url, robots, kind, row_role, locale, visibility,
+   seo_description, seo_keywords, path, robots, kind, row_role, locale, visibility,
    root_id, root_role, source)
 VALUES (
   ${sqlValue(th.id)},
@@ -2315,7 +2333,7 @@ VALUES (${sqlValue(thaiBlockId)}, ${sqlValue(th.id)}, NULL, 'markdown', 0, NULL,
 INSERT INTO content_documents
   (id, organization_id, site_id, title, slug, summary, metadata_json, status,
    author_id, published_at, created_at, updated_at,
-   seo_description, seo_keywords, canonical_url, robots, kind, row_role, locale, visibility)
+   seo_description, seo_keywords, path, robots, kind, row_role, locale, visibility)
 VALUES (
   ${sqlValue(article1Id)},
   ${sqlValue('org-demo')},
@@ -2347,7 +2365,7 @@ VALUES (${sqlValue(article1BlockId)}, ${sqlValue(article1Id)}, NULL, 'markdown',
 INSERT INTO content_documents
   (id, organization_id, site_id, title, slug, summary, metadata_json, status,
    author_id, published_at, created_at, updated_at,
-   seo_description, seo_keywords, canonical_url, robots, kind, row_role, locale, visibility)
+   seo_description, seo_keywords, path, robots, kind, row_role, locale, visibility)
 VALUES (
   ${sqlValue(article2Id)},
   ${sqlValue('org-demo')},
@@ -2379,7 +2397,7 @@ VALUES (${sqlValue(article2BlockId)}, ${sqlValue(article2Id)}, NULL, 'markdown',
 INSERT INTO content_documents
   (id, organization_id, site_id, title, slug, summary, metadata_json, status,
    author_id, published_at, created_at, updated_at,
-   seo_description, seo_keywords, canonical_url, robots, kind, row_role, locale, visibility)
+   seo_description, seo_keywords, path, robots, kind, row_role, locale, visibility)
 VALUES (
   ${sqlValue(article3Id)},
   ${sqlValue('org-demo')},

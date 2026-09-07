@@ -16,7 +16,8 @@ in `migrations-archive/epoch-5`; its live production database remains rollback s
 | `krabiclaw-db-epoch5-production` | `58c0932a-fe6e-4062-8155-1bfd8a86c495` | Live source; retain for rollback |
 | `krabiclaw-db-staging-epoch5-final` | `e1683b37-39cb-4d46-b299-7cf0b4401147` | Retained released staging |
 | `krabiclaw-db-epoch6-production` | `c38458ef-eb4f-4bc2-8922-13cec27237dd` | Empty production candidate |
-| `krabiclaw-db-staging-epoch6` | `e93edb59-fe24-4da4-99df-0957be6e6660` | Fixture-initialized staging candidate |
+| `krabiclaw-db-staging-epoch6` | `e93edb59-fe24-4da4-99df-0957be6e6660` | Retained pre-consolidation candidate; superseded |
+| `krabiclaw-db-staging-epoch6-combined` | `bc837e8a-b103-42e8-aecb-2c715a156e8f` | Verified combined staging candidate |
 | Existing configured preview | `d2f7a4a0-d6b8-493b-b484-8c0ead1ff83b` | Reset in place through the existing preview command |
 
 The generated baseline retains 53 tables. It removes the customer
@@ -24,6 +25,12 @@ The generated baseline retains 53 tables. It removes the customer
 UTC instants throughout application-owned timestamp columns, price validity and
 quota periods. Quota end times are mandatory; booking dates and slots have civil
 value checks. Better Auth continues to own its integer-backed date fields.
+
+Epoch 5 already reduced 96 tables to 53 (18 Better Auth-owned and 35 application-owned).
+Comparing its complete archived baseline/history with Epoch 6 finds no added or
+removed tables and no added columns. The two customer summaries are the removed
+columns. This epoch eliminates timestamp drift and duplicate state within the
+retained domain boundaries; it is not another table-consolidation pass.
 
 `scripts/epoch6-data.mjs` is an offline, one-time transfer, never a runtime reader.
 It replaces the retired Epoch 5 transfer tool and its obsolete conversion tests. The released implementation remains in Git history. It refuses an existing output file, undeclared table/column changes, invalid or
@@ -45,10 +52,19 @@ resource and generated baseline. Prepare fixtures through `e2e:local:prepare`;
 export before any mutating tests, import only to the empty staging candidate,
 and verify schema, rows and foreign keys. Production data is never staging seed.
 
-September 7 staging preparation completed: the remote re-export matches all 53
-application tables and 2,669 untouched fixture rows by exact hashes, matches the
+September 7 combined staging preparation completed: the remote re-export matches all 53
+application and Better Auth tables and 2,863 untouched fixture rows by exact hashes, matches the
 generated baseline schema, and has no foreign-key violations. The Worker has not
 yet been promoted to this binding; this is resource qualification only.
+
+PR #864 incorporates #866's CMS editor/list work and #865's demo content. The
+superseded editor and date conversion helpers are deleted. Demo representations
+contain only localized copy, explicit routes and root references; publication
+state and schedules remain on roots. Invalid fixture inserts fail instead of
+being ignored. The fixture compiler uses the runtime localization validator.
+The demo's active Growth fixture grants its published Thai language through the
+existing billing source. Ten translated article, experience and post routes pass
+against the local production Worker.
 
 Preview qualification must exercise the affected booking, post/blog scheduling,
 MCP contract, public renderer and date displays. Follow the representative tenant
@@ -65,6 +81,7 @@ foreign keys before cutting the normal production binding to Epoch 6 and removin
 the freeze. If the cutover cannot finish promptly, restore the prior Worker.
 Never rewrite a migration ledger or patch the old production data.
 
-Repeat affected read-only production browser/MCP checks after deployment. Refresh
-the existing ChatGPT review draft's tool scan and submission artifacts after the
-corrected endpoint is live. Keep #829 open until its definition of done is evidenced.
+Repeat affected read-only production browser/MCP checks after deployment. The owner
+cancelled the ChatGPT review and will handle resubmission after production; the
+contributor must keep the MCP catalog and submission artifacts current and verify
+the deployed contract. Keep #829 open until its definition of done is evidenced.

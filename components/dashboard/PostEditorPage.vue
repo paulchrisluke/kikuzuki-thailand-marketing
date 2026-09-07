@@ -339,7 +339,7 @@ const postStatus = computed(() => (post.value?.status === 'published' || post.va
 // ── The hub ─────────────────────────────────────────────
 function coverPreview(): string[] | undefined {
   const cover = editor.form.media.find(item => item.slot === 'cover')
-  const url = cover?.thumbnail_url ?? cover?.public_url
+  const url = cover?.thumbnail_url
   return url ? [url] : undefined
 }
 
@@ -531,7 +531,7 @@ async function onPublish() {
 
 // ── Public link and localization ────────────────────────
 const publicPath = computed(() => {
-  const path = post.value?.canonical_url || post.value?.public_path
+  const path = post.value?.public_path
   return path ? String(path) : null
 })
 

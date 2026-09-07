@@ -188,9 +188,7 @@ const listItems = computed(() => visiblePosts.value.map(row => ({
 // ── Row presentation ────────────────────────────────────
 function postTitle(post: ApiRecord): string {
   const title = String(post.title ?? '').trim()
-  if (title) return title
-  const body = String(post.body ?? '').trim()
-  return body ? `${body.slice(0, 60)}${body.length > 60 ? '…' : ''}` : 'Untitled post'
+  return title || 'No headline'
 }
 
 /** Type, then what makes this one different, then exactly one date. */
@@ -202,28 +200,29 @@ function postSummary(post: ApiRecord): string {
   return parts.filter(Boolean).join(' · ')
 }
 
-/** A post not yet live is described by when it goes live; otherwise by the
- *  dates it is about, and only failing both by when it was last touched. */
+/** Each post state/type declares the date it displays. */
 function postWhen(post: ApiRecord): string {
-  if (post.status === 'scheduled' && typeof post.scheduled_for === 'string') {
+  if (post.status === 'scheduled') {
+    if (typeof post.scheduled_for !== 'string') return 'Publish time missing'
     return `Goes live ${formatDate(post.scheduled_for)}`
   }
   const event = isRecord(post.event) ? post.event : null
   const schedule = event && isRecord(event.schedule) ? event.schedule : null
-  if (schedule && typeof schedule.start_date === 'string' && schedule.start_date) {
+  if (post.post_type === 'event' || post.post_type === 'offer') {
+    if (!schedule || typeof schedule.start_date !== 'string' || typeof schedule.end_date !== 'string') return 'Event schedule missing'
     const start = formatDay(schedule.start_date)
-    const end = typeof schedule.end_date === 'string' ? formatDay(schedule.end_date) : ''
+    const end = formatDay(schedule.end_date)
     const window = end && end !== start ? `${start} – ${end}` : start
     return post.post_type === 'offer' ? `Runs ${window}` : window
   }
-  return formatDate(String(post.updated_at ?? ''))
+  return post.updated_at ? `Updated ${formatDate(String(post.updated_at))}` : 'Update time missing'
 }
 
 function coverUrl(post: ApiRecord): string | null {
   const cover = normalizePostMediaForForm(post.media).find(entry => entry.slot === 'cover')
   // The thumbnail is a scaled-down duplicate of the same asset, so it is the
   // right source for a row; the full image is only fetched where it shows big.
-  return cover?.thumbnail_url ?? cover?.public_url ?? null
+  return cover?.thumbnail_url ?? null
 }
 
 function formatDate(iso: string) {

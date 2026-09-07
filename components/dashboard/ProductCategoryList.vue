@@ -232,6 +232,8 @@ watch(editing, (value, previous) => {
 })
 
 watch(locationId, () => {
+  orderDirty.value = false
+  localOrder.value = null
   editing.value = false
   dialogOpen.value = false
   void load()

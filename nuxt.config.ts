@@ -174,6 +174,8 @@ export default defineNuxtConfig({
   },
 
   vite: {
+    // Preserve Vue's concrete server/client mismatch details in production builds.
+    define: { __VUE_PROD_HYDRATION_MISMATCH_DETAILS__: true },
     build: {
       modulePreload: false,
       rollupOptions: {
@@ -330,10 +332,6 @@ export default defineNuxtConfig({
     },
     {
       path: '~/lib/components/workspace/content',
-      pathPrefix: false,
-    },
-    {
-      path: '~/lib/components/workspace/editor',
       pathPrefix: false,
     },
     {

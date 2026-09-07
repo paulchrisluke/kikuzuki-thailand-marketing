@@ -1,6 +1,6 @@
 {
   "surface": "tenant",
-  "fingerprint": "sha256:bc13723ae44c46cbc9f523bc984b62c1ba7823c8e82b919c0d7ddd3b114e2d3b",
+  "fingerprint": "sha256:e018756b235930852fbfc807a4458329125deade232af017024d6ab7056be4a2",
   "tools": [
     {
       "name": "analyze_document",
@@ -16210,8 +16210,11 @@
             ]
           },
           "notification_phone": {
-            "description": "WhatsApp number for internal booking/reservation alerts to this location's manager. Not shown to guests. Falls back to the site-level whatsapp_phone if null. International format: +66812345678",
-            "type": "string"
+            "description": "WhatsApp number for internal booking/reservation alerts to this location's manager. Not shown to guests. Null means no location-specific recipient is configured. Site-wide recipients are configured independently.",
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "opening_hours": {
             "anyOf": [

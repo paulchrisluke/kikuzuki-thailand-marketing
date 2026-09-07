@@ -139,11 +139,13 @@ function setRecurrence(value: string) {
     event.value = rest
     return
   }
+  const seriesEnd = event.value.recurrence_info?.series_end_time
   event.value.recurrence_info = value === 'daily'
     ? { kind: 'daily' }
     : value === 'weekly'
       ? { kind: 'weekly', days_of_week: [] }
       : { kind: 'monthly', day_of_month: 1 }
+  if (seriesEnd !== undefined) event.value.recurrence_info.series_end_time = seriesEnd
 }
 
 function toggleWeekday(day: typeof POST_WEEKDAYS[number], checked: boolean) {
@@ -155,9 +157,10 @@ function toggleWeekday(day: typeof POST_WEEKDAYS[number], checked: boolean) {
 }
 
 function setMonthlyRule(value: string) {
+  const seriesEnd = event.value.recurrence_info?.series_end_time
   event.value.recurrence_info = value === 'date'
-    ? { kind: 'monthly', day_of_month: 1 }
-    : { kind: 'monthly', day_of_week_occurrence: 'first' }
+    ? { kind: 'monthly', day_of_month: 1, ...(seriesEnd === undefined ? {} : { series_end_time: seriesEnd }) }
+    : { kind: 'monthly', day_of_week_occurrence: 'first', ...(seriesEnd === undefined ? {} : { series_end_time: seriesEnd }) }
 }
 
 function setSeriesEnd(value: string) {

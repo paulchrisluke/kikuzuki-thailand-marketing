@@ -202,10 +202,35 @@ test.describe.serial('published Thai content saves through the CMS and renders w
       testInfo.setTimeout(45_000)
       dashboardContext = await browser.newContext({ baseURL, storageState: await owner.storageState() })
       cms = await dashboardContext.newPage()
+      const requests = new Map<object, number>()
+      cms.on('request', request => {
+        const path = new URL(request.url()).pathname
+        if (!path.startsWith(`/api/editor/sites/${siteId}/`)) return
+        requests.set(request, Date.now())
+        console.info('[e2e-localization-cms]', JSON.stringify({ event: 'started', method: request.method(), path }))
+      })
+      cms.on('response', response => {
+        const startedAt = requests.get(response.request())
+        if (startedAt === undefined) return
+        requests.delete(response.request())
+        const headers = response.headers()
+        console.info('[e2e-localization-cms]', JSON.stringify({ event: 'finished', method: response.request().method(),
+          path: new URL(response.url()).pathname, status: response.status(), durationMs: Date.now() - startedAt,
+          requestId: headers['x-request-id'], rayId: headers['cf-ray'], serverTiming: headers['server-timing'] }))
+      })
+      cms.on('requestfailed', request => {
+        const startedAt = requests.get(request)
+        if (startedAt === undefined) return
+        requests.delete(request)
+        console.error('[e2e-localization-cms]', JSON.stringify({ event: 'transport_failed', method: request.method(),
+          path: new URL(request.url()).pathname, durationMs: Date.now() - startedAt }))
+      })
       await openTenantPage(cms, `${baseURL}/dashboard/north-carolina-legal-services/sites/ncls/links`, {})
     })
 
     test('loads and saves one representative Thai link translation through Localize', async () => {
+      // Preview's two dialog loads consumed 22s before the save in CI 34110539544.
+      test.setTimeout(60_000)
       await cms.getByTestId('localize-resource').first().click()
       await cms.getByTestId('localize-language').click()
       await cms.getByRole('option', { name: /ไทย \(th\)/ }).click()

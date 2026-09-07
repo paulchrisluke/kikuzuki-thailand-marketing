@@ -1,4 +1,5 @@
 import { parsePostInput } from '../shared/posts.ts'
+import { validateLocalizedValues } from '../server/utils/localization-registry.ts'
 import type {
   CompiledSeedBusinessLocationTranslation,
   CompiledCuratedSiteBundle,
@@ -71,6 +72,27 @@ export function compileCuratedSiteFixture(
   const sourceLocale = sourceLocales[0]!.locale
   if (sourceLocales[0]!.status !== 'published') {
     throw new Error(`Source locale "${sourceLocale}" must be published`)
+  }
+  const productIds = new Set([...fixture.products, ...fixture.experiences].map(entry => entry.id))
+  for (const entry of fixture.resourceLocalizations ?? []) {
+    validateLocalizedValues(entry.resourceType, entry.valuesJson)
+    if (entry.resourceType !== 'product' || !productIds.has(entry.resourceId)) {
+      throw new Error(`Resource localization "${entry.id}" references an unknown Product`)
+    }
+    if (entry.routePath != null && !entry.routePath.startsWith(`/${entry.locale}/`)) {
+      throw new Error(`Resource localization "${entry.id}" has a route outside its locale`)
+    }
+  }
+  for (const entry of fixture.qaTranslations ?? []) {
+    if (!fixture.locationQa.some(qa => qa.id === entry.originalId)) throw new Error(`Q&A localization "${entry.id}" references an unknown Q&A`)
+  }
+  for (const entry of fixture.postTranslations ?? []) {
+    if (!fixture.posts.some(post => post.id === entry.originalId)) throw new Error(`Post localization "${entry.id}" references an unknown post`)
+  }
+  for (const entry of [...fixture.resourceLocalizations ?? [], ...fixture.qaTranslations ?? [], ...fixture.postTranslations ?? []]) {
+    if (entry.locale === sourceLocale || !siteLocaleIds.has(entry.locale)) {
+      throw new Error(`Localization "${entry.id}" must reference a declared non-source locale`)
+    }
   }
 
   const mediaAssets: CompiledSeedMediaAsset[] = fixture.mediaAssets.map((asset) => {

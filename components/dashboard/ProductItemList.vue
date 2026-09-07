@@ -281,6 +281,8 @@ watch(products, (rows) => {
 }, { immediate: true })
 
 watch([locationId, categoryId], () => {
+  orderDirty.value = false
+  localOrder.value = null
   editing.value = false
   moveDialogOpen.value = false
   selected.value = []

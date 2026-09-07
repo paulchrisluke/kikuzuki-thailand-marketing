@@ -60,6 +60,7 @@
             item.id === activeItem ? 'bg-elevated' : '',
           ]"
           :aria-current="item.id === activeItem ? 'page' : undefined"
+          @click="item.to ? undefined : $emit('select', item.id)"
         >
           <span class="min-w-0 flex-1">
             <span class="block font-semibold text-highlighted">{{ item.label }}</span>
