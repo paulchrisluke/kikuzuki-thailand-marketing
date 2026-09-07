@@ -2090,7 +2090,7 @@ VALUES (
   'article', 'root', 'th', 'public'
 );
 
-INSERT OR REPLACE INTO content_blocks
+INSERT OR IGNORE INTO content_blocks
   (id, document_id, parent_block_id, type, position, level, data_json, created_at, updated_at)
 VALUES (${sqlValue(thaiBlockId)}, ${sqlValue(th.id)}, NULL, 'markdown', 0, NULL, ${sqlJson(thaiBlockData)}, ${sqlValue(publishedAt)}, ${sqlValue(publishedAt)});`
   }).join('\n')
