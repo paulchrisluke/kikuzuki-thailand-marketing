@@ -12,6 +12,7 @@ export const SITE_TRANSFER_REPARENT_TABLES = [
   'media_assets', 'media_placements', 'product_categories', 'products', 'prices',
   'review_requests', 'reviews', 'offerings', 'site_redirects', 'resource_localizations',
   'analytics_summaries', 'analytics_events', 'site_domains', 'site_locales',
+  'legal_intake_references',
 ] as const
 
 export const SITE_TRANSFER_RETAIN_TABLES = [

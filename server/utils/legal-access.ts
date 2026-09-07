@@ -177,6 +177,7 @@ export async function resolveLegalStaffAccess(
   event: H3Event,
   operation: LegalOperation,
   options: ResolveLegalStaffAccessOptions = {},
+  resolveEntitlement: LegalEntitlementResolver = defaultLegalEntitlementResolver,
 ): Promise<LegalStaffAccess> {
   const context = await getDashboardContext(event, {
     requireSite: true,
@@ -226,8 +227,8 @@ export async function resolveLegalStaffAccess(
     })
   }
 
-  const billing = await getOrganizationBillingProjection(context.db, organizationId)
-  if (!billing.entitlements.legal_operations) {
+  const entitled = await resolveEntitlement(context.db, organizationId)
+  if (!entitled) {
     denyLegal({
       event, reason: 'entitlement_missing', organizationId, siteId: site.id, actorKind: 'staff',
       statusCode: 403, message: 'Legal operations are not included in this organization’s plan',
@@ -340,6 +341,38 @@ export interface LegalPublicSiteContext {
   canonicalOrigin: string
 }
 
+// -- U7: test-only entitlement injection seam --------------------------------
+//
+// Neither real plan ever sets legal_operations: true — both 'free' and
+// 'growth' hardcode it false in billing-entitlements.ts, and
+// organization-billing.ts's PLANS Set rejects any other stored plan value
+// before getPlanEntitlements ever runs (proven by
+// tests/unit/billing-plans.test.ts). That means no real D1 seed data can
+// exercise the "entitled" branch of resolveLegalPublicSiteAccess without
+// mocking getOrganizationBillingProjection outright, which this repo's
+// no-internal-mocking rule (docs/testing-strategy.md) bans.
+//
+// This resolver type is the alternative: a typed, optional dependency
+// injected into resolveLegalPublicSiteAccess AND resolveLegalStaffAccess,
+// defaulting to the real production lookup in both. Deliberately NOT an
+// env-var toggle — an env var could be flipped by an operator/config
+// mistake in wrangler vars; a function reference cannot be supplied by any
+// HTTP request, header, cookie, or environment variable, only by literal
+// TypeScript source compiled into the same process that imports this module
+// and passes a function value. Every production route under server/api/**
+// calls resolveLegalPublicSiteAccess with exactly (event, operation, siteId)
+// and resolveLegalStaffAccess with exactly (event, operation, options) —
+// never an extra argument (grep `resolveLegalPublicSiteAccess(` and
+// `resolveLegalStaffAccess(` across server/api for confirmation) — so this
+// parameter is always the default in the shipped Worker. See
+// task-U7-report.md for the yarn-build verification of this claim.
+export type LegalEntitlementResolver = (db: DbClient, organizationId: string) => Promise<boolean>
+
+async function defaultLegalEntitlementResolver(db: DbClient, organizationId: string): Promise<boolean> {
+  const billing = await getOrganizationBillingProjection(db, organizationId)
+  return billing.entitlements.legal_operations === true
+}
+
 // R13's explicit ordering: resolve only the site facts needed to determine
 // its canonical origin, validate Origin, then check rollout group,
 // entitlement, and the IP/site budget — all before a Better Auth session is
@@ -355,6 +388,7 @@ export async function resolveLegalPublicSiteAccess(
   event: H3Event,
   operation: LegalOperation,
   siteId: string,
+  resolveEntitlement: LegalEntitlementResolver = defaultLegalEntitlementResolver,
 ): Promise<LegalPublicSiteContext> {
   const env = cloudflareEnv(event)
   const db = env.DB
@@ -390,8 +424,8 @@ export async function resolveLegalPublicSiteAccess(
     })
   }
 
-  const billing = await getOrganizationBillingProjection(db, organizationId)
-  if (!billing.entitlements.legal_operations) {
+  const entitled = await resolveEntitlement(db, organizationId)
+  if (!entitled) {
     denyLegal({
       event, reason: 'entitlement_missing', organizationId, siteId, actorKind: null,
       statusCode: 403, message: 'Legal operations are not included in this organization’s plan',
