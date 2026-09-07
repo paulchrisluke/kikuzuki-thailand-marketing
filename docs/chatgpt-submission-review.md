@@ -17,11 +17,15 @@ show compatibility: input validation and output shapes are part of the public
 MCP contract. Rescan and resubmit after the corrected production endpoint is
 verified. No compatibility fields or permissive legacy date readers are retained.
 
-Local qualification includes 189 unit tests, 23 real D1 tests, 9 migration/epoch
+Local qualification includes 189 unit tests, 24 real D1 tests, 9 migration/epoch
 CLI tests, and the affected MCP/public/guest browser workflows. The corrected
 browser run passed 27 of 28 cases; fixing the confirmation page's fabricated
 offsetless timestamp then passed all four guest journeys. Quality checks pass.
-The final local CodeRabbit review and remote release qualification are pending.
+Local CodeRabbit identified the preset loading state and missing trial-end
+propagation; both are fixed. Billing projection and reconciliation now share the
+same access/expiry calculation, with a separate provider paid-invoice comparison
+to detect stale payment evidence. Real D1 coverage verifies trial, paid and grace
+expiry sources and missing-date behavior. Remote release qualification is pending.
 
 ## Epoch 5 contract correction — 2026-09-07
 

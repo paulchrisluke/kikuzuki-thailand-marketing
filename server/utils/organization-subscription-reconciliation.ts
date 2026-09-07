@@ -23,6 +23,7 @@ import {
   type OrganizationBillingProjection,
   type OrganizationBillingProjectionRow,
 } from '~/server/utils/organization-billing'
+import { getSubscriptionAccess } from '~/server/utils/billing-access'
 import { betterAuthTimestampToIso, type BetterAuthTimestamp } from '~/server/utils/better-auth-timestamps'
 import { sha256CanonicalJson } from '~/server/utils/operator-approval'
 import { assertDirectOperatorSession } from '~/server/utils/operator-session'
@@ -82,6 +83,7 @@ export interface OrganizationReconciliationBetterAuthSubscription {
   stripeSubscriptionId: string | null
   periodStart: string | null
   periodEnd: string | null
+  trialEnd: string | null
   cancelAtPeriodEnd: boolean | null
   billingInterval: string | null
   seats: number | null
@@ -103,6 +105,7 @@ export interface OrganizationReconciliationProviderSubscription {
   quantity: number | null
   periodStart: string | null
   periodEnd: string | null
+  trialEnd: string | null
   cancelAtPeriodEnd: boolean | null
   latestInvoiceId: string | null
   latestInvoice: OrganizationReconciliationProviderInvoice | null
@@ -798,6 +801,7 @@ function normalizeBetterAuthSubscription(row: Record<string, unknown>): Organiza
     stripeSubscriptionId: nullableString(row.stripeSubscriptionId),
     periodStart: safeTimestamp(row.periodStart, 'subscription.periodStart'),
     periodEnd: safeTimestamp(row.periodEnd, 'subscription.periodEnd'),
+    trialEnd: safeTimestamp(row.trialEnd, 'subscription.trialEnd'),
     cancelAtPeriodEnd: nullableBoolean(row.cancelAtPeriodEnd),
     billingInterval: nullableString(row.billingInterval),
     seats: nullableNumber(row.seats),
@@ -839,6 +843,7 @@ function normalizeProviderSubscription(
     quantity: nullableNumber(item?.quantity),
     periodStart: isoFromUnix(item?.current_period_start),
     periodEnd: isoFromUnix(item?.current_period_end),
+    trialEnd: isoFromUnix(subscription.trial_end),
     cancelAtPeriodEnd: nullableBoolean(subscription.cancel_at_period_end),
     latestInvoiceId: invoiceId(subscription.latest_invoice),
     latestInvoice: null,
@@ -1004,10 +1009,25 @@ function compareAppProjection(
     addDrift(drifts, 'app_projection_missing', 'blocked', 'organization_billing', 'Matched paid subscription has no materialized organization projection.')
     return
   }
-  compareValue(drifts, 'app_plan_mismatch', 'organization_billing.accessPlan', projection.accessPlan, ba.plan)
-  compareValue(drifts, 'app_provider_plan_mismatch', 'organization_billing.accessPlan', projection.accessPlan, provider.canonicalPlan)
-  compareValue(drifts, 'app_period_end_mismatch', 'organization_billing.accessExpiresAt', projection.accessExpiresAt, ba.periodEnd)
-  compareValue(drifts, 'app_provider_period_end_mismatch', 'organization_billing.accessExpiresAt', projection.accessExpiresAt, provider.periodEnd)
+  // Paid-through is payment evidence, not the subscription's billing period.
+  // Check it against the paid invoice before using it to validate access.
+  if (provider.status === 'active' && provider.latestInvoice?.status === 'paid') {
+    compareValue(drifts, 'app_payment_status_mismatch', 'organization_billing.paymentStatus', projection.paymentStatus, 'paid')
+    compareValue(drifts, 'app_paid_through_mismatch', 'organization_billing.paidThrough', projection.paidThrough, provider.latestInvoice.baseLine?.periodEnd ?? null)
+  }
+  const now = new Date()
+  for (const [source, plan, subscription] of [
+    ['better_auth', ba.plan, ba],
+    ['provider', provider.canonicalPlan, provider],
+  ] as const) {
+    const expected = getSubscriptionAccess({
+      plan, status: subscription.status, trialEnd: subscription.trialEnd,
+      paymentStatus: projection.paymentStatus,
+      paidThrough: projection.paidThrough, pastDueSince: projection.pastDueSince,
+    }, now)
+    compareValue(drifts, `app_${source}_plan_mismatch`, 'organization_billing.accessPlan', projection.accessPlan, expected.plan)
+    compareValue(drifts, `app_${source}_expiry_mismatch`, 'organization_billing.accessExpiresAt', projection.accessExpiresAt, expected.expiresAt)
+  }
 }
 
 function comparePaymentEvidence(

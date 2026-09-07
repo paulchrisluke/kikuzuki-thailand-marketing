@@ -16,6 +16,7 @@ public pages, ChowBot and MCP must use these contracts rather than permissive re
 | Analytics day | Gregorian civil day in the report timezone | Selected site's analytics configuration |
 | Organization analytics range | One shared Gregorian range, ending on the current UTC date unless explicitly supplied | UTC defines range labels; each site measures those dates in its configured timezone |
 | Publication scheduling | Explicit instant; editor labels UTC | Explicit editor zone |
+| Billing access expiry | Canonical UTC instant | Actual trial end for trials; paid-through for paid access; past-due-since plus the explicit grace duration for past-due access |
 
 Human formatting is locale-aware and Gregorian. Zero seconds are omitted;
 meaningful seconds remain visible for precise wall times. Formatting never changes
@@ -25,6 +26,11 @@ DST gaps or overlaps fail rather than choosing an instant. Reporting boundaries
 include the entire civil day using explicit calendar-boundary transition semantics.
 The installed `@internationalized/date` library owns transition resolution; see
 [its documented conversion policies](https://react-aria.adobe.com/internationalized/date/CalendarDateTime#conversion).
+
+`server/utils/billing-access.ts` computes access and its expiry once, shared by
+subscription projection and reconciliation. Billing period end is never a
+substitute for a missing trial end, paid-through or grace anchor. The subscription
+and invoice event paths both forward the actual provider trial end.
 
 ## September 7 aggregate audit
 
