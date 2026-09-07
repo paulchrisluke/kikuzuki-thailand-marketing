@@ -4,8 +4,8 @@
     "impeccable": {
       "source": "pbakaus/impeccable",
       "sourceType": "github",
-      "skillPath": "skill/SKILL.md",
-      "computedHash": "ada9c434d56c794352ccd5c7a6901e5ebb4b7f3b7fe42e8c17c2c4b96c3735c8"
+      "skillPath": ".agents/skills/impeccable/SKILL.md",
+      "computedHash": "bf034d9c0043f23eb3d900d8e66f3d4fe3813681575a0d6bcbbc943522186f65"
     },
     "stripe-best-practices": {
       "source": "docs.stripe.com",
