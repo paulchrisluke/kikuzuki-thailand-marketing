@@ -29,12 +29,12 @@ test('Legal rollout-group flags default false when env is undefined or missing',
 })
 
 test('Legal rollout-group flags respect TRUE_VALUES (1, true, yes, on, enabled)', () => {
-  const trueEnv = { LEGAL_PRACTICE_READ_ENABLED: '1' }
-  assert.equal(isLegalPracticeReadEnabled(trueEnv), true)
-  assert.equal(isLegalPracticeReadEnabled({ LEGAL_PRACTICE_MUTATION_ENABLED: 'true' }), true)
+  assert.equal(isLegalPracticeReadEnabled({ LEGAL_PRACTICE_READ_ENABLED: '1' }), true)
+  assert.equal(isLegalPracticeMutationEnabled({ LEGAL_PRACTICE_MUTATION_ENABLED: 'true' }), true)
   assert.equal(isLegalConnectEnabled({ LEGAL_CONNECT_ENABLED: 'yes' }), true)
   assert.equal(isLegalIntakeWithoutPaymentEnabled({ LEGAL_INTAKE_WITHOUT_PAYMENT_ENABLED: 'on' }), true)
   assert.equal(isLegalIntakePaymentEnabled({ LEGAL_INTAKE_PAYMENT_ENABLED: 'enabled' }), true)
+  assert.equal(isLegalEngagementEnabled({ LEGAL_ENGAGEMENT_ENABLED: '1' }), true)
 })
 
 test('Legal rollout-group flags are case-insensitive and trim whitespace', () => {

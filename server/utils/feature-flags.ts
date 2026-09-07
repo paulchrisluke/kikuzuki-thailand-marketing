@@ -20,7 +20,7 @@ export function isManagedServiceEnabled(env: ApiRecord | undefined): boolean {
 
 /**
  * Controls whether legal practice read operations are enabled for Blawby integration.
- * Requires the site's legal_operations entitlement to be true.
+ * Callers must additionally check the site's legal_operations entitlement.
  */
 export function isLegalPracticeReadEnabled(env: ApiRecord | undefined): boolean {
   return flagEnabled(env, 'LEGAL_PRACTICE_READ_ENABLED')
@@ -28,7 +28,7 @@ export function isLegalPracticeReadEnabled(env: ApiRecord | undefined): boolean 
 
 /**
  * Controls whether legal practice mutation operations are enabled for Blawby integration.
- * Requires the site's legal_operations entitlement to be true.
+ * Callers must additionally check the site's legal_operations entitlement.
  */
 export function isLegalPracticeMutationEnabled(env: ApiRecord | undefined): boolean {
   return flagEnabled(env, 'LEGAL_PRACTICE_MUTATION_ENABLED')
@@ -36,7 +36,7 @@ export function isLegalPracticeMutationEnabled(env: ApiRecord | undefined): bool
 
 /**
  * Controls whether legal Connect operations are enabled for Blawby integration.
- * Requires the site's legal_operations entitlement to be true.
+ * Callers must additionally check the site's legal_operations entitlement.
  */
 export function isLegalConnectEnabled(env: ApiRecord | undefined): boolean {
   return flagEnabled(env, 'LEGAL_CONNECT_ENABLED')
@@ -44,7 +44,7 @@ export function isLegalConnectEnabled(env: ApiRecord | undefined): boolean {
 
 /**
  * Controls whether legal intake without payment operations are enabled for Blawby integration.
- * Requires the site's legal_operations entitlement to be true.
+ * Callers must additionally check the site's legal_operations entitlement.
  */
 export function isLegalIntakeWithoutPaymentEnabled(env: ApiRecord | undefined): boolean {
   return flagEnabled(env, 'LEGAL_INTAKE_WITHOUT_PAYMENT_ENABLED')
@@ -52,7 +52,7 @@ export function isLegalIntakeWithoutPaymentEnabled(env: ApiRecord | undefined): 
 
 /**
  * Controls whether legal intake payment operations are enabled for Blawby integration.
- * Requires the site's legal_operations entitlement to be true.
+ * Callers must additionally check the site's legal_operations entitlement.
  */
 export function isLegalIntakePaymentEnabled(env: ApiRecord | undefined): boolean {
   return flagEnabled(env, 'LEGAL_INTAKE_PAYMENT_ENABLED')
@@ -60,7 +60,7 @@ export function isLegalIntakePaymentEnabled(env: ApiRecord | undefined): boolean
 
 /**
  * Controls whether legal engagement operations are enabled for Blawby integration.
- * Requires the site's legal_operations entitlement to be true.
+ * Callers must additionally check the site's legal_operations entitlement.
  */
 export function isLegalEngagementEnabled(env: ApiRecord | undefined): boolean {
   return flagEnabled(env, 'LEGAL_ENGAGEMENT_ENABLED')
