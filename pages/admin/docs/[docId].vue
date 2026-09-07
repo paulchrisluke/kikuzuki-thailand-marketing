@@ -25,7 +25,7 @@
       :description="loadError"
     />
 
-    <UCard v-else>
+    <div v-else>
       <div class="space-y-4">
         <UFormField label="Title">
           <UInput v-model="form.title" placeholder="Getting Started with KrabiClaw" size="lg" />
@@ -220,7 +220,7 @@
           </UButton>
         </div>
       </div>
-    </UCard>
+    </div>
     </template>
   </UDashboardPanel>
 </template>

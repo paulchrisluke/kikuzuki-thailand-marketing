@@ -84,6 +84,9 @@ const statusItems = [
 const priorityColors: Record<string, 'error' | 'warning' | 'neutral' | 'success'> = { urgent: 'error', high: 'warning', normal: 'neutral', low: 'success' }
 
 const route = useRoute()
+if (Array.isArray(route.params.requestId) && route.params.requestId.length > 1) {
+  throw createError({ statusCode: 404, statusMessage: 'Work request route not found' })
+}
 const toast = useToast()
 const requests = ref<WorkRequest[]>([])
 const loading = ref(true)

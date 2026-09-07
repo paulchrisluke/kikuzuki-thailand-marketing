@@ -64,6 +64,9 @@ const isUsersResponse = (value: unknown): value is { users: AdminUser[] } =>
   )
 
 const route = useRoute()
+if (Array.isArray(route.params.userId) && route.params.userId.length > 1) {
+  throw createError({ statusCode: 404, statusMessage: 'User route not found' })
+}
 const toast = useToast()
 const { refreshSession } = useAuth()
 const users = ref<AdminUser[]>([])

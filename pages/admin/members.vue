@@ -14,35 +14,15 @@
     <template #body>
       <div class="space-y-6">
 
-        <!-- KrabiClaw Team -->
-        <UCard>
-          <template #header>
-            <div class="flex items-center justify-between gap-3">
-              <div>
-                <h2 class="font-semibold text-highlighted">KrabiClaw Team</h2>
-                <p class="mt-0.5 text-sm text-muted">Platform admins with full access.</p>
-              </div>
-              <UBadge :label="`${team.length}`" color="neutral" variant="soft" />
-            </div>
-          </template>
-
-          <div v-if="membersLoading" class="space-y-3">
-            <USkeleton v-for="i in 2" :key="i" class="h-14 rounded-lg" />
+        <div>
+          <div class="mb-3 flex items-end justify-between gap-3">
+            <div><h2 class="font-semibold text-highlighted">KrabiClaw Team</h2><p class="mt-1 text-sm text-muted">Platform admins with full access.</p></div>
+            <UBadge :label="`${team.length}`" color="neutral" variant="soft" />
           </div>
-          <div v-else-if="team.length" class="divide-y divide-default">
-            <div v-for="member in team" :key="member.id" class="flex items-center justify-between gap-4 py-4 first:pt-0 last:pb-0">
-              <div class="flex items-center gap-3 min-w-0">
-                <UAvatar :src="member.image || undefined" :alt="member.name || member.email" icon="i-lucide-user" />
-                <div class="min-w-0">
-                  <p class="truncate font-medium text-highlighted">{{ member.name || member.email }}</p>
-                  <p class="truncate text-sm text-muted">{{ member.email }}</p>
-                </div>
-              </div>
-              <UBadge label="admin" color="primary" variant="soft" />
-            </div>
-          </div>
-
-        </UCard>
+          <UCard v-if="membersLoading" variant="subtle"><div class="space-y-3"><USkeleton v-for="index in 3" :key="index" class="h-16 rounded-lg" /></div></UCard>
+          <UCard v-else-if="team.length === 0" variant="subtle"><p class="text-sm text-muted">No platform team members.</p></UCard>
+          <EditorNavigationList v-else :groups="memberGroups" variant="rows" />
+        </div>
 
       </div>
     </template>
@@ -66,6 +46,8 @@
 </template>
 
 <script setup lang="ts">
+import EditorNavigationList from '~/components/dashboard/EditorNavigationList.vue'
+import type { EditorNavigationGroup } from '~/components/dashboard/EditorNavigationList.vue'
 import { getErrorMessage } from '~/utils/errors'
 
 definePageMeta({ layout: 'dashboard' })
@@ -82,6 +64,10 @@ const teamInviteEmail = ref('')
 const teamInviteName = ref('')
 const invitingTeam = ref(false)
 const teamInviteResult = ref<{ error?: boolean; message: string } | null>(null)
+const memberGroups = computed<EditorNavigationGroup[]>(() => [{
+  id: 'team',
+  items: team.value.map(member => ({ id: member.id, label: member.name || member.email, summary: member.email, to: `/admin/users/${encodeURIComponent(member.id)}` })),
+}])
 
 const isMembersResponse = (value: unknown): value is { team: TeamMember[] } =>
   isRecord(value)

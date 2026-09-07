@@ -15,7 +15,7 @@
       <EditorPaneShell
         :has-detail="Boolean(selectedOrganization)"
         :detail-title="selectedOrganization?.name"
-        dismiss-to="/admin/organizations"
+        :dismiss-to="organizationDismissUrl"
       >
         <template #index>
           <div class="space-y-5">
@@ -168,15 +168,40 @@ interface AdminOrganization { id: string; name: string; slug: string | null; imp
 interface AdminClient { org_id: string; plan: string | null; site_id: string | null; subscription_status: string | null; custom_domain: string | null; pending_transfer_email: string | null }
 interface BillingStatus {
   stripe_customer_id: string | null; stripe_subscription_id: string | null; plan: string | null; status: string | null; current_period_end: string | null
+  sites_billing: unknown[]
   pending_transfer: null | { site_id: string; to_email: string; recipient_ready: boolean; recipient_organizations: Array<{ id: string; name: string; slug: string }> }
 }
 interface HandoffResult { transfer_url: string; to_email: string; site_name: string; invited_plan: string | null }
 
+const isNullableString = (value: unknown): value is string | null => value === null || typeof value === 'string'
+const isAdminLocation = (value: unknown): value is AdminLocation => isRecord(value)
+  && typeof value.id === 'string' && typeof value.slug === 'string' && typeof value.title === 'string' && isNullableString(value.city)
+const isAdminSite = (value: unknown): value is AdminSite => isRecord(value)
+  && typeof value.id === 'string' && typeof value.slug === 'string' && typeof value.name === 'string'
+  && isNullableString(value.subdomain) && isNullableString(value.status)
+  && Array.isArray(value.locations) && value.locations.every(isAdminLocation)
+const isAdminOrganization = (value: unknown): value is AdminOrganization => isRecord(value)
+  && typeof value.id === 'string' && typeof value.name === 'string' && isNullableString(value.slug)
+  && isNullableString(value.impersonationUserId) && Array.isArray(value.sites) && value.sites.every(isAdminSite)
 const isOrganizationsResponse = (value: unknown): value is { organizations: AdminOrganization[] } =>
-  isRecord(value) && Array.isArray(value.organizations)
+  isRecord(value) && Array.isArray(value.organizations) && value.organizations.every(isAdminOrganization)
 
 const isClientsResponse = (value: unknown): value is { clients: AdminClient[] } =>
-  isRecord(value) && Array.isArray(value.clients) && value.clients.every(client => isRecord(client) && typeof client.org_id === 'string')
+  isRecord(value) && Array.isArray(value.clients) && value.clients.every(client => isRecord(client)
+    && typeof client.org_id === 'string' && isNullableString(client.plan) && isNullableString(client.site_id)
+    && isNullableString(client.subscription_status) && isNullableString(client.custom_domain) && isNullableString(client.pending_transfer_email))
+
+const isRecipientOrganization = (value: unknown): value is { id: string; name: string; slug: string } =>
+  isRecord(value) && typeof value.id === 'string' && typeof value.name === 'string' && typeof value.slug === 'string'
+const isBillingStatus = (value: unknown): value is BillingStatus => isRecord(value)
+  && isNullableString(value.stripe_customer_id) && isNullableString(value.stripe_subscription_id)
+  && isNullableString(value.plan) && isNullableString(value.status) && isNullableString(value.current_period_end)
+  && Array.isArray(value.sites_billing)
+  && (value.pending_transfer === null || (isRecord(value.pending_transfer)
+    && typeof value.pending_transfer.site_id === 'string' && typeof value.pending_transfer.to_email === 'string'
+    && typeof value.pending_transfer.recipient_ready === 'boolean'
+    && Array.isArray(value.pending_transfer.recipient_organizations)
+    && value.pending_transfer.recipient_organizations.every(isRecipientOrganization)))
 
 const route = useRoute()
 const toast = useToast()
@@ -212,7 +237,12 @@ const detailSection = computed(() => {
   const section = Array.isArray(value) ? value[1] : null
   return section === 'billing' || section === 'handoff' ? section : 'overview'
 })
+const requestedSection = computed(() => {
+  const value = route.params.organizationId
+  return Array.isArray(value) ? value[1] ?? null : null
+})
 const clientView = computed(() => route.query.view === 'clients')
+const organizationDismissUrl = computed(() => clientView.value ? '/admin/organizations?view=clients' : '/admin/organizations')
 const clientIds = computed(() => new Set(clients.value.map(client => client.org_id)))
 const filteredOrganizations = computed(() => {
   const query = search.value.trim().toLowerCase()
@@ -247,7 +277,9 @@ function organizationSectionUrl(section: 'overview' | 'billing' | 'handoff') {
 }
 
 function planLabel(plan: string | null) {
-  return plan === 'growth' ? 'Growth' : 'Starter'
+  if (plan === 'growth') return 'Growth'
+  if (!plan) return 'No paid plan'
+  return plan.replaceAll('_', ' ')
 }
 
 function planColor(plan: string | null): 'primary' | 'neutral' {
@@ -267,6 +299,15 @@ async function loadOrganizations() {
     if (selectedOrganizationId.value && !selectedOrganization.value) {
       throw createError({ statusCode: 404, statusMessage: 'Organization not found' })
     }
+    if (requestedSection.value && requestedSection.value !== 'billing' && requestedSection.value !== 'handoff') {
+      throw createError({ statusCode: 404, statusMessage: 'Organization section not found' })
+    }
+    if (requestedSection.value === 'billing' && !selectedClient.value) {
+      throw createError({ statusCode: 404, statusMessage: 'Billing is unavailable for this organization' })
+    }
+    if (requestedSection.value === 'handoff' && !selectedClient.value?.site_id) {
+      throw createError({ statusCode: 404, statusMessage: 'Handoff is unavailable for this organization' })
+    }
     if (detailSection.value === 'billing' && selectedClient.value) await loadBilling()
   } catch (error) {
     if (isNuxtError(error)) throw error
@@ -282,7 +323,7 @@ async function loadBilling() {
   billingError.value = ''
   try {
     billingStatus.value = await applicationFetch<BillingStatus>(`/api/admin/organizations/${selectedOrganizationId.value}/billing`, {
-      validate: (value): value is BillingStatus => isRecord(value) && Array.isArray(value.sites_billing),
+      validate: isBillingStatus,
     })
     const organizations = billingStatus.value.pending_transfer?.recipient_organizations ?? []
     recipientOrganizationId.value = organizations.length === 1 ? organizations[0]!.id : ''

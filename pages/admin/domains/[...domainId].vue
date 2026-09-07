@@ -66,10 +66,29 @@ interface Domain {
 }
 interface DomainEvent { id: string; domain: string | null; event_type: string; message: string; created_at: string }
 
+const isDomain = (value: unknown): value is Domain => isRecord(value)
+  && typeof value.id === 'string'
+  && typeof value.domain === 'string'
+  && typeof value.status === 'string'
+  && typeof value.role === 'string'
+  && (value.site_name === null || typeof value.site_name === 'string')
+  && (value.organization_name === null || typeof value.organization_name === 'string')
+  && (value.cloudflare_hostname_id === null || typeof value.cloudflare_hostname_id === 'string')
+  && (value.error_message === null || typeof value.error_message === 'string')
+const isDomainEvent = (value: unknown): value is DomainEvent => isRecord(value)
+  && typeof value.id === 'string'
+  && (value.domain === null || typeof value.domain === 'string')
+  && typeof value.event_type === 'string'
+  && typeof value.message === 'string'
+  && typeof value.created_at === 'string'
 const isDomainsResponse = (value: unknown): value is { domains: Domain[]; events: DomainEvent[] } =>
-  isRecord(value) && Array.isArray(value.domains) && Array.isArray(value.events)
+  isRecord(value) && Array.isArray(value.domains) && value.domains.every(isDomain)
+  && Array.isArray(value.events) && value.events.every(isDomainEvent)
 
 const route = useRoute()
+if (Array.isArray(route.params.domainId) && route.params.domainId.length > 1) {
+  throw createError({ statusCode: 404, statusMessage: 'Domain route not found' })
+}
 const toast = useToast()
 const domains = ref<Domain[]>([])
 const events = ref<DomainEvent[]>([])
