@@ -190,7 +190,6 @@ jobs:
       - name: Generate preview fixtures
         run: |
           set -euo pipefail
-          node --experimental-strip-types scripts/generate-demo-bundle.ts
           node --experimental-strip-types scripts/generate-demo-seed.ts --preview --stdout > /tmp/preview-demo-seed.sql
           node --experimental-strip-types scripts/generate-pottery-house-seed.ts --preview --stdout > /tmp/preview-pottery-seed.sql
           node --experimental-strip-types scripts/generate-kikuzuki-seed.ts --preview --stdout > /tmp/preview-kikuzuki-seed.sql
