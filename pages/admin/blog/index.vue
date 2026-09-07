@@ -22,16 +22,14 @@
         @remove="openDeleteConfirm"
       >
         <template #item="{ item }">
-          <button type="button" class="w-full text-left focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary disabled:cursor-default" :disabled="editing" @click="openPost(item)">
+          <NuxtLink :to="`/admin/blog/${encodeURIComponent(item.id)}`" class="block w-full focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary">
             <p class="truncate text-sm font-medium text-highlighted">{{ item.title }}</p>
             <p v-if="item.summary" class="mt-1 line-clamp-2 text-sm text-muted">{{ item.summary }}</p>
-          </button>
+          </NuxtLink>
         </template>
       </DashboardListEditor>
     </template>
   </UDashboardPanel>
-
-  <!-- Delete post confirm modal -->
   <UModal v-model:open="deleteConfirmOpen" title="Delete post?" :dismissible="deletingPostId === null" :ui="{ content: 'max-w-md' }">
     <template #body>
       <p class="text-sm text-muted">This action cannot be undone.</p>
@@ -76,7 +74,7 @@ async function loadBlogPosts() {
     const res = await applicationFetch<{ posts: BlogPost[] }>('/api/admin/blog/posts', {
       validate: validateApiShape({ posts: 'array' }),
     })
-    blogPosts.value = res.posts ?? []
+    blogPosts.value = res.posts
     blogError.value = ''
   } catch {
     blogError.value = 'Failed to load posts.'

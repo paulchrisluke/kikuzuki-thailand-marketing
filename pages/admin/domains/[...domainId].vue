@@ -1,5 +1,5 @@
 <template>
-  <UDashboardPanel id="admin-domains">
+  <UDashboardPanel id="admin-domains" :ui="{ body: 'min-h-0 gap-0! overflow-hidden! p-0! sm:p-0!' }">
     <template #header>
       <UDashboardNavbar title="Domains">
         <template #trailing><UButton icon="i-lucide-refresh-cw" aria-label="Refresh domains" color="neutral" variant="ghost" size="xs" :loading="loading" @click="loadDomains" /></template>
@@ -160,5 +160,5 @@ async function syncDomain() {
   }
 }
 
-onMounted(loadDomains)
+watch(selectedDomainId, () => void loadDomains(), { immediate: true })
 </script>

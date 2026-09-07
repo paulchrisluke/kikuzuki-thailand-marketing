@@ -161,19 +161,6 @@
   --ui-border-inverted:   var(--kc-navy-300);
 }
 
-/* ── Platform theme dark mode ─────────────────────────────── */
-/*
-   Rule: --kc-* brand palette variables are NEVER overridden for dark mode.
-   They represent absolute brand colours (navy = #1F2547, coral = #FB7461 …)
-   used as backgrounds, borders AND text — overriding them cascades
-   incorrectly into backgrounds. Only --ui-* semantic tokens are redefined.
-
-   Dark palette uses neutral charcoal surfaces and zinc text. Brand navy remains
-   available for the wordmark, but it does not tint dashboard backgrounds.
-
-   Hardcoded text-(--kc-navy) in templates must be changed to text-default
-   individually — see index.vue. Do NOT override --kc-navy here.
-*/
 .dark .platform-theme {
   --ui-primary:           #FB7461;
 

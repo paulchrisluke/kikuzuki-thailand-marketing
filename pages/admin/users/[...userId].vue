@@ -1,5 +1,5 @@
 <template>
-  <UDashboardPanel id="admin-users">
+  <UDashboardPanel id="admin-users" :ui="{ body: 'min-h-0 gap-0! overflow-hidden! p-0! sm:p-0!' }">
     <template #header>
       <UDashboardNavbar title="Users">
       </UDashboardNavbar>
@@ -129,5 +129,5 @@ async function impersonateUser(userId: string) {
   }
 }
 
-onMounted(loadUsers)
+watch(selectedUserId, () => void loadUsers(), { immediate: true })
 </script>

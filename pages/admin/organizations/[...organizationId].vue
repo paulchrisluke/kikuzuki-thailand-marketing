@@ -1,7 +1,10 @@
 <template>
-  <UDashboardPanel id="admin-organizations">
+  <UDashboardPanel id="admin-organizations" :ui="{ body: selectedOrganizationId ? 'min-h-0 gap-0! overflow-hidden! p-0! sm:p-0!' : undefined }">
     <template #header>
-      <UDashboardNavbar title="Organizations">
+      <UDashboardNavbar :title="selectedOrganization?.name || 'Organizations'">
+        <template v-if="selectedOrganizationId" #leading>
+          <DashboardNavbarLeading :to="organizationDismissUrl" label="Organizations" />
+        </template>
         <template #trailing>
           <UButton icon="i-lucide-refresh-cw" aria-label="Refresh organizations" color="neutral" variant="ghost" size="xs" :loading="loading" @click="loadOrganizations" />
         </template>
@@ -9,60 +12,56 @@
     </template>
 
     <template #body>
+      <div v-if="!selectedOrganizationId" class="w-full max-w-[var(--ws-page-narrow,45rem)] space-y-5">
+        <div class="flex flex-wrap items-center gap-2">
+          <UButton label="All" size="sm" :variant="clientView ? 'ghost' : 'soft'" :color="clientView ? 'neutral' : 'primary'" to="/admin/organizations" />
+          <UButton label="Clients" size="sm" :variant="clientView ? 'soft' : 'ghost'" :color="clientView ? 'primary' : 'neutral'" to="/admin/organizations?view=clients" />
+        </div>
+
+        <UInput v-model="search" icon="i-lucide-search" placeholder="Search organizations, sites, or locations" class="w-full" />
+
+        <UCard v-if="loading" variant="subtle">
+          <div class="space-y-3">
+            <USkeleton v-for="index in 5" :key="index" class="h-24 rounded-lg" />
+          </div>
+        </UCard>
+
+        <UAlert v-else-if="loadError" color="error" variant="soft" :description="loadError" />
+
+        <UCard v-else-if="navigationGroups[0]?.items.length === 0" variant="subtle">
+          <p class="text-sm text-muted">{{ clientView ? 'No client organizations match your search.' : 'No organizations match your search.' }}</p>
+        </UCard>
+
+        <EditorNavigationList v-else :groups="navigationGroups" variant="cards" />
+      </div>
+
       <EditorPaneShell
-        :has-detail="Boolean(selectedOrganization)"
-        :detail-title="selectedOrganization?.name"
-        :dismiss-to="organizationDismissUrl"
+        v-else
+        :has-detail="Boolean(requestedSection)"
+        :detail-title="detailTitle"
+        :dismiss-to="organizationUrl"
       >
         <template #index>
-          <div class="space-y-5">
-            <div class="flex flex-wrap items-center gap-2">
-              <UButton label="All" size="sm" :variant="clientView ? 'ghost' : 'soft'" :color="clientView ? 'neutral' : 'primary'" to="/admin/organizations" />
-              <UButton label="Clients" size="sm" :variant="clientView ? 'soft' : 'ghost'" :color="clientView ? 'primary' : 'neutral'" to="/admin/organizations?view=clients" />
-            </div>
-
-            <UInput v-model="search" icon="i-lucide-search" placeholder="Search organizations, sites, or locations" class="w-full" />
-
-            <UCard v-if="loading" variant="subtle">
-              <div class="space-y-3">
-                <USkeleton v-for="index in 5" :key="index" class="h-16 rounded-lg" />
-              </div>
-            </UCard>
-
-            <UAlert v-else-if="loadError" color="error" variant="soft" :description="loadError" />
-
-            <UCard v-else-if="navigationGroups[0]?.items.length === 0" variant="subtle">
-              <p class="text-sm text-muted">{{ clientView ? 'No client organizations match your search.' : 'No organizations match your search.' }}</p>
-            </UCard>
-
-            <EditorNavigationList v-else :groups="navigationGroups" :active-item="selectedOrganization?.id" variant="rows" />
+          <div v-if="loading" class="space-y-3">
+            <USkeleton v-for="index in 4" :key="index" class="h-24 rounded-lg" />
           </div>
-        </template>
-
-        <template #detail>
-          <div v-if="selectedOrganization" class="space-y-8">
+          <UAlert v-else-if="loadError" color="error" variant="soft" :description="loadError" />
+          <div v-else-if="selectedOrganization" class="space-y-6">
             <section class="space-y-3">
               <div class="flex flex-wrap items-center gap-2">
                 <UBadge color="neutral" variant="soft" :label="`${selectedOrganization.sites.length} ${selectedOrganization.sites.length === 1 ? 'site' : 'sites'}`" />
                 <UBadge v-if="selectedClient" :color="planColor(selectedClient.plan)" variant="soft" :label="planLabel(selectedClient.plan)" />
               </div>
               <p class="text-sm text-muted">{{ selectedOrganization.slug || 'Organization slug unavailable' }}</p>
-              <UButton
-                label="Open workspace"
-                icon="i-lucide-log-in"
-                :disabled="!selectedOrganization.slug || !selectedOrganization.impersonationUserId"
-                :loading="impersonatingId === selectedOrganization.id"
-                @click="enterOrganization(selectedOrganization)"
-              />
+              <UButton label="Open workspace" icon="i-lucide-log-in" :disabled="!selectedOrganization.slug || !selectedOrganization.impersonationUserId" :loading="impersonatingId === selectedOrganization.id" @click="enterOrganization(selectedOrganization)" />
             </section>
+            <EditorNavigationList :groups="organizationSectionGroups" variant="cards" />
+          </div>
+        </template>
 
-            <div class="flex flex-wrap gap-2 border-b border-default pb-4">
-              <UButton label="Overview" size="sm" :variant="detailSection === 'overview' ? 'soft' : 'ghost'" :color="detailSection === 'overview' ? 'primary' : 'neutral'" :to="organizationSectionUrl('overview')" />
-              <UButton v-if="selectedClient" label="Billing" size="sm" :variant="detailSection === 'billing' ? 'soft' : 'ghost'" :color="detailSection === 'billing' ? 'primary' : 'neutral'" :to="organizationSectionUrl('billing')" />
-              <UButton v-if="selectedClient?.site_id" label="Handoff" size="sm" :variant="detailSection === 'handoff' ? 'soft' : 'ghost'" :color="detailSection === 'handoff' ? 'primary' : 'neutral'" :to="organizationSectionUrl('handoff')" />
-            </div>
-
-            <section v-if="detailSection === 'overview'" class="space-y-3">
+        <template #detail>
+          <div v-if="selectedOrganization" class="space-y-8">
+            <section v-if="requestedSection === 'overview'" class="space-y-3">
               <h3 class="text-sm font-semibold text-highlighted">Sites and locations</h3>
               <UCard v-if="selectedOrganization.sites.length === 0" variant="subtle">
                 <p class="text-sm text-muted">No sites.</p>
@@ -90,7 +89,7 @@
               </UCard>
             </section>
 
-            <section v-if="detailSection === 'overview' && selectedClient" class="space-y-3">
+            <section v-if="requestedSection === 'overview' && selectedClient" class="space-y-3">
               <h3 class="text-sm font-semibold text-highlighted">Client status</h3>
               <div class="divide-y divide-default overflow-hidden rounded-xl border border-default text-sm">
                 <div class="flex justify-between gap-4 px-4 py-3"><span class="text-muted">Subscription</span><span class="text-default">{{ selectedClient.subscription_status || 'Not active' }}</span></div>
@@ -99,7 +98,7 @@
               </div>
             </section>
 
-            <section v-if="detailSection === 'billing' && selectedClient" class="space-y-4">
+            <section v-if="requestedSection === 'billing' && selectedClient" class="space-y-4">
               <div v-if="billingLoading" class="space-y-3"><USkeleton v-for="index in 5" :key="index" class="h-10 rounded-lg" /></div>
               <UAlert v-else-if="billingError" color="error" variant="soft" :description="billingError" />
               <template v-else-if="billingStatus">
@@ -126,18 +125,19 @@
               </template>
             </section>
 
-            <section v-if="detailSection === 'handoff' && selectedClient?.site_id" class="space-y-4">
-              <UAlert v-if="selectedClient.pending_transfer_email" color="warning" variant="soft" title="Handoff already pending" :description="`An invitation is pending for ${selectedClient.pending_transfer_email}. Billing shows the durable transfer state.`" />
+            <section v-if="requestedSection === 'handoff' && selectedOrganization.sites.length" class="space-y-4">
+              <UAlert v-if="selectedClient?.pending_transfer_email" color="warning" variant="soft" title="Handoff already pending" :description="`An invitation is pending for ${selectedClient?.pending_transfer_email}. Billing shows the durable transfer state.`" />
+              <UFormField label="Site" required><USelect v-model="handoffSiteId" :items="handoffSiteItems" class="w-full" /></UFormField>
               <UFormField label="Client email" required><UInput v-model="handoffEmail" type="email" placeholder="owner@restaurant.com" class="w-full" /></UFormField>
               <UFormField label="Their domain" hint="Optional"><UInput v-model="handoffDomain" placeholder="restaurant.com" class="w-full" /></UFormField>
-              <UFormField label="Plan"><USelect v-model="handoffPlan" :items="planOptions" class="w-full" /></UFormField>
+              <UFormField label="Plan"><USelect v-model="handoffPlan" :items="planOptions" placeholder="No plan (they choose later)" class="w-full" /></UFormField>
               <UAlert v-if="handoffDomainNeedsPlan" color="error" variant="soft" description="A paid plan is required when inviting a client with a custom domain." />
               <UFormField label="Stripe coupon code" hint="Optional"><UInput v-model="handoffCoupon" class="w-full" /></UFormField>
               <UFormField label="Personal note" hint="Optional"><UTextarea v-model="handoffMessage" :rows="3" class="w-full" /></UFormField>
               <UAlert v-if="handoffError" color="error" variant="soft" :description="handoffError" />
               <UAlert v-if="handoffResult" color="success" variant="soft" :title="`Invite sent to ${handoffResult.to_email}`" :description="handoffResult.transfer_url" />
               <div class="flex flex-wrap gap-2">
-                <UButton label="Send invite email" icon="i-lucide-send" :loading="handoffSending" :disabled="!handoffEmail.trim() || handoffDomainNeedsPlan" @click="sendHandoff" />
+                <UButton label="Send invite email" icon="i-lucide-send" :loading="handoffSending" :disabled="!handoffSiteId || !handoffEmail.trim() || handoffDomainNeedsPlan" @click="sendHandoff" />
                 <UButton v-if="handoffResult" label="Copy transfer link" color="neutral" variant="soft" icon="i-lucide-copy" @click="copyHandoffLink" />
               </div>
             </section>
@@ -218,6 +218,7 @@ const billingError = ref('')
 const recipientOrganizationId = ref('')
 const forceAccepting = ref(false)
 const forceAcceptError = ref('')
+const handoffSiteId = ref('')
 const handoffEmail = ref('')
 const handoffDomain = ref('')
 const handoffPlan = ref('')
@@ -226,16 +227,11 @@ const handoffMessage = ref('')
 const handoffSending = ref(false)
 const handoffError = ref('')
 const handoffResult = ref<HandoffResult | null>(null)
-const planOptions = [{ label: 'No plan (they choose later)', value: '' }, ...NEW_SALE_PAID_PLAN_IDS.map(value => ({ label: 'Growth — $49/mo', value }))]
+const planOptions: Array<{ label: string; value: string }> = NEW_SALE_PAID_PLAN_IDS.map(value => ({ label: 'Growth — $49/mo', value }))
 
 const selectedOrganizationId = computed(() => {
   const value = route.params.organizationId
   return Array.isArray(value) ? value[0] ?? null : typeof value === 'string' ? value : null
-})
-const detailSection = computed(() => {
-  const value = route.params.organizationId
-  const section = Array.isArray(value) ? value[1] : null
-  return section === 'billing' || section === 'handoff' ? section : 'overview'
 })
 const requestedSection = computed(() => {
   const value = route.params.organizationId
@@ -267,13 +263,25 @@ const navigationGroups = computed<EditorNavigationGroup[]>(() => [{
 }])
 const selectedOrganization = computed(() => organizations.value.find(organization => organization.id === selectedOrganizationId.value) ?? null)
 const selectedClient = computed(() => clients.value.find(client => client.org_id === selectedOrganizationId.value) ?? null)
+const organizationUrl = computed(() => selectedOrganizationId.value
+  ? `/admin/organizations/${encodeURIComponent(selectedOrganizationId.value)}${clientView.value ? '?view=clients' : ''}`
+  : organizationDismissUrl.value)
+const detailTitle = computed(() => requestedSection.value === 'billing' ? 'Billing' : requestedSection.value === 'handoff' ? 'Handoff' : 'Overview')
+const organizationSectionGroups = computed<EditorNavigationGroup[]>(() => [{
+  id: 'organization',
+  items: [
+    { id: 'overview', label: 'Overview', summary: 'Sites, locations, and client status', to: organizationSectionUrl('overview') },
+    ...(selectedClient.value ? [{ id: 'billing', label: 'Billing', summary: 'Subscription and transfer status', to: organizationSectionUrl('billing') }] : []),
+    ...(selectedClient.value && selectedOrganization.value?.sites.length ? [{ id: 'handoff', label: 'Handoff', summary: 'Transfer a site to its client', to: organizationSectionUrl('handoff') }] : []),
+  ],
+}])
 const recipientOrganizationItems = computed(() => billingStatus.value?.pending_transfer?.recipient_organizations.map(organization => ({ label: `${organization.name} (${organization.slug})`, value: organization.id })) ?? [])
+const handoffSiteItems = computed(() => selectedOrganization.value?.sites.map(site => ({ label: site.name || site.slug, value: site.id })) ?? [])
 const handoffDomainNeedsPlan = computed(() => Boolean(handoffDomain.value.trim()) && !handoffPlan.value)
 
 function organizationSectionUrl(section: 'overview' | 'billing' | 'handoff') {
   const base = `/admin/organizations/${encodeURIComponent(selectedOrganizationId.value || '')}`
-  const suffix = section === 'overview' ? '' : `/${section}`
-  return `${base}${suffix}${clientView.value ? '?view=clients' : ''}`
+  return `${base}/${section}${clientView.value ? '?view=clients' : ''}`
 }
 
 function planLabel(plan: string | null) {
@@ -306,16 +314,16 @@ async function loadOrganizations() {
     if (selectedOrganizationId.value && !selectedOrganization.value) {
       throw createError({ statusCode: 404, statusMessage: 'Organization not found' })
     }
-    if (requestedSection.value && requestedSection.value !== 'billing' && requestedSection.value !== 'handoff') {
+    if (requestedSection.value && requestedSection.value !== 'overview' && requestedSection.value !== 'billing' && requestedSection.value !== 'handoff') {
       throw createError({ statusCode: 404, statusMessage: 'Organization section not found' })
     }
     if (requestedSection.value === 'billing' && !selectedClient.value) {
       throw createError({ statusCode: 404, statusMessage: 'Billing is unavailable for this organization' })
     }
-    if (requestedSection.value === 'handoff' && !selectedClient.value?.site_id) {
+    if (requestedSection.value === 'handoff' && (!selectedClient.value || !selectedOrganization.value?.sites.length)) {
       throw createError({ statusCode: 404, statusMessage: 'Handoff is unavailable for this organization' })
     }
-    if (detailSection.value === 'billing' && selectedClient.value) await loadBilling()
+    if (requestedSection.value === 'billing' && selectedClient.value) await loadBilling()
   } catch (error) {
     if (isNuxtError(error)) throw error
     loadError.value = 'Failed to load organizations.'
@@ -332,8 +340,7 @@ async function loadBilling() {
     billingStatus.value = await applicationFetch<BillingStatus>(`/api/admin/organizations/${selectedOrganizationId.value}/billing`, {
       validate: isBillingStatus,
     })
-    const organizations = billingStatus.value.pending_transfer?.recipient_organizations ?? []
-    recipientOrganizationId.value = organizations.length === 1 ? organizations[0]!.id : ''
+    recipientOrganizationId.value = ''
   } catch (error) {
     billingError.value = getErrorMessage(error, 'Failed to load billing info')
   } finally {
@@ -341,7 +348,7 @@ async function loadBilling() {
   }
 }
 
-watch(detailSection, async (section) => {
+watch(requestedSection, async (section) => {
   if (section === 'billing' && selectedClient.value && !billingStatus.value) await loadBilling()
 })
 
@@ -365,12 +372,12 @@ async function forceAcceptTransfer() {
 }
 
 async function sendHandoff() {
-  if (!selectedClient.value?.site_id || !handoffEmail.value.trim() || handoffDomainNeedsPlan.value) return
+  if (!handoffSiteId.value || !handoffEmail.value.trim() || handoffDomainNeedsPlan.value) return
   handoffSending.value = true
   handoffError.value = ''
   handoffResult.value = null
   try {
-    handoffResult.value = await applicationFetch<HandoffResult>(`/api/admin/sites/${selectedClient.value.site_id}/transfer`, {
+    handoffResult.value = await applicationFetch<HandoffResult>(`/api/admin/sites/${handoffSiteId.value}/transfer`, {
       method: 'POST',
       body: { email: handoffEmail.value.trim(), domain: handoffDomain.value.trim() || undefined, plan: handoffPlan.value || undefined, coupon: handoffCoupon.value.trim() || undefined, message: handoffMessage.value.trim() || undefined },
       validate: (value): value is HandoffResult => isRecord(value) && typeof value.transfer_url === 'string' && typeof value.to_email === 'string',
@@ -409,5 +416,5 @@ async function enterOrganization(organization: AdminOrganization) {
   }
 }
 
-onMounted(loadOrganizations)
+watch([selectedOrganizationId, clientView], () => void loadOrganizations(), { immediate: true })
 </script>

@@ -22,16 +22,14 @@
         @remove="openDeleteConfirm"
       >
         <template #item="{ item }">
-          <button type="button" class="w-full text-left focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary disabled:cursor-default" :disabled="editing" @click="openDoc(item)">
+          <NuxtLink :to="`/admin/docs/${encodeURIComponent(item.id)}`" class="block w-full focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary">
             <p class="truncate text-sm font-medium text-highlighted">{{ item.title }}</p>
             <p v-if="item.summary" class="mt-1 line-clamp-2 text-sm text-muted">{{ item.summary }}</p>
-          </button>
+          </NuxtLink>
         </template>
       </DashboardListEditor>
     </template>
   </UDashboardPanel>
-
-  <!-- Delete doc confirm modal -->
   <UModal v-model:open="deleteConfirmOpen" title="Delete doc?" :dismissible="deletingDocId === null" :ui="{ content: 'max-w-md' }">
     <template #body>
       <p class="text-sm text-muted">This action cannot be undone.</p>
@@ -83,7 +81,7 @@ async function loadDocs() {
   docsLoading.value = true
   try {
     const res = await applicationFetch<{ docs: Doc[] }>('/api/admin/docs', { validate: isDocsResponse })
-    docs.value = res.docs ?? []
+    docs.value = res.docs
     docsError.value = ''
   } catch {
     docsError.value = 'Failed to load docs.'

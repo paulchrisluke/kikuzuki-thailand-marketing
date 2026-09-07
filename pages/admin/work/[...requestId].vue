@@ -1,5 +1,5 @@
 <template>
-  <UDashboardPanel id="admin-work">
+  <UDashboardPanel id="admin-work" :ui="{ body: 'min-h-0 gap-0! overflow-hidden! p-0! sm:p-0!' }">
     <template #header>
       <UDashboardNavbar title="Work Queue">
         <template #trailing><UButton icon="i-lucide-refresh-cw" aria-label="Refresh work queue" color="neutral" variant="ghost" size="xs" :loading="loading" @click="loadWorkRequests" /></template>
@@ -18,7 +18,7 @@
       >
         <template #index>
           <div class="space-y-5">
-            <UCheckbox v-model="showDone" label="Show completed" @update:model-value="loadWorkRequests" />
+            <UCheckbox v-model="showDone" label="Show completed" @update:model-value="updateDoneFilter" />
             <UCard v-if="loading" variant="subtle"><div class="space-y-3"><USkeleton v-for="index in 5" :key="index" class="h-16 rounded-lg" /></div></UCard>
             <UAlert v-else-if="loadError" color="error" variant="soft" :description="loadError" />
             <UCard v-else-if="requests.length === 0" variant="subtle">
@@ -173,8 +173,12 @@ function closeRequest() {
   navigateTo(workDismissUrl.value)
 }
 
-onMounted(() => {
+function updateDoneFilter() {
+  navigateTo({ path: route.path, query: showDone.value ? { done: '1' } : {} })
+}
+
+watch([selectedRequestId, () => route.query.done], () => {
   showDone.value = route.query.done === '1'
-  loadWorkRequests()
-})
+  void loadWorkRequests()
+}, { immediate: true })
 </script>

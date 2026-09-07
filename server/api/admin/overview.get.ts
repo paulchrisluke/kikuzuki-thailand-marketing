@@ -1,7 +1,7 @@
 import { getQuery } from 'nitro/h3'
 import { queryAll } from '~/server/db'
 import { cloudflareEnv, jsonResponse } from '~/server/utils/api-response'
-import { countPlatformOrganizations, listPlatformOrganizations, platformPermissionError, requirePlatformEventPermission } from '~/server/utils/platform-admin-users'
+import { listPlatformOrganizations, platformPermissionError, requirePlatformEventPermission } from '~/server/utils/platform-admin-users'
 import { findOrganizationById, listOrganizationMembers } from '~/server/utils/member-access'
 
 interface OrganizationRow { id: string; name: string; slug: string | null; impersonation_user_id: string | null }
@@ -17,12 +17,10 @@ export default defineHandler(async (event) => {
     await requirePlatformEventPermission(event, env, { platform: ['organizations'] })
     const organizationId = String(getQuery(event).id || '').trim()
     const selectedOrganization = organizationId ? await findOrganizationById(env, organizationId) : null
-    const organizationLimit = organizationId ? 1 : Math.max(await countPlatformOrganizations(env), 1)
-
     const [organizations, siteRows, locationRows] = await Promise.all([
       organizationId
         ? Promise.resolve(selectedOrganization ? [selectedOrganization] : [])
-        : listPlatformOrganizations(env, { limit: organizationLimit }), queryAll<SiteRow>(db, `
+        : listPlatformOrganizations(env, { limit: 50 }), queryAll<SiteRow>(db, `
         SELECT id, organization_id, slug, brand_name, subdomain, status
         FROM sites
         ${organizationId ? 'WHERE organization_id = ?' : ''}

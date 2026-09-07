@@ -5,11 +5,9 @@
     </template>
 
     <template #body>
-      <UPage>
-        <UPageBody>
-          <EditorNavigationList :groups="groups" variant="rows" />
-        </UPageBody>
-      </UPage>
+      <div class="w-full max-w-[var(--ws-page-narrow,45rem)]">
+        <EditorNavigationList :groups="groups" variant="rows" />
+      </div>
     </template>
   </UDashboardPanel>
 </template>
@@ -20,7 +18,5 @@ import EditorNavigationList from '~/components/dashboard/EditorNavigationList.vu
 definePageMeta({ layout: 'dashboard' })
 useSeoMeta({ title: 'Platform Admin | KrabiClaw', robots: 'noindex, nofollow' })
 
-const { managedServiceEnabled } = useDashboardSite()
-
-const groups = useAdminNavigationGroups(managedServiceEnabled)
+const groups = useAdminNavigationGroups()
 </script>
