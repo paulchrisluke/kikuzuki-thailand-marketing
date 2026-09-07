@@ -2066,10 +2066,12 @@ Ember & Slice ไม่ได้เริ่มต้นด้วยแผนธ
   const thaiSql = thaiTranslations.map((th) => {
     const thaiBlockId = `content-block-${th.id}`
     const thaiBlockData = { markdown: th.body, editor_mode: 'source' }
+    const englishBlockId = th.originalId === article1Id ? article1BlockId : th.originalId === article2Id ? article2BlockId : article3BlockId
     return `INSERT OR IGNORE INTO content_documents
   (id, organization_id, site_id, title, slug, summary, metadata_json, status,
    author_id, published_at, created_at, updated_at,
-   seo_description, seo_keywords, canonical_url, robots, kind, row_role, locale, visibility)
+   seo_description, seo_keywords, canonical_url, robots, kind, row_role, locale, visibility,
+   root_id, root_role)
 VALUES (
   ${sqlValue(th.id)},
   ${sqlValue('org-demo')},
@@ -2079,7 +2081,7 @@ VALUES (
   ${sqlValue(th.summary)},
   ${sqlJson({ category: 'Article', hide_from_nav: false })},
   'published',
-  NULL,
+  ${sqlValue('user-demo')},
   ${sqlValue(publishedAt)},
   ${sqlValue(publishedAt)},
   ${sqlValue(publishedAt)},
@@ -2087,12 +2089,14 @@ VALUES (
   ${sqlValue('pizza, restaurant blog, brooklyn pizza, article')},
   ${sqlValue(`/blog/${th.slug}`)},
   ${sqlValue('index,follow')},
-  'article', 'root', 'th', 'public'
+  'article', 'representation', 'th', 'public',
+  ${sqlValue(th.originalId)},
+  'root'
 );
 
 INSERT OR IGNORE INTO content_blocks
-  (id, document_id, parent_block_id, type, position, level, data_json, created_at, updated_at)
-VALUES (${sqlValue(thaiBlockId)}, ${sqlValue(th.id)}, NULL, 'markdown', 0, NULL, ${sqlJson(thaiBlockData)}, ${sqlValue(publishedAt)}, ${sqlValue(publishedAt)});`
+  (id, document_id, parent_block_id, type, position, level, data_json, created_at, updated_at, source_block_id)
+VALUES (${sqlValue(thaiBlockId)}, ${sqlValue(th.id)}, NULL, 'markdown', 0, NULL, ${sqlJson(thaiBlockData)}, ${sqlValue(publishedAt)}, ${sqlValue(publishedAt)}, ${sqlValue(englishBlockId)});`
   }).join('\n')
 
   return `-- BEGIN GENERATED: demo_articles
