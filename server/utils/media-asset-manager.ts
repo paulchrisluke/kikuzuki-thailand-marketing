@@ -127,12 +127,12 @@ export function mediaPlacementOwnerQuery(input: {
   if (input.ownerType === 'content_block') return {
     query: `SELECT root.location_id FROM content_blocks cb JOIN content_documents owner ON owner.id = cb.document_id
       JOIN content_documents root ON root.id = COALESCE(owner.root_id, owner.id)
-      WHERE cb.id = ? AND owner.organization_id = ? AND owner.site_id = ? AND owner.row_role != 'catalog'`, params,
+      WHERE cb.id = ? AND owner.organization_id = ? AND owner.site_id = ?`, params,
   }
   if (input.ownerType === 'content_document') return {
     query: `SELECT root.location_id FROM content_documents owner
       JOIN content_documents root ON root.id = COALESCE(owner.root_id, owner.id)
-      WHERE owner.id = ? AND owner.organization_id = ? AND owner.site_id = ? AND owner.row_role != 'catalog'`, params,
+      WHERE owner.id = ? AND owner.organization_id = ? AND owner.site_id = ?`, params,
   }
   const table = OWNER_TABLES[input.ownerType]
   const location = input.ownerType === 'business_location' ? 'id'

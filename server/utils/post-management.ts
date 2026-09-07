@@ -818,7 +818,6 @@ export async function getPublishedPostByPublicRoute(
     organizationId: site.organization_id,
     siteId,
     sourcePath: sourcePost.public_path,
-    sourceLabel: 'English',
     documentId: sourcePost.id,
   })
   return { ...post, localeRepresentations }

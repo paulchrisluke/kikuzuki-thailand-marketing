@@ -15,7 +15,7 @@ const localizationObject = { oneOf: [
       resource_id: { type: 'string' }, values: localizedValuesSchema, route_path: { type: ['string','null'] },
       created_by_user_id: { type: 'string' }, updated_by_user_id: { type: 'string' } },
     required: [...Object.keys(localizationIdentity), 'resource_type','resource_id','values','route_path','created_by_user_id','updated_by_user_id'], additionalProperties: false },
-  { type: 'object', properties: { ...localizationIdentity, kind: { type: 'string', enum: CONTENT_DOCUMENT_KINDS.filter(kind => kind !== 'locale_catalog') },
+  { type: 'object', properties: { ...localizationIdentity, kind: { type: 'string', enum: CONTENT_DOCUMENT_KINDS },
       row_role: { const: 'representation' }, root_id: { type: 'string' }, title: { type: ['string','null'] }, summary: { type: ['string','null'] },
       slug: { type: ['string','null'] }, path: { type: ['string','null'] }, seo_title: { type: ['string','null'] },
       seo_description: { type: ['string','null'] }, seo_keywords: { type: ['string','null'] }, metadata: { type: 'object', additionalProperties: true },

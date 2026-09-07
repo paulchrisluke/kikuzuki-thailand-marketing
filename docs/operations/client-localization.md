@@ -36,9 +36,8 @@ idempotent and existing pages are verified instead of recreated.
 ## Platform catalog prerequisite
 
 Run `node scripts/check-platform-locale-catalog.ts --locale th` against the exact
-release. In the environment's `/admin/localization`, register Thai if absent,
-then publish the complete `i18n/catalogs/th.json` using **Publish available
-catalog**. Saving a draft does not refresh the source-manifest hash.
+release. Platform interface catalogs ship with the application, so the deployed
+`i18n/catalogs/th.json` is the Thai catalog used in every environment.
 
 The account must have Better Auth platform content permission. A 403 is an
 access failure to resolve through the normal admin workflow, not permission to

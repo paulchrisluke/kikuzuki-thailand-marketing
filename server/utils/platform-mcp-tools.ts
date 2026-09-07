@@ -30,7 +30,7 @@ const NULLABLE_NUMBER = { type: ['number', 'null'] }
 const ROBOTS_ENUM = ['index,follow', 'noindex,follow', 'index,nofollow', 'noindex,nofollow']
 const DOC_CATEGORY_ENUM = ['Getting Started', 'Menu Management', 'Theme Customization', 'SEO & Marketing', 'Integrations', 'Advanced']
 const DOC_DIFFICULTY_ENUM = ['Beginner', 'Intermediate', 'Advanced']
-const CONTENT_DOCUMENT_KIND_ENUM = CONTENT_DOCUMENT_KINDS.filter(kind => kind !== 'locale_catalog')
+const CONTENT_DOCUMENT_KIND_ENUM = CONTENT_DOCUMENT_KINDS
 const CONTENT_BLOCK_TYPE_ENUM = [...CONTENT_BLOCK_TYPES]
 const PAGINATION_INPUT_SCHEMA = {
   limit: { type: 'number', minimum: 1, maximum: 100, description: 'Page size. Defaults to 50; maximum 100.' },

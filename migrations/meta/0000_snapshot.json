@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "e7f0a921-b3d4-4fb2-abe0-2cdb0751cd16",
+  "id": "991e5afb-3c17-4f42-a303-0f9d55b256b5",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "tables": {
     "account": {
@@ -1470,7 +1470,7 @@
       "checkConstraints": {
         "content_blocks_source_check": {
           "name": "content_blocks_source_check",
-          "value": "source_block_id IS NULL OR (source_block_id <> id AND type = 'cta')"
+          "value": "source_block_id IS NULL OR source_block_id <> id"
         },
         "content_blocks_type_check": {
           "name": "content_blocks_type_check",
@@ -1757,14 +1757,6 @@
           "isUnique": true,
           "where": "row_role IN ('root','representation') AND slug IS NOT NULL"
         },
-        "content_documents_catalog_locale_unique": {
-          "name": "content_documents_catalog_locale_unique",
-          "columns": [
-            "(metadata_json ->> '$.locale')"
-          ],
-          "isUnique": true,
-          "where": "kind = 'locale_catalog'"
-        },
         "content_documents_links_site_unique": {
           "name": "content_documents_links_site_unique",
           "columns": [
@@ -1964,7 +1956,7 @@
       "checkConstraints": {
         "content_documents_kind_check": {
           "name": "content_documents_kind_check",
-          "value": "\"content_documents\".\"kind\" IN ('page', 'article', 'platform_doc', 'social_post', 'qa', 'locale_catalog')"
+          "value": "\"content_documents\".\"kind\" IN ('page', 'article', 'platform_doc', 'social_post', 'qa')"
         },
         "content_documents_metadata_check": {
           "name": "content_documents_metadata_check",
@@ -1972,7 +1964,7 @@
         },
         "content_documents_role_check": {
           "name": "content_documents_role_check",
-          "value": "(row_role = 'root' AND kind <> 'locale_catalog' AND root_id IS NULL AND root_role IS NULL AND locale = 'en') OR (row_role = 'representation' AND kind <> 'locale_catalog' AND root_id IS NOT NULL AND root_id <> id AND root_role = 'root' AND locale IS NOT NULL AND locale <> 'en' AND location_id IS NULL AND scope_path IS NULL AND status IS NULL AND visibility IS NULL AND source IS NULL AND author_id IS NULL AND published_at IS NULL AND first_published_at IS NULL AND scheduled_for IS NULL) OR (row_role = 'catalog' AND kind = 'locale_catalog' AND organization_id = 'platform' AND site_id = 'platform' AND root_id IS NULL AND root_role IS NULL AND locale IS NULL)"
+          "value": "(row_role = 'root' AND root_id IS NULL AND root_role IS NULL AND locale = 'en') OR (row_role = 'representation' AND root_id IS NOT NULL AND root_id <> id AND root_role = 'root' AND locale IS NOT NULL AND locale <> 'en' AND location_id IS NULL AND scope_path IS NULL AND status IS NULL AND visibility IS NULL AND source IS NULL AND author_id IS NULL AND published_at IS NULL AND first_published_at IS NULL AND scheduled_for IS NULL)"
         },
         "content_documents_path_check": {
           "name": "content_documents_path_check",
@@ -2057,10 +2049,6 @@
         "content_documents_channel_instagram_check": {
           "name": "content_documents_channel_instagram_check",
           "value": "kind <> 'social_post' OR row_role <> 'root' OR (json_type(metadata_json, '$.channels.instagram') IS NULL OR (json_type(metadata_json, '$.channels.instagram') IS 'object' AND json_type(metadata_json, '$.channels.instagram.created_at') IS 'text' AND (((metadata_json ->> '$.channels.instagram.status') = 'pending' AND (metadata_json ->> '$.channels.instagram.provider_post_id') IS NULL AND (metadata_json ->> '$.channels.instagram.published_at') IS NULL AND (metadata_json ->> '$.channels.instagram.error_message') IS NULL) OR ((metadata_json ->> '$.channels.instagram.status') = 'published' AND (metadata_json ->> '$.channels.instagram.provider_post_id') IS NOT NULL AND (metadata_json ->> '$.channels.instagram.published_at') IS NOT NULL AND (metadata_json ->> '$.channels.instagram.error_message') IS NULL) OR ((metadata_json ->> '$.channels.instagram.status') IN ('failed','skipped') AND (metadata_json ->> '$.channels.instagram.provider_post_id') IS NULL AND (metadata_json ->> '$.channels.instagram.published_at') IS NULL AND (metadata_json ->> '$.channels.instagram.error_message') IS NOT NULL))) IS 1)"
-        },
-        "content_documents_catalog_check": {
-          "name": "content_documents_catalog_check",
-          "value": "kind <> 'locale_catalog' OR (row_role = 'catalog' AND (status IN ('available','unavailable')) IS 1 AND json_type(metadata_json, '$.locale') IS 'text' AND json_type(metadata_json, '$.messages') IS 'object' AND (json_extract(metadata_json, '$.direction') IN ('ltr','rtl')) IS 1)"
         }
       }
     },
@@ -10608,13 +10596,6 @@
             "isExpression": true
           },
           "(payload_json ->> '$.started_at')": {
-            "isExpression": true
-          }
-        }
-      },
-      "content_documents_catalog_locale_unique": {
-        "columns": {
-          "(metadata_json ->> '$.locale')": {
             "isExpression": true
           }
         }

@@ -20,11 +20,11 @@ const REMOVED = {
   oauthRefreshToken: ['accessTokenId'], subscription: ['limits', 'createdAt', 'updatedAt'],
 }
 const ADDED = { content_documents: ['site_id'], posts: ['call_to_action', 'event', 'offer', 'alert_type'], oauthClient: ['requirePKCE'], reviews: ['google_review_metadata'] }
-const ARCHIVED_TABLES = ['canary_runs', 'chowbot_conversations', 'chowbot_messages']
+const ARCHIVED_TABLES = ['canary_runs', 'chowbot_conversations', 'chowbot_messages', 'platform_locale_catalogs', 'platform_locale_messages']
 const RETIRED_TABLES = ['dashboard_preferences', 'themes', ...ARCHIVED_TABLES]
 const DAYS = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday']
 const THAI_DAYS = ['วันอาทิตย์', 'วันจันทร์', 'วันอังคาร', 'วันพุธ', 'วันพฤหัสบดี', 'วันศุกร์', 'วันเสาร์']
-const TIME_COLUMNS = { platform_locale_catalogs: ['available_at', 'created_at', 'updated_at'], platform_locale_messages: ['updated_at'], resource_localizations: ['created_at', 'updated_at'] }
+const TIME_COLUMNS = { resource_localizations: ['created_at', 'updated_at'] }
 const EPOCH4_SCHEMA_SHA256 = 'cd62201f995370ec67f94cfa3ab322caa3434ebde0dac2bafe6521bc07fc2b7e'
 const assert = (condition, message) => { if (!condition) throw new Error(message) }
 const qi = value => `"${value.replaceAll('"', '""')}"`
@@ -734,9 +734,18 @@ export function project(source, evidence = {}) {
       resource_type: resourceType, resource_id: ownerId, source: 'Localized fields move to their canonical owner; conflicting values rejected; source edit provenance retained in archive' })
   }
   data.resource_localizations = localizations
-  folded.content_documents = ['content_documents', 'tenant_pages', 'tenant_page_variants', 'blog_posts', 'platform_docs', 'posts', 'post_channel_jobs', 'location_qa', 'site_link_pages', 'resource_localizations', 'platform_locale_catalogs', 'platform_locale_messages']
+  folded.content_documents = ['content_documents', 'tenant_pages', 'tenant_page_variants', 'blog_posts', 'platform_docs', 'posts', 'post_channel_jobs', 'location_qa', 'site_link_pages', 'resource_localizations']
   folded.content_blocks = ['content_blocks', 'site_link_items', 'resource_localizations']
-  for (const block of data.content_blocks) block.source_block_id = null
+  for (const block of data.content_blocks) {
+    const payload = json(block.data_json)
+    block.source_block_id = null
+    if (Object.hasOwn(payload, '_localization_source_block_id')) {
+      assert(typeof payload._localization_source_block_id === 'string' && payload._localization_source_block_id.length > 0, 'Translated block source identity is invalid')
+      block.source_block_id = payload._localization_source_block_id
+      delete payload._localization_source_block_id
+      change('content_blocks', block, 'data_json', JSON.stringify(payload), 'Move explicit translation source identity into its canonical foreign key')
+    }
+  }
   const bodies = data.content_documents, documents = [], bodyOwners = new Map(), variantOwners = new Map()
   const document = (owner, kind, fields = {}) => ({
     id: owner.id, organization_id: owner.organization_id, site_id: owner.site_id, kind, row_role: 'root',
@@ -851,15 +860,30 @@ export function project(source, evidence = {}) {
     if (bodyOwners.has(block.document_id)) block.document_id = bodyOwners.get(block.document_id)
     else assert(documents.some(doc => doc.id === block.document_id && doc.kind === 'page'), 'Block has no canonical content representation')
   }
-  for (const row of data.platform_locale_catalogs) {
-    const messages = Object.fromEntries(data.platform_locale_messages.filter(message => message.locale === row.locale).map(message => [message.message_key, message.message_value]))
-    documents.push(document({ ...row, id: `locale_catalog:${row.locale}`, organization_id: 'platform', site_id: 'platform' }, 'locale_catalog', {
-      row_role: 'catalog', locale: null, status: row.status, created_by: row.created_by_user_id, updated_by: row.updated_by_user_id,
-      metadata_json: JSON.stringify({ locale: row.locale, label: row.label, direction: row.direction, source_manifest_hash: row.source_manifest_hash,
-        available_at: row.available_at, available_by: row.available_by_user_id, messages }),
-    }))
+  const translatedSources = new Set()
+  for (const owner of documents.filter(document => document.kind === 'page' && document.row_role === 'representation')) {
+    const translatedBlocks = data.content_blocks.filter(block => block.document_id === owner.id)
+    const sourceBlocks = data.content_blocks.filter(block => block.document_id === owner.root_id)
+    for (const block of translatedBlocks.filter(block => block.source_block_id === null)) {
+      const field = json(block.data_json).field
+      assert(typeof field === 'string' && field.trim().length > 0, 'Translated page block lacks an explicit source identity or authored field')
+      const matches = sourceBlocks.filter(source => source.type === block.type && json(source.data_json).field === field)
+      const translatedMatches = translatedBlocks.filter(translated => translated.type === block.type && json(translated.data_json).field === field)
+      assert(matches.length === 1 && translatedMatches.length === 1, 'Translated page authored field identity is missing or ambiguous')
+      change('content_blocks', block, 'source_block_id', matches[0].id, 'Resolve original authored field identity against the unique same-type English block in the same page; never infer by position')
+    }
   }
-  assert(data.platform_locale_messages.every(message => data.platform_locale_catalogs.some(catalog => catalog.locale === message.locale)), 'Catalog message has no owning catalog')
+  for (const block of data.content_blocks.filter(block => block.source_block_id !== null)) {
+    const sourceBlock = data.content_blocks.find(source => source.id === block.source_block_id)
+    const owner = documents.find(document => document.id === block.document_id)
+    const sourceOwner = documents.find(document => document.id === sourceBlock?.document_id)
+    assert(sourceBlock && sourceBlock.id !== block.id && sourceBlock.type === block.type && sourceOwner?.row_role === 'root'
+      && owner?.row_role === 'representation' && owner.root_id === sourceOwner.id && owner.kind === sourceOwner.kind
+      && owner.organization_id === sourceOwner.organization_id && owner.site_id === sourceOwner.site_id, 'Translated block source crosses its canonical owner or type')
+    const identity = JSON.stringify([owner.id, sourceBlock.id])
+    assert(!translatedSources.has(identity), 'Translated block source identity is duplicated')
+    translatedSources.add(identity)
+  }
   assert(new Set(documents.map(doc => doc.id)).size === documents.length, 'Editorial identities collide across source owners')
   data.content_documents = documents
   folded.media_placements = ['media_placements', 'tenant_compliance', 'tenant_pages', 'tenant_page_variants', 'content_documents', 'experiences']
@@ -895,7 +919,7 @@ export function project(source, evidence = {}) {
     } else if (payload.page_id !== null) payload.page_id = variantOwners.get(payload.page_id) ?? payload.page_id
     row.payload_json = JSON.stringify(payload)
   }
-  for (const table of ['tenant_pages', 'tenant_page_variants', 'blog_posts', 'platform_docs', 'posts', 'post_channel_jobs', 'location_qa', 'site_link_pages', 'site_link_items', 'platform_locale_catalogs', 'platform_locale_messages']) delete data[table]
+  for (const table of ['tenant_pages', 'tenant_page_variants', 'blog_posts', 'platform_docs', 'posts', 'post_channel_jobs', 'location_qa', 'site_link_pages', 'site_link_items']) delete data[table]
   return { data, sourceData, changed, discarded, discardedRows, archived, unresolved, derived, folded }
 }
 

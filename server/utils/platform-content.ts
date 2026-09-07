@@ -888,7 +888,6 @@ export async function getPublishedLocalizedSiteBlogPost(
         organizationId: site.organization_id,
         siteId,
         sourcePath: `/${prefix}/${slug}`,
-        sourceLabel: 'English',
         documentId: post.id,
       }),
     }
@@ -913,14 +912,14 @@ export async function getPublishedLocalizedSiteBlogPost(
     loadPublicSocialMedia(db, siteId, 'content_document', [row.id]),
   ])
   return { ...canonical, id: row.id, title: row.title, excerpt: row.summary, slug,
-    seo_title: row.seo_title, seo_description: row.seo_description, seo_keywords: row.seo_keywords,
+    seo_title: row.title, seo_description: row.summary, seo_keywords: row.seo_keywords,
     category: metadata.category ?? null, tags: metadata.tags ?? [], nav_title: metadata.nav_title ?? null,
     canonical_url: null, updated_at: row.updated_at, body: renderContentBlocksToMarkdown(rawBlocks),
     content_blocks: contentBlocks.map(block => ({ ...block, media: projectLocalizedMediaAlt(block.media.map(item => ({ ...item, alt_text: item.alt_text ?? null })), localizations) })),
     media: projectLocalizedMediaAlt(social.get(row.id)?.media ?? [], localizations),
     social_image: social.get(row.id)?.social_image ?? null,
     localeRepresentations: await listPublicLocaleRepresentations(db, { organizationId: site.organization_id, siteId,
-      sourcePath: '/' + prefix + '/' + row.source_slug, sourceLabel: 'English', documentId: row.root_id }),
+      sourcePath: '/' + prefix + '/' + row.source_slug, documentId: row.root_id }),
   }
 }
 

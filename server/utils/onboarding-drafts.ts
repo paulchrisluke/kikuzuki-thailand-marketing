@@ -151,7 +151,7 @@ export interface DraftDetailsInput {
   specialHours: SpecialHours
   notificationPhone: string | null
   timezone: string | null
-  currency: CurrencyCode
+  currency: CurrencyCode | null
 }
 
 export interface PlaceDetailsSnapshot {

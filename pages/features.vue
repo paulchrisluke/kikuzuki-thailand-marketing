@@ -19,9 +19,7 @@
           Say goodbye to expensive agencies and clunky dashboards. KrabiClaw gives local businesses a high-converting site, direct bookings, and automated local SEO — managed through a ChatGPT conversation.
         </p>
         <div class="flex flex-wrap items-center justify-center gap-4 mt-2">
-          <PlatformButton to="/signup" size="lg" class="shadow-sm transition-transform hover:-translate-y-0.5">
-            Start Free Today
-          </PlatformButton>
+          <PlatformAccountCta label="Start Free Today" size="lg" class="shadow-sm transition-transform hover:-translate-y-0.5" />
           <PlatformButton to="/pricing" variant="outline" size="lg" class="transition-transform hover:-translate-y-0.5">
             View Pricing
           </PlatformButton>
@@ -182,8 +180,8 @@ const faqItems = [
     a: 'Sign up for a KrabiClaw account, then add the KrabiClaw MCP app in ChatGPT (Settings → Connectors → paste https://krabiclaw.com/api/mcp). Once connected, just tell ChatGPT what to change — menus, content, photos, posts.'
   },
   {
-    q: 'Does this work for experience businesses, not just restaurants?',
-    a: 'Yes. KrabiClaw supports both verticals. Restaurants get multi-section menus with dietary filters. Experience businesses get ticketed activities with capacity control, time slots, and booking management.'
+    q: 'What business verticals does KrabiClaw support?',
+    a: 'KrabiClaw supports three canonical business verticals: restaurants & hospitality (crawlable menus, dietary filters, table reservations), experience & activity businesses (ticketed sessions, time slots, capacity control), and professional services (law firms, consultancies, and clinics with practice areas and consultation scheduling via Blawby).'
   },
   {
     q: 'Can I map a custom domain?',
@@ -235,9 +233,9 @@ const detailedFeatures = [
     docLink: '/plugin',
     specs: [
       'Edit menus, hero content & photos through conversation',
-      'Generate site images with ChatGPT image tools',
-      'Maintain localized page and menu fields yourself',
+      'Ask conversational questions about your live traffic analytics',
       'Publish posts to your site and Facebook simultaneously',
+      'Generate site images with ChatGPT image tools',
     ]
   },
   {
@@ -254,13 +252,13 @@ const detailedFeatures = [
   },
   {
     icon: 'file-text',
-    title: 'Menus, Experiences & Offerings',
-    description: 'Restaurants publish multi-section menus. Experience businesses list ticketed activities with pricing, capacity, and scheduling — all on the same platform.',
+    title: 'Menus, Experiences & Practice Areas',
+    description: 'Restaurants publish multi-section menus. Experience businesses list ticketed activities. Professional practices present structured practice areas — all on the same platform.',
     docLink: '/docs',
     specs: [
       'Multi-section menus with allergen & dietary filters',
       'Ticketed experiences with capacity and time slots',
-      'Beautiful photo galleries for food and activities',
+      'Dedicated practice area routes with schema.org LegalService graphs',
       'Fast, scannable navigation on any device'
     ]
   },

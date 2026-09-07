@@ -189,7 +189,7 @@ async function assertTenantPageSupport(db: DbClient, organizationId: string, sit
 }
 
 function blocksAsInputs(blocks: TenantPageBlock[]): ContentBlockInput[] {
-  return blocks.map(block => ({ id: block.id, type: block.type, position: block.position, data: block.data }))
+  return blocks.map(block => ({ id: block.id, source_block_id: block.source_block_id, type: block.type, position: block.position, data: block.data }))
 }
 
 async function tenantPagePlacementQueries(

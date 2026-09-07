@@ -117,7 +117,6 @@ export async function loadPublicProductDetail(
       organizationId: collection.site.organization_id,
       siteId,
       sourcePath: collection.presentation.productPath(location.slug, product.slug),
-      sourceLabel: 'English',
       resource: { type: 'product', id: product.id },
     })
     return { ...collection, location, product, localeRepresentations }
@@ -167,7 +166,6 @@ export async function loadPublicProductDetail(
     organizationId: collection.site.organization_id,
     siteId,
     sourcePath: collection.presentation.productPath(location.slug, sourceProduct.slug),
-    sourceLabel: 'English',
     resource: { type: 'product', id: sourceProduct.id },
   })
   return {

@@ -5,8 +5,20 @@ import { resolveGoogleMapsPlace } from '../../server/utils/mcp-executor/shared.t
 import { MCP_ERROR } from '../../server/utils/mcp-protocol.ts'
 import { validateArguments } from '../../server/utils/mcp-tool-validation.ts'
 import { ONBOARDING_TOOLS } from '../../server/utils/mcp-tools/onboarding.ts'
+import { normalizeGoogleOpeningHours } from '../../shared/reservation-hours.ts'
 
 const fullMapsUrl = 'https://www.google.com/maps/place/Pottery+House/@8.054,98.91,17z'
+
+test('Google hours preserve unknown hours and every supplied opening period', () => {
+  assert.equal(normalizeGoogleOpeningHours(undefined), null)
+  assert.equal(normalizeGoogleOpeningHours(null), null)
+  assert.deepEqual(normalizeGoogleOpeningHours([]), { periods: [] })
+  const periods = [
+    { open: { day: 1, hour: 9, minute: 15 }, close: { day: 1, hour: 12, minute: 30 } },
+    { open: { day: 1, hour: 17, minute: 0 }, close: { day: 2, hour: 1, minute: 45 } },
+  ]
+  assert.deepEqual(normalizeGoogleOpeningHours(periods), { periods })
+})
 
 function importFromMapsSchema(): Record<string, unknown> {
   const tool = ONBOARDING_TOOLS.find(candidate => candidate.name === 'import_from_maps')

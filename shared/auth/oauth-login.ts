@@ -1,6 +1,7 @@
-export function googleSignInOptions(callbackURL?: string) {
+export function googleSignInOptions(callbackURL?: string, loginHint?: string) {
   return {
     provider: 'google' as const,
+    ...(loginHint ? { loginHint } : {}),
     ...(callbackURL ? { callbackURL } : {}),
   }
 }

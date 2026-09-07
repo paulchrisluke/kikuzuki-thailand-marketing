@@ -40,7 +40,7 @@ function pageTypeForPage(page: string) {
   return 'recipe'
 }
 
-function blockData(page: string, rows: SeedTenantPageRow[]) {
+function blockData(page: string, rows: SeedTenantPageRow[], sourceRows = rows) {
   const blocks: Array<{ id: string; type: string; position: number; data: Record<string, unknown>; media: Array<{ asset_id: string; slot: string }> }> = []
   const hero = rows.find(row => row.field === 'hero')
   if (hero) {
@@ -59,7 +59,7 @@ function blockData(page: string, rows: SeedTenantPageRow[]) {
   const cta = rows.filter(row => row.field.startsWith('cta.'))
   if (cta.length) {
     blocks.push({
-      id: `${cta[0]!.id}-block-cta`,
+      id: `${sourceRows.find(row => row.field.startsWith('cta.'))!.id}-block-cta`,
       type: 'cta',
       position: blocks.length,
       data: {
@@ -98,6 +98,7 @@ function renderPage(
   page: string,
   locale: string,
   rows: SeedTenantPageRow[],
+  sourceRows: SeedTenantPageRow[],
   sqlValue: SqlValue,
   sqlJson: SqlJson,
   pathOverride?: string,
@@ -108,10 +109,16 @@ function renderPage(
   const pageId = `tenant-page-${siteId}-${pageKey}`
   const variantId = `${pageId}-${locale}`
   const documentId = locale === 'en' ? pageId : `${variantId}-document`
-  const blocks = blockData(page, rows).map(block => ({ ...block, id: `${variantId}-${block.id}` }))
+  const sourceBlocks = new Map(blockData(page, sourceRows).map(block => [block.id, block]))
+  const blocks = blockData(page, rows, sourceRows).map(block => {
+    if (locale !== 'en' && sourceBlocks.get(block.id)?.type !== block.type) {
+      throw new Error(`Translated seed block ${block.id} has no matching source block`)
+    }
+    return { ...block, id: `${variantId}-${block.id}`, source_block_id: locale === 'en' ? null : `${pageId}-en-${block.id}` }
+  })
   const hero = rows.find(row => row.field === 'hero')
   const title = titleOverride ?? hero?.heroTitle ?? hero?.content ?? (page === 'home' ? 'Home' : page[0]!.toUpperCase() + page.slice(1))
-  const blockSql = blocks.map(block => `INSERT OR REPLACE INTO content_blocks (id, document_id, parent_block_id, type, position, level, data_json, created_at, updated_at) VALUES (${sqlValue(block.id)}, ${sqlValue(documentId)}, NULL, ${sqlValue(block.type)}, ${block.position}, ${block.type === 'heading' ? 2 : 'NULL'}, ${sqlJson(block.data)}, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP);`).join('\n')
+  const blockSql = blocks.map(block => `INSERT OR REPLACE INTO content_blocks (id, document_id, parent_block_id, source_block_id, type, position, level, data_json, created_at, updated_at) VALUES (${sqlValue(block.id)}, ${sqlValue(documentId)}, NULL, ${sqlValue(block.source_block_id)}, ${sqlValue(block.type)}, ${block.position}, ${block.type === 'heading' ? 2 : 'NULL'}, ${sqlJson(block.data)}, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP);`).join('\n')
   const placementSql = blocks.flatMap(block => block.media.map((media, index) => `INSERT INTO media_placements (id, organization_id, site_id, owner_type, owner_id, slot, asset_id, sort_order, status, created_at, updated_at) VALUES (${sqlValue(`${block.id}-${media.slot}-${index}`)}, ${sqlValue(organizationId)}, ${sqlValue(siteId)}, 'content_block', ${sqlValue(block.id)}, ${sqlValue(media.slot)}, ${sqlValue(media.asset_id)}, ${index}, 'active', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP);`)).join('\n')
   return `INSERT OR REPLACE INTO content_documents
   (id, organization_id, site_id, kind, row_role, root_id, root_role, locale, path, title, source, metadata_json)
@@ -175,6 +182,7 @@ export function renderTenantPagesSeedSql(input: {
         page,
         locale.locale,
         localizedRows,
+        sourceRows,
         input.sqlValue,
         input.sqlJson,
       ))
@@ -188,6 +196,7 @@ export function renderTenantPagesSeedSql(input: {
         input.organizationId,
         page.page,
         locale.locale,
+        [],
         [],
         input.sqlValue,
         input.sqlJson,

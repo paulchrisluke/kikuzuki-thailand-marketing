@@ -6,6 +6,17 @@
     <div class="flex items-center gap-2">
       <UButton color="neutral" variant="ghost" icon="i-lucide-copy" :disabled="!publicLinksUrl" @click="copyPublicUrl">Copy URL</UButton>
       <UButton color="neutral" variant="soft" icon="i-lucide-external-link" :to="publicLinksUrl || undefined" target="_blank" :disabled="!publicLinksUrl">Open</UButton>
+      <DashboardResourceLocalization
+        :site-id="siteId"
+        resource-type="content_document"
+        :resource-id="form.id"
+        resource-label="links page"
+        :fields="linksPageLocalizationFields"
+        :load-values="loadLinksLocalization"
+        :save-values="saveLinksLocalization"
+        :route-path="localizedLinksPath"
+        :language-settings-path="siteLocalizationSettingsPath"
+      />
       <UButton icon="i-lucide-save" :loading="saving" :disabled="!dirty" @click="save">Save</UButton>
     </div>
     </div>
@@ -50,38 +61,6 @@
         </div>
       </UCard>
 
-      <UCard v-if="translationLocales.length || translationLocaleError">
-        <template #header>
-          <div class="flex items-center justify-between gap-4">
-            <h2 class="text-base font-semibold text-highlighted">Translations</h2>
-            <select v-model="translationLocale" data-testid="links-translation-locale" aria-label="Field language" class="rounded-lg border border-default bg-default px-2 py-1 text-sm">
-              <option v-for="option in translationLocales" :key="option" :value="option">{{ option }}</option>
-            </select>
-          </div>
-        </template>
-        <div class="grid gap-4 md:grid-cols-2">
-          <UFormField :label="`Title (${translationLocale})`">
-            <UInput v-model="translationFields.title" data-testid="links-translation-title" />
-          </UFormField>
-          <UFormField :label="`SEO title (${translationLocale})`">
-            <UInput v-model="translationFields.seo_title" data-testid="links-translation-seo-title" />
-          </UFormField>
-          <UFormField class="md:col-span-2" :label="`SEO description (${translationLocale})`">
-            <UInput v-model="translationFields.seo_description" data-testid="links-translation-seo-description" />
-          </UFormField>
-        </div>
-        <p v-if="translationLocaleError || translationError" class="mt-2 text-sm text-error">{{ translationLocaleError || translationError }}</p>
-        <UButton data-testid="links-save-page-translation" class="mt-3" size="sm" :loading="translationSaving" :disabled="translationUnavailable || !translationLocale" @click="saveTranslation">Save translation</UButton>
-
-        <div v-if="items.length" class="mt-6 space-y-4 border-t border-default pt-4">
-          <div v-for="item in items" :key="item.id" :data-testid="`links-item-translation-${item.id}`">
-            <p class="text-sm text-muted">{{ item.label || 'Untitled link' }}</p>
-            <UFormField :label="`Label (${translationLocale})`" class="mt-2">
-              <UInput v-model="itemTranslationLabels[item.id]" data-testid="links-item-translation-label" />
-            </UFormField>
-          </div>
-        </div>
-      </UCard>
 
       <DashboardListEditor
         v-model:editing="editing"
@@ -123,6 +102,18 @@
         <UFormField label="Status">
           <USelect v-model="itemForm.status" :items="itemStatusOptions" class="w-full" />
         </UFormField>
+        <template v-if="persistedEditingItem" #actions>
+          <DashboardResourceLocalization
+            :site-id="siteId"
+            resource-type="content_block"
+            :resource-id="persistedEditingItem.id"
+            resource-label="link"
+            :fields="linkItemLocalizationFields"
+            :load-values="locale => loadLinksLocalization(locale, persistedEditingItem!.id)"
+            :save-values="(locale, values) => saveLinksLocalization(locale, values, persistedEditingItem!.id)"
+            :language-settings-path="siteLocalizationSettingsPath"
+          />
+        </template>
       </DashboardListItemDialog>
     </div>
 
@@ -156,9 +147,11 @@
 
 <script setup lang="ts">
 import DashboardListEditor from '~/components/dashboard/DashboardListEditor.vue'
+import DashboardResourceLocalization from '~/components/dashboard/DashboardResourceLocalization.vue'
 import DashboardListItemDialog from '~/components/dashboard/DashboardListItemDialog.vue'
 
 const dashboardApi = useDashboardApi()
+const route = useRoute()
 definePageMeta({ layout: 'dashboard', cmsCapabilityKey: 'site.links' })
 
 useSeoMeta({ title: 'Links page | KrabiClaw Dashboard', robots: 'noindex, nofollow' })
@@ -230,6 +223,19 @@ const form = reactive<LinksPage>({
   seo_description: '',
 })
 const items = ref<LinkItem[]>([])
+const linksPageLocalizationFields = computed(() => [
+  { key: 'title', label: 'Title', source: data.value?.page.title },
+  { key: 'seo_title', label: 'SEO title', source: data.value?.page.seo_title },
+  { key: 'seo_description', label: 'SEO description', source: data.value?.page.seo_description, multiline: true },
+])
+const persistedEditingItem = computed(() => data.value?.items.find(item => item.id === editingId.value) ?? null)
+const linkItemLocalizationFields = computed(() => [
+  { key: 'label', label: 'Label', source: persistedEditingItem.value?.label },
+])
+const siteLocalizationSettingsPath = computed(() => `/dashboard/${route.params.orgSlug}/sites/${route.params.siteSlug}/settings/localization`)
+function localizedLinksPath(locale: string): string {
+  return `/${locale}/links`
+}
 
 const listItems = computed(() => items.value.map(row => ({
   id: row.id,
@@ -298,6 +304,58 @@ const { data, pending, refresh } = await useAsyncData(
   { server: false },
 )
 
+interface LinksTranslation {
+  title: string | null
+  seo_title: string | null
+  seo_description: string | null
+  updated_at: string
+  content_blocks: Array<{ id?: string; source_block_id: string | null; type: 'cta'; data: Record<string, unknown> }>
+}
+const linkLocalizationStates = new Map<string, { locale: string; translation: LinksTranslation | null }>()
+const linkLocalizationGenerations = new Map<string, number>()
+function isLinksTranslation(value: unknown): value is { localization: LinksTranslation } {
+  return isRecord(value) && isRecord(value.localization) && typeof value.localization.updated_at === 'string' && Array.isArray(value.localization.content_blocks)
+}
+async function loadLinksLocalization(locale: string, itemId?: string): Promise<Record<string, unknown>> {
+  const key = itemId ?? form.id
+  const generation = (linkLocalizationGenerations.get(key) ?? 0) + 1
+  linkLocalizationGenerations.set(key, generation)
+  let translation: LinksTranslation | null = null
+  try {
+    const response = await dashboardApi<{ localization: LinksTranslation }>(
+      `/api/editor/sites/${siteId}/localization/content_document/${form.id}/${encodeURIComponent(locale)}`, { validate: isLinksTranslation })
+    translation = response.localization
+  } catch (cause) {
+    if (!isRecord(cause) || cause.statusCode !== 404) throw cause
+  }
+  if (generation !== linkLocalizationGenerations.get(key)) return {}
+  linkLocalizationStates.set(key, { locale, translation })
+  if (itemId) return { label: translation?.content_blocks.find(block => block.source_block_id === itemId)?.data.label }
+  return { title: translation?.title, seo_title: translation?.seo_title, seo_description: translation?.seo_description }
+}
+async function saveLinksLocalization(locale: string, submitted: Record<string, unknown>, itemId?: string): Promise<void> {
+  const key = itemId ?? form.id
+  const state = linkLocalizationStates.get(key)
+  if (!state || state.locale !== locale) throw new Error('Choose the language again before saving.')
+  const values = { title: state.translation?.title ?? null, seo_title: state.translation?.seo_title ?? null, seo_description: state.translation?.seo_description ?? null }
+  let blocks = structuredClone(state.translation?.content_blocks ?? [])
+  if (itemId) {
+    const existing = blocks.find(block => block.source_block_id === itemId)
+    const label = typeof submitted.label === 'string' ? submitted.label.trim() : ''
+    blocks = blocks.filter(block => block.source_block_id !== itemId)
+    if (label) blocks.push({ id: existing?.id, source_block_id: itemId, type: 'cta', data: { label } })
+  } else {
+    for (const field of ['title', 'seo_title', 'seo_description'] as const) values[field] = typeof submitted[field] === 'string' ? submitted[field] : null
+  }
+  const response = await dashboardApi<{ localization: LinksTranslation }>(
+    `/api/editor/sites/${siteId}/localization/content_document/${form.id}/${encodeURIComponent(locale)}`, {
+      method: 'PUT', body: { values, route_path: `/${locale}/links`, content_blocks: blocks,
+        ...(state.translation ? { expected_updated_at: state.translation.updated_at } : {}) }, validate: isLinksTranslation,
+    })
+  linkLocalizationStates.set(key, { locale, translation: response.localization })
+}
+
+let openedLocalizationTarget = ''
 watch(data, (value) => {
   if (!value) return
   Object.assign(form, {
@@ -307,6 +365,14 @@ watch(data, (value) => {
   })
   items.value = value.items
   savedSnapshot.value = serializeState()
+  const target = typeof route.query.localize === 'string' ? route.query.localize : ''
+  if (target.startsWith('content_block:') && target !== openedLocalizationTarget) {
+    const item = value.items.find(row => target === `content_block:${row.id}`)
+    if (item) {
+      openedLocalizationTarget = target
+      openExisting({ id: item.id })
+    }
+  }
 }, { immediate: true })
 
 const dirty = computed(() => savedSnapshot.value !== serializeState())
@@ -404,88 +470,5 @@ onBeforeRouteLeave(() => {
   return window.confirm('Discard unsaved links page changes?')
 })
 
-const translationLocale = ref('')
-const translationLocales = ref<string[]>([])
-const translationLocaleError = ref<string | null>(null)
-const translationFields = reactive({ title: '', seo_title: '', seo_description: '' })
-const translationError = ref<string | null>(null)
-const translationSaving = ref(false)
-const itemTranslationLabels = ref<Record<string, string>>({})
-const translationUpdatedAt = ref<string | null>(null)
-const translatedBlocks = ref<Array<{ id: string; source_block_id: string | null; type: 'cta'; data: Record<string, unknown> }>>([])
-const translationUnavailable = computed(() => Boolean(translationLocaleError.value || translationError.value))
-
-function isLocalesResponse(value: unknown): value is { languages: Array<{ locale: string; status: string; is_source: boolean | number }> } {
-  return isRecord(value) && Array.isArray(value.languages)
-}
-async function loadTranslationLocales() {
-  translationLocaleError.value = null
-  try {
-    const response = await dashboardApi<{ languages: Array<{ locale: string; status: string; is_source: boolean | number }> }>(
-      `/api/editor/sites/${siteId}/locales`,
-      { validate: isLocalesResponse },
-    )
-    translationLocales.value = response.languages.filter(item => item.status === 'published' && !item.is_source).map(item => item.locale)
-    translationLocale.value = translationLocales.value[0] ?? ''
-  } catch (cause) {
-    translationLocales.value = []
-    translationLocale.value = ''
-    translationLocaleError.value = cause instanceof Error ? cause.message : 'Failed to load site languages'
-  }
-}
-type LinksTranslationResponse = { localization: { title: string | null; seo_title: string | null; seo_description: string | null;
-  updated_at: string; content_blocks: typeof translatedBlocks.value } }
-function isTranslationResponse(value: unknown): value is LinksTranslationResponse {
-  return isRecord(value) && isRecord(value.localization) && typeof value.localization.updated_at === 'string' && Array.isArray(value.localization.content_blocks)
-}
-async function loadTranslationFields() {
-  translationError.value = null
-  translationUpdatedAt.value = null
-  translatedBlocks.value = []
-  translationFields.title = ''; translationFields.seo_title = ''; translationFields.seo_description = ''
-  itemTranslationLabels.value = {}
-  if (!form.id || !translationLocale.value) return
-  try {
-    const { localization } = await dashboardApi<LinksTranslationResponse>(
-      `/api/editor/sites/${siteId}/localization/content_document/${form.id}/${encodeURIComponent(translationLocale.value)}`, { validate: isTranslationResponse })
-    translationUpdatedAt.value = localization.updated_at
-    translatedBlocks.value = localization.content_blocks
-    translationFields.title = localization.title ?? ''
-    translationFields.seo_title = localization.seo_title ?? ''
-    translationFields.seo_description = localization.seo_description ?? ''
-    for (const block of localization.content_blocks) {
-      if (block.source_block_id && typeof block.data.label === 'string') itemTranslationLabels.value[block.source_block_id] = block.data.label
-    }
-  } catch (cause) {
-    const statusCode = isRecord(cause) && typeof cause.statusCode === 'number' ? cause.statusCode : null
-    if (statusCode !== 404) translationError.value = cause instanceof Error ? cause.message : 'Failed to load translation'
-  }
-}
-watch(translationLocale, () => { void loadTranslationFields() })
-watch(() => form.id, () => { if (form.id) void loadTranslationLocales().then(loadTranslationFields) })
-watch(() => items.value.map(item => item.id).join(','), () => { if (translationLocale.value) void loadTranslationFields() })
-
-async function saveTranslation() {
-  if (!form.id || !translationLocale.value) return
-  translationSaving.value = true
-  translationError.value = null
-  try {
-    const blocks = items.value.filter(item => itemTranslationLabels.value[item.id]?.trim()).map(item => ({
-      id: translatedBlocks.value.find(block => block.source_block_id === item.id)?.id,
-      source_block_id: item.id, type: 'cta', data: { label: itemTranslationLabels.value[item.id]!.trim() },
-    }))
-    await dashboardApi(`/api/editor/sites/${siteId}/localization/content_document/${form.id}/${encodeURIComponent(translationLocale.value)}`, {
-      method: 'PUT', body: { values: { title: translationFields.title.trim(), seo_title: translationFields.seo_title.trim(),
-        seo_description: translationFields.seo_description.trim() }, route_path: `/${translationLocale.value}/links`,
-        content_blocks: blocks, ...(translationUpdatedAt.value ? { expected_updated_at: translationUpdatedAt.value } : {}) }, validate: isRecord,
-    })
-    await loadTranslationFields()
-    toast.add({ description: 'Translation saved', color: 'success' })
-  } catch (cause) {
-    translationError.value = cause instanceof Error ? cause.message : 'Failed to save translation'
-  } finally {
-    translationSaving.value = false
-  }
-}
 
 </script>

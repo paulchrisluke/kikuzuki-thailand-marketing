@@ -55,6 +55,7 @@ export interface Experience {
   included_items: string[]
   what_to_bring: string[]
   meeting_point: string | null
+  cancellation_policy: string | null
   status: 'active' | 'inactive' | 'sold_out'
   sort_order: number
   featured: boolean
@@ -104,6 +105,7 @@ interface ExperienceRow {
   included_items: string | null
   what_to_bring: string | null
   meeting_point: string | null
+  cancellation_policy: string | null
   status: string
   sort_order: number
   featured: number
@@ -172,6 +174,7 @@ const SELECT = `
          pr.provenance, pr.created_by AS price_created_by, pr.created_at AS price_created_at,
          json_extract(p.experience_json, '$.duration_minutes') AS duration_minutes, json_extract(p.experience_json, '$.max_capacity') AS max_capacity, json_extract(p.experience_json, '$.recurring_slots') AS recurring_slots,
          p.tags_json, p.details_json, json_extract(p.experience_json, '$.included_items') AS included_items, json_extract(p.experience_json, '$.what_to_bring') AS what_to_bring, json_extract(p.experience_json, '$.meeting_point') AS meeting_point,
+    json_extract(p.experience_json, '$.cancellation_policy') AS cancellation_policy,
          CASE WHEN p.is_visible = 0 THEN 'inactive' WHEN p.available = 0 THEN 'sold_out' ELSE 'active' END AS status,
          p.sort_order, p.featured, p.featured_sort_order,
          p.seo_title, p.seo_description, p.canonical_url, p.robots, p.created_at, p.updated_at

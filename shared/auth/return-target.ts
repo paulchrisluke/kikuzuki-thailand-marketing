@@ -1,5 +1,6 @@
 export interface AppReturnTarget {
   redirect?: string
+  plan?: string
 }
 
 export function validatedInternalPath(value: unknown): string | undefined {
@@ -17,7 +18,10 @@ export function validatedInternalPath(value: unknown): string | undefined {
 
 export function buildPostLoginUrl(target: AppReturnTarget = {}): string {
   const redirect = validatedInternalPath(target.redirect)
-  return redirect ? `/api/post-login?redirect=${encodeURIComponent(redirect)}` : '/api/post-login'
+  const query = new URLSearchParams()
+  if (redirect) query.set('redirect', redirect)
+  if (target.plan) query.set('plan', target.plan)
+  return query.size ? `/api/post-login?${query}` : '/api/post-login'
 }
 
 export function buildLoginUrl(target: AppReturnTarget = {}): string {

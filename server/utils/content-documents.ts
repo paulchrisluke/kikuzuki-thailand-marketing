@@ -26,7 +26,7 @@ interface ContentDocumentInputFields {
   id?: string
   organizationId: string
   siteId: string
-  kind: Exclude<ContentDocumentKind, 'locale_catalog'>
+  kind: ContentDocumentKind
   title?: string | null
   slug?: string | null
   path?: string | null
@@ -339,14 +339,21 @@ function buildDocumentWriteBatch(
     { query: `INSERT INTO content_blocks(id, document_id, type, position, data_json)
       SELECT NULL, ?, 'markdown', 0, '{}' WHERE EXISTS (SELECT 1 FROM content_blocks
         WHERE id IN (SELECT value FROM json_each(?)) AND document_id <> ?)`, params: [document.id, d1JsonStringSet(retainedIds), document.id] },
+    { query: `INSERT INTO content_blocks(id, document_id, type, position, data_json)
+      SELECT NULL, ?, 'markdown', 0, '{}' WHERE EXISTS (
+        SELECT 1 FROM content_blocks source
+        JOIN content_blocks translated ON translated.source_block_id = source.id
+        JOIN json_each(?) incoming ON json_extract(incoming.value, '$.id') = source.id
+        WHERE source.document_id = ? AND source.type <> json_extract(incoming.value, '$.type')
+      )`, params: [document.id, JSON.stringify(snapshots.map(({ id, type }) => ({ id, type }))), document.id] },
     ...insertionOrder.filter(block => block.source_block_id).map(block => ({
       query: `INSERT INTO content_blocks(id, document_id, type, position, data_json)
         SELECT NULL, ?, 'markdown', 0, '{}' WHERE NOT EXISTS (
           SELECT 1 FROM content_blocks source JOIN content_documents root ON root.id = source.document_id
-          WHERE source.id = ? AND source.type = 'cta' AND source.source_block_id IS NULL AND root.id = ?
-            AND root.row_role = 'root' AND root.kind = 'page' AND (root.metadata_json ->> '$.recipe') = 'links'
+          WHERE source.id = ? AND source.type = ? AND source.source_block_id IS NULL AND root.id = ?
+            AND root.row_role = 'root' AND root.kind = ?
             AND root.organization_id = ? AND root.site_id = ?
-        )`, params: [document.id, block.source_block_id, document.root_id, document.organization_id, document.site_id],
+        )`, params: [document.id, block.source_block_id, block.type, document.root_id, document.kind, document.organization_id, document.site_id],
     })),
     stalePlacementQuery,
     { query: `DELETE FROM media_placements WHERE owner_type = 'content_block' AND owner_id IN (

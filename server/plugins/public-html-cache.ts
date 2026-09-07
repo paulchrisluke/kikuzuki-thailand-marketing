@@ -17,8 +17,9 @@ export default definePlugin((nitroApp) => {
 
     const hostname = hostnameOf(request.headers.get('host') || '')
     const nonProduction = isPreviewContext(hostname) || isNonIndexableHost(hostname)
+    const hasSession = (request.headers.get('cookie') ?? '').includes('better-auth.session_token')
 
-    response.headers.set('cache-control', nonProduction ? NON_PRODUCTION_CACHE_CONTROL : PRODUCTION_CACHE_CONTROL)
+    response.headers.set('cache-control', nonProduction || hasSession ? NON_PRODUCTION_CACHE_CONTROL : PRODUCTION_CACHE_CONTROL)
     if (nonProduction) {
       response.headers.set('pragma', 'no-cache')
       response.headers.set('expires', '0')

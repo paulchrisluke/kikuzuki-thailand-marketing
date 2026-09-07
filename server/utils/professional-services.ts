@@ -511,25 +511,18 @@ export async function getPublicBlawbyDocumentData(
     getPublicBlawbyShellData(db, siteId, { locale, localizations }),
     getPublicBlawbyRouteData(db, siteId, recipe, { ...options, locale, localizations }, env),
   ])
-  const sourceLabel = (await queryFirst<{ label: string | null }>(db, `
-    SELECT label FROM site_locales
-     WHERE organization_id = ? AND site_id = ? AND is_source = 1
-     LIMIT 1
-  `, [site.organization_id, siteId]))?.label ?? 'English'
   const pagePath = ROUTE_PAGE_PATHS[recipe]
   if (recipe === 'article') return { shell, route }
   route.localeRepresentations = recipe === 'offering' && route.offering
     ? await listPublicResourceLocaleRepresentations(db, {
         organizationId: site.organization_id,
         siteId,
-        sourceLabel,
         resource: { type: 'offering', id: route.offering.id },
       })
     : await listPublicLocaleRepresentations(db, {
         organizationId: site.organization_id,
         siteId,
         sourcePath: pagePath ?? '/',
-        sourceLabel,
         documentId: route.page?.page_id,
       })
   return { shell, route }

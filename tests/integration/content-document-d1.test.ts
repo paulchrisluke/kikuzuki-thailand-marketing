@@ -79,6 +79,16 @@ test('document scopes, translations, block ownership and concurrent edits persis
     assert.equal((await listBlocksForDocument(db, translatedLinks.document.id)).find(block => block.id === firstLink.id)?.source_block_id, 'link-a')
     await executeBatch(db, [buildMediaPlacementInsertQuery({ id: 'translated-descendant-image', organizationId: 'one', siteId: 'one',
       ownerType: 'content_block', ownerId: 'translated-link-image', slot: 'media', assetId: 'shared-image', sortOrder: 0 })])
+    const beforeTypeChange = await listBlocksForDocument(db, sourceLinks.document.id)
+    const beforeTranslatedTypeChange = await listBlocksForDocument(db, translatedLinks.document.id)
+    await assert.rejects(updateContentDocument(db, sourceLinks.document.id, { expected_updated_at: sourceLinks.document.updated_at,
+      changes: { title: 'Invalid type change' },
+      blocks: [{ id: 'link-a', type: 'heading', data: { text: 'Changed type' } }] }))
+    assert.deepEqual(await listBlocksForDocument(db, sourceLinks.document.id), beforeTypeChange)
+    assert.deepEqual(await listBlocksForDocument(db, translatedLinks.document.id), beforeTranslatedTypeChange)
+    assert.deepEqual(await getContentDocumentById(db, sourceLinks.document.id), sourceLinks.document)
+    assert.equal(await db.prepare("SELECT title FROM content_documents WHERE id = 'links'").first('title'), 'Links')
+    assert.equal(await db.prepare("SELECT count(*) AS count FROM media_placements WHERE id = 'translated-descendant-image'").first('count'), 1)
     await updateContentDocument(db, sourceLinks.document.id, { expected_updated_at: sourceLinks.document.updated_at,
       blocks: [{ id: 'link-b', type: 'cta', data: { label: 'B', url: '/b', status: 'active' } }, { id: 'link-a', type: 'cta', data: { label: 'A', url: '/new-a', status: 'active' } }] })
     assert.equal((await listBlocksForDocument(db, translatedLinks.document.id))[0]?.id, 'link-a-th')
@@ -88,6 +98,23 @@ test('document scopes, translations, block ownership and concurrent edits persis
       blocks: [{ id: 'link-b', type: 'cta', data: { label: 'B', url: '/b', status: 'active' } }] })
     assert.deepEqual(await listBlocksForDocument(db, translatedLinks.document.id), [])
     assert.equal(await db.prepare("SELECT count(*) AS count FROM media_placements WHERE id = 'translated-descendant-image'").first('count'), 0)
+    const unreferencedSource = await getContentDocumentById(db, sourceLinks.document.id)
+    assert.ok(unreferencedSource)
+    await updateContentDocument(db, unreferencedSource.id, { expected_updated_at: unreferencedSource.updated_at,
+      blocks: [{ id: 'link-b', type: 'heading', data: { text: 'Unreferenced heading' } }] })
+    const headingSource = await getContentDocumentById(db, sourceLinks.document.id)
+    assert.ok(headingSource)
+    const emptyTranslation = await getContentDocumentById(db, translatedLinks.document.id)
+    assert.ok(emptyTranslation)
+    await updateContentDocument(db, emptyTranslation.id, { expected_updated_at: emptyTranslation.updated_at,
+      blocks: [{ id: 'heading-th', source_block_id: 'link-b', type: 'heading', data: { text: 'Translated heading' } }] })
+    await assert.rejects(updateContentDocument(db, headingSource.id, { expected_updated_at: headingSource.updated_at,
+      blocks: [{ id: 'link-b', type: 'markdown', data: { markdown: 'Changed type' } }] }))
+    await updateContentDocument(db, headingSource.id, { expected_updated_at: headingSource.updated_at,
+      additionalQueriesBefore: prepareContentDocumentDeletion({ documentId: emptyTranslation.id, organizationId: 'one', siteId: 'one' }),
+      blocks: [{ id: 'link-b', type: 'markdown', data: { markdown: 'Changed after removing translation' } }] })
+    assert.equal((await listBlocksForDocument(db, headingSource.id))[0]?.type, 'markdown')
+    assert.equal(await getContentDocumentById(db, emptyTranslation.id), undefined)
     await assert.rejects(db.prepare("INSERT INTO content_documents(id,organization_id,site_id,kind,row_role,locale,summary,status,published_at,source,metadata_json) VALUES ('invalid-social','one','one','social_post','root','en','Body','published','2026-09-06T00:00:00.000Z','manual','{}')").run())
     for (const [id, type, owner, slot] of [['root-image', 'content_document', document.id, 'featured'],
       ['translated-image', 'content_block', 'translated-body', 'media'], ['retained-image', 'content_document', sourceLinks.document.id, 'featured']]) {

@@ -8,7 +8,7 @@ import Database from 'better-sqlite3'
 const root = process.env.EPOCH5_TEST_REPOSITORY ? resolve(process.env.EPOCH5_TEST_REPOSITORY) : resolve(import.meta.dirname, '../..')
 const { project } = await import(pathToFileURL(resolve(root, 'scripts/epoch5-data.mjs')).href)
 
-test('owner folds retain both availability scopes, native translated experience fields and linked CTA identity', () => {
+test('owner folds retain availability, translated experience fields and explicit or authored block identities', () => {
   const source = new Database(':memory:'), target = new Database(':memory:')
   try {
     source.exec(readFileSync(resolve(root, 'migrations-archive/epoch-4/0000_epoch_4_baseline.sql'), 'utf8'))
@@ -33,7 +33,22 @@ test('owner folds retain both availability scopes, native translated experience 
       INSERT INTO site_link_pages (id,organization_id,site_id,title,path) VALUES ('links','org','site','Links','/links');
       INSERT INTO site_link_items (id,organization_id,site_id,link_page_id,label,destination,sort_order,updated_by)
         VALUES ('button','org','site','links','Book','https://example.test/book',3,'owner');
+      INSERT INTO tenant_pages (id,organization_id,site_id) VALUES ('page','org','site'),('other-page','org','site');
+      INSERT INTO content_documents (id,owner_type,owner_id) VALUES ('english-body','tenant_page','english'),('thai-body','tenant_page','thai'),('other-body','tenant_page','other');
+      INSERT INTO tenant_page_variants (id,organization_id,site_id,page_id,locale,document_id,path,title)
+        VALUES ('english','org','site','page','en','english-body','/page','Page'),
+          ('thai','org','site','page','th','thai-body','/page','Translated page'),
+          ('other','org','site','other-page','en','other-body','/other','Other');
     `)
+    const blockInsert = source.prepare('INSERT INTO content_blocks (id,document_id,type,position,level,data_json) VALUES (?,?,?,?,?,?)')
+    const copyKeys = { heading: 'text', markdown: 'markdown', hero: 'title', image: 'alt' }
+    for (const [index, type] of ['heading', 'markdown', 'hero', 'image'].entries()) {
+      blockInsert.run(`source-${type}`, 'english-body', type, index, type === 'heading' ? 2 : null, JSON.stringify({ field: type, [copyKeys[type]]: 'Original' }))
+      blockInsert.run(`translated-${type}`, 'thai-body', type, 3 - index, type === 'heading' ? 2 : null, JSON.stringify({ field: type, [copyKeys[type]]: 'Translated', _localization_source_block_id: `source-${type}` }))
+    }
+    blockInsert.run('other-markdown', 'other-body', 'markdown', 0, null, JSON.stringify({ field: 'markdown', text: 'Other page' }))
+    blockInsert.run('source-secondary', 'english-body', 'markdown', 4, null, JSON.stringify({ field: 'secondary', markdown: 'Original paragraph' }))
+    blockInsert.run('translated-secondary', 'thai-body', 'markdown', 0, null, JSON.stringify({ field: 'secondary', markdown: 'Translated paragraph' }))
     const insertLocalization = source.prepare(`INSERT INTO resource_localizations
       (id,organization_id,site_id,resource_type,resource_id,locale,values_json,route_path,created_by_user_id,updated_by_user_id)
       VALUES (?,'org','site',?,?,'th',?,?,'owner','owner')`)
@@ -74,5 +89,30 @@ test('owner folds retain both availability scopes, native translated experience 
     assert.deepEqual(JSON.parse(translated.data_json), { label: 'Translated booking' })
     target.prepare("UPDATE content_blocks SET data_json=json_set(data_json, '$.url', ?) WHERE id='button'").run('https://example.test/updated')
     assert.equal(target.prepare("SELECT source_block_id FROM content_blocks WHERE id='translated-button'").get().source_block_id, 'button')
+    for (const type of ['heading', 'markdown', 'hero', 'image']) {
+      const block = target.prepare('SELECT source_block_id,data_json,position FROM content_blocks WHERE id=?').get(`translated-${type}`)
+      assert.equal(block.source_block_id, `source-${type}`)
+      assert.deepEqual(JSON.parse(block.data_json), { field: type, [copyKeys[type]]: 'Translated' })
+    }
+    assert.equal(target.prepare("SELECT source_block_id FROM content_blocks WHERE id='translated-secondary'").get().source_block_id, 'source-secondary')
+    const original = source.prepare("SELECT data_json FROM content_blocks WHERE id='translated-markdown'").get().data_json
+    for (const identity of ['missing', 'translated-markdown', 'source-heading', 'other-markdown', '', 42, null]) {
+      source.prepare("UPDATE content_blocks SET data_json=? WHERE id='translated-markdown'").run(JSON.stringify({ field: 'markdown', text: 'Translated', _localization_source_block_id: identity }))
+      assert.throws(() => project(source), /Translated block source/)
+    }
+    source.prepare("UPDATE content_blocks SET data_json=? WHERE id='translated-markdown'").run(original)
+    source.prepare("UPDATE content_blocks SET data_json=json_set(data_json,'$._localization_source_block_id','source-markdown') WHERE id='translated-secondary'").run()
+    assert.throws(() => project(source), /source identity is duplicated/)
+    source.prepare("UPDATE content_blocks SET data_json=json_remove(data_json,'$._localization_source_block_id') WHERE id='translated-secondary'").run()
+    blockInsert.run('duplicate-source', 'english-body', 'markdown', 5, null, JSON.stringify({ field: 'secondary', markdown: 'Ambiguous paragraph' }))
+    assert.throws(() => project(source), /authored field identity is missing or ambiguous/)
+    source.prepare("DELETE FROM content_blocks WHERE id='duplicate-source'").run()
+    blockInsert.run('duplicate-target', 'thai-body', 'markdown', 5, null, JSON.stringify({ field: 'secondary', markdown: 'Ambiguous translation' }))
+    assert.throws(() => project(source), /authored field identity is missing or ambiguous/)
+    source.prepare("DELETE FROM content_blocks WHERE id='duplicate-target'").run()
+    source.prepare("UPDATE content_blocks SET data_json=? WHERE id='translated-secondary'").run(JSON.stringify({ field: 'unknown' }))
+    assert.throws(() => project(source), /authored field identity is missing or ambiguous/)
+    source.prepare("UPDATE content_blocks SET data_json='{}' WHERE id='translated-secondary'").run()
+    assert.throws(() => project(source), /lacks an explicit source identity or authored field/)
   } finally { source.close(); target.close() }
 })

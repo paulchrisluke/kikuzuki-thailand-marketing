@@ -2,11 +2,9 @@ import assert from 'node:assert/strict'
 import { readdirSync, readFileSync } from 'node:fs'
 import test from 'node:test'
 import { Miniflare } from 'miniflare'
-import englishManifest from '../../i18n/locales/en.ts'
-import { flattenLocaleManifest } from '../../shared/platform-locale-catalog.ts'
 
 import type { CloudflareEnv } from '../../server/utils/auth.ts'
-import { englishManifestHash, getProductCatalogLocalization } from '../../server/utils/localization.ts'
+import { getProductCatalogLocalization } from '../../server/utils/localization.ts'
 import {
   createProduct,
   createProductsBatch,
@@ -353,11 +351,11 @@ test('Product catalog localization reads category records from the current schem
     await seedProduct(db, 'localized-product')
     await db.prepare("INSERT INTO organization_billing (organization_id, access_plan) VALUES ('org', 'growth')").run()
     await db.prepare("INSERT INTO site_locales (id, organization_id, site_id, locale, is_source, status) VALUES ('en', 'org', 'site', 'en', 1, 'published'), ('th', 'org', 'site', 'th', 0, 'published')").run()
-    await db.prepare("INSERT INTO organization (id,name,slug) VALUES ('platform','Platform','platform')").run()
-    await db.prepare("INSERT INTO sites (id,organization_id,slug) VALUES ('platform','platform','platform')").run()
-    await db.prepare("INSERT INTO content_documents (id,organization_id,site_id,kind,row_role,status,metadata_json,created_by,updated_by) VALUES ('catalog-th','platform','platform','locale_catalog','catalog','available',?,'actor','actor')")
-      .bind(JSON.stringify({ locale: 'th', label: 'Thai', direction: 'ltr', source_manifest_hash: await englishManifestHash(), messages: flattenLocaleManifest(englishManifest) })).run()
     const catalog = await getProductCatalogLocalization(db, 'org', 'site', 'th')
+    assert.deepEqual(catalog.categories, [
+      { id: 'cat-primary', location_id: 'primary', source: { name: 'Food' }, localization: null },
+      { id: 'cat-secondary', location_id: 'secondary', source: { name: 'Food' }, localization: null },
+    ])
     assert.deepEqual(catalog.products, [{
       id: 'localized-product', location_id: 'secondary', category_id: 'cat-secondary',
       category: { id: 'cat-secondary', name: 'Food', slug: 'food', sort_order: 0 },

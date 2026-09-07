@@ -1,11 +1,11 @@
 # Audit artifact scope and handling
 
-Current ownership is defined by the [53-table consolidation contract](../docs/database/epoch-5-consolidation.md). Current authorization stops at PR #848 ready for review. No audit artifact authorizes a staging or production action.
+Current ownership is defined by the [53-table consolidation contract](../docs/database/epoch-5-consolidation.md). The current work prepares the merged PR #848 candidate for review and qualification. No audit artifact authorizes a staging or production action.
 
 ## Current target evidence
 
-- [Target schema](829-target-schema.json) and [target columns](829-target-columns.tsv) are regenerated from the canonical baseline inspected at root revision `097aec98`: **53 tables, 826 columns**. Baseline SHA-256 is `dee2b633866e7cf0701a6d7df7dd5b08f6f37de3a68759a16d6788d71445b3a7`.
-- [Transfer summary](829-transfer-summary.json) is an explicit aggregate-only projection of the matching private final candidate manifest: **41,544 rows**, 53 table hashes, nine invariants and 96 archived source-table hashes. Read-only candidate checks independently matched table counts, FK checks and integrity. This is transfer evidence, not application/CI qualification.
+- [Target schema](829-target-schema.json) and [target columns](829-target-columns.tsv) are regenerated from the canonical merged baseline (integration parent `774d4c12`, staging parent `3894f251`): **53 tables, 826 columns**. Baseline SHA-256 is `5076888343c439db5821336e9395fdc56dc02fdf52f2e375bc23f4d8191afc92`.
+- [Transfer summary](829-transfer-summary.json) is an explicit aggregate-only projection of the final merged candidate manifest generated at 2026-09-07T00:54:14.087Z: **41,543 rows**, 53 matching table hashes, nine clear invariants and 96 archived source-table hashes. Independent read-only checks at 2026-09-07T00:57:38.607Z matched the baseline/schema hashes, every table count/logical hash, foreign keys and integrity. The candidate contains 110 editorial documents, 679 blocks and 339 media assets; nine authored translation-source mappings are recorded by aggregate count and evidence hash. This is transfer evidence, not application/CI qualification.
 - [Findings](829-findings.md), [column audit](829-column-audit.md) and [checklist](829-checklist.md) distinguish current census/transfer facts from pending runtime gates.
 - [Decisions](829-decisions.tsv) and [consolidation plan](829-consolidation-plan.md) are maintained by the integration owner.
 

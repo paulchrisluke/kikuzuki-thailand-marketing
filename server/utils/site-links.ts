@@ -1,4 +1,4 @@
-import { assertPublicSiteLanguageEntitlement } from '~/server/utils/localization'
+import { assertPublicSiteLanguageEntitlement, getPersistedSourceLocale } from '~/server/utils/localization'
 import { createContentDocumentWithBlocks, updateContentDocument } from '~/server/utils/content-documents'
 import { queryAll, queryFirst, type DbClient } from '~/server/db'
 import { d1JsonStringSet } from '~/server/db/d1-limits'
@@ -244,19 +244,15 @@ export async function getPublicLinksPage(db: DbClient, siteId: string, locale = 
   const publicItems = items.filter(item => item.status === 'active')
   if (!sourcePage || !page || publicItems.length === 0) return null
   const organizationId = String(site.organization_id)
-  const sourceLanguage = await queryFirst<{ label: string | null }>(db, `
-    SELECT label
-      FROM site_locales
-     WHERE site_id = ? AND is_source = 1
-     LIMIT 1
-  `, [siteId])
-  const localizations = locale === 'en'
+  const sourceLocale = await getPersistedSourceLocale(db, organizationId, siteId)
+  const isSourceLocale = locale === sourceLocale.locale
+  const localizations = isSourceLocale
     ? []
     : await loadExactPublicLocalizations(db, organizationId, siteId, locale)
   const siteLocalization = localizations.find(item => item.resourceType === 'site' && item.resourceId === siteId)
   const localizedSite = siteLocalization
     ? projectExactLocalizedResource('site', { ...site, id: siteId }, siteLocalization)
-    : locale === 'en' ? site : { ...site, brand_name: null, brand_description: null }
+    : isSourceLocale ? site : { ...site, brand_name: null, brand_description: null }
 
   const template = resolvePublicTemplate({
     themeId: typeof site.theme_id === 'string' ? site.theme_id : null,
@@ -281,7 +277,6 @@ export async function getPublicLinksPage(db: DbClient, siteId: string, locale = 
       organizationId,
       siteId,
       sourcePath: '/links',
-      sourceLabel: sourceLanguage?.label || 'English',
       documentId: sourcePage.id,
     }),
   }

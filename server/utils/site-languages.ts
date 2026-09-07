@@ -1,8 +1,9 @@
+import { PLATFORM_LOCALES, platformLocale } from '~/shared/platform-locales'
 import { prepareContentDocumentDeletion } from '~/server/utils/content-documents'
 import { execute, executeBatch, queryAll, queryFirst, type DbClient } from '~/server/db'
 import { getOrganizationBillingStatus } from '~/server/utils/billing'
 import type { CloudflareEnv } from '~/server/utils/auth'
-import { canonicalizeLocale, englishManifestHash } from '~/server/utils/localization'
+import { canonicalizeLocale } from '~/server/utils/localization'
 import { localizationError } from '~/server/utils/localization-errors'
 
 interface SiteLanguageRow {
@@ -22,18 +23,12 @@ async function loadLanguage(db: DbClient, organizationId: string, siteId: string
 
 export async function enableSiteLanguage(
   db: DbClient, env: CloudflareEnv,
-  input: { organizationId: string; siteId: string; locale: unknown; label: string },
+  input: { organizationId: string; siteId: string; locale: unknown },
 ) {
   const locale = canonicalizeLocale(input.locale)
   if (locale === 'en') localizationError(422, 'LOCALIZATION_VALIDATION_FAILED', 'English is the immutable source language')
-  const catalog = await queryFirst<{ status: string; source_manifest_hash: string | null }>(db, `
-    SELECT status, metadata_json ->> '$.source_manifest_hash' AS source_manifest_hash
-      FROM content_documents WHERE kind = 'locale_catalog' AND row_role = 'catalog'
-       AND metadata_json ->> '$.locale' = ?
-  `, [locale])
-  if (!catalog || catalog.status !== 'available' || catalog.source_manifest_hash !== await englishManifestHash()) {
-    localizationError(403, 'PLATFORM_LOCALE_UNAVAILABLE', 'The platform locale catalog is unavailable', { locale })
-  }
+  const catalog = platformLocale(locale)
+  if (!catalog) localizationError(403, 'PLATFORM_LOCALE_UNAVAILABLE', 'The platform locale is unavailable', { locale })
   const projection = await getOrganizationBillingStatus(env, db, input.organizationId)
   if (projection.plan !== 'growth' || !projection.stripeSubscriptionId) {
     localizationError(402, 'LANGUAGE_ENTITLEMENT_REQUIRED', 'An active Growth subscription is required to enable a language')
@@ -42,13 +37,11 @@ export async function enableSiteLanguage(
   const result = await execute(db, `
     INSERT INTO site_locales (id, organization_id, site_id, locale, label, is_source, status, activated_at, created_at, updated_at)
     SELECT ?, ?, ?, ?, ?, 0, 'published', ?, ?, ?
-     WHERE EXISTS (SELECT 1 FROM content_documents WHERE kind = 'locale_catalog' AND row_role = 'catalog' AND status = 'available'
-       AND (metadata_json ->> '$.locale') = ? AND (metadata_json ->> '$.source_manifest_hash') = ?)
-       AND NOT EXISTS (SELECT 1 FROM site_locales WHERE organization_id = ? AND site_id = ? AND is_source = 0 AND status = 'published' AND locale <> ?)
+     WHERE NOT EXISTS (SELECT 1 FROM site_locales WHERE organization_id = ? AND site_id = ? AND is_source = 0 AND status = 'published' AND locale <> ?)
     ON CONFLICT(organization_id, site_id, locale) DO UPDATE SET label = excluded.label, status = 'published',
       activated_at = COALESCE(site_locales.activated_at, excluded.activated_at), disabled_at = NULL, updated_at = excluded.updated_at
-  `, [`locale::${input.organizationId}::${input.siteId}::${locale}`, input.organizationId, input.siteId, locale, input.label.trim() || locale, now, now, now, locale, await englishManifestHash(), input.organizationId, input.siteId, locale])
-  if (result.meta?.changes !== 1) localizationError(409, 'LANGUAGE_ENTITLEMENT_REQUIRED', 'Language could not be enabled because its catalog or site language state changed.')
+  `, [`locale::${input.organizationId}::${input.siteId}::${locale}`, input.organizationId, input.siteId, locale, catalog.label, now, now, now, input.organizationId, input.siteId, locale])
+  if (result.meta?.changes !== 1) localizationError(409, 'LANGUAGE_ENTITLEMENT_REQUIRED', 'Language could not be enabled because another secondary language is already published.')
   return await loadLanguage(db, input.organizationId, input.siteId, locale)
 }
 
@@ -91,20 +84,11 @@ export async function getSiteLanguageSettings(
   input: { organizationId: string; siteId: string },
 ) {
   const projection = await getOrganizationBillingStatus(env, db, input.organizationId)
-  const currentHash = await englishManifestHash()
   const languages = await queryAll(db, `
-    SELECT sl.locale, sl.label, sl.is_source, sl.status,
-           c.status AS catalog_status,
-           CASE WHEN c.metadata_json ->> '$.source_manifest_hash' = ? THEN 1 ELSE 0 END AS catalog_current
-      FROM site_locales sl
-      LEFT JOIN content_documents c ON c.kind = 'locale_catalog' AND c.row_role = 'catalog' AND c.metadata_json ->> '$.locale' = sl.locale
-     WHERE sl.organization_id = ? AND sl.site_id = ?
-  `, [currentHash, input.organizationId, input.siteId])
-  const availableCatalogs = await queryAll(db, `
-    SELECT metadata_json ->> '$.locale' AS locale, metadata_json ->> '$.label' AS label, metadata_json ->> '$.direction' AS direction
-      FROM content_documents WHERE kind = 'locale_catalog' AND row_role = 'catalog'
-       AND status = 'available' AND metadata_json ->> '$.source_manifest_hash' = ?
-     ORDER BY locale
-  `, [currentHash])
+    SELECT locale, label, is_source, status FROM site_locales
+     WHERE organization_id = ? AND site_id = ?
+  `, [input.organizationId, input.siteId])
+  const availableCatalogs = PLATFORM_LOCALES.filter(catalog => catalog.locale !== 'en')
+    .map(({ locale, label, direction }) => ({ locale, label, direction }))
   return { effective_plan: projection.plan, languages, available_catalogs: availableCatalogs }
 }

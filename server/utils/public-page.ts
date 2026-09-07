@@ -194,6 +194,7 @@ function projectLocalizedExperience(source: Experience, localization: Parameters
     included_items: Array.isArray(extra?.included_items) ? extra.included_items as string[] : [],
     what_to_bring: Array.isArray(extra?.what_to_bring) ? extra.what_to_bring as string[] : [],
     meeting_point: typeof extra?.meeting_point === 'string' ? extra.meeting_point : null,
+    cancellation_policy: typeof extra?.cancellation_policy === 'string' ? extra.cancellation_policy : null,
   }
 }
 
@@ -510,6 +511,7 @@ async function loadPublicPageSource(
                          pr.created_by AS price_created_by, pr.created_at AS price_created_at,
                          json_extract(p.experience_json, '$.duration_minutes') AS duration_minutes, json_extract(p.experience_json, '$.max_capacity') AS max_capacity, json_extract(p.experience_json, '$.recurring_slots') AS recurring_slots,
                          p.tags_json, p.details_json, json_extract(p.experience_json, '$.included_items') AS included_items, json_extract(p.experience_json, '$.what_to_bring') AS what_to_bring, json_extract(p.experience_json, '$.meeting_point') AS meeting_point,
+              json_extract(p.experience_json, '$.cancellation_policy') AS cancellation_policy,
                          CASE WHEN p.available = 0 THEN 'sold_out' ELSE 'active' END AS status,
                          p.sort_order, p.featured, p.featured_sort_order,
                          p.seo_title, p.seo_description, p.canonical_url, p.robots, p.created_at, p.updated_at
@@ -534,6 +536,7 @@ async function loadPublicPageSource(
               pr.created_by AS price_created_by, pr.created_at AS price_created_at,
               json_extract(p.experience_json, '$.duration_minutes') AS duration_minutes, json_extract(p.experience_json, '$.max_capacity') AS max_capacity, json_extract(p.experience_json, '$.recurring_slots') AS recurring_slots,
               p.tags_json, p.details_json, json_extract(p.experience_json, '$.included_items') AS included_items, json_extract(p.experience_json, '$.what_to_bring') AS what_to_bring, json_extract(p.experience_json, '$.meeting_point') AS meeting_point,
+              json_extract(p.experience_json, '$.cancellation_policy') AS cancellation_policy,
               CASE WHEN p.is_visible = 0 THEN 'inactive' WHEN p.available = 0 THEN 'sold_out' ELSE 'active' END AS status,
               p.sort_order, p.featured, p.featured_sort_order,
               p.seo_title, p.seo_description, p.canonical_url, p.robots, p.created_at, p.updated_at
@@ -669,10 +672,14 @@ async function loadPublicPageSource(
       seo_description: _sourceSeoDescription,
       ...config
     } = sourceShell.config
-    if (localizedSite.brand_name) config.brand_name = localizedSite.brand_name
-    if (localizedSite.brand_description) config.brand_description = localizedSite.brand_description
-    if (localizedSite.seo_title) config.seo_title = localizedSite.seo_title
-    if (localizedSite.seo_description) config.seo_description = localizedSite.seo_description
+    if (localizedSite.brand_name) {
+      config.brand_name = localizedSite.brand_name
+      config.seo_title = localizedSite.brand_name
+    }
+    if (localizedSite.brand_description) {
+      config.brand_description = localizedSite.brand_description
+      config.seo_description = localizedSite.brand_description
+    }
     return {
       ...sourceShell,
       site: {
@@ -1038,11 +1045,6 @@ async function loadPublicPageSource(
   })
   const qaList = sourceQaList
 
-  const sourceLocaleRepresentation = shell.locales.find(item => item.code === 'en')
-  if (!sourceLocaleRepresentation?.label) {
-    throw new HTTPError({ statusCode: 500, statusMessage: 'Site source locale label is missing' })
-  }
-  const sourceLabel = sourceLocaleRepresentation.label
   const sourceLocationRow = locationId
     ? (locRows.results ?? []).find(row => row.id === locationId)
     : null
@@ -1068,7 +1070,6 @@ async function loadPublicPageSource(
         organizationId: orgId,
         siteId,
         sourcePath: representationSourcePath,
-        sourceLabel,
         resource: representationResource,
         documentId: representationDocumentId,
         publishedLocaleRoute: !representationResource && !representationDocumentId && Boolean(routePagePath),

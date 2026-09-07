@@ -5,14 +5,32 @@
     <UAlert v-if="notice" color="success" variant="soft" :description="notice" class="mt-4" />
     <UAlert v-if="operationError" color="error" variant="soft" :description="operationError" class="mt-4" />
 
-    <AuthPhoneOtpForm v-if="isWhatsAppMode" default-country="TH" class="mt-6" @verified="finishPhoneSignIn" />
+    <div v-if="rememberedProfile && showRememberedProfile" class="mt-8 space-y-5">
+      <PlatformButton variant="outline" size="xl" block :loading="googleLoading" :disabled="!interactive" class="min-h-20 text-left" @click="continueRememberedProfile">
+        <PlatformGoogleIcon v-if="rememberedProfile.method === 'google'" class="size-6 shrink-0" />
+        <UIcon v-else :name="rememberedProfile.method === 'email' ? 'i-lucide-mail' : 'i-lucide-message-circle'" class="size-6 shrink-0" />
+        <span class="min-w-0 flex-1 truncate">{{ rememberedProfile.identifier }}</span>
+        <UBadge color="primary" variant="soft" class="shrink-0">Last used</UBadge>
+        <UIcon name="i-lucide-arrow-right" class="size-5 shrink-0" />
+      </PlatformButton>
+      <USeparator label="or" />
+      <UButton block size="xl" :disabled="!interactive" @click="chooseAnotherProfile">Log in with another profile</UButton>
+      <UButton block color="neutral" variant="link" size="sm" :disabled="!interactive" @click="forgetProfile">Forget this profile</UButton>
+    </div>
+
+    <AuthPhoneOtpForm v-else-if="isWhatsAppMode" default-country="TH" class="mt-6" @verified="finishPhoneSignIn" />
 
     <div v-else class="mt-6 space-y-3">
-      <AuthGoogleAuthButton :loading="googleLoading" @activate="signInWithGoogle(postLoginUrl)" />
-      <WhatsAppAuthButton @activate="showPhone = !showPhone" />
-      <AuthPhoneOtpForm v-if="showPhone" default-country="TH" @verified="finishPhoneSignIn" />
-      <USeparator label="or" />
-      <AuthEmailSignInForm :callback-url="postLoginUrl" :initial-email="queryEmail" @verification-required="showVerification" />
+      <template v-if="!selectedProfile">
+        <AuthGoogleAuthButton :loading="googleLoading" @activate="signInWithGoogle(postLoginUrl)" />
+        <WhatsAppAuthButton @activate="showPhone = !showPhone" />
+        <AuthPhoneOtpForm v-if="showPhone" default-country="TH" @verified="finishPhoneSignIn" />
+        <USeparator label="or" />
+      </template>
+      <AuthPhoneOtpForm v-if="selectedProfile?.method === 'whatsapp'" :fixed-phone="selectedProfile.identifier" @verified="finishPhoneSignIn" />
+      <AuthEmailSignInForm v-else :key="emailForSignIn" :callback-url="postLoginUrl" :initial-email="emailForSignIn" @verification-required="showVerification" />
+
+      <UButton v-if="selectedProfile" block color="neutral" variant="ghost" @click="chooseAnotherProfile">Log in with another profile</UButton>
 
       <UAlert v-if="verificationEmail" color="neutral" variant="soft" description="Verify your email before signing in.">
         <template #actions>
@@ -27,6 +45,7 @@
 
 <script setup lang="ts">
 import WhatsAppAuthButton from '~/components/auth/WhatsAppAuthButton.vue'
+import { LAST_LOGIN_METHOD_COOKIE, REMEMBERED_PROFILE_COOKIE, readRememberedProfile } from '~/shared/auth/remembered-profile'
 import { authClient } from '~/lib/auth-client'
 import { buildPostLoginUrl, validatedInternalPath } from '~/shared/auth/return-target'
 
@@ -40,6 +59,38 @@ const redirect = computed(() => validatedInternalPath(route.query.redirect))
 const postLoginUrl = computed(() => buildPostLoginUrl({ redirect: redirect.value }))
 const signupUrl = computed(() => redirect.value ? { path: '/signup', query: { redirect: redirect.value } } : '/signup')
 const showPhone = ref(false)
+const interactive = ref(false)
+onMounted(() => { interactive.value = true })
+const lastMethod = useCookie<string | null>(LAST_LOGIN_METHOD_COOKIE)
+const lastIdentifier = useCookie<string | null>(REMEMBERED_PROFILE_COOKIE)
+const rememberedProfile = computed(() => readRememberedProfile(lastMethod.value, lastIdentifier.value))
+const showRememberedProfile = ref(!isWhatsAppMode.value && !queryEmail && !route.query.signup && !route.query.verified && !route.query.reset)
+const selectedProfile = ref<ReturnType<typeof readRememberedProfile>>(null)
+const emailForSignIn = computed(() => selectedProfile.value?.method === 'email' ? selectedProfile.value.identifier : queryEmail)
+
+function chooseAnotherProfile() {
+  showRememberedProfile.value = false
+  selectedProfile.value = null
+  showPhone.value = false
+}
+
+function forgetProfile() {
+  lastMethod.value = null
+  lastIdentifier.value = null
+  chooseAnotherProfile()
+}
+
+async function continueRememberedProfile() {
+  const profile = rememberedProfile.value
+  if (!profile) return
+  if (profile.method === 'google') {
+    await signInWithGoogle(postLoginUrl.value, profile.identifier)
+    return
+  }
+  selectedProfile.value = profile
+  showRememberedProfile.value = false
+}
+
 const verificationEmail = ref('')
 const resending = ref(false)
 const notice = ref<string | null>(null)

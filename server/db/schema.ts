@@ -1300,7 +1300,7 @@ export const content_documents = sqliteTable("content_documents", {
 	organization_id: text().notNull().references(() => organization.id, { onDelete: "cascade" }),
 	site_id: text().notNull().references(() => sites.id, { onDelete: "cascade" }),
 	kind: text().$type<typeof CONTENT_DOCUMENT_KINDS[number]>().notNull(),
-	row_role: text().$type<'root' | 'representation' | 'catalog'>().notNull(),
+	row_role: text().$type<'root' | 'representation'>().notNull(),
 	root_id: text(),
 	root_role: text().$type<'root'>(),
 	locale: text(),
@@ -1337,7 +1337,6 @@ export const content_documents = sqliteTable("content_documents", {
 	uniqueIndex("content_documents_root_locale_unique").on(table.root_id, table.locale).where(sql`row_role = 'representation'`),
 	uniqueIndex("content_documents_route_unique").on(table.site_id, table.locale, table.path).where(sql`row_role IN ('root','representation') AND path IS NOT NULL`),
 	uniqueIndex("content_documents_slug_unique").on(table.site_id, table.kind, table.locale, table.slug).where(sql`row_role IN ('root','representation') AND slug IS NOT NULL`),
-	uniqueIndex("content_documents_catalog_locale_unique").on(sql`(metadata_json ->> '$.locale')`).where(sql`kind = 'locale_catalog'`),
 	uniqueIndex("content_documents_links_site_unique").on(table.site_id).where(sql`row_role = 'root' AND kind = 'page' AND json_extract(metadata_json, '$.recipe') = 'links'`),
 	index("content_documents_site_kind_status_idx").on(table.site_id, table.kind, table.row_role, table.status, table.sort_order),
 	index("content_documents_location_kind_status_idx").on(table.location_id, table.kind, table.row_role, table.status, table.sort_order),
@@ -1346,7 +1345,7 @@ export const content_documents = sqliteTable("content_documents", {
 	index("content_documents_instagram_post_idx").on(table.site_id, sql`(metadata_json ->> '$.channels.instagram.provider_post_id')`).where(sql`row_role = 'root' AND kind = 'social_post'`),
 	check("content_documents_kind_check", sql`${table.kind} IN (${sql.raw(CONTENT_DOCUMENT_KINDS.map(kind => `'${kind}'`).join(', '))})`),
 	check("content_documents_metadata_check", sql`json_valid(metadata_json) AND json_type(metadata_json) IS 'object'`),
-	check("content_documents_role_check", sql`(row_role = 'root' AND kind <> 'locale_catalog' AND root_id IS NULL AND root_role IS NULL AND locale = 'en') OR (row_role = 'representation' AND kind <> 'locale_catalog' AND root_id IS NOT NULL AND root_id <> id AND root_role = 'root' AND locale IS NOT NULL AND locale <> 'en' AND location_id IS NULL AND scope_path IS NULL AND status IS NULL AND visibility IS NULL AND source IS NULL AND author_id IS NULL AND published_at IS NULL AND first_published_at IS NULL AND scheduled_for IS NULL) OR (row_role = 'catalog' AND kind = 'locale_catalog' AND organization_id = 'platform' AND site_id = 'platform' AND root_id IS NULL AND root_role IS NULL AND locale IS NULL)`),
+	check("content_documents_role_check", sql`(row_role = 'root' AND root_id IS NULL AND root_role IS NULL AND locale = 'en') OR (row_role = 'representation' AND root_id IS NOT NULL AND root_id <> id AND root_role = 'root' AND locale IS NOT NULL AND locale <> 'en' AND location_id IS NULL AND scope_path IS NULL AND status IS NULL AND visibility IS NULL AND source IS NULL AND author_id IS NULL AND published_at IS NULL AND first_published_at IS NULL AND scheduled_for IS NULL)`),
 	check("content_documents_path_check", sql`path IS NULL OR (path LIKE '/%' AND path NOT LIKE '//%')`),
 	check("content_documents_platform_doc_scope_check", sql`kind <> 'platform_doc' OR (organization_id = 'platform' AND site_id = 'platform')`),
 	check("content_documents_page_copy_check", sql`kind <> 'page' OR (path IS NOT NULL AND title IS NOT NULL)`),
@@ -1368,7 +1367,6 @@ export const content_documents = sqliteTable("content_documents", {
 	check("content_documents_social_topic_shape_check", sql`(kind <> 'social_post' OR row_role <> 'root' OR (((metadata_json ->> '$.post_type') = 'standard' AND (metadata_json ->> '$.event') IS NULL AND (metadata_json ->> '$.offer') IS NULL AND (metadata_json ->> '$.alert_type') IS NULL) OR ((metadata_json ->> '$.post_type') = 'event' AND (metadata_json ->> '$.event') IS NOT NULL AND (metadata_json ->> '$.offer') IS NULL AND (metadata_json ->> '$.alert_type') IS NULL) OR ((metadata_json ->> '$.post_type') = 'offer' AND (metadata_json ->> '$.event') IS NOT NULL AND (metadata_json ->> '$.offer') IS NOT NULL AND (metadata_json ->> '$.call_to_action') IS NULL AND (metadata_json ->> '$.alert_type') IS NULL) OR ((metadata_json ->> '$.post_type') = 'alert' AND (metadata_json ->> '$.event') IS NULL AND (metadata_json ->> '$.offer') IS NULL AND (metadata_json ->> '$.alert_type') IS 'covid_19'))) IS 1`),
 	check("content_documents_channel_facebook_check", sql`kind <> 'social_post' OR row_role <> 'root' OR (json_type(metadata_json, '$.channels.facebook') IS NULL OR (json_type(metadata_json, '$.channels.facebook') IS 'object' AND json_type(metadata_json, '$.channels.facebook.created_at') IS 'text' AND (((metadata_json ->> '$.channels.facebook.status') = 'pending' AND (metadata_json ->> '$.channels.facebook.provider_post_id') IS NULL AND (metadata_json ->> '$.channels.facebook.published_at') IS NULL AND (metadata_json ->> '$.channels.facebook.error_message') IS NULL) OR ((metadata_json ->> '$.channels.facebook.status') = 'published' AND (metadata_json ->> '$.channels.facebook.provider_post_id') IS NOT NULL AND (metadata_json ->> '$.channels.facebook.published_at') IS NOT NULL AND (metadata_json ->> '$.channels.facebook.error_message') IS NULL) OR ((metadata_json ->> '$.channels.facebook.status') IN ('failed','skipped') AND (metadata_json ->> '$.channels.facebook.provider_post_id') IS NULL AND (metadata_json ->> '$.channels.facebook.published_at') IS NULL AND (metadata_json ->> '$.channels.facebook.error_message') IS NOT NULL))) IS 1)`),
 	check("content_documents_channel_instagram_check", sql`kind <> 'social_post' OR row_role <> 'root' OR (json_type(metadata_json, '$.channels.instagram') IS NULL OR (json_type(metadata_json, '$.channels.instagram') IS 'object' AND json_type(metadata_json, '$.channels.instagram.created_at') IS 'text' AND (((metadata_json ->> '$.channels.instagram.status') = 'pending' AND (metadata_json ->> '$.channels.instagram.provider_post_id') IS NULL AND (metadata_json ->> '$.channels.instagram.published_at') IS NULL AND (metadata_json ->> '$.channels.instagram.error_message') IS NULL) OR ((metadata_json ->> '$.channels.instagram.status') = 'published' AND (metadata_json ->> '$.channels.instagram.provider_post_id') IS NOT NULL AND (metadata_json ->> '$.channels.instagram.published_at') IS NOT NULL AND (metadata_json ->> '$.channels.instagram.error_message') IS NULL) OR ((metadata_json ->> '$.channels.instagram.status') IN ('failed','skipped') AND (metadata_json ->> '$.channels.instagram.provider_post_id') IS NULL AND (metadata_json ->> '$.channels.instagram.published_at') IS NULL AND (metadata_json ->> '$.channels.instagram.error_message') IS NOT NULL))) IS 1)`),
-	check("content_documents_catalog_check", sql`kind <> 'locale_catalog' OR (row_role = 'catalog' AND (status IN ('available','unavailable')) IS 1 AND json_type(metadata_json, '$.locale') IS 'text' AND json_type(metadata_json, '$.messages') IS 'object' AND (json_extract(metadata_json, '$.direction') IN ('ltr','rtl')) IS 1)`),
 ]);
 
 export const resource_localizations = sqliteTable("resource_localizations", {
@@ -1423,7 +1421,7 @@ export const content_blocks = sqliteTable("content_blocks", {
 	index("content_blocks_document_position_idx").on(table.document_id, table.position),
 	foreignKey({ columns: [table.source_block_id], foreignColumns: [table.id], name: "content_blocks_source_fk" }).onDelete("cascade"),
 	uniqueIndex("content_blocks_document_source_unique").on(table.document_id, table.source_block_id).where(sql`source_block_id IS NOT NULL`),
-	check("content_blocks_source_check", sql`source_block_id IS NULL OR (source_block_id <> id AND type = 'cta')`),
+	check("content_blocks_source_check", sql`source_block_id IS NULL OR source_block_id <> id`),
 	index("content_blocks_parent_idx").on(table.parent_block_id),
 	unique("content_blocks_document_id_unique").on(table.document_id, table.id),
 	foreignKey({ columns: [table.document_id, table.parent_block_id], foreignColumns: [table.document_id, table.id], name: "content_blocks_parent_document_fk" }).onDelete("cascade"),

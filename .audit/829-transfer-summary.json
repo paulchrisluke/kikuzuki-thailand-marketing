@@ -1,20 +1,22 @@
 {
   "epoch": 5,
-  "status": "current_53_table_candidate",
+  "status": "current_53_table_merged_candidate",
   "consolidation_contract": "../docs/database/epoch-5-consolidation.md",
-  "qualification": "Transfer evidence for the recorded baseline only; does not qualify application behavior, CI, or deployment.",
-  "generated_at": "2026-09-06T23:28:40.295Z",
+  "qualification": "Transfer evidence for the recorded merged baseline only; application behavior, exact-head CI and browser qualification remain separate pending gates. No promotion is authorized.",
+  "generated_at": "2026-09-07T00:54:14.087Z",
+  "verified_at": "2026-09-07T00:57:38.607Z",
   "source_schema_sha256": "cd62201f995370ec67f94cfa3ab322caa3434ebde0dac2bafe6521bc07fc2b7e",
-  "target_schema_sha256": "f68ea206bf79c747723455b02822781fe9ccd013e50e29162af9122061ea2301",
+  "target_schema_sha256": "0f362fe2e2a8efb714e679e252f93a7927041abe9f214626b1289359ed50dd3b",
   "baseline": [
     {
       "name": "0000_epoch_5_baseline.sql",
-      "sha256": "dee2b633866e7cf0701a6d7df7dd5b08f6f37de3a68759a16d6788d71445b3a7"
+      "sha256": "5076888343c439db5821336e9395fdc56dc02fdf52f2e375bc23f4d8191afc92"
     }
   ],
   "evidence_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
   "table_count": 53,
-  "target_rows": 41544,
+  "column_count": 826,
+  "target_rows": 41543,
   "tables": [
     {
       "table": "account",
@@ -187,12 +189,12 @@
         "type",
         "updated_at"
       ],
-      "projected_hash": "9ba3d4794936f0a7988216b0204b42e2e5ff6cfcace86439a6eb262f045477b5",
-      "actual_hash": "9ba3d4794936f0a7988216b0204b42e2e5ff6cfcace86439a6eb262f045477b5"
+      "projected_hash": "38e79653fbe5092c6707a70130d5e2988efd2d8163c809af99af5820f4ce2831",
+      "actual_hash": "38e79653fbe5092c6707a70130d5e2988efd2d8163c809af99af5820f4ce2831"
     },
     {
       "table": "content_documents",
-      "target_count": 111,
+      "target_count": 110,
       "columns": [
         "author_id",
         "canonical_url",
@@ -227,8 +229,8 @@
         "updated_by",
         "visibility"
       ],
-      "projected_hash": "ad1b5abd615a3a3dcd9c294f49b500c9f93d5390e68dc9e103a3363778dd7184",
-      "actual_hash": "ad1b5abd615a3a3dcd9c294f49b500c9f93d5390e68dc9e103a3363778dd7184"
+      "projected_hash": "392e35698f15a71607e3e4f97347c8fccde68f7cc62c684b94e440821b24f567",
+      "actual_hash": "392e35698f15a71607e3e4f97347c8fccde68f7cc62c684b94e440821b24f567"
     },
     {
       "table": "customers",
@@ -2020,7 +2022,11 @@
     }
   ],
   "candidate_database_checks": {
+    "opened_readonly": true,
+    "baseline_hash_matches_manifest": true,
+    "schema_hash_matches_manifest": true,
     "table_row_counts_match_manifest": true,
+    "table_logical_hashes_match_manifest": true,
     "foreign_key_violations": 0,
     "integrity": "ok"
   },
@@ -2509,6 +2515,13 @@
   "discarded_rows_by_table": {
     "media_placements": 30,
     "site_domains": 4
+  },
+  "authored_translation_source_identity": {
+    "table": "content_blocks",
+    "column": "source_block_id",
+    "mapped_rows": 9,
+    "mapping_evidence_sha256": "fa0028ae6758fc7d5c61ef56daa73fb0ff39e73eac067d7c62b441e58a05155d",
+    "rule": "Unique authored field and matching block type within the same canonical source page; never inferred by position."
   },
   "unresolved_field_count": 4,
   "private_evidence": "Per-row IDs, values, disposition records and the complete typed source archive remain outside Git."

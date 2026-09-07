@@ -1,5 +1,4 @@
 import { expect, test, type APIRequestContext, type APIResponse, type Page } from '@playwright/test'
-import thaiPlatformMessages from '../../i18n/catalogs/th.json' with { type: 'json' }
 import { openTenantPage } from './helpers'
 import { loginAs } from './helpers/auth'
 import { kikuzukiTestBaseUrl, kikuzukiTestExtraHeaders, testBaseUrl } from './test-env'
@@ -40,26 +39,11 @@ async function expectLocalizedMenu(page: Page) {
 test.beforeAll(async ({ playwright }, testInfo) => {
   testInfo.setTimeout(120_000)
   const baseURL = testBaseUrl()
-  const admin = await playwright.request.newContext({ baseURL })
   const owner = await playwright.request.newContext({ baseURL })
-  await loginAs(admin, baseURL, 'user-e2e-platform-admin')
   await loginAs(owner, baseURL, 'user-e2e-kikuzuki-owner')
 
   try {
-    const catalogsResponse = await admin.get('/api/admin/localization')
-    await expectStatus(catalogsResponse, 200)
-    const catalogs = await catalogsResponse.json() as { catalogs: Array<{ locale: string }> }
-    if (!catalogs.catalogs.some(catalog => catalog.locale === locale)) {
-      await expectStatus(await admin.post('/api/admin/localization', {
-        data: { locale, label: 'ไทย', direction: 'ltr' },
-      }), 200)
-    }
-    await expectStatus(await admin.post(`/api/admin/localization/${locale}/publish`, {
-      data: { messages: thaiPlatformMessages },
-    }), 200)
-    await expectStatus(await owner.post(`/api/editor/sites/${siteId}/locales/${locale}/enable`, {
-      data: { label: 'ไทย' },
-    }), 200)
+    await expectStatus(await owner.post(`/api/editor/sites/${siteId}/locales/${locale}/enable`), 200)
 
     await putLocalization(owner, 'site', siteId, {
       values: {
@@ -101,7 +85,6 @@ test.beforeAll(async ({ playwright }, testInfo) => {
       },
     })
   } finally {
-    await admin.dispose()
     await owner.dispose()
   }
 })
@@ -155,5 +138,35 @@ test('Kikuzuki keeps its Thai shell and category translations on a hard load', a
     expect(builtInResponse?.status()).toBeLessThan(400)
     await expect(page.locator('html')).toHaveAttribute('lang', locale)
     await expect(page.getByRole('navigation', { name: 'การนำทางหลัก' }).getByRole('link', { name: 'เมนู', exact: true })).toBeVisible()
+  }
+})
+
+
+test('Kikuzuki Localize preserves its translated address', async ({ browser, playwright }) => {
+  const baseURL = testBaseUrl()
+  const owner = await playwright.request.newContext({ baseURL })
+  try {
+    await loginAs(owner, baseURL, 'user-e2e-kikuzuki-owner')
+    const dashboardContext = await browser.newContext({ baseURL, storageState: await owner.storageState() })
+    try {
+      const cms = await dashboardContext.newPage()
+      await openTenantPage(cms, `${baseURL}/dashboard/kikuzuki-krabi-thailand/sites/kikuzuki-krabi-thailand/locations/kikuzuki-japanese-robatayaki-izakaya/settings/profile`, {})
+      await cms.getByTestId('localize-resource').click()
+      await cms.getByTestId('localize-language').click()
+      await cms.getByRole('option', { name: /ไทย \(th\)/ }).click()
+      const address = cms.getByTestId('localize-field-address')
+      await expect(address).toHaveValue('325 ตำบลอ่าวนาง กระบี่ 81180 ประเทศไทย')
+      const saveResponse = await Promise.all([
+        cms.waitForResponse(response => response.request().method() === 'PUT' && response.url().includes('/localization/business_location/loc-kikuzuki/th')),
+        cms.getByTestId('localize-save').click(),
+      ]).then(([response]) => response)
+      expect(saveResponse.status()).toBe(200)
+      const payload = saveResponse.request().postDataJSON() as { values: { address: unknown } }
+      expect(payload.values.address).toBe('325 ตำบลอ่าวนาง กระบี่ 81180 ประเทศไทย')
+    } finally {
+      await dashboardContext.close()
+    }
+  } finally {
+    await owner.dispose()
   }
 })

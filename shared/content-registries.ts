@@ -4,7 +4,6 @@ export const CONTENT_DOCUMENT_KINDS = [
   'platform_doc',
   'social_post',
   'qa',
-  'locale_catalog',
 ] as const
 
 export type ContentDocumentKind = typeof CONTENT_DOCUMENT_KINDS[number]
