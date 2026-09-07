@@ -94,7 +94,7 @@ const effects = {
   set_workspace_context: 'Overwrites the authenticated user selected workspace site or location.',
   show_generated_images: 'Formats supplied image references for display without saving or generating images.',
   sync_product_catalog_localization: 'Reconciles translated product catalog values for the selected site and locale.',
-  sync_products: 'Reconciles a complete location catalog, creates and updates products, and marks omitted products unavailable.',
+  sync_products: 'Creates and updates products at one location, and marks omitted products unavailable only when explicitly requested.',
   update_blog_metadata: 'Overwrites selected blog metadata, including public navigation and search settings.',
   update_blog_post: 'Overwrites supplied fields of an existing tenant blog article.',
   update_booking_policy: 'Overwrites booking rules, including cancellation and deposit terms, for the selected site or location.',

@@ -69,7 +69,7 @@ export function formatTime(value: string, locale: string): string {
   const meaningfulSeconds = /[1-9]/.test(time.slice(6))
   const parts = new Intl.DateTimeFormat(locale, { calendar: 'gregory', hour: 'numeric', minute: '2-digit', ...(meaningfulSeconds ? { second: '2-digit' as const } : {}), timeZone: 'UTC' }).formatToParts(new Date(`2000-01-01T${time}Z`))
   const fraction = time.includes('.') ? time.slice(time.indexOf('.')) : ''
-  return parts.map(part => part.type === 'second' ? part.value + fraction : part.value).join('')
+  return parts.map(part => part.type === 'second' ? part.value + fraction : part.value).join('').replace(/[\u00a0\u202f]/g, ' ')
 }
 export function formatTimestamp(value: string | Date, locale: string, timeZone: string, options: Intl.DateTimeFormatOptions = { dateStyle: 'medium', timeStyle: 'short' }): string {
   if (!isValidTimezone(timeZone)) throw new Error('A valid explicit timezone is required')

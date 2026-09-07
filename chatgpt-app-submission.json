@@ -975,9 +975,9 @@
         "destructiveHint": true
       },
       "justifications": {
-        "read_only_justification": "Reconciles a complete location catalog, creates and updates products, and marks omitted products unavailable. This changes persisted state or consumes credits.",
-        "open_world_justification": "Reconciles a complete location catalog, creates and updates products, and marks omitted products unavailable. Its effects can change content or behavior on the public website.",
-        "destructive_justification": "Reconciles a complete location catalog, creates and updates products, and marks omitted products unavailable. Existing state is deleted, replaced or overwritten rather than only appended."
+        "read_only_justification": "Creates and updates products at one location, and marks omitted products unavailable only when explicitly requested. This changes persisted state or consumes credits.",
+        "open_world_justification": "Creates and updates products at one location, and marks omitted products unavailable only when explicitly requested. Its effects can change content or behavior on the public website.",
+        "destructive_justification": "Creates and updates products at one location, and marks omitted products unavailable only when explicitly requested. Existing state is deleted, replaced or overwritten rather than only appended."
       }
     },
     "update_blog_metadata": {
