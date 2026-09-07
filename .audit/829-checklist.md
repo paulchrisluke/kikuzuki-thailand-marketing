@@ -14,9 +14,9 @@ The stopping point is **PR #848 ready for review**. Do not merge to staging or p
 
 ## Final application qualification
 
-- [ ] Complete exact-candidate application quality/build and real runtime suites after all accepted corrections. Earlier passing subsets do not complete this gate.
-- [ ] Complete direct Codex browser checks against the final built Worker, including authenticated CMS/MCP, public/localized routes and rendered social cards.
-- [ ] Finish independent review of the final consolidated revision and record any remaining limitations.
+- [x] Complete application quality/build and real runtime qualification: 186 unit, 22 real D1, 15 migration/source-transfer and 64 local E2E cases pass. The final broad E2E run passed 63; the corrected Kikuzuki hydration journey passed its focused rerun. One HTTPS-only skip and two excluded paid media-upload cases remain for normal preview CI.
+- [x] Complete direct Codex browser checks against the final built Worker: configured sign-in/post-login, Today, Inbox, CMS/media reads and public/localized routes. MCP workflows have real Worker E2E coverage. Two paid media-upload tests are excluded locally; OG/social-card generation will not be rerun at the owner's request.
+- [x] Finish independent review of the final consolidated revision and record any remaining limitations in the consolidation contract.
 - [ ] Push once after all changes and local checks are complete; use a scheduled CI follow-up rather than continuous polling.
 - [ ] Verify exact-head CI and deployed preview, then hand back the open PR for user review.
 

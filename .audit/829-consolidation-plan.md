@@ -28,7 +28,7 @@ The green CI on `2e9e5c88` qualifies the prior implementation only.
 - [x] Architect: Ground, Sketch, Agree, Implement, Scrap. Agreement proceeds
   autonomously under the owner's concrete target; redesign if runtime constraints
   invalidate a selected fold.
-- [ ] Phase C: Run the loop. Implement coherent partition changes, remove old
+- [x] Phase C: Run the loop. Implement coherent partition changes, remove old
   callers and definitions, and verify each against real D1/runtime boundaries.
 - [x] Consolidate site configuration, domains, locales and provider connections.
 - [x] Consolidate bookings, experience products, policies and guest events.
@@ -36,7 +36,7 @@ The green CI on `2e9e5c88` qualifies the prior implementation only.
 - [x] Archive dead history outside the live schema and remove operational evidence.
 - [x] Regenerate the sole baseline, canonical fixtures and source transfer; prove
   all retained facts, archive dispositions, foreign keys and invariants.
-- [ ] Phase D: Keep the audit trail. Update `.audit/829-decisions.tsv`, whole-table
+- [x] Phase D: Keep the audit trail. Update `.audit/829-decisions.tsv`, whole-table
   dispositions and counts when evidence settles each choice.
 - [ ] Phase E: Verify and hand back. Local quality, meaningful D1/transfer/E2E,
   independent review, one completed push, scheduled exact-head CI and deployed
