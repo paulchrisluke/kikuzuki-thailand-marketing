@@ -99,7 +99,18 @@
         </template>
 
         <template #detail>
-          <UFormField v-if="section === 'category'" label="Category">
+          <div v-if="section === 'photo'" class="space-y-4">
+            <p class="text-base text-muted">The picture this post is recognised by — at the top of the article, in the blog list, and on the card people see when it is shared.</p>
+            <component
+              :is="mediaPickerComponent || PlatformMediaPicker"
+              :site-id="siteId"
+              :model-value="featuredMedia?.asset_id || ''"
+              accept="image"
+              @change="setFeaturedMedia"
+            />
+          </div>
+
+          <UFormField v-else-if="section === 'category'" label="Category">
             <UInput v-model="form.category" autofocus class="w-full" />
           </UFormField>
 
@@ -155,7 +166,7 @@
           <UFormField v-else-if="section === 'share'" label="Share preview">
             <img v-if="resolvedPrimaryImageUrl" :src="resolvedPrimaryImageUrl" alt="Resolved share preview" class="aspect-video w-full rounded-lg object-cover">
             <video v-else-if="resolvedPrimaryVideoUrl" :src="resolvedPrimaryVideoUrl" controls muted playsinline class="aspect-video w-full rounded-lg object-cover" />
-            <p v-else class="text-xs text-dimmed">Add a featured or content image to use it in the generated share card.</p>
+            <p v-else class="text-xs text-dimmed">This post has no photo, so its share card cannot be generated. Set one under Photo.</p>
           </UFormField>
 
           <div v-else-if="section === 'url'" class="space-y-5">
@@ -209,8 +220,8 @@ const saveState = ref<'saved' | 'saving' | 'failed' | 'conflict'>('saved')
 const actionError = ref('')
 const publishing = ref(false)
 const savingExplicitly = ref(false)
-type SettingsSection = 'category' | 'tags' | 'excerpt' | 'publishing' | 'search' | 'share' | 'url' | 'canonical' | 'robots'
-const SETTINGS_SECTIONS: SettingsSection[] = ['category', 'tags', 'excerpt', 'publishing', 'search', 'share', 'url', 'canonical', 'robots']
+type SettingsSection = 'photo' | 'category' | 'tags' | 'excerpt' | 'publishing' | 'search' | 'share' | 'url' | 'canonical' | 'robots'
+const SETTINGS_SECTIONS: SettingsSection[] = ['photo', 'category', 'tags', 'excerpt', 'publishing', 'search', 'share', 'url', 'canonical', 'robots']
 const contentDirty = ref(false)
 const lifecycleDirty = ref(false)
 const dirtyState = computed(() => contentDirty.value || lifecycleDirty.value)
@@ -230,7 +241,7 @@ const section = computed<SettingsSection | null>(() => {
   return segment && (SETTINGS_SECTIONS as string[]).includes(segment) ? segment as SettingsSection : null
 })
 
-const form = reactive({ title: '', category: '', excerpt: '', seo_title: '', seo_description: '', slug: '', canonical_url: '', robots: '', visibility: 'public' as 'public' | 'unlisted', scheduled_for: '', redirect_old_slug: true })
+const form = reactive({ title: '', category: '', excerpt: '', seo_title: '', seo_description: '', slug: '', canonical_url: '', robots: '', visibility: 'public' as 'public' | 'unlisted', scheduled_for: '', redirect_old_slug: true, media: [] as NonNullable<BlogPost['media']> })
 const tagsText = ref('')
 const publishTiming = ref<'Now' | 'Scheduled'>('Now')
 const templateName = computed(() => post.value?.editor_template || (route.path.includes('/admin/') ? 'platform' : 'saya'))
@@ -270,13 +281,17 @@ const resolvedSiteName = computed(() => post.value?.editor_site_name || (props.s
 const readMinutes = computed(() => Math.max(1, Math.ceil(serializeBody().trim().split(/\s+/).filter(Boolean).length / 200)))
 const publicPath = computed(() => resolveBlogPublicPath({ scope: props.siteId ? 'tenant' : 'platform', template: templateName.value, slug: slugResetRequested.value ? generatedSlug.value : form.slug || generatedSlug.value, category: form.category }))
 const resolvedSeo = computed(() => resolveBlogSeo({ title: form.title, seoTitle: form.seo_title, excerpt: form.excerpt || resolvedExcerpt.value, seoDescription: form.seo_description, slug: form.slug || generatedSlug.value, canonicalUrl: form.canonical_url, baseUrl: windowOrigin(), publicPath: publicPath.value, siteName: resolvedSiteName.value, robots: form.robots }))
-const resolvedPrimaryImageUrl = computed<string | null>(() => {
-  const block = blocks.value.find(item => item.type === 'image')
-  const blockMedia = block?.media?.find(item => item.slot === 'media')
-  const blockImage = blockMedia?.thumbnail_url || blockMedia?.public_url || null
-  return blockImage
-    || resolveSocialImageUrl(post.value?.media?.find(item => item.slot === 'featured'))
-})
+/**
+ * The post's photo, from the `featured` slot and nowhere else.
+ *
+ * This used to prefer the body's first image block and fall back to `featured`,
+ * which meant a post with no photo still rendered a hero and still reported its
+ * share card as set — the missing card could never surface. A body image is
+ * body content; the photo is the post's own.
+ */
+const featuredMedia = computed(() => form.media.find(item => item.slot === 'featured') ?? null)
+const resolvedPrimaryImageUrl = computed<string | null>(() =>
+  featuredMedia.value?.kind === 'video' ? null : resolveSocialImageUrl(featuredMedia.value))
 /**
  * The settings index. Every row states what it currently holds, so the pane is
  * read by scanning values rather than by opening each leaf to find out — which
@@ -299,6 +314,14 @@ const settingsGroups = computed<EditorNavigationGroup[]>(() => {
       id: 'about',
       label: 'About this post',
       items: [
+        {
+          id: 'photo',
+          label: 'Photo',
+          to: `${postPath.value}/photo`,
+          summary: featuredMedia.value ? (featuredMedia.value.kind === 'video' ? 'Video' : 'Image') : 'No photo',
+          placeholder: !featuredMedia.value,
+          previews: resolvedPrimaryImageUrl.value ? [resolvedPrimaryImageUrl.value] : undefined,
+        },
         row('category', 'Category', form.category),
         row('tags', 'Tags', tagsText.value, 'None'),
         {
@@ -355,10 +378,7 @@ const sectionLabel = computed(() => {
 })
 
 const resolvedPrimaryVideoUrl = computed<string | null>(() => {
-  if (resolvedPrimaryImageUrl.value) return null
-  const candidate = post.value?.media?.find(item => item.slot === 'featured')?.kind === 'video'
-      ? post.value.media?.find(item => item.slot === 'featured')?.public_url
-      : null
+  const candidate = featuredMedia.value?.kind === 'video' ? featuredMedia.value.public_url : null
   return typeof candidate === 'string' && candidate ? candidate : null
 })
 const resolvedPrimaryMediaUrl = computed(() => resolvedPrimaryImageUrl.value || resolvedPrimaryVideoUrl.value)
@@ -435,7 +455,7 @@ function applyLoadedPost(loaded: BlogPost) {
   try {
     syncServerVersion(loaded)
     post.value = loaded
-    Object.assign(form, { title: loaded.title, category: loaded.category || '', excerpt: loaded.excerpt || '', seo_title: loaded.seo_title || '', seo_description: loaded.seo_description || '', slug: loaded.slug || '', canonical_url: loaded.canonical_url || '', robots: loaded.robots || '', visibility: loaded.visibility || 'public', scheduled_for: toLocalDatetime(loaded.scheduled_for), redirect_old_slug: true })
+    Object.assign(form, { title: loaded.title, category: loaded.category || '', excerpt: loaded.excerpt || '', seo_title: loaded.seo_title || '', seo_description: loaded.seo_description || '', slug: loaded.slug || '', canonical_url: loaded.canonical_url || '', robots: loaded.robots || '', visibility: loaded.visibility || 'public', scheduled_for: toLocalDatetime(loaded.scheduled_for), redirect_old_slug: true, media: (loaded.media ?? []).filter(item => item.slot === 'featured') })
     slugResetRequested.value = false
     tagsText.value = loaded.tags?.join(', ') || ''
     publishTiming.value = loaded.scheduled_for ? 'Scheduled' : 'Now'
@@ -480,8 +500,25 @@ async function flushSave() {
     throw error
   }
 }
+function featuredMediaInput(): Array<{ asset_id: string, slot: 'featured' }> {
+  const asset = featuredMedia.value
+  return asset?.asset_id ? [{ asset_id: asset.asset_id, slot: 'featured' }] : []
+}
+function setFeaturedMedia(value: unknown) {
+  const asset = isRecord(value) ? value : null
+  const assetId = typeof asset?.asset_id === 'string' ? asset.asset_id : ''
+  form.media = assetId
+    ? [{
+        asset_id: assetId,
+        slot: 'featured',
+        public_url: typeof asset?.public_url === 'string' ? asset.public_url : null,
+        thumbnail_url: typeof asset?.thumbnail_url === 'string' ? asset.thumbnail_url : null,
+        kind: typeof asset?.kind === 'string' ? asset.kind : 'image',
+      }]
+    : []
+}
 function buildSaveSnapshot(id = persistedPostId.value): SaveSnapshot {
-  return { postId: id, payload: { title: form.title, category: form.category || null, tags: tagsText.value.split(',').map(v => v.trim()).filter(Boolean), excerpt: form.excerpt || null, seo_title: form.seo_title || null, seo_description: form.seo_description || null, slug: slugResetRequested.value ? null : form.slug !== post.value?.slug ? form.slug : undefined, reset_slug_override: slugResetRequested.value || undefined, redirect_old_slug: form.redirect_old_slug, canonical_url: form.canonical_url || null, robots: form.robots || null, visibility: form.visibility, content_blocks: cloneEditorBlocks(toRaw(blocks.value)) } }
+  return { postId: id, payload: { title: form.title, category: form.category || null, tags: tagsText.value.split(',').map(v => v.trim()).filter(Boolean), excerpt: form.excerpt || null, seo_title: form.seo_title || null, seo_description: form.seo_description || null, slug: slugResetRequested.value ? null : form.slug !== post.value?.slug ? form.slug : undefined, reset_slug_override: slugResetRequested.value || undefined, redirect_old_slug: form.redirect_old_slug, canonical_url: form.canonical_url || null, robots: form.robots || null, visibility: form.visibility, media: featuredMediaInput(), content_blocks: cloneEditorBlocks(toRaw(blocks.value)) } }
 }
 function lifecycleVersionInput() {
   if (!serverPostUpdatedAt) throw new Error('Blog lifecycle version is unavailable. Reload the editor.')
@@ -555,6 +592,7 @@ async function publish() {
         canonical_url: form.canonical_url || null,
         robots: form.robots || null,
         visibility: form.visibility,
+        media: featuredMediaInput(),
         scheduled_for: scheduledLifecycleValue(publishTiming.value, form.scheduled_for, 'UTC'),
       })
       applyLoadedPost(created)
