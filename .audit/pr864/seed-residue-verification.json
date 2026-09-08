@@ -1,0 +1,33 @@
+{
+  "verified_at": "2026-09-08T07:35:20.666Z",
+  "ncls": {
+    "content_blocks": 520,
+    "markdown": {
+      "blocks": 224,
+      "rich": 221,
+      "source": 3,
+      "violations": 0
+    },
+    "headings": {
+      "blocks": 212,
+      "formatting_remaining": 0
+    },
+    "content_block_residue": 0,
+    "machine_alt_text": 0,
+    "schedule": {
+      "type": "markdown",
+      "keys": [
+        "markdown",
+        "decoration",
+        "editor_mode"
+      ],
+      "markdown_sha256": "07163c9f78c942a79d11b12fee43b9f54a40b96d7a43c7ef56ce0004cdaabacf",
+      "media_placements": 1,
+      "media_slot": "decoration"
+    }
+  },
+  "all_seed_definitions": {
+    "machine_alt_text_literals": 0,
+    "generated_image_alt_key": false
+  }
+}

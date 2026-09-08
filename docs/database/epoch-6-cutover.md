@@ -20,7 +20,9 @@ in `migrations-archive/epoch-5`; its live production database remains rollback s
 | `krabiclaw-db-staging-epoch6-combined` | `bc837e8a-b103-42e8-aecb-2c715a156e8f` | Retained 53-table candidate; superseded by credit retirement |
 | `krabiclaw-db-staging-epoch6-retirement` | `880e144d-30c8-42a9-b11c-412df4d5ad00` | Retained retirement-only fixtures; superseded by editor-mode correction |
 | `krabiclaw-db-staging-epoch6-editor-mode` | `aa9db76b-b698-4c92-8cf3-c140321a064c` | Retained editor-mode candidate; superseded by publication-state schema |
-| `krabiclaw-db-staging-epoch6-publication` | `a19e76f9-44d2-45aa-9e94-eccbcfb1452e` | Qualified publication-state staging candidate; not deployed |
+| `krabiclaw-db-staging-epoch6-publication` | `a19e76f9-44d2-45aa-9e94-eccbcfb1452e` | Retained publication-state candidate; superseded by block reconciliation |
+| `krabiclaw-db-staging-epoch6-block-contract` | `0ba8814d-5cd2-4c19-915c-87598629829f` | Retained rejected candidate; added a block type contrary to the corrected owner contract; never deployed |
+| `krabiclaw-db-staging-epoch6-reconciled` | `b6505079-9408-475c-a669-420504165367` | Qualified final reconciled staging candidate; not deployed |
 | Existing configured preview | `d2f7a4a0-d6b8-493b-b484-8c0ead1ff83b` | Reset in place through the existing preview command |
 
 The generated baseline retains 52 tables. It removes the customer
@@ -191,3 +193,82 @@ violations. The remote re-export SHA-256 is
 `51501babc5ab68fd3ef4c2f8d7833f5fa8f4b70d1cdabe13ff7eb1762c49b73c`.
 Prior staging resources remain retained. No staging Worker deployment or
 post-start initialization has occurred for this candidate.
+
+The final block reconciliation follows the owner's corrected contract in
+[comment 5580658022](https://github.com/paulchrisluke/krabiclaw/pull/864#issuecomment-5580658022)
+and
+[comment 5580729953](https://github.com/paulchrisluke/krabiclaw/pull/864#issuecomment-5580729953):
+it adds no block type. The offline transfer adds the missing `editor_mode` to 48
+Markdown blocks, classifying 47 as rich and one as source; reclassifies 264 of
+the 268 legacy source-mode blocks; and normalizes 23 heading values, including
+seven escaped-punctuation cases. The target contains 316 Markdown blocks: 311
+rich and five source, with zero classifier violations.
+
+The same transfer removes obsolete JSON residue from 13 content blocks: five
+`legacy_type` keys, five duplicate `data.type` keys, and eight image `data.alt`
+keys, with overlapping changes counted once. The one flattened schedule row
+remains a Markdown block. Its existing `content` string becomes `markdown`
+byte-for-byte, its editor mode is derived by the shared classifier, its
+decoration placement is retained, and the unrelated flattened fields are
+deleted. The preserved Markdown string has SHA-256
+`07163c9f78c942a79d11b12fee43b9f54a40b96d7a43c7ef56ce0004cdaabacf`.
+The transfer also sets 144 machine-key media alt text values to `NULL` under
+the exact owner predicate and preserves the other 197 alt text values. PR #864
+applies this data reconciliation before PR #868 enables its per-block writer and
+renderer enforcement. `client:verify` must continue to fail when client media
+lacks real descriptions until the media-pipeline work supplies them; neither
+transfer nor fixture preparation infers descriptions from filenames or machine
+keys. The verified production rehearsal retains 52 tables and 42,429 rows, with exact
+projection checks, clean foreign keys and integrity, and zero violations across
+all nine domain invariants. Its source export SHA-256 is
+`03ca012a59b10cde0c812670d286536cab04ff8b58bb8922187a90d0305ac8e0`;
+the generated baseline SHA-256 is
+`6caaf8aa51cd49168b22723f2a29a431357c5388caf2836647cba6be0da4adba`.
+
+The final fixture candidate is
+`krabiclaw-db-staging-epoch6-reconciled`,
+`b6505079-9408-475c-a669-420504165367`. Its isolated checkout captured
+`245f1f2be51a1cd75b8fc588cedee25281fb5199` plus tracked working-tree patch
+SHA-256
+`03b17b4bb2713c02d7f501a0ef58c9479b8e47491e77ed3d441e08fc0e811c8c`.
+Pinned Node 24.18.1 immutable installation, canonical `e2e:local:prepare`, and
+`fixtures:verify:local` passed before export. Before import, Cloudflare returned
+the exact candidate name and ID, and the resource had no application objects.
+The generated baseline then created 52 empty tables, one migration-ledger entry,
+clean foreign keys and integrity, and zero violations across all nine domain
+invariants. A second identity, binding, and zero-row check passed immediately
+before the data-only import.
+
+The imported remote re-export matches all 2,816 fixture rows across all 52
+tables, including baseline schema, columns and storage types, per-table row
+counts, and logical hashes. It contains 283 Markdown blocks (280 rich and three
+source), 251 plain headings, no invalid editor modes, no block residue, no
+machine-key alt text values, and the exact preserved schedule Markdown and
+decoration placement. The remote export SHA-256 is
+`40269f90eac48038ef6d1cb70f727228aa69d4248229c16c5d1f125678a7c46e`.
+The earlier publication and rejected block-type candidates remain retained and
+undeployed. Only the `env.staging` binding changed. No staging Worker deployment,
+post-start initialization, production export, production mutation, or production
+binding change occurred during this preparation.
+
+Seven application-only files changed after the candidate snapshot: `yarn.lock`,
+`composables/useAuth.ts`, `composables/useDashboardInvalidations.ts`,
+`layouts/dashboard.vue`, and the three admin pages. They deduplicate the Vue
+runtime, wait for Better Auth's session signal, and clear the prior tenant's
+realtime scope synchronously during impersonation exit. They do not change the
+candidate's fixtures, schema, transfer logic or Markdown classifier. Quality and
+typecheck, 185 unit tests, 23 real D1 tests, 17 migration tests, and the catalog,
+submission and contract checks pass after this follow-up. The retained browser
+suite passed 90 cases with one HTTPS-only skip and no retries on build
+`81b26fb7-9376-43e4-9ef2-e28d5d0bb007`. A fresh 16-case affected public-route
+run and all 23 corrected-heading HTTP checks passed on final build
+`ab22e07e-d138-4e94-bac3-30a36031bef1`. The normal CMS workflow passed its strict
+console and network gate without socket-warning exemptions on build
+`bb52bb9e-51b2-4843-be1d-561ece4ad3a4`. It saved and reloaded the edit, restored
+the exact original block-data hash, completed the real Exit-to-Admin transition,
+created no socket after stop began, and preserved the public schedule content.
+Both rapid-exit probes passed. The pointer path closed an open socket without a
+warning. The keyboard path deliberately closed one tracked socket while it was
+still connecting and observed exactly its correlated browser-native cancellation
+warning, with no post-stop connection and no other console, network or HTTP
+failure. These application checks are not part of the database-candidate proof.

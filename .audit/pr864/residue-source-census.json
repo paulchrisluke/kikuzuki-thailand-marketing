@@ -1,0 +1,170 @@
+{
+  "blocks": [
+    {
+      "id": "migrated-tenant-page-block:migrated-tenant-page-variant:page_ncls_about:en:component:1",
+      "document": "page_ncls_about",
+      "type": "feature_grid",
+      "shape": {
+        "type": "string",
+        "features": "array",
+        "people": "array",
+        "legacy_type": "string"
+      }
+    },
+    {
+      "id": "migrated-tenant-page-block:migrated-tenant-page-variant:page_ncls_contact:en:component:1",
+      "document": "page_ncls_contact",
+      "type": "contact_cta",
+      "shape": {
+        "type": "string",
+        "title": "string",
+        "description": "string",
+        "cardsContent": "array",
+        "legacy_type": "string"
+      }
+    },
+    {
+      "id": "migrated-tenant-page-block:migrated-tenant-page-variant:page_ncls_privacy:en:component:1",
+      "document": "page_ncls_privacy",
+      "type": "callout",
+      "shape": {
+        "type": "string",
+        "updated_at": "null",
+        "legacy_type": "string"
+      }
+    },
+    {
+      "id": "migrated-tenant-page-block:migrated-tenant-page-variant:page_ncls_schedule:en:component:1",
+      "document": "page_ncls_schedule",
+      "type": "markdown",
+      "shape": {
+        "type": "string",
+        "content": "string",
+        "title": "string",
+        "description": "string",
+        "prepTitle": "string",
+        "prepItems": "array",
+        "expectationsTitle": "string",
+        "expectationItems": "array",
+        "detailsTitle": "string",
+        "detailsText": "string",
+        "trustTitle": "string",
+        "trustText": "string",
+        "noticeTitle": "string",
+        "notice": "string",
+        "buttonText": "string",
+        "buttonUrl": "string",
+        "decoration": "object",
+        "legacy_type": "string"
+      }
+    },
+    {
+      "id": "migrated-tenant-page-block:migrated-tenant-page-variant:page_ncls_schedule:en:component:4",
+      "document": "page_ncls_schedule",
+      "type": "booking_cta",
+      "shape": {
+        "type": "string",
+        "title": "string",
+        "description": "string",
+        "priceLine": "string",
+        "notice": "string",
+        "buttonText": "string",
+        "buttonUrl": "string",
+        "background": "object",
+        "legacy_type": "string"
+      }
+    },
+    {
+      "id": "migrated-site-content-block:sc-e9e906c0-d6f4-4769-aa4a-197cc340bb60:migrated-tenant-page-variant:migrated-site-content:1bddfa82-f7dd-4ea9-a05f-b2fee6d1f895:about:en",
+      "document": "migrated-site-content:1bddfa82-f7dd-4ea9-a05f-b2fee6d1f895:about",
+      "type": "image",
+      "shape": {
+        "field": "string",
+        "alt": "string",
+        "asset_id": "string"
+      }
+    },
+    {
+      "id": "migrated-site-content-block:sc-demo-story-image:migrated-tenant-page-variant:migrated-site-content:site-demo:about:en",
+      "document": "migrated-site-content:site-demo:about",
+      "type": "image",
+      "shape": {
+        "field": "string",
+        "alt": "string",
+        "asset_id": "string"
+      }
+    },
+    {
+      "id": "migrated-site-content-block:sc-kiku-story-image:migrated-tenant-page-variant:migrated-site-content:site-kikuzuki:about:en",
+      "document": "migrated-site-content:site-kikuzuki:about",
+      "type": "image",
+      "shape": {
+        "field": "string",
+        "alt": "string",
+        "asset_id": "string"
+      }
+    },
+    {
+      "id": "migrated-site-content-block:sc-kiku-home-story-image:migrated-tenant-page-variant:migrated-site-content:site-kikuzuki:home:en",
+      "document": "migrated-site-content:site-kikuzuki:home",
+      "type": "image",
+      "shape": {
+        "field": "string",
+        "alt": "string",
+        "asset_id": "string"
+      }
+    },
+    {
+      "id": "migrated-site-content-block:sc-ph-story-image:migrated-tenant-page-variant:migrated-site-content:site-pottery-house:about:en",
+      "document": "migrated-site-content:site-pottery-house:about",
+      "type": "image",
+      "shape": {
+        "field": "string",
+        "alt": "string",
+        "asset_id": "string"
+      }
+    },
+    {
+      "id": "migrated-site-content-block:content::org-user-pottery-house::site-pottery-house::site::home::story.image:migrated-tenant-page-variant:migrated-site-content:site-pottery-house:home:en",
+      "document": "migrated-site-content:site-pottery-house:home",
+      "type": "image",
+      "shape": {
+        "field": "string",
+        "alt": "string",
+        "asset_id": "string"
+      }
+    },
+    {
+      "id": "5add67ef-ccd8-4d1d-899e-b8576a9fbaae",
+      "document": "eab5ee2d-8fab-470e-b387-bc0534663f91",
+      "type": "image",
+      "shape": {
+        "field": "string",
+        "alt": "string"
+      }
+    },
+    {
+      "id": "7ae2ba51-ffe5-41da-b62e-3f830dcb99e6",
+      "document": "438e0788-121f-4edf-bc4d-e59ee96ac40c",
+      "type": "image",
+      "shape": {
+        "field": "string",
+        "alt": "string"
+      }
+    }
+  ],
+  "alt": [
+    {
+      "subdomain": "kikuzuki-krabi-thailand",
+      "count": 1
+    },
+    {
+      "subdomain": "ncls",
+      "count": 142
+    },
+    {
+      "subdomain": "pottery-house",
+      "count": 1
+    }
+  ]
+}

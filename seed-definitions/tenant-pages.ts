@@ -1,3 +1,5 @@
+import { editorModeFor } from '../shared/markdown-editor-mode.ts'
+
 export interface SeedTenantPageRow {
   id: string
   page: string
@@ -75,7 +77,7 @@ function blockData(page: string, rows: SeedTenantPageRow[], sourceRows = rows) {
   for (const row of rows) {
     if (row.field === 'hero' || row.field.startsWith('cta.')) continue
     if (row.media.length) {
-      blocks.push({ id: `${row.id}-block-image`, type: 'image', position: blocks.length, data: { alt: row.field, field: row.field }, media: row.media })
+      blocks.push({ id: `${row.id}-block-image`, type: 'image', position: blocks.length, data: { field: row.field }, media: row.media })
       continue
     }
     if (!row.content?.trim()) continue
@@ -84,7 +86,7 @@ function blockData(page: string, rows: SeedTenantPageRow[], sourceRows = rows) {
       id: `${row.id}-block-content`,
       type: isHeading ? 'heading' : 'markdown',
       position: blocks.length,
-      data: isHeading ? { text: row.content, level: 2, field: row.field } : { markdown: row.content, field: row.field },
+      data: isHeading ? { text: row.content, level: 2, field: row.field } : { markdown: row.content, editor_mode: editorModeFor(row.content), field: row.field },
       media: [],
     })
   }

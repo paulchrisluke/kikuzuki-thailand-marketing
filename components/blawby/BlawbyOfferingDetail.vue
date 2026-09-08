@@ -132,12 +132,6 @@ const gallery = computed(() => {
 const activeFeatureItem = computed(() => offering.value.features[activeFeature.value] ?? null)
 const activeFeatureMedia = computed(() => offering.value.media.find(item => item.slot === `features.${activeFeature.value}.image`)?.public_url ?? null)
 const heroMedia = computed(() => offering.value.media.find(item => item.slot === 'hero') ?? offering.value.media.find(item => item.slot === 'thumbnail') ?? null)
-function pageBlock(type: string) {
-  const page = props.routeData.page
-  if (!page) return null
-  const canonicalType = type === 'services_intro' ? 'offering_grid' : type === 'consultation_cta' ? 'contact_cta' : type === 'qa' ? 'faq' : undefined
-  return findTenantPageBlock(page.blocks, type, canonicalType)
-}
 function optionalString(value: unknown) {
   return typeof value === 'string' && value ? value : null
 }
@@ -146,9 +140,9 @@ function mediaUrl(value: ApiRecord | null | undefined, slot: string) {
   const item = media?.find((candidate: unknown) => candidate && typeof candidate === 'object' && (candidate as ApiRecord).slot === slot) as ApiRecord | undefined
   return typeof item?.public_url === 'string' ? item.public_url : null
 }
-const servicesBlock = computed(() => pageBlock('services_intro'))
-const ctaBlock = computed(() => pageBlock('consultation_cta'))
-const qaBlock = computed(() => pageBlock('qa'))
+const servicesBlock = computed(() => props.routeData.page ? findTenantPageBlock(props.routeData.page.blocks, 'offering_grid') : null)
+const ctaBlock = computed(() => props.routeData.page ? findTenantPageBlock(props.routeData.page.blocks, 'contact_cta') : null)
+const qaBlock = computed(() => props.routeData.page ? findTenantPageBlock(props.routeData.page.blocks, 'faq') : null)
 const offeringQa = computed<PublicSiteQa[]>(() => offering.value.faqs.map((faq, index) => ({
   id: `${offering.value.id}-faq-${index}`,
   question: faq.question,

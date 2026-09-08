@@ -1,0 +1,175 @@
+{
+  "expectedBuild": "ab22e07e-d138-4e94-bac3-30a36031bef1",
+  "socketLifecycle": [
+    {
+      "id": 1,
+      "action": "created",
+      "timeOrigin": 1788855729722,
+      "time": 1130.1000000238419,
+      "utc": "2026-09-08T08:22:10.852Z",
+      "state": 0
+    },
+    {
+      "id": 1,
+      "action": "close called",
+      "timeOrigin": 1788855729722,
+      "time": 1141.5,
+      "utc": "2026-09-08T08:22:10.863Z",
+      "state": 0,
+      "code": 1000,
+      "reason": "Dashboard scope changed",
+      "stack": "Error\n    at window.WebSocket.close (<anonymous>:26:48)\n    at O (http://localhost:3000/_nuxt/DlBae1eS2.js:1:2309)\n    at Ge (http://localhost:3000/_nuxt/BYkCFTAg.js:4:1931)\n    at j (http://localhost:3000/_nuxt/BYkCFTAg.js:4:1998)\n    at Dt.c.call (http://localhost:3000/_nuxt/BYkCFTAg.js:4:5809)\n    at Ge.w [as scheduler] (http://localhost:3000/_nuxt/DwWMK4tJ.js:1:24929)\n    at Ge.trigger (http://localhost:3000/_nuxt/DwWMK4tJ.js:1:10523)\n    at Ye (http://localhost:3000/_nuxt/DwWMK4tJ.js:1:10919)\n    at z (http://localhost:3000/_nuxt/DwWMK4tJ.js:1:14322)\n    at St.set (http://localhost:3000/_nuxt/DwWMK4tJ.js:1:18010)"
+    },
+    {
+      "id": 1,
+      "action": "error",
+      "timeOrigin": 1788855729722,
+      "time": 1147.2000000178814,
+      "utc": "2026-09-08T08:22:10.869Z",
+      "state": 3
+    },
+    {
+      "id": 1,
+      "action": "close called",
+      "timeOrigin": 1788855729722,
+      "time": 1147.300000011921,
+      "utc": "2026-09-08T08:22:10.869Z",
+      "state": 3,
+      "stack": "Error\n    at window.WebSocket.close (<anonymous>:26:48)\n    at window.WebSocket.<anonymous> (http://localhost:3000/_nuxt/DlBae1eS2.js:1:2260)"
+    },
+    {
+      "id": 1,
+      "action": "closed",
+      "timeOrigin": 1788855729722,
+      "time": 1147.4000000059605,
+      "utc": "2026-09-08T08:22:10.869Z",
+      "state": 3,
+      "code": 1006,
+      "reason": ""
+    },
+    {
+      "id": 2,
+      "action": "created",
+      "timeOrigin": 1788855729722,
+      "time": 1199.1000000238419,
+      "utc": "2026-09-08T08:22:10.921Z",
+      "state": 0
+    },
+    {
+      "id": 2,
+      "action": "opened",
+      "timeOrigin": 1788855729722,
+      "time": 1570.4000000059605,
+      "utc": "2026-09-08T08:22:11.292Z",
+      "state": 1
+    },
+    {
+      "id": 1,
+      "action": "created",
+      "timeOrigin": 1788855732131.7,
+      "time": 249.90000000596046,
+      "utc": "2026-09-08T08:22:12.381Z",
+      "state": 0
+    },
+    {
+      "id": 1,
+      "action": "opened",
+      "timeOrigin": 1788855732131.7,
+      "time": 587.1999999880791,
+      "utc": "2026-09-08T08:22:12.718Z",
+      "state": 1
+    },
+    {
+      "id": 1,
+      "action": "created",
+      "timeOrigin": 1788855732972.9,
+      "time": 310.60000002384186,
+      "utc": "2026-09-08T08:22:13.283Z",
+      "state": 0
+    },
+    {
+      "id": 1,
+      "action": "close called",
+      "timeOrigin": 1788855732972.9,
+      "time": 585.8000000119209,
+      "utc": "2026-09-08T08:22:13.558Z",
+      "state": 0,
+      "code": 1000,
+      "reason": "Dashboard scope changed",
+      "stack": "Error\n    at window.WebSocket.close (<anonymous>:26:48)\n    at O (http://localhost:3000/_nuxt/DlBae1eS2.js:1:2309)\n    at Ge (http://localhost:3000/_nuxt/BYkCFTAg.js:4:1931)\n    at j (http://localhost:3000/_nuxt/BYkCFTAg.js:4:1998)\n    at Dt.c.call (http://localhost:3000/_nuxt/BYkCFTAg.js:4:5809)\n    at Ge.w [as scheduler] (http://localhost:3000/_nuxt/DwWMK4tJ.js:1:24929)\n    at Ge.trigger (http://localhost:3000/_nuxt/DwWMK4tJ.js:1:10523)\n    at Ye (http://localhost:3000/_nuxt/DwWMK4tJ.js:1:10919)\n    at P.notify (http://localhost:3000/_nuxt/DwWMK4tJ.js:1:13458)\n    at P.trigger (http://localhost:3000/_nuxt/DwWMK4tJ.js:1:13352)"
+    },
+    {
+      "id": 1,
+      "action": "error",
+      "timeOrigin": 1788855732972.9,
+      "time": 596.7000000178814,
+      "utc": "2026-09-08T08:22:13.569Z",
+      "state": 3
+    },
+    {
+      "id": 1,
+      "action": "close called",
+      "timeOrigin": 1788855732972.9,
+      "time": 596.8000000119209,
+      "utc": "2026-09-08T08:22:13.569Z",
+      "state": 3,
+      "stack": "Error\n    at window.WebSocket.close (<anonymous>:26:48)\n    at window.WebSocket.<anonymous> (http://localhost:3000/_nuxt/DlBae1eS2.js:1:2260)"
+    },
+    {
+      "id": 1,
+      "action": "closed",
+      "timeOrigin": 1788855732972.9,
+      "time": 597,
+      "utc": "2026-09-08T08:22:13.570Z",
+      "state": 3,
+      "code": 1006,
+      "reason": ""
+    },
+    {
+      "id": 2,
+      "action": "created",
+      "timeOrigin": 1788855732972.9,
+      "time": 709.3000000119209,
+      "utc": "2026-09-08T08:22:13.682Z",
+      "state": 0
+    },
+    {
+      "id": 2,
+      "action": "close called",
+      "timeOrigin": 1788855732972.9,
+      "time": 709.5,
+      "utc": "2026-09-08T08:22:13.682Z",
+      "state": 0,
+      "code": 1000,
+      "reason": "Dashboard scope changed",
+      "stack": "Error\n    at window.WebSocket.close (<anonymous>:26:48)\n    at O (http://localhost:3000/_nuxt/DlBae1eS2.js:1:2309)\n    at Ge (http://localhost:3000/_nuxt/BYkCFTAg.js:4:1931)\n    at j (http://localhost:3000/_nuxt/BYkCFTAg.js:4:1998)\n    at Dt.c.call (http://localhost:3000/_nuxt/BYkCFTAg.js:4:5809)\n    at Ge.w [as scheduler] (http://localhost:3000/_nuxt/DwWMK4tJ.js:1:24929)\n    at Ge.trigger (http://localhost:3000/_nuxt/DwWMK4tJ.js:1:10523)\n    at Ye (http://localhost:3000/_nuxt/DwWMK4tJ.js:1:10919)\n    at P.notify (http://localhost:3000/_nuxt/DwWMK4tJ.js:1:13458)\n    at P.trigger (http://localhost:3000/_nuxt/DwWMK4tJ.js:1:13352)"
+    },
+    {
+      "id": 2,
+      "action": "error",
+      "timeOrigin": 1788855732972.9,
+      "time": 715,
+      "utc": "2026-09-08T08:22:13.688Z",
+      "state": 3
+    },
+    {
+      "id": 2,
+      "action": "close called",
+      "timeOrigin": 1788855732972.9,
+      "time": 715.2000000178814,
+      "utc": "2026-09-08T08:22:13.688Z",
+      "state": 3,
+      "stack": "Error\n    at window.WebSocket.close (<anonymous>:26:48)\n    at window.WebSocket.<anonymous> (http://localhost:3000/_nuxt/DlBae1eS2.js:1:2260)"
+    },
+    {
+      "id": 2,
+      "action": "closed",
+      "timeOrigin": 1788855732972.9,
+      "time": 715.2000000178814,
+      "utc": "2026-09-08T08:22:13.688Z",
+      "state": 3,
+      "code": 1006,
+      "reason": ""
+    }
+  ]
+}

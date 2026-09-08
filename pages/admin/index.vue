@@ -89,7 +89,7 @@ interface AdminSite { id: string; slug: string; name: string; subdomain: string 
 interface AdminOrganization { id: string; name: string; slug: string | null; impersonationUserId: string | null; sites: AdminSite[] }
 
 const toast = useToast()
-const { refreshSession } = useAuth()
+const { waitForSession } = useAuth()
 const organizations = ref<AdminOrganization[]>([])
 const loading = ref(true)
 const search = ref('')
@@ -126,7 +126,7 @@ async function enterOrganization(organization: AdminOrganization) {
     const { authClient } = await import('~/lib/auth-client')
     const result = await authClient.admin.impersonateUser({ userId: organization.impersonationUserId })
     if (result.error) throw new Error(result.error.message)
-    await refreshSession()
+    await waitForSession(result.data.session.id)
     await navigateTo(`/dashboard/${organization.slug}`)
   } catch {
     toast.add({ title: 'Failed to enter organization workspace', color: 'error' })
