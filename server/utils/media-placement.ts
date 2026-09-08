@@ -14,7 +14,7 @@ import {
   type StoredMediaPlacementItem,
 } from '~/server/utils/media-asset-manager'
 import { isEditableMediaPlacement, isEditableMediaPlacementOwnerType, type EditableMediaPlacementOwnerType, type MediaPlacementOwnerType } from '~/shared/media-placement-contract'
-import { refreshSocialCard, refreshSiteBrandSocialCards, socialCardRefreshOwnersForPlacement } from '~/server/utils/social-card'
+import { refreshSocialCard, socialCardRefreshOwnersForPlacement } from '~/server/utils/social-card'
 
 export { EDITABLE_MEDIA_PLACEMENT_OWNERS } from '~/shared/media-placement-contract'
 export type MediaPlacementItem = StoredMediaPlacementItem
@@ -177,10 +177,6 @@ async function refreshSocialCardForPlacement(db: DbClient, input: {
   placement: MediaPlacementKey
 }) {
   try {
-    if (input.placement.owner_type === 'site' && input.placement.slot === 'logo') {
-      await refreshSiteBrandSocialCards({ db, env: input.env, siteId: input.siteId })
-      return
-    }
     const owners = await socialCardRefreshOwnersForPlacement(db, input.placement)
     for (const owner of owners) await refreshSocialCard({ db, env: input.env, owner })
   } catch (error) {
