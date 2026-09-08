@@ -21,6 +21,7 @@ const RECIPES = new Set<BlawbyRouteRecipe>(BLAWBY_ROUTE_RECIPES)
 const SLUG_PATTERN = /^[a-z0-9_-]+$/
 
 export interface PublicBlawbyDocumentLoadOptions {
+  token?: string
   slug?: string | null
   locale?: string
   mutateResponseHeaders?: boolean
@@ -61,7 +62,7 @@ export async function loadPublicBlawbyDocument(
 
   const host = event.req.headers.get('host') ?? ''
   const cache = env.SITE_CACHE
-  const useCache = !isPreviewContext(host) && Boolean(cache)
+  const useCache = options.token === undefined && !isPreviewContext(host) && Boolean(cache)
   const cacheKey = buildPublicBlawbyDocumentCacheKey(siteId, recipe, slug, locale)
   const mutateResponseHeaders = options.mutateResponseHeaders ?? true
 
@@ -99,7 +100,7 @@ export async function loadPublicBlawbyDocument(
   }
 
   const loadStartedAt = performance.now()
-  const payload = await resolvePublicBlawbyDocumentOrThrow(db, siteId, recipe, { slug, locale }, env)
+  const payload = await resolvePublicBlawbyDocumentOrThrow(db, siteId, recipe, { slug, locale, token: options.token }, env)
   recordRequestPhase(event, 'document', loadStartedAt)
   options.signal?.throwIfAborted()
 

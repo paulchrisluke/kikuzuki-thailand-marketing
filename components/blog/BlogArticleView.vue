@@ -47,6 +47,7 @@
 </template>
 
 <script setup lang="ts">
+import { formatTimestamp } from '~/utils/timezone'
 import type { BlogEditorBlock } from '~/lib/components/workspace/blog/types'
 
 const props = withDefaults(defineProps<{
@@ -72,7 +73,7 @@ defineEmits<{ 'update:title': [value: string]; 'update:block': [index: number, b
 
 const authorInitials = computed(() => String(props.authorName || props.siteName || 'A').split(/\s+/).map(part => part[0]).join('').slice(0, 2).toUpperCase())
 const normalizedBlocks = computed(() => props.blocks ?? [])
-function formatDate(value: string) { return new Intl.DateTimeFormat('en-US', { dateStyle: 'long', timeZone: 'UTC' }).format(new Date(value)) }
+function formatDate(value: string) { return formatTimestamp(value, 'en', 'UTC', { dateStyle: 'medium' }) }
 </script>
 
 <style scoped>

@@ -193,7 +193,7 @@ export async function handleMediaTools(ctx: McpExecutorContext): Promise<unknown
         thumbnail_url: uploaded.thumbnailUrl,
         kind: resolved.kind,
         next_step: resolved.kind === "file"
-          ? "Upload complete. Call analyze_document with this asset_id to summarize it or answer questions grounded in it."
+          ? "Upload complete. This file is in the media library."
           : "Upload complete. This asset is in the media library but not assigned yet. Call set_media with this asset_id and the desired target.",
         context,
       };
@@ -226,18 +226,6 @@ export async function handleMediaTools(ctx: McpExecutorContext): Promise<unknown
         site.userId,
       );
       return { deleted: true, context };
-    }
-    case "analyze_document": {
-      const { analyzeDocumentAsset } =
-        await import("~/server/utils/chowbot-media");
-      return await analyzeDocumentAsset(site.db, site.env as never, {
-        organizationId: site.organizationId,
-        siteId: site.siteId,
-        userId: site.userId,
-        assetId: requiredString(args, "asset_id"),
-        sessionId: site.sessionId,
-        question: optionalString(args, "question") ?? undefined,
-      });
     }
     default:
       return NOT_HANDLED

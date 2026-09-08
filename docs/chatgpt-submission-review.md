@@ -1,5 +1,103 @@
 # ChatGPT submission readiness review
 
+## Provider and credit retirement, September 7
+
+The current registry has 96 tools, with 95 exposed by default. Compared with
+submitted source `0c51d393`, `analyze_document` and `import_products_from_media`
+are removed, no tools are added, and 35 retained tools have changed input or
+output schemas. Every retained registry tool has an output schema. The generated
+submission contains five positive and three negative reviewer cases.
+
+Internal document analysis and product extraction are deleted. Supported media
+uploads and explicit product writes remain. `sync_products` marks omitted
+products unavailable only when `set_missing_unavailable === true`; omission
+alone does not change availability. `import_from_maps` reads Google Places and
+no longer charges credits. Its annotations declare a read and external access.
+
+Canonical catalog and submission generation/check commands pass. Local runtime
+verification passed 70 browser cases, including retained media/product writes,
+tenant authorization, OAuth discovery, PKCE, refresh rotation and UserInfo.
+The ChatGPT-shaped `private_key_jwt` case requires HTTPS and was skipped locally;
+this run does not prove that host flow. Authenticated discovery omits both
+retired tools, calling either returns an unknown-tool error, and all five
+retired HTTP routes return 404. Production verification remains pending.
+
+The older sections below preserve earlier audits and release evidence. Their
+counts and verification totals describe those checkpoints, not this candidate.
+The owner handles portal resubmission after production qualification.
+
+## Epoch 6 date/time contract — 2026-09-07
+
+The owner has cancelled the existing ChatGPT app review and will handle the next
+submission after production qualification. Release contributors own current
+tooling, generated artifacts and deployed MCP verification, not portal resubmission.
+
+The expanded PR standardizes persisted application instants as UTC with
+millisecond precision. MCP date, scheduling and price-validity schemas now use
+the same validation primitives as the shared domain. Explicit offsets are
+required for instants; invalid calendar dates and ambiguous local booking times
+fail. Civil dates and wall times remain distinct from instants. Customer booking
+and review timestamp summaries are deleted from storage and runtime code.
+
+Before provider retirement, the date/time candidate retained 98 tool names,
+with 97 exposed by default; 35 tools differed in input or output schema from
+submitted source `0c51d393`. The retirement counts above supersede this checkpoint.
+Tool names alone cannot
+show compatibility: input validation and output shapes are part of the public
+MCP contract. Rescan and resubmit after the corrected production endpoint is
+verified. No compatibility fields or permissive legacy date readers are retained.
+
+Local qualification includes 189 unit tests, 24 real D1 tests, 9 migration/epoch
+CLI tests, and the affected MCP/public/guest browser workflows. The corrected
+browser run passed 27 of 28 cases; fixing the confirmation page's fabricated
+offsetless timestamp then passed all four guest journeys. Quality checks pass.
+Local CodeRabbit identified the preset loading state and missing trial-end
+propagation; both are fixed. Billing projection and reconciliation now share the
+same access/expiry calculation, with a separate provider paid-invoice comparison
+to detect stale payment evidence. Real D1 coverage verifies trial, paid and grace
+expiry sources and missing-date behavior. Remote release qualification is pending.
+
+The consolidated CMS/demo candidate additionally passed 39 affected runtime journeys,
+then all 32 rendering/navigation/localization cases with the final diagnostics
+(including ten new Thai demo routes). CI run `34110539544` on pre-consolidation
+`929ab2f6` failed six generic hydration checks and one 30-second localization test.
+The final build preserves Vue mismatch details; the CMS test logs request timings
+and correlation IDs and has a 60-second whole-journey budget backed by observed
+remote timings. Local success does not resolve the remote hydration cause. The
+combined preview must pass before staging or production promotion.
+
+## Epoch 5 contract correction — 2026-09-07
+
+The portal shows version 1.0.0 in Review. The September 6 submission source
+(`0c51d393`) and Epoch 5 main (`f7e2d899`) retain all 98 registry tool names
+(97 exposed by default), but 28 tools changed input or output schemas.
+Posts, hours, experience schedules, media ownership, localization, concurrency
+arguments, booking statuses, and primary-location projections changed. The
+submitted metadata must be rescanned after the corrected release reaches
+production; unchanged tool names do not establish contract compatibility.
+
+The correction removes obsolete `document_updated_at` from the shared blog
+output schema, leaving the canonical `updated_at` token. Booking transitions
+advertise `openWorldHint: true` and disclose guest confirmation/cancellation
+emails. Location notification-phone metadata states that site-wide recipients
+are configured independently; it no longer promises a fallback. The existing
+page-edit verification script now supplies `expected_updated_at`.
+
+Both generated artifacts were regenerated through the canonical commands.
+Local validation passed quality, 187 unit tests, 23 D1 integration tests,
+8 migration integration tests, catalog/submission checks, schema drift,
+migration and seed guards, and 13 MCP content/owner Playwright workflows against
+the production Worker build. The existing blog workflow now validates the real
+response against its authenticated `tools/list` output schema.
+
+Release and portal work remain pending. After production verification, cancel
+the current review, rescan the same version draft, import the current submission
+artifact, review the changed metadata and reviewer cases, and resubmit. Do not
+restore retired fields or owner aliases for the old snapshot. This MCP check
+does not establish completion of the broader #829 release checklist.
+
+The September 6 review below is historical evidence, not the current portal status.
+
 Reviewed 2026-09-06 against `origin/main` commit `002f289c` in branch `codex/chatgpt-app-submission`.
 
 **Status: approved source changes implemented; portal submission remains pending.** Removed `create_site`, `create_location`, `delete_location`, and `copy_location_batch` from the MCP registry and dispatcher. Deleted the MCP-only location-overwrite helper. Retained media and experience deletion as requested. CMS creation/deletion handlers and their canonical domain operations remain available.
@@ -12,7 +110,7 @@ The regenerated JSON covers 97 default tools, five positive cases, and three neg
 
 The generator now describes existing-site management and sends business setup/deletion requests to the CMS. Positive scenarios require explicit site/location selection; the product synchronization case supplies the full intended list; the post case previews copy in chat before calling the immediately publishing `create_post`. Negative scenarios cover site creation, location duplication, and location deletion.
 
-The generator now requires an explicit reviewed effect for each exposed tool and records credit consumption, external processing, public storage, cascading deletions, and customer-data access. Newly exposed tools without an effect entry fail regeneration. Schema validation does not prove authenticated production readiness.
+The generator now requires an explicit reviewed effect for each exposed tool and records public storage, cascading deletions, and customer-data access. Newly exposed tools without an effect entry fail regeneration. Schema validation does not prove authenticated production readiness.
 
 ## Browser draft findings
 
@@ -37,7 +135,7 @@ Category: **Business**
 
 Description:
 
-> Manage your KrabiClaw business website from ChatGPT. Choose a site and location, edit products and experiences, publish announcements and blog articles, update page content and translations, and upload or assign media. Review customer inquiries and experience bookings from your connected workspace. Publishing and content changes can appear on your public website. Some imports and document analysis use AI credits. A KrabiClaw account with access to the selected business is required.
+> Manage your KrabiClaw business website from ChatGPT. Choose a site and location, edit products and experiences, publish announcements and blog articles, update page content and translations, and upload or assign media. Review customer inquiries and experience bookings from your connected workspace. Publishing and content changes can appear on your public website. A KrabiClaw account with access to the selected business is required.
 
 Review this copy against the final deployed catalog and reviewer account before importing it.
 
@@ -45,7 +143,7 @@ Review this copy against the final deployed catalog and reviewer account before 
 
 - **Sensitive input solicitation:** a field-name scan of the canonical input schemas found no password, API secret, SSN, passport, biometric, credit-card, or MFA fields. This is a supporting scan, not a complete privacy/security audit. The page-replacement `confirmation_token` is an application confirmation value, not an authentication secret.
 - **Customer data:** `get_contact_inquiries`, `get_reservation_inquiries`, `list_experience_bookings`, `list_all_experience_bookings`, and `update_experience_booking` expose customer contact/booking information. Their descriptions acknowledge that data. The final privacy review and tests must cover authorized access and prevent cross-tenant/location disclosure.
-- **Attachments and external processing:** `upload_user_media` persists files and returns public media URLs. `analyze_document` sends supported document content to the configured AI service and charges credits. `import_products_from_media` sends an image/PDF to AI, charges credits, and persists extracted products. Justifications and reviewer scenarios need to describe these differences accurately. Avoid using private customer documents in reviewer fixtures.
+- **Attachments and external processing:** `upload_user_media` persists files and returns public media URLs. Internal document analysis and AI product extraction are retired. Avoid using private customer documents in reviewer fixtures.
 - **Naming/descriptions:** The misleading location-creation tool and its overwrite branch have been removed. The saved portal listing still needs correction as noted above.
 - **Widget CSP:** the current tenant endpoint returns an empty resource list, rejects resource reads, and does not emit a widget resource URI in `tools/list`. No tenant widget CSP is exposed to audit; do not claim that a widget UI has passed testing.
 - **Output schemas:** every tool in the committed canonical tenant schema snapshot has an `outputSchema`. Presence is not proof that real results conform; authenticated runtime validation remains outstanding.

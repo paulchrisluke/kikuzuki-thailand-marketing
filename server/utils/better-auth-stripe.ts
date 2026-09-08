@@ -2,7 +2,7 @@ import type Stripe from 'stripe'
 import type { StripePlan } from '@better-auth/stripe'
 import { execute, executeBatch, queryFirst, type DbClient } from '~/server/db'
 import { getPlanEntitlements, type EntitlementsMap } from '~/server/utils/billing-entitlements'
-import { getEffectiveAccessPlan, PAST_DUE_GRACE_PERIOD_MS } from '~/server/utils/billing-access'
+import { getSubscriptionAccess } from '~/server/utils/billing-access'
 import { betterAuthTimestampToIso } from '~/server/utils/better-auth-timestamps'
 import {
   isKnownRecurringPlan,
@@ -178,29 +178,7 @@ export interface SubscriptionProjectionInput {
   organizationId: string
   plan: string
   status: string
-  paymentStatus?: string | null
-  paidThrough?: Date | string | null
-  periodEnd?: Date | null
-  cancelAtPeriodEnd?: boolean
-}
-
-function isoDate(value: Date | null | undefined): string | null {
-  return value instanceof Date ? value.toISOString() : null
-}
-
-function accessExpiry(input: SubscriptionProjectionInput, payment: {
-  paid_through: string | null
-  past_due_since: string | null
-}, accessPlan: string): string | null {
-  if (accessPlan === 'free') return null
-  if (input.status === 'trialing') return isoDate(input.periodEnd)
-  if (input.status === 'active') return payment.paid_through ?? isoDate(input.periodEnd)
-  if (input.status === 'past_due') {
-    const anchor = payment.paid_through ?? payment.past_due_since
-    if (!anchor) return null
-    return new Date(Date.parse(anchor) + PAST_DUE_GRACE_PERIOD_MS).toISOString()
-  }
-  return null
+  trialEnd: Date | null
 }
 
 /** Better Auth remains authoritative; this is sessionless access evidence. */
@@ -221,8 +199,8 @@ export async function projectOrganizationSubscription(
     SELECT payment_status, paid_through, past_due_since, last_paid_invoice_id
     FROM organization_billing WHERE organization_id = ? LIMIT 1
   `, [input.organizationId])
-  const paymentStatus = input.paymentStatus ?? paymentRow?.payment_status ?? 'unknown'
-  const accessPlan = getEffectiveAccessPlan({
+  const paymentStatus = paymentRow?.payment_status ?? 'unknown'
+  const access = getSubscriptionAccess({
     ...input,
     paymentStatus,
     paidThrough: paymentRow?.paid_through,
@@ -244,8 +222,8 @@ export async function projectOrganizationSubscription(
     paymentRow?.paid_through ?? null,
     paymentRow?.past_due_since ?? null,
     paymentRow?.last_paid_invoice_id ?? null,
-    accessPlan,
-    accessExpiry(input, paymentRow ?? { paid_through: null, past_due_since: null }, accessPlan),
+    access.plan,
+    access.expiresAt,
     now,
   ])
 }
@@ -257,11 +235,11 @@ interface ReconciledSubscriptionRow {
   stripeCustomerId: string | null
   stripeSubscriptionId: string | null
   status: string
-  periodStart: Date | number | string | null
-  periodEnd: Date | number | string | null
+  periodStart: Date | null
+  periodEnd: Date | null
   cancelAtPeriodEnd: boolean | number | null
-  trialStart?: Date | number | string | null
-  trialEnd?: Date | number | string | null
+  trialStart?: Date | null
+  trialEnd?: Date | null
 }
 
 export interface BetterAuthSubscriptionAdapter {
@@ -507,15 +485,11 @@ async function projectCurrentStripeSubscription(
   metadataFallback?: Record<string, string> | null,
 ): Promise<void> {
   const subscription = await repairBetterAuthSubscriptionRow(db, stripe, stripeSubscription, event, deleted, adapter, loadPlans, metadataFallback)
-  const periodEnd = subscription.periodEnd instanceof Date
-    ? subscription.periodEnd
-    : new Date(betterAuthTimestampToIso(subscription.periodEnd as number | string, 'subscription.periodEnd'))
   await projectOrganizationSubscription(db, {
     organizationId: subscription.referenceId,
     plan: subscription.plan,
     status: deleted ? 'canceled' : subscription.status,
-    periodEnd,
-    cancelAtPeriodEnd: deleted ? false : Boolean(subscription.cancelAtPeriodEnd),
+    trialEnd: subscription.trialEnd == null ? null : new Date(betterAuthTimestampToIso(subscription.trialEnd, 'subscription.trialEnd')),
   })
 }
 

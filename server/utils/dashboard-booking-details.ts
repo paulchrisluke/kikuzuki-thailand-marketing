@@ -6,7 +6,7 @@ import { getDashboardContext } from '~/server/utils/dashboard-context'
 import { assertResourceAccess, listAccessibleLocationIds } from '~/server/utils/member-access'
 import { resolveBookingPolicy, renderBookingPolicySummary, type RenderedBookingPolicySummary } from '~/server/utils/booking-policies'
 import { loadPublicSocialMedia, type PublicSocialMedia } from '~/server/utils/public-social-image'
-import { appendEntry, getEntryById } from '~/server/domain/guest-threads/entries'
+import { appendEntry, getEntryById, GuestThreadEntryDedupeConflictError } from '~/server/domain/guest-threads/entries'
 import { requestBookingChange } from '~/server/domain/guest-threads/booking-changes'
 import { publishGuestInboxThreadEvent } from '~/server/cloudflare/guest-inbox-events'
 import { resolveLocationTimezone } from '~/server/utils/site-config'
@@ -257,7 +257,7 @@ export async function addDashboardBookingNote(
     const revision = revisionId ? await getEntryById(context.db, revisionId) : null
     if (!original || original.request_id !== threadId || original.event_name !== 'internal_note.added' || !revision || revision.request_id !== threadId || !['internal_note.added', 'internal_note.updated'].includes(revision.event_name || '') || (revision.id !== noteId && JSON.parse(revision.payload_json || '{}').noteId !== noteId)) throw new HTTPError({ statusCode: 404, message: 'Note not found' })
   }
-  const entry = await appendEntry(context.db, {
+  await appendEntry(context.db, {
     threadId: threadId,
     kind: 'operation',
     actorKind: 'member',
@@ -267,8 +267,10 @@ export async function addDashboardBookingNote(
     eventName: noteId ? 'internal_note.updated' : 'internal_note.added',
     payloadJson: { private: true, ...(noteId ? { noteId, revisionId, idempotencyKey } : {}) },
     dedupeKey: noteId ? `dashboard-booking-note-revision:${threadId}:${revisionId}` : `dashboard-booking-note:${threadId}:${idempotencyKey}`,
+  }).catch((error: unknown) => {
+    if (noteId && error instanceof GuestThreadEntryDedupeConflictError) throw new HTTPError({ statusCode: 409, message: 'This note was edited elsewhere. Reload and try again.' })
+    throw error
   })
-  if (entry.body !== note || (noteId && JSON.parse(entry.payload_json || '{}').idempotencyKey !== idempotencyKey)) throw new HTTPError({ statusCode: 409, message: 'This note was edited elsewhere. Reload and try again.' })
   await publishGuestInboxThreadEvent(context.env, context.db, { threadId: threadId, type: 'thread.changed' })
     .catch(error => console.warn('[booking-details] inbox publication skipped', error))
   return await loadDashboardBookingDetails(event, { type: input.type, bookingId: row.id })

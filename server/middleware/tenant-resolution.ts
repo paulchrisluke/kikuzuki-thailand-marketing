@@ -43,7 +43,7 @@ const SITE_MEDIA_SELECT_SQL = `(SELECT COALESCE(json_group_array(json_object(
   ORDER BY mp.slot, mp.sort_order, mp.id
 ) ordered)`
 
-type PlatformSiteRow = Pick<TenantSiteRow, 'brand_name' | 'media_json' | 'vertical'> & { has_logo: number }
+type PlatformSiteRow = Pick<TenantSiteRow, 'brand_name' | 'media_json' | 'vertical'> & { has_logo: number; has_source_locale: number }
 
 async function loadPlatformSite(db: DbClient): Promise<PlatformSiteRow | null> {
   return await queryFirst<PlatformSiteRow>(db, `
@@ -54,7 +54,12 @@ async function loadPlatformSite(db: DbClient): Promise<PlatformSiteRow | null> {
         WHERE mp.organization_id = s.organization_id AND mp.site_id = s.id
           AND mp.owner_type = 'site' AND mp.owner_id = s.id AND mp.slot = 'logo'
           AND mp.status = 'active' AND ma.status = 'active' AND ma.generation_key IS NULL
-      ) AS has_logo
+      ) AS has_logo,
+      EXISTS (
+        SELECT 1 FROM site_locales sl
+        WHERE sl.organization_id = s.organization_id AND sl.site_id = s.id
+          AND sl.locale = 'en' AND sl.is_source = 1 AND sl.status = 'published'
+      ) AS has_source_locale
     FROM sites s WHERE s.id = ? AND s.status = 'active' LIMIT 1
   `, [PLATFORM_SITE_ID])
 }
@@ -318,12 +323,13 @@ export default defineHandler(async (event) => {
     if (env.db && (
       platformSite?.brand_name?.trim() !== 'KrabiClaw'
       || platformSite.has_logo !== 1
+      || platformSite.has_source_locale !== 1
     )) {
       await ensurePlatformMediaScope(env, env.db)
       platformSite = await loadPlatformSite(env.db)
     }
-    if (!platformSite || platformSite.brand_name?.trim() !== 'KrabiClaw' || platformSite.has_logo !== 1) {
-      throw new HTTPError({ statusCode: 500, statusMessage: 'Platform scope is missing canonical identity or logo media' })
+    if (!platformSite || platformSite.brand_name?.trim() !== 'KrabiClaw' || platformSite.has_logo !== 1 || platformSite.has_source_locale !== 1) {
+      throw new HTTPError({ statusCode: 500, statusMessage: 'Platform scope is missing canonical identity, logo media, or source locale' })
     }
     event.context.site = {
       brand_name: platformSite.brand_name.trim(),

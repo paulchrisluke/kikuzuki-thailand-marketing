@@ -7,7 +7,7 @@
     :placeholder="placeholder"
     :editable="editable"
     class="w-full"
-    :starter-kit="{ heading: { levels: [2, 3] } }"
+    :starter-kit="{ heading: { levels: [2, 3] }, trailingNode: false }"
     :handlers="customHandlers"
     :ui="{ content: 'p-0', base: 'p-0 sm:px-0' }"
     @update:model-value="value => emit('update:modelValue', String(value ?? ''))"

@@ -67,7 +67,7 @@
             <div class="space-y-4">
             <UFormField label="Status"><p class="text-sm text-muted">{{ statusLabel }}</p></UFormField>
             <UFormField v-if="!post || post.status === 'scheduled'" label="Publish timing"><USelect v-model="publishTiming" :items="['Now', 'Scheduled']" /></UFormField>
-            <UFormField v-if="(!post || post.status === 'scheduled') && publishTiming === 'Scheduled'" label="Scheduled for"><UInput v-model="form.scheduled_for" type="datetime-local" /></UFormField>
+            <UFormField v-if="(!post || post.status === 'scheduled') && publishTiming === 'Scheduled'" label="Scheduled for (UTC)"><UInput v-model="form.scheduled_for" type="datetime-local" step="any" /></UFormField>
             <UFormField label="Visibility"><USelect v-model="form.visibility" :items="['public', 'unlisted']" /></UFormField>
             </div>
           </UCard>
@@ -97,6 +97,7 @@
 </template>
 
 <script setup lang="ts">
+import { instantDate } from '~/utils/timezone'
 import type { Component } from 'vue'
 import BlogArticleView from '~/components/blog/BlogArticleView.vue'
 import PlatformMediaPicker from '~/lib/components/workspace/media/PlatformMediaPicker.vue'
@@ -129,7 +130,6 @@ const lifecycleDirty = ref(false)
 const dirtyState = computed(() => contentDirty.value || lifecycleDirty.value)
 let applyingServerSnapshot = false
 let serverPostUpdatedAt: string | undefined
-let serverDocumentUpdatedAt: string | undefined
 const slugResetRequested = ref(false)
 
 const form = reactive({ title: '', category: '', excerpt: '', seo_title: '', seo_description: '', slug: '', canonical_url: '', robots: '', visibility: 'public' as 'public' | 'unlisted', scheduled_for: '', redirect_old_slug: true })
@@ -204,9 +204,8 @@ const saveQueue = new SerializedSnapshotQueue<SaveSnapshot, BlogPost>(
     const updated = await props.repository.update(snapshot.postId, {
       ...snapshot.payload,
       expected_updated_at: serverPostUpdatedAt,
-      expected_document_updated_at: serverDocumentUpdatedAt,
     })
-    syncServerVersions(updated)
+    syncServerVersion(updated)
     return updated
   },
   (updated) => {
@@ -266,7 +265,7 @@ async function load() {
 function applyLoadedPost(loaded: BlogPost) {
   applyingServerSnapshot = true
   try {
-    syncServerVersions(loaded)
+    syncServerVersion(loaded)
     post.value = loaded
     Object.assign(form, { title: loaded.title, category: loaded.category || '', excerpt: loaded.excerpt || '', seo_title: loaded.seo_title || '', seo_description: loaded.seo_description || '', slug: loaded.slug || '', canonical_url: loaded.canonical_url || '', robots: loaded.robots || '', visibility: loaded.visibility || 'public', scheduled_for: toLocalDatetime(loaded.scheduled_for), redirect_old_slug: true })
     slugResetRequested.value = false
@@ -314,11 +313,11 @@ async function flushSave() {
   }
 }
 function buildSaveSnapshot(id = persistedPostId.value): SaveSnapshot {
-  return { postId: id, payload: { title: form.title, category: form.category || null, tags: tagsText.value.split(',').map(v => v.trim()).filter(Boolean), excerpt: form.excerpt || null, seo_title: form.seo_title || null, seo_description: form.seo_description || null, slug: slugResetRequested.value ? null : form.slug !== post.value?.slug ? form.slug : undefined, reset_slug_override: slugResetRequested.value || undefined, redirect_old_slug: form.redirect_old_slug, canonical_url: form.canonical_url || null, robots: form.robots || null, visibility: form.visibility, content_blocks: structuredClone(toRaw(blocks.value)) } }
+  return { postId: id, payload: { title: form.title, category: form.category || null, tags: tagsText.value.split(',').map(v => v.trim()).filter(Boolean), excerpt: form.excerpt || null, seo_title: form.seo_title || null, seo_description: form.seo_description || null, slug: slugResetRequested.value ? null : form.slug !== post.value?.slug ? form.slug : undefined, reset_slug_override: slugResetRequested.value || undefined, redirect_old_slug: form.redirect_old_slug, canonical_url: form.canonical_url || null, robots: form.robots || null, visibility: form.visibility, content_blocks: JSON.parse(JSON.stringify(blocks.value)) } }
 }
 function lifecycleVersionInput() {
-  if (!serverPostUpdatedAt || !serverDocumentUpdatedAt) throw new Error('Blog lifecycle version is unavailable. Reload the editor.')
-  return { expected_updated_at: serverPostUpdatedAt, expected_document_updated_at: serverDocumentUpdatedAt }
+  if (!serverPostUpdatedAt) throw new Error('Blog lifecycle version is unavailable. Reload the editor.')
+  return { expected_updated_at: serverPostUpdatedAt }
 }
 function applyLifecycle(lifecycle: BlogLifecycleState) {
   if (!post.value?.content_document) throw new Error('Blog content document is missing')
@@ -334,12 +333,11 @@ function applyLifecycle(lifecycle: BlogLifecycleState) {
       ...post.value.content_document,
       document: {
         ...post.value.content_document.document,
-        updated_at: lifecycle.content_document_updated_at,
+        updated_at: lifecycle.updated_at,
       },
     },
   }
   serverPostUpdatedAt = lifecycle.updated_at
-  serverDocumentUpdatedAt = lifecycle.content_document_updated_at
   form.scheduled_for = toLocalDatetime(lifecycle.scheduled_for)
   publishTiming.value = lifecycle.scheduled_for ? 'Scheduled' : 'Now'
   applyingServerSnapshot = false
@@ -370,7 +368,7 @@ async function publish() {
       const created = await props.repository.create({
         title: form.title,
         slug: form.slug || undefined,
-        content_blocks: structuredClone(toRaw(blocks.value)),
+        content_blocks: JSON.parse(JSON.stringify(blocks.value)),
         category: form.category || null,
         tags: tagsText.value.split(',').map(v => v.trim()).filter(Boolean),
         excerpt: form.excerpt || null,
@@ -379,7 +377,7 @@ async function publish() {
         canonical_url: form.canonical_url || null,
         robots: form.robots || null,
         visibility: form.visibility,
-        scheduled_for: scheduledLifecycleValue(publishTiming.value, form.scheduled_for),
+        scheduled_for: scheduledLifecycleValue(publishTiming.value, form.scheduled_for, 'UTC'),
       })
       applyLoadedPost(created)
       contentDirty.value = false
@@ -391,7 +389,7 @@ async function publish() {
     await saveQueue.runExclusive(async () => {
       const lifecycle = await props.repository.publish(persistedPostId.value, {
         ...lifecycleVersionInput(),
-        scheduled_for: scheduledLifecycleValue(publishTiming.value, form.scheduled_for),
+        scheduled_for: scheduledLifecycleValue(publishTiming.value, form.scheduled_for, 'UTC'),
       })
       applyLifecycle(lifecycle)
       return lifecycle
@@ -519,9 +517,9 @@ function onPopState() { if (settingsOpen.value) closeSettings() }
 function beforeUnload(event: BeforeUnloadEvent) { if (dirtyState.value) event.preventDefault() }
 async function remove() { if (!post.value || !persistedPostId.value || !confirm('Delete this post permanently?')) return; await props.repository.delete(persistedPostId.value); await navigateTo(props.backUrl) }
 function windowOrigin() { return import.meta.client ? window.location.origin : 'https://krabiclaw.com' }
-function toLocalDatetime(value?: string | null) { if (!value) return ''; const d = new Date(value); const offset = d.getTimezoneOffset() * 60_000; return new Date(d.getTime() - offset).toISOString().slice(0, 16) }
+function toLocalDatetime(value?: string | null) { if (!value) return ''; return instantDate(value).toISOString().slice(0, -1) }
 function resetSlugOverride() { slugResetRequested.value = true; form.slug = generatedSlug.value }
-function syncServerVersions(value: BlogPost) { serverPostUpdatedAt = value.updated_at || serverPostUpdatedAt; serverDocumentUpdatedAt = value.content_document?.document.updated_at || serverDocumentUpdatedAt }
+function syncServerVersion(value: BlogPost) { serverPostUpdatedAt = value.updated_at }
 
 onBeforeRouteLeave(async () => {
   if (settingsOpen.value) { settingsOpen.value = false; return false }

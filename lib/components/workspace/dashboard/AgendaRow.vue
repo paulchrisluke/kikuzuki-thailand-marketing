@@ -13,12 +13,11 @@
 </template>
 
 <script setup lang="ts">
+import { formatTimestamp } from '~/utils/timezone'
 import type { AgendaItem } from '~/server/utils/dashboard-agenda'
 
 const props = defineProps<{ item: AgendaItem }>()
-const formattedTime = computed(() => new Intl.DateTimeFormat('en-US', {
-  timeZone: props.item.timeZone, hour: 'numeric', minute: '2-digit',
-}).format(new Date(props.item.startsAt)))
+const formattedTime = computed(() => formatTimestamp(props.item.startsAt, 'en', props.item.timeZone, { hour: 'numeric', minute: '2-digit' }))
 const details = computed(() => [props.item.subtitle, props.item.locationTitle, agendaKindLabel(props.item.kind)].filter(Boolean).join(' · '))
 
 function agendaKindLabel(kind: AgendaItem['kind']) {

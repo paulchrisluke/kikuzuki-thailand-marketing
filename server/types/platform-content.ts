@@ -1,4 +1,5 @@
 import type { ContentBlockInput } from '~/server/utils/content-documents'
+import type { PlatformBlogCreateInput } from '~/server/utils/platform-content'
 
 export interface PlatformContentNavRequestBody {
   nav_section?: string | null
@@ -10,6 +11,7 @@ export interface PlatformContentNavRequestBody {
 }
 
 export interface PlatformBlogPostRequestBody extends PlatformContentNavRequestBody {
+  status?: PlatformBlogCreateInput['status']
   title?: string
   slug?: string | null
   content_blocks?: ContentBlockInput[]

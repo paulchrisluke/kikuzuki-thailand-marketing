@@ -1,3 +1,4 @@
+import { assertCalendarDate, isValidTimezone, instantDate, localDateAt, localDateTimeToInstant, addLocalDays } from '~/utils/timezone'
 import { queryAll, type DbClient } from '~/server/db'
 import { d1JsonStringSet } from '~/server/db/d1-limits'
 import { resolveSiteCmsCapabilities } from '~/server/utils/cms-capabilities'
@@ -105,60 +106,6 @@ interface LocationRow {
   title: string
 }
 
-const DATE_KEY = /^\d{4}-\d{2}-\d{2}$/
-
-function assertDateKey(value: string, name: string): void {
-  if (!DATE_KEY.test(value) || Number.isNaN(Date.parse(`${value}T00:00:00Z`))) {
-    throw new Error(`${name} must be a YYYY-MM-DD date`)
-  }
-}
-
-function validTimeZone(value: string | null): string | null {
-  if (!value) return null
-  try {
-    new Intl.DateTimeFormat('en-US', { timeZone: value }).format(0)
-    return value
-  } catch {
-    return null
-  }
-}
-
-function datePartsInZone(date: Date, timeZone: string) {
-  const parts = new Intl.DateTimeFormat('en-CA', {
-    timeZone,
-    year: 'numeric', month: '2-digit', day: '2-digit',
-    hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23',
-  }).formatToParts(date)
-  const value = (type: Intl.DateTimeFormatPartTypes) => Number(parts.find(part => part.type === type)?.value ?? 0)
-  return { year: value('year'), month: value('month'), day: value('day'), hour: value('hour'), minute: value('minute'), second: value('second') }
-}
-
-function localDateTimeToIso(dateKey: string, time: string | null, timeZone: string): string {
-  const [year, month, day] = dateKey.split('-').map(Number)
-  const [hour, minute, second] = (time ?? '00:00:00').split(':').map(Number)
-  const desiredUtc = Date.UTC(year!, month! - 1, day!, hour || 0, minute || 0, second || 0)
-  let instant = desiredUtc
-  for (let attempt = 0; attempt < 3; attempt += 1) {
-    const actual = datePartsInZone(new Date(instant), timeZone)
-    const representedUtc = Date.UTC(actual.year, actual.month - 1, actual.day, actual.hour, actual.minute, actual.second)
-    const correction = desiredUtc - representedUtc
-    instant += correction
-    if (correction === 0) break
-  }
-  return new Date(instant).toISOString()
-}
-
-function dayKeyInZone(iso: string, timeZone: string): string {
-  const parts = datePartsInZone(new Date(iso), timeZone)
-  return `${parts.year}-${String(parts.month).padStart(2, '0')}-${String(parts.day).padStart(2, '0')}`
-}
-
-function addDays(dateKey: string, days: number): string {
-  const date = new Date(`${dateKey}T00:00:00Z`)
-  date.setUTCDate(date.getUTCDate() + days)
-  return date.toISOString().slice(0, 10)
-}
-
 function scopeParams(organizationId: string, query: AgendaQuery): unknown[] {
   const params: unknown[] = [organizationId]
   if (query.siteId) params.push(query.siteId)
@@ -211,8 +158,8 @@ export async function listAgenda(
   organizationId: string,
   query: AgendaQuery,
 ): Promise<AgendaPayload> {
-  assertDateKey(query.from, 'from')
-  assertDateKey(query.to, 'to')
+  assertCalendarDate(query.from)
+  assertCalendarDate(query.to)
   if (query.from > query.to) throw new Error('from must not be after to')
 
   const scoped = Boolean(query.principal && !isOrganizationWideRole(query.principal.role))
@@ -257,8 +204,8 @@ export async function listAgenda(
   }
 
   const sourceQueries: Promise<SourceRow[]>[] = []
-  const broadFrom = `${addDays(query.from, -2)}T00:00:00.000Z`
-  const broadTo = `${addDays(query.to, 2)}T23:59:59.999Z`
+  const broadFrom = `${addLocalDays(query.from, -2)}T00:00:00.000Z`
+  const broadTo = `${addLocalDays(query.to, 2)}T23:59:59.999Z`
   const commonSelect = (alias: string, kind: AgendaKind, fields: string, enrichment: {
     joins?: string
     resourceImage?: string
@@ -288,11 +235,11 @@ export async function listAgenda(
     resourceImage: `COALESCE(${mediaUrlSelect('b', 'product', 'b.product_id', ['gallery'])}, ${locationMediaUrlSelect('b')}, ${siteMediaUrlSelect('b')})`,
     resourceTitle: 'COALESCE(agenda_product.name, l.title, s.brand_name, s.subdomain, s.id)',
   })} AND b.booking_date BETWEEN ? AND ?`, [...params(), query.from, query.to]))
-  if (requestedKinds.has('post')) sourceQueries.push(queryAll(db, `${commonSelect('p', 'post', `NULL AS local_date, NULL AS local_time, CASE WHEN p.status = 'published' AND p.published_at IS NOT NULL THEN p.published_at ELSE COALESCE(p.scheduled_for, p.published_at) END AS starts_at, NULL AS ends_at,
+  if (requestedKinds.has('post')) sourceQueries.push(queryAll(db, `${commonSelect('p', 'post', `NULL AS local_date, NULL AS local_time, CASE p.status WHEN 'published' THEN p.published_at WHEN 'scheduled' THEN p.scheduled_for END AS starts_at, NULL AS ends_at,
     NULLIF(COALESCE(NULLIF(p.title, ''), json_extract(p.metadata_json, '$.event.title')), '') AS title, json_extract(p.metadata_json, '$.post_type') AS subtitle, NULL AS party_size, p.status`, {
     resourceImage: `COALESCE(${mediaUrlSelect('p', 'content_document', 'p.id', ['cover'])}, ${locationMediaUrlSelect('p')}, ${siteMediaUrlSelect('p')})`,
   })}
-    AND CASE WHEN p.status = 'published' AND p.published_at IS NOT NULL THEN p.published_at ELSE COALESCE(p.scheduled_for, p.published_at) END BETWEEN ? AND ?`, [...params(), broadFrom, broadTo]))
+    AND CASE p.status WHEN 'published' THEN p.published_at WHEN 'scheduled' THEN p.scheduled_for END BETWEEN ? AND ?`, [...params(), broadFrom, broadTo]))
 
   const rows = (await Promise.all(sourceQueries)).flat().filter((row) => {
     if (!scoped) return true
@@ -301,13 +248,15 @@ export async function listAgenda(
   })
   const organizationSlug = query.organizationSlug ?? organizationId
   const items = rows.flatMap<AgendaItem>((row) => {
-    const timeZone = validTimeZone(row.timezone)
-    if (!timeZone) throw new Error(`Timezone is not configured for agenda item ${row.id}`)
-    const startsAt = row.local_date
-      ? localDateTimeToIso(row.local_date, row.local_time, timeZone)
-      : row.starts_at && !Number.isNaN(Date.parse(row.starts_at)) ? new Date(row.starts_at).toISOString() : ''
-    if (!startsAt) return []
-    const dayKey = row.local_date ?? dayKeyInZone(startsAt, timeZone)
+    const timeZone = row.timezone
+    if (!isValidTimezone(timeZone)) throw new Error(`Timezone is not configured for agenda item ${row.id}`)
+    const isBooking = row.kind === 'reservation' || row.kind === 'experience_booking'
+    if (isBooking && (!row.local_date || !row.local_time)) throw new Error(`Booking date and time are missing for agenda item ${row.id}`)
+    if (!isBooking && !row.starts_at) throw new Error(`Publication time is missing for agenda item ${row.id}`)
+    const startsAt = isBooking
+      ? localDateTimeToInstant(row.local_date!, row.local_time!, timeZone).toISOString()
+      : instantDate(row.starts_at!).toISOString()
+    const dayKey = localDateAt(instantDate(startsAt), timeZone)
     if (dayKey < query.from || dayKey > query.to) return []
     const siteBase = `/dashboard/${organizationSlug}/sites/${row.site_slug}`
     const locationSegment = row.location_slug ? `/locations/${row.location_slug}` : ''
@@ -316,7 +265,7 @@ export async function listAgenda(
       : `${siteBase}${locationSegment}/posts`
     return [{
       id: `${row.kind}:${row.id}`, kind: row.kind, startsAt,
-      endsAt: row.ends_at && !Number.isNaN(Date.parse(row.ends_at)) ? new Date(row.ends_at).toISOString() : null,
+      endsAt: row.ends_at === null ? null : instantDate(row.ends_at).toISOString(),
       dayKey, timeZone, showTimeZone: false, title: row.title,
       subtitle: row.subtitle, status: row.status, siteId: row.site_id,
       locationId: row.location_id, locationTitle: row.location_title,
@@ -350,8 +299,8 @@ export async function listTodayAgenda(
 ): Promise<TodayAgendaPayload> {
   const utcKey = now.toISOString().slice(0, 10)
   const nearby = await listAgenda(db, organizationId, {
-    from: addDays(utcKey, -1),
-    to: addDays(utcKey, 1),
+    from: addLocalDays(utcKey, -1),
+    to: addLocalDays(utcKey, 1),
     kinds: ['reservation', 'experience_booking'],
     organizationSlug: input.organizationSlug,
     principal: input.principal,
@@ -365,5 +314,5 @@ export async function listTodayAgenda(
 }
 
 export function todayKeyForTimeZone(now: Date, timeZone: string): string {
-  return dayKeyInZone(now.toISOString(), validTimeZone(timeZone) ?? 'UTC')
+  return localDateAt(now, timeZone)
 }

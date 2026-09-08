@@ -331,8 +331,7 @@ export async function handleApplicationStripeEvent(
       organizationId: payment.organizationId,
       plan: resolved.plan.name,
       status: subscription.status,
-      periodEnd: new Date(periodEnd),
-      cancelAtPeriodEnd: Boolean(subscription.cancel_at_period_end),
+      trialEnd: subscription.trial_end == null ? null : new Date(subscription.trial_end * 1000),
     })
     return
   }

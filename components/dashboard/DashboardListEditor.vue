@@ -48,6 +48,13 @@
       <p v-else-if="description" class="mt-2 text-sm text-muted">{{ description }}</p>
     </header>
 
+    <!--
+      Narrowing which rows are shown, for a list that has more than one state
+      worth separating. It sits under the heading and above the rows because it
+      describes the rows, not the list's own controls.
+    -->
+    <slot name="filters" />
+
     <UAlert
       v-if="error"
       color="error"

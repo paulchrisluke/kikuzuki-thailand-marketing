@@ -134,21 +134,10 @@ import EditorNavigationList from '~/components/dashboard/EditorNavigationList.vu
 const dashboardApi = useDashboardApi()
 import { TIMEZONE_OPTIONS } from '~/utils/timezone'
 import { getErrorMessage } from '~/utils/errors'
-import { toggleableModulesForScope, type ProductFeature } from '~/config/cms-registry'
+import { defaultModuleFeaturesForVertical, resolveCmsCapabilities, toggleableModulesForScope, type ProductFeature } from '~/config/cms-registry'
 import { resolvePublicTemplate } from '~/utils/template-registry'
 import type { SiteVertical } from '~/utils/vertical-copy'
 
-const LOCATION_FEATURE_LABELS = {
-  menu: 'Menu',
-  reservations: 'Reservations',
-  ordering: 'Online ordering',
-  experiences: 'Experiences',
-} as const
-
-function locationFeatureLabel(feature: ProductFeature): string {
-  if (!(feature in LOCATION_FEATURE_LABELS)) throw new Error(`Unsupported location feature: ${feature}`)
-  return LOCATION_FEATURE_LABELS[feature as keyof typeof LOCATION_FEATURE_LABELS]
-}
 
 interface BusinessLocation {
   id: string
@@ -227,6 +216,28 @@ const locationToggleableFeatures = computed<ProductFeature[]>(() => {
   const configurableHere = new Set(toggleableModulesForScope(template, 'location'))
   return siteEffectiveFeatures.value.filter(feature => configurableHere.has(feature))
 })
+
+const locationFeatureLabels = computed<Map<ProductFeature, string>>(() => {
+  const site = dashboard.site.value
+  if (!site?.vertical) return new Map()
+  const vertical = site.vertical as SiteVertical
+  const template = resolvePublicTemplate({ vertical }).slug
+  const defaults = defaultModuleFeaturesForVertical(vertical)
+  const effective = siteEffectiveFeatures.value
+  const capabilities = resolveCmsCapabilities(vertical, template, {
+    site: {
+      enabled: effective.filter(feature => !defaults.includes(feature)),
+      disabled: defaults.filter(feature => !effective.includes(feature)),
+    },
+  })
+  return new Map(capabilities.managers.map(manager => [manager.id, manager.label]))
+})
+
+function locationFeatureLabel(feature: ProductFeature): string {
+  const label = locationFeatureLabels.value.get(feature)
+  if (!label) throw new Error(`No registry label for location module: ${feature}`)
+  return label
+}
 
 interface LocationCapabilitySummary {
   site_effective_features?: ProductFeature[]

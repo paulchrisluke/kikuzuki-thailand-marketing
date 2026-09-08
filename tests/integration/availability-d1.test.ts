@@ -98,7 +98,7 @@ test('D1 booking claims preserve schedule decisions, enforce current capacity, a
     const moved = (await readAvailability(db, { siteId: 'site-proof', owners: [{ kind: 'location', locationId: 'location-proof' }], dates: [date], excludeBookingId: 'commitment' }))[0]!
     const accept = async (snapshot: AvailabilitySnapshot) => executeAvailabilityClaim(db, { snapshot, date, time: '16:00', partySize: 1, statement: {
       query: `INSERT INTO activity_entries (id, request_id, kind, scope_kind, actor_kind, event_name, dedupe_key, sequence, occurred_at)
-        SELECT 'acceptance-proof', 'commitment', 'operation', 'request', 'guest', 'booking_change.accepted', 'acceptance-proof', 2, '2099-01-01T00:00:00Z' WHERE /* availability_claim */`, params: [],
+        SELECT 'acceptance-proof', 'commitment', 'operation', 'request', 'guest', 'booking_change.accepted', 'acceptance-proof', 2, '2099-01-01T00:00:00.000Z' WHERE /* availability_claim */`, params: [],
     }, following: [{ query: "UPDATE requests SET payload_json=json_set(payload_json, '$.notes', 'Accepted') WHERE id = 'commitment' AND EXISTS (SELECT 1 FROM activity_entries WHERE id = 'acceptance-proof')", params: [] }] })
     await db.prepare('UPDATE business_locations SET special_hours = ?').bind(JSON.stringify([{ kind: 'closure', starts_on: date, ends_on: null, note: null }])).run()
     await accept(moved)
@@ -116,7 +116,7 @@ test('D1 booking claims preserve schedule decisions, enforce current capacity, a
     const spring = await read(false, ['2099-03-08'])
     assert.equal(spring.days[0]!.slots.some(s => s.time_slot === '02:30'), false)
     const autumn = await read(false, ['2099-11-01'])
-    assert.equal(autumn.days[0]!.slots.filter(s => s.time_slot === '01:30').length, 1)
+    assert.equal(autumn.days[0]!.slots.some(s => s.time_slot === '01:30'), false)
     await db.prepare("UPDATE sites SET settings_json=json_set(settings_json, '$.config.default_timezone', 'UTC')").run()
     await db.prepare('UPDATE business_locations SET timezone = NULL').run()
     await assert.rejects(() => read(), /timezone/)

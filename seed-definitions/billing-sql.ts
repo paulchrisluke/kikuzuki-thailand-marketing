@@ -1,58 +1,8 @@
-import { getPlanEntitlements } from '../server/utils/billing-entitlements.ts'
-
 export interface SeedBillingState { status: string; plan: string }
-export interface SeedAiCreditsState { balance: number; lifetimeUsed: number }
 type SqlValue = (_value: string | number | boolean | null) => string
 
 function paid(billing: SeedBillingState): boolean {
   return billing.plan !== 'free' && billing.status !== 'free'
-}
-
-function weekSql() {
-  const key = `date('now', printf('-%d days', (CAST(strftime('%w', 'now') AS INTEGER) + 6) % 7))`
-  return {
-    key,
-    start: `strftime('%Y-%m-%dT00:00:00.000Z', ${key})`,
-    end: `strftime('%Y-%m-%dT00:00:00.000Z', date(${key}, '+7 days'))`,
-  }
-}
-
-export function renderAiCreditsSql(
-  organizationId: string,
-  billing: SeedBillingState | null | undefined,
-  credits: SeedAiCreditsState | null | undefined,
-  sqlValue: SqlValue,
-) {
-  if (!billing || !credits) return ''
-  const configured = getPlanEntitlements(billing.plan).ai_credits
-  const allowance = typeof configured === 'number' ? configured : 0
-  if (!Number.isSafeInteger(credits.balance) || credits.balance < 0 || credits.balance !== allowance) {
-    throw new Error(`Seed AI balance for ${organizationId} must match the ${billing.plan} allowance (${allowance})`)
-  }
-  if (!Number.isSafeInteger(credits.lifetimeUsed) || credits.lifetimeUsed < 0) {
-    throw new Error(`Seed AI lifetime usage for ${organizationId} must be a non-negative safe integer`)
-  }
-  const week = weekSql()
-  const now = `strftime('%Y-%m-%dT%H:%M:%fZ', 'now')`
-  const statements = [`INSERT OR IGNORE INTO usage_quota_grants
-  (id, organization_id, resource, quantity, unit, period_key, period_start, period_end,
-   grant_type, reason, created_by, idempotency_key, applied_at, created_at)
-VALUES
-  (${sqlValue(`seed-plan-${organizationId}`)}, ${sqlValue(organizationId)}, 'ai_inference', ${credits.balance}, 'credit',
-   ('week:' || ${week.key} || ':plan:${billing.plan}:version:seed'), ${week.start}, ${week.end},
-   'plan', ${sqlValue(`Seeded weekly ${billing.plan} plan quota`)}, NULL,
-   ${sqlValue(`seed-plan:${organizationId}`)}, ${now}, ${now});`]
-  if (credits.lifetimeUsed > 0) {
-    statements.push(`INSERT OR IGNORE INTO usage_events
-  (id, organization_id, site_id, resource, source, provider, channel, session_id,
-   quantity, unit, metadata_json, idempotency_key, created_at)
-VALUES
-  (${sqlValue(`seed-history-${organizationId}`)}, ${sqlValue(organizationId)}, NULL,
-   'ai_inference', 'seed', NULL, NULL, NULL, ${credits.lifetimeUsed}, 'credit',
-   '{"action":"seed-history","charged":true}', ${sqlValue(`seed-history:${organizationId}`)},
-   strftime('%Y-%m-%dT%H:%M:%fZ', 'now', '-8 days'));`)
-  }
-  return statements.join('\n\n')
 }
 
 export function renderOrganizationBillingSql(
@@ -102,17 +52,4 @@ VALUES
    CAST(strftime('%s', 'now') AS INTEGER), ${sqlValue(`evt-${organizationId}`)}, ${now});`)
   }
   return statements.join('\n\n')
-}
-
-export function renderCanonicalBillingSql(
-  _siteId: string,
-  organizationId: string,
-  billing: SeedBillingState | null | undefined,
-  sqlValue: SqlValue,
-  credits?: SeedAiCreditsState | null,
-) {
-  return [
-    renderAiCreditsSql(organizationId, billing, credits, sqlValue),
-    renderOrganizationBillingSql(organizationId, billing, sqlValue),
-  ].filter(Boolean).join('\n\n')
 }

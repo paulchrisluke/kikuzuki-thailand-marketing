@@ -15,7 +15,7 @@ export async function publishDueBlogPosts(db: D1Database, now = new Date()) {
   for (const row of due) {
     const timestamp = new Date(Math.max(now.getTime(), Date.parse(row.updated_at) + 1)).toISOString()
     const result = await execute(db, `UPDATE content_documents SET status = 'published',
-      published_at = COALESCE(published_at, scheduled_for), first_published_at = COALESCE(first_published_at, scheduled_for),
+      published_at = scheduled_for, first_published_at = COALESCE(first_published_at, scheduled_for),
       scheduled_for = NULL, updated_at = ? WHERE kind = 'article' AND row_role = 'root' AND id = ?
       AND status = 'scheduled' AND scheduled_for = ? AND updated_at = ?`, [timestamp, row.id, row.scheduled_for, row.updated_at])
     published += Number(result.meta.changes)

@@ -30,14 +30,9 @@ const identity = computed(() => shell.value.identity)
 const compliance = computed(() => shell.value.compliance)
 const org = useBlawbyOrgIdentity(identity, compliance)
 
-function block(type: string) {
-  if (!page.value) return null
-  const canonicalType = type === 'page_hero' ? 'hero' : type === 'disclaimer' ? 'callout' : undefined
-  return findTenantPageBlock(page.value.blocks, type, canonicalType)
-}
 
-const heroBlock = computed(() => block('page_hero'))
-const disclaimerBlock = computed(() => block('disclaimer'))
+const heroBlock = computed(() => page.value ? findTenantPageBlock(page.value.blocks, 'hero') : null)
+const disclaimerBlock = computed(() => page.value ? findTenantPageBlock(page.value.blocks, 'callout') : null)
 const heroTitle = computed(() => String(heroBlock.value?.title || page.value?.title || ''))
 const heroDescription = computed(() => Array.isArray(heroBlock.value?.description) ? heroBlock.value.description.join('\n\n') : String(heroBlock.value?.description || page.value?.summary || ''))
 

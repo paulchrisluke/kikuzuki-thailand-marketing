@@ -275,7 +275,7 @@ export default defineHandler(async (event) => {
     }, []).queries)
     for (const post of payload.preview.posts) batchQueries.push(...prepareContentDocumentWithBlocks({
       id: post.id, organizationId, siteId, kind: 'social_post', rowRole: 'root', locale: 'en', locationId: locationRow.id,
-      title: post.title, summary: post.body, status: post.status, publishedAt: post.published_at, source: 'template',
+      title: post.title, summary: post.body, status: post.status, visibility: 'public', publishedAt: post.published_at, source: 'template',
       createdBy: session.user.id, metadata: { post_type: 'standard', channels: {} },
     }, []).queries)
 

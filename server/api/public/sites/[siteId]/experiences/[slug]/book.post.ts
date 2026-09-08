@@ -3,7 +3,7 @@ import { readAvailability } from '~/server/utils/availability'
 import { cloudflareEnv, jsonResponse, cleanString, readRequiredBody } from '~/server/utils/api-response'
 import { isReservedTestDomain, shouldSendRealEmail } from '~/server/utils/email-delivery'
 import { getExperienceBySlug, createExperienceBookingClaimingCapacity } from '~/server/utils/experiences'
-import { fmt12Hour } from '~/shared/reservation-hours'
+import { formatTime } from '~/utils/timezone'
 import { notifyExperienceBookingCreated } from '~/server/utils/notifications'
 import { recordSubmissionConversionSafe } from '~/server/utils/site-conversions'
 import { resolveLocationContact } from '~/server/utils/contact-resolution'
@@ -115,7 +115,7 @@ export default defineHandler(async (event) => {
   const session = await getAuthSession(event, env)
   const userId = session?.user?.id || null
   const customerInput = {
-    organizationId: site.organization_id, siteId, name: guestName, email: guestEmail, phone: normalizedGuestPhone, source: 'experience_booking', bookingAt: `${bookingDate}T${timeSlot}:00`, userId, } as const
+    organizationId: site.organization_id, siteId, name: guestName, email: guestEmail, phone: normalizedGuestPhone, source: 'experience_booking', userId, } as const
   const customer = await findOrCreateCustomer(db, customerInput)
 
   const booking = await createExperienceBookingClaimingCapacity(db, {
@@ -171,5 +171,5 @@ export default defineHandler(async (event) => {
   ])
 
   return jsonResponse({
-    success: true, booking_id: booking.id, cancellation_token: cancellation.token, message: `Your booking request for ${experience.title} on ${bookingDate} at ${fmt12Hour(timeSlot)} has been received. We'll confirm shortly.`, policy_summary: renderBookingPolicySummary(policy, locale), }, { status: 201 })
+    success: true, booking_id: booking.id, cancellation_token: cancellation.token, message: `Your booking request for ${experience.title} on ${bookingDate} at ${formatTime(timeSlot, locale)} has been received. We'll confirm shortly.`, policy_summary: renderBookingPolicySummary(policy, locale), }, { status: 201 })
 })

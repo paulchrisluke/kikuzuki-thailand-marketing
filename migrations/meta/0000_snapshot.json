@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "991e5afb-3c17-4f42-a303-0f9d55b256b5",
+  "id": "ed29d7ae-832e-416d-8229-626a07e5da87",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "tables": {
     "account": {
@@ -462,6 +462,10 @@
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "checkConstraints": {
+        "activity_entries_instants_check": {
+          "name": "activity_entries_instants_check",
+          "value": "(occurred_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', occurred_at, '+0 days') IS occurred_at) AND (created_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', created_at, '+0 days') IS created_at)"
+        },
         "activity_entries_kind_check": {
           "name": "activity_entries_kind_check",
           "value": "kind IN ('submission', 'message', 'operation', 'assignment', 'resolution', 'notification', 'acknowledgement', 'audit')"
@@ -688,6 +692,10 @@
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "checkConstraints": {
+        "analytics_events_instants_check": {
+          "name": "analytics_events_instants_check",
+          "value": "(created_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', created_at, '+0 days') IS created_at)"
+        },
         "analytics_events_kind_check": {
           "name": "analytics_events_kind_check",
           "value": "kind IN ('pageview', 'conversion')"
@@ -857,6 +865,10 @@
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "checkConstraints": {
+        "analytics_summaries_instants_check": {
+          "name": "analytics_summaries_instants_check",
+          "value": "(created_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', created_at, '+0 days') IS created_at) AND (updated_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', updated_at, '+0 days') IS updated_at)"
+        },
         "analytics_summaries_kind_check": {
           "name": "analytics_summaries_kind_check",
           "value": "kind IN ('session', 'site_day', 'page_day', 'dimension_day')"
@@ -1281,6 +1293,10 @@
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "checkConstraints": {
+        "business_locations_instants_check": {
+          "name": "business_locations_instants_check",
+          "value": "(last_synced_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', last_synced_at, '+0 days') IS last_synced_at) AND (created_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', created_at, '+0 days') IS created_at) AND (updated_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', updated_at, '+0 days') IS updated_at)"
+        },
         "business_locations_booking_check": {
           "name": "business_locations_booking_check",
           "value": "json_valid(booking_json) AND json_type(booking_json) = 'object'"
@@ -1468,6 +1484,10 @@
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "checkConstraints": {
+        "content_blocks_instants_check": {
+          "name": "content_blocks_instants_check",
+          "value": "(created_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', created_at, '+0 days') IS created_at) AND (updated_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', updated_at, '+0 days') IS updated_at)"
+        },
         "content_blocks_source_check": {
           "name": "content_blocks_source_check",
           "value": "source_block_id IS NULL OR source_block_id <> id"
@@ -1954,6 +1974,10 @@
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "checkConstraints": {
+        "content_documents_instants_check": {
+          "name": "content_documents_instants_check",
+          "value": "(published_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', published_at, '+0 days') IS published_at) AND (first_published_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', first_published_at, '+0 days') IS first_published_at) AND (scheduled_for IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', scheduled_for, '+0 days') IS scheduled_for) AND (created_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', created_at, '+0 days') IS created_at) AND (updated_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', updated_at, '+0 days') IS updated_at)"
+        },
         "content_documents_kind_check": {
           "name": "content_documents_kind_check",
           "value": "\"content_documents\".\"kind\" IN ('page', 'article', 'platform_doc', 'social_post', 'qa')"
@@ -1992,15 +2016,15 @@
         },
         "content_documents_publication_check": {
           "name": "content_documents_publication_check",
-          "value": "row_role <> 'root' OR kind NOT IN ('article', 'social_post') OR (status IN ('published','scheduled')) IS 1"
+          "value": "row_role <> 'root' OR kind NOT IN ('article', 'social_post') OR (status IN ('draft','published','scheduled')) IS 1"
         },
         "content_documents_social_schedule_check": {
           "name": "content_documents_social_schedule_check",
-          "value": "kind <> 'social_post' OR row_role <> 'root' OR ((status = 'scheduled' AND scheduled_for IS NOT NULL AND published_at IS NULL) OR (status = 'published' AND scheduled_for IS NULL AND published_at IS NOT NULL))"
+          "value": "kind <> 'social_post' OR row_role <> 'root' OR ((status = 'draft' AND scheduled_for IS NULL AND published_at IS NULL) OR (status = 'scheduled' AND scheduled_for IS NOT NULL AND published_at IS NULL) OR (status = 'published' AND scheduled_for IS NULL AND published_at IS NOT NULL))"
         },
         "content_documents_article_visibility_check": {
           "name": "content_documents_article_visibility_check",
-          "value": "kind <> 'article' OR row_role <> 'root' OR (visibility IN ('public','unlisted')) IS 1"
+          "value": "kind NOT IN ('article','social_post') OR row_role <> 'root' OR (visibility IN ('public','unlisted')) IS 1"
         },
         "content_documents_qa_state_check": {
           "name": "content_documents_qa_state_check",
@@ -2161,20 +2185,6 @@
           "notNull": false,
           "autoincrement": false
         },
-        "last_booking_at": {
-          "name": "last_booking_at",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "last_review_at": {
-          "name": "last_review_at",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
         "created_at": {
           "name": "created_at",
           "type": "text",
@@ -2293,6 +2303,10 @@
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "checkConstraints": {
+        "customers_instants_check": {
+          "name": "customers_instants_check",
+          "value": "(review_request_opted_out_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', review_request_opted_out_at, '+0 days') IS review_request_opted_out_at) AND (created_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', created_at, '+0 days') IS created_at) AND (updated_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', updated_at, '+0 days') IS updated_at)"
+        },
         "customers_source_check": {
           "name": "customers_source_check",
           "value": "source IN ('reservation', 'experience_booking', 'review_request', 'manual', 'stripe', 'import')"
@@ -2417,6 +2431,10 @@
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "checkConstraints": {
+        "guest_thread_deliveries_instants_check": {
+          "name": "guest_thread_deliveries_instants_check",
+          "value": "(created_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', created_at, '+0 days') IS created_at) AND (updated_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', updated_at, '+0 days') IS updated_at)"
+        },
         "guest_thread_deliveries_channel_check": {
           "name": "guest_thread_deliveries_channel_check",
           "value": "channel IN ('email', 'whatsapp')"
@@ -2950,6 +2968,10 @@
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "checkConstraints": {
+        "mcp_tool_call_events_instants_check": {
+          "name": "mcp_tool_call_events_instants_check",
+          "value": "(created_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', created_at, '+0 days') IS created_at)"
+        },
         "mcp_tool_call_events_arguments_summary_json_check": {
           "name": "mcp_tool_call_events_arguments_summary_json_check",
           "value": "arguments_summary_json IS NULL OR (json_valid(arguments_summary_json))"
@@ -3214,6 +3236,10 @@
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "checkConstraints": {
+        "media_assets_instants_check": {
+          "name": "media_assets_instants_check",
+          "value": "(created_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', created_at, '+0 days') IS created_at) AND (updated_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', updated_at, '+0 days') IS updated_at)"
+        },
         "media_assets_kind_check": {
           "name": "media_assets_kind_check",
           "value": "\"media_assets\".\"kind\" IN ('image', 'video', 'file')"
@@ -3406,6 +3432,10 @@
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "checkConstraints": {
+        "media_placements_instants_check": {
+          "name": "media_placements_instants_check",
+          "value": "(created_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', created_at, '+0 days') IS created_at) AND (updated_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', updated_at, '+0 days') IS updated_at)"
+        },
         "media_placements_owner_type_check": {
           "name": "media_placements_owner_type_check",
           "value": "\"media_placements\".\"owner_type\" IN ('site', 'business_location', 'product', 'content_document', 'offering', 'content_block', 'review', 'review_request')"
@@ -4616,6 +4646,10 @@
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "checkConstraints": {
+        "offerings_instants_check": {
+          "name": "offerings_instants_check",
+          "value": "(created_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', created_at, '+0 days') IS created_at) AND (updated_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', updated_at, '+0 days') IS updated_at)"
+        },
         "offerings_features_check": {
           "name": "offerings_features_check",
           "value": "features IS NULL OR (json_valid(features) AND json_type(features) IS 'array')"
@@ -4785,6 +4819,10 @@
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "checkConstraints": {
+        "onboarding_drafts_instants_check": {
+          "name": "onboarding_drafts_instants_check",
+          "value": "(committed_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', committed_at, '+0 days') IS committed_at) AND (created_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', created_at, '+0 days') IS created_at) AND (updated_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', updated_at, '+0 days') IS updated_at)"
+        },
         "onboarding_drafts_source_type_check": {
           "name": "onboarding_drafts_source_type_check",
           "value": "source_type IN ('google_places', 'manual')"
@@ -4975,6 +5013,10 @@
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "checkConstraints": {
+        "organization_billing_instants_check": {
+          "name": "organization_billing_instants_check",
+          "value": "(access_expires_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', access_expires_at, '+0 days') IS access_expires_at) AND (updated_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', updated_at, '+0 days') IS updated_at) AND (paid_through IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', paid_through, '+0 days') IS paid_through) AND (past_due_since IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', past_due_since, '+0 days') IS past_due_since)"
+        },
         "organization_billing_payment_status_check": {
           "name": "organization_billing_payment_status_check",
           "value": "payment_status IN ('unknown', 'paid', 'processing', 'failed', 'pending', 'trialing', 'past_due')"
@@ -5196,6 +5238,10 @@
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "checkConstraints": {
+        "prices_instants_check": {
+          "name": "prices_instants_check",
+          "value": "(strftime('%Y-%m-%dT%H:%M:%fZ', valid_from, '+0 days') IS valid_from) AND (valid_until IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', valid_until, '+0 days') IS valid_until) AND (created_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', created_at, '+0 days') IS created_at)"
+        },
         "prices_amount_check": {
           "name": "prices_amount_check",
           "value": "\"prices\".\"amount_minor\" >= 0"
@@ -5417,6 +5463,10 @@
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "checkConstraints": {
+        "product_categories_instants_check": {
+          "name": "product_categories_instants_check",
+          "value": "(created_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', created_at, '+0 days') IS created_at) AND (updated_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', updated_at, '+0 days') IS updated_at)"
+        },
         "product_categories_name_not_blank_check": {
           "name": "product_categories_name_not_blank_check",
           "value": "trim(\"product_categories\".\"name\") <> ''"
@@ -5789,6 +5839,10 @@
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "checkConstraints": {
+        "products_instants_check": {
+          "name": "products_instants_check",
+          "value": "(created_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', created_at, '+0 days') IS created_at) AND (updated_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', updated_at, '+0 days') IS updated_at)"
+        },
         "products_name_not_blank_check": {
           "name": "products_name_not_blank_check",
           "value": "trim(\"products\".\"name\") <> ''"
@@ -5949,6 +6003,10 @@
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "checkConstraints": {
+        "public_resource_cache_invalidations_instants_check": {
+          "name": "public_resource_cache_invalidations_instants_check",
+          "value": "(claimed_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', claimed_at, '+0 days') IS claimed_at) AND (processed_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', processed_at, '+0 days') IS processed_at) AND (created_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', created_at, '+0 days') IS created_at)"
+        },
         "public_resource_cache_invalidations_status_check": {
           "name": "public_resource_cache_invalidations_status_check",
           "value": "status IN ('pending', 'processing', 'processed', 'failed')"
@@ -6005,7 +6063,12 @@
       "foreignKeys": {},
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
-      "checkConstraints": {}
+      "checkConstraints": {
+        "rate_limits_instants_check": {
+          "name": "rate_limits_instants_check",
+          "value": "(updated_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', updated_at, '+0 days') IS updated_at) AND (expires_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', expires_at, '+0 days') IS expires_at)"
+        }
+      }
     },
     "requests": {
       "name": "requests",
@@ -6378,6 +6441,10 @@
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "checkConstraints": {
+        "requests_instants_check": {
+          "name": "requests_instants_check",
+          "value": "(resolved_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', resolved_at, '+0 days') IS resolved_at) AND (created_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', created_at, '+0 days') IS created_at) AND (updated_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', updated_at, '+0 days') IS updated_at)"
+        },
         "requests_kind_check": {
           "name": "requests_kind_check",
           "value": "kind IN ('contact', 'reservation', 'experience_booking', 'platform_contact', 'work')"
@@ -6408,7 +6475,7 @@
         },
         "requests_booking_check": {
           "name": "requests_booking_check",
-          "value": "(kind IN ('reservation', 'experience_booking') AND location_id IS NOT NULL AND booking_date IS NOT NULL AND time_slot IS NOT NULL AND party_size IS NOT NULL AND party_size > 0 AND status IS NOT NULL AND status IN ('pending', 'confirmed', 'cancelled', 'completed') AND (kind != 'experience_booking' OR product_id IS NOT NULL) AND (kind != 'reservation' OR product_id IS NULL)) OR (kind NOT IN ('reservation', 'experience_booking') AND booking_date IS NULL AND time_slot IS NULL AND party_size IS NULL)"
+          "value": "(kind IN ('reservation', 'experience_booking') AND location_id IS NOT NULL AND booking_date IS NOT NULL AND date(booking_date, '+0 days') IS booking_date AND time_slot IS NOT NULL AND time_slot GLOB '[0-2][0-9]:[0-5][0-9]' AND time_slot < '24:00' AND party_size IS NOT NULL AND party_size > 0 AND status IS NOT NULL AND status IN ('pending', 'confirmed', 'cancelled', 'completed') AND (kind != 'experience_booking' OR product_id IS NOT NULL) AND (kind != 'reservation' OR product_id IS NULL)) OR (kind NOT IN ('reservation', 'experience_booking') AND booking_date IS NULL AND time_slot IS NULL AND party_size IS NULL)"
         },
         "requests_state_check": {
           "name": "requests_state_check",
@@ -6568,6 +6635,10 @@
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "checkConstraints": {
+        "resource_localizations_instants_check": {
+          "name": "resource_localizations_instants_check",
+          "value": "(created_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', created_at, '+0 days') IS created_at) AND (updated_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', updated_at, '+0 days') IS updated_at)"
+        },
         "resource_localizations_resource_type_check": {
           "name": "resource_localizations_resource_type_check",
           "value": "\"resource_localizations\".\"resource_type\" IN ('site', 'business_location', 'product', 'product_category', 'offering', 'media_asset')"
@@ -6887,6 +6958,10 @@
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "checkConstraints": {
+        "review_requests_instants_check": {
+          "name": "review_requests_instants_check",
+          "value": "(expires_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', expires_at, '+0 days') IS expires_at) AND (first_sent_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', first_sent_at, '+0 days') IS first_sent_at) AND (reminder_sent_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', reminder_sent_at, '+0 days') IS reminder_sent_at) AND (submitted_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', submitted_at, '+0 days') IS submitted_at) AND (clicked_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', clicked_at, '+0 days') IS clicked_at) AND (revoked_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', revoked_at, '+0 days') IS revoked_at) AND (created_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', created_at, '+0 days') IS created_at) AND (updated_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', updated_at, '+0 days') IS updated_at)"
+        },
         "review_requests_booking_type_check": {
           "name": "review_requests_booking_type_check",
           "value": "booking_type IN ('reservation', 'experience_booking')"
@@ -7304,6 +7379,10 @@
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "checkConstraints": {
+        "reviews_instants_check": {
+          "name": "reviews_instants_check",
+          "value": "(owner_reply_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', owner_reply_at, '+0 days') IS owner_reply_at) AND (created_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', created_at, '+0 days') IS created_at) AND (updated_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', updated_at, '+0 days') IS updated_at)"
+        },
         "reviews_status_check": {
           "name": "reviews_status_check",
           "value": "status IN ('pending', 'approved', 'rejected')"
@@ -7877,6 +7956,10 @@
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "checkConstraints": {
+        "site_domains_instants_check": {
+          "name": "site_domains_instants_check",
+          "value": "(retired_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', retired_at, '+0 days') IS retired_at) AND (reconciliation_expires_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', reconciliation_expires_at, '+0 days') IS reconciliation_expires_at) AND (dns_last_resolved_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', dns_last_resolved_at, '+0 days') IS dns_last_resolved_at) AND (last_synced_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', last_synced_at, '+0 days') IS last_synced_at) AND (next_check_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', next_check_at, '+0 days') IS next_check_at) AND (activated_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', activated_at, '+0 days') IS activated_at) AND (certificate_last_active_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', certificate_last_active_at, '+0 days') IS certificate_last_active_at) AND (renewal_issue_started_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', renewal_issue_started_at, '+0 days') IS renewal_issue_started_at) AND (renewal_notification_sent_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', renewal_notification_sent_at, '+0 days') IS renewal_notification_sent_at) AND (certificate_expires_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', certificate_expires_at, '+0 days') IS certificate_expires_at) AND (created_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', created_at, '+0 days') IS created_at) AND (updated_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', updated_at, '+0 days') IS updated_at)"
+        },
         "site_domains_owner_check": {
           "name": "site_domains_owner_check",
           "value": "(status = 'retired' AND type = 'subdomain' AND role = 'secondary' AND organization_id IS NULL AND site_id IS NULL AND former_site_id IS NOT NULL AND retired_at IS NOT NULL) OR (status <> 'retired' AND organization_id IS NOT NULL AND site_id IS NOT NULL AND former_site_id IS NULL AND retired_at IS NULL AND successor_domain IS NULL)"
@@ -8075,6 +8158,10 @@
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "checkConstraints": {
+        "site_locales_instants_check": {
+          "name": "site_locales_instants_check",
+          "value": "(activated_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', activated_at, '+0 days') IS activated_at) AND (disabled_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', disabled_at, '+0 days') IS disabled_at) AND (created_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', created_at, '+0 days') IS created_at) AND (updated_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', updated_at, '+0 days') IS updated_at)"
+        },
         "site_locales_source_boolean_check": {
           "name": "site_locales_source_boolean_check",
           "value": "is_source IN (0, 1)"
@@ -8268,6 +8355,10 @@
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "checkConstraints": {
+        "site_redirects_instants_check": {
+          "name": "site_redirects_instants_check",
+          "value": "(created_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', created_at, '+0 days') IS created_at) AND (updated_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', updated_at, '+0 days') IS updated_at)"
+        },
         "site_redirects_from_path_check": {
           "name": "site_redirects_from_path_check",
           "value": "from_path LIKE '/%'"
@@ -8540,6 +8631,10 @@
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "checkConstraints": {
+        "site_transfer_requests_instants_check": {
+          "name": "site_transfer_requests_instants_check",
+          "value": "(payment_completed_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', payment_completed_at, '+0 days') IS payment_completed_at) AND (created_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', created_at, '+0 days') IS created_at) AND (completed_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', completed_at, '+0 days') IS completed_at) AND (last_reminder_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', last_reminder_at, '+0 days') IS last_reminder_at)"
+        },
         "site_transfer_requests_status_check": {
           "name": "site_transfer_requests_status_check",
           "value": "status IN ('pending', 'accepted', 'cancelled')"
@@ -8840,6 +8935,10 @@
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "checkConstraints": {
+        "sites_instants_check": {
+          "name": "sites_instants_check",
+          "value": "(last_published_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', last_published_at, '+0 days') IS last_published_at) AND (created_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', created_at, '+0 days') IS created_at) AND (updated_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', updated_at, '+0 days') IS updated_at) AND (analytics_data_start_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', analytics_data_start_at, '+0 days') IS analytics_data_start_at)"
+        },
         "sites_settings_json_check": {
           "name": "sites_settings_json_check",
           "value": "json_valid(settings_json) AND json_type(settings_json) IS 'object'"
@@ -9199,6 +9298,10 @@
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "checkConstraints": {
+        "stripe_ga4_subscription_intents_instants_check": {
+          "name": "stripe_ga4_subscription_intents_instants_check",
+          "value": "(lifecycle_sent_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', lifecycle_sent_at, '+0 days') IS lifecycle_sent_at) AND (consumed_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', consumed_at, '+0 days') IS consumed_at) AND (expires_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', expires_at, '+0 days') IS expires_at) AND (created_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', created_at, '+0 days') IS created_at) AND (updated_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', updated_at, '+0 days') IS updated_at)"
+        },
         "stripe_ga4_subscription_intents_action_check": {
           "name": "stripe_ga4_subscription_intents_action_check",
           "value": "\"stripe_ga4_subscription_intents\".\"action\" IN ('initial_subscription', 'upgrade', 'downgrade')"
@@ -9375,6 +9478,10 @@
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "checkConstraints": {
+        "stripe_invoice_payments_instants_check": {
+          "name": "stripe_invoice_payments_instants_check",
+          "value": "(ga4_purchase_claimed_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', ga4_purchase_claimed_at, '+0 days') IS ga4_purchase_claimed_at) AND (ga4_purchase_sent_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', ga4_purchase_sent_at, '+0 days') IS ga4_purchase_sent_at) AND (updated_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', updated_at, '+0 days') IS updated_at) AND (period_start IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', period_start, '+0 days') IS period_start) AND (period_end IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', period_end, '+0 days') IS period_end) AND (past_due_since IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', past_due_since, '+0 days') IS past_due_since)"
+        },
         "stripe_invoice_payments_status_check": {
           "name": "stripe_invoice_payments_status_check",
           "value": "status IN ('paid', 'processing', 'failed')"
@@ -9422,7 +9529,12 @@
       "foreignKeys": {},
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
-      "checkConstraints": {}
+      "checkConstraints": {
+        "stripe_subscription_versions_instants_check": {
+          "name": "stripe_subscription_versions_instants_check",
+          "value": "(updated_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', updated_at, '+0 days') IS updated_at)"
+        }
+      }
     },
     "stripe_webhook_events": {
       "name": "stripe_webhook_events",
@@ -9543,6 +9655,10 @@
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "checkConstraints": {
+        "stripe_webhook_events_instants_check": {
+          "name": "stripe_webhook_events_instants_check",
+          "value": "(claimed_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', claimed_at, '+0 days') IS claimed_at) AND (lease_expires_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', lease_expires_at, '+0 days') IS lease_expires_at) AND (next_attempt_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', next_attempt_at, '+0 days') IS next_attempt_at) AND (dead_lettered_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', dead_lettered_at, '+0 days') IS dead_lettered_at) AND (created_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', created_at, '+0 days') IS created_at)"
+        },
         "stripe_webhook_events_status_check": {
           "name": "stripe_webhook_events_status_check",
           "value": "status IN ('pending', 'processed', 'failed', 'dead_letter')"
@@ -10031,169 +10147,13 @@
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "checkConstraints": {
+        "usage_events_instants_check": {
+          "name": "usage_events_instants_check",
+          "value": "(created_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', created_at, '+0 days') IS created_at)"
+        },
         "usage_events_metadata_json_check": {
           "name": "usage_events_metadata_json_check",
           "value": "metadata_json IS NULL OR (json_valid(metadata_json))"
-        }
-      }
-    },
-    "usage_quota_grants": {
-      "name": "usage_quota_grants",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "organization_id": {
-          "name": "organization_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "resource": {
-          "name": "resource",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "quantity": {
-          "name": "quantity",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "unit": {
-          "name": "unit",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "period_key": {
-          "name": "period_key",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "period_start": {
-          "name": "period_start",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "period_end": {
-          "name": "period_end",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "grant_type": {
-          "name": "grant_type",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "reason": {
-          "name": "reason",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "created_by": {
-          "name": "created_by",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "idempotency_key": {
-          "name": "idempotency_key",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "applied_at": {
-          "name": "applied_at",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": "(strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))"
-        }
-      },
-      "indexes": {
-        "usage_quota_grants_active_idx": {
-          "name": "usage_quota_grants_active_idx",
-          "columns": [
-            "organization_id",
-            "resource",
-            "period_start",
-            "period_end"
-          ],
-          "isUnique": false
-        },
-        "usage_quota_grants_organization_id_idempotency_key_unique": {
-          "name": "usage_quota_grants_organization_id_idempotency_key_unique",
-          "columns": [
-            "organization_id",
-            "idempotency_key"
-          ],
-          "isUnique": true
-        }
-      },
-      "foreignKeys": {
-        "usage_quota_grants_organization_id_organization_id_fk": {
-          "name": "usage_quota_grants_organization_id_organization_id_fk",
-          "tableFrom": "usage_quota_grants",
-          "tableTo": "organization",
-          "columnsFrom": [
-            "organization_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "usage_quota_grants_created_by_user_id_fk": {
-          "name": "usage_quota_grants_created_by_user_id_fk",
-          "tableFrom": "usage_quota_grants",
-          "tableTo": "user",
-          "columnsFrom": [
-            "created_by"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "set null",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "checkConstraints": {
-        "usage_quota_grants_grant_type_check": {
-          "name": "usage_quota_grants_grant_type_check",
-          "value": "grant_type IN ('plan', 'reset', 'manual')"
         }
       }
     },
@@ -10476,6 +10436,10 @@
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "checkConstraints": {
+        "user_workspace_state_instants_check": {
+          "name": "user_workspace_state_instants_check",
+          "value": "(created_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', created_at, '+0 days') IS created_at) AND (updated_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', updated_at, '+0 days') IS updated_at) AND (whatsapp_updated_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', whatsapp_updated_at, '+0 days') IS whatsapp_updated_at)"
+        },
         "user_workspace_state_whatsapp_pending_check": {
           "name": "user_workspace_state_whatsapp_pending_check",
           "value": "whatsapp_pending_confirmation IS NULL OR (json_valid(whatsapp_pending_confirmation) AND json_type(whatsapp_pending_confirmation) IS 'object')"

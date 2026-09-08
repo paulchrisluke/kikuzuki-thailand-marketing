@@ -114,7 +114,7 @@ function platformMediaInput(args: Record<string, unknown>) {
   })
 }
 
-const PLATFORM_BLOG_POST_STATUSES = new Set(['published', 'scheduled'])
+const PLATFORM_BLOG_POST_STATUSES = new Set(['draft', 'published', 'scheduled'])
 const PLATFORM_BLOG_VISIBILITIES = new Set(['public', 'unlisted'])
 const PLATFORM_BLOG_ROBOTS = new Set(['index,follow', 'noindex,follow', 'index,nofollow', 'noindex,nofollow'])
 
@@ -587,45 +587,6 @@ async function resolveAttachmentImageFile(
   return { buffer, contentType, filename }
 }
 
-async function resolveUserUploadedImageFile(
-  fileId: string,
-  env: ApiRecord,
-): Promise<{ buffer: ArrayBuffer; contentType: string; filename: string }> {
-  const accountId = env.CF_ACCOUNT_ID as string | undefined
-  const gatewayName = env.CF_GATEWAY_NAME as string | undefined
-  const aigToken = env.CLOUDFLARE_API_TOKEN as string | undefined
-
-  if (!accountId || !gatewayName || !aigToken) {
-    throw new Error('CF AI Gateway env vars not configured (CF_ACCOUNT_ID, CF_GATEWAY_NAME, CLOUDFLARE_API_TOKEN)')
-  }
-
-  const normalizedFileId = fileId
-    .trim()
-    .replace(/^sediment:\/\//i, '')
-    .replace(/^file:\/\//i, '')
-    .replace(/^\/+/, '')
-
-  if (!normalizedFileId || !/^[a-zA-Z0-9_-]+$/.test(normalizedFileId)) {
-    throw mcpProtocolError(MCP_ERROR.invalidParams, 'file_id must be a valid uploaded file identifier.')
-  }
-
-  const url = `https://gateway.ai.cloudflare.com/v1/${accountId}/${gatewayName}/openai/v1/files/${normalizedFileId}/content`
-  const response = await fetch(url, {
-    headers: { 'cf-aig-authorization': `Bearer ${aigToken}` },
-    signal: AbortSignal.timeout(30_000),
-  })
-
-  if (!response.ok) {
-    throw mcpProtocolError(MCP_ERROR.invalidParams, `Failed to fetch uploaded file ${normalizedFileId} via AI Gateway: ${response.status}`)
-  }
-
-  const contentType = response.headers.get('content-type') ?? 'application/octet-stream'
-  validateImageContentType(contentType, `File ${normalizedFileId}`)
-  const buffer = await readResponseBufferWithLimit(response, `File ${normalizedFileId}`)
-  const filename = `${normalizedFileId}.${contentType.split('/')[1] ?? 'png'}`
-  return { buffer, contentType, filename }
-}
-
 export async function executePlatformMcpToolCall(
   event: H3Event,
   toolName: string,
@@ -755,16 +716,8 @@ export async function executePlatformMcpToolCall(
         throw new Error('Cloudflare Images not configured')
       }
 
-      const fileReferenceValue = rawArguments.file
-      const fileReference = fileReferenceValue !== undefined ? toolFileReference(fileReferenceValue, 'file') : null
-      const fileId = optionalString(rawArguments, 'file_id') ?? null
-      if (!fileReference && !fileId) {
-        throw mcpProtocolError(MCP_ERROR.invalidParams, 'upload_platform_image requires either file or file_id.')
-      }
-
-      const upload = fileReference
-        ? await resolveAttachmentImageFile(fileReference)
-        : await resolveUserUploadedImageFile(fileId!, user.env)
+      const fileReference = toolFileReference(rawArguments.file, 'file')
+      const upload = await resolveAttachmentImageFile(fileReference)
       const uploaded = await uploadImageBuffer(
         user.env as Parameters<typeof uploadImageBuffer>[0],
         upload.buffer,
@@ -876,7 +829,17 @@ export async function executePlatformMcpToolCall(
         if (!site) throw mcpProtocolError(MCP_ERROR.invalidParams, 'Site not found.')
         blogScope = { site_id: siteId, organization_id: site.organization_id }
       }
+      const status = optionalString(rawArguments, 'status')
+      if (status !== undefined && status !== 'draft' && status !== 'scheduled' && status !== 'published') {
+        throw mcpProtocolError(MCP_ERROR.invalidParams, 'status must be draft, scheduled or published')
+      }
+      const visibility = optionalString(rawArguments, 'visibility')
+      if (visibility !== undefined && visibility !== 'public' && visibility !== 'unlisted') {
+        throw mcpProtocolError(MCP_ERROR.invalidParams, 'visibility must be public or unlisted')
+      }
       const result = await createPlatformBlogPost(user.db, user.userId, {
+        status,
+        visibility,
         title: requiredString(rawArguments, 'title'),
         content_blocks: contentBlocks(rawArguments),
         excerpt: optionalString(rawArguments, 'excerpt') ?? null,

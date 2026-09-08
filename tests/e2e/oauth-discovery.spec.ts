@@ -195,6 +195,20 @@ test.describe('OAuth discovery endpoints', () => {
     expect(refreshedBody.refresh_token).toBeTruthy()
     expect(refreshedBody.refresh_token).not.toBe(tokenBody.refresh_token)
 
+    const initialized = await request.post(`${baseURL}/api/mcp`, {
+      headers: {
+        Authorization: `Bearer ${refreshedBody.access_token}`,
+        Accept: 'application/json, text/event-stream',
+        Cookie: '',
+      },
+      data: { jsonrpc: '2.0', id: 0, method: 'initialize', params: {
+        protocolVersion: '2025-06-18', capabilities: {},
+        clientInfo: { name: 'krabiclaw-release-e2e', version: '1.0.0' },
+      } },
+    })
+    expect(initialized.status(), await initialized.text()).toBe(200)
+    expect(await initialized.json()).toMatchObject({ result: { protocolVersion: '2025-06-18' } })
+
     const tools = await request.post(`${baseURL}/api/mcp`, {
       headers: {
         Authorization: `Bearer ${refreshedBody.access_token}`,

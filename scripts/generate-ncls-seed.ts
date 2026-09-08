@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { nclsFixture, type NclsSeedTable, type NclsSeedValue } from '../seed-definitions/ncls.ts'
-import { renderCanonicalBillingSql } from '../seed-definitions/billing-sql.ts'
+import { renderOrganizationBillingSql } from '../seed-definitions/billing-sql.ts'
 
 const wranglerCli = resolve('node_modules/wrangler/bin/wrangler.js')
 
@@ -63,7 +63,7 @@ VALUES ('member-ncls-blawby', ${sqlValue(nclsFixture.organizationId)}, ${sqlValu
 
 ${renderRows(table('sites'))}
 
-${renderCanonicalBillingSql(nclsFixture.siteId, nclsFixture.organizationId, { status: 'active', plan: 'growth' }, sqlValue)}
+${renderOrganizationBillingSql(nclsFixture.organizationId, { status: 'active', plan: 'growth' }, sqlValue)}
 
   ${renderRows(table('business_locations'))}
 

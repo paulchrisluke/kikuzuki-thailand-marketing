@@ -174,6 +174,8 @@ export default defineNuxtConfig({
   },
 
   vite: {
+    // Preserve Vue's concrete server/client mismatch details in production builds.
+    define: { __VUE_PROD_HYDRATION_MISMATCH_DETAILS__: true },
     build: {
       modulePreload: false,
       rollupOptions: {
@@ -193,8 +195,11 @@ export default defineNuxtConfig({
     },
   },
 
-  // Bundle analysis is opt-in and client-only; it has no runtime effect.
   hooks: {
+    ready(nuxt) {
+      const clientComposables = nuxt.options.optimization.treeShake.composables.client
+      if (clientComposables.vue) clientComposables.vue = clientComposables.vue.filter(name => name !== 'onServerPrefetch')
+    },
     'pages:extend'(pages) {
       pages.push(...localizedPublicRouteAliases(pages))
     },
@@ -330,10 +335,6 @@ export default defineNuxtConfig({
     },
     {
       path: '~/lib/components/workspace/content',
-      pathPrefix: false,
-    },
-    {
-      path: '~/lib/components/workspace/editor',
       pathPrefix: false,
     },
     {

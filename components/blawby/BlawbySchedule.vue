@@ -20,21 +20,7 @@
 
     <section v-if="guidanceBlock" class="relative overflow-hidden bg-white pb-16 pt-16 sm:pb-20 sm:pt-16 lg:pb-24 lg:pt-20" data-parity-section="guidance">
       <div class="blawby-container relative z-20">
-        <div class="mx-auto max-w-4xl">
-          <div class="mx-auto max-w-3xl text-center">
-            <h2 class="blawby-display text-3xl font-bold text-[var(--blawby-primary)] sm:text-4xl">{{ guidanceBlock.title }}</h2>
-            <div class="mt-5 space-y-4 text-left text-lg leading-8 text-gray-700 sm:text-xl">
-              <p v-for="paragraph in guidanceParagraphs" :key="paragraph">{{ paragraph }}</p>
-            </div>
-          </div>
-          <div class="mx-auto mt-12 max-w-3xl divide-y divide-[var(--blawby-primary-200)]">
-            <section v-for="section in guidanceSections" :key="section.title" class="py-8 first:pt-0">
-              <h3 class="blawby-display text-2xl font-bold text-[var(--blawby-primary)] sm:text-[1.75rem]">{{ section.title }}</h3>
-              <ul v-if="section.items.length" class="mt-4 list-disc space-y-2 pl-6 text-lg leading-8 text-gray-700 sm:text-xl"><li v-for="item in section.items" :key="item">{{ item }}</li></ul>
-              <p v-else class="mt-4 text-lg leading-8 text-gray-700 sm:text-xl">{{ section.text }}</p>
-            </section>
-          </div>
-        </div>
+        <BlawbyRichText :content="guidanceMarkdown" class="mx-auto max-w-3xl text-lg sm:text-xl" />
       </div>
       <div v-if="guidanceDecoration" class="pointer-events-none absolute inset-x-0 bottom-0 z-10 overflow-hidden opacity-80">
         <img :src="guidanceDecoration" alt="" width="1920" height="400" loading="lazy" class="absolute bottom-0 w-full object-contain object-bottom">
@@ -71,10 +57,6 @@ const consultation = computed(() => shell.value.consultation)
 const compliance = computed(() => shell.value.compliance)
 const org = useBlawbyOrgIdentity(identity, compliance)
 
-function block(type: string) {
-  const canonicalType = type === 'schedule_hero' ? 'hero' : type === 'schedule_guidance' ? 'markdown' : type === 'schedule_cta' ? 'booking_cta' : type === 'schedule_qa' ? 'faq' : undefined
-  return findTenantPageBlock(page.value.blocks, type, canonicalType)
-}
 function optionalString(value: unknown) {
   return typeof value === 'string' && value ? value : null
 }
@@ -84,7 +66,7 @@ function mediaUrl(value: ApiRecord | null | undefined, slot: string) {
   return typeof item?.public_url === 'string' ? item.public_url : null
 }
 
-const scheduleHero = computed(() => block('schedule_hero'))
+const scheduleHero = computed(() => findTenantPageBlock(page.value.blocks, 'hero'))
 const scheduleHeroDestination = computed(() => consultation.value.external_url || String(scheduleHero.value?.buttonUrl || consultation.value.schedule_path))
 const scheduleTitle = computed(() => {
   const title = String(scheduleHero.value?.title || page.value.title)
@@ -92,32 +74,15 @@ const scheduleTitle = computed(() => {
   const index = title.indexOf(accent)
   return index >= 0 ? { before: title.slice(0, index), accent, after: title.slice(index + accent.length) } : { before: title, accent: '', after: '' }
 })
-const guidanceBlock = computed(() => block('schedule_guidance'))
-const guidanceContent = computed(() => stripLeadingTitleHeading(
-  String(guidanceBlock.value?.content || guidanceBlock.value?.description || ''),
-  optionalString(guidanceBlock.value?.title),
-))
-const guidanceParagraphs = computed(() => guidanceContent.value
-  .split(/\n\n+/)
-  .map(paragraph => paragraph.trim())
-  .filter(paragraph => paragraph && !paragraph.startsWith('#')))
+const guidanceBlock = computed(() => findTenantPageBlock(page.value.blocks, 'markdown'))
+const guidanceMarkdown = computed(() => optionalString(guidanceBlock.value?.markdown))
 const guidanceDecoration = computed(() => mediaUrl(guidanceBlock.value, 'decoration'))
-const scheduleCta = computed(() => block('schedule_cta'))
+const scheduleCta = computed(() => findTenantPageBlock(page.value.blocks, 'booking_cta'))
 const scheduleCtaDestination = computed(() => consultation.value.external_url || String(scheduleCta.value?.buttonUrl || consultation.value.schedule_path))
-const qaBlock = computed(() => block('schedule_qa'))
-const guidanceSections = computed(() => guidanceBlock.value ? [
-  { title: String(guidanceBlock.value.prepTitle || ''), items: arrayStrings(guidanceBlock.value.prepItems), text: '' },
-  { title: String(guidanceBlock.value.expectationsTitle || ''), items: arrayStrings(guidanceBlock.value.expectationItems), text: '' },
-  { title: String(guidanceBlock.value.detailsTitle || ''), items: [], text: String(guidanceBlock.value.detailsText || '') },
-  { title: String(guidanceBlock.value.trustTitle || ''), items: [], text: String(guidanceBlock.value.trustText || '') },
-].filter(section => section.title) : [])
+const qaBlock = computed(() => findTenantPageBlock(page.value.blocks, 'faq'))
 const scheduleQa = computed<PublicSiteQa[]>(() => {
   return routeData.value.qa
 })
-
-function arrayStrings(value: unknown) {
-  return Array.isArray(value) ? value.map(String) : []
-}
 
 const { trackConsultationClick } = useSiteConversionTracking(consultation)
 function trackConsultation(pageType: string, destination: string) {

@@ -12,7 +12,7 @@ export const POSTS_TOOLS: McpToolDefinition[] = [
       minimumRole: 'editor',
       confirmRequired: false,
       inputSchema: {
-        status: { type: 'string', enum: ['published', 'scheduled'] },
+        status: { type: 'string', enum: ['draft', 'published', 'scheduled'] },
         location_id: { type: 'string', description: 'Filter to posts restricted to this location.' },
         ...paginationInputSchema,
       },
@@ -38,7 +38,7 @@ export const POSTS_TOOLS: McpToolDefinition[] = [
     }),
   siteTool({
       name: 'create_post',
-      description: 'Create a website announcement, published immediately unless scheduled_for is provided. Use standard for news. Event and offer require event.title and a complete local event.schedule. Offer fields are optional and call_to_action is not allowed on offers. CALL uses the selected location phone. Alert supports covid_19 summary and CTA only. Event recurrence supports daily, weekly and monthly rules. Google publishing is unavailable. Use publish_post for connected Facebook or Instagram channels. Use create_blog_post for long-form articles.',
+      description: 'Create a draft website announcement, or schedule it with scheduled_for. Visibility defaults to public; unlisted posts remain accessible by direct URL after publication but are excluded from indexes. Use publish_post to publish to the site or connected Facebook or Instagram channels. Use standard for news. Event and offer require event.title and a complete local event.schedule. Offer fields are optional and call_to_action is not allowed on offers. CALL uses the selected location phone. Alert supports covid_19 summary and CTA only. Event recurrence supports daily, weekly and monthly rules. Google publishing is unavailable. Use create_blog_post for long-form articles.',
       domain: 'posts',
       minimumRole: 'editor',
       confirmRequired: true,
@@ -48,7 +48,7 @@ export const POSTS_TOOLS: McpToolDefinition[] = [
     }),
   siteTool({
       name: 'update_post',
-      description: 'Update a post. Changing post_type clears incompatible topic fields; supply the new event or offer shape together. Edit cover and gallery through media placement tools. Schedule changes use scheduled_for, independently of event dates.',
+      description: 'Update a post. Changing post_type clears incompatible topic fields; supply the new event or offer shape together. Edit cover and gallery through media placement tools. Drafts can be scheduled with scheduled_for, independently of event dates. Published posts cannot be rescheduled; use visibility public or unlisted. Use publish_post to publish a scheduled post instead of clearing its date.',
       domain: 'posts',
       minimumRole: 'editor',
       confirmRequired: false,

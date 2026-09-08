@@ -89,7 +89,7 @@ export const PLATFORM_KNOWLEDGE_FAQ_ENTRIES: PlatformKnowledgeFaqEntry[] = [
   {
     id: 'menu-updates',
     title: 'How do I add or update menu items?',
-    answer: 'Use the dashboard Offerings area or use the ChatGPT connector to add items, adjust prices, rewrite descriptions, or import from a menu photo.',
+    answer: 'Use the dashboard Offerings area or the ChatGPT connector to add items, adjust prices, or rewrite descriptions. Provide the product details you want to save.',
     keywords: ['menu', 'offerings', 'menu items', 'prices', 'import menu'],
   },
   {
@@ -121,12 +121,6 @@ export const PLATFORM_KNOWLEDGE_FAQ_ENTRIES: PlatformKnowledgeFaqEntry[] = [
     title: 'Can I change plans anytime?',
     answer: 'Yes. You can upgrade or downgrade from the dashboard billing area, and each site keeps its own plan.',
     keywords: ['plans', 'upgrade', 'downgrade', 'billing'],
-  },
-  {
-    id: 'ai-credits',
-    title: 'What are AI credits?',
-    answer: 'AI credits power features like content generation, image generation, and menu/photo-assisted editing flows.',
-    keywords: ['ai credits', 'credits', 'usage', 'generation'],
   },
 ]
 
@@ -165,7 +159,7 @@ export const PLATFORM_KNOWLEDGE_ROUTE_ENTRIES: PlatformKnowledgeRouteEntry[] = [
     id: 'pricing',
     title: 'Pricing',
     path: '/pricing',
-    snippet: 'Plan comparison, billing details, AI credits, and what each paid tier unlocks.',
+    snippet: 'Plan comparison, billing details, and what each paid tier unlocks.',
     icon: 'credit-card',
     section: 'Platform',
     keywords: ['pricing', 'plans', 'billing', 'cost', 'subscription'],
@@ -209,11 +203,11 @@ export const PLATFORM_KNOWLEDGE_PAGE_ENTRIES: PlatformKnowledgePageEntry[] = [
     id: 'pricing-page',
     title: 'Pricing Plans',
     path: '/pricing',
-    snippet: 'Compare tiers, billing, AI credits, and what each plan unlocks.',
+    snippet: 'Compare tiers, billing, and what each plan unlocks.',
     body: 'Pricing explains the differences between free and paid plans, billing expectations, Growth priority support, and which features are available at each tier.',
     icon: 'credit-card',
     section: 'Platform',
-    keywords: ['pricing', 'plan', 'billing', 'upgrade', 'credits'],
+    keywords: ['pricing', 'plan', 'billing', 'upgrade'],
     surfaces: ['public', 'docs', 'blog', 'help', 'chowbot'],
   },
   {

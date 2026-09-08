@@ -1,73 +1,7 @@
 {
   "surface": "tenant",
-  "fingerprint": "sha256:0c024a91c1934648ff48a18550fa9379879e4e7b7186d4a7f8fea31e17b6dbbb",
+  "fingerprint": "sha256:6b94139dadd32cd23aa61ba70d8827828847fd2fef7696043fc8fca1c9c2b986",
   "tools": [
-    {
-      "name": "analyze_document",
-      "inputSchema": {
-        "additionalProperties": false,
-        "properties": {
-          "asset_id": {
-            "description": "Media asset ID of the uploaded Markdown document.",
-            "type": "string"
-          },
-          "question": {
-            "description": "Optional question to answer using only the document content. Omit for a summary.",
-            "type": "string"
-          },
-          "site_id": {
-            "description": "Internal KrabiClaw site ID from get_workspace_context or list_sites, e.g. site-pottery-house. Do not pass a public URL, hostname, subdomain, custom domain, slug, or site name here.",
-            "type": "string"
-          }
-        },
-        "required": [
-          "asset_id"
-        ],
-        "type": "object"
-      },
-      "outputSchema": {
-        "properties": {
-          "answer": {
-            "description": "Grounded answer or summary.",
-            "type": "string"
-          },
-          "creditsRemaining": {
-            "description": "AI credits remaining after document analysis.",
-            "type": "number"
-          },
-          "stats": {
-            "description": "Structural stats detected in the document.",
-            "properties": {
-              "blockquotes": {
-                "type": "number"
-              },
-              "codeBlocks": {
-                "type": "number"
-              },
-              "headings": {
-                "type": "number"
-              },
-              "links": {
-                "type": "number"
-              },
-              "listItems": {
-                "type": "number"
-              },
-              "tableRows": {
-                "type": "number"
-              }
-            },
-            "type": "object"
-          }
-        },
-        "required": [
-          "answer",
-          "creditsRemaining",
-          "stats"
-        ],
-        "type": "object"
-      }
-    },
     {
       "name": "attach_media",
       "inputSchema": {
@@ -996,7 +930,9 @@
             ]
           },
           "scheduled_for": {
-            "description": "Optional future ISO 8601 datetime with timezone. Omit or pass null to publish immediately.",
+            "description": "Optional future ISO 8601 datetime with timezone. With no status or schedule, creation saves a draft.",
+            "format": "date-time",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}T(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d{1,9})?(?:Z|[+-](?:[01]\\d|2[0-3]):[0-5]\\d)$",
             "type": [
               "string",
               "null"
@@ -1021,6 +957,15 @@
           },
           "site_id": {
             "description": "Internal KrabiClaw site ID from get_workspace_context or list_sites, e.g. site-pottery-house. Do not pass a public URL, hostname, subdomain, custom domain, slug, or site name here.",
+            "type": "string"
+          },
+          "status": {
+            "description": "Creation defaults to draft. Scheduled requires a future scheduled_for; published goes live immediately.",
+            "enum": [
+              "draft",
+              "scheduled",
+              "published"
+            ],
             "type": "string"
           },
           "tags": {
@@ -1168,10 +1113,6 @@
               "created_at": {
                 "type": "string"
               },
-              "document_updated_at": {
-                "description": "Concurrency token required when replacing content_blocks or changing publication state.",
-                "type": "string"
-              },
               "edit_url": {
                 "type": [
                   "string",
@@ -1302,6 +1243,9 @@
                 ]
               },
               "scheduled_for": {
+                "description": "RFC 3339 instant with an explicit Z or numeric UTC offset. Offsetless timestamps are invalid.",
+                "format": "date-time",
+                "pattern": "^\\d{4}-\\d{2}-\\d{2}T(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d{1,9})?(?:Z|[+-](?:[01]\\d|2[0-3]):[0-5]\\d)$",
                 "type": [
                   "string",
                   "null"
@@ -1330,6 +1274,7 @@
               },
               "status": {
                 "enum": [
+                  "draft",
                   "published",
                   "scheduled"
                 ],
@@ -1393,8 +1338,7 @@
               "public_url",
               "preview_url",
               "view_url",
-              "content_blocks",
-              "document_updated_at"
+              "content_blocks"
             ],
             "type": "object"
           }
@@ -1560,9 +1504,15 @@
                 "type": "string"
               },
               "valid_from": {
+                "description": "RFC 3339 instant with an explicit Z or numeric UTC offset. Offsetless timestamps are invalid.",
+                "format": "date-time",
+                "pattern": "^\\d{4}-\\d{2}-\\d{2}T(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d{1,9})?(?:Z|[+-](?:[01]\\d|2[0-3]):[0-5]\\d)$",
                 "type": "string"
               },
               "valid_until": {
+                "description": "RFC 3339 instant with an explicit Z or numeric UTC offset. Offsetless timestamps are invalid.",
+                "format": "date-time",
+                "pattern": "^\\d{4}-\\d{2}-\\d{2}T(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d{1,9})?(?:Z|[+-](?:[01]\\d|2[0-3]):[0-5]\\d)$",
                 "type": [
                   "string",
                   "null"
@@ -1594,7 +1544,8 @@
                 "properties": {
                   "friday": {
                     "items": {
-                      "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+                      "description": "Local wall-clock time, HH:mm (24-hour), in the explicitly selected location timezone.",
+                      "pattern": "^(?:[01]\\d|2[0-3]):[0-5]\\d$",
                       "type": "string"
                     },
                     "type": "array",
@@ -1602,7 +1553,8 @@
                   },
                   "monday": {
                     "items": {
-                      "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+                      "description": "Local wall-clock time, HH:mm (24-hour), in the explicitly selected location timezone.",
+                      "pattern": "^(?:[01]\\d|2[0-3]):[0-5]\\d$",
                       "type": "string"
                     },
                     "type": "array",
@@ -1610,7 +1562,8 @@
                   },
                   "saturday": {
                     "items": {
-                      "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+                      "description": "Local wall-clock time, HH:mm (24-hour), in the explicitly selected location timezone.",
+                      "pattern": "^(?:[01]\\d|2[0-3]):[0-5]\\d$",
                       "type": "string"
                     },
                     "type": "array",
@@ -1618,7 +1571,8 @@
                   },
                   "sunday": {
                     "items": {
-                      "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+                      "description": "Local wall-clock time, HH:mm (24-hour), in the explicitly selected location timezone.",
+                      "pattern": "^(?:[01]\\d|2[0-3]):[0-5]\\d$",
                       "type": "string"
                     },
                     "type": "array",
@@ -1626,7 +1580,8 @@
                   },
                   "thursday": {
                     "items": {
-                      "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+                      "description": "Local wall-clock time, HH:mm (24-hour), in the explicitly selected location timezone.",
+                      "pattern": "^(?:[01]\\d|2[0-3]):[0-5]\\d$",
                       "type": "string"
                     },
                     "type": "array",
@@ -1634,7 +1589,8 @@
                   },
                   "tuesday": {
                     "items": {
-                      "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+                      "description": "Local wall-clock time, HH:mm (24-hour), in the explicitly selected location timezone.",
+                      "pattern": "^(?:[01]\\d|2[0-3]):[0-5]\\d$",
                       "type": "string"
                     },
                     "type": "array",
@@ -1642,7 +1598,8 @@
                   },
                   "wednesday": {
                     "items": {
-                      "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+                      "description": "Local wall-clock time, HH:mm (24-hour), in the explicitly selected location timezone.",
+                      "pattern": "^(?:[01]\\d|2[0-3]):[0-5]\\d$",
                       "type": "string"
                     },
                     "type": "array",
@@ -2034,7 +1991,9 @@
                             ]
                           },
                           "series_end_time": {
+                            "description": "RFC 3339 instant with an explicit Z or numeric UTC offset. Offsetless timestamps are invalid.",
                             "format": "date-time",
+                            "pattern": "^\\d{4}-\\d{2}-\\d{2}T(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d{1,9})?(?:Z|[+-](?:[01]\\d|2[0-3]):[0-5]\\d)$",
                             "type": "string"
                           }
                         },
@@ -2067,7 +2026,9 @@
                             ]
                           },
                           "series_end_time": {
+                            "description": "RFC 3339 instant with an explicit Z or numeric UTC offset. Offsetless timestamps are invalid.",
                             "format": "date-time",
+                            "pattern": "^\\d{4}-\\d{2}-\\d{2}T(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d{1,9})?(?:Z|[+-](?:[01]\\d|2[0-3]):[0-5]\\d)$",
                             "type": "string"
                           }
                         },
@@ -2091,7 +2052,9 @@
                             ]
                           },
                           "series_end_time": {
+                            "description": "RFC 3339 instant with an explicit Z or numeric UTC offset. Offsetless timestamps are invalid.",
                             "format": "date-time",
+                            "pattern": "^\\d{4}-\\d{2}-\\d{2}T(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d{1,9})?(?:Z|[+-](?:[01]\\d|2[0-3]):[0-5]\\d)$",
                             "type": "string"
                           }
                         },
@@ -2119,7 +2082,9 @@
                             ]
                           },
                           "series_end_time": {
+                            "description": "RFC 3339 instant with an explicit Z or numeric UTC offset. Offsetless timestamps are invalid.",
                             "format": "date-time",
+                            "pattern": "^\\d{4}-\\d{2}-\\d{2}T(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d{1,9})?(?:Z|[+-](?:[01]\\d|2[0-3]):[0-5]\\d)$",
                             "type": "string"
                           }
                         },
@@ -2135,20 +2100,24 @@
                     "additionalProperties": false,
                     "properties": {
                       "end_date": {
+                        "description": "Gregorian calendar date, YYYY-MM-DD. No timezone conversion.",
                         "format": "date",
                         "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
                         "type": "string"
                       },
                       "end_time": {
+                        "description": "Local wall-clock time, HH:mm:ss with optional fractional seconds. Not a UTC instant.",
                         "pattern": "^(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d{1,9})?$",
                         "type": "string"
                       },
                       "start_date": {
+                        "description": "Gregorian calendar date, YYYY-MM-DD. No timezone conversion.",
                         "format": "date",
                         "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
                         "type": "string"
                       },
                       "start_time": {
+                        "description": "Local wall-clock time, HH:mm:ss with optional fractional seconds. Not a UTC instant.",
                         "pattern": "^(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d{1,9})?$",
                         "type": "string"
                       }
@@ -2247,7 +2216,9 @@
           "scheduled_for": {
             "anyOf": [
               {
+                "description": "RFC 3339 instant with an explicit Z or numeric UTC offset. Offsetless timestamps are invalid.",
                 "format": "date-time",
+                "pattern": "^\\d{4}-\\d{2}-\\d{2}T(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d{1,9})?(?:Z|[+-](?:[01]\\d|2[0-3]):[0-5]\\d)$",
                 "type": "string"
               },
               {
@@ -2297,6 +2268,12 @@
               {
                 "type": "null"
               }
+            ]
+          },
+          "visibility": {
+            "enum": [
+              "public",
+              "unlisted"
             ]
           }
         },
@@ -3721,10 +3698,6 @@
               "created_at": {
                 "type": "string"
               },
-              "document_updated_at": {
-                "description": "Concurrency token required when replacing content_blocks or changing publication state.",
-                "type": "string"
-              },
               "edit_url": {
                 "type": [
                   "string",
@@ -3855,6 +3828,9 @@
                 ]
               },
               "scheduled_for": {
+                "description": "RFC 3339 instant with an explicit Z or numeric UTC offset. Offsetless timestamps are invalid.",
+                "format": "date-time",
+                "pattern": "^\\d{4}-\\d{2}-\\d{2}T(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d{1,9})?(?:Z|[+-](?:[01]\\d|2[0-3]):[0-5]\\d)$",
                 "type": [
                   "string",
                   "null"
@@ -3883,6 +3859,7 @@
               },
               "status": {
                 "enum": [
+                  "draft",
                   "published",
                   "scheduled"
                 ],
@@ -3946,8 +3923,7 @@
               "public_url",
               "preview_url",
               "view_url",
-              "content_blocks",
-              "document_updated_at"
+              "content_blocks"
             ],
             "type": "object"
           }
@@ -4561,7 +4537,7 @@
                 ]
               },
               "notification_phone": {
-                "description": "WhatsApp number for internal booking/reservation alerts to this location's manager. Not shown to guests. Falls back to the site-level whatsapp_phone if null.",
+                "description": "WhatsApp number for internal booking/reservation alerts to this location's manager. Not shown to guests. Null means no location-specific recipient is configured. Site-wide recipients are configured independently.",
                 "type": [
                   "string",
                   "null"
@@ -4740,6 +4716,8 @@
                             "ends_on": {
                               "anyOf": [
                                 {
+                                  "description": "Gregorian calendar date, YYYY-MM-DD. No timezone conversion.",
+                                  "format": "date",
                                   "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
                                   "type": "string"
                                 },
@@ -4759,6 +4737,8 @@
                               ]
                             },
                             "starts_on": {
+                              "description": "Gregorian calendar date, YYYY-MM-DD. No timezone conversion.",
+                              "format": "date",
                               "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
                               "type": "string"
                             }
@@ -4775,6 +4755,8 @@
                           "additionalProperties": false,
                           "properties": {
                             "date": {
+                              "description": "Gregorian calendar date, YYYY-MM-DD. No timezone conversion.",
+                              "format": "date",
                               "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
                               "type": "string"
                             },
@@ -4799,11 +4781,13 @@
                                     ]
                                   },
                                   "close_time": {
-                                    "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+                                    "description": "Local wall-clock time, HH:mm (24-hour), in the explicitly selected location timezone.",
+                                    "pattern": "^(?:[01]\\d|2[0-3]):[0-5]\\d$",
                                     "type": "string"
                                   },
                                   "open_time": {
-                                    "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+                                    "description": "Local wall-clock time, HH:mm (24-hour), in the explicitly selected location timezone.",
+                                    "pattern": "^(?:[01]\\d|2[0-3]):[0-5]\\d$",
                                     "type": "string"
                                   }
                                 },
@@ -4841,7 +4825,8 @@
                 ]
               },
               "timezone": {
-                "description": "IANA time zone identifier for this location, e.g. Asia/Bangkok. Used to interpret opening hours and booking slots.",
+                "description": "Explicit IANA timezone identifier, such as Asia/Bangkok. Missing timezone is an error, never the browser timezone.",
+                "minLength": 1,
                 "type": [
                   "string",
                   "null"
@@ -5026,7 +5011,9 @@
                                 ]
                               },
                               "series_end_time": {
+                                "description": "RFC 3339 instant with an explicit Z or numeric UTC offset. Offsetless timestamps are invalid.",
                                 "format": "date-time",
+                                "pattern": "^\\d{4}-\\d{2}-\\d{2}T(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d{1,9})?(?:Z|[+-](?:[01]\\d|2[0-3]):[0-5]\\d)$",
                                 "type": "string"
                               }
                             },
@@ -5059,7 +5046,9 @@
                                 ]
                               },
                               "series_end_time": {
+                                "description": "RFC 3339 instant with an explicit Z or numeric UTC offset. Offsetless timestamps are invalid.",
                                 "format": "date-time",
+                                "pattern": "^\\d{4}-\\d{2}-\\d{2}T(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d{1,9})?(?:Z|[+-](?:[01]\\d|2[0-3]):[0-5]\\d)$",
                                 "type": "string"
                               }
                             },
@@ -5083,7 +5072,9 @@
                                 ]
                               },
                               "series_end_time": {
+                                "description": "RFC 3339 instant with an explicit Z or numeric UTC offset. Offsetless timestamps are invalid.",
                                 "format": "date-time",
+                                "pattern": "^\\d{4}-\\d{2}-\\d{2}T(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d{1,9})?(?:Z|[+-](?:[01]\\d|2[0-3]):[0-5]\\d)$",
                                 "type": "string"
                               }
                             },
@@ -5111,7 +5102,9 @@
                                 ]
                               },
                               "series_end_time": {
+                                "description": "RFC 3339 instant with an explicit Z or numeric UTC offset. Offsetless timestamps are invalid.",
                                 "format": "date-time",
+                                "pattern": "^\\d{4}-\\d{2}-\\d{2}T(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d{1,9})?(?:Z|[+-](?:[01]\\d|2[0-3]):[0-5]\\d)$",
                                 "type": "string"
                               }
                             },
@@ -5127,20 +5120,24 @@
                         "additionalProperties": false,
                         "properties": {
                           "end_date": {
+                            "description": "Gregorian calendar date, YYYY-MM-DD. No timezone conversion.",
                             "format": "date",
                             "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
                             "type": "string"
                           },
                           "end_time": {
+                            "description": "Local wall-clock time, HH:mm:ss with optional fractional seconds. Not a UTC instant.",
                             "pattern": "^(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d{1,9})?$",
                             "type": "string"
                           },
                           "start_date": {
+                            "description": "Gregorian calendar date, YYYY-MM-DD. No timezone conversion.",
                             "format": "date",
                             "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
                             "type": "string"
                           },
                           "start_time": {
+                            "description": "Local wall-clock time, HH:mm:ss with optional fractional seconds. Not a UTC instant.",
                             "pattern": "^(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d{1,9})?$",
                             "type": "string"
                           }
@@ -5299,6 +5296,9 @@
                 ]
               },
               "scheduled_for": {
+                "description": "RFC 3339 instant with an explicit Z or numeric UTC offset. Offsetless timestamps are invalid.",
+                "format": "date-time",
+                "pattern": "^\\d{4}-\\d{2}-\\d{2}T(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d{1,9})?(?:Z|[+-](?:[01]\\d|2[0-3]):[0-5]\\d)$",
                 "type": [
                   "string",
                   "null"
@@ -5324,6 +5324,7 @@
               },
               "status": {
                 "enum": [
+                  "draft",
                   "published",
                   "scheduled"
                 ],
@@ -5342,6 +5343,12 @@
                 "type": [
                   "string",
                   "null"
+                ]
+              },
+              "visibility": {
+                "enum": [
+                  "public",
+                  "unlisted"
                 ]
               }
             },
@@ -7325,431 +7332,6 @@
       }
     },
     {
-      "name": "import_products_from_media",
-      "inputSchema": {
-        "additionalProperties": false,
-        "properties": {
-          "asset_id": {
-            "type": "string"
-          },
-          "location_id": {
-            "type": "string"
-          },
-          "site_id": {
-            "description": "Internal KrabiClaw site ID from get_workspace_context or list_sites, e.g. site-pottery-house. Do not pass a public URL, hostname, subdomain, custom domain, slug, or site name here.",
-            "type": "string"
-          }
-        },
-        "required": [
-          "location_id",
-          "asset_id"
-        ],
-        "type": "object"
-      },
-      "outputSchema": {
-        "properties": {
-          "creditsRemaining": {
-            "type": "number"
-          },
-          "products": {
-            "items": {
-              "properties": {
-                "available": {
-                  "type": "boolean"
-                },
-                "canonical_url": {
-                  "type": [
-                    "string",
-                    "null"
-                  ]
-                },
-                "category": {
-                  "properties": {
-                    "id": {
-                      "type": "string"
-                    },
-                    "name": {
-                      "type": "string"
-                    },
-                    "slug": {
-                      "type": "string"
-                    },
-                    "sort_order": {
-                      "type": "number"
-                    }
-                  },
-                  "required": [
-                    "id",
-                    "name",
-                    "slug",
-                    "sort_order"
-                  ],
-                  "type": "object"
-                },
-                "category_id": {
-                  "type": "string"
-                },
-                "created_at": {
-                  "type": "string"
-                },
-                "created_by": {
-                  "type": "string"
-                },
-                "description": {
-                  "type": "string"
-                },
-                "details": {
-                  "items": {
-                    "additionalProperties": false,
-                    "properties": {
-                      "key": {
-                        "maxLength": 80,
-                        "minLength": 1,
-                        "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
-                        "type": "string"
-                      },
-                      "label": {
-                        "maxLength": 120,
-                        "minLength": 1,
-                        "type": "string"
-                      },
-                      "values": {
-                        "items": {
-                          "maxLength": 500,
-                          "minLength": 1,
-                          "type": "string"
-                        },
-                        "maxItems": 32,
-                        "minItems": 1,
-                        "type": "array"
-                      }
-                    },
-                    "required": [
-                      "key",
-                      "label",
-                      "values"
-                    ],
-                    "type": "object"
-                  },
-                  "maxItems": 24,
-                  "type": "array"
-                },
-                "featured": {
-                  "type": "boolean"
-                },
-                "featured_sort_order": {
-                  "type": "number"
-                },
-                "gallery": {
-                  "items": {
-                    "properties": {
-                      "alt_text": {
-                        "type": [
-                          "string",
-                          "null"
-                        ]
-                      },
-                      "asset_id": {
-                        "type": "string"
-                      },
-                      "duration": {
-                        "type": [
-                          "number",
-                          "null"
-                        ]
-                      },
-                      "height": {
-                        "type": [
-                          "number",
-                          "null"
-                        ]
-                      },
-                      "kind": {
-                        "enum": [
-                          "image",
-                          "video",
-                          "file"
-                        ],
-                        "type": "string"
-                      },
-                      "mime_type": {
-                        "type": [
-                          "string",
-                          "null"
-                        ]
-                      },
-                      "provider": {
-                        "type": "string"
-                      },
-                      "public_url": {
-                        "type": "string"
-                      },
-                      "status": {
-                        "enum": [
-                          "active"
-                        ],
-                        "type": "string"
-                      },
-                      "thumbnail_url": {
-                        "type": [
-                          "string",
-                          "null"
-                        ]
-                      },
-                      "width": {
-                        "type": [
-                          "number",
-                          "null"
-                        ]
-                      }
-                    },
-                    "required": [
-                      "asset_id",
-                      "kind",
-                      "public_url",
-                      "status"
-                    ],
-                    "type": "object"
-                  },
-                  "type": "array"
-                },
-                "id": {
-                  "type": "string"
-                },
-                "image": {
-                  "properties": {
-                    "alt_text": {
-                      "type": [
-                        "string",
-                        "null"
-                      ]
-                    },
-                    "asset_id": {
-                      "type": "string"
-                    },
-                    "duration": {
-                      "type": [
-                        "number",
-                        "null"
-                      ]
-                    },
-                    "height": {
-                      "type": [
-                        "number",
-                        "null"
-                      ]
-                    },
-                    "kind": {
-                      "enum": [
-                        "image",
-                        "video",
-                        "file"
-                      ],
-                      "type": "string"
-                    },
-                    "mime_type": {
-                      "type": [
-                        "string",
-                        "null"
-                      ]
-                    },
-                    "provider": {
-                      "type": "string"
-                    },
-                    "public_url": {
-                      "type": "string"
-                    },
-                    "status": {
-                      "enum": [
-                        "active"
-                      ],
-                      "type": "string"
-                    },
-                    "thumbnail_url": {
-                      "type": [
-                        "string",
-                        "null"
-                      ]
-                    },
-                    "width": {
-                      "type": [
-                        "number",
-                        "null"
-                      ]
-                    }
-                  },
-                  "required": [
-                    "asset_id",
-                    "kind",
-                    "public_url",
-                    "status"
-                  ],
-                  "type": [
-                    "object",
-                    "null"
-                  ]
-                },
-                "is_visible": {
-                  "type": "boolean"
-                },
-                "location_id": {
-                  "type": "string"
-                },
-                "name": {
-                  "type": "string"
-                },
-                "order_url": {
-                  "type": [
-                    "string",
-                    "null"
-                  ]
-                },
-                "price": {
-                  "properties": {
-                    "amount_minor": {
-                      "type": "integer"
-                    },
-                    "compare_at_amount_minor": {
-                      "type": [
-                        "integer",
-                        "null"
-                      ]
-                    },
-                    "currency": {
-                      "type": "string"
-                    },
-                    "id": {
-                      "type": "string"
-                    },
-                    "provenance": {
-                      "type": "string"
-                    },
-                    "tax_behavior": {
-                      "enum": [
-                        "unspecified",
-                        "inclusive",
-                        "exclusive"
-                      ],
-                      "type": "string"
-                    },
-                    "unit": {
-                      "enum": [
-                        "item",
-                        "person",
-                        "table"
-                      ],
-                      "type": "string"
-                    },
-                    "valid_from": {
-                      "type": "string"
-                    },
-                    "valid_until": {
-                      "type": [
-                        "string",
-                        "null"
-                      ]
-                    }
-                  },
-                  "required": [
-                    "id",
-                    "amount_minor",
-                    "currency",
-                    "unit",
-                    "tax_behavior",
-                    "compare_at_amount_minor",
-                    "valid_from",
-                    "valid_until",
-                    "provenance"
-                  ],
-                  "type": [
-                    "object",
-                    "null"
-                  ]
-                },
-                "robots": {
-                  "type": [
-                    "string",
-                    "null"
-                  ]
-                },
-                "seo_description": {
-                  "type": [
-                    "string",
-                    "null"
-                  ]
-                },
-                "seo_title": {
-                  "type": [
-                    "string",
-                    "null"
-                  ]
-                },
-                "slug": {
-                  "type": "string"
-                },
-                "sort_order": {
-                  "type": "number"
-                },
-                "source": {
-                  "enum": [
-                    "manual",
-                    "template",
-                    "ai",
-                    "import",
-                    "copy"
-                  ],
-                  "type": "string"
-                },
-                "tags": {
-                  "items": {
-                    "type": "string"
-                  },
-                  "type": "array"
-                },
-                "updated_at": {
-                  "type": "string"
-                },
-                "updated_by": {
-                  "type": "string"
-                }
-              },
-              "required": [
-                "id",
-                "location_id",
-                "category_id",
-                "category",
-                "name",
-                "slug",
-                "description",
-                "price",
-                "is_visible",
-                "available",
-                "featured",
-                "featured_sort_order",
-                "sort_order",
-                "tags",
-                "details",
-                "image",
-                "gallery",
-                "source",
-                "created_at",
-                "updated_at",
-                "created_by",
-                "updated_by"
-              ],
-              "type": "object"
-            },
-            "type": "array"
-          }
-        },
-        "required": [
-          "products",
-          "creditsRemaining"
-        ],
-        "type": "object"
-      }
-    },
-    {
       "name": "list_all_experience_bookings",
       "inputSchema": {
         "additionalProperties": false,
@@ -7786,6 +7368,9 @@
             "items": {
               "properties": {
                 "booking_date": {
+                  "description": "Gregorian calendar date, YYYY-MM-DD. No timezone conversion.",
+                  "format": "date",
+                  "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
                   "type": [
                     "string",
                     "null"
@@ -7942,6 +7527,7 @@
           },
           "status": {
             "enum": [
+              "draft",
               "published",
               "scheduled"
             ],
@@ -8127,6 +7713,9 @@
                   ]
                 },
                 "scheduled_for": {
+                  "description": "RFC 3339 instant with an explicit Z or numeric UTC offset. Offsetless timestamps are invalid.",
+                  "format": "date-time",
+                  "pattern": "^\\d{4}-\\d{2}-\\d{2}T(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d{1,9})?(?:Z|[+-](?:[01]\\d|2[0-3]):[0-5]\\d)$",
                   "type": [
                     "string",
                     "null"
@@ -8155,6 +7744,7 @@
                 },
                 "status": {
                   "enum": [
+                    "draft",
                     "published",
                     "scheduled"
                   ],
@@ -8266,6 +7856,9 @@
             "items": {
               "properties": {
                 "booking_date": {
+                  "description": "Gregorian calendar date, YYYY-MM-DD. No timezone conversion.",
+                  "format": "date",
+                  "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
                   "type": [
                     "string",
                     "null"
@@ -8595,9 +8188,15 @@
                       "type": "string"
                     },
                     "valid_from": {
+                      "description": "RFC 3339 instant with an explicit Z or numeric UTC offset. Offsetless timestamps are invalid.",
+                      "format": "date-time",
+                      "pattern": "^\\d{4}-\\d{2}-\\d{2}T(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d{1,9})?(?:Z|[+-](?:[01]\\d|2[0-3]):[0-5]\\d)$",
                       "type": "string"
                     },
                     "valid_until": {
+                      "description": "RFC 3339 instant with an explicit Z or numeric UTC offset. Offsetless timestamps are invalid.",
+                      "format": "date-time",
+                      "pattern": "^\\d{4}-\\d{2}-\\d{2}T(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d{1,9})?(?:Z|[+-](?:[01]\\d|2[0-3]):[0-5]\\d)$",
                       "type": [
                         "string",
                         "null"
@@ -8648,7 +8247,8 @@
                       "properties": {
                         "friday": {
                           "items": {
-                            "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+                            "description": "Local wall-clock time, HH:mm (24-hour), in the explicitly selected location timezone.",
+                            "pattern": "^(?:[01]\\d|2[0-3]):[0-5]\\d$",
                             "type": "string"
                           },
                           "type": "array",
@@ -8656,7 +8256,8 @@
                         },
                         "monday": {
                           "items": {
-                            "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+                            "description": "Local wall-clock time, HH:mm (24-hour), in the explicitly selected location timezone.",
+                            "pattern": "^(?:[01]\\d|2[0-3]):[0-5]\\d$",
                             "type": "string"
                           },
                           "type": "array",
@@ -8664,7 +8265,8 @@
                         },
                         "saturday": {
                           "items": {
-                            "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+                            "description": "Local wall-clock time, HH:mm (24-hour), in the explicitly selected location timezone.",
+                            "pattern": "^(?:[01]\\d|2[0-3]):[0-5]\\d$",
                             "type": "string"
                           },
                           "type": "array",
@@ -8672,7 +8274,8 @@
                         },
                         "sunday": {
                           "items": {
-                            "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+                            "description": "Local wall-clock time, HH:mm (24-hour), in the explicitly selected location timezone.",
+                            "pattern": "^(?:[01]\\d|2[0-3]):[0-5]\\d$",
                             "type": "string"
                           },
                           "type": "array",
@@ -8680,7 +8283,8 @@
                         },
                         "thursday": {
                           "items": {
-                            "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+                            "description": "Local wall-clock time, HH:mm (24-hour), in the explicitly selected location timezone.",
+                            "pattern": "^(?:[01]\\d|2[0-3]):[0-5]\\d$",
                             "type": "string"
                           },
                           "type": "array",
@@ -8688,7 +8292,8 @@
                         },
                         "tuesday": {
                           "items": {
-                            "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+                            "description": "Local wall-clock time, HH:mm (24-hour), in the explicitly selected location timezone.",
+                            "pattern": "^(?:[01]\\d|2[0-3]):[0-5]\\d$",
                             "type": "string"
                           },
                           "type": "array",
@@ -8696,7 +8301,8 @@
                         },
                         "wednesday": {
                           "items": {
-                            "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+                            "description": "Local wall-clock time, HH:mm (24-hour), in the explicitly selected location timezone.",
+                            "pattern": "^(?:[01]\\d|2[0-3]):[0-5]\\d$",
                             "type": "string"
                           },
                           "type": "array",
@@ -8751,9 +8357,15 @@
                         "type": "string"
                       },
                       "valid_from": {
+                        "description": "RFC 3339 instant with an explicit Z or numeric UTC offset. Offsetless timestamps are invalid.",
+                        "format": "date-time",
+                        "pattern": "^\\d{4}-\\d{2}-\\d{2}T(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d{1,9})?(?:Z|[+-](?:[01]\\d|2[0-3]):[0-5]\\d)$",
                         "type": "string"
                       },
                       "valid_until": {
+                        "description": "RFC 3339 instant with an explicit Z or numeric UTC offset. Offsetless timestamps are invalid.",
+                        "format": "date-time",
+                        "pattern": "^\\d{4}-\\d{2}-\\d{2}T(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d{1,9})?(?:Z|[+-](?:[01]\\d|2[0-3]):[0-5]\\d)$",
                         "type": [
                           "string",
                           "null"
@@ -9365,6 +8977,7 @@
           },
           "status": {
             "enum": [
+              "draft",
               "published",
               "scheduled"
             ],
@@ -9526,7 +9139,9 @@
                                   ]
                                 },
                                 "series_end_time": {
+                                  "description": "RFC 3339 instant with an explicit Z or numeric UTC offset. Offsetless timestamps are invalid.",
                                   "format": "date-time",
+                                  "pattern": "^\\d{4}-\\d{2}-\\d{2}T(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d{1,9})?(?:Z|[+-](?:[01]\\d|2[0-3]):[0-5]\\d)$",
                                   "type": "string"
                                 }
                               },
@@ -9559,7 +9174,9 @@
                                   ]
                                 },
                                 "series_end_time": {
+                                  "description": "RFC 3339 instant with an explicit Z or numeric UTC offset. Offsetless timestamps are invalid.",
                                   "format": "date-time",
+                                  "pattern": "^\\d{4}-\\d{2}-\\d{2}T(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d{1,9})?(?:Z|[+-](?:[01]\\d|2[0-3]):[0-5]\\d)$",
                                   "type": "string"
                                 }
                               },
@@ -9583,7 +9200,9 @@
                                   ]
                                 },
                                 "series_end_time": {
+                                  "description": "RFC 3339 instant with an explicit Z or numeric UTC offset. Offsetless timestamps are invalid.",
                                   "format": "date-time",
+                                  "pattern": "^\\d{4}-\\d{2}-\\d{2}T(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d{1,9})?(?:Z|[+-](?:[01]\\d|2[0-3]):[0-5]\\d)$",
                                   "type": "string"
                                 }
                               },
@@ -9611,7 +9230,9 @@
                                   ]
                                 },
                                 "series_end_time": {
+                                  "description": "RFC 3339 instant with an explicit Z or numeric UTC offset. Offsetless timestamps are invalid.",
                                   "format": "date-time",
+                                  "pattern": "^\\d{4}-\\d{2}-\\d{2}T(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d{1,9})?(?:Z|[+-](?:[01]\\d|2[0-3]):[0-5]\\d)$",
                                   "type": "string"
                                 }
                               },
@@ -9627,20 +9248,24 @@
                           "additionalProperties": false,
                           "properties": {
                             "end_date": {
+                              "description": "Gregorian calendar date, YYYY-MM-DD. No timezone conversion.",
                               "format": "date",
                               "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
                               "type": "string"
                             },
                             "end_time": {
+                              "description": "Local wall-clock time, HH:mm:ss with optional fractional seconds. Not a UTC instant.",
                               "pattern": "^(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d{1,9})?$",
                               "type": "string"
                             },
                             "start_date": {
+                              "description": "Gregorian calendar date, YYYY-MM-DD. No timezone conversion.",
                               "format": "date",
                               "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
                               "type": "string"
                             },
                             "start_time": {
+                              "description": "Local wall-clock time, HH:mm:ss with optional fractional seconds. Not a UTC instant.",
                               "pattern": "^(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d{1,9})?$",
                               "type": "string"
                             }
@@ -9799,6 +9424,9 @@
                   ]
                 },
                 "scheduled_for": {
+                  "description": "RFC 3339 instant with an explicit Z or numeric UTC offset. Offsetless timestamps are invalid.",
+                  "format": "date-time",
+                  "pattern": "^\\d{4}-\\d{2}-\\d{2}T(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d{1,9})?(?:Z|[+-](?:[01]\\d|2[0-3]):[0-5]\\d)$",
                   "type": [
                     "string",
                     "null"
@@ -9824,6 +9452,7 @@
                 },
                 "status": {
                   "enum": [
+                    "draft",
                     "published",
                     "scheduled"
                   ],
@@ -9842,6 +9471,12 @@
                   "type": [
                     "string",
                     "null"
+                  ]
+                },
+                "visibility": {
+                  "enum": [
+                    "public",
+                    "unlisted"
                   ]
                 }
               },
@@ -10672,6 +10307,8 @@
           },
           "scheduled_for": {
             "description": "Optional future ISO 8601 datetime with timezone. Omit or pass null to publish immediately.",
+            "format": "date-time",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}T(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d{1,9})?(?:Z|[+-](?:[01]\\d|2[0-3]):[0-5]\\d)$",
             "type": [
               "string",
               "null"
@@ -10808,10 +10445,6 @@
               "created_at": {
                 "type": "string"
               },
-              "document_updated_at": {
-                "description": "Concurrency token required when replacing content_blocks or changing publication state.",
-                "type": "string"
-              },
               "edit_url": {
                 "type": [
                   "string",
@@ -10942,6 +10575,9 @@
                 ]
               },
               "scheduled_for": {
+                "description": "RFC 3339 instant with an explicit Z or numeric UTC offset. Offsetless timestamps are invalid.",
+                "format": "date-time",
+                "pattern": "^\\d{4}-\\d{2}-\\d{2}T(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d{1,9})?(?:Z|[+-](?:[01]\\d|2[0-3]):[0-5]\\d)$",
                 "type": [
                   "string",
                   "null"
@@ -10970,6 +10606,7 @@
               },
               "status": {
                 "enum": [
+                  "draft",
                   "published",
                   "scheduled"
                 ],
@@ -11033,8 +10670,7 @@
               "public_url",
               "preview_url",
               "view_url",
-              "content_blocks",
-              "document_updated_at"
+              "content_blocks"
             ],
             "type": "object"
           }
@@ -11891,6 +11527,9 @@
                   ]
                 },
                 "scheduled_for": {
+                  "description": "RFC 3339 instant with an explicit Z or numeric UTC offset. Offsetless timestamps are invalid.",
+                  "format": "date-time",
+                  "pattern": "^\\d{4}-\\d{2}-\\d{2}T(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d{1,9})?(?:Z|[+-](?:[01]\\d|2[0-3]):[0-5]\\d)$",
                   "type": [
                     "string",
                     "null"
@@ -11919,6 +11558,7 @@
                 },
                 "status": {
                   "enum": [
+                    "draft",
                     "published",
                     "scheduled"
                   ],
@@ -12616,10 +12256,6 @@
               "created_at": {
                 "type": "string"
               },
-              "document_updated_at": {
-                "description": "Concurrency token required when replacing content_blocks or changing publication state.",
-                "type": "string"
-              },
               "edit_url": {
                 "type": [
                   "string",
@@ -12750,6 +12386,9 @@
                 ]
               },
               "scheduled_for": {
+                "description": "RFC 3339 instant with an explicit Z or numeric UTC offset. Offsetless timestamps are invalid.",
+                "format": "date-time",
+                "pattern": "^\\d{4}-\\d{2}-\\d{2}T(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d{1,9})?(?:Z|[+-](?:[01]\\d|2[0-3]):[0-5]\\d)$",
                 "type": [
                   "string",
                   "null"
@@ -12778,6 +12417,7 @@
               },
               "status": {
                 "enum": [
+                  "draft",
                   "published",
                   "scheduled"
                 ],
@@ -12841,8 +12481,7 @@
               "public_url",
               "preview_url",
               "view_url",
-              "content_blocks",
-              "document_updated_at"
+              "content_blocks"
             ],
             "type": "object"
           }
@@ -14625,10 +14264,6 @@
               "created_at": {
                 "type": "string"
               },
-              "document_updated_at": {
-                "description": "Concurrency token required when replacing content_blocks or changing publication state.",
-                "type": "string"
-              },
               "edit_url": {
                 "type": [
                   "string",
@@ -14759,6 +14394,9 @@
                 ]
               },
               "scheduled_for": {
+                "description": "RFC 3339 instant with an explicit Z or numeric UTC offset. Offsetless timestamps are invalid.",
+                "format": "date-time",
+                "pattern": "^\\d{4}-\\d{2}-\\d{2}T(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d{1,9})?(?:Z|[+-](?:[01]\\d|2[0-3]):[0-5]\\d)$",
                 "type": [
                   "string",
                   "null"
@@ -14787,6 +14425,7 @@
               },
               "status": {
                 "enum": [
+                  "draft",
                   "published",
                   "scheduled"
                 ],
@@ -14850,8 +14489,7 @@
               "public_url",
               "preview_url",
               "view_url",
-              "content_blocks",
-              "document_updated_at"
+              "content_blocks"
             ],
             "type": "object"
           }
@@ -15148,10 +14786,6 @@
               "created_at": {
                 "type": "string"
               },
-              "document_updated_at": {
-                "description": "Concurrency token required when replacing content_blocks or changing publication state.",
-                "type": "string"
-              },
               "edit_url": {
                 "type": [
                   "string",
@@ -15282,6 +14916,9 @@
                 ]
               },
               "scheduled_for": {
+                "description": "RFC 3339 instant with an explicit Z or numeric UTC offset. Offsetless timestamps are invalid.",
+                "format": "date-time",
+                "pattern": "^\\d{4}-\\d{2}-\\d{2}T(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d{1,9})?(?:Z|[+-](?:[01]\\d|2[0-3]):[0-5]\\d)$",
                 "type": [
                   "string",
                   "null"
@@ -15310,6 +14947,7 @@
               },
               "status": {
                 "enum": [
+                  "draft",
                   "published",
                   "scheduled"
                 ],
@@ -15373,8 +15011,7 @@
               "public_url",
               "preview_url",
               "view_url",
-              "content_blocks",
-              "document_updated_at"
+              "content_blocks"
             ],
             "type": "object"
           }
@@ -15694,9 +15331,15 @@
                 "type": "string"
               },
               "valid_from": {
+                "description": "RFC 3339 instant with an explicit Z or numeric UTC offset. Offsetless timestamps are invalid.",
+                "format": "date-time",
+                "pattern": "^\\d{4}-\\d{2}-\\d{2}T(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d{1,9})?(?:Z|[+-](?:[01]\\d|2[0-3]):[0-5]\\d)$",
                 "type": "string"
               },
               "valid_until": {
+                "description": "RFC 3339 instant with an explicit Z or numeric UTC offset. Offsetless timestamps are invalid.",
+                "format": "date-time",
+                "pattern": "^\\d{4}-\\d{2}-\\d{2}T(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d{1,9})?(?:Z|[+-](?:[01]\\d|2[0-3]):[0-5]\\d)$",
                 "type": [
                   "string",
                   "null"
@@ -15728,7 +15371,8 @@
                 "properties": {
                   "friday": {
                     "items": {
-                      "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+                      "description": "Local wall-clock time, HH:mm (24-hour), in the explicitly selected location timezone.",
+                      "pattern": "^(?:[01]\\d|2[0-3]):[0-5]\\d$",
                       "type": "string"
                     },
                     "type": "array",
@@ -15736,7 +15380,8 @@
                   },
                   "monday": {
                     "items": {
-                      "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+                      "description": "Local wall-clock time, HH:mm (24-hour), in the explicitly selected location timezone.",
+                      "pattern": "^(?:[01]\\d|2[0-3]):[0-5]\\d$",
                       "type": "string"
                     },
                     "type": "array",
@@ -15744,7 +15389,8 @@
                   },
                   "saturday": {
                     "items": {
-                      "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+                      "description": "Local wall-clock time, HH:mm (24-hour), in the explicitly selected location timezone.",
+                      "pattern": "^(?:[01]\\d|2[0-3]):[0-5]\\d$",
                       "type": "string"
                     },
                     "type": "array",
@@ -15752,7 +15398,8 @@
                   },
                   "sunday": {
                     "items": {
-                      "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+                      "description": "Local wall-clock time, HH:mm (24-hour), in the explicitly selected location timezone.",
+                      "pattern": "^(?:[01]\\d|2[0-3]):[0-5]\\d$",
                       "type": "string"
                     },
                     "type": "array",
@@ -15760,7 +15407,8 @@
                   },
                   "thursday": {
                     "items": {
-                      "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+                      "description": "Local wall-clock time, HH:mm (24-hour), in the explicitly selected location timezone.",
+                      "pattern": "^(?:[01]\\d|2[0-3]):[0-5]\\d$",
                       "type": "string"
                     },
                     "type": "array",
@@ -15768,7 +15416,8 @@
                   },
                   "tuesday": {
                     "items": {
-                      "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+                      "description": "Local wall-clock time, HH:mm (24-hour), in the explicitly selected location timezone.",
+                      "pattern": "^(?:[01]\\d|2[0-3]):[0-5]\\d$",
                       "type": "string"
                     },
                     "type": "array",
@@ -15776,7 +15425,8 @@
                   },
                   "wednesday": {
                     "items": {
-                      "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+                      "description": "Local wall-clock time, HH:mm (24-hour), in the explicitly selected location timezone.",
+                      "pattern": "^(?:[01]\\d|2[0-3]):[0-5]\\d$",
                       "type": "string"
                     },
                     "type": "array",
@@ -15975,6 +15625,9 @@
           "booking": {
             "properties": {
               "booking_date": {
+                "description": "Gregorian calendar date, YYYY-MM-DD. No timezone conversion.",
+                "format": "date",
+                "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
                 "type": [
                   "string",
                   "null"
@@ -16105,8 +15758,11 @@
             ]
           },
           "notification_phone": {
-            "description": "WhatsApp number for internal booking/reservation alerts to this location's manager. Not shown to guests. Falls back to the site-level whatsapp_phone if null. International format: +66812345678",
-            "type": "string"
+            "description": "WhatsApp number for internal booking/reservation alerts to this location's manager. Not shown to guests. Null means no location-specific recipient is configured. Site-wide recipients are configured independently.",
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "opening_hours": {
             "anyOf": [
@@ -16273,6 +15929,8 @@
                         "ends_on": {
                           "anyOf": [
                             {
+                              "description": "Gregorian calendar date, YYYY-MM-DD. No timezone conversion.",
+                              "format": "date",
                               "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
                               "type": "string"
                             },
@@ -16292,6 +15950,8 @@
                           ]
                         },
                         "starts_on": {
+                          "description": "Gregorian calendar date, YYYY-MM-DD. No timezone conversion.",
+                          "format": "date",
                           "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
                           "type": "string"
                         }
@@ -16308,6 +15968,8 @@
                       "additionalProperties": false,
                       "properties": {
                         "date": {
+                          "description": "Gregorian calendar date, YYYY-MM-DD. No timezone conversion.",
+                          "format": "date",
                           "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
                           "type": "string"
                         },
@@ -16332,11 +15994,13 @@
                                 ]
                               },
                               "close_time": {
-                                "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+                                "description": "Local wall-clock time, HH:mm (24-hour), in the explicitly selected location timezone.",
+                                "pattern": "^(?:[01]\\d|2[0-3]):[0-5]\\d$",
                                 "type": "string"
                               },
                               "open_time": {
-                                "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+                                "description": "Local wall-clock time, HH:mm (24-hour), in the explicitly selected location timezone.",
+                                "pattern": "^(?:[01]\\d|2[0-3]):[0-5]\\d$",
                                 "type": "string"
                               }
                             },
@@ -16704,7 +16368,9 @@
                             ]
                           },
                           "series_end_time": {
+                            "description": "RFC 3339 instant with an explicit Z or numeric UTC offset. Offsetless timestamps are invalid.",
                             "format": "date-time",
+                            "pattern": "^\\d{4}-\\d{2}-\\d{2}T(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d{1,9})?(?:Z|[+-](?:[01]\\d|2[0-3]):[0-5]\\d)$",
                             "type": "string"
                           }
                         },
@@ -16737,7 +16403,9 @@
                             ]
                           },
                           "series_end_time": {
+                            "description": "RFC 3339 instant with an explicit Z or numeric UTC offset. Offsetless timestamps are invalid.",
                             "format": "date-time",
+                            "pattern": "^\\d{4}-\\d{2}-\\d{2}T(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d{1,9})?(?:Z|[+-](?:[01]\\d|2[0-3]):[0-5]\\d)$",
                             "type": "string"
                           }
                         },
@@ -16761,7 +16429,9 @@
                             ]
                           },
                           "series_end_time": {
+                            "description": "RFC 3339 instant with an explicit Z or numeric UTC offset. Offsetless timestamps are invalid.",
                             "format": "date-time",
+                            "pattern": "^\\d{4}-\\d{2}-\\d{2}T(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d{1,9})?(?:Z|[+-](?:[01]\\d|2[0-3]):[0-5]\\d)$",
                             "type": "string"
                           }
                         },
@@ -16789,7 +16459,9 @@
                             ]
                           },
                           "series_end_time": {
+                            "description": "RFC 3339 instant with an explicit Z or numeric UTC offset. Offsetless timestamps are invalid.",
                             "format": "date-time",
+                            "pattern": "^\\d{4}-\\d{2}-\\d{2}T(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d{1,9})?(?:Z|[+-](?:[01]\\d|2[0-3]):[0-5]\\d)$",
                             "type": "string"
                           }
                         },
@@ -16805,20 +16477,24 @@
                     "additionalProperties": false,
                     "properties": {
                       "end_date": {
+                        "description": "Gregorian calendar date, YYYY-MM-DD. No timezone conversion.",
                         "format": "date",
                         "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
                         "type": "string"
                       },
                       "end_time": {
+                        "description": "Local wall-clock time, HH:mm:ss with optional fractional seconds. Not a UTC instant.",
                         "pattern": "^(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d{1,9})?$",
                         "type": "string"
                       },
                       "start_date": {
+                        "description": "Gregorian calendar date, YYYY-MM-DD. No timezone conversion.",
                         "format": "date",
                         "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
                         "type": "string"
                       },
                       "start_time": {
+                        "description": "Local wall-clock time, HH:mm:ss with optional fractional seconds. Not a UTC instant.",
                         "pattern": "^(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d{1,9})?$",
                         "type": "string"
                       }
@@ -16897,7 +16573,9 @@
           "scheduled_for": {
             "anyOf": [
               {
+                "description": "RFC 3339 instant with an explicit Z or numeric UTC offset. Offsetless timestamps are invalid.",
                 "format": "date-time",
+                "pattern": "^\\d{4}-\\d{2}-\\d{2}T(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d{1,9})?(?:Z|[+-](?:[01]\\d|2[0-3]):[0-5]\\d)$",
                 "type": "string"
               },
               {
@@ -16947,6 +16625,12 @@
               {
                 "type": "null"
               }
+            ]
+          },
+          "visibility": {
+            "enum": [
+              "public",
+              "unlisted"
             ]
           }
         },

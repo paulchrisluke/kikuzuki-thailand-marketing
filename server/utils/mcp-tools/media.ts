@@ -96,7 +96,7 @@ export const MEDIA_TOOLS: McpToolDefinition[] = [
     }),
   siteTool({
       name: 'get_site_media_assets',
-      description: 'List uploaded images, videos, or Markdown files for a site. Use it first to find asset IDs before assigning image/video media with set_media or analyzing a file with analyze_document. New user-provided media uses upload_user_media with a native ChatGPT attachment.',
+      description: 'List uploaded images, videos, or Markdown files for a site. Use it first to find asset IDs before assigning image/video media with set_media. New user-provided media uses upload_user_media with a native ChatGPT attachment.',
       domain: 'media',
       minimumRole: 'editor',
       confirmRequired: false,
@@ -165,38 +165,6 @@ export const MEDIA_TOOLS: McpToolDefinition[] = [
         type: 'object',
         properties: { deleted: { type: 'boolean' } },
         required: ['deleted'],
-      },
-    }),
-  siteTool({
-      name: 'analyze_document',
-      description: 'Summarize, answer questions about, or extract information from an uploaded Markdown document (.md/.markdown), grounded strictly in that file. Sends the document contents to the configured AI service and consumes AI credits. Use upload_user_media with the attached Markdown file or get_site_media_assets to obtain its asset_id. Pass a question for grounded Q&A; omit it for a summary.',
-      domain: 'media',
-      minimumRole: 'editor',
-      confirmRequired: false,
-      inputSchema: {
-        asset_id: { type: 'string', description: 'Media asset ID of the uploaded Markdown document.' },
-        question: { type: 'string', description: 'Optional question to answer using only the document content. Omit for a summary.' },
-      },
-      required: ['asset_id'],
-      outputSchema: {
-        type: 'object',
-        properties: {
-          answer: { type: 'string', description: 'Grounded answer or summary.' },
-          creditsRemaining: { type: 'number', description: 'AI credits remaining after document analysis.' },
-          stats: {
-            type: 'object',
-            description: 'Structural stats detected in the document.',
-            properties: {
-              headings: { type: 'number' },
-              listItems: { type: 'number' },
-              tableRows: { type: 'number' },
-              codeBlocks: { type: 'number' },
-              blockquotes: { type: 'number' },
-              links: { type: 'number' },
-            },
-          },
-        },
-        required: ['answer', 'creditsRemaining', 'stats'],
       },
     }),
 ]

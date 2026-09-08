@@ -1,9 +1,12 @@
 name: CI
 
+# Launch hold and required work: https://github.com/paulchrisluke/krabiclaw/pull/864#issuecomment-5572050864
+# Drafts are implementation batches; ready_for_review starts qualification.
+
 on:
   pull_request:
     branches: [main, staging]
-    types: [opened, synchronize, reopened, ready_for_review]
+    types: [opened, synchronize, reopened, ready_for_review, converted_to_draft]
   push:
     branches: [main, staging]
 
@@ -19,7 +22,8 @@ jobs:
     name: Checks
     if: >-
       github.event_name == 'push'
-      || !(github.base_ref == 'main' && github.head_ref == 'staging')
+      || (github.event.pull_request.draft == false
+          && !(github.base_ref == 'main' && github.head_ref == 'staging'))
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
@@ -53,6 +57,7 @@ jobs:
     name: Plan affected browser coverage
     if: >-
       github.event_name == 'pull_request'
+      && github.event.pull_request.draft == false
       && !(github.base_ref == 'main' && github.head_ref == 'staging')
     runs-on: ubuntu-latest
     outputs:
@@ -76,6 +81,7 @@ jobs:
     name: Build preview Worker
     if: >-
       github.event_name == 'pull_request'
+      && github.event.pull_request.draft == false
       && github.event.pull_request.head.repo.full_name == github.repository
       && !(github.base_ref == 'main' && github.head_ref == 'staging')
       && needs.e2e-plan.outputs.run_preview == 'true'
@@ -118,6 +124,7 @@ jobs:
     name: E2E representative tests (preview only)
     if: >-
       github.event_name == 'pull_request'
+      && github.event.pull_request.draft == false
       && github.event.pull_request.head.repo.full_name == github.repository
       && !(github.base_ref == 'main' && github.head_ref == 'staging')
       && needs.e2e-plan.outputs.run_preview == 'true'

@@ -1,3 +1,4 @@
+import { localDateTimeToInstant } from '~/utils/timezone'
 import type { D1Database } from '@cloudflare/workers-types'
 import { queryAll } from '~/server/db'
 import { resolveLocationTimezone } from '~/server/utils/site-config'
@@ -51,26 +52,6 @@ interface TaskResult {
   skipped?: string
 }
 
-function localComparableMs(date: string, time: string): number {
-  const [year, month, day] = date.split('-').map(Number) as [number, number, number]
-  const [hour, minute] = time.split(':').map(Number) as [number, number]
-  return Date.UTC(year, month - 1, day, hour, minute)
-}
-
-function nowComparableMs(timezone: string): number {
-  const parts = new Intl.DateTimeFormat('en-CA', {
-    timeZone: timezone,
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-    hourCycle: 'h23',
-  }).formatToParts(new Date())
-  const get = (type: string) => parts.find((part) => part.type === type)?.value ?? '00'
-  return localComparableMs(`${get('year')}-${get('month')}-${get('day')}`, `${get('hour')}:${get('minute')}`)
-}
-
 async function autoCompleteBookings(db: D1Database, env: ApiRecord, kind: ReviewBookingType): Promise<number> {
   const rows = await collectScheduledPaidRows((limit, offset) => queryAll<AutoCompleteRow>(db, `
       SELECT r.id, r.organization_id, r.site_id, r.location_id, r.booking_date, r.time_slot,
@@ -85,7 +66,7 @@ async function autoCompleteBookings(db: D1Database, env: ApiRecord, kind: Review
   for (const row of rows) {
     const timezone = await resolveLocationTimezone(db, row.organization_id, row.site_id, row.location_id)
     const duration = kind === 'reservation' ? 180 : row.duration_minutes ?? 360
-    if (nowComparableMs(timezone) < localComparableMs(row.booking_date, row.time_slot) + duration * 60_000) continue
+    if (Date.now() < localDateTimeToInstant(row.booking_date, row.time_slot, timezone).getTime() + duration * 60_000) continue
     const outcome = await executeGuestThreadOperation(db, { threadId: row.id, siteId: row.site_id, action: 'complete', actorUserId: null, completionSource: 'auto', env, idempotencyKey: `auto-complete:${row.id}` })
     if (outcome.ok) {
       completed += 1

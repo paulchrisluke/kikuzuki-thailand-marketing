@@ -55,7 +55,8 @@ export type Post = PostTopic & {
   media?: PublicPostMedia[]
   social_image?: SocialImageSource | null
   location_phone: string | null
-  status: 'published' | 'scheduled'
+  status: 'draft' | 'published' | 'scheduled'
+  visibility: 'public' | 'unlisted'
   scheduled_for: string | null
   published_at: string | null
   created_by: string
@@ -226,8 +227,8 @@ function attachPostPublicFields(
   return {
     ...post,
     slug,
-    public_path: publicPath,
-    canonical_url: absoluteUrl(origin, publicPath),
+    public_path: post.status === 'published' ? publicPath : null,
+    canonical_url: post.status === 'published' ? absoluteUrl(origin, publicPath) : null,
     media,
     social_image: socialMedia?.social_image ?? null,
   }
@@ -262,11 +263,11 @@ export async function listPosts(
   status?: string,
   locationId?: string,
 ): Promise<Post[]> {
-  if (status && status !== 'published' && status !== 'scheduled') {
-    throw new PostValidationError('status must be published or scheduled')
+  if (status && status !== 'draft' && status !== 'published' && status !== 'scheduled') {
+    throw new PostValidationError('status must be draft, published or scheduled')
   }
   let query = `
-    SELECT p.id, p.organization_id, p.site_id, p.location_id, p.slug, p.title, p.seo_title, p.seo_description, p.status, p.scheduled_for, p.published_at, p.created_by, p.created_at, p.updated_at, p.summary AS body, (p.metadata_json ->> '$.post_type') AS post_type, json_extract(p.metadata_json, '$.event') AS event, json_extract(p.metadata_json, '$.offer') AS offer, json_extract(p.metadata_json, '$.call_to_action') AS call_to_action, (p.metadata_json ->> '$.alert_type') AS alert_type, bl.phone AS location_phone
+    SELECT p.id, p.organization_id, p.site_id, p.location_id, p.slug, p.title, p.seo_title, p.seo_description, p.status, p.visibility, p.scheduled_for, p.published_at, p.created_by, p.created_at, p.updated_at, p.summary AS body, (p.metadata_json ->> '$.post_type') AS post_type, json_extract(p.metadata_json, '$.event') AS event, json_extract(p.metadata_json, '$.offer') AS offer, json_extract(p.metadata_json, '$.call_to_action') AS call_to_action, (p.metadata_json ->> '$.alert_type') AS alert_type, bl.phone AS location_phone
     FROM content_documents p LEFT JOIN business_locations bl ON bl.id = p.location_id AND bl.site_id = p.site_id
     WHERE p.kind = 'social_post' AND p.row_role = 'root' AND p.organization_id = ? AND p.site_id = ?
   `
@@ -295,7 +296,7 @@ export async function getPost(
   const post = await queryFirst<PostRow>(
     db,
     `
-    SELECT p.id, p.organization_id, p.site_id, p.location_id, p.slug, p.title, p.seo_title, p.seo_description, p.status, p.scheduled_for, p.published_at, p.created_by, p.created_at, p.updated_at, p.summary AS body, (p.metadata_json ->> '$.post_type') AS post_type, json_extract(p.metadata_json, '$.event') AS event, json_extract(p.metadata_json, '$.offer') AS offer, json_extract(p.metadata_json, '$.call_to_action') AS call_to_action, (p.metadata_json ->> '$.alert_type') AS alert_type, bl.phone AS location_phone
+    SELECT p.id, p.organization_id, p.site_id, p.location_id, p.slug, p.title, p.seo_title, p.seo_description, p.status, p.visibility, p.scheduled_for, p.published_at, p.created_by, p.created_at, p.updated_at, p.summary AS body, (p.metadata_json ->> '$.post_type') AS post_type, json_extract(p.metadata_json, '$.event') AS event, json_extract(p.metadata_json, '$.offer') AS offer, json_extract(p.metadata_json, '$.call_to_action') AS call_to_action, (p.metadata_json ->> '$.alert_type') AS alert_type, bl.phone AS location_phone
     FROM content_documents p LEFT JOIN business_locations bl ON bl.id = p.location_id AND bl.site_id = p.site_id
     WHERE p.kind = 'social_post' AND p.row_role = 'root' AND p.id = ? AND p.organization_id = ? AND p.site_id = ?
     LIMIT 1
@@ -328,9 +329,7 @@ export async function createPost(
   const data = parsePostInput(input)
   await validatePostLocation(db, organizationId, siteId, data.location_id ?? null, data)
   const id = crypto.randomUUID()
-  const now = new Date().toISOString()
-  const status = data.scheduled_for ? 'scheduled' : 'published'
-  const publishedAt = status === 'published' ? now : null
+  const status = data.scheduled_for ? 'scheduled' : 'draft'
   const title = cleanString(data.title)
   const body = data.body.trim()
   let slug = await allocatePostSlug(db, siteId, cleanString(data.slug) ?? title ?? body.slice(0, 80) ?? id)
@@ -350,7 +349,7 @@ export async function createPost(
         id, rowRole: 'root', kind: 'social_post', locale: 'en', organizationId, siteId,
         locationId: data.location_id ?? null, slug, title, summary: body,
         seoTitle: cleanString(data.seo_title), seoDescription: cleanString(data.seo_description),
-        status, source: 'manual', scheduledFor: data.scheduled_for ?? null, publishedAt, createdBy,
+        status, visibility: data.visibility ?? 'public', source: 'manual', scheduledFor: data.scheduled_for ?? null, createdBy,
         metadata: { post_type: data.post_type, call_to_action: data.call_to_action, event: data.event,
           offer: data.offer, alert_type: data.alert_type, channels: {} },
       }, [], { additionalQueriesAfter: postMediaPlacementQueries(organizationId, siteId, id, media) })
@@ -382,22 +381,6 @@ export async function createPost(
       status: createdPost.status,
     },
   })
-  if (createdPost.status === 'published') {
-    await fireOrganizationEventSafe({
-      db,
-      organizationId,
-      siteId,
-      locationId: createdPost.location_id,
-      actorId: createdBy,
-      eventType: 'post.published',
-      entityType: 'post',
-      entityId: id,
-      metadata: {
-        post_type: createdPost.post_type,
-        channels: ['site'],
-      },
-    })
-  }
   await refreshSocialCard({ db, env, owner: { owner_type: 'content_document', owner_id: id }, actorId: createdBy })
   return createdPost
 }
@@ -413,7 +396,7 @@ export async function updatePost(
 ): Promise<Post | null> {
   const row = await queryFirst<PostRow>(
     db,
-    `SELECT id, organization_id, site_id, location_id, slug, title, seo_title, seo_description, status, scheduled_for, published_at, created_by, created_at, updated_at, summary AS body, (metadata_json ->> '$.post_type') AS post_type, json_extract(metadata_json, '$.event') AS event, json_extract(metadata_json, '$.offer') AS offer, json_extract(metadata_json, '$.call_to_action') AS call_to_action, (metadata_json ->> '$.alert_type') AS alert_type, NULL AS location_phone FROM content_documents WHERE kind = 'social_post' AND row_role = 'root' AND id = ? AND organization_id = ? AND site_id = ? LIMIT 1`,
+    `SELECT id, organization_id, site_id, location_id, slug, title, seo_title, seo_description, status, visibility, scheduled_for, published_at, created_by, created_at, updated_at, summary AS body, (metadata_json ->> '$.post_type') AS post_type, json_extract(metadata_json, '$.event') AS event, json_extract(metadata_json, '$.offer') AS offer, json_extract(metadata_json, '$.call_to_action') AS call_to_action, (metadata_json ->> '$.alert_type') AS alert_type, NULL AS location_phone FROM content_documents WHERE kind = 'social_post' AND row_role = 'root' AND id = ? AND organization_id = ? AND site_id = ? LIMIT 1`,
     [postId, organizationId, siteId],
   )
   if (!row) return null
@@ -426,7 +409,7 @@ export async function updatePost(
   const now = new Date().toISOString()
   const changes: ContentDocumentChanges = {
     title: data.title, summary: data.body, seo_title: data.seo_title, seo_description: data.seo_description,
-    scheduled_for: data.scheduled_for, location_id: data.location_id, updated_by: _updatedBy,
+    scheduled_for: data.scheduled_for, visibility: data.visibility, location_id: data.location_id, updated_by: _updatedBy,
     metadata: { post_type: data.post_type, call_to_action: data.call_to_action, event: data.event,
       offer: data.offer, alert_type: data.alert_type },
   }
@@ -434,13 +417,15 @@ export async function updatePost(
   const slugSource = cleanString(data.slug) ?? cleanString(data.title) ?? existing.title ?? cleanString(data.body) ?? existing.body.slice(0, 80)
   if (allocateSlug) changes.slug = await allocatePostSlug(db, siteId, slugSource, postId)
   if (data.scheduled_for !== undefined && data.scheduled_for !== existing.scheduled_for) {
-    if (data.scheduled_for) { changes.status = 'scheduled'; changes.published_at = null }
-    else if (existing.status === 'scheduled') { changes.status = 'published'; changes.published_at = now }
+    if (existing.status === 'published') throw new PostValidationError('Published posts cannot be rescheduled; use visibility to make the post unlisted')
+    if (data.scheduled_for) changes.status = 'scheduled'
+    else if (existing.status === 'scheduled') throw new PostValidationError('Use publish_post to publish a scheduled post; scheduled_for cannot be cleared')
   }
   if (data.title !== undefined || data.body !== undefined || data.slug !== undefined || data.seo_title !== undefined || data.seo_description !== undefined || data.post_type !== undefined) changes.source = 'manual'
   for (let attempt = 0; ; attempt++) {
     try {
       await updateContentDocument(db, postId, { expected_updated_at: row.updated_at, changes,
+        additionalQueriesAfter: data.visibility === undefined ? [] : [publicResourceCacheInvalidationQuery(siteId, 'post-visibility')],
         additionalQueriesBefore: data.post_type === 'alert' ? [{
           query: `INSERT INTO content_blocks(id, document_id, parent_block_id, type, position, level, data_json, created_at, updated_at)
             SELECT NULL, ?, NULL, 'markdown', 0, NULL, '{}', ?, ? WHERE EXISTS (
@@ -488,7 +473,7 @@ export async function publishPost(
 
   const existing = await queryFirst<PostRow>(
     db,
-    `SELECT id, organization_id, site_id, location_id, slug, title, seo_title, seo_description, status, scheduled_for, published_at, created_by, created_at, updated_at, summary AS body, (metadata_json ->> '$.post_type') AS post_type, json_extract(metadata_json, '$.event') AS event, json_extract(metadata_json, '$.offer') AS offer, json_extract(metadata_json, '$.call_to_action') AS call_to_action, (metadata_json ->> '$.alert_type') AS alert_type, NULL AS location_phone FROM content_documents WHERE kind = 'social_post' AND row_role = 'root' AND id = ? AND organization_id = ? AND site_id = ? LIMIT 1`,
+    `SELECT id, organization_id, site_id, location_id, slug, title, seo_title, seo_description, status, visibility, scheduled_for, published_at, created_by, created_at, updated_at, summary AS body, (metadata_json ->> '$.post_type') AS post_type, json_extract(metadata_json, '$.event') AS event, json_extract(metadata_json, '$.offer') AS offer, json_extract(metadata_json, '$.call_to_action') AS call_to_action, (metadata_json ->> '$.alert_type') AS alert_type, NULL AS location_phone FROM content_documents WHERE kind = 'social_post' AND row_role = 'root' AND id = ? AND organization_id = ? AND site_id = ? LIMIT 1`,
     [postId, organizationId, siteId],
   )
   if (!existing) return null
@@ -497,15 +482,16 @@ export async function publishPost(
   const slug = existing.slug ?? await allocatePostSlug(db, siteId, existing.title ?? existing.body.slice(0, 80) ?? postId, postId)
 
   if (channels.includes('site')) {
-    const updateResult = await execute(
-      db,
-      `UPDATE content_documents
+    const [updateResult] = await executeBatch(db, [{
+      query: `UPDATE content_documents
           SET status = 'published', slug = ?, scheduled_for = NULL,
-              published_at = COALESCE(published_at, ?), updated_at = ?
+              published_at = COALESCE(published_at, ?),
+              first_published_at = CASE WHEN status = 'published' THEN first_published_at ELSE COALESCE(first_published_at, ?) END,
+              updated_at = ?
         WHERE kind = 'social_post' AND row_role = 'root' AND id = ? AND organization_id = ? AND site_id = ? AND updated_at = ?`,
-      [slug, now, now, postId, organizationId, siteId, existing.updated_at],
-    )
-    if (Number(updateResult.meta.changes ?? 0) === 0) return null
+      params: [slug, now, now, now, postId, organizationId, siteId, existing.updated_at],
+    }, publicResourceCacheInvalidationQuery(siteId, 'post-publish')])
+    if (Number(updateResult?.meta.changes ?? 0) === 0) return null
   }
 
   const publishedChannels = channels.filter(channel => channel === 'site')
@@ -657,8 +643,8 @@ export async function publishDuePosts(db: DbClient, now = new Date()) {
   const due = await queryAll<DuePostRow>(db, `
     SELECT id, organization_id, site_id, location_id, (metadata_json ->> '$.post_type') AS post_type, scheduled_for, updated_at
       FROM content_documents
-     WHERE kind = 'social_post' AND row_role = 'root' AND status = 'scheduled' AND julianday(scheduled_for) <= julianday(?)
-     ORDER BY julianday(scheduled_for) ASC, id ASC
+     WHERE kind = 'social_post' AND row_role = 'root' AND status = 'scheduled' AND scheduled_for <= ?
+     ORDER BY scheduled_for ASC, id ASC
      LIMIT 100
   `, [nowIso])
   let published = 0
@@ -671,10 +657,10 @@ export async function publishDuePosts(db: DbClient, now = new Date()) {
         query: `
           UPDATE content_documents
              SET status = 'published', scheduled_for = NULL,
-                 published_at = COALESCE(published_at, scheduled_for, ?), updated_at = ?
-           WHERE kind = 'social_post' AND row_role = 'root' AND id = ? AND status = 'scheduled' AND scheduled_for = ? AND julianday(scheduled_for) <= julianday(?) AND updated_at = ?
+                 published_at = scheduled_for, first_published_at = COALESCE(first_published_at, scheduled_for), updated_at = ?
+           WHERE kind = 'social_post' AND row_role = 'root' AND id = ? AND status = 'scheduled' AND scheduled_for = ? AND scheduled_for <= ? AND updated_at = ?
         `,
-        params: [nowIso, updatedAt, post.id, post.scheduled_for, nowIso, post.updated_at],
+        params: [updatedAt, post.id, post.scheduled_for, nowIso, post.updated_at],
       },
       publicResourceCacheInvalidationQuery(post.site_id, 'post-scheduled-publish'),
     ])
@@ -720,7 +706,7 @@ export async function getPublishedPosts(
            json_extract(root.metadata_json, '$.call_to_action') AS call_to_action, CASE WHEN (root.metadata_json ->> '$.event') IS NULL THEN NULL ELSE json_patch(json_extract(root.metadata_json, '$.event'), COALESCE(json_extract(p.metadata_json, '$.event'), '{}')) END AS event, CASE WHEN (root.metadata_json ->> '$.offer') IS NULL THEN NULL ELSE json_patch(json_extract(root.metadata_json, '$.offer'), COALESCE(json_extract(p.metadata_json, '$.offer'), '{}')) END AS offer, (root.metadata_json ->> '$.alert_type') AS alert_type, root.published_at, p.created_at, p.updated_at
     FROM content_documents root JOIN content_documents p ON COALESCE(p.root_id,p.id) = root.id AND p.locale = ?
     LEFT JOIN business_locations bl ON root.location_id = bl.id
-    WHERE root.kind = 'social_post' AND root.row_role = 'root' AND p.site_id = ? AND root.status = 'published' AND p.summary IS NOT NULL
+    WHERE root.kind = 'social_post' AND root.row_role = 'root' AND p.site_id = ? AND root.status = 'published' AND root.visibility = 'public' AND p.summary IS NOT NULL
       AND ((root.metadata_json ->> '$.event') IS NULL OR length(trim(p.metadata_json ->> '$.event.title')) > 0)
       AND ((root.metadata_json ->> '$.offer.terms_conditions') IS NULL OR length(trim(p.metadata_json ->> '$.offer.terms_conditions')) > 0)
   `

@@ -90,7 +90,7 @@
             @click="selectSlot(day, slot)"
           >
             <span class="font-medium text-default" :class="slot.isClosedOrFull ? 'text-muted line-through' : ''">
-              {{ formatTime(slot.time_slot) }}
+              {{ formatTime(slot.time_slot, locale) }}
             </span>
             <span
               class="text-sm"
@@ -120,6 +120,7 @@
 </template>
 
 <script setup lang="ts">
+import { formatCalendarDate, formatTime, addLocalDays } from '~/utils/timezone'
 export interface RawSlotAvailability {
   time_slot: string
   capacity: number | null
@@ -180,20 +181,11 @@ function setDayRef(el: unknown, key: string) {
   dayRefs[key] = el as HTMLElement | null
 }
 
-function formatTime(time: string): string {
-  const [hStr, mStr] = time.split(':')
-  const h = Number(hStr)
-  const m = Number(mStr)
-  const date = new Date(2000, 0, 1, h, m)
-  return new Intl.DateTimeFormat(locale.value, { hour: 'numeric', minute: '2-digit' }).format(date)
-}
-
 function dayLabelFor(dateStr: string, index: number): string {
-  const d = new Date(`${dateStr}T00:00:00`)
-  const formatted = d.toLocaleDateString(locale.value, { day: 'numeric', month: 'long' })
+  const formatted = formatCalendarDate(dateStr, locale.value, { day: 'numeric', month: 'long' })
   if (index === 0) return t('saya.experience_detail.today_date', { date: formatted })
   if (index === 1) return t('saya.experience_detail.tomorrow_date', { date: formatted })
-  return d.toLocaleDateString(locale.value, { weekday: 'long', day: 'numeric', month: 'long' })
+  return formatCalendarDate(dateStr, locale.value, { weekday: 'long', day: 'numeric', month: 'long' })
 }
 
 const days = computed(() => {
@@ -220,13 +212,13 @@ const days = computed(() => {
 
 const monthLabel = computed(() => {
   if (props.dates.length === 0) return ''
-  const first = new Date(`${props.dates[0]!.date}T00:00:00`)
-  const last = new Date(`${props.dates[props.dates.length - 1]!.date}T00:00:00`)
-  const f = first.toLocaleDateString(locale.value, { month: 'long', year: 'numeric' })
-  const l = last.toLocaleDateString(locale.value, { month: 'long', year: 'numeric' })
+  const first = props.dates[0]!.date
+  const last = props.dates[props.dates.length - 1]!.date
+  const f = formatCalendarDate(first, locale.value, { month: 'long', year: 'numeric' })
+  const l = formatCalendarDate(last, locale.value, { month: 'long', year: 'numeric' })
   if (f === l) return f
-  return first.getFullYear() === last.getFullYear()
-    ? `${first.toLocaleDateString(locale.value, { month: 'long' })} – ${l}`
+  return first.slice(0, 4) === last.slice(0, 4)
+    ? `${formatCalendarDate(first, locale.value, { month: 'long' })} – ${l}`
     : `${f} – ${l}`
 })
 
@@ -235,7 +227,7 @@ const selectedDayKey = computed(() => props.modelValue?.day ?? null)
 const selectedSummary = computed(() => {
   if (!props.modelValue) return ''
   const dayPart = props.modelValue.label.split(',')[0]
-  return `${dayPart} · ${formatTime(props.modelValue.time)}`
+  return `${dayPart} · ${formatTime(props.modelValue.time, locale.value)}`
 })
 
 function selectSlot(day: { key: string; label: string }, slot: { time_slot: string; disabled: boolean }) {
@@ -254,30 +246,30 @@ function jumpToDay(key: string) {
 
 // ── Calendar view ──────────────────────────────────────────────────────────
 const weekdayLabels = computed(() => Array.from({ length: 7 }, (_, index) =>
-  new Intl.DateTimeFormat(locale.value, { weekday: 'narrow' }).format(new Date(2024, 0, 7 + index)),
+  formatCalendarDate(addLocalDays('2024-01-07', index), locale.value, { weekday: 'narrow' }),
 ))
 
 const calendarDays = computed(() => {
   if (props.dates.length === 0) return []
   const byKey = Object.fromEntries(days.value.map((d) => [d.key, d]))
   const todayKey = props.dates[0]!.date
-  const first = new Date(`${props.dates[0]!.date}T00:00:00`)
-  const last = new Date(`${props.dates[props.dates.length - 1]!.date}T00:00:00`)
+  const first = props.dates[0]!.date
+  const last = props.dates[props.dates.length - 1]!.date
   const out: Array<{ key: string; dayNum: number; hasSeats: boolean; isToday: boolean }> = []
-  const cursor = new Date(first.getFullYear(), first.getMonth(), first.getDate())
+  let cursor = first
   while (cursor <= last) {
-    const key = `${cursor.getFullYear()}-${String(cursor.getMonth() + 1).padStart(2, '0')}-${String(cursor.getDate()).padStart(2, '0')}`
+    const key = cursor
     const day = byKey[key]
     // hasSeats should reflect actual bookable availability (any non-disabled slot), not just presence
     const hasSeats = day ? day.slots?.some((slot: { disabled?: boolean }) => !slot.disabled) : false
-    out.push({ key, dayNum: cursor.getDate(), hasSeats, isToday: key === todayKey })
-    cursor.setDate(cursor.getDate() + 1)
+    out.push({ key, dayNum: Number(cursor.slice(8)), hasSeats, isToday: key === todayKey })
+    cursor = addLocalDays(cursor, 1)
   }
   return out
 })
 
 const leadingBlanks = computed(() => {
   if (props.dates.length === 0) return 0
-  return new Date(`${props.dates[0]!.date}T00:00:00`).getDay()
+  return new Date(`${props.dates[0]!.date}T00:00:00Z`).getUTCDay()
 })
 </script>

@@ -1,0 +1,109 @@
+{
+  "build": "ab22e07e-d138-4e94-bac3-30a36031bef1",
+  "stats": {
+    "startTime": "2026-09-08T08:19:33.531Z",
+    "duration": 70936.54199999999,
+    "expected": 16,
+    "skipped": 0,
+    "unexpected": 0,
+    "flaky": 0
+  },
+  "cases": [
+    {
+      "title": "ncls desktop /about",
+      "status": "passed",
+      "retry": 0,
+      "durationMs": 4817
+    },
+    {
+      "title": "ncls desktop /article/writing-your-own-will-how-it-works",
+      "status": "passed",
+      "retry": 0,
+      "durationMs": 4585
+    },
+    {
+      "title": "ncls desktop /blog",
+      "status": "passed",
+      "retry": 0,
+      "durationMs": 2633
+    },
+    {
+      "title": "ncls desktop /contact",
+      "status": "passed",
+      "retry": 0,
+      "durationMs": 3307
+    },
+    {
+      "title": "ncls desktop /policies/privacy",
+      "status": "passed",
+      "retry": 0,
+      "durationMs": 1479
+    },
+    {
+      "title": "ncls desktop /schedule",
+      "status": "passed",
+      "retry": 0,
+      "durationMs": 2871
+    },
+    {
+      "title": "ncls desktop /services",
+      "status": "passed",
+      "retry": 0,
+      "durationMs": 3255
+    },
+    {
+      "title": "ncls desktop /services/family",
+      "status": "passed",
+      "retry": 0,
+      "durationMs": 6289
+    },
+    {
+      "title": "ncls narrow /about",
+      "status": "passed",
+      "retry": 0,
+      "durationMs": 6420
+    },
+    {
+      "title": "ncls narrow /article/writing-your-own-will-how-it-works",
+      "status": "passed",
+      "retry": 0,
+      "durationMs": 8708
+    },
+    {
+      "title": "ncls narrow /blog",
+      "status": "passed",
+      "retry": 0,
+      "durationMs": 5143
+    },
+    {
+      "title": "ncls narrow /contact",
+      "status": "passed",
+      "retry": 0,
+      "durationMs": 3426
+    },
+    {
+      "title": "ncls narrow /policies/privacy",
+      "status": "passed",
+      "retry": 0,
+      "durationMs": 1680
+    },
+    {
+      "title": "ncls narrow /schedule",
+      "status": "passed",
+      "retry": 0,
+      "durationMs": 4262
+    },
+    {
+      "title": "ncls narrow /services",
+      "status": "passed",
+      "retry": 0,
+      "durationMs": 4734
+    },
+    {
+      "title": "ncls narrow /services/family",
+      "status": "passed",
+      "retry": 0,
+      "durationMs": 6458
+    }
+  ]
+}

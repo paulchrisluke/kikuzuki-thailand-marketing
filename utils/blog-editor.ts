@@ -1,3 +1,4 @@
+import { instantDate, isValidInstant, localDateTimeToInstant } from './timezone'
 import { PUBLICATION_CONTENT_BLOCK_LOCALIZED_FIELDS, type PublicationContentBlockType } from '~/shared/content-registries'
 
 export type BlogVisibility = 'public' | 'unlisted'
@@ -237,21 +238,14 @@ export function firstImageAssetId(blocks: EditorContentBlock[]) {
 
 export function parseScheduledFor(value: unknown) {
   if (value === undefined || value === null || value === '') return null
-  if (typeof value !== 'string'
-    || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/.test(value)) {
-    throw new Error('scheduled_for must be an ISO 8601 datetime with Z or a numeric timezone offset')
-  }
-  const parsed = new Date(value)
-  if (Number.isNaN(parsed.getTime())) throw new Error('scheduled_for must be an ISO 8601 datetime with Z or a numeric timezone offset')
-  return parsed.toISOString()
+  if (!isValidInstant(value)) throw new Error('scheduled_for requires a valid timestamp with an explicit UTC offset')
+  return instantDate(value).toISOString()
 }
 
-export function scheduledLifecycleValue(timing: 'Now' | 'Scheduled', localValue: string) {
+export function scheduledLifecycleValue(timing: 'Now' | 'Scheduled', localValue: string, timeZone: string) {
   if (timing === 'Now') return null
-  if (!localValue) throw new Error('Scheduled date and time is required')
-  const parsed = new Date(localValue)
-  if (Number.isNaN(parsed.getTime())) throw new Error('Scheduled date and time is invalid')
-  return parsed.toISOString()
+  if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}(?:\.\d{1,3})?)?$/.test(localValue)) throw new Error('Scheduled date and time is required')
+  return localDateTimeToInstant(localValue.slice(0, 10), localValue.slice(11), timeZone).toISOString()
 }
 
 export function structuredComponentsFromBlocks(blocks: EditorContentBlock[]): Array<{

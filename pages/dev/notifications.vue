@@ -227,8 +227,6 @@ const statusOptions = [
 ]
 
 const OWNER_TEMPLATES = new Set([
-  'ai_action_complete',
-  'low_credits',
   'new_contact_msg',
   'new_reservation',
   'reservation_cancelled',

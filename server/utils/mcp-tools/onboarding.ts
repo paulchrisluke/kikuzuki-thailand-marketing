@@ -4,7 +4,7 @@ import { fileReferenceObject, generatedImagePickerOutputSchema, globalTool, site
 export const ONBOARDING_TOOLS: McpToolDefinition[] = [
   globalTool(withToolAnnotations({
       name: 'import_from_maps',
-      description: 'Fetch business details from a Google Maps URL or share link without persisting them — the caller still decides what to save. Call this when the user provides a Maps URL during site creation. Consumes Google Places API credits. Media is added only after the site exists through the canonical media asset tools.',
+      description: 'Look up business details through Google Places using a Google Maps URL or share link without saving a site or location. The caller decides what to save in the CMS. Media is added after the site exists through the media asset tools.',
       domain: 'onboarding',
       minimumRole: 'editor',
       confirmRequired: false,

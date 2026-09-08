@@ -1,3 +1,4 @@
+import { instantSchema } from '~/utils/timezone'
 import type { McpToolDefinition } from './shared'
 import { BLOG_NAV_FIELDS_SCHEMA, ROBOTS_DIRECTIVE_ENUM, blogPostMutationResultObject, blogPostObject, blogPostSummaryObject, pageInfoObject, paginationInputSchema, siteTool } from './shared'
 import { PUBLICATION_CONTENT_BLOCK_TYPES } from '~/shared/content-registries'
@@ -27,11 +28,11 @@ const blogContentBlockSchema = {
 export const BLOG_TOOLS: McpToolDefinition[] = [
   siteTool({
       name: 'list_blog_posts',
-      description: 'List this site\'s published and scheduled blog articles. This is the site\'s own long-form content blog — distinct from list_posts, which is the social-update feed.',
+      description: 'List this site\'s draft, published and scheduled blog articles. This is the site\'s own long-form content blog — distinct from list_posts, which is the social-update feed.',
       domain: 'blog',
       minimumRole: 'editor',
       confirmRequired: false,
-      inputSchema: { status: { type: 'string', enum: ['published', 'scheduled'] }, ...paginationInputSchema },
+      inputSchema: { status: { type: 'string', enum: ['draft', 'published', 'scheduled'] }, ...paginationInputSchema },
       outputSchema: {
         type: 'object',
         properties: { posts: { type: 'array', items: blogPostSummaryObject }, page_info: pageInfoObject },
@@ -58,7 +59,7 @@ export const BLOG_TOOLS: McpToolDefinition[] = [
     }),
   siteTool({
       name: 'create_blog_post',
-      description: 'Create a long-form, evergreen, SEO-indexed article using content_blocks as the only authoring shape. Omit scheduled_for to publish immediately, or provide a future ISO 8601 datetime to schedule it. Compose and review the complete article with the user before calling this tool. category is free text for tenant blogs.',
+      description: 'Create a long-form, evergreen, SEO-indexed article using content_blocks as the only authoring shape. Creation saves a draft by default. Set status to published to publish immediately, or provide a future scheduled_for to schedule it. Compose and review the complete article with the user before calling this tool. category is free text for tenant blogs.',
       domain: 'blog',
       minimumRole: 'editor',
       confirmRequired: true,
@@ -74,7 +75,8 @@ export const BLOG_TOOLS: McpToolDefinition[] = [
         canonical_url: { type: 'string' },
         robots: { type: ['string', 'null'], enum: [...ROBOTS_DIRECTIVE_ENUM, null] },
         visibility: { type: 'string', enum: ['public', 'unlisted'], description: 'Unlisted posts work by direct URL but are excluded from indexes, search, feeds, and sitemap.' },
-        scheduled_for: { type: ['string', 'null'], description: 'Optional future ISO 8601 datetime with timezone. Omit or pass null to publish immediately.' },
+        status: { type: 'string', enum: ['draft', 'scheduled', 'published'], description: 'Creation defaults to draft. Scheduled requires a future scheduled_for; published goes live immediately.' },
+        scheduled_for: { ...instantSchema, type: ['string', 'null'], description: 'Optional future ISO 8601 datetime with timezone. With no status or schedule, creation saves a draft.' },
       },
       required: ['title', 'content_blocks'],
       outputSchema: blogPostMutationResultObject,
@@ -149,12 +151,12 @@ export const BLOG_TOOLS: McpToolDefinition[] = [
     }),
   siteTool({
       name: 'publish_blog_post',
-      description: 'Publish a scheduled tenant blog article immediately, or reschedule it with scheduled_for. Requires the current document concurrency token. Use only after the writer has approved the final article.',
+      description: 'Publish a draft or scheduled tenant blog article immediately, or reschedule it with scheduled_for. Requires the current document concurrency token. Use only after the writer has approved the final article.',
       domain: 'blog', minimumRole: 'editor', confirmRequired: true,
       inputSchema: {
         post_id: { type: 'string', description: 'Post id or slug.' },
         expected_updated_at: { type: 'string', description: 'Exact post.updated_at concurrency token from the latest get_blog_post or successful blog mutation.' },
-        scheduled_for: { type: ['string', 'null'], description: 'Optional future ISO 8601 datetime with timezone. Omit or pass null to publish immediately.' },
+        scheduled_for: { ...instantSchema, type: ['string', 'null'], description: 'Optional future ISO 8601 datetime with timezone. Omit or pass null to publish immediately.' },
       },
       required: ['post_id', 'expected_updated_at'],
       outputSchema: blogPostMutationResultObject,

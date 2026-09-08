@@ -1,0 +1,40 @@
+{
+  "case": "kikuzuki desktop /",
+  "source": "immutable case85 trace",
+  "observations": [
+    {
+      "startedDateTime": "2026-09-08T05:45:01.970Z",
+      "durationMs": 830.285,
+      "requestHeaders": {
+        "range": "bytes=0-"
+      },
+      "status": 206,
+      "responseHeaders": {
+        "content-length": "3107471",
+        "content-range": "bytes 0-3107470/3107471",
+        "content-type": "video/mp4"
+      }
+    },
+    {
+      "startedDateTime": "2026-09-08T05:45:02.983Z",
+      "durationMs": -1,
+      "requestHeaders": {
+        "range": "bytes=65536-"
+      },
+      "status": -1,
+      "responseHeaders": {}
+    }
+  ],
+  "classifiedCancellations": [],
+  "failures": [
+    {
+      "at": 1788846302973,
+      "error": "net::ERR_ABORTED",
+      "range": "bytes=0-",
+      "classification": "failure"
+    }
+  ],
+  "assertionEndMonotonicMs": 192222.159,
+  "finding": "Classifier was invoked while exact replacement range request had no response yet. Video readiness/playback sampling was never reached; no inference of healthy playback from this failed case.",
+  "proposedArtifactCorrection": "Bounded wait for the already-required exact replacement 206 response, then preserve all existing same-element decoded/no-error/unpaused/opacity/currentTime advancement assertions. Deadline expiry or failed response remains failure."
+}

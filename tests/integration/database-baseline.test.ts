@@ -6,11 +6,11 @@ import Database from 'better-sqlite3'
 function baselineDatabase() {
   const database = new Database(':memory:')
   database.pragma('foreign_keys = ON')
-  database.exec(readFileSync('migrations/0000_epoch_5_baseline.sql', 'utf8'))
+  database.exec(readFileSync('migrations/0000_epoch_6_baseline.sql', 'utf8'))
   return database
 }
 
-test('epoch-5 baseline creates the complete schema from zero', () => {
+test('epoch-6 baseline creates the complete schema from zero', () => {
   const database = baselineDatabase()
   try {
     const tableCount = database.prepare(`
@@ -18,7 +18,7 @@ test('epoch-5 baseline creates the complete schema from zero', () => {
       FROM sqlite_schema
       WHERE type = 'table' AND name NOT LIKE 'sqlite_%'
     `).get() as { count: number }
-    assert.equal(tableCount.count, 53)
+    assert.equal(tableCount.count, 52)
     const ledgerCount = database.prepare("SELECT count(*) count FROM sqlite_schema WHERE name = 'd1_migrations'").get() as { count: number }
     assert.equal(ledgerCount.count, 0)
     const splitAvailabilityTables = database.prepare("SELECT count(*) count FROM sqlite_schema WHERE type = 'table' AND name IN ('experience_slot_overrides', 'reservation_slot_overrides')").get() as { count: number }
@@ -33,7 +33,7 @@ test('epoch-5 baseline creates the complete schema from zero', () => {
   }
 })
 
-test('epoch-5 baseline enforces canonical cross-scope and value constraints', () => {
+test('epoch-6 baseline enforces canonical cross-scope and value constraints', () => {
   const database = baselineDatabase()
   try {
     database.prepare("INSERT INTO organization (id, name, slug) VALUES ('org', 'Org', 'org')").run()
@@ -93,7 +93,7 @@ test('epoch-5 baseline enforces canonical cross-scope and value constraints', ()
       /media_assets_video_thumbnail_check/,
     )
     database.prepare("INSERT INTO site_locales (id,organization_id,site_id,locale,is_source,status) VALUES ('source','org','site','en',1,'published')").run()
-    database.prepare("INSERT INTO content_documents (id,organization_id,site_id,kind,row_role,locale,summary,status,published_at,source,metadata_json) VALUES ('social','org','site','social_post','root','en','Body','published','2026-01-01T00:00:00.000Z','manual',?)").run(JSON.stringify({ post_type: 'alert', alert_type: 'covid_19', channels: {} }))
+    database.prepare("INSERT INTO content_documents (id,organization_id,site_id,kind,row_role,locale,summary,status,visibility,published_at,source,metadata_json) VALUES ('social','org','site','social_post','root','en','Body','published','public','2026-01-01T00:00:00.000Z','manual',?)").run(JSON.stringify({ post_type: 'alert', alert_type: 'covid_19', channels: {} }))
     assert.throws(
       () => database.prepare("UPDATE content_documents SET metadata_json = ? WHERE id = 'social'").run(JSON.stringify({ post_type: 'promotion', channels: {} })),
       /content_documents_social_post_type_check/,
@@ -117,7 +117,7 @@ test('epoch-5 baseline enforces canonical cross-scope and value constraints', ()
   }
 })
 
-test('epoch-5 rejects unknown content, localization, and media owners at the SQLite boundary', () => {
+test('epoch-6 rejects unknown content, localization, and media owners at the SQLite boundary', () => {
   const database = baselineDatabase()
   try {
     database.prepare("INSERT INTO organization (id, name, slug) VALUES ('org', 'Org', 'org')").run()

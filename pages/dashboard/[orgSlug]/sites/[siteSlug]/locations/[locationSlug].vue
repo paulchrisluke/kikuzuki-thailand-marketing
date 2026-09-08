@@ -4,7 +4,13 @@
     listing editor's cog opens a separate preferences screen rather than a pane
     beside the rail. Everything else is a section of this location.
   -->
-  <NuxtPage v-if="rendersStandalone" />
+  <!--
+    Nothing of this level is on screen once the open level is deeper than one of
+    its sections: the two columns always belong to the open level and its
+    parent. Rendering the rail anyway is what put a third column beside a
+    grandchild's own pair.
+  -->
+  <NuxtPage v-if="rendersStandalone || frame.mode.value === 'yield'" />
 
   <UDashboardPanel v-else id="location-hub">
     <template #header>
@@ -133,13 +139,13 @@ const locationsPath = computed(() => `${sitePath.value}/locations`)
 const locationPath = computed(() => `${locationsPath.value}/${String(route.params.locationSlug)}`)
 const settingsPath = computed(() => `${locationPath.value}/settings`)
 
+// Settings and Inbox are their own screens rather than sections of this one, so
+// they leave the chain entirely rather than taking a column in it.
 const STANDALONE_SECTIONS = ['settings', 'inbox']
-const sectionSegment = computed(() => {
-  const rest = route.path.slice(locationPath.value.length).replace(/^\//, '')
-  return rest.split('/')[0] ?? ''
-})
+const frame = useEditorFrame(locationPath)
+const sectionSegment = computed(() => frame.childSegment.value ?? '')
 const rendersStandalone = computed(() => STANDALONE_SECTIONS.includes(sectionSegment.value))
-const hasDetail = computed(() => Boolean(sectionSegment.value))
+const hasDetail = computed(() => frame.mode.value === 'pair')
 const activeSection = computed(() => sectionSegment.value || null)
 
 const location = ref<LocationOverview | null>(null)
@@ -264,7 +270,10 @@ const PANE_BREAKPOINT = '(min-width: 1024px)'
 let sectionChosen = false
 
 function openFirstSectionBesideTheRail() {
-  if (sectionChosen || loading.value || hasDetail.value) return
+  // Only from the location itself. `hasDetail` is also false when a deeper
+  // level owns both columns, and opening the first section from there threw the
+  // tenant out of whatever they had open.
+  if (sectionChosen || loading.value || frame.mode.value !== 'index') return
   if (!window.matchMedia(PANE_BREAKPOINT).matches) return
   const first = contentGroups.value[0]?.items[0]
   if (!first) return

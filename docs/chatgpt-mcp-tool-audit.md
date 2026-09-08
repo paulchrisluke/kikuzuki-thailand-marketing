@@ -1,5 +1,9 @@
 # ChatGPT MCP tool scope audit
 
+The September 7 retirement candidate has 96 registry tools and 95 exposed by
+default. `analyze_document` and `import_products_from_media` are removed.
+The earlier four-tool scope decision below remains historical evidence.
+
 2026-09-06 · `codex/chatgpt-app-submission` · base `002f289c`
 
 This is a source-based product-scope audit, not a completed security or runtime certification. Reviewed the 101 tools in the default conversational submission set, their canonical input schemas, and the lifecycle/deletion implementation paths relevant to the recommendations. `get_site_domains` is a separate, disabled-by-default read tool. The approved four-tool removal has now been implemented. Both generated artifacts were rebuilt with the existing scripts; neither JSON file was hand-edited.
@@ -21,11 +25,12 @@ This is a product recommendation based on this implementation, not an OpenAI rul
 
 There is **no `delete_site` MCP tool** in the current registry or executor. `delete_site_qa` deletes a Q&A entry, not a site.
 
-These four removals reduce the default catalog from **101 to 97 tools**.
+These four removals reduced the default catalog from 101 to 97 tools at the
+September 6 checkpoint. Provider retirement subsequently reduced it to 95.
 
 ## Daily workflow tools retained
 
-The user explicitly retained `delete_media_asset` and `delete_experience` as daily workflows. Both remain registered and dispatchable, with their existing destructive annotations and CMS/domain implementations. The approved catalog contains **97 default tools**, plus the disabled-by-default `get_site_domains` read tool.
+The user explicitly retained `delete_media_asset` and `delete_experience` as daily workflows. Both remain registered and dispatchable, with their existing destructive annotations and CMS/domain implementations. The current catalog contains 95 default tools, plus the disabled-by-default `get_site_domains` read tool.
 
 ## Keep, with targeted review before submission
 
@@ -33,7 +38,7 @@ The user explicitly retained `delete_media_asset` and `delete_experience` as dai
 | --- | --- |
 | Site/location reads and workspace selection | Essential for explicit targeting; preserve these. Removing creation must also remove instructions that tell a new user to create through MCP. An empty account should explain that setup is required in the CMS. |
 | `update_location` | Keep ordinary hours, temporary closure, contact information, and public links. Review notification routing, capacity, and timezone changes distinctly; these affect operations, not just page text. |
-| Products and categories | Keep creation, editing, ordering, and bounded deletion. `sync_products` can change a complete catalog and mark omissions unavailable; require a complete reviewed list and explicit location. |
+| Products and categories | Keep creation, editing, ordering, and bounded deletion. `sync_products` marks omitted products unavailable only when `set_missing_unavailable === true`; review that choice and supply an explicit location. |
 | Posts, blog, pages, translations, Q&A | Core content workflows. Keep public-write hints and accurate publication descriptions. Preview requested draft copy in chat; do not claim `create_post` saves an unpublished draft. |
 | Media upload, assignment, removal, ordering | Keep. Clearly disclose public media storage and distinguish removing a placement from deleting the underlying asset. |
 | Experiences and booking reads | Keep. Scheduling, pricing, and capacity edits need explicit user intent. Customer contact information must remain permission-scoped. |
@@ -42,7 +47,7 @@ The user explicitly retained `delete_media_asset` and `delete_experience` as dai
 | `update_site_settings`, `set_default_currency` | Review before shipping: settings include tracking, verification, canonical/indexing controls, and currency. Removing only `set_default_currency` would not remove that capability because `update_site_settings.default_currency` also exposes it. Narrow fields only if a CMS-only settings boundary is selected. |
 | `change_tenant_page_path` | URL changes warrant review, but removing this tool alone would not remove path editing: `update_tenant_page.path` also exposes it. Check all fields if restricting this capability. |
 | Owner-entered reviews and replies | Useful, but preserve attribution/provenance and real publication authorization. These must not become a way to fabricate customer reviews. |
-| AI imports/document analysis | Keep only with accurate external-processing and credit-use descriptions. `import_products_from_media` creates products, while `import_from_maps` only retrieves business details and charges credits. |
+| AI imports/document analysis | Internal AI product extraction and document analysis are retired. `import_from_maps` retrieves business details through Google Places. |
 
 No additional removals are required by this retained-tool scope review. Explicit effects now cover the complete default catalog in the existing generator. Production reviewer credentials, test fixtures, privacy facts, deployment, and authenticated scan are separate outstanding readiness gates.
 

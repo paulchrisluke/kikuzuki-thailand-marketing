@@ -4,7 +4,6 @@
 
 import { execute, queryFirst, type DbClient } from '~/server/db'
 import { logOnlyWhatsAppMessageId, shouldSendRealWhatsApp } from './whatsapp-delivery'
-import { chargeFlatCredits } from './ai-credits'
 import { parsePhoneOrThrow } from '~/utils/phone'
 
 function maskPhone(phone: string): string {
@@ -50,8 +49,6 @@ interface MetaMediaResponse {
 
 export type WhatsAppTemplate =
   | 'new_review'
-  | 'ai_action_complete'
-  | 'low_credits'
   | 'new_contact_msg'
   | 'guest_thread_reply_whatsapp'
   | 'new_reservation'
@@ -232,46 +229,6 @@ const TEMPLATES: Record<
       },
     ],
   }),
-  ai_action_complete: (v) => ({
-    name: 'ai_action_complete',
-    language: { code: 'en_US' },
-    components: [
-      {
-        type: 'body',
-        parameters: [
-          { type: 'text', text: cleanTemplateText(v.action_summary, 'AI task completed') },
-        ],
-      },
-      {
-        type: 'button',
-        sub_type: 'url',
-        index: '0',
-        parameters: [
-          { type: 'text', text: toDashboardButtonPath(v.preview_url) },
-        ],
-      },
-    ],
-  }),
-  low_credits: (v) => ({
-    name: 'low_credits',
-    language: { code: 'en_US' },
-    components: [
-      {
-        type: 'body',
-        parameters: [
-          { type: 'text', text: cleanTemplateText(v.credits_remaining, '0', 32) },
-        ],
-      },
-      {
-        type: 'button',
-        sub_type: 'url',
-        index: '0',
-        parameters: [
-          { type: 'text', text: toDashboardButtonPath(v.upgrade_url) },
-        ],
-      },
-    ],
-  }),
   new_contact_msg: (v) => buildContactAlertTemplate(v, { subjectFallback: 'General', messageFallback: 'No message preview' }),
   // Reuses the approved owner contact template shape so guest reply alerts
   // stay within Meta's existing parameter contract while deep-linking into
@@ -386,13 +343,8 @@ export type SendWhatsAppResult =
   | { success: true; status: 'sent'; messageId: string | undefined }
   | { success: false; status: 'failed' | 'unknown'; error: string }
 
-export type SendWhatsAppNotificationResult =
-  | SendWhatsAppResult
-  | { success: false; status: 'sent'; messageId: string | undefined; error: string }
-
 export async function sendWhatsAppNotification(
   env: WhatsAppEnv,
-  db: DbClient,
   opts: {
     organizationId: string
     siteId?: string | null
@@ -401,7 +353,7 @@ export async function sendWhatsAppNotification(
     template: WhatsAppTemplate
     vars?: Record<string, string>
   }
-): Promise<SendWhatsAppNotificationResult> {
+): Promise<SendWhatsAppResult> {
   const phoneNumberId = env.WHATSAPP_PHONE_NUMBER_ID
   const accessToken = env.WHATSAPP_ACCESS_TOKEN
 
@@ -421,7 +373,7 @@ export async function sendWhatsAppNotification(
 
   const templatePayload = buildWhatsAppTemplatePayload(opts.template, vars)
 
-  let result: SendWhatsAppNotificationResult
+  let result: SendWhatsAppResult
   try {
     const response = await fetch(
       `${GRAPH_BASE}/${phoneNumberId}/messages`,
@@ -452,22 +404,6 @@ export async function sendWhatsAppNotification(
   } catch (error) {
     const errMsg = error instanceof Error ? error.message : 'Network error'
     result = { success: false, status: 'unknown', error: errMsg }
-  }
-
-  if (result.success) {
-    try {
-      await chargeFlatCredits(db, opts.organizationId, {
-        siteId: opts.siteId ?? undefined,
-        action: 'whatsapp_notification',
-        idempotencyKey: result.messageId
-          ? `whatsapp-provider:${result.messageId}`
-          : `whatsapp-notification:${attemptId}`,
-      })
-    } catch (error) {
-      const reason = error instanceof Error ? error.message : String(error)
-      const accountingError = `WhatsApp delivery sent but credit accounting failed: ${reason}`
-      return { success: false, status: 'sent', messageId: result.messageId, error: accountingError }
-    }
   }
 
   return result

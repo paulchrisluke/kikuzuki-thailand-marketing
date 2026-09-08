@@ -218,11 +218,7 @@ export async function executeMcpToolCall(
         });
         return { ok: response.ok, url: response.url };
       },
-      searchPlaces: async (query, locationBias) => {
-        const results = await searchPlaces(apiKey, query, locationBias);
-        await chargeFlatCreditsForUser(user, "google_places_search");
-        return results;
-      },
+      searchPlaces: (query, locationBias) => searchPlaces(apiKey, query, locationBias),
     });
     let details;
     try {
@@ -237,7 +233,6 @@ export async function executeMcpToolCall(
         statusMessage: message,
       });
     }
-    await chargeFlatCreditsForUser(user, "google_places_details");
 
     const structuredContent = {
       business: {

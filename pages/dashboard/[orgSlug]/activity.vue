@@ -77,6 +77,7 @@
 </template>
 
 <script setup lang="ts">
+import { localDateAt, instantDate, formatCalendarDate, addLocalDays } from '~/utils/timezone'
 import { getErrorMessage } from '~/utils/errors'
 const dashboardApi = useDashboardApi()
 const route = useRoute()
@@ -261,28 +262,14 @@ async function loadMore() {
   }
 }
 
-// Fixed, explicit zone/locale rather than the host's — Date.toDateString(),
-// getFullYear(), and Intl.DateTimeFormat(undefined, ...) all read the running
-// process's local time zone, which differs between the SSR server and the
-// client's browser and produces mismatched "Today"/"Yesterday" grouping (and
-// a hydration mismatch) for the same event.
-const ACTIVITY_TIME_ZONE = 'UTC'
-const dateKeyFormatter = new Intl.DateTimeFormat('en-CA', { timeZone: ACTIVITY_TIME_ZONE, year: 'numeric', month: '2-digit', day: '2-digit' })
-const dateKey = (date: Date) => dateKeyFormatter.format(date)
-
+const activityNow = useState('activity-time-reference', () => new Date().toISOString())
 function groupLabel(dateStr: string) {
-  const date = new Date(dateStr)
-  const now = new Date()
-  const todayKey = dateKey(now)
-  const key = dateKey(date)
+  const todayKey = localDateAt(instantDate(activityNow.value), 'UTC')
+  const key = localDateAt(instantDate(dateStr), 'UTC')
   if (key === todayKey) return 'Today'
-  const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000)
-  if (key === dateKey(yesterday)) return 'Yesterday'
-  const sameYear = key.slice(0, 4) === todayKey.slice(0, 4)
-  return new Intl.DateTimeFormat('en-US', {
-    timeZone: ACTIVITY_TIME_ZONE,
-    ...(sameYear ? { month: 'long', day: 'numeric' } : { month: 'long', year: 'numeric' }),
-  }).format(date)
+  if (key === addLocalDays(todayKey, -1)) return 'Yesterday'
+  return formatCalendarDate(key, 'en', key.slice(0, 4) === todayKey.slice(0, 4)
+    ? { month: 'long', day: 'numeric' } : { month: 'long', year: 'numeric' })
 }
 
 const groups = computed(() => {

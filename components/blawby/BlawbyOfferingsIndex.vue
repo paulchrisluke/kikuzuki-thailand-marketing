@@ -33,11 +33,6 @@ const routeData = computed(() => data.value)
 const page = computed(() => routeData.value.page)
 if (!page.value) throw createError({ statusCode: 404, statusMessage: 'Services content not found' })
 
-function block(type: string) {
-  if (!page.value) return null
-  const canonicalType = type === 'services_intro' ? 'offering_grid' : type === 'consultation_cta' ? 'contact_cta' : type === 'qa' ? 'faq' : undefined
-  return findTenantPageBlock(page.value.blocks, type, canonicalType)
-}
 
 function mediaUrl(value: ApiRecord | null | undefined, slot: string) {
   const media = value?.media
@@ -49,9 +44,9 @@ function optionalString(value: unknown) {
   return typeof value === 'string' && value ? value : null
 }
 
-const servicesBlock = computed(() => block('services_intro') ?? {})
-const ctaBlock = computed(() => block('consultation_cta'))
-const qaBlock = computed(() => block('qa'))
+const servicesBlock = computed(() => (page.value ? findTenantPageBlock(page.value.blocks, 'offering_grid') : null) ?? {})
+const ctaBlock = computed(() => page.value ? findTenantPageBlock(page.value.blocks, 'contact_cta') : null)
+const qaBlock = computed(() => page.value ? findTenantPageBlock(page.value.blocks, 'faq') : null)
 const servicesDecoration = computed(() => mediaUrl(servicesBlock.value, 'decoration'))
 const { trackConsultationClick } = useSiteConversionTracking(consultation)
 

@@ -1,3 +1,4 @@
+import { instantDate, isValidInstant } from '~/utils/timezone'
 import { bookingPayloadForGuest, requestInsertQueries } from '~/server/domain/requests'
 import { parseRecurringSlots, type RecurringSlots, type Weekday } from '~/shared/reservation-hours'
 import { resourceLocalizationDeletionQueries } from '~/server/utils/localization'
@@ -352,12 +353,12 @@ async function normalizeExperiencePrice(
     throw new HTTPError({ statusCode: 400, statusMessage: 'price.compare_at_amount_minor must exceed amount_minor' })
   }
   const validFrom = input.valid_from ?? new Date().toISOString()
-  if (Number.isNaN(Date.parse(validFrom))) throw new HTTPError({ statusCode: 400, statusMessage: 'price.valid_from must be an ISO instant' })
+  if (!isValidInstant(validFrom)) throw new HTTPError({ statusCode: 400, statusMessage: 'price.valid_from must be an ISO instant' })
   const validUntil = input.valid_until ?? null
-  if (validUntil !== null && (Number.isNaN(Date.parse(validUntil)) || validUntil <= validFrom)) {
+  if (validUntil !== null && (!isValidInstant(validUntil) || Date.parse(validUntil) <= Date.parse(validFrom))) {
     throw new HTTPError({ statusCode: 400, statusMessage: 'price.valid_until must be an ISO instant after valid_from' })
   }
-  return { amountMinor: input.amount_minor, currency, unit, taxBehavior, compareAt, validFrom, validUntil, provenance: input.provenance ?? 'manual' }
+  return { amountMinor: input.amount_minor, currency, unit, taxBehavior, compareAt, validFrom: instantDate(validFrom).toISOString(), validUntil: validUntil === null ? null : instantDate(validUntil).toISOString(), provenance: input.provenance ?? 'manual' }
 }
 
 
@@ -735,7 +736,7 @@ export async function listExperienceBookingsForSite(
     params.push(opts.locationId)
   }
   if (opts.sinceDays) {
-    where += ` AND eb.created_at >= datetime('now', ?)`
+    where += ` AND eb.created_at >= strftime('%Y-%m-%dT%H:%M:%fZ', 'now', ?)`
     params.push(`-${opts.sinceDays} days`)
   }
   const results = await queryAll<ExperienceBooking & { experience_title?: string | null }>(
@@ -772,7 +773,7 @@ export async function getExperienceBookingsSummary(
     params.push(opts.locationId)
   }
   if (opts.sinceDays) {
-    where += ` AND eb.created_at >= datetime('now', ?)`
+    where += ` AND eb.created_at >= strftime('%Y-%m-%dT%H:%M:%fZ', 'now', ?)`
     params.push(`-${opts.sinceDays} days`)
   }
 

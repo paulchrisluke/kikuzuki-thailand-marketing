@@ -2,7 +2,7 @@
 
 Reference screenshots for planning the dashboard CMS redesign, captured 2026-08-31 through 2026-09-02.
 
-**Captured: 82 CMS screenshots + 57 Airbnb screenshots = 139.** This packet is not finished. `docs/design/cms-redesign-packet/AUDIT.tsv` is the authoritative manifest of every route, redirect, exclusion, and blocker; `scripts/verify-cms-redesign-packet.py` checks it against the files on disk and currently **fails with 2 unresolved rows** — see "Outstanding work" below. Do not read any "Done," "complete," or "every screen captured" language elsewhere in this repo's history as still accurate; the manifest and verifier are the source of truth going forward.
+**Captured: 83 CMS screenshots + 57 Airbnb screenshots = 140.** `docs/design/cms-redesign-packet/AUDIT.tsv` is the authoritative manifest of every route, redirect, exclusion, and blocker; `scripts/verify-cms-redesign-packet.py` checks it against the files on disk and **passes** — no row is left blocked. Do not read any "Done," "complete," or "every screen captured" language elsewhere in this repo's history as still accurate; the manifest and verifier are the source of truth going forward.
 
 `current/` was derived from the actual Nuxt route tree (`pages/dashboard/**/*.vue`) and the CMS capability registry (`config/cms-registry.ts`) for a restaurant-vertical site, on **production** (`krabiclaw.com`), impersonating the real Kikuzuki Krabi Thailand tenant — an earlier version of this README wrongly said staging, corrected after checking the actual navigation history. See `current/README.md` for the full route→file table, the privacy-exclusion table (including the org Members list), the two redirect-only routes with no distinct screen, and the two production bugs found while capturing.
 
@@ -10,8 +10,11 @@ Reference screenshots for planning the dashboard CMS redesign, captured 2026-08-
 
 ## Outstanding work
 
-- **Two CMS successful-state screens blocked, not skipped, for both locations each**: the Menu editor's selected-item edit form, and the Available Features screen's actual working state (only its 500 error is captured). Both are blocked on the same two filed issues, and both are recorded in `AUDIT.tsv` with `status=blocked` — this is why `scripts/verify-cms-redesign-packet.py` currently fails. See `current/README.md`.
-- **Two production bugs filed while capturing, unrelated to the redesign**: [#720](https://github.com/paulchrisluke/krabiclaw/issues/720) (Available features 500, confirmed on both locations) and [#723](https://github.com/paulchrisluke/krabiclaw/issues/723) (Menu editor product list broke on both locations, needs a direct re-test against current production — an earlier draft of this packet speculated about which deploys caused/fixed it; that speculation was checked against the actual commit diffs, found unsupported, and has been removed).
+Both screens that were blocked here are resolved.
+
+- **The Available Features working screen** is captured at `current/sites/[siteSlug]/locations/[locationSlug]/settings/features/index-working.jpg`. It is the one screenshot in `current/` taken on **local dev**. The `menu` versus `products` label-table defect fixed in [#720](https://github.com/paulchrisluke/krabiclaw/issues/720) was later reintroduced. The registry-based fix ships with this capture; it was not deployed when the screenshot was taken. Every other row in `current/` remains a production capture.
+- **The Menu editor's selected-item edit form** is recorded as `not-applicable`. It waited on a per-item slideover that the CMS redesign removed — a dish is now its own hub of single-concern leaves — so there is no such screen to capture.
+- **The two production bugs filed while capturing** are both fixed and closed: [#720](https://github.com/paulchrisluke/krabiclaw/issues/720) (Available features 500) and [#723](https://github.com/paulchrisluke/krabiclaw/issues/723) (Menu editor product list), in `9f4a688f` on 2026-09-02, closed 2026-09-04.
 - Two Airbnb items were deliberately not pursued further and are recorded as `excluded` in `AUDIT.tsv`, not silently dropped: dragging a photo into a new order (would have mutated a real, shared draft listing without authorization), and a second "In progress" Experience listing's own setup flow (the Home listing's Unlisted/1-task state already covers the incomplete-setup requirement).
 - The live test blog post created during capture (`c7854046-70cd-42d3-81ad-fe04afd289dd`) has been deleted and verified 404 — see `current/README.md`.
 
