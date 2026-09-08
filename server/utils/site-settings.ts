@@ -454,7 +454,7 @@ async function attemptSiteUpdate(
     || updates.seo_description !== undefined
     || siteMedia?.some(item => item.slot === 'logo' || item.slot === 'social_share') === true
   if (cardInputChanged) {
-    if (updates.brand_name !== undefined || siteMedia?.some(item => item.slot === 'logo' || item.slot === 'social_share')) {
+    if (updates.brand_name !== undefined || siteMedia?.some(item => item.slot === 'logo')) {
       await refreshSiteBrandSocialCards({ db, env, siteId, actorId: userId })
     } else {
       await refreshSocialCard({ db, env, owner: { owner_type: 'site', owner_id: siteId }, actorId: userId })

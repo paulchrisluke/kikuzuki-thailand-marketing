@@ -177,7 +177,7 @@ async function refreshSocialCardForPlacement(db: DbClient, input: {
   placement: MediaPlacementKey
 }) {
   try {
-    if (input.placement.owner_type === 'site' && ['logo', 'social_share'].includes(input.placement.slot)) {
+    if (input.placement.owner_type === 'site' && input.placement.slot === 'logo') {
       await refreshSiteBrandSocialCards({ db, env: input.env, siteId: input.siteId })
       return
     }

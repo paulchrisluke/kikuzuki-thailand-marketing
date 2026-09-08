@@ -674,7 +674,7 @@ export async function deleteMediaAsset(db: DbClient, env: MediaProviderEnv, id: 
   })
   if (sourcePlacements.length) {
     const { refreshSocialCard, refreshSiteBrandSocialCards, socialCardRefreshOwnersForPlacement } = await import('~/server/utils/social-card')
-    if (sourcePlacements.some(placement => placement.owner_type === 'site' && ['logo', 'social_share'].includes(placement.slot))) {
+    if (sourcePlacements.some(placement => placement.owner_type === 'site' && placement.slot === 'logo')) {
       await refreshSiteBrandSocialCards({ db, env, siteId, actorId: deletedByUserId })
     } else {
       for (const placement of sourcePlacements) {
