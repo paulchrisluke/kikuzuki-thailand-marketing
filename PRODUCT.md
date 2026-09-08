@@ -66,14 +66,11 @@ billing surfaces load the canonical plan details from `GET /api/billing/plans`.
 
 | Tier | Price | Key Features |
 |------|-------|-------------|
-| Free (Starter) | $0 | Subdomain, Saya theme, manual editor, 500 AI credits/week, 1 locale |
-| Growth | $49/mo or $588/year | Custom domain + SSL, Google Places imports, 2,000 AI credits/week, post-booking review requests, manual locale editing, Priority Support |
+| Free (Starter) | $0 | Subdomain, Saya theme, manual editor, 1 locale |
+| Growth | $49/mo or $588/year | Custom domain + SSL, Google Places imports, post-booking review requests, manual locale editing, Priority Support |
 
-One Better Auth organization subscription covers every site in the organization. AI
-usage is measured in the append-only `usage_events` ledger and provisioned by
-append-only `usage_quota_grants`; current allowance is computed from indexed
-period grants and usage rather than a mutable balance row. It is not a purchasable
-wallet. One-time credit purchases, service add-ons,
+One Better Auth organization subscription covers every site in the organization.
+One-time credit purchases, service add-ons,
 and automatic top-ups are retired. The 2026-08-09 production/provider census
 found no customer purchase, fulfillment, or outstanding-obligation history for
 those products. The active schema removes their unused tables and columns;
@@ -98,15 +95,6 @@ Reminders are informational; payment gates ownership acceptance, not the
 current customer's live website. Acceptance and cancellation own the
 compare-and-set restoration/cleanup saga, including recovery of legacy paused
 domain markers.
-
-### WhatsApp / Google Places cost recovery
-
-WhatsApp Business API sends and Google Places API calls cost real per-use money with no dedicated billing surface. Rather than build new metered Stripe billing pre-launch, they consume the canonical organization quota computed from `usage_quota_grants` and `usage_events` (through `server/utils/ai-credits.ts`), alongside token-based charging already enforced on `/api/ai/*`.
-
-- Charged: WhatsApp notifications (`sendWhatsAppNotification`), ChowBot free-text WhatsApp replies, and on-demand Google Places search/details calls (dashboard autocomplete, onboarding maps import, manual re-sync, the MCP `import_from_maps` tool).
-- Never charged: WhatsApp OTP (`sendWhatsAppOtp`) — auth-critical, must always send — and the background `google-places-sync` cron task, which is infrastructure upkeep a customer didn't explicitly trigger.
-- Exhaustion is a **soft-fail** for both: the action still goes through at zero balance (losing a reservation confirmation is worse than the unpaid cost), unlike the hard 402 block on `/api/ai/*`.
-- Flat per-action quota costs (`ACTION_CREDIT_COSTS` in `ai-credits.ts`) are launch-time estimates against list Meta/Google pricing — revisit once real invoiced volume exists.
 
 ### Locale model
 
@@ -187,7 +175,6 @@ Both Saya and Blawby support a blog: Saya's is the shared `posts` primitive rend
 | Google OAuth (login) | ✅ Live |
 | WhatsApp OTP login | ✅ Built — blocked on real number registration |
 | Stripe billing | ✅ Live |
-| Cloudflare AI Gateway | ✅ Live |
 | WhatsApp Business API | ✅ Built — blocked on real number |
 | Facebook / Instagram Graph API | ✅ OAuth + Pages sync + publish built |
 | Google Places API sync | ✅ Live — hours, address, rating, reviews (up to 5) |
@@ -201,7 +188,6 @@ Both Saya and Blawby support a blog: Saya's is the shared `posts` primitive rend
 
 ## Architecture
 
-- All backend-originated AI calls route through Cloudflare AI Gateway — never call model APIs directly from server code (exception: ChatGPT native `image_generation` is initiated by the OpenAI runtime, not by KrabiClaw server code, and bypasses the gateway by design)
 - MCP server is the canonical creation surface; dashboard CMS and ChowBot are secondary
 - Short updates use `posts`; long-form articles use `blog_posts` with canonical content documents and blocks.
 - `posts` owns website publication. `post_channel_jobs` records only Facebook and Instagram delivery outcomes.
@@ -209,7 +195,6 @@ Both Saya and Blawby support a blog: Saya's is the shared `posts` primitive rend
 - Notification delivery is channel-agnostic — `notifications.channel` column means email/push can be added with no schema change
 - WhatsApp and Instagram both go through the same Facebook app — single OAuth covers both
 - ChowBot is the owner of AI conversations; dashboard and WhatsApp are interfaces over the same D1-backed backend
-- Credit system enforced at the `/api/ai/*` route layer — 402 on exhaustion
 - Image generation: ChatGPT generates natively → `save_generated_image_file` persists via Cloudflare Images → `show_generated_images` renders the widget. Never pass raw base64 to MCP tools.
 
 ---
@@ -218,7 +203,7 @@ Both Saya and Blawby support a blog: Saya's is the shared `posts` primitive rend
 
 - **Organization** is the site/brand workspace and billing/team boundary — vertical-neutral: an org can hold a restaurant, an experience business, or a professional-service firm, and (per "One org can have multiple sites" below) can even hold a mix.
 - **One org can have multiple sites** — there is no unique-per-org constraint on sites. Sites are explicit everywhere — there is no "first site in org" fallback in dashboard routing or billing.
-- One Better Auth organization subscription and shared weekly quota cover every site in the organization. A new site inherits the organization's effective plan without another checkout. `organization_billing` is the slim sessionless access/payment reconciliation projection of that organization-level authority; authenticated billing management reads Better Auth's documented subscription API.
+- One Better Auth organization subscription covers every site in the organization. A new site inherits the organization's effective plan without another checkout. `organization_billing` is the slim sessionless access/payment reconciliation projection of that organization-level authority; authenticated billing management reads Better Auth's documented subscription API.
 - Capabilities are computed only from `getPlanEntitlements(effectivePlan)`. There are no site plan, site billing, site entitlement, or organization entitlement projections.
 - **Sites** are the primary day-to-day dashboard context and selector. A location becomes the working context only inside that site's location workspace. For Saya (restaurant/experience) sites this is a physical location; Blawby's offerings are site-level by default and don't require a location to have a public street address (a professional-service tenant may serve a statewide/remote area).
 - Public tenant routes are template-specific: Saya remains location/experience-centric under `/locations/[slug]` and `/experiences/[slug]`; Blawby is offering-centric under `/services/[slug]` (see "Public Templates" above).
@@ -227,8 +212,8 @@ Both Saya and Blawby support a blog: Saya's is the shared `posts` primitive rend
   - `/dashboard/{orgSlug}/sites/{siteSlug}` — site workspace (`siteSlug` is the site's `subdomain`)
   - `/dashboard/{orgSlug}/sites/{siteSlug}/locations/{locationSlug}` — location workspace
   - `/dashboard/{orgSlug}/sites/new` — create another site under this org
-  - `/dashboard/{orgSlug}/settings/billing` — the organization's subscription, shared quota, invoices, and plan management
+  - `/dashboard/{orgSlug}/settings/billing` — the organization's subscription, invoices, and plan management
   - `/dashboard/account/settings` — personal account settings
 - App-facing dashboard APIs use `/api/dashboard/*`; the active org/site are resolved server-side from explicit `org`/`site` query params (attached by `dashboardFetch` in `composables/dashboardFetch.ts` based on the route's `orgSlug`/`siteSlug`), not by guessing the org's oldest site.
-- **Site transfers move only the site and its tenant data.** Neither organization's subscription, quota ledger, grants, nor billing customer moves. After acceptance, the recipient organization's effective plan immediately governs the transferred site; the transfer does not rebuild billing projections.
+- **Site transfers move only the site and its tenant data.** Neither organization's subscription nor billing customer moves. After acceptance, the recipient organization's effective plan immediately governs the transferred site; the transfer does not rebuild billing projections.
 - Dashboard is home for: billing, org settings, unified inbox (contact inquiries, reservations, bookings, reviews), analytics.

@@ -17,7 +17,7 @@ export default defineHandler(async (event) => {
     FROM content_documents p
     LEFT JOIN media_placements mp ON mp.owner_type = 'content_document' AND mp.owner_id = p.id AND mp.slot = 'featured' AND mp.sort_order = 0 AND mp.status = 'active'
     LEFT JOIN media_assets ma ON ma.id = mp.asset_id AND ma.status = 'active'
-    WHERE p.status = 'published' AND p.site_id = ? AND p.visibility = 'public'
+    WHERE p.kind = 'article' AND p.row_role = 'root' AND p.status = 'published' AND p.site_id = ? AND p.visibility = 'public'
     ORDER BY p.published_at IS NULL, p.published_at DESC, p.id DESC
     LIMIT 50
   `

@@ -5,7 +5,7 @@ import type { CloudflareEnv } from '~/server/utils/auth'
 import { parseSocialImageSource } from '~/utils/social-metadata'
 import { listPageQa } from '~/server/utils/location-qa'
 import { listSiteReviews } from '~/server/utils/site-reviews'
-import { getPublishedLocalizedSiteBlogPost } from '~/server/utils/platform-content'
+import { getPublicLocalizedSiteBlogPost } from '~/server/utils/platform-content'
 import {
   loadExactPublicLocalizations,
   projectExactLocalizedCollection,
@@ -497,7 +497,7 @@ export async function getPublicBlawbyDocumentData(
   db: DbClient,
   siteId: string,
   recipe: PublicBlawbyRouteData['recipe'],
-  options: { slug?: string | null; locale?: string | null } = {},
+  options: { token?: string; slug?: string | null; locale?: string | null } = {},
   env: CloudflareEnv,
 ): Promise<{ shell: PublicBlawbyShellData; route: PublicBlawbyRouteData } | null> {
   const site = await getActiveBlawbySite(db, siteId)
@@ -532,7 +532,7 @@ export async function resolvePublicBlawbyDocumentOrThrow(
   db: DbClient,
   siteId: string,
   recipe: PublicBlawbyRouteData['recipe'],
-  options: { slug?: string | null; locale?: string | null } = {},
+  options: { token?: string; slug?: string | null; locale?: string | null } = {},
   env: CloudflareEnv,
 ): Promise<{ success: true; shell: PublicBlawbyShellData; route: PublicBlawbyRouteData }> {
   const document = await getPublicBlawbyDocumentData(db, siteId, recipe, options, env)
@@ -647,7 +647,7 @@ export async function getPublicBlawbyRouteData(
   db: DbClient,
   siteId: string,
   recipe: PublicBlawbyRouteData['recipe'],
-  options: { slug?: string | null; locale?: string | null; localizations?: readonly ExactPublicLocalization[] } = {},
+  options: { token?: string; slug?: string | null; locale?: string | null; localizations?: readonly ExactPublicLocalization[] } = {},
   env: CloudflareEnv,
 ): Promise<PublicBlawbyRouteData> {
   const needsOfferings = ['home', 'services', 'offering', 'about', 'pricing'].includes(recipe)
@@ -689,7 +689,7 @@ export async function getPublicBlawbyRouteData(
     needsReviews ? listSiteReviews(db, siteId, { publishedOnly: true }) : Promise.resolve([]),
     postLimit ? listPublicBlogSummaries(db, siteId, postLimit, options.locale ?? 'en') : Promise.resolve([]),
     recipe === 'article' && options.slug
-      ? getPublishedLocalizedSiteBlogPost(db, siteId, options.slug, options.locale ?? 'en', env)
+      ? getPublicLocalizedSiteBlogPost(db, siteId, options.slug, options.locale ?? 'en', env, options.token)
       : Promise.resolve(null),
   ])
   const localizations = options.localizations ?? []

@@ -36,7 +36,7 @@ KrabiClaw grew out of a problem I first encountered during COVID. Restaurant own
 
 The software worked, but maintaining the websites did not scale. Many owners had no interest in learning another CMS—and they should not have needed to. They would send us photos of menus or new dishes, and we would visit their businesses to take more photos, organize the content, and update everything ourselves. We helped where we could, but that service-heavy model became impossible to maintain, so we eventually shut the product down.
 
-AI changed what was possible. With ChatGPT and modern agent tools, the workflow restaurant owners already preferred could finally become the product: send a menu photo, describe a new item, or ask for a change in plain language, and let the system keep the website current.
+AI changed what was possible. With ChatGPT and modern agent tools, restaurant owners could describe a new item or ask for a change in plain language to keep their website current.
 
 I returned to the idea in May 2026 and built KrabiClaw. It helps restaurants, tour operators, and other local businesses manage content, bookings, inquiries, products, media, and translations through AI while preserving the fundamentals that make a website effective: fast performance, structured content, strong local SEO, accessible pages, and clear paths to conversion.
 

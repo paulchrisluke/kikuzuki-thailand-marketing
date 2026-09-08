@@ -1,0 +1,271 @@
+{
+  "testsPassed": 2,
+  "build": "f1893229-472f-4b19-9edc-2524bc872a36",
+  "visualReview": "Both viewport screenshots show decoded title frames within player bounds, desktop 0:02 and narrow 0:01.",
+  "diagnostics": [
+    {
+      "layout": "desktop",
+      "expectedBuild": "f1893229-472f-4b19-9edc-2524bc872a36",
+      "embedUrl": "https://www.youtube.com/embed/glBHONAzWYo?si=coXUD5UlzMHAfzVD",
+      "consoleEvents": [
+        {
+          "at": 1788847982251,
+          "type": "warning",
+          "text": "The powerPreference option is currently ignored when calling requestAdapter() on Windows. See https://crbug.com/369219127",
+          "location": {
+            "url": "",
+            "line": 0,
+            "column": 0,
+            "lineNumber": 0,
+            "columnNumber": 0
+          }
+        },
+        {
+          "at": 1788847982262,
+          "type": "warning",
+          "text": "No available adapters.",
+          "location": {
+            "url": "https://www.youtube.com/embed/glBHONAzWYo?si=coXUD5UlzMHAfzVD",
+            "line": 0,
+            "column": 0,
+            "lineNumber": 0,
+            "columnNumber": 0
+          }
+        }
+      ],
+      "embedResponses": [
+        {
+          "at": 1788847981748,
+          "status": 200,
+          "url": "https://www.youtube.com/embed/glBHONAzWYo?si=coXUD5UlzMHAfzVD"
+        }
+      ],
+      "samples": [
+        {
+          "at": 1788847982352,
+          "connected": true,
+          "readyState": 0,
+          "error": null,
+          "paused": true,
+          "time": 0,
+          "width": 0,
+          "height": 0
+        },
+        {
+          "at": 1788847982469,
+          "connected": true,
+          "readyState": 0,
+          "error": null,
+          "paused": false,
+          "time": 0,
+          "width": 0,
+          "height": 0
+        },
+        {
+          "at": 1788847982733,
+          "connected": true,
+          "readyState": 4,
+          "error": null,
+          "paused": false,
+          "time": 0.167168,
+          "width": 640,
+          "height": 360
+        },
+        {
+          "at": 1788847982739,
+          "connected": true,
+          "readyState": 4,
+          "error": null,
+          "paused": false,
+          "time": 0.173493,
+          "width": 640,
+          "height": 360
+        },
+        {
+          "at": 1788847982745,
+          "connected": true,
+          "readyState": 4,
+          "error": null,
+          "paused": false,
+          "time": 0.179512,
+          "width": 640,
+          "height": 360
+        },
+        {
+          "at": 1788847982853,
+          "connected": true,
+          "readyState": 4,
+          "error": null,
+          "paused": false,
+          "time": 0.286916,
+          "width": 640,
+          "height": 360
+        },
+        {
+          "at": 1788847983114,
+          "connected": true,
+          "readyState": 4,
+          "error": null,
+          "paused": false,
+          "time": 0.548175,
+          "width": 640,
+          "height": 360
+        },
+        {
+          "at": 1788847983633,
+          "connected": true,
+          "readyState": 4,
+          "error": null,
+          "paused": false,
+          "time": 1.067334,
+          "width": 640,
+          "height": 360
+        },
+        {
+          "at": 1788847984647,
+          "connected": true,
+          "readyState": 4,
+          "error": null,
+          "paused": false,
+          "time": 2.081356,
+          "width": 640,
+          "height": 360
+        }
+      ],
+      "playbackVerified": true,
+      "note": "Only the independently reviewed exact paired GPU warnings may be classified by the shared strict checker; playback is measured here."
+    },
+    {
+      "layout": "narrow",
+      "expectedBuild": "f1893229-472f-4b19-9edc-2524bc872a36",
+      "embedUrl": "https://www.youtube.com/embed/glBHONAzWYo?si=coXUD5UlzMHAfzVD",
+      "consoleEvents": [
+        {
+          "at": 1788847987704,
+          "type": "warning",
+          "text": "The powerPreference option is currently ignored when calling requestAdapter() on Windows. See https://crbug.com/369219127",
+          "location": {
+            "url": "",
+            "line": 0,
+            "column": 0,
+            "lineNumber": 0,
+            "columnNumber": 0
+          }
+        },
+        {
+          "at": 1788847987706,
+          "type": "warning",
+          "text": "No available adapters.",
+          "location": {
+            "url": "https://www.youtube.com/embed/glBHONAzWYo?si=coXUD5UlzMHAfzVD",
+            "line": 0,
+            "column": 0,
+            "lineNumber": 0,
+            "columnNumber": 0
+          }
+        }
+      ],
+      "embedResponses": [
+        {
+          "at": 1788847987222,
+          "status": 200,
+          "url": "https://www.youtube.com/embed/glBHONAzWYo?si=coXUD5UlzMHAfzVD"
+        }
+      ],
+      "samples": [
+        {
+          "at": 1788847987790,
+          "connected": true,
+          "readyState": 0,
+          "error": null,
+          "paused": true,
+          "time": 0,
+          "width": 0,
+          "height": 0
+        },
+        {
+          "at": 1788847987908,
+          "connected": true,
+          "readyState": 0,
+          "error": null,
+          "paused": true,
+          "time": 0,
+          "width": 0,
+          "height": 0
+        },
+        {
+          "at": 1788847988174,
+          "connected": true,
+          "readyState": 4,
+          "error": null,
+          "paused": false,
+          "time": 0.128385,
+          "width": 640,
+          "height": 360
+        },
+        {
+          "at": 1788847988180,
+          "connected": true,
+          "readyState": 4,
+          "error": null,
+          "paused": false,
+          "time": 0.134423,
+          "width": 640,
+          "height": 360
+        },
+        {
+          "at": 1788847988186,
+          "connected": true,
+          "readyState": 4,
+          "error": null,
+          "paused": false,
+          "time": 0.140385,
+          "width": 640,
+          "height": 360
+        },
+        {
+          "at": 1788847988301,
+          "connected": true,
+          "readyState": 4,
+          "error": null,
+          "paused": false,
+          "time": 0.254897,
+          "width": 640,
+          "height": 360
+        },
+        {
+          "at": 1788847988559,
+          "connected": true,
+          "readyState": 4,
+          "error": null,
+          "paused": false,
+          "time": 0.512137,
+          "width": 640,
+          "height": 360
+        },
+        {
+          "at": 1788847989078,
+          "connected": true,
+          "readyState": 4,
+          "error": null,
+          "paused": false,
+          "time": 1.032246,
+          "width": 640,
+          "height": 360
+        },
+        {
+          "at": 1788847990090,
+          "connected": true,
+          "readyState": 4,
+          "error": null,
+          "paused": false,
+          "time": 2.044681,
+          "width": 640,
+          "height": 360
+        }
+      ],
+      "playbackVerified": true,
+      "note": "Only the independently reviewed exact paired GPU warnings may be classified by the shared strict checker; playback is measured here."
+    }
+  ]
+}

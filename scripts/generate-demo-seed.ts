@@ -11,13 +11,15 @@ import {
   renderCompiledDemoProductsBlock,
   renderCompiledDemoPostsBlock,
   renderCompiledDemoBlogBlock,
+  renderCompiledDemoArticlesBlock,
   renderCompiledDemoQaBlock,
   renderCompiledDemoReviewsBlock,
   renderCompiledDemoBillingBlock,
   renderCompiledDemoInboxBlock,
+  renderCompiledDemoResourceLocalizationsBlock,
   renderDemoExperienceSeedBlock,
 } from '../seed-definitions/demo.ts'
-import { renderCanonicalBillingSql } from '../seed-definitions/billing-sql.ts'
+import { renderOrganizationBillingSql } from '../seed-definitions/billing-sql.ts'
 import { renderTenantPagesSeedSql } from '../seed-definitions/tenant-pages.ts'
 import { spawnYarn } from './utils/spawn-yarn.mjs'
 
@@ -40,10 +42,6 @@ function renderMcpFixtureOrg(orgId: string, userId: string, name: string, slug: 
   const siteId = `site-${orgId.replace(/^org-/, '')}`
   const locationId = `loc-${orgId.replace(/^org-/, '')}`
   const status = plan === 'free' ? 'free' : 'active'
-  const aiCredits = {
-    balance: plan === 'growth' ? 2000 : 500,
-    lifetimeUsed: 0,
-  }
   const tenantPages = renderTenantPagesSeedSql({
     siteId,
     organizationId: orgId,
@@ -79,7 +77,7 @@ function renderMcpFixtureOrg(orgId: string, userId: string, name: string, slug: 
   })
   const selectionSite = includeSelectionSite ? `
 INSERT OR REPLACE INTO sites (id, organization_id, theme_id, slug, subdomain, brand_name, status, onboarding_status, default_currency, vertical, created_at, updated_at)
-VALUES ('site-mcp-growth-service-selection', ${sqlValue(orgId)}, 'saya-theme-v1', 'mcp-growth-service-selection', 'mcp-growth-service-selection', 'MCP Selection Fixture', 'active', 'active', 'USD', 'restaurant', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP);
+VALUES ('site-mcp-growth-service-selection', ${sqlValue(orgId)}, 'saya-theme-v1', 'mcp-growth-service-selection', 'mcp-growth-service-selection', 'MCP Selection Fixture', 'active', 'active', 'USD', 'restaurant', strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), strftime('%Y-%m-%dT%H:%M:%fZ', 'now'));
 INSERT OR REPLACE INTO site_domains (id, organization_id, site_id, domain, type, role, status, dns_status)
 VALUES ('domain-mcp-growth-service-selection', ${sqlValue(orgId)}, 'site-mcp-growth-service-selection', 'mcp-growth-service-selection.krabiclaw.com', 'subdomain', 'canonical', 'active', 'valid');
 
@@ -98,7 +96,7 @@ INSERT INTO member (id, organizationId, userId, role, createdAt)
 VALUES (${sqlValue(`member-${orgId}`)}, ${sqlValue(orgId)}, ${sqlValue(userId)}, 'owner', unixepoch());
 
 INSERT OR REPLACE INTO sites (id, organization_id, theme_id, slug, subdomain, brand_name, status, onboarding_status, default_currency, vertical, created_at, updated_at)
-VALUES (${sqlValue(siteId)}, ${sqlValue(orgId)}, 'saya-theme-v1', ${sqlValue(slug)}, ${sqlValue(slug)}, ${sqlValue(name)}, 'active', 'active', 'USD', 'restaurant', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP);
+VALUES (${sqlValue(siteId)}, ${sqlValue(orgId)}, 'saya-theme-v1', ${sqlValue(slug)}, ${sqlValue(slug)}, ${sqlValue(name)}, 'active', 'active', 'USD', 'restaurant', strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), strftime('%Y-%m-%dT%H:%M:%fZ', 'now'));
 INSERT OR REPLACE INTO site_domains (id, organization_id, site_id, domain, type, role, status, dns_status)
 VALUES (${sqlValue('domain-' + siteId)}, ${sqlValue(orgId)}, ${sqlValue(siteId)}, ${sqlValue(slug + '.krabiclaw.com')}, 'subdomain', 'canonical', 'active', 'valid');
 
@@ -108,7 +106,7 @@ VALUES
   (${sqlValue(`locale::${orgId}::${siteId}::en`)}, ${sqlValue(orgId)}, ${sqlValue(siteId)}, 'en', 'English', 1, 'published');
 
 INSERT OR IGNORE INTO business_locations (id, organization_id, site_id, slug, title, city, address, phone, email, maps_url, opening_hours, timezone, status, created_at, updated_at)
-VALUES (${sqlValue(locationId)}, ${sqlValue(orgId)}, ${sqlValue(siteId)}, 'main', ${sqlValue(name)}, 'Krabi', ${sqlJson({ addressLines: [] })}, NULL, NULL, NULL, ${sqlJson({ periods: Array.from({ length: 7 }, (_, day) => ({ open: { day, hour: 11, minute: 0 }, close: { day, hour: 22, minute: 0 } })) })}, 'Asia/Bangkok', 'active', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP);
+VALUES (${sqlValue(locationId)}, ${sqlValue(orgId)}, ${sqlValue(siteId)}, 'main', ${sqlValue(name)}, 'Krabi', ${sqlJson({ addressLines: [] })}, NULL, NULL, NULL, ${sqlJson({ periods: Array.from({ length: 7 }, (_, day) => ({ open: { day, hour: 11, minute: 0 }, close: { day, hour: 22, minute: 0 } })) })}, 'Asia/Bangkok', 'active', strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), strftime('%Y-%m-%dT%H:%M:%fZ', 'now'));
 
 
 INSERT OR REPLACE INTO media_assets
@@ -120,14 +118,14 @@ VALUES
    'image', 'cloudflare_images', 'uploaded', ${sqlValue('0762ea49-0bd2-4cc8-1044-d6c9b1f00100')},
    'https://imagedelivery.net/Frxyb2_d_vGyiaXhS5xqCg/0762ea49-0bd2-4cc8-1044-d6c9b1f00100/public',
    'https://imagedelivery.net/Frxyb2_d_vGyiaXhS5xqCg/0762ea49-0bd2-4cc8-1044-d6c9b1f00100/public',
-   'image/jpeg', ${sqlValue(`${siteId}-fixture.jpg`)}, 'Seeded MCP image fixture', 'other', 'active', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP);
+   'image/jpeg', ${sqlValue(`${siteId}-fixture.jpg`)}, 'Seeded MCP image fixture', 'other', 'active', strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), strftime('%Y-%m-%dT%H:%M:%fZ', 'now'));
 
 INSERT OR REPLACE INTO media_placements
   (id, organization_id, site_id, owner_type, owner_id, slot, asset_id, sort_order, status)
 VALUES
   (${sqlValue(`placement-${siteId}-fixture-gallery`)}, ${sqlValue(orgId)}, ${sqlValue(siteId)}, 'business_location', ${sqlValue(locationId)}, 'gallery', ${sqlValue(`media-${siteId}-fixture-image`)}, 0, 'active');
 
-${renderCanonicalBillingSql(siteId, orgId, { status, plan }, sqlValue, aiCredits)}
+${renderOrganizationBillingSql(orgId, { status, plan }, sqlValue)}
 
 ${tenantPages}
 ${selectionSite}`
@@ -292,11 +290,15 @@ ${renderCompiledDemoReviewsBlock()}
 
 ${renderCompiledDemoProductsBlock()}
 
+${renderCompiledDemoResourceLocalizationsBlock()}
+
 ${renderCompiledDemoQaBlock()}
 
 ${renderCompiledDemoPostsBlock()}
 
 ${renderCompiledDemoBlogBlock()}
+
+${renderCompiledDemoArticlesBlock()}
 
 ${renderDemoExperienceSeedBlock()}
 

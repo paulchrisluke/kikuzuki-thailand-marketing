@@ -18,6 +18,7 @@ export function platformContentNavInput(
 export function platformBlogCreateInput(body: PlatformBlogPostRequestBody): PlatformBlogCreateInput {
   return {
     title: body.title ?? '',
+    status: body.status,
     slug: body.slug ?? null,
     content_blocks: body.content_blocks ?? [],
     excerpt: body.excerpt ?? null,

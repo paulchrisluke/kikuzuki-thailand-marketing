@@ -14,13 +14,12 @@ import {
   type McpLocationSummary,
   type McpSiteSummary,
 } from "~/server/utils/mcp-context";
-import { chargeFlatCredits, type FlatCreditAction } from "~/server/utils/ai-credits";
 import { sniffMediaMimeType, VIDEO_MIME_TYPES, MAX_VIDEO_BYTES, R2_IMAGE_MIME_TYPES } from "~/server/utils/media-mime";
 import { assertMarkdownSize, decodeMarkdownText, resolveMarkdownMimeType } from "~/server/utils/markdown-document";
 import { hasCloudflareImagesConfig } from "~/server/utils/cloudflare-images";
 import { parseMediaPlacementKey } from '~/server/utils/media-placement'
 import { isSingleMediaPlacement } from '~/shared/media-placement-contract'
-import { findOrganizationById, listUserOrganizations } from '~/server/utils/member-access'
+import { findOrganizationById } from '~/server/utils/member-access'
 
 /**
  * Resolves the upload provider for an image based on content type and Cloudflare Images config.
@@ -33,34 +32,6 @@ export function resolveImageUploadProvider(contentType: string, env: ApiRecord):
     throw new Error("Cloudflare Images not configured");
   }
   return provider as "cloudflare_r2" | "cloudflare_images" | undefined;
-}
-
-// Prefers the user's active organization (session-based auth only — see
-// McpUserContext.activeOrganizationId) and falls back to the oldest
-// membership, matching the REST places endpoints. A user without a
-// membership is intentionally a no-op; membership/accounting query failures
-// propagate so a provider call cannot be reported as an unqualified success.
-export async function chargeFlatCreditsForUser(
-  user: McpUserContext,
-  action: FlatCreditAction,
-): Promise<void> {
-  const activeOrgId = user.activeOrganizationId ?? ''
-  const organizations = (await listUserOrganizations(user.env, user.userId))
-    .slice()
-    .sort((left, right) => {
-      const activeOrder = Number(right.id === activeOrgId) - Number(left.id === activeOrgId)
-      return activeOrder || left.createdAt.getTime() - right.createdAt.getTime()
-    })
-  const organization = organizations[0]
-  if (!organization) return;
-
-  const result = await chargeFlatCredits(user.db, organization.id, { action });
-  if (!result.charged) {
-    console.error(`chargeFlatCredits did not charge for ${action}`, {
-      organizationId: organization.id,
-      newBalance: result.newBalance,
-    });
-  }
 }
 
 export function haversineKm(

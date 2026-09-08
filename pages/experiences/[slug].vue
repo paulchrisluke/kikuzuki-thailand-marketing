@@ -276,7 +276,7 @@
         <div v-else-if="bookingStep === 2" class="flex-1 overflow-y-auto">
           <BookingRecap
             v-if="timeSelection"
-            :main-line="`${timeSelection.label.split(',')[0]} · ${fmt12Hour(timeSelection.time)}`"
+            :main-line="`${timeSelection.label.split(',')[0]} · ${formatTime(timeSelection.time, locale)}`"
             :meta-line="t('saya.experience_detail.guest_count', { count: form.party_size_num })"
             :edit-label="t('saya.experience_detail.change')"
             @edit="bookingStep = 1"
@@ -462,7 +462,7 @@ function formatDuration(minutes: number): string {
 import BookingModal from '@/components/booking/BookingModal.vue'
 import BookingRecap from '@/components/booking/BookingRecap.vue'
 import BookingTimeStep, { type RawDateAvailability, type TimeSlotSelection } from '@/components/booking/BookingTimeStep.vue'
-import { fmt12Hour } from '~/shared/reservation-hours'
+import { formatTime } from '~/utils/timezone'
 import BookingContactForm, { type ContactFormState } from '@/components/booking/BookingContactForm.vue'
 
 const isBookingModalOpen = ref(false)

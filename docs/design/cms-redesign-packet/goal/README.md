@@ -86,3 +86,45 @@ Correcting an earlier assumption in this README: the listing used throughout ("E
 
 - **Photo reorder via drag** — the manual reorder surface (`photo-tour/photos`) is captured showing the Cover-photo badge, but an actual drag-in-progress or a changed order wasn't captured, since doing so would have modified this real, shared draft listing's photo order without authorization to make that change. The all-photos grid and its "Cover photo" designation are the closest observable evidence of the ordering mechanism without mutating it.
 - **A second, more visibly "in-progress" listing** — this account also has an "In progress" Experience listing ("Practice wellness with a fitness coach") visible on `/hosting/listings`, not explored further since the home listing's own Unlisted/1-task state already satisfied the incomplete-setup requirement.
+
+## Desktop audit, 2026-09-07 — the batch above is mobile-only
+
+Everything above was captured at a ~500px CSS viewport. **No desktop layout had
+ever been referenced**, which is how the `≥ lg` topology in `DESIGN.md` came to
+be inferred rather than observed. This section records a desktop pass at
+1440×900 against the same listing (`49487067`), signed in as the account owner.
+Navigation and reading only; nothing on the live listing was edited or saved.
+
+What the pass established, all of it now written into root `DESIGN.md`:
+
+| URL | What the detail pane holds |
+| --- | --- |
+| `/hosting/listings` | Centred card grid, full width, no side pane |
+| `/details/photo-tour` | **Two columns**: narrow index left ("Listing editor", Your space / Arrival guide tabs, section cards), wide detail right |
+| `/details/title` | One input, an internal-name input, a `44/50` counter. Nothing else |
+| `/details/description` | **Not a form** — five rows (Listing description, Your property, Guest access, Interaction with guests, Other details to note), each previewing its value in two lines |
+| `/details/description` → Listing description | **The columns re-root**: the left column stops being "Listing editor" and becomes "Description"; the right holds one textarea, a `482/500` counter, and a pinned Cancel/Save bar |
+| `/details/house-rules` | Rows with ✕/✓ pairs. No fields at all |
+| `/details/pricing` | One value row (`$225 – $750`), one toggle, one link row |
+| any leaf at 500px wide | Full-screen sheet: ✕ top-left, centred title, Cancel/Save pinned at the base |
+
+Three findings, in order of how much they change:
+
+1. **The two-column desktop pane is correct.** It was inferred, but it matches.
+2. **The columns show the deepest two levels and re-root on the way down.** This
+   is the `{index, detail}` frame stack [#788](https://github.com/paulchrisluke/krabiclaw/issues/788)
+   recorded as missing from `EditorPaneShell`, now confirmed against the product.
+3. **A leaf holds one concern**, and a pane that would need many fields becomes
+   an index instead. This is the rule the CMS breaks everywhere.
+
+This pass is a **written record, not a captured one.** The browser tooling used
+for it returns frames inline rather than writing files, and the listing editor
+needs an authenticated session, so it cannot be driven by the same capture path
+that produced the mobile batch. The table above is therefore the evidence, and
+the rules it produced are in root `DESIGN.md`, which is the permanent record and
+stands without this packet.
+
+Every URL is listed, against a real listing on a signed-in account, so anyone
+can reproduce the pass in a browser in a couple of minutes. Capturing images of
+these screens would add nothing to the conclusions, only the pictures — so this
+section deliberately claims no files, and the manifest carries no rows for them.

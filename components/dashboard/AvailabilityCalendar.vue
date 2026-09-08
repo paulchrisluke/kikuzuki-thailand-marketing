@@ -161,6 +161,7 @@
 </template>
 
 <script setup lang="ts">
+import { formatCalendarDate } from '~/utils/timezone'
 import type {
   AvailabilityCalendar,
   AvailabilityCalendarDay,
@@ -339,8 +340,7 @@ function gridStyle(calendar: AvailabilityCalendar): { gridTemplateColumns: strin
 }
 
 function monthLabel(key: string): string {
-  return new Intl.DateTimeFormat('en-US', { timeZone: 'UTC', month: 'long', year: 'numeric' })
-    .format(new Date(`${key}-01T00:00:00.000Z`))
+  return formatCalendarDate(`${key}-01`, 'en', { month: 'long', year: 'numeric' })
 }
 
 const dragging = ref(false)
@@ -467,7 +467,7 @@ function cellClass(owner: AvailabilityCalendarOwner, day: AvailabilityCalendarDa
 }
 
 function weekdayLabel(date: string): string {
-  return new Intl.DateTimeFormat('en-US', { timeZone: 'UTC', weekday: 'short' }).format(new Date(`${date}T00:00:00.000Z`))
+  return formatCalendarDate(date, 'en', { weekday: 'short' })
 }
 
 function dayNumber(date: string): string {

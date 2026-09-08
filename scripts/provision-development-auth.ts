@@ -12,6 +12,17 @@ import {
   LOCAL_DEVELOPER_AUTH_FIXTURE,
   LOCAL_DEVELOPER_LOGIN_URL,
 } from '../config/development-auth-fixtures.ts'
+import { validatePassword } from '../utils/password-validation.ts'
+
+function generatePassword(): string {
+  return requirePolicyCompliant(`Dev-${randomUUID()}-9A!`, 'generated development password')
+}
+
+function requirePolicyCompliant(password: string, source: string): string {
+  const error = validatePassword(password)
+  if (error) throw new Error(`The ${source} is rejected by this app's own password policy: ${error}`)
+  return password
+}
 
 const { values: options } = parseArgs({
   options: {
@@ -42,14 +53,20 @@ if (isLocalDev) {
   }
 }
 
-const e2ePassword = process.env.E2E_TEST_PASSWORD || (isLocalDev ? randomUUID() : '')
+const e2ePassword = process.env.E2E_TEST_PASSWORD
+  ? requirePolicyCompliant(process.env.E2E_TEST_PASSWORD, 'E2E_TEST_PASSWORD')
+  : (isLocalDev ? generatePassword() : '')
 if (!e2ePassword) {
   throw new Error('E2E_TEST_PASSWORD is required when provisioning Better Auth E2E credentials.')
 }
 // LOCAL_DEVELOPER_PASSWORD is the single source for this account's password:
 // /api/dev/login signs in with the same value, so the two only agree when it is
 // set. Unset, this stays a throwaway that must be copied from the output below.
-const localDeveloperPassword = isLocalDev ? (process.env.LOCAL_DEVELOPER_PASSWORD || randomUUID()) : ''
+const localDeveloperPassword = isLocalDev
+  ? (process.env.LOCAL_DEVELOPER_PASSWORD
+      ? requirePolicyCompliant(process.env.LOCAL_DEVELOPER_PASSWORD, 'LOCAL_DEVELOPER_PASSWORD')
+      : generatePassword())
+  : ''
 
 const sqlString = (value: string) => `'${value.replaceAll("'", "''")}'`
 const availableFixtures = isLocalDev

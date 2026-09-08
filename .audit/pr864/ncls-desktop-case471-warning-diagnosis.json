@@ -1,0 +1,43 @@
+{
+  "case": 471,
+  "route": "ncls desktop /",
+  "consoleWarnings": [
+    {
+      "type": "warning",
+      "text": "The powerPreference option is currently ignored when calling requestAdapter() on Windows. See https://crbug.com/369219127",
+      "sourceUrl": "",
+      "at": "2026-09-08T05:56:10.544363+00:00"
+    },
+    {
+      "type": "warning",
+      "text": "No available adapters.",
+      "sourceUrl": "https://www.youtube.com/embed/glBHONAzWYo?si=coXUD5UlzMHAfzVD",
+      "at": "2026-09-08T05:56:10.548911+00:00"
+    }
+  ],
+  "embedResponses": [
+    {
+      "host": "www.youtube.com",
+      "path": "/embed/glBHONAzWYo",
+      "status": 200,
+      "resourceType": "document",
+      "at": "2026-09-08T05:56:09.681Z"
+    }
+  ],
+  "observedUi": [
+    "YouTube Video Player",
+    "Play video",
+    "Hide player controls",
+    "Rich Gittings",
+    "NC Courts",
+    "Watch on YouTube"
+  ],
+  "classification": {
+    "powerPreference": "Exact browser Windows GPU capability notice; source URL empty, so YouTube attribution is contextual only.",
+    "adapter": "GPU adapter warning directly attributed to the loaded YouTube embed.",
+    "applicationErrorsObserved": 0,
+    "playbackVerified": false,
+    "playerControlsLoaded": true
+  },
+  "recommendation": "No application change. Preserve strict first-party warnings. Before accepting adapter warning as harmless, a focused one-page diagnostic should prove that this exact loaded embed can start media despite the warning. Do not suppress arbitrary source-less warnings or all YouTube warnings."
+}

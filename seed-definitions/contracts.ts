@@ -1,6 +1,7 @@
 import type { SiteSettings } from '../shared/site-settings.ts'
 import type { PostMutation, PostTopic } from '../shared/posts.ts'
 import type { OpeningHours, RecurringSlots } from '../shared/reservation-hours.ts'
+import type { LocalizedValues } from '../server/utils/localization-registry.ts'
 export interface SeedPublicRouteExpectation {
   path: string
   title: RegExp
@@ -46,11 +47,10 @@ export interface CuratedSiteDefinition extends CuratedSiteIdentity {
   posts: CuratedPostDefinition[]
   tenantPageLocaleFields?: CuratedTenantPageLocaleFieldDefinition[]
   businessLocationTranslations?: CuratedBusinessLocationTranslationDefinition[]
+  resourceLocalizations?: CuratedResourceLocalizationDefinition[]
+  qaTranslations?: CuratedQaTranslationDefinition[]
+  postTranslations?: CuratedPostTranslationDefinition[]
   publicRoutes: SeedPublicRouteExpectation[]
-  aiCredits?: {
-    balance: number
-    lifetimeUsed?: number
-  }
   organizationBilling?: {
     status: string
     plan: 'free' | 'growth'
@@ -222,8 +222,8 @@ export type CuratedPostDefinition = Pick<PostMutation, 'post_type' | 'event' | '
   title: string | null
   body: string
   media: CuratedMediaPlacement<'cover' | 'gallery'>[]
-  status: 'published' | 'scheduled'
-  publishedAt: string
+  status: 'draft' | 'published' | 'scheduled'
+  publishedAt: string | null
   createdBy: string
 }
 
@@ -257,6 +257,32 @@ export interface CuratedBusinessLocationTranslationDefinition {
   sourceHash: string
   translatedAt: string | null
   reviewedAt: string | null
+}
+
+export interface CuratedResourceLocalizationDefinition {
+  id: string
+  resourceType: 'product'
+  resourceId: string
+  routePath?: string | null
+  locale: string
+  valuesJson: LocalizedValues
+}
+
+export interface CuratedQaTranslationDefinition {
+  id: string
+  locale: string
+  originalId: string
+  question: string
+  answer: string
+}
+
+export interface CuratedPostTranslationDefinition {
+  id: string
+  locale: string
+  originalId: string
+  title: string | null
+  body: string
+  metadata?: { event?: { title: string }; offer?: { terms_conditions: string } }
 }
 
 // Compiled/normalized interfaces
@@ -388,7 +414,7 @@ export type CompiledSeedPost = PostTopic & {
   body: string
   media: CuratedMediaPlacement<'cover' | 'gallery'>[]
   status: CuratedPostDefinition['status']
-  publishedAt: string
+  publishedAt: string | null
   createdBy: string
 }
 
@@ -444,14 +470,13 @@ export interface CompiledCuratedSiteBundle {
   posts: CompiledSeedPost[]
   tenantPageLocaleFields: CompiledSeedTenantPageLocaleField[]
   businessLocationTranslations: CompiledSeedBusinessLocationTranslation[]
+  resourceLocalizations?: CuratedResourceLocalizationDefinition[]
+  qaTranslations?: CuratedQaTranslationDefinition[]
+  postTranslations?: CuratedPostTranslationDefinition[]
   publicRoutes: SeedPublicRouteExpectation[]
   routeManifest: {
     locations: string[]
     experiences: string[]
-  }
-  aiCredits?: {
-    balance: number
-    lifetimeUsed: number
   }
   organizationBilling?: {
     status: string

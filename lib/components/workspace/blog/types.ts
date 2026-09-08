@@ -15,11 +15,11 @@ export interface BlogPost {
   canonical_url?: string | null
   robots?: string | null
   published_at?: string | null
-  updated_at?: string | null
+  updated_at: string
   first_published_at?: string | null
   slug_manually_overridden?: boolean | number | null
   scheduled_for?: string | null
-  status?: 'published' | 'scheduled'
+  status?: 'draft' | 'published' | 'scheduled'
   visibility?: 'public' | 'unlisted'
   tags?: string[]
   seo_title?: string | null
@@ -93,17 +93,15 @@ export interface BlogPostUpdateInput {
   redirect_old_slug?: boolean
   reset_slug_override?: boolean
   content_blocks?: BlogEditorBlock[]
-  expected_document_updated_at?: string
   expected_updated_at?: string
 }
 
 export interface BlogLifecycleState {
   id: string
-  status: 'published' | 'scheduled'
+  status: 'draft' | 'published' | 'scheduled'
   published_at: string | null
   scheduled_for: string | null
   updated_at: string
-  content_document_updated_at: string
 }
 
 export interface BlogPostRepository {
@@ -113,5 +111,5 @@ export interface BlogPostRepository {
   create(_input: BlogPostCreateInput): Promise<BlogPost & { id: string }>
   update(_postId: string, _input: BlogPostUpdateInput): Promise<BlogPost>
   delete(_postId: string): Promise<void>
-  publish(_postId: string, _input: { expected_updated_at: string; expected_document_updated_at: string; scheduled_for?: string | null }): Promise<BlogLifecycleState>
+  publish(_postId: string, _input: { expected_updated_at: string; scheduled_for?: string | null }): Promise<BlogLifecycleState>
 }

@@ -1,0 +1,918 @@
+{
+  "expectedBuild": "dad9de8a-b5e8-40ea-9204-0e22b7f89f38",
+  "fixtureOnly": true,
+  "credentialsAndTokensRecorded": false,
+  "canaryCount": 12,
+  "records": [
+    {
+      "scope": "session",
+      "name": "build before",
+      "status": 200,
+      "at": "2026-09-08T05:41:35.377Z",
+      "requestId": null
+    },
+    {
+      "scope": "session",
+      "name": "Better Auth developer sign-in",
+      "status": 200,
+      "at": "2026-09-08T05:41:35.448Z",
+      "requestId": null
+    },
+    {
+      "scope": "pottery",
+      "name": "create canary",
+      "status": 200,
+      "at": "2026-09-08T05:41:36.884Z",
+      "requestId": "6672664e-996e-4aac-b486-9e43a823ffe7"
+    },
+    {
+      "scope": "pottery",
+      "name": "create canary",
+      "status": 200,
+      "at": "2026-09-08T05:41:38.272Z",
+      "requestId": "acee9489-4cb9-4cd6-9b97-4e173624a132"
+    },
+    {
+      "scope": "ncls",
+      "name": "create canary",
+      "status": 200,
+      "at": "2026-09-08T05:41:38.461Z",
+      "requestId": "9fef70a6-9209-48c7-baf4-dad51ab0d747"
+    },
+    {
+      "scope": "ncls",
+      "name": "create canary",
+      "status": 200,
+      "at": "2026-09-08T05:41:38.539Z",
+      "requestId": "f6ed4d20-67a4-438b-8991-c63f083b1375"
+    },
+    {
+      "scope": "platform",
+      "name": "create canary",
+      "status": 200,
+      "at": "2026-09-08T05:41:40.103Z",
+      "requestId": null
+    },
+    {
+      "scope": "platform",
+      "name": "create canary",
+      "status": 200,
+      "at": "2026-09-08T05:41:41.773Z",
+      "requestId": null
+    },
+    {
+      "scope": "pottery",
+      "name": "valid signed preview API",
+      "status": 200,
+      "at": "2026-09-08T05:41:41.820Z",
+      "requestId": null,
+      "headers": {
+        "cache-control": "private, no-store, max-age=0",
+        "x-robots-tag": "noindex, nofollow, noarchive",
+        "referrer-policy": "no-referrer"
+      }
+    },
+    {
+      "scope": "pottery",
+      "name": "valid signed preview HTML",
+      "status": 200,
+      "at": "2026-09-08T05:41:41.950Z",
+      "requestId": "03050170-bbd4-4779-904d-18190b91258f",
+      "headers": {
+        "cache-control": "private, no-store, max-age=0",
+        "x-robots-tag": "noindex, nofollow, noarchive",
+        "referrer-policy": "no-referrer"
+      }
+    },
+    {
+      "scope": "pottery",
+      "name": "missing preview token",
+      "status": 404,
+      "at": "2026-09-08T05:41:41.971Z",
+      "requestId": null,
+      "headers": {
+        "cache-control": "private, no-store, max-age=0",
+        "x-robots-tag": "noindex, nofollow, noarchive",
+        "referrer-policy": null
+      }
+    },
+    {
+      "scope": "pottery",
+      "name": "bad preview token",
+      "status": 404,
+      "at": "2026-09-08T05:41:41.986Z",
+      "requestId": null,
+      "headers": {
+        "cache-control": "private, no-store, max-age=0",
+        "x-robots-tag": "noindex, nofollow, noarchive",
+        "referrer-policy": "no-referrer"
+      }
+    },
+    {
+      "scope": "pottery",
+      "name": "expired signed preview token",
+      "status": 404,
+      "at": "2026-09-08T05:41:42.004Z",
+      "requestId": null,
+      "headers": {
+        "cache-control": "private, no-store, max-age=0",
+        "x-robots-tag": "noindex, nofollow, noarchive",
+        "referrer-policy": "no-referrer"
+      }
+    },
+    {
+      "scope": "pottery",
+      "name": "wrong article token",
+      "status": 404,
+      "at": "2026-09-08T05:41:42.037Z",
+      "requestId": null
+    },
+    {
+      "scope": "ncls",
+      "name": "cross tenant token from pottery",
+      "status": 404,
+      "at": "2026-09-08T05:41:42.069Z",
+      "requestId": null
+    },
+    {
+      "scope": "pottery",
+      "name": "public article discovery",
+      "status": 200,
+      "at": "2026-09-08T05:41:42.095Z",
+      "requestId": null
+    },
+    {
+      "scope": "pottery",
+      "name": "authenticated draft filter",
+      "status": 200,
+      "at": "2026-09-08T05:41:42.137Z",
+      "requestId": null
+    },
+    {
+      "scope": "pottery",
+      "name": "draft with schedule",
+      "status": 400,
+      "at": "2026-09-08T05:41:42.179Z",
+      "requestId": null
+    },
+    {
+      "scope": "pottery",
+      "name": "published with schedule",
+      "status": 400,
+      "at": "2026-09-08T05:41:42.227Z",
+      "requestId": null
+    },
+    {
+      "scope": "pottery",
+      "name": "scheduled without date",
+      "status": 400,
+      "at": "2026-09-08T05:41:42.277Z",
+      "requestId": null
+    },
+    {
+      "scope": "pottery",
+      "name": "past schedule",
+      "status": 400,
+      "at": "2026-09-08T05:41:42.321Z",
+      "requestId": null
+    },
+    {
+      "scope": "pottery",
+      "name": "create canary",
+      "status": 200,
+      "at": "2026-09-08T05:41:43.481Z",
+      "requestId": "100b2f94-9f2c-44b5-9554-22ad7ab7f94f"
+    },
+    {
+      "scope": "pottery",
+      "name": "create canary",
+      "status": 200,
+      "at": "2026-09-08T05:41:44.683Z",
+      "requestId": "e67dd9d8-87b8-4ee5-b810-8801c0393d45"
+    },
+    {
+      "scope": "pottery",
+      "name": "draft to scheduled",
+      "status": 200,
+      "at": "2026-09-08T05:41:44.746Z",
+      "requestId": "83324547-8ef6-4b5c-b6a2-4c250d8d0e52"
+    },
+    {
+      "scope": "pottery",
+      "name": "authenticated read",
+      "status": 200,
+      "at": "2026-09-08T05:41:44.885Z",
+      "requestId": null
+    },
+    {
+      "scope": "pottery",
+      "name": "stale lifecycle CAS",
+      "status": 409,
+      "at": "2026-09-08T05:41:44.926Z",
+      "requestId": null
+    },
+    {
+      "scope": "pottery",
+      "name": "scheduled to published",
+      "status": 200,
+      "at": "2026-09-08T05:41:44.993Z",
+      "requestId": "3fc6564d-dc5b-4633-9887-a4e9109ad20e"
+    },
+    {
+      "scope": "pottery",
+      "name": "authenticated read",
+      "status": 200,
+      "at": "2026-09-08T05:41:45.059Z",
+      "requestId": null
+    },
+    {
+      "scope": "pottery",
+      "name": "public article discovery",
+      "status": 200,
+      "at": "2026-09-08T05:41:45.076Z",
+      "requestId": null
+    },
+    {
+      "scope": "pottery",
+      "name": "published reschedule rejected",
+      "status": 400,
+      "at": "2026-09-08T05:41:45.162Z",
+      "requestId": null
+    },
+    {
+      "scope": "pottery",
+      "name": "published to unlisted",
+      "status": 200,
+      "at": "2026-09-08T05:41:45.328Z",
+      "requestId": "d2f6acd0-f883-4d49-a19c-07dcaed79c6f"
+    },
+    {
+      "scope": "pottery",
+      "name": "authenticated read",
+      "status": 200,
+      "at": "2026-09-08T05:41:45.421Z",
+      "requestId": null
+    },
+    {
+      "scope": "pottery",
+      "name": "unlisted direct public read",
+      "status": 200,
+      "at": "2026-09-08T05:41:45.466Z",
+      "requestId": null
+    },
+    {
+      "scope": "pottery",
+      "name": "public article discovery",
+      "status": 200,
+      "at": "2026-09-08T05:41:45.479Z",
+      "requestId": null
+    },
+    {
+      "scope": "pottery",
+      "name": "draft directly to published",
+      "status": 200,
+      "at": "2026-09-08T05:41:45.541Z",
+      "requestId": "35666a72-d964-40c9-a965-5ba5c58429de"
+    },
+    {
+      "scope": "pottery",
+      "name": "scope complete",
+      "status": "passed",
+      "at": "2026-09-08T05:41:45.542Z"
+    },
+    {
+      "scope": "ncls",
+      "name": "valid signed preview API",
+      "status": 200,
+      "at": "2026-09-08T05:41:45.572Z",
+      "requestId": null,
+      "headers": {
+        "cache-control": "private, no-store, max-age=0",
+        "x-robots-tag": "noindex, nofollow, noarchive",
+        "referrer-policy": "no-referrer"
+      }
+    },
+    {
+      "scope": "ncls",
+      "name": "valid signed preview HTML",
+      "status": 200,
+      "at": "2026-09-08T05:41:45.737Z",
+      "requestId": null,
+      "headers": {
+        "cache-control": "private, no-store, max-age=0",
+        "x-robots-tag": "noindex, nofollow, noarchive",
+        "referrer-policy": "no-referrer"
+      }
+    },
+    {
+      "scope": "ncls",
+      "name": "valid NCLS preview document",
+      "status": 200,
+      "at": "2026-09-08T05:41:45.787Z",
+      "requestId": "471d2b05-8cb5-48a1-8af2-94e0700c503f",
+      "headers": {
+        "cache-control": "private, no-store, max-age=0",
+        "x-robots-tag": "noindex, nofollow, noarchive",
+        "referrer-policy": "no-referrer"
+      }
+    },
+    {
+      "scope": "ncls",
+      "name": "missing preview token",
+      "status": 404,
+      "at": "2026-09-08T05:41:45.801Z",
+      "requestId": null,
+      "headers": {
+        "cache-control": "private, no-store, max-age=0",
+        "x-robots-tag": "noindex, nofollow, noarchive",
+        "referrer-policy": null
+      }
+    },
+    {
+      "scope": "ncls",
+      "name": "bad preview token",
+      "status": 404,
+      "at": "2026-09-08T05:41:45.825Z",
+      "requestId": null,
+      "headers": {
+        "cache-control": "private, no-store, max-age=0",
+        "x-robots-tag": "noindex, nofollow, noarchive",
+        "referrer-policy": "no-referrer"
+      }
+    },
+    {
+      "scope": "ncls",
+      "name": "expired signed preview token",
+      "status": 404,
+      "at": "2026-09-08T05:41:45.842Z",
+      "requestId": null,
+      "headers": {
+        "cache-control": "private, no-store, max-age=0",
+        "x-robots-tag": "noindex, nofollow, noarchive",
+        "referrer-policy": "no-referrer"
+      }
+    },
+    {
+      "scope": "ncls",
+      "name": "wrong article token",
+      "status": 404,
+      "at": "2026-09-08T05:41:45.872Z",
+      "requestId": null
+    },
+    {
+      "scope": "pottery",
+      "name": "cross tenant token from ncls",
+      "status": 404,
+      "at": "2026-09-08T05:41:45.886Z",
+      "requestId": null
+    },
+    {
+      "scope": "ncls",
+      "name": "public article discovery",
+      "status": 200,
+      "at": "2026-09-08T05:41:45.902Z",
+      "requestId": null
+    },
+    {
+      "scope": "ncls",
+      "name": "authenticated draft filter",
+      "status": 200,
+      "at": "2026-09-08T05:41:45.949Z",
+      "requestId": null
+    },
+    {
+      "scope": "ncls",
+      "name": "draft with schedule",
+      "status": 400,
+      "at": "2026-09-08T05:41:45.990Z",
+      "requestId": null
+    },
+    {
+      "scope": "ncls",
+      "name": "published with schedule",
+      "status": 400,
+      "at": "2026-09-08T05:41:46.036Z",
+      "requestId": null
+    },
+    {
+      "scope": "ncls",
+      "name": "scheduled without date",
+      "status": 400,
+      "at": "2026-09-08T05:41:46.086Z",
+      "requestId": null
+    },
+    {
+      "scope": "ncls",
+      "name": "past schedule",
+      "status": 400,
+      "at": "2026-09-08T05:41:46.127Z",
+      "requestId": null
+    },
+    {
+      "scope": "ncls",
+      "name": "create canary",
+      "status": 200,
+      "at": "2026-09-08T05:41:46.298Z",
+      "requestId": "d07acbc2-4692-4a35-8432-673019f6cb31"
+    },
+    {
+      "scope": "ncls",
+      "name": "create canary",
+      "status": 200,
+      "at": "2026-09-08T05:41:46.403Z",
+      "requestId": "fee5b024-6366-4563-8345-614be522fb9a"
+    },
+    {
+      "scope": "ncls",
+      "name": "draft to scheduled",
+      "status": 200,
+      "at": "2026-09-08T05:41:46.463Z",
+      "requestId": "006c4a67-d754-4ce3-b389-9f5902e30c6c"
+    },
+    {
+      "scope": "ncls",
+      "name": "authenticated read",
+      "status": 200,
+      "at": "2026-09-08T05:41:46.521Z",
+      "requestId": null
+    },
+    {
+      "scope": "ncls",
+      "name": "stale lifecycle CAS",
+      "status": 409,
+      "at": "2026-09-08T05:41:46.578Z",
+      "requestId": null
+    },
+    {
+      "scope": "ncls",
+      "name": "scheduled to published",
+      "status": 200,
+      "at": "2026-09-08T05:41:46.650Z",
+      "requestId": "ca8e1365-6d6e-457f-82b9-fe7e6b2743a5"
+    },
+    {
+      "scope": "ncls",
+      "name": "authenticated read",
+      "status": 200,
+      "at": "2026-09-08T05:41:46.711Z",
+      "requestId": null
+    },
+    {
+      "scope": "ncls",
+      "name": "public article discovery",
+      "status": 200,
+      "at": "2026-09-08T05:41:46.732Z",
+      "requestId": null
+    },
+    {
+      "scope": "ncls",
+      "name": "published reschedule rejected",
+      "status": 400,
+      "at": "2026-09-08T05:41:46.780Z",
+      "requestId": null
+    },
+    {
+      "scope": "ncls",
+      "name": "published to unlisted",
+      "status": 200,
+      "at": "2026-09-08T05:41:46.888Z",
+      "requestId": "abf97400-afed-4793-a8d0-dea8aa341fbd"
+    },
+    {
+      "scope": "ncls",
+      "name": "authenticated read",
+      "status": 200,
+      "at": "2026-09-08T05:41:46.955Z",
+      "requestId": null
+    },
+    {
+      "scope": "ncls",
+      "name": "unlisted direct public read",
+      "status": 200,
+      "at": "2026-09-08T05:41:46.996Z",
+      "requestId": null
+    },
+    {
+      "scope": "ncls",
+      "name": "public article discovery",
+      "status": 200,
+      "at": "2026-09-08T05:41:47.009Z",
+      "requestId": null
+    },
+    {
+      "scope": "ncls",
+      "name": "draft directly to published",
+      "status": 200,
+      "at": "2026-09-08T05:41:47.068Z",
+      "requestId": "600f70e8-4675-438c-9505-b3e5b673aad5"
+    },
+    {
+      "scope": "ncls",
+      "name": "scope complete",
+      "status": "passed",
+      "at": "2026-09-08T05:41:47.069Z"
+    },
+    {
+      "scope": "platform",
+      "name": "valid signed preview API",
+      "status": 200,
+      "at": "2026-09-08T05:41:47.100Z",
+      "requestId": null,
+      "headers": {
+        "cache-control": "private, no-store, max-age=0",
+        "x-robots-tag": "noindex, nofollow, noarchive",
+        "referrer-policy": "no-referrer"
+      }
+    },
+    {
+      "scope": "platform",
+      "name": "valid signed preview HTML",
+      "status": 200,
+      "at": "2026-09-08T05:41:47.153Z",
+      "requestId": null,
+      "headers": {
+        "cache-control": "private, no-store, max-age=0",
+        "x-robots-tag": "noindex, nofollow, noarchive",
+        "referrer-policy": "no-referrer"
+      }
+    },
+    {
+      "scope": "platform",
+      "name": "missing preview token",
+      "status": 404,
+      "at": "2026-09-08T05:41:47.180Z",
+      "requestId": null,
+      "headers": {
+        "cache-control": "private, no-store, max-age=0",
+        "x-robots-tag": "noindex, nofollow, noarchive",
+        "referrer-policy": null
+      }
+    },
+    {
+      "scope": "platform",
+      "name": "bad preview token",
+      "status": 404,
+      "at": "2026-09-08T05:41:47.194Z",
+      "requestId": null,
+      "headers": {
+        "cache-control": "private, no-store, max-age=0",
+        "x-robots-tag": "noindex, nofollow, noarchive",
+        "referrer-policy": "no-referrer"
+      }
+    },
+    {
+      "scope": "platform",
+      "name": "expired signed preview token",
+      "status": 404,
+      "at": "2026-09-08T05:41:47.210Z",
+      "requestId": null,
+      "headers": {
+        "cache-control": "private, no-store, max-age=0",
+        "x-robots-tag": "noindex, nofollow, noarchive",
+        "referrer-policy": "no-referrer"
+      }
+    },
+    {
+      "scope": "platform",
+      "name": "wrong article token",
+      "status": 404,
+      "at": "2026-09-08T05:41:47.231Z",
+      "requestId": null
+    },
+    {
+      "scope": "pottery",
+      "name": "cross tenant token from platform",
+      "status": 404,
+      "at": "2026-09-08T05:41:47.258Z",
+      "requestId": null
+    },
+    {
+      "scope": "platform",
+      "name": "public article discovery",
+      "status": 200,
+      "at": "2026-09-08T05:41:47.290Z",
+      "requestId": null
+    },
+    {
+      "scope": "platform",
+      "name": "authenticated draft filter",
+      "status": 200,
+      "at": "2026-09-08T05:41:47.326Z",
+      "requestId": null
+    },
+    {
+      "scope": "platform",
+      "name": "draft with schedule",
+      "status": 400,
+      "at": "2026-09-08T05:41:47.362Z",
+      "requestId": null
+    },
+    {
+      "scope": "platform",
+      "name": "published with schedule",
+      "status": 400,
+      "at": "2026-09-08T05:41:47.389Z",
+      "requestId": null
+    },
+    {
+      "scope": "platform",
+      "name": "scheduled without date",
+      "status": 400,
+      "at": "2026-09-08T05:41:47.420Z",
+      "requestId": null
+    },
+    {
+      "scope": "platform",
+      "name": "past schedule",
+      "status": 400,
+      "at": "2026-09-08T05:41:47.455Z",
+      "requestId": null
+    },
+    {
+      "scope": "platform",
+      "name": "create canary",
+      "status": 200,
+      "at": "2026-09-08T05:41:49.123Z",
+      "requestId": null
+    },
+    {
+      "scope": "platform",
+      "name": "create canary",
+      "status": 200,
+      "at": "2026-09-08T05:41:50.681Z",
+      "requestId": null
+    },
+    {
+      "scope": "platform",
+      "name": "draft to scheduled",
+      "status": 200,
+      "at": "2026-09-08T05:41:50.748Z",
+      "requestId": null
+    },
+    {
+      "scope": "platform",
+      "name": "authenticated read",
+      "status": 200,
+      "at": "2026-09-08T05:41:50.814Z",
+      "requestId": null
+    },
+    {
+      "scope": "platform",
+      "name": "stale lifecycle CAS",
+      "status": 409,
+      "at": "2026-09-08T05:41:50.872Z",
+      "requestId": null
+    },
+    {
+      "scope": "platform",
+      "name": "scheduled to published",
+      "status": 200,
+      "at": "2026-09-08T05:41:50.927Z",
+      "requestId": null
+    },
+    {
+      "scope": "platform",
+      "name": "authenticated read",
+      "status": 200,
+      "at": "2026-09-08T05:41:51.002Z",
+      "requestId": null
+    },
+    {
+      "scope": "platform",
+      "name": "public article discovery",
+      "status": 200,
+      "at": "2026-09-08T05:41:51.040Z",
+      "requestId": null
+    },
+    {
+      "scope": "platform",
+      "name": "published reschedule rejected",
+      "status": 400,
+      "at": "2026-09-08T05:41:51.098Z",
+      "requestId": null
+    },
+    {
+      "scope": "platform",
+      "name": "published to unlisted",
+      "status": 200,
+      "at": "2026-09-08T05:41:51.200Z",
+      "requestId": null
+    },
+    {
+      "scope": "platform",
+      "name": "authenticated read",
+      "status": 200,
+      "at": "2026-09-08T05:41:51.247Z",
+      "requestId": null
+    },
+    {
+      "scope": "platform",
+      "name": "unlisted direct public read",
+      "status": 200,
+      "at": "2026-09-08T05:41:51.277Z",
+      "requestId": null
+    },
+    {
+      "scope": "platform",
+      "name": "public article discovery",
+      "status": 200,
+      "at": "2026-09-08T05:41:51.298Z",
+      "requestId": null
+    },
+    {
+      "scope": "platform",
+      "name": "draft directly to published",
+      "status": 200,
+      "at": "2026-09-08T05:41:51.336Z",
+      "requestId": null
+    },
+    {
+      "scope": "platform",
+      "name": "scope complete",
+      "status": "passed",
+      "at": "2026-09-08T05:41:51.337Z"
+    },
+    {
+      "scope": "session",
+      "name": "build after",
+      "status": 200,
+      "at": "2026-09-08T05:41:51.353Z",
+      "requestId": null
+    },
+    {
+      "scope": "platform",
+      "name": "canary cleanup",
+      "status": 200,
+      "at": "2026-09-08T05:41:51.404Z",
+      "requestId": null
+    },
+    {
+      "scope": "platform",
+      "name": "cleanup absence verified",
+      "status": 404,
+      "at": "2026-09-08T05:41:51.442Z",
+      "requestId": null
+    },
+    {
+      "scope": "platform",
+      "name": "canary cleanup",
+      "status": 200,
+      "at": "2026-09-08T05:41:51.481Z",
+      "requestId": null
+    },
+    {
+      "scope": "platform",
+      "name": "cleanup absence verified",
+      "status": 404,
+      "at": "2026-09-08T05:41:51.522Z",
+      "requestId": null
+    },
+    {
+      "scope": "ncls",
+      "name": "canary cleanup",
+      "status": 200,
+      "at": "2026-09-08T05:41:51.643Z",
+      "requestId": null
+    },
+    {
+      "scope": "ncls",
+      "name": "cleanup absence verified",
+      "status": 404,
+      "at": "2026-09-08T05:41:51.686Z",
+      "requestId": null
+    },
+    {
+      "scope": "ncls",
+      "name": "canary cleanup",
+      "status": 200,
+      "at": "2026-09-08T05:41:51.737Z",
+      "requestId": null
+    },
+    {
+      "scope": "ncls",
+      "name": "cleanup absence verified",
+      "status": 404,
+      "at": "2026-09-08T05:41:51.801Z",
+      "requestId": null
+    },
+    {
+      "scope": "pottery",
+      "name": "canary cleanup",
+      "status": 200,
+      "at": "2026-09-08T05:41:51.862Z",
+      "requestId": null
+    },
+    {
+      "scope": "pottery",
+      "name": "cleanup absence verified",
+      "status": 404,
+      "at": "2026-09-08T05:41:51.903Z",
+      "requestId": null
+    },
+    {
+      "scope": "pottery",
+      "name": "canary cleanup",
+      "status": 200,
+      "at": "2026-09-08T05:41:51.960Z",
+      "requestId": null
+    },
+    {
+      "scope": "pottery",
+      "name": "cleanup absence verified",
+      "status": 404,
+      "at": "2026-09-08T05:41:52.011Z",
+      "requestId": null
+    },
+    {
+      "scope": "platform",
+      "name": "canary cleanup",
+      "status": 200,
+      "at": "2026-09-08T05:41:52.055Z",
+      "requestId": null
+    },
+    {
+      "scope": "platform",
+      "name": "cleanup absence verified",
+      "status": 404,
+      "at": "2026-09-08T05:41:52.202Z",
+      "requestId": null
+    },
+    {
+      "scope": "platform",
+      "name": "canary cleanup",
+      "status": 200,
+      "at": "2026-09-08T05:41:52.248Z",
+      "requestId": null
+    },
+    {
+      "scope": "platform",
+      "name": "cleanup absence verified",
+      "status": 404,
+      "at": "2026-09-08T05:41:52.291Z",
+      "requestId": null
+    },
+    {
+      "scope": "ncls",
+      "name": "canary cleanup",
+      "status": 200,
+      "at": "2026-09-08T05:41:52.347Z",
+      "requestId": null
+    },
+    {
+      "scope": "ncls",
+      "name": "cleanup absence verified",
+      "status": 404,
+      "at": "2026-09-08T05:41:52.402Z",
+      "requestId": null
+    },
+    {
+      "scope": "ncls",
+      "name": "canary cleanup",
+      "status": 200,
+      "at": "2026-09-08T05:41:52.454Z",
+      "requestId": null
+    },
+    {
+      "scope": "ncls",
+      "name": "cleanup absence verified",
+      "status": 404,
+      "at": "2026-09-08T05:41:52.496Z",
+      "requestId": null
+    },
+    {
+      "scope": "pottery",
+      "name": "canary cleanup",
+      "status": 200,
+      "at": "2026-09-08T05:41:52.550Z",
+      "requestId": null
+    },
+    {
+      "scope": "pottery",
+      "name": "cleanup absence verified",
+      "status": 404,
+      "at": "2026-09-08T05:41:52.800Z",
+      "requestId": null
+    },
+    {
+      "scope": "pottery",
+      "name": "canary cleanup",
+      "status": 200,
+      "at": "2026-09-08T05:41:52.882Z",
+      "requestId": null
+    },
+    {
+      "scope": "pottery",
+      "name": "cleanup absence verified",
+      "status": 404,
+      "at": "2026-09-08T05:41:52.928Z",
+      "requestId": null
+    },
+    {
+      "scope": "session",
+      "name": "proof session sign-out",
+      "status": 200,
+      "at": "2026-09-08T05:41:52.960Z",
+      "requestId": null
+    }
+  ]
+}

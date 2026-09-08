@@ -10,7 +10,7 @@ export default defineHandler(async (event) => {
   const { db } = await requireSiteAccess(event, siteId)
 
   const customer = await queryFirst<ApiRecord>(db, `
-    SELECT id, name, email, phone, source, status, user_id, stripe_customer_id, review_request_opted_out_at, last_booking_at, last_review_at, created_at, updated_at
+    SELECT id, name, email, phone, source, status, user_id, stripe_customer_id, review_request_opted_out_at, created_at, updated_at
     FROM customers
     WHERE id = ? AND site_id = ? AND status != 'deleted'
     LIMIT 1

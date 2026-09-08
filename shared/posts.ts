@@ -1,3 +1,4 @@
+import { calendarDateSchema, preciseTimeSchema, instantSchema, isValidCalendarDate, isValidInstant, instantDate, formatCalendarDate, formatTime, formatTimestamp } from '../utils/timezone.ts'
 export const POST_TYPES = ['standard', 'event', 'offer', 'alert'] as const
 export const POST_ACTIONS = ['book', 'order', 'shop', 'learn_more', 'sign_up', 'call'] as const
 export const POST_WEEKDAYS = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'] as const
@@ -5,10 +6,10 @@ export class PostValidationError extends Error { statusCode = 400 }
 
 const text = { type: 'string' } as const
 const nonblank = { type: 'string', minLength: 1 } as const
-const date = { type: 'string', pattern: '^\\d{4}-\\d{2}-\\d{2}$', format: 'date' } as const
-const time = { type: 'string', pattern: '^(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d{1,9})?$' } as const
+const date = calendarDateSchema
+const time = preciseTimeSchema
 const url = { type: 'string', format: 'uri' } as const
-const instant = { type: 'string', format: 'date-time' } as const
+const instant = instantSchema
 const absent = { type: 'null' } as const
 const optionalText = { anyOf: [text, absent] } as const
 export const postRecurrenceJsonSchema = { anyOf: [
@@ -41,6 +42,7 @@ export const postMutationJsonSchema = {
   type: 'object', additionalProperties: false, properties: {
     title: optionalText, body: nonblank, slug: optionalText, seo_title: optionalText, seo_description: optionalText,
     location_id: { anyOf: [nonblank, absent] }, scheduled_for: { anyOf: [instant, absent] },
+    visibility: { enum: ['public', 'unlisted'] },
     post_type: { enum: POST_TYPES }, event: { anyOf: [postEventJsonSchema, absent] },
     offer: { anyOf: [postOfferJsonSchema, absent] }, call_to_action: nullableAction,
     alert_type: { anyOf: [{ enum: ['covid_19'] }, absent] },
@@ -79,12 +81,8 @@ function validateShape(schema: Schema, value: unknown, path: string): void {
     if (typeof value !== 'string') return fail('must be a string')
     if (schema.minLength && value.trim().length < schema.minLength) fail('must not be empty')
     if (schema.pattern && !new RegExp(schema.pattern).test(value)) fail('has an invalid format')
-    if (schema.format === 'date' || schema.format === 'date-time') {
-      const day = value.slice(0, 10)
-      const parsed = new Date(`${day}T00:00:00Z`)
-      if (!Number.isFinite(parsed.getTime()) || parsed.toISOString().slice(0, 10) !== day) fail('must have a real calendar date')
-    }
-    if (schema.format === 'date-time' && (!/^\d{4}-\d{2}-\d{2}T(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d{1,9})?(?:Z|[+-](?:[01]\d|2[0-3]):[0-5]\d)$/.test(value) || !Number.isFinite(Date.parse(value)))) fail('must be an RFC 3339 timestamp')
+    if (schema.format === 'date' && !isValidCalendarDate(value)) fail('must have a real calendar date')
+    if (schema.format === 'date-time' && !isValidInstant(value)) fail('must be an RFC 3339 timestamp with an explicit offset')
     if (schema.format === 'uri') {
       try { if (!['http:', 'https:'].includes(new URL(value).protocol)) fail('must use HTTP or HTTPS') } catch { fail('must be an absolute HTTP or HTTPS URL') }
     }
@@ -144,7 +142,7 @@ export function parsePostInput(input: unknown, existing?: PostTopic & { body: st
   if (patch.scheduled_for && patch.scheduled_for !== existing?.scheduled_for && Date.parse(patch.scheduled_for) <= Date.now()) throw new PostValidationError('scheduled_for must be a future RFC 3339 timestamp')
   if (topic.post_type === 'alert' && patch.media?.length) throw new PostValidationError('Alert posts support only summary and call to action content')
   if (patch.media && patch.media.filter(item => item.slot === 'cover').length > 1) throw new PostValidationError('media accepts at most one cover asset')
-  return { ...patch, ...topic, body: body.trim() }
+  return { ...patch, ...(patch.scheduled_for ? { scheduled_for: instantDate(patch.scheduled_for).toISOString() } : {}), ...topic, body: body.trim() }
 }
 
 export function postActionUrl(action: PostAction | null, phone: string | null): string | null {
@@ -154,16 +152,15 @@ export function postActionUrl(action: PostAction | null, phone: string | null): 
 
 export function postEventDescription(event: PostEvent, locale = 'en'): string {
   const schedule = event.schedule
-  const formatDate = (value: string) => new Intl.DateTimeFormat(locale, { dateStyle: 'medium', timeZone: 'UTC' }).format(new Date(`${value}T00:00:00Z`))
-  const range = `${formatDate(schedule.start_date)} ${schedule.start_time} – ${formatDate(schedule.end_date)} ${schedule.end_time}`
+  const range = `${formatCalendarDate(schedule.start_date, locale)} ${formatTime(schedule.start_time, locale)} – ${formatCalendarDate(schedule.end_date, locale)} ${formatTime(schedule.end_time, locale)}`
   const rule = event.recurrence_info
   if (!rule) return range
-  const weekdayName = (day: typeof POST_WEEKDAYS[number]) => new Intl.DateTimeFormat(locale, { weekday: 'long', timeZone: 'UTC' }).format(new Date(Date.UTC(2026, 8, 6 + POST_WEEKDAYS.indexOf(day))))
+  const weekdayName = (day: typeof POST_WEEKDAYS[number]) => formatCalendarDate(`2026-09-${String(6 + POST_WEEKDAYS.indexOf(day)).padStart(2, '0')}`, locale, { weekday: 'long' })
   const startDay = POST_WEEKDAYS[new Date(`${schedule.start_date}T00:00:00Z`).getUTCDay()]!
   const thai = locale.startsWith('th')
   const cadence = rule.kind === 'daily' ? (thai ? 'ทุกวัน' : 'Daily')
     : rule.kind === 'weekly' ? (rule.days_of_week.length ? rule.days_of_week : [startDay]).map(weekdayName).join(', ')
       : 'day_of_month' in rule ? `${thai ? 'ทุกเดือน วันที่' : 'Monthly on day'} ${rule.day_of_month}`
         : `${thai ? 'ทุกเดือน' : 'Monthly'}, ${rule.day_of_week_occurrence} ${weekdayName(startDay)}`
-  return `${range} · ${cadence}${rule.series_end_time ? ` · ${thai ? 'ถึง' : 'Until'} ${rule.series_end_time}` : ''}`
+  return `${range} · ${cadence}${rule.series_end_time ? ` · ${thai ? 'ถึง' : 'Until'} ${formatTimestamp(rule.series_end_time, locale, 'UTC')} UTC` : ''}`
 }

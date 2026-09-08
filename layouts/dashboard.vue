@@ -151,7 +151,8 @@ interface AuthOrganization {
 }
 
 const route = useRoute()
-const { data: sessionData, refreshSession } = useAuth()
+const router = useRouter()
+const { data: sessionData, waitForSession } = useAuth()
 const { trackDashboardVisited, setUserId } = useAnalytics()
 const toast = useToast()
 const stoppingImpersonation = ref(false)
@@ -261,7 +262,10 @@ const impersonatedBy = computed(() => {
 })
 
 const orgSlug = computed(() => organization.value?.slug ?? null)
-const realtimeOrganizationSlug = computed(() => typeof route.params.orgSlug === 'string' ? route.params.orgSlug : null)
+const realtimeOrganizationSlug = computed(() => {
+  const slug = router.currentRoute.value.params.orgSlug
+  return !stoppingImpersonation.value && typeof slug === 'string' ? slug : null
+})
 provideDashboardInvalidations(realtimeOrganizationSlug)
 const orgBase = computed(() => orgSlug.value ? `/dashboard/${orgSlug.value}` : null)
 
@@ -537,7 +541,7 @@ async function stopImpersonating() {
   try {
     const result = await authClient.admin.stopImpersonating()
     if (result.error) throw new Error(result.error.message)
-    await refreshSession()
+    await waitForSession(result.data.session.id)
     await navigateTo('/admin/users')
   } catch (error) {
     console.error('Failed to stop impersonation:', error)

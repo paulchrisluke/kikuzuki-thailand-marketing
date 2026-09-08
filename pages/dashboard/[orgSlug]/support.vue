@@ -161,6 +161,7 @@
 </template>
 
 <script setup lang="ts">
+import { formatTimestamp } from '~/utils/timezone'
 import { getErrorMessage } from '~/utils/errors'
 const dashboardApi = useDashboardApi()
 const dashboardScope = useDashboardRouteScope()
@@ -225,7 +226,7 @@ function statusColor(status: string): 'neutral' | 'primary' | 'success' | 'error
 }
 
 function formatDate(val: string) {
-  return new Intl.DateTimeFormat(undefined, { dateStyle: 'medium' }).format(new Date(val))
+  return formatTimestamp(val, 'en', 'UTC', { dateStyle: 'medium' })
 }
 
 interface WorkRequest {

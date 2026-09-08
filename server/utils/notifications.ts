@@ -1,3 +1,4 @@
+import { formatCalendarDate, formatTime } from '~/utils/timezone'
 import { getGuestRequest } from '~/server/domain/requests'
 import { renderEmail } from '~/server/emails/vue-email'
 import { queryFirst, type DbClient } from '~/server/db'
@@ -180,37 +181,6 @@ function siteName(opts: SiteContext): string {
   const value = opts.siteName?.trim()
   if (!value) throw new Error('Tenant site name is required for notifications')
   return value
-}
-
-function formatDateHuman(dateValue: string): string {
-  const value = String(dateValue || '').trim()
-  const isoMatch = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value)
-  if (!isoMatch) return value
-  const [, y, m, d] = isoMatch
-  const dt = new Date(Date.UTC(Number(y), Number(m) - 1, Number(d)))
-  return new Intl.DateTimeFormat('en-US', {
-    weekday: 'short',
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-    timeZone: 'UTC',
-  }).format(dt)
-}
-
-function formatTimeHuman(timeValue: string): string {
-  const value = String(timeValue || '').trim()
-  const match = /^(\d{1,2}):(\d{2})/.exec(value)
-  if (!match) return value
-  const h = Number(match[1])
-  const m = Number(match[2])
-  if (Number.isNaN(h) || Number.isNaN(m)) return value
-  const dt = new Date(Date.UTC(2000, 0, 1, h, m))
-  return new Intl.DateTimeFormat('en-US', {
-    hour: 'numeric',
-    minute: '2-digit',
-    hour12: true,
-    timeZone: 'UTC',
-  }).format(dt)
 }
 
 // The WhatsApp "Reply in dashboard" button URL is declared in the approved Meta
@@ -408,7 +378,7 @@ async function sendWhatsAppThreadNotification(
 
   let result: Awaited<ReturnType<typeof sendWhatsAppNotification>>
   try {
-    result = await sendWhatsAppNotification(env, db, opts)
+    result = await sendWhatsAppNotification(env, opts)
   } catch (error) {
     await recordDeliveryOutcome(db, {
       claim,
@@ -426,14 +396,6 @@ async function sendWhatsAppThreadNotification(
     error: result.success ? null : result.error,
   })
   await publishGuestInboxThreadEvent(env, db, { threadId: opts.delivery.threadId, type: 'delivery.changed' })
-  if (!result.success && result.status === 'sent') {
-    console.error('whatsapp_delivery_accounting_failed', {
-      organizationId: opts.organizationId,
-      siteId: opts.siteId,
-      error: result.error,
-    })
-    throw new Error(result.error)
-  }
   return result.success
 }
 
@@ -598,15 +560,7 @@ async function notifyOwner(
       if (delivery) {
         await sendWhatsAppThreadNotification(env, db, { ...sendOptions, delivery })
       } else {
-        const result = await sendWhatsAppNotification(env, db, sendOptions)
-        if (!result.success && result.status === 'sent') {
-          console.error('whatsapp_delivery_accounting_failed', {
-            organizationId: opts.organizationId,
-            siteId: opts.siteId,
-            error: result.error,
-          })
-          throw new Error(result.error)
-        }
+        await sendWhatsAppNotification(env, sendOptions)
       }
     }))
   }
@@ -680,8 +634,8 @@ export async function notifyReservationCreated(
   opts: ReservationNotificationInput
 ) {
   const restaurant = siteName(opts)
-  const prettyDate = formatDateHuman(opts.date)
-  const prettyTime = formatTimeHuman(opts.time)
+  const prettyDate = formatCalendarDate(opts.date, 'en')
+  const prettyTime = formatTime(opts.time, 'en')
   const platformDomain = getPlatformDomain(env)
   const [replyTo, inboxUrl] = await Promise.all([
     buildReplyToAddress(env, 'reservation', opts.reservationId),
@@ -770,8 +724,8 @@ export async function notifyReservationCancelled(
 ) {
   const confirmed = Boolean(opts.wasConfirmed)
   const restaurant = siteName(opts)
-  const prettyDate = formatDateHuman(opts.date)
-  const prettyTime = formatTimeHuman(opts.time)
+  const prettyDate = formatCalendarDate(opts.date, 'en')
+  const prettyTime = formatTime(opts.time, 'en')
   const platformDomain = getPlatformDomain(env)
   const inboxUrl = await buildOwnerInboxUrl(env, db, {
     organizationId: opts.organizationId,
@@ -1119,8 +1073,8 @@ export async function notifyExperienceBookingCreated(
   opts: ExperienceBookingNotificationInput
 ) {
   const studio = siteName(opts)
-  const prettyDate = formatDateHuman(opts.bookingDate)
-  const prettyTime = formatTimeHuman(opts.timeSlot)
+  const prettyDate = formatCalendarDate(opts.bookingDate, 'en')
+  const prettyTime = formatTime(opts.timeSlot, 'en')
   const platformDomain = getPlatformDomain(env)
   const [replyTo, inboxUrl] = await Promise.all([
     buildReplyToAddress(env, 'experience_booking', opts.bookingId),
@@ -1208,8 +1162,8 @@ export async function notifyExperienceBookingCancelled(
 ) {
   const confirmed = Boolean(opts.wasConfirmed)
   const studio = siteName(opts)
-  const prettyDate = formatDateHuman(opts.bookingDate)
-  const prettyTime = formatTimeHuman(opts.timeSlot)
+  const prettyDate = formatCalendarDate(opts.bookingDate, 'en')
+  const prettyTime = formatTime(opts.timeSlot, 'en')
   const platformDomain = getPlatformDomain(env)
   const inboxUrl = await buildOwnerInboxUrl(env, db, {
     organizationId: opts.organizationId,
@@ -1324,7 +1278,7 @@ export async function notifyBookingChangeOwner(
     : opts.status === 'accepted'
       ? 'The guest accepted. The updated details are now confirmed.'
       : 'The guest declined. The original details remain unchanged.'
-  const body = `${message}\n\nRequested location: ${opts.locationTitle}\nDate: ${formatDateHuman(opts.date)}\nTime: ${formatTimeHuman(opts.time)}\nGuests: ${opts.guests}`
+  const body = `${message}\n\nRequested location: ${opts.locationTitle}\nDate: ${formatCalendarDate(opts.date, 'en')}\nTime: ${formatTime(opts.time, 'en')}\nGuests: ${opts.guests}`
   const replyUrl = await buildOwnerThreadInboxUrl(env, db, opts)
   const email = await renderEmail(BookingChange, {
     title,
@@ -1354,8 +1308,8 @@ export async function notifyBookingChangeOwner(
         guest_name: opts.guestName,
         status: opts.status,
         location: opts.locationTitle,
-        date: formatDateHuman(opts.date),
-        time: formatTimeHuman(opts.time),
+        date: formatCalendarDate(opts.date, 'en'),
+        time: formatTime(opts.time, 'en'),
         guests: String(opts.guests),
         message,
         reply_path: inboxUrlToWhatsAppReplyPath(replyUrl),

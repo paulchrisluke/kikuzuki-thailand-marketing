@@ -179,7 +179,7 @@ export async function listReservationSubmissions(
     params.push(opts.locationId)
   }
   if (opts.sinceDays) {
-    where += ` AND rs.created_at >= datetime('now', ?)`
+    where += ` AND rs.created_at >= strftime('%Y-%m-%dT%H:%M:%fZ', 'now', ?)`
     params.push(`-${opts.sinceDays} days`)
   }
   return await queryAll<Record<string, unknown>>(db, `
@@ -204,7 +204,7 @@ export async function countReservationSubmissions(
     params.push(opts.locationId)
   }
   if (opts.sinceDays) {
-    where += ` AND rs.created_at >= datetime('now', ?)`
+    where += ` AND rs.created_at >= strftime('%Y-%m-%dT%H:%M:%fZ', 'now', ?)`
     params.push(`-${opts.sinceDays} days`)
   }
   const row = await queryFirst<{ total: number }>(db, `
@@ -227,7 +227,7 @@ export async function getReservationSubmissionsByStatus(
     params.push(opts.locationId)
   }
   if (opts.sinceDays) {
-    where += ` AND rs.created_at >= datetime('now', ?)`
+    where += ` AND rs.created_at >= strftime('%Y-%m-%dT%H:%M:%fZ', 'now', ?)`
     params.push(`-${opts.sinceDays} days`)
   }
   const results = await queryAll<{ status: string; count: number }>(db, `

@@ -46,13 +46,13 @@
 </template>
 
 <script setup lang="ts">
-import { formatDate } from '~/utils/formatters'
+const { formatDate } = useLocaleDate()
 definePageMeta({ layout: 'dashboard' })
 useSeoMeta({ title: 'Blog | KrabiClaw Admin', robots: 'noindex, nofollow' })
 
 const toast = useToast()
 
-interface BlogPost { id: string; title: string; status: 'published' | 'scheduled'; published_at: string | null; scheduled_for: string | null }
+interface BlogPost { id: string; title: string; status: 'draft' | 'published' | 'scheduled'; published_at: string | null; scheduled_for: string | null }
 
 const blogPosts = ref<BlogPost[]>([])
 const blogError = ref('')

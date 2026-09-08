@@ -1,7 +1,8 @@
+import { editorModeFor } from '../shared/markdown-editor-mode.ts'
 import { compileCuratedSiteFixture } from './compile.ts'
 import type { CuratedSiteDefinition } from './contracts.ts'
 import { buildSeedExperienceCategories } from './contracts.ts'
-import { renderCanonicalBillingSql } from './billing-sql.ts'
+import { renderOrganizationBillingSql } from './billing-sql.ts'
 import { renderTenantPagesSeedSql } from './tenant-pages.ts'
 
 function escapeSql(value: string): string {
@@ -811,10 +812,6 @@ export const potteryHouseFixture: CuratedSiteDefinition = {
       reviewedAt: '2026-05-28T00:00:00.000Z',
     },
   ],
-  aiCredits: {
-    balance: 2000,
-    lifetimeUsed: 0,
-  },
   organizationBilling: {
     status: 'active',
     plan: 'growth',
@@ -1155,6 +1152,7 @@ export function renderCompiledPotteryHousePostsBlock(): string {
       sqlValue('social_post'), sqlValue('root'), sqlValue('en'), sqlValue('template'),
       sqlJson({ post_type: post.post_type, call_to_action: post.call_to_action, event: post.event, offer: post.offer, alert_type: post.alert_type }),
       sqlValue(post.status),
+      sqlValue('public'),
       sqlValue(post.publishedAt),
       sqlValue(post.createdBy),
     ].join(', ')})`)
@@ -1166,7 +1164,7 @@ export function renderCompiledPotteryHousePostsBlock(): string {
   ].join(', ')})`)).join(',\n')
   return `-- BEGIN GENERATED: pottery_posts
 INSERT OR IGNORE INTO content_documents
-  (id, organization_id, site_id, location_id, title, summary, kind, row_role, locale, source, metadata_json, status, published_at, created_by)
+  (id, organization_id, site_id, location_id, title, summary, kind, row_role, locale, source, metadata_json, status, visibility, published_at, created_by)
 VALUES
 ${postRows};
 
@@ -1193,7 +1191,7 @@ We can shape sessions around wheel throwing, handbuilding, glazing, or a slower 
 ## Ideal for teams and retreat hosts
 
 Our team can help organise group timing, capacity, and the right workshop format for your guests.`
-  const blockData = { markdown: body, editor_mode: 'source' }
+  const blockData = { markdown: body, editor_mode: editorModeFor(body) }
 
   return `-- BEGIN GENERATED: pottery_blog
 -- Tenant blog coverage for Pottery House Krabi parity checks.
@@ -1246,15 +1244,11 @@ export function renderCompiledPotteryHouseContentBlock(): string {
 }
 
 export function renderCompiledPotteryHouseBillingBlock(): string {
-  const { identity, aiCredits, organizationBilling } = compiledPotteryHouseSeed
+  const { identity, organizationBilling } = compiledPotteryHouseSeed
   const parts: string[] = []
 
-  if (aiCredits) {
-    if (organizationBilling) {
-      parts.push(renderCanonicalBillingSql(identity.siteId, identity.organizationId, organizationBilling, sqlValue, aiCredits))
-    }
-  } else if (organizationBilling) {
-    parts.push(renderCanonicalBillingSql(identity.siteId, identity.organizationId, organizationBilling, sqlValue))
+  if (organizationBilling) {
+    parts.push(renderOrganizationBillingSql(identity.organizationId, organizationBilling, sqlValue))
   }
 
   return `-- BEGIN GENERATED: pottery_billing

@@ -84,17 +84,13 @@ export async function notifyDomainLifecycle(
 
   const phone = await getOrgWhatsAppPhone(db, opts.organizationId, opts.siteId)
   if (phone) {
-    const result = await sendWhatsAppNotification(env, db, {
+    const result = await sendWhatsAppNotification(env, {
       organizationId: opts.organizationId,
       siteId: opts.siteId,
       toPhone: phone,
       template: 'domain_update',
       vars: { domain: opts.domain, status: opts.status, dashboard_url: dashboardUrl },
     })
-    if (!result.success && result.status === 'sent') {
-      console.error('domain_notification_whatsapp_accounting_failed', { siteId: opts.siteId, error: result.error })
-      throw new Error(result.error)
-    }
     if (!result.success) console.error('domain_notification_whatsapp_send_failed', { siteId: opts.siteId, error: result.error })
   }
 }

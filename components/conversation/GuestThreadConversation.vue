@@ -134,6 +134,7 @@
 </template>
 
 <script setup lang="ts">
+import { formatTimestamp } from '~/utils/timezone'
 import ConversationShell from '~/components/conversation/ConversationShell.vue'
 
 type EntryKind = 'submission' | 'message' | 'operation' | 'assignment' | 'resolution'
@@ -268,7 +269,7 @@ function formatOpeningDate(value: string | undefined) {
   if (!value) return ''
   const date = new Date(value)
   if (Number.isNaN(date.getTime())) return value
-  return new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric' }).format(date)
+  return formatTimestamp(date, 'en', 'UTC', { dateStyle: 'medium' })
 }
 
 function actorLabel(message: GuestThreadEntryMessage) {

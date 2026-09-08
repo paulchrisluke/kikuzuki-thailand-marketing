@@ -491,7 +491,7 @@ INSERT INTO business_locations (
   opening_hours = excluded.opening_hours, timezone = excluded.timezone,
   rating = excluded.rating, review_count = excluded.review_count,
   google_place_id = excluded.google_place_id, last_synced_at = excluded.last_synced_at,
-  updated_at = CURRENT_TIMESTAMP;`;
+  updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now');`;
     })
     .join("\n\n");
 
@@ -510,7 +510,7 @@ ON CONFLICT(id) DO UPDATE SET
   file_name = excluded.file_name,
   mime_type = excluded.mime_type,
   alt_text = excluded.alt_text,
-  updated_at = CURRENT_TIMESTAMP;`;
+  updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now');`;
     })
     .join("\n");
 
@@ -558,7 +558,7 @@ INSERT INTO sites (
   brand_name = excluded.brand_name,
   theme_id = excluded.theme_id,
   vertical = excluded.vertical,
-  updated_at = CURRENT_TIMESTAMP;
+  updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now');
 
 -- Domains
 INSERT INTO site_domains (id, organization_id, site_id, domain, type, role, status, dns_status)

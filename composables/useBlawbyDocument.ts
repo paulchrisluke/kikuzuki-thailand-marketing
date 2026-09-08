@@ -38,6 +38,7 @@ export async function useBlawbyDocument(
   slug?: string | null,
   options: { server?: boolean; lazy?: boolean } = {},
 ) {
+  const nuxtApp = useNuxtApp()
   const { siteId, draftId, isTenant } = useTenantSite()
   const locale = useState<string>('public-locale', () => 'en')
   const entityId = siteId || draftId
@@ -47,8 +48,8 @@ export async function useBlawbyDocument(
 
   const normalizedSlug = slug?.trim() || ''
   const route = useRoute()
-  const previewToken = draftId && typeof route.query.token === 'string' ? route.query.token : null
-  const key = `blawby-document-${entityId}-${recipe}-${normalizedSlug || 'index'}-${locale.value}`
+  const previewToken = computed(() => (draftId || recipe === 'article') && typeof route.query.token === 'string' ? route.query.token : undefined)
+  const key = () => `blawby-document-${entityId}-${recipe}-${normalizedSlug || 'index'}-${locale.value}-${previewToken.value ?? ''}`
   const asyncData = await useAsyncData<BlawbyDocumentPayload>(
     key,
     async () => {
@@ -57,25 +58,26 @@ export async function useBlawbyDocument(
         if (!requestEvent) throw createError({ statusCode: 500, statusMessage: 'Request context unavailable' })
         if (draftId) {
           const { loadPublicDraftBlawbyDocument } = await import('~/server/utils/public-draft-bootstrap')
-          return await loadPublicDraftBlawbyDocument(requestEvent, draftId, previewToken ?? undefined, recipe)
+          return await loadPublicDraftBlawbyDocument(requestEvent, draftId, previewToken.value, recipe)
         }
         if (!siteId) throw createError({ statusCode: 404, statusMessage: 'Blawby site context is unavailable' })
         const { loadPublicBlawbyDocument } = await import('~/server/utils/public-blawby-document')
         return await loadPublicBlawbyDocument(requestEvent, siteId, recipe, {
           slug: normalizedSlug,
+          token: previewToken.value,
           locale: locale.value,
           mutateResponseHeaders: false,
         })
       }
       if (draftId) {
         return await publicApiRequest<BlawbyDocumentPayload>('/api/public/drafts/' + encodeURIComponent(draftId) + '/blawby/document', {
-          query: { recipe, ...(previewToken ? { token: previewToken } : {}) },
+          query: { recipe, ...(previewToken.value === undefined ? {} : { token: previewToken.value }) },
           validate: value => isBlawbyDocumentPayload(value, recipe),
         })
       }
       if (!siteId) throw createError({ statusCode: 404, statusMessage: 'Blawby site context is unavailable' })
       return await publicApiRequest<BlawbyDocumentPayload>('/api/public/sites/' + encodeURIComponent(siteId) + '/blawby/document', {
-        query: { recipe, locale: locale.value, ...(normalizedSlug ? { slug: normalizedSlug } : {}) },
+        query: { recipe, locale: locale.value, token: previewToken.value, ...(normalizedSlug ? { slug: normalizedSlug } : {}) },
         validate: value => isBlawbyDocumentPayload(value, recipe),
       })
     },
@@ -96,6 +98,10 @@ export async function useBlawbyDocument(
   if (!asyncData.data.value && options.server !== false) {
     throw createError({ statusCode: 500, statusMessage: 'Blawby document data was not returned' })
   }
+
+  watch(asyncData.error, (error) => {
+    if (error) nuxtApp.runWithContext(() => showError(error))
+  }, { flush: 'sync' })
 
   return {
     ...asyncData,

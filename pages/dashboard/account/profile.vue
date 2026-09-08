@@ -63,7 +63,7 @@
         </section>
 
         <section v-if="billingTo" class="profile-row" :class="rowTone('billing')">
-          <div class="min-w-0"><h3 class="profile-label">Usage and billing</h3><p class="profile-value whitespace-normal">Credits, plan and payments for {{ organizationName }}.</p></div>
+          <div class="min-w-0"><h3 class="profile-label">Billing</h3><p class="profile-value whitespace-normal">Plan and payments for {{ organizationName }}.</p></div>
           <NuxtLink :to="billingTo" class="account-action shrink-0">Open</NuxtLink>
         </section>
 
@@ -177,10 +177,6 @@ const toast = useToast()
 const route = useRoute()
 const { data: sessionData } = useAuth()
 
-// Credits are an organization resource, so this links to the active
-// organization's billing page rather than rendering a second copy on a user
-// page. The dashboard layout already resolves that organization for account
-// routes, which deliberately have no organization slug of their own.
 const organizationParent = inject(dashboardOrganizationParentKey, null)
 const organizationName = computed(() => organizationParent?.value?.label ?? 'your organization')
 const billingTo = computed(() => organizationParent?.value ? `${organizationParent.value.to}/settings/billing` : null)

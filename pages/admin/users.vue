@@ -43,7 +43,7 @@
 </template>
 
 <script setup lang="ts">
-import { formatDate } from '~/utils/formatters'
+const { formatDate } = useLocaleDate()
 definePageMeta({ layout: 'dashboard' })
 useSeoMeta({ title: 'Users | KrabiClaw Admin', robots: 'noindex, nofollow' })
 
@@ -90,7 +90,7 @@ async function loadUsers() {
   }
 }
 
-const { refreshSession } = useAuth()
+const { waitForSession } = useAuth()
 
 async function impersonateUser(userId: string) {
   impersonatingUserId.value = userId
@@ -98,7 +98,7 @@ async function impersonateUser(userId: string) {
     const { authClient } = await import('~/lib/auth-client')
     const result = await authClient.admin.impersonateUser({ userId })
     if (result.error) throw new Error(result.error.message)
-    await refreshSession()
+    await waitForSession(result.data.session.id)
     await navigateTo('/dashboard')
   } catch {
     toast.add({ title: 'Failed to impersonate user', color: 'error' })

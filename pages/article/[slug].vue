@@ -114,7 +114,7 @@ const articleSocialImage = computed(() => resolveSocialImageUrl(articleSocialMed
 const ctaBlock = computed(() => {
   const page = data.value.page
   if (!page) return null
-  return findTenantPageBlock(page.blocks, 'consultation_cta', 'contact_cta')
+  return findTenantPageBlock(page.blocks, 'contact_cta')
 })
 const displayTags = computed(() => Array.isArray(post.value.tags) ? post.value.tags.slice(1) : [])
 const hasUpdatedDate = computed(() => Boolean(post.value.updated_at && post.value.updated_at !== post.value.published_at))

@@ -1,0 +1,202 @@
+{
+  "build": "dad9de8a-b5e8-40ea-9204-0e22b7f89f38",
+  "stats": {
+    "startTime": "2026-09-08T05:41:13.490Z",
+    "duration": 10705.456,
+    "expected": 3,
+    "skipped": 0,
+    "unexpected": 0,
+    "flaky": 0
+  },
+  "cases": [
+    {
+      "name": "Saya draft preview renders through client navigation",
+      "status": "expected",
+      "attachments": [
+        {
+          "name": "preview-client-evidence",
+          "data": {
+            "scope": "Saya",
+            "expectedBuild": "dad9de8a-b5e8-40ea-9204-0e22b7f89f38",
+            "validClientFetch": true,
+            "invalidTokenDenied": true,
+            "signedUrlsRecorded": false,
+            "documentNavigations": 0,
+            "fetches": [
+              {
+                "path": "/api/public/sites/site-pottery-house/blog/pr864-browser-preview-7538634f",
+                "validToken": true,
+                "status": 200
+              },
+              {
+                "path": "/api/public/sites/site-pottery-house/blog/pr864-browser-preview-7538634f",
+                "validToken": false,
+                "status": 404
+              }
+            ]
+          }
+        },
+        {
+          "name": "preview-client-observations",
+          "data": {
+            "scope": "Saya",
+            "expectedBuild": "dad9de8a-b5e8-40ea-9204-0e22b7f89f38",
+            "documentNavigations": 0,
+            "fetches": [
+              {
+                "path": "/api/public/sites/site-pottery-house/blog/pr864-browser-preview-7538634f",
+                "validToken": true,
+                "status": 200
+              },
+              {
+                "path": "/api/public/sites/site-pottery-house/blog/pr864-browser-preview-7538634f",
+                "validToken": false,
+                "status": 404
+              }
+            ],
+            "errors": [
+              "Failed to load resource: the server responded with a status of 404 (Not Found)"
+            ],
+            "pageErrors": []
+          }
+        },
+        {
+          "name": "preview-canary-cleanup",
+          "data": {
+            "scope": "Saya",
+            "id": "f03c5f4f-090e-45bf-94be-3e5ce8a7db57",
+            "deleteStatus": 200,
+            "absenceStatus": 404
+          }
+        }
+      ]
+    },
+    {
+      "name": "Blawby draft preview renders through client navigation",
+      "status": "expected",
+      "attachments": [
+        {
+          "name": "preview-client-evidence",
+          "data": {
+            "scope": "Blawby",
+            "expectedBuild": "dad9de8a-b5e8-40ea-9204-0e22b7f89f38",
+            "validClientFetch": true,
+            "invalidTokenDenied": true,
+            "signedUrlsRecorded": false,
+            "documentNavigations": 0,
+            "fetches": [
+              {
+                "path": "/api/public/sites/site-ncls-blawby/blawby/document",
+                "validToken": true,
+                "status": 200
+              },
+              {
+                "path": "/api/public/sites/site-ncls-blawby/blawby/document",
+                "validToken": false,
+                "status": 404
+              }
+            ]
+          }
+        },
+        {
+          "name": "preview-client-observations",
+          "data": {
+            "scope": "Blawby",
+            "expectedBuild": "dad9de8a-b5e8-40ea-9204-0e22b7f89f38",
+            "documentNavigations": 0,
+            "fetches": [
+              {
+                "path": "/api/public/sites/site-ncls-blawby/blawby/document",
+                "validToken": true,
+                "status": 200
+              },
+              {
+                "path": "/api/public/sites/site-ncls-blawby/blawby/document",
+                "validToken": false,
+                "status": 404
+              }
+            ],
+            "errors": [
+              "Failed to load resource: the server responded with a status of 404 (Not Found)"
+            ],
+            "pageErrors": []
+          }
+        },
+        {
+          "name": "preview-canary-cleanup",
+          "data": {
+            "scope": "Blawby",
+            "id": "0e7e0d98-bff4-4883-8d62-e5eb37998a7d",
+            "deleteStatus": 200,
+            "absenceStatus": 404
+          }
+        }
+      ]
+    },
+    {
+      "name": "platform draft preview renders through client navigation",
+      "status": "expected",
+      "attachments": [
+        {
+          "name": "preview-client-evidence",
+          "data": {
+            "scope": "platform",
+            "expectedBuild": "dad9de8a-b5e8-40ea-9204-0e22b7f89f38",
+            "validClientFetch": true,
+            "invalidTokenDenied": true,
+            "signedUrlsRecorded": false,
+            "documentNavigations": 0,
+            "fetches": [
+              {
+                "path": "/api/public/blog/technology/pr864-browser-preview-aefeed04",
+                "validToken": true,
+                "status": 200
+              },
+              {
+                "path": "/api/public/blog/technology/pr864-browser-preview-aefeed04",
+                "validToken": false,
+                "status": 404
+              }
+            ]
+          }
+        },
+        {
+          "name": "preview-client-observations",
+          "data": {
+            "scope": "platform",
+            "expectedBuild": "dad9de8a-b5e8-40ea-9204-0e22b7f89f38",
+            "documentNavigations": 0,
+            "fetches": [
+              {
+                "path": "/api/public/blog/technology/pr864-browser-preview-aefeed04",
+                "validToken": true,
+                "status": 200
+              },
+              {
+                "path": "/api/public/blog/technology/pr864-browser-preview-aefeed04",
+                "validToken": false,
+                "status": 404
+              }
+            ],
+            "errors": [
+              "Failed to load resource: the server responded with a status of 404 (Not Found)"
+            ],
+            "pageErrors": []
+          }
+        },
+        {
+          "name": "preview-canary-cleanup",
+          "data": {
+            "scope": "platform",
+            "id": "9b03e713-89a4-4c52-b3c6-6bc0685fd001",
+            "deleteStatus": 200,
+            "absenceStatus": 404
+          }
+        }
+      ]
+    }
+  ],
+  "canonicalSignOutStatus": 200,
+  "browserClosed": true,
+  "credentialsAndSignedUrlsIncluded": false
+}

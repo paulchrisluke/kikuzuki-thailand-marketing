@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test'
+import Ajv from 'ajv'
 import { loginAs } from './helpers/auth'
 import { MCP_FREE_USER_ID, MCP_GROWTH_SERVICE_USER_ID } from './helpers/plan-fixtures'
 import { MCP_VERSION, MCP_GROWTH_SERVICE_SITE_ID, mcpRequest, mcpData } from './helpers/mcp'
@@ -40,7 +41,7 @@ test.describe('stateless MCP server', () => {
     expect(invalidOfferBody.result?.content?.[0]?.text).toContain('event')
   })
 
-  test('a post publishes immediately, stays idempotent on repeat, and matches the public API', async ({ request, baseURL }) => {
+  test('a draft publishes explicitly, stays idempotent on repeat, and matches the public API', async ({ request, baseURL }) => {
     test.setTimeout(90_000)
     await loginAs(request, baseURL!, MCP_GROWTH_SERVICE_USER_ID)
     const siteId = MCP_GROWTH_SERVICE_SITE_ID
@@ -62,8 +63,8 @@ test.describe('stateless MCP server', () => {
         method: 'tools/call', toolName: 'create_post',
         args: {
           site_id: siteId,
-          title: `MCP immediate publication ${now}`,
-          body: 'Visible immediately through MCP and the public API.',
+          title: `MCP explicit publication ${now}`,
+          body: 'Visible after explicit publication through MCP and the public API.',
         },
       })
       if (create.status() !== 200) console.error(await create.text())
@@ -86,16 +87,11 @@ test.describe('stateless MCP server', () => {
         method: 'tools/call', toolName: 'get_post', args: { site_id: siteId, post_id: created.id },
       })
       expect(read.status()).toBe(200)
-      const firstPost = mcpData<{ post: { status: string, slug: string, published_at: string, media: Array<{ asset_id: string, slot: string }> } }>(await read.json()).post
-      expect(firstPost.status).toBe('published')
-      expect(firstPost.published_at).toEqual(expect.any(String))
-      expect(firstPost.media).toContainEqual(expect.objectContaining({ asset_id: imageAssetId, slot: 'cover' }))
-
-      const publicRead = await request.get(`${baseURL}/api/public/sites/${siteId}/posts/${encodeURIComponent(firstPost.slug)}`)
-      expect(publicRead.status()).toBe(200)
-      const publicPost = (await publicRead.json() as { post: { id: string, media: Array<{ asset_id: string, slot: string }> } }).post
-      expect(publicPost.id).toBe(created.id)
-      expect(publicPost.media).toContainEqual(expect.objectContaining({ asset_id: imageAssetId, slot: 'cover' }))
+      const draft = mcpData<{ post: { status: string; slug: string; published_at: string | null; public_url: string | null } }>(await read.json()).post
+      expect(draft.status).toBe('draft')
+      expect(draft.published_at).toBeNull()
+      expect(draft.public_url).toBeNull()
+      expect((await request.get(`${baseURL}/api/public/sites/${siteId}/posts/${encodeURIComponent(draft.slug)}`)).status()).toBe(404)
 
       const publish = await mcpRequest(request, baseURL!, {
         method: 'tools/call', toolName: 'publish_post',
@@ -106,6 +102,20 @@ test.describe('stateless MCP server', () => {
       expect(publishData.channel_outcomes.site?.status).toBe('published')
       expect(publishData.channel_outcomes.facebook?.status).toBe('skipped')
       expect(publishData.channel_outcomes.facebook?.reason).toMatch(/not_connected|not_entitled|social_publishing_disabled/)
+
+      const publishedRead = await mcpRequest(request, baseURL!, {
+        method: 'tools/call', toolName: 'get_post', args: { site_id: siteId, post_id: created.id },
+      })
+      const firstPost = mcpData<{ post: { status: string, slug: string, published_at: string, media: Array<{ asset_id: string, slot: string }> } }>(await publishedRead.json()).post
+      expect(firstPost.status).toBe('published')
+      expect(firstPost.published_at).toEqual(expect.any(String))
+      expect(firstPost.media).toContainEqual(expect.objectContaining({ asset_id: imageAssetId, slot: 'cover' }))
+
+      const publicRead = await request.get(`${baseURL}/api/public/sites/${siteId}/posts/${encodeURIComponent(firstPost.slug)}`)
+      expect(publicRead.status()).toBe(200)
+      const publicPost = (await publicRead.json() as { post: { id: string, media: Array<{ asset_id: string, slot: string }> } }).post
+      expect(publicPost.id).toBe(created.id)
+      expect(publicPost.media).toContainEqual(expect.objectContaining({ asset_id: imageAssetId, slot: 'cover' }))
 
       const repeat = await mcpRequest(request, baseURL!, {
         method: 'tools/call', toolName: 'publish_post',
@@ -176,6 +186,12 @@ test.describe('stateless MCP server', () => {
     test.setTimeout(120_000)
     await loginAs(request, baseURL!, MCP_FREE_USER_ID)
     const siteId = 'site-mcp-free'
+    const discovery = await mcpRequest(request, baseURL!, { method: 'tools/list' })
+    expect(discovery.status()).toBe(200)
+    const catalog = await discovery.json() as { result: { tools: Array<{ name: string; outputSchema: object }> } }
+    const blogTool = catalog.result.tools.find(tool => tool.name === 'get_blog_post')
+    expect(blogTool).toBeDefined()
+    const validateBlog = new Ajv({ strict: false, allErrors: true }).compile(blogTool!.outputSchema)
     let postId = ''
     try {
       const legacy = await mcpRequest(request, baseURL!, {
@@ -212,7 +228,13 @@ test.describe('stateless MCP server', () => {
         args: { site_id: siteId, post_id: postId },
       })
       expect(get.status()).toBe(200)
-      const readPost = mcpData<{ post: Record<string, unknown> & { updated_at: string; content_blocks: Array<{ type: string }> } }>(await get.json()).post
+      const readData = mcpData<{ post: Record<string, unknown> & { updated_at: string; content_blocks: Array<{ type: string }> } }>(await get.json())
+      expect(validateBlog(readData), JSON.stringify(validateBlog.errors)).toBe(true)
+      const readPost = readData.post
+      expect(readPost.status).toBe('draft')
+      expect(readPost.published_at).toBeNull()
+      expect(readPost.public_url).toBeNull()
+      expect(readPost.preview_url).toContain('?token=')
       expect(readPost.updated_at).toEqual(created.updated_at)
       expect(readPost.content_blocks.map(block => block.type)).toEqual(['heading', 'markdown'])
       expect(readPost).not.toHaveProperty('body')
@@ -244,8 +266,8 @@ test.describe('stateless MCP server', () => {
       const updatedReadPost = mcpData<{ post: { status: string; public_url: string | null; content_blocks: Array<{ type: string; data: Record<string, unknown> }> } }>(await updatedRead.json()).post
       expect(updatedReadPost.content_blocks.map(block => block.type)).toEqual(['heading', 'markdown', 'faq'])
       expect(updatedReadPost.content_blocks[0]?.data.text).toBe('Edited through MCP')
-      expect(updatedReadPost.status).toBe('published')
-      expect(updatedReadPost.public_url).toEqual(expect.any(String))
+      expect(updatedReadPost.status).toBe('draft')
+      expect(updatedReadPost.public_url).toBeNull()
       const editorRead = await request.get(`${baseURL}/api/editor/sites/${siteId}/blog/${postId}`)
       expect(editorRead.status()).toBe(200)
       const editorPost = (await editorRead.json() as { post: { body: string } }).post
@@ -276,6 +298,37 @@ test.describe('stateless MCP server', () => {
       const unchangedPost = mcpData<{ post: { content_blocks: Array<{ type: string; data: Record<string, unknown> }> } }>(await readAfterRejectedUpdate.json()).post
       expect(unchangedPost.content_blocks.map(block => block.type)).toEqual(['heading', 'markdown', 'faq'])
       expect(unchangedPost.content_blocks[0]?.data.text).toBe('Edited through MCP')
+
+      const schedule = await mcpRequest(request, baseURL!, {
+        method: 'tools/call', toolName: 'publish_blog_post',
+        args: { site_id: siteId, post_id: postId, expected_updated_at: updatedPost.updated_at, scheduled_for: '2099-01-01T00:00:00.000Z' },
+      })
+      const scheduled = mcpData<{ post: { status: string; updated_at: string; published_at: string | null; preview_url: string | null } }>(await schedule.json()).post
+      expect(scheduled.status).toBe('scheduled')
+      expect(scheduled.published_at).toBeNull()
+      expect(scheduled.preview_url).toContain('?token=')
+      const publish = await mcpRequest(request, baseURL!, {
+        method: 'tools/call', toolName: 'publish_blog_post',
+        args: { site_id: siteId, post_id: postId, expected_updated_at: scheduled.updated_at },
+      })
+      const published = mcpData<{ post: { status: string; updated_at: string; public_url: string; published_at: string } }>(await publish.json()).post
+      expect(published.status).toBe('published')
+      expect(published.public_url).toEqual(expect.any(String))
+      expect(published.published_at).toEqual(expect.any(String))
+      const reschedule = await mcpRequest(request, baseURL!, {
+        method: 'tools/call', toolName: 'publish_blog_post',
+        args: { site_id: siteId, post_id: postId, expected_updated_at: published.updated_at, scheduled_for: '2099-01-01T00:00:00.000Z' },
+      })
+      expect((await reschedule.json()).result?.isError).toBe(true)
+      const unlist = await mcpRequest(request, baseURL!, {
+        method: 'tools/call', toolName: 'update_blog_metadata',
+        args: { site_id: siteId, post_id: postId, expected_updated_at: published.updated_at, visibility: 'unlisted' },
+      })
+      const unlisted = mcpData<{ post: { status: string; visibility: string; public_url: string; published_at: string } }>(await unlist.json()).post
+      expect(unlisted.status).toBe('published')
+      expect(unlisted.visibility).toBe('unlisted')
+      expect(unlisted.public_url).toBe(published.public_url)
+      expect(unlisted.published_at).toBe(published.published_at)
     } finally {
       if (postId) {
         const cleanup = await mcpRequest(request, baseURL!, {

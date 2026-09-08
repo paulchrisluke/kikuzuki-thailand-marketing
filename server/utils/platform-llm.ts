@@ -1,3 +1,4 @@
+import { instantDate } from '~/utils/timezone'
 import { HTTPError } from 'nitro';
 import type { H3Event } from 'nitro';
 import {  getRequestHost } from 'nitro/h3';
@@ -184,9 +185,7 @@ export function renderContentBlocksForLlm(blocks: LlmContentBlock[]) {
 
 function formatDateOnly(value: string | null | undefined) {
   if (!value) return null
-  const parsed = new Date(value)
-  if (Number.isNaN(parsed.getTime())) return null
-  return parsed.toISOString().slice(0, 10)
+  return instantDate(value).toISOString().slice(0, 10)
 }
 
 function buildFrontMatter(lines: Array<string | null>) {
@@ -539,20 +538,20 @@ interface BlogFeedOptions {
 
 export function buildNamedBlogRss(origin: string, posts: PlatformLlmLinkEntry[], options: BlogFeedOptions = {}) {
   const latestPostDate = posts
-    .map(post => post.updatedAt ?? post.publishedAt)
+    .map(post => post.updatedAt)
     .filter(Boolean)
     .sort()
     .at(-1)
 
   const items = posts.map((post) => {
-    const pubDate = new Date(post.publishedAt ?? post.updatedAt ?? Date.now()).toUTCString()
+    const pubDate = post.publishedAt == null ? null : instantDate(post.publishedAt).toUTCString()
     return [
       '<item>',
       `<title>${escapeXml(post.title)}</title>`,
       `<link>${escapeXml(post.canonicalUrl)}</link>`,
       `<guid>${escapeXml(post.canonicalUrl)}</guid>`,
       `<description>${escapeXml(post.summary)}</description>`,
-      `<pubDate>${escapeXml(pubDate)}</pubDate>`,
+      pubDate === null ? '' : `<pubDate>${escapeXml(pubDate)}</pubDate>`,
       '</item>',
     ].join('')
   }).join('')
@@ -588,7 +587,7 @@ export function buildNamedBlogJsonFeed(origin: string, posts: PlatformLlmLinkEnt
       title: post.title,
       summary: post.summary,
       date_published: post.publishedAt ?? null,
-      date_modified: post.updatedAt ?? post.publishedAt ?? null,
+      date_modified: post.updatedAt ?? null,
       ...(post.authorName ? { authors: [{ name: post.authorName }] } : {}),
       tags: post.category ? [post.category] : [],
     })),

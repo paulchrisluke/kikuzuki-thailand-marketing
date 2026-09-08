@@ -1,7 +1,7 @@
 import { compileCuratedSiteFixture } from './compile.ts'
 import type { CuratedProductDefinition, CuratedSiteDefinition } from './contracts.ts'
 import { buildSeedExperienceCategories, buildSeedProductCategories } from './contracts.ts'
-import { renderCanonicalBillingSql } from './billing-sql.ts'
+import { renderOrganizationBillingSql } from './billing-sql.ts'
 import { renderTenantPagesSeedSql } from './tenant-pages.ts'
 
 function escapeSql(value: string): string {
@@ -594,10 +594,6 @@ export const kikuzukiFixture: CuratedSiteDefinition = {
       text: 'Sushi',
     },
   ],
-  aiCredits: {
-    balance: 2000,
-    lifetimeUsed: 198,
-  },
   organizationBilling: {
     status: 'active',
     plan: 'growth',
@@ -983,16 +979,12 @@ ${reviewRows};
 
 export function renderKikuzukiBillingBlock(): string {
   const { identity } = compiledKikuzukiSeed
-  const { aiCredits, organizationBilling } = compiledKikuzukiSeed
+  const { organizationBilling } = compiledKikuzukiSeed
 
   const parts: string[] = []
 
-  if (aiCredits) {
-    if (organizationBilling) {
-      parts.push(renderCanonicalBillingSql(identity.siteId, identity.organizationId, organizationBilling, sqlValue, aiCredits))
-    }
-  } else if (organizationBilling) {
-    parts.push(renderCanonicalBillingSql(identity.siteId, identity.organizationId, organizationBilling, sqlValue))
+  if (organizationBilling) {
+    parts.push(renderOrganizationBillingSql(identity.organizationId, organizationBilling, sqlValue))
   }
 
   return `-- BEGIN GENERATED: kikuzuki_billing

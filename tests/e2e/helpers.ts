@@ -73,7 +73,14 @@ export async function openTenantPage(page: Page, url: string, headers: Record<st
   const onResponse = (response: Response) => {
     if (response.request().isNavigationRequest() && response.frame() === page.mainFrame()) {
       const headers = response.headers()
-      documentResponse = { status: response.status(), requestId: headers['x-request-id'], rayId: headers['cf-ray'] }
+      documentResponse = {
+        status: response.status(),
+        requestId: headers['x-request-id'],
+        rayId: headers['cf-ray'],
+        d1Statements: headers['x-d1-query-count'] ?? null,
+        d1DurationMs: headers['x-d1-duration-ms'] ?? null,
+        serverDurationMs: headers['x-total-duration-ms'] ?? null,
+      }
     }
   }
   const report = (event: string) => console.log('[e2e-navigation]', JSON.stringify({

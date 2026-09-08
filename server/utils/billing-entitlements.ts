@@ -15,8 +15,6 @@ export function getPlanEntitlements(plan: string): EntitlementsMap {
     custom_pages: false,
     custom_domains: false,
     google_places: false,
-    ai_credits: 500,
-    ai_session_credits: 100,
     managed_service: false,
     messaging: false,
     review_requests: false,
@@ -27,8 +25,6 @@ export function getPlanEntitlements(plan: string): EntitlementsMap {
       return {
         ...base,
         custom_pages: true,
-        ai_credits: 2000,
-        ai_session_credits: 500,
         google_places: true,
         custom_domains: true,
         managed_service: true,

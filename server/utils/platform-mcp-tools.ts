@@ -183,7 +183,7 @@ const BLOG_SUMMARY_SCHEMA = {
     excerpt: NULLABLE_STRING,
     category: NULLABLE_STRING,
     ...NAV_FIELDS_SCHEMA,
-    status: { type: 'string', enum: ['published', 'scheduled'] },
+    status: { type: 'string', enum: ['draft', 'published', 'scheduled'] },
     scheduled_for: NULLABLE_STRING,
     published: { type: 'boolean' },
     published_at: NULLABLE_STRING,
@@ -241,7 +241,7 @@ const PLATFORM_BLOG_POST_PROJECTION_SCHEMA = {
     id: { type: 'string' },
     title: { type: 'string' },
     slug: { type: 'string' },
-    status: { type: 'string', enum: ['published', 'scheduled'] },
+    status: { type: 'string', enum: ['draft', 'published', 'scheduled'] },
     visibility: { type: 'string', enum: ['public', 'unlisted'] },
     excerpt: NULLABLE_STRING,
     category: NULLABLE_STRING,
@@ -372,7 +372,7 @@ const SHARED_TOOL_DESCRIPTION_LINES = [
 ]
 
 const PLATFORM_BLOG_TOOL_DESCRIPTION = [
-  'Create or update a KrabiClaw platform blog post with full SEO and structured-content parity.',
+  'Create a KrabiClaw platform blog draft with full SEO and structured-content parity. Set status to published to publish immediately, or provide scheduled_for to schedule it.',
   SHARED_TOOL_DESCRIPTION_LINES[0],
   'Use content_blocks[] as the only structured-content authoring shape — there is no separate body field and no separate structured-component array. Each block is { type, data, id?, level?, parent_block_id? } and blocks render in array order, so place a block at the exact index where it should appear on the page instead of embedding a placeholder tag in prose. Block types: heading, markdown, image, gallery, faq, how_to, ai_assistance, cta, callout.',
   'FAQ blocks (type: "faq") contain data.items[], each item { question: string, answer: string, position?: number }. How-To blocks (type: "how_to") contain data.steps[], each step { name: string, text: string, url?: string|null, position?: number } (name and text are both required strings; a missing name or text is the most common cause of a rejected update), and data may also include estimated_time, tool_items, and supply_items. AI Assistance blocks (type: "ai_assistance") contain data.prompts[], each prompt { prompt: string, title?: string|null, description?: string|null, copy_label?: string|null, position?: number }; each prompt is a writer-authored suggested prompt, not a generated answer. Keep AI Assistance prompts specific, actionable, page-aware, and rare enough to help the reader act.',
@@ -616,7 +616,7 @@ export const PLATFORM_PUBLIC_MCP_TOOLS: PlatformMcpToolDefinition[] = [
   }),
   writeTool({
     name: 'upload_platform_image',
-    description: 'Upload a user-supplied image attachment into the platform media library for krabiclaw.com blog/docs use. Prefer the top-level file argument from a ChatGPT attachment.',
+    description: 'Upload a user-supplied image attachment into the platform media library for krabiclaw.com blog/docs use. Use the top-level file argument from a ChatGPT attachment.',
     openWorld: true,
     fileParams: ['file'],
     inputSchema: {
@@ -626,9 +626,9 @@ export const PLATFORM_PUBLIC_MCP_TOOLS: PlatformMcpToolDefinition[] = [
           ...CHATGPT_FILE_INPUT_SCHEMA,
           description: 'Authorized file reference supplied by ChatGPT after rewriting the declared top-level file argument.',
         },
-        file_id: { type: 'string', description: 'Resolved uploaded file identifier when the host can supply it directly.' },
         alt_text: { type: 'string', description: 'Optional alt text or image description.' },
       },
+      required: ['file'],
       additionalProperties: false,
     },
     outputSchema: {
@@ -683,7 +683,7 @@ export const PLATFORM_PUBLIC_MCP_TOOLS: PlatformMcpToolDefinition[] = [
     inputSchema: {
       type: 'object',
       properties: {
-        status: { type: 'string', enum: ['published', 'scheduled'] },
+        status: { type: 'string', enum: ['draft', 'published', 'scheduled'] },
         site_id: { type: 'string', description: 'Optional site id to list tenant blog posts instead of platform posts.' },
         ...PAGINATION_INPUT_SCHEMA,
       },
@@ -724,7 +724,9 @@ export const PLATFORM_PUBLIC_MCP_TOOLS: PlatformMcpToolDefinition[] = [
         ...NAV_FIELDS_SCHEMA,
         seo_title: { type: ['string', 'null'], description: 'Optional SEO/browser-tab title override. Falls back to the post title if unset.' },
         ...SEO_FIELDS_SCHEMA,
-        scheduled_for: { type: ['string', 'null'], description: 'Optional future ISO 8601 datetime. Omit or pass null to publish immediately.' },
+        status: { type: 'string', enum: ['draft', 'scheduled', 'published'], description: 'Creation defaults to draft. Scheduled requires a future scheduled_for; published goes live immediately.' },
+        visibility: { type: 'string', enum: ['public', 'unlisted'], description: 'Published unlisted articles remain accessible by direct URL and are excluded from public discovery.' },
+        scheduled_for: { type: ['string', 'null'], description: 'Optional future ISO 8601 datetime. With no status or schedule, creation saves a draft.' },
         site_id: { type: 'string', description: 'Optional site id to create tenant blog posts instead of platform posts.' },
       },
       required: ['title', 'content_blocks'],
@@ -734,7 +736,7 @@ export const PLATFORM_PUBLIC_MCP_TOOLS: PlatformMcpToolDefinition[] = [
   }),
   writeTool({
     name: 'update_platform_blog_metadata',
-    description: 'Save metadata changes to a live or scheduled platform blog article. Does not touch content; use replace_platform_blog_content for that. Changes to a live article are public immediately.',
+    description: 'Save metadata changes to a draft, live or scheduled platform blog article. Does not touch content; use replace_platform_blog_content for that. Changes to a live article are public immediately.',
     openWorld: true,
     inputSchema: {
       type: 'object',
@@ -777,7 +779,7 @@ export const PLATFORM_PUBLIC_MCP_TOOLS: PlatformMcpToolDefinition[] = [
   }),
   writeTool({
     name: 'publish_platform_blog_post',
-    description: 'Publish an already-scheduled platform blog article immediately, or reschedule it with scheduled_for. Requires current concurrency tokens.',
+    description: 'Publish a draft or scheduled platform blog article immediately, or reschedule it with scheduled_for. Requires current concurrency tokens.',
     openWorld: true,
     inputSchema: {
       type: 'object',

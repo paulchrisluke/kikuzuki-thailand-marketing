@@ -1,17 +1,16 @@
+import { isValidInstant } from '../../utils/timezone.ts'
 import assert from 'node:assert/strict'
 import test from 'node:test'
 
 import {
   assertNonOverlappingPrices,
   formatMinorAmount,
-  isIsoInstant,
   majorAmountToMinor,
   priceAt,
   replacePrice,
   type Price,
   type PriceInput,
 } from '../../shared/prices.ts'
-import { parseProductExtraction } from '../../server/utils/chowbot-media.ts'
 import { normalizePriceInput } from '../../server/utils/product-management.ts'
 
 const base: Price = {
@@ -31,8 +30,8 @@ test('currency precision converts and formats canonical integer minor amounts', 
 })
 
 test('Product price normalization distinguishes no price from a complete fixed price', () => {
-  assert.throws(() => normalizePriceInput(undefined, 'THB', 'manual'), /price is required/)
-  assert.equal(normalizePriceInput(null, 'THB', 'manual'), null)
+  assert.throws(() => normalizePriceInput(undefined, 'THB'), /price is required/)
+  assert.equal(normalizePriceInput(null, 'THB'), null)
   assert.deepEqual(
     normalizePriceInput({
       amount_minor: 500,
@@ -40,7 +39,7 @@ test('Product price normalization distinguishes no price from a complete fixed p
       unit: 'item',
       tax_behavior: 'unspecified',
       valid_from: '2026-06-01T00:00:00.000Z',
-    }, 'THB', 'manual'),
+    }, 'THB'),
     {
       amountMinor: 500,
       currency: 'USD',
@@ -54,7 +53,7 @@ test('Product price normalization distinguishes no price from a complete fixed p
       validUntilProvided: false,
     },
   )
-  const defaulted = normalizePriceInput({ amount_minor: 500 }, 'THB', 'manual')
+  const defaulted = normalizePriceInput({ amount_minor: 500 }, 'THB')
   assert.ok(defaulted)
   assert.equal(defaulted.amountMinor, 500)
   assert.equal(defaulted.currency, 'THB')
@@ -62,52 +61,22 @@ test('Product price normalization distinguishes no price from a complete fixed p
   assert.equal(defaulted.taxBehavior, 'unspecified')
   assert.equal(defaulted.provenance, 'manual')
   assert.equal(defaulted.validFromProvided, false)
-  assert.equal(isIsoInstant(defaulted.validFrom), true)
+  assert.equal(isValidInstant(defaulted.validFrom), true)
   assert.throws(
-    () => normalizePriceInput({ amount_minor: 500, provenance: 'caller' }, 'THB', 'manual'),
+    () => normalizePriceInput({ amount_minor: 500, provenance: 'caller' }, 'THB'),
     /assigned by the server/,
   )
   assert.throws(
-    () => normalizePriceInput({ amount_minor: 500, currency: null } as unknown as PriceInput, 'THB', 'manual'),
+    () => normalizePriceInput({ amount_minor: 500, currency: null } as unknown as PriceInput, 'THB'),
     /currency must be a supported currency/,
   )
 })
 
-test('Product media extraction preserves canonical no-price details and rejects unreadable prices', () => {
-  const details = [{ key: 'price-note', label: 'Price', values: ['Market Price'] }]
-  const [extracted] = parseProductExtraction({
-    items: [{
-      category: 'Sushi', name: 'Chef\'s Choice', description: null, order_url: null,
-      price: { kind: 'no-fixed-price', note: 'Market Price' }, details: [],
-    }],
-  }, 'THB')
-  assert.equal(extracted?.price, null)
-  assert.deepEqual(extracted?.details, details)
-  assert.throws(() => parseProductExtraction({
-    items: [{
-      category: 'Sushi', name: 'Cropped Price Roll', description: null, order_url: null,
-      price: { kind: 'unreadable' }, details: [],
-    }],
-  }, 'THB'), /complete Product import batch was rejected/)
-  const [fixed] = parseProductExtraction({
-    items: [{
-      category: 'Sushi', name: 'Site Currency Roll', description: null, order_url: null,
-      price: { kind: 'fixed', amount_minor: 1200 }, details: [],
-    }],
-  }, 'THB')
-  assert.deepEqual(fixed?.price, {
-    amount_minor: 1200,
-    currency: 'THB',
-    unit: 'item',
-    tax_behavior: 'unspecified',
-  })
-})
-
 test('priceAt selects one active interval and rejects overlapping schedules', () => {
-  assert.equal(isIsoInstant('2026-02-28T12:34:56Z'), true)
-  assert.equal(isIsoInstant('2026-02-28T12:34:56.789Z'), true)
-  assert.equal(isIsoInstant('2026-02-30T12:34:56Z'), false)
-  assert.equal(isIsoInstant('2026-04-31T12:34:56.000Z'), false)
+  assert.equal(isValidInstant('2026-02-28T12:34:56Z'), true)
+  assert.equal(isValidInstant('2026-02-28T12:34:56.789Z'), true)
+  assert.equal(isValidInstant('2026-02-30T12:34:56Z'), false)
+  assert.equal(isValidInstant('2026-04-31T12:34:56.000Z'), false)
   const future = { ...base, id: 'price-2', amount_minor: 1500, valid_from: '2026-06-01T00:00:00.000Z' }
   const closed = { ...base, valid_until: future.valid_from }
   assert.equal(priceAt([closed, future], '2026-05-01T00:00:00.000Z')?.id, 'price-1')

@@ -55,7 +55,7 @@ test('canonical post topics validate schedules, recurrence and action invariants
       const input = { ...event, recurrence_info }
       const post = parsePostInput({ body: 'Recurring event', post_type: 'event', event: input })
       assert.deepEqual(post.event, input)
-      assert.ok(postEventDescription(input).includes('23:30:00.123456789'))
+      assert.ok(postEventDescription(input).includes('11:30:00.123456789'))
     }
     assert.match(postEventDescription({ ...event, recurrence_info: { kind: 'weekly', days_of_week: [] } }), /Sunday/)
     for (const recurrence_info of [
