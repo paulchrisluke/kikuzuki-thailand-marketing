@@ -27,8 +27,9 @@ export default defineHandler(async (event) => {
   headers.set('x-krabiclaw-allowed-site-ids', organizationWide ? '*' : JSON.stringify(allowedSiteIds))
   headers.set('x-krabiclaw-allowed-location-ids', JSON.stringify(allowedLocationIds))
 
-  return await namespace.get(namespace.idFromName(organization.id)).fetch(new Request(event.req.url, {
+  const response = await namespace.get(namespace.idFromName(organization.id)).fetch(new Request(event.req.url, {
     method: event.req.method,
     headers,
   }))
+  return response.status === 101 ? response : new Response(response.body, response)
 })

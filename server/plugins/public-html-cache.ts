@@ -8,6 +8,7 @@ const NON_PRODUCTION_CACHE_CONTROL = 'private, no-store, max-age=0'
 
 export default definePlugin((nitroApp) => {
   nitroApp.hooks.hook('response', (response, event: HTTPEvent) => {
+    if (response.status === 101) return
     const request = event.req
     const url = new URL(request.url)
     const pathname = url.pathname

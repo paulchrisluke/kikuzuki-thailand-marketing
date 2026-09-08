@@ -439,14 +439,19 @@ const changeValid = computed(() => Boolean(changeDraft.value.bookingDate && chan
 const pendingAction = ref<string | null>(null)
 const actionAttempt = ref<{ draft: string; key: string } | null>(null)
 const noteDraft = ref('')
+const noteRevisionId = ref<string>()
 const noteSaving = ref(false)
 const noteAttemptKey = ref<string | null>(null)
 const noteAttemptDraft = ref<string | null>(null)
 
-watch([booking, editorKey, editorField], ([currentBooking, key]) => {
-  noteDraft.value = selectedNote.value?.body || ''
+watch([detailsKey, () => selectedNote.value?.id, editorKey, editorField], () => {
+  noteDraft.value = selectedNote.value?.body ?? ''
+  noteRevisionId.value = selectedNote.value?.revisionId
   noteAttemptKey.value = null
   noteAttemptDraft.value = null
+}, { immediate: true })
+
+watch([booking, editorKey, editorField], ([currentBooking, key]) => {
   // A field leaf is a route, so Nuxt may recreate this component while moving
   // between it and the change hub. Keep the one staged draft in Nuxt state and
   // only reseed it when it belongs to an older source revision.
@@ -559,7 +564,7 @@ async function saveNote() {
       `/api/dashboard/bookings/${props.bookingType}/${encodeURIComponent(props.bookingId)}/notes`,
       {
         method: 'POST',
-        body: { note: noteDraft.value, idempotencyKey: noteAttemptKey.value, noteId: selectedNote.value?.id, revisionId: selectedNote.value?.revisionId },
+        body: { note: noteDraft.value, idempotencyKey: noteAttemptKey.value, noteId: selectedNote.value?.id, revisionId: noteRevisionId.value },
         validate: isBookingResponse,
       },
     )
