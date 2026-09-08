@@ -677,11 +677,7 @@ function beforeUnload(event: BeforeUnloadEvent) { if (dirtyState.value) event.pr
 function windowOrigin() { return import.meta.client ? window.location.origin : 'https://krabiclaw.com' }
 function toLocalDatetime(value?: string | null) { if (!value) return ''; return instantDate(value).toISOString().slice(0, -1) }
 function resetSlugOverride() { slugResetRequested.value = true; form.slug = generatedSlug.value }
-// The server models optimistic concurrency with a single token. The client
-// used to track a second one for the content document and send it alongside;
-// both the update and publish endpoints reject it as an unknown field, so every
-// save and every publish failed with 400 as soon as it was populated.
-function syncServerVersions(value: BlogPost) { serverPostUpdatedAt = value.updated_at || serverPostUpdatedAt }
+function syncServerVersion(value: BlogPost) { serverPostUpdatedAt = value.updated_at }
 
 onBeforeRouteLeave(async () => {
   if (dirtyState.value) return confirm('You have unsaved changes. Leave without saving them?')
