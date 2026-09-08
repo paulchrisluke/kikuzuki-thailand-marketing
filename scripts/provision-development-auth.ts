@@ -14,12 +14,6 @@ import {
 } from '../config/development-auth-fixtures.ts'
 import { validatePassword } from '../utils/password-validation.ts'
 
-// A generated password has to satisfy the same policy a typed one does.
-// `server/utils/auth.ts` validates inside Better Auth's `password.hash`, and
-// Better Auth calls that on sign-in as well as on set, so a credential written
-// with a non-compliant password provisions cleanly and then refuses every
-// sign-in. A bare `randomUUID()` is exactly that: no uppercase letter and no
-// special character.
 function generatePassword(): string {
   return requirePolicyCompliant(`Dev-${randomUUID()}-9A!`, 'generated development password')
 }

@@ -134,7 +134,7 @@ import EditorNavigationList from '~/components/dashboard/EditorNavigationList.vu
 const dashboardApi = useDashboardApi()
 import { TIMEZONE_OPTIONS } from '~/utils/timezone'
 import { getErrorMessage } from '~/utils/errors'
-import { resolveCmsCapabilities, toggleableModulesForScope, type ProductFeature } from '~/config/cms-registry'
+import { defaultModuleFeaturesForVertical, resolveCmsCapabilities, toggleableModulesForScope, type ProductFeature } from '~/config/cms-registry'
 import { resolvePublicTemplate } from '~/utils/template-registry'
 import type { SiteVertical } from '~/utils/vertical-copy'
 
@@ -217,38 +217,24 @@ const locationToggleableFeatures = computed<ProductFeature[]>(() => {
   return siteEffectiveFeatures.value.filter(feature => configurableHere.has(feature))
 })
 
-/**
- * A module's name comes from the registry, which already resolves it per
- * vertical — a restaurant reads "Menu" where the feature id is `products`, and
- * `experience` reads "Bookings" where it is `reservations`.
- *
- * This screen used to keep its own label table. It listed `menu` as a feature
- * id, but `menu` is a label; the id is `products`. So the id this screen
- * actually receives was absent from the table, and every location's Available
- * Features screen threw "Unsupported location feature: products" and rendered
- * a 500.
- *
- * Capabilities are resolved against the site's own effective features rather
- * than the vertical's defaults, because that is the set `locationToggleableFeatures`
- * is drawn from — resolving the defaults instead would leave a site-enabled
- * module unnamed.
- */
 const locationFeatureLabels = computed<Map<ProductFeature, string>>(() => {
   const site = dashboard.site.value
   if (!site?.vertical) return new Map()
   const vertical = site.vertical as SiteVertical
   const template = resolvePublicTemplate({ vertical }).slug
+  const defaults = defaultModuleFeaturesForVertical(vertical)
+  const effective = siteEffectiveFeatures.value
   const capabilities = resolveCmsCapabilities(vertical, template, {
-    site: { enabled: siteEffectiveFeatures.value },
+    site: {
+      enabled: effective.filter(feature => !defaults.includes(feature)),
+      disabled: defaults.filter(feature => !effective.includes(feature)),
+    },
   })
   return new Map(capabilities.managers.map(manager => [manager.id, manager.label]))
 })
 
 function locationFeatureLabel(feature: ProductFeature): string {
   const label = locationFeatureLabels.value.get(feature)
-  // Every feature this screen offers came from the site's effective set, which
-  // is what the labels were resolved from. Missing means the registry and the
-  // location API disagree, and that should be loud rather than rendered raw.
   if (!label) throw new Error(`No registry label for location module: ${feature}`)
   return label
 }
