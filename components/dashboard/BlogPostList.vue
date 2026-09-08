@@ -96,10 +96,13 @@ const blogPath = `/dashboard/${orgSlug}/sites/${siteSlug}/blog`
 
 const repository = tenantBlogRepository({ siteId, orgSlug, siteSlug })
 
+// A post's life in order, so the tabs read as the pipeline they are. Drafts
+// exist as a status now, and a post created from this list starts as one.
 const statusTabs = [
   { value: 'all', label: 'All' },
-  { value: 'published', label: 'Live' },
+  { value: 'draft', label: 'Drafts' },
   { value: 'scheduled', label: 'Scheduled' },
+  { value: 'published', label: 'Live' },
 ]
 const activeTab = ref<string | number>('all')
 const editing = ref(false)
@@ -147,9 +150,13 @@ const listItems = computed(() => visiblePosts.value.map(row => ({
   row,
 })))
 
+const STATUS_LABELS: Record<string, string> = { draft: 'Draft', scheduled: 'Scheduled', published: 'Live' }
+
 /** Where it is in its life, then what it is filed under, then one date. */
 function postSummary(post: BlogPost): string {
-  const parts: string[] = [post.status === 'scheduled' ? 'Scheduled' : 'Live']
+  // Read from the status rather than treating anything unscheduled as live: a
+  // draft was announcing itself as published on the row and in the hub.
+  const parts: string[] = [post.status ? STATUS_LABELS[post.status] ?? post.status : 'Live']
   if (post.category) parts.push(post.category)
   parts.push(postWhen(post))
   return parts.filter(Boolean).join(' · ')

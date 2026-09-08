@@ -273,7 +273,12 @@ const editorCanvasStyle = computed(() => {
     '--ui-text-highlighted': ink, '--ui-text-muted': `color-mix(in srgb, ${ink} 70%, transparent)`, '--ui-text-dimmed': `color-mix(in srgb, ${ink} 55%, transparent)`,
   }
 })
-const statusLabel = computed(() => post.value?.status === 'scheduled' ? 'Scheduled' : post.value ? 'Published' : 'Not published')
+const statusLabel = computed(() => {
+  if (!post.value) return 'Not published'
+  if (post.value.status === 'scheduled') return 'Scheduled'
+  if (post.value.status === 'draft') return 'Draft'
+  return 'Published'
+})
 const lifecycleLabel = computed(() => publishing.value ? 'Publishing…' : statusLabel.value)
 const generatedSlug = computed(() => normalizeBlogSlug(form.title))
 const resolvedExcerpt = computed(() => generatedExcerpt(blocks.value))
