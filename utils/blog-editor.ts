@@ -95,8 +95,26 @@ export function writeBlogLocalizedText(data: Record<string, unknown>, path: Blog
   }
 }
 
+/**
+ * A deep, proxy-free copy of editor blocks.
+ *
+ * `toRaw` is shallow: it unwraps the array but every object read out of a
+ * reactive array is still a proxy, and `structuredClone` throws
+ * `DataCloneError: [object Array] could not be cloned` on the first nested
+ * proxy it reaches — a block's `media`, or an FAQ's `items`. That fired from
+ * the autosave watcher on every structural insert, so adding an image killed
+ * the save and the block never persisted.
+ *
+ * Blocks are JSON by definition; they are stored in `content_blocks.data_json`
+ * and sent as JSON. A round-trip through it is the same serialization the
+ * payload already undergoes, and it unwraps every proxy at every depth.
+ */
+export function cloneEditorBlocks<T>(blocks: T): T {
+  return JSON.parse(JSON.stringify(blocks)) as T
+}
+
 export function blankBlogLocalizedText<T extends EditorContentBlock>(block: T): T {
-  const blank = structuredClone(block)
+  const blank = cloneEditorBlocks(block)
   for (const field of blogLocalizedTextFields(blank)) writeBlogLocalizedText(blank.data, field.path, '')
   if (blank.media) {
     blank.media = blank.media.map(item => ({ ...item, alt_text: null, caption: null }))

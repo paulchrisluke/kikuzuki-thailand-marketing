@@ -165,7 +165,7 @@ import BlogArticleView from '~/components/blog/BlogArticleView.vue'
 import EditorNavigationList, { type EditorNavigationGroup } from '~/components/dashboard/EditorNavigationList.vue'
 import PlatformMediaPicker from '~/lib/components/workspace/media/PlatformMediaPicker.vue'
 import type { BlogLifecycleState, BlogPostRepository, BlogPost, BlogEditorBlock, BlogPostUpdateInput } from './types'
-import { generatedExcerpt, initialBlogEditorBlocks, normalizeBlogSlug, resolveBlogPublicPath, resolveBlogSeo, scheduledLifecycleValue, SerializedSnapshotQueue } from '~/utils/blog-editor'
+import { cloneEditorBlocks, generatedExcerpt, initialBlogEditorBlocks, normalizeBlogSlug, resolveBlogPublicPath, resolveBlogSeo, scheduledLifecycleValue, SerializedSnapshotQueue } from '~/utils/blog-editor'
 import { getErrorMessage } from '~/utils/errors'
 import { resolveSocialImageUrl } from '~/utils/social-metadata'
 
@@ -452,7 +452,7 @@ async function flushSave() {
   }
 }
 function buildSaveSnapshot(id = persistedPostId.value): SaveSnapshot {
-  return { postId: id, payload: { title: form.title, category: form.category || null, tags: tagsText.value.split(',').map(v => v.trim()).filter(Boolean), excerpt: form.excerpt || null, seo_title: form.seo_title || null, seo_description: form.seo_description || null, slug: slugResetRequested.value ? null : form.slug !== post.value?.slug ? form.slug : undefined, reset_slug_override: slugResetRequested.value || undefined, redirect_old_slug: form.redirect_old_slug, canonical_url: form.canonical_url || null, robots: form.robots || null, visibility: form.visibility, content_blocks: JSON.parse(JSON.stringify(blocks.value)) } }
+  return { postId: id, payload: { title: form.title, category: form.category || null, tags: tagsText.value.split(',').map(v => v.trim()).filter(Boolean), excerpt: form.excerpt || null, seo_title: form.seo_title || null, seo_description: form.seo_description || null, slug: slugResetRequested.value ? null : form.slug !== post.value?.slug ? form.slug : undefined, reset_slug_override: slugResetRequested.value || undefined, redirect_old_slug: form.redirect_old_slug, canonical_url: form.canonical_url || null, robots: form.robots || null, visibility: form.visibility, content_blocks: cloneEditorBlocks(toRaw(blocks.value)) } }
 }
 function lifecycleVersionInput() {
   if (!serverPostUpdatedAt) throw new Error('Blog lifecycle version is unavailable. Reload the editor.')
@@ -507,7 +507,7 @@ async function publish() {
       const created = await props.repository.create({
         title: form.title,
         slug: form.slug || undefined,
-        content_blocks: JSON.parse(JSON.stringify(blocks.value)),
+        content_blocks: cloneEditorBlocks(toRaw(blocks.value)),
         category: form.category || null,
         tags: tagsText.value.split(',').map(v => v.trim()).filter(Boolean),
         excerpt: form.excerpt || null,
@@ -551,8 +551,12 @@ function handleInsertBlock(index: number, _cursorPosition: number) {
 
   blocks.value.splice(index + 1, 0, { type: 'markdown', data: { markdown: '', editor_mode: 'rich' } })
 }
+// An image block's asset lives in the block's `media` array, never in `data` —
+// the server rejects `data.asset_id` outright, so seeding those two keys made
+// every freshly inserted image block unsavable. `changeImage` writes the chosen
+// asset to `media`; only alt and caption belong here.
 function structuralBlockData(type: string) {
-  return type === 'faq' ? { items: [{ question: '', answer: '' }] } : type === 'how_to' ? { steps: [{ text: '' }] } : type === 'image' ? { asset_id: '', public_url: '', alt: '', caption: '' } : {}
+  return type === 'faq' ? { items: [{ question: '', answer: '' }] } : type === 'how_to' ? { steps: [{ text: '' }] } : type === 'image' ? { alt: '', caption: '' } : {}
 }
 // A non-text block (image/FAQ/how-to/divider/etc.) left as the last block in
 // the post is a dead end — there's no textarea or rich editor to click into
@@ -670,7 +674,11 @@ async function remove() { if (!post.value || !persistedPostId.value || !confirm(
 function windowOrigin() { return import.meta.client ? window.location.origin : 'https://krabiclaw.com' }
 function toLocalDatetime(value?: string | null) { if (!value) return ''; return instantDate(value).toISOString().slice(0, -1) }
 function resetSlugOverride() { slugResetRequested.value = true; form.slug = generatedSlug.value }
-function syncServerVersion(value: BlogPost) { serverPostUpdatedAt = value.updated_at }
+// The server models optimistic concurrency with a single token. The client
+// used to track a second one for the content document and send it alongside;
+// both the update and publish endpoints reject it as an unknown field, so every
+// save and every publish failed with 400 as soon as it was populated.
+function syncServerVersions(value: BlogPost) { serverPostUpdatedAt = value.updated_at || serverPostUpdatedAt }
 
 onBeforeRouteLeave(async () => {
   if (settingsOpen.value) { settingsOpen.value = false; return false }
