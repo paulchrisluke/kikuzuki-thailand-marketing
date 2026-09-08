@@ -16,6 +16,7 @@
         has-detail
         show-desktop-detail
         :dismiss-to="postsPath"
+        detail-title="Post"
         wide-detail
         hide-detail-heading
       >
