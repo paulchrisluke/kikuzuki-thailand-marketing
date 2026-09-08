@@ -76,6 +76,26 @@ opening its own leaf.
 So when a form grows, the answer is never a smaller control or a tighter
 column. It is another level.
 
+## Canvas
+
+The only surface exempt from leaf size. Long-form article writing, and nothing
+else.
+
+**A canvas edits the artifact directly.** The writer types into the rendering
+readers will see. There is no field list because there are no fields; the body
+is the control.
+
+A canvas is full-bleed, owns the viewport, and autosaves. It carries no
+Cancel/Save bar — the commit rule governs forms.
+
+**The exception covers the writing and nothing around it.** Category, tags,
+excerpt, publishing time, visibility, slug, canonical URL and search appearance
+describe the post rather than being it. They are fields, and they obey leaf
+size: an index of rows, each previewing its value, each opening its own leaf.
+
+**The test: is the control editing the artifact, or describing it?** Editing it
+is a canvas. Describing it is a field, and fields decompose.
+
 ## Presentation
 
 | Width | Chrome | Detail |
@@ -165,6 +185,10 @@ It carries a leaf, which means it is subject to the leaf-size rule: a sheet is
 not a licence to stack a record's whole field set because it is not a route.
 A record with many fields opens a hub of rows; each row's sheet holds one
 concern.
+
+A slideover is the same. Being an overlay rather than a route changes where a
+level is drawn, never how large it may be. A pane holds an index and swaps to
+one leaf at a time.
 
 ## Rules that have earned their place
 

@@ -56,40 +56,102 @@
       </div>
     </main>
 
-    <USlideover v-model:open="settingsOpen" title="Post settings" side="right" modal :content="{ onOpenAutoFocus: focusCategory }" @after:leave="restoreSettingsFocus">
+    <!--
+      Post settings are an index of rows, not one long form. Each row previews
+      what it currently holds and opens a leaf that edits that one thing. The
+      pane this replaced stacked four cards and fourteen controls in a single
+      overlay, which is the shape DESIGN.md's leaf-size rule exists to prevent —
+      being a slideover rather than a route does not exempt it.
+    -->
+    <USlideover
+      v-model:open="settingsOpen"
+      :title="settingsSection ? settingsSectionLabel : 'Post settings'"
+      side="right"
+      modal
+      :content="{ onOpenAutoFocus: focusSettings }"
+      @after:leave="closeSettings"
+    >
       <template #body>
-        <div ref="settingsPanel" class="space-y-7 py-5 pb-[env(safe-area-inset-bottom)]" tabindex="-1" @keydown="onSettingsKeydown">
-          <UFormField label="Category"><UInput ref="categoryInput" v-model="form.category" /></UFormField>
-          <UFormField label="Tags"><UInput v-model="tagsText" placeholder="Comma separated" /></UFormField>
-          <UFormField label="Excerpt"><UTextarea v-model="form.excerpt" :placeholder="resolvedExcerpt" /><p class="mt-1 text-xs text-dimmed">{{ form.excerpt ? 'Custom' : `Auto: ${resolvedExcerpt}` }}</p></UFormField>
-          <UCard>
-            <template #header><h3 class="font-semibold text-highlighted">Publishing</h3></template>
-            <div class="space-y-4">
-            <UFormField label="Status"><p class="text-sm text-muted">{{ statusLabel }}</p></UFormField>
-            <UFormField v-if="!post || post.status === 'scheduled'" label="Publish timing"><USelect v-model="publishTiming" :items="['Now', 'Scheduled']" /></UFormField>
-            <UFormField v-if="(!post || post.status === 'scheduled') && publishTiming === 'Scheduled'" label="Scheduled for (UTC)"><UInput v-model="form.scheduled_for" type="datetime-local" step="any" /></UFormField>
-            <UFormField label="Visibility"><USelect v-model="form.visibility" :items="['public', 'unlisted']" /></UFormField>
+        <div ref="settingsPanel" class="space-y-6 py-5 pb-[env(safe-area-inset-bottom)]" tabindex="-1" @keydown="onSettingsKeydown">
+          <UButton
+            v-if="settingsSection"
+            icon="i-lucide-arrow-left"
+            color="neutral"
+            variant="ghost"
+            size="sm"
+            @click="settingsSection = null"
+          >
+            Post settings
+          </UButton>
+
+          <EditorNavigationList
+            v-if="!settingsSection"
+            :groups="settingsGroups"
+            @select="id => settingsSection = id as SettingsSection"
+          />
+
+          <UFormField v-else-if="settingsSection === 'category'" label="Category">
+            <UInput ref="categoryInput" v-model="form.category" class="w-full" />
+          </UFormField>
+
+          <UFormField v-else-if="settingsSection === 'tags'" label="Tags" help="Comma separated">
+            <UInput v-model="tagsText" class="w-full" />
+          </UFormField>
+
+          <UFormField v-else-if="settingsSection === 'excerpt'" label="Excerpt">
+            <UTextarea v-model="form.excerpt" :rows="5" :placeholder="resolvedExcerpt" class="w-full" />
+            <p class="mt-1 text-xs text-dimmed">{{ form.excerpt ? 'Custom' : `Auto: ${resolvedExcerpt}` }}</p>
+          </UFormField>
+
+          <div v-else-if="settingsSection === 'publishing'" class="space-y-5">
+            <UFormField label="Publish timing">
+              <USelect v-if="!post || post.status === 'scheduled'" v-model="publishTiming" :items="['Now', 'Scheduled']" class="w-full" />
+              <p v-else class="text-sm text-muted">{{ statusLabel }}</p>
+            </UFormField>
+            <UFormField v-if="(!post || post.status === 'scheduled') && publishTiming === 'Scheduled'" label="Scheduled for (UTC)">
+              <UInput v-model="form.scheduled_for" type="datetime-local" step="any" class="w-full" />
+            </UFormField>
+            <UFormField label="Visibility">
+              <USelect v-model="form.visibility" :items="['public', 'unlisted']" class="w-full" />
+            </UFormField>
+          </div>
+
+          <div v-else-if="settingsSection === 'search'" class="space-y-5">
+            <div class="rounded-lg border border-default bg-muted p-3">
+              <p class="truncate text-sm text-primary">{{ resolvedSeo.title }}</p>
+              <p class="truncate text-xs text-success">{{ resolvedSeo.canonicalUrl }}</p>
+              <p class="mt-1 line-clamp-2 text-xs text-muted">{{ resolvedSeo.description }}</p>
             </div>
-          </UCard>
-          <UCard>
-            <template #header><h3 class="font-semibold text-highlighted">Search & sharing</h3></template>
-            <div class="space-y-4">
-            <div class="rounded-lg border border-default bg-muted p-3"><p class="truncate text-sm text-primary">{{ resolvedSeo.title }}</p><p class="truncate text-xs text-success">{{ resolvedSeo.canonicalUrl }}</p><p class="mt-1 line-clamp-2 text-xs text-muted">{{ resolvedSeo.description }}</p></div>
-            <UFormField label="SEO title"><UInput v-model="form.seo_title" :placeholder="form.title" /></UFormField>
-            <UFormField label="Meta description"><UTextarea v-model="form.seo_description" :placeholder="resolvedExcerpt" /></UFormField>
-            <UFormField label="Share preview"><img v-if="resolvedPrimaryImageUrl" :src="resolvedPrimaryImageUrl" alt="Resolved share preview" class="aspect-video w-full rounded-lg object-cover"><video v-else-if="resolvedPrimaryVideoUrl" :src="resolvedPrimaryVideoUrl" controls muted playsinline class="aspect-video w-full rounded-lg object-cover" /><p v-else class="text-xs text-dimmed">Add a featured or content image to use it in the generated share card.</p></UFormField>
-            </div>
-          </UCard>
-          <UCard>
-            <template #header><h3 class="font-semibold text-highlighted">Advanced</h3></template>
-            <div class="space-y-4">
-            <UFormField label="URL slug"><UInput v-model="form.slug" :disabled="slugResetRequested" /><div class="mt-1 flex items-center justify-between gap-3"><p class="text-xs text-dimmed">{{ slugResetRequested ? generatedSlug : form.slug || generatedSlug }}</p><UButton v-if="post?.slug_manually_overridden" size="xs" variant="link" @click="resetSlugOverride">Use automatic slug</UButton></div></UFormField>
+            <UFormField label="SEO title"><UInput v-model="form.seo_title" :placeholder="form.title" class="w-full" /></UFormField>
+            <UFormField label="Meta description"><UTextarea v-model="form.seo_description" :rows="4" :placeholder="resolvedExcerpt" class="w-full" /></UFormField>
+          </div>
+
+          <UFormField v-else-if="settingsSection === 'share'" label="Share preview">
+            <img v-if="resolvedPrimaryImageUrl" :src="resolvedPrimaryImageUrl" alt="Resolved share preview" class="aspect-video w-full rounded-lg object-cover">
+            <video v-else-if="resolvedPrimaryVideoUrl" :src="resolvedPrimaryVideoUrl" controls muted playsinline class="aspect-video w-full rounded-lg object-cover" />
+            <p v-else class="text-xs text-dimmed">Add a featured or content image to use it in the generated share card.</p>
+          </UFormField>
+
+          <div v-else-if="settingsSection === 'url'" class="space-y-5">
+            <UFormField label="URL slug">
+              <UInput v-model="form.slug" :disabled="slugResetRequested" class="w-full" />
+              <div class="mt-1 flex items-center justify-between gap-3">
+                <p class="text-xs text-dimmed">{{ slugResetRequested ? generatedSlug : form.slug || generatedSlug }}</p>
+                <UButton v-if="post?.slug_manually_overridden" size="xs" variant="link" @click="resetSlugOverride">Use automatic slug</UButton>
+              </div>
+            </UFormField>
             <UCheckbox v-if="post?.first_published_at && form.slug !== post.slug" v-model="form.redirect_old_slug" label="Redirect old URL" />
-            <UFormField label="Canonical URL"><UInput v-model="form.canonical_url" :placeholder="resolvedSeo.canonicalUrl" /></UFormField>
-            <UFormField label="Robots"><UInput v-model="form.robots" placeholder="index, follow" /></UFormField>
-            </div>
-          </UCard>
-          <UButton v-if="post" color="error" variant="ghost" block @click="remove">Delete post</UButton>
+          </div>
+
+          <UFormField v-else-if="settingsSection === 'canonical'" label="Canonical URL">
+            <UInput v-model="form.canonical_url" :placeholder="resolvedSeo.canonicalUrl" class="w-full" />
+          </UFormField>
+
+          <UFormField v-else-if="settingsSection === 'robots'" label="Robots">
+            <UInput v-model="form.robots" placeholder="index, follow" class="w-full" />
+          </UFormField>
+
+          <UButton v-if="post && !settingsSection" color="error" variant="ghost" block @click="remove">Delete post</UButton>
         </div>
       </template>
     </USlideover>
@@ -100,6 +162,7 @@
 import { instantDate } from '~/utils/timezone'
 import type { Component } from 'vue'
 import BlogArticleView from '~/components/blog/BlogArticleView.vue'
+import EditorNavigationList, { type EditorNavigationGroup } from '~/components/dashboard/EditorNavigationList.vue'
 import PlatformMediaPicker from '~/lib/components/workspace/media/PlatformMediaPicker.vue'
 import type { BlogLifecycleState, BlogPostRepository, BlogPost, BlogEditorBlock, BlogPostUpdateInput } from './types'
 import { generatedExcerpt, initialBlogEditorBlocks, normalizeBlogSlug, resolveBlogPublicPath, resolveBlogSeo, scheduledLifecycleValue, SerializedSnapshotQueue } from '~/utils/blog-editor'
@@ -125,6 +188,8 @@ const settingsOpen = ref(false)
 const settingsButton = ref<{ $el?: HTMLElement } | null>(null)
 const settingsPanel = ref<HTMLElement | null>(null)
 const categoryInput = ref<{ inputRef?: HTMLInputElement | null } | null>(null)
+type SettingsSection = 'category' | 'tags' | 'excerpt' | 'publishing' | 'search' | 'share' | 'url' | 'canonical' | 'robots'
+const settingsSection = ref<SettingsSection | null>(null)
 const contentDirty = ref(false)
 const lifecycleDirty = ref(false)
 const dirtyState = computed(() => contentDirty.value || lifecycleDirty.value)
@@ -179,6 +244,80 @@ const resolvedPrimaryImageUrl = computed<string | null>(() => {
   return blockImage
     || resolveSocialImageUrl(post.value?.media?.find(item => item.slot === 'featured'))
 })
+/**
+ * The settings index. Every row states what it currently holds, so the pane is
+ * read by scanning values rather than by opening each leaf to find out — which
+ * is the whole reason an index beats a stack of collapsed cards.
+ *
+ * `placeholder` renders the summary as absent rather than as a value, so an
+ * empty Category reads as "Not set" in italics instead of looking like content.
+ */
+const settingsGroups = computed<EditorNavigationGroup[]>(() => {
+  const unset = (value: string | null | undefined) => !value || !String(value).trim()
+  const row = (id: SettingsSection, label: string, value: string | null | undefined, fallback = 'Not set') => ({
+    id,
+    label,
+    summary: unset(value) ? fallback : String(value),
+    placeholder: unset(value),
+  })
+  return [
+    {
+      id: 'about',
+      label: 'About this post',
+      items: [
+        row('category', 'Category', form.category),
+        row('tags', 'Tags', tagsText.value, 'None'),
+        {
+          id: 'excerpt',
+          label: 'Excerpt',
+          summary: form.excerpt.trim() || resolvedExcerpt.value,
+          placeholder: !form.excerpt.trim(),
+        },
+      ],
+    },
+    {
+      id: 'publishing',
+      label: 'Publishing',
+      items: [
+        { id: 'publishing', label: 'Publishing', summary: publishingSummary.value },
+        row('url', 'URL', form.slug || generatedSlug.value, 'Generated from the headline'),
+      ],
+    },
+    {
+      id: 'search',
+      label: 'Search & sharing',
+      items: [
+        { id: 'search', label: 'Search appearance', summary: resolvedSeo.value.title },
+        {
+          id: 'share',
+          label: 'Share preview',
+          summary: resolvedPrimaryImageUrl.value || resolvedPrimaryVideoUrl.value ? 'Set' : 'No image yet',
+          placeholder: !resolvedPrimaryImageUrl.value && !resolvedPrimaryVideoUrl.value,
+        },
+        row('canonical', 'Canonical URL', form.canonical_url, resolvedSeo.value.canonicalUrl),
+        row('robots', 'Robots', form.robots, 'index, follow'),
+      ],
+    },
+  ]
+})
+
+const publishingSummary = computed(() => {
+  const visibility = form.visibility === 'unlisted' ? 'Unlisted' : 'Public'
+  if (post.value?.status === 'published') return `Published · ${visibility}`
+  if (publishTiming.value === 'Scheduled') {
+    return form.scheduled_for ? `Scheduled ${form.scheduled_for.replace('T', ' ')} UTC · ${visibility}` : `Scheduled · ${visibility}`
+  }
+  return `${statusLabel.value} · ${visibility}`
+})
+
+const settingsSectionLabel = computed(() => {
+  for (const group of settingsGroups.value) {
+    const match = group.items.find(item => item.id === settingsSection.value)
+    if (match) return match.label
+  }
+  return 'Post settings'
+})
+
 const resolvedPrimaryVideoUrl = computed<string | null>(() => {
   if (resolvedPrimaryImageUrl.value) return null
   const candidate = post.value?.media?.find(item => item.slot === 'featured')?.kind === 'video'
@@ -496,15 +635,27 @@ async function goBack() {
   await navigateTo(props.backUrl)
 }
 function openSettings() { settingsOpen.value = true; if (import.meta.client) history.pushState({ blogSettings: true }, '') }
-function closeSettings() { settingsOpen.value = false }
+function closeSettings() {
+  settingsOpen.value = false
+  settingsSection.value = null
+  settingsButton.value?.$el?.focus()
+}
 function settingsFocusableElements() {
   if (!settingsPanel.value) return []
   return Array.from(settingsPanel.value.querySelectorAll<HTMLElement>('button:not([disabled]), a[href], input:not([disabled]), textarea:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])'))
 }
-function focusCategory(event: Event) { event.preventDefault(); categoryInput.value?.inputRef?.focus() }
-function restoreSettingsFocus() { settingsButton.value?.$el?.focus() }
+// The pane opens on its index now, so focus belongs on the pane itself rather
+// than on one field that used to be first.
+function focusSettings(event: Event) { event.preventDefault(); settingsPanel.value?.focus() }
 function onSettingsKeydown(event: KeyboardEvent) {
-  if (event.key === 'Escape') { event.preventDefault(); closeSettings(); return }
+  if (event.key === 'Escape') {
+    event.preventDefault()
+    // Escape backs out one level, the way the back control does, rather than
+    // discarding the whole pane from inside a leaf.
+    if (settingsSection.value) settingsSection.value = null
+    else closeSettings()
+    return
+  }
   if (event.key !== 'Tab') return
   const focusable = settingsFocusableElements()
   if (!focusable.length) { event.preventDefault(); settingsPanel.value?.focus(); return }

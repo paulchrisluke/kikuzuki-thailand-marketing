@@ -1,0 +1,220 @@
+<template>
+  <div>
+    <DashboardListEditor
+      v-model:editing="editing"
+      title="Blog"
+      description="Long-form articles published on this site."
+      :items="listItems"
+      :pending="pending"
+      :error="loadError"
+      empty-title="No posts yet"
+      empty-icon="i-lucide-newspaper"
+      add-label="Write a post"
+      :removing-id="removingId"
+      @add="openNew"
+      @open="openExisting"
+      @remove="removePost"
+    >
+      <template #filters>
+        <UTabs v-model="activeTab" :items="statusTabs" :content="false" aria-label="Post status" />
+      </template>
+
+      <template #item="{ item }">
+        <button
+          type="button"
+          class="flex w-full items-center gap-4 text-left"
+          :data-testid="`blog-post-${item.id}`"
+          @click="openExisting(item)"
+        >
+          <!--
+            The picture leads, and a post without one keeps the same footprint so
+            the list does not reflow between rows that have one and rows that do not.
+          -->
+          <span class="size-12 shrink-0 overflow-hidden rounded-lg bg-muted">
+            <img v-if="coverUrl(item.row)" :src="coverUrl(item.row)!" :alt="item.title" class="h-full w-full object-cover">
+            <span v-else class="flex h-full w-full items-center justify-center">
+              <UIcon name="i-lucide-newspaper" class="size-4 text-muted" />
+            </span>
+          </span>
+          <span class="min-w-0 flex-1">
+            <span class="block truncate text-sm font-semibold text-highlighted">{{ item.title }}</span>
+            <span class="mt-1 block truncate text-sm text-muted">{{ item.summary }}</span>
+          </span>
+        </button>
+      </template>
+    </DashboardListEditor>
+
+    <!--
+      Creating asks for the headline and nothing else. A blog post's category,
+      excerpt, share card, URL and publishing time are all sections of the post
+      once it exists and has an id to hang a document and media on.
+    -->
+    <DashboardListItemDialog
+      v-model:open="newDialogOpen"
+      title="New post"
+      :removable="false"
+      :saving="creating"
+      :save-disabled="!newTitle.trim()"
+      save-label="Create"
+      @save="createPost"
+    >
+      <UFormField label="Headline" required>
+        <UInput
+          v-model="newTitle"
+          autofocus
+          placeholder="What is this post about?"
+          class="w-full"
+          @keydown.enter.prevent="newTitle.trim() && createPost()"
+        />
+      </UFormField>
+
+      <UAlert v-if="createFailure" color="error" variant="soft" icon="i-lucide-triangle-alert" :description="createFailure" />
+
+      <p class="text-sm text-muted">
+        You'll land in the article editor, where the body is written directly on the page and
+        everything else is a section of the post's own settings.
+      </p>
+    </DashboardListItemDialog>
+  </div>
+</template>
+
+<script setup lang="ts">
+import DashboardListEditor from '~/components/dashboard/DashboardListEditor.vue'
+import DashboardListItemDialog from '~/components/dashboard/DashboardListItemDialog.vue'
+import { tenantBlogRepository } from '~/lib/components/workspace/blog/tenantBlogRepository'
+import type { BlogPost } from '~/lib/components/workspace/blog/types'
+import { initialBlogEditorBlocks } from '~/utils/blog-editor'
+import { getErrorMessage } from '~/utils/errors'
+
+// The blog index. Rendered by `blog.vue`, which owns the frame.
+const dashboardApi = useDashboardApi()
+const route = useRoute()
+const siteId = await useDashboardSiteId()
+const orgSlug = route.params.orgSlug as string
+const siteSlug = route.params.siteSlug as string
+const blogPath = `/dashboard/${orgSlug}/sites/${siteSlug}/blog`
+
+const repository = tenantBlogRepository({ siteId, orgSlug, siteSlug })
+
+const statusTabs = [
+  { value: 'all', label: 'All' },
+  { value: 'published', label: 'Live' },
+  { value: 'scheduled', label: 'Scheduled' },
+]
+const activeTab = ref<string | number>('all')
+const editing = ref(false)
+const removingId = ref<string | null>(null)
+
+const isPostsResponse = (value: unknown): value is { posts: BlogPost[] } =>
+  isRecord(value)
+  && Array.isArray(value.posts)
+  && value.posts.every(post => isRecord(post) && typeof post.id === 'string' && typeof post.title === 'string')
+
+const requestEvent = useRequestEvent()
+const { data, pending, error, refresh } = await useAsyncData(
+  `dashboard-blog-posts:${siteId}`,
+  async () => {
+    // On the server the data is read straight from D1; going back out over HTTP
+    // to our own endpoint would cost a round trip during render.
+    if (import.meta.server) {
+      if (!requestEvent) throw createError({ statusCode: 500, statusMessage: 'Request context unavailable' })
+      const { loadDashboardBlogPosts } = await import('~/server/utils/dashboard-editor-resources')
+      const resource = await loadDashboardBlogPosts(requestEvent, siteId)
+      return { posts: resource.posts as unknown as BlogPost[] }
+    }
+    const response = await dashboardApi<{ posts: BlogPost[] }>(`/api/editor/sites/${siteId}/blog/posts`, {
+      validate: isPostsResponse,
+    })
+    return { posts: response.posts }
+  },
+  { lazy: import.meta.client },
+)
+
+const loadError = computed(() => (error.value ? getErrorMessage(error.value, 'Failed to load posts') : null))
+const posts = computed(() => data.value?.posts ?? [])
+
+// Filtering happens here rather than by refetching per tab: the list is already
+// loaded in full, so a tab press should not cost a round trip.
+const visiblePosts = computed(() => {
+  if (activeTab.value === 'all') return posts.value
+  return posts.value.filter(post => post.status === activeTab.value)
+})
+
+const listItems = computed(() => visiblePosts.value.map(row => ({
+  id: row.id,
+  title: row.title.trim() || 'Untitled post',
+  summary: postSummary(row),
+  row,
+})))
+
+/** Where it is in its life, then what it is filed under, then one date. */
+function postSummary(post: BlogPost): string {
+  const parts: string[] = [post.status === 'scheduled' ? 'Scheduled' : 'Live']
+  if (post.category) parts.push(post.category)
+  parts.push(postWhen(post))
+  return parts.filter(Boolean).join(' · ')
+}
+
+function postWhen(post: BlogPost): string {
+  if (post.status === 'scheduled' && post.scheduled_for) return `Goes live ${formatDate(post.scheduled_for)}`
+  if (post.published_at) return formatDate(post.published_at)
+  return post.updated_at ? `Edited ${formatDate(post.updated_at)}` : ''
+}
+
+function coverUrl(post: BlogPost): string | null {
+  const featured = post.media?.find(entry => entry.slot === 'featured')
+  if (!featured) return null
+  // The thumbnail is a scaled-down duplicate of the same asset, so it is the
+  // right source for a row; the full image is only fetched where it shows big.
+  return featured.thumbnail_url ?? featured.public_url ?? null
+}
+
+function formatDate(iso: string) {
+  if (!iso) return ''
+  return new Date(iso).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
+}
+
+// ── Creating ────────────────────────────────────────────
+const newDialogOpen = ref(false)
+const newTitle = ref('')
+const creating = ref(false)
+const createFailure = ref<string | null>(null)
+
+function openNew() {
+  newTitle.value = ''
+  createFailure.value = null
+  newDialogOpen.value = true
+}
+
+async function createPost() {
+  const title = newTitle.value.trim()
+  if (!title || creating.value) return
+  creating.value = true
+  createFailure.value = null
+  try {
+    const post = await repository.create({ title, content_blocks: initialBlogEditorBlocks() })
+    newDialogOpen.value = false
+    await navigateTo(`${blogPath}/${post.id}`)
+  } catch (cause) {
+    createFailure.value = getErrorMessage(cause, 'Failed to create the post.')
+  } finally {
+    creating.value = false
+  }
+}
+
+/** A post is its own screen, so opening one is navigation, not a sheet. */
+function openExisting(item: { id: string }) {
+  return navigateTo(`${blogPath}/${item.id}`)
+}
+
+/** Removal lives in the list's edit state, the way every other list does it. */
+async function removePost(item: { id: string }) {
+  removingId.value = item.id
+  try {
+    await repository.delete(item.id)
+    await refresh()
+  } finally {
+    removingId.value = null
+  }
+}
+</script>
