@@ -4,7 +4,7 @@ import {
   openTenantPage, potteryHouseBaseURL, potteryHouseExtraHeaders,
   tenantBaseURL, tenantExtraHeaders,
 } from './helpers'
-import { kikuzukiTestBaseUrl, kikuzukiTestExtraHeaders } from './test-env'
+import { demoFixturesSeeded, kikuzukiTestBaseUrl, kikuzukiTestExtraHeaders } from './test-env'
 
 type Tenant = {
   name: string
@@ -57,6 +57,7 @@ for (const [path, translatedText] of [
   ['/posts/post-demo-4', 'มื้ออาหารโต๊ะยาวเก็บเกี่ยว'],
 ]) {
   test(`Ember & Slice publishes its Thai representation at /th${path}`, async ({ page }) => {
+    test.skip(!demoFixturesSeeded(), 'Thai demo representations come from the E2E seed; production is never seeded.')
     const response = await openTenantPage(page, `${tenantBaseURL}/th${path}`, tenantExtraHeaders)
     expect(response?.status()).toBe(200)
     await expect(page.locator('html')).toHaveAttribute('lang', 'th')
