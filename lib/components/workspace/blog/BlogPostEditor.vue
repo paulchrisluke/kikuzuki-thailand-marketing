@@ -318,9 +318,22 @@ const settingsGroups = computed<EditorNavigationGroup[]>(() => {
           id: 'photo',
           label: 'Photo',
           to: `${postPath.value}/photo`,
-          summary: featuredMedia.value ? (featuredMedia.value.kind === 'video' ? 'Video' : 'Image') : 'No photo',
           placeholder: !featuredMedia.value,
-          previews: resolvedPrimaryImageUrl.value ? [resolvedPrimaryImageUrl.value] : undefined,
+          // The row used to read "Image" and carry `previews`, which the rows
+          // variant never renders — so the picture the post is recognised by
+          // was the one thing on the hub you could not see.
+          //
+          // The image here is the one that actually gets shared, which for a
+          // video cover is its poster frame, not the in-editor hero preview:
+          // that one is deliberately null for video so the canvas can play the
+          // clip instead, and reading it here would have reported "no share
+          // image" for a post that has one.
+          card: {
+            image: resolveSocialImageUrl(featuredMedia.value),
+            title: resolvedSeo.value.title,
+            description: form.excerpt.trim() || resolvedExcerpt.value || null,
+            empty: 'No picture, so links to this post are shared without one',
+          },
         },
         row('category', 'Category', form.category),
         row('tags', 'Tags', tagsText.value, 'None'),
