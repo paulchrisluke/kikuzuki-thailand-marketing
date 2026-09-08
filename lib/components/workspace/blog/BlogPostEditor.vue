@@ -1,121 +1,130 @@
 <template>
   <!--
-    The canvas is a level of the chain, not a takeover, and it does not draw a
-    panel or a navbar of its own — the outermost level on screen owns that
-    chrome. Drawing one here put the site rail, the blog list and this editor
-    on screen at once and left the article 90px of a 1280px window.
+    A blog post is read the way every other record is: the thing itself first,
+    then the rows that describe it. The canvas takes the place a product's
+    photograph takes on its hub — it does not take the place of the hub.
 
-    Its lifecycle controls sit in a slim row at the top of the pane instead.
-    They are not a commit bar: a canvas autosaves, and Publish changes what the
-    public sees rather than saving a draft.
+    With nothing below it open this level is its parent's detail column, so it
+    draws no panel and no navbar. It draws them only once a section is open and
+    the parent has yielded, which is the same rule every other editor follows.
   -->
-  <div :inert="publishing" class="flex min-h-0 flex-1 flex-col">
-    <div class="sticky top-0 z-20 flex shrink-0 items-center gap-2 border-b border-default bg-default/95 px-1 py-2 backdrop-blur">
-      <p class="min-w-0 flex-1 truncate text-xs text-muted">
-        {{ lifecycleLabel }} · <span :class="saveState === 'failed' || saveState === 'conflict' ? 'text-error' : ''">{{ saveLabel }}</span>
-      </p>
-      <slot name="actions" />
-      <UButton icon="i-lucide-share-2" color="neutral" variant="ghost" size="sm" aria-label="Share editor" :disabled="!interactive || !post" @click="share" />
-      <UButton ref="settingsButton" icon="i-lucide-settings" color="neutral" variant="ghost" size="sm" aria-label="Post settings" :disabled="!interactive" @click="openSettings" />
-      <UButton v-if="post?.status === 'published'" size="sm" :loading="savingExplicitly" :disabled="!interactive || savingExplicitly || loadPending || saveState === 'conflict' || !dirtyState" @click="saveLiveChanges">Save live changes</UButton>
-      <UButton v-else size="sm" :loading="publishing" :disabled="!interactive || publishing || loadPending || saveState === 'conflict'" @click="publish">{{ publishTiming === 'Scheduled' ? (post ? 'Reschedule' : 'Schedule') : 'Publish now' }}</UButton>
-    </div>
-    <p v-if="actionError" role="alert" class="shrink-0 border-b border-error/30 bg-error/10 px-4 py-2 text-sm text-error">{{ actionError }}</p>
+  <div v-if="frame.mode.value === 'index'" :inert="publishing" class="space-y-8">
+    <p v-if="actionError" role="alert" class="rounded-lg border border-error/30 bg-error/10 px-4 py-2 text-sm text-error">{{ actionError }}</p>
 
-    <div v-if="loadPending" class="grid min-h-0 flex-1 place-items-center"><UIcon name="i-lucide-loader-circle" class="size-6 animate-spin" /></div>
-    <div v-else-if="loadError" class="grid min-h-0 flex-1 place-items-center p-6"><UAlert color="error" :description="loadError" /></div>
-    <main v-else class="min-h-0 flex-1 overflow-y-auto rounded-lg bg-[var(--editor-canvas,#fff)] text-[var(--editor-ink,#1f2937)] [overscroll-behavior:contain]" :style="editorCanvasStyle">
-      <div class="mx-auto max-w-4xl px-4 py-10 sm:px-6 sm:py-14 lg:px-8">
-        <BlogArticleView
-          v-model:title="form.title"
-          :excerpt="form.excerpt || null"
-          :category="form.category || null"
-          :published-at="post?.published_at || post?.created_at || null"
-          :updated-at="post?.updated_at || null"
-          :author-name="resolvedSiteName"
-          :site-name="resolvedSiteName"
-          :media-url="resolvedPrimaryMediaUrl"
-          :media-kind="resolvedMediaKind"
-          :read-minutes="readMinutes"
-          :blocks="blocks"
-          :template="templateName"
-          editable
-          :show-meta="false"
-          @update:block="updateBlock"
-          @insert-block="handleInsertBlock"
-          @insert-block-type="handleInsertBlockType"
-          @move-block="moveBlock"
-          @merge-block="handleMergeBlock"
-          @split-insert="handleSplitInsert"
-        >
-          <template #image-editor="{ block, index }">
-            <component
-              :is="mediaPickerComponent || PlatformMediaPicker"
-              :site-id="siteId"
-              :model-value="block.media?.find(item => item.slot === 'media')?.asset_id || ''"
-              accept="image"
-              @change="changeImage(index, $event)"
-            />
-            <div class="mt-2 grid gap-2 sm:grid-cols-2">
-              <UInput :model-value="String(block.data.alt || '')" placeholder="Alt text" @update:model-value="value => setBlockData(index, 'alt', value)" />
-              <UInput :model-value="String(block.data.caption || '')" placeholder="Caption" @update:model-value="value => setBlockData(index, 'caption', value)" />
-            </div>
-          </template>
-        </BlogArticleView>
-      </div>
-    </main>
+    <div v-if="loadPending" class="grid min-h-64 place-items-center"><UIcon name="i-lucide-loader-circle" class="size-6 animate-spin" /></div>
+    <UAlert v-else-if="loadError" color="error" variant="soft" :description="loadError" />
 
-    <!--
-      Post settings are an index of rows, not one long form. Each row previews
-      what it currently holds and opens a leaf that edits that one thing. The
-      pane this replaced stacked four cards and fourteen controls in a single
-      overlay, which is the shape DESIGN.md's leaf-size rule exists to prevent —
-      being a slideover rather than a route does not exempt it.
-    -->
-    <USlideover
-      v-model:open="settingsOpen"
-      :title="settingsSection ? settingsSectionLabel : 'Post settings'"
-      side="right"
-      modal
-      :content="{ onOpenAutoFocus: focusSettings }"
-      @after:leave="closeSettings"
-    >
-      <template #body>
-        <div ref="settingsPanel" class="space-y-6 py-5 pb-[env(safe-area-inset-bottom)]" tabindex="-1" @keydown="onSettingsKeydown">
-          <UButton
-            v-if="settingsSection"
-            icon="i-lucide-arrow-left"
-            color="neutral"
-            variant="ghost"
-            size="sm"
-            @click="settingsSection = null"
+    <template v-else>
+      <div class="overflow-hidden rounded-lg bg-[var(--editor-canvas,#fff)] text-[var(--editor-ink,#1f2937)]" :style="editorCanvasStyle">
+        <div class="mx-auto max-w-4xl px-4 py-10 sm:px-6 sm:py-14 lg:px-8">
+          <BlogArticleView
+            v-model:title="form.title"
+            :excerpt="form.excerpt || null"
+            :category="form.category || null"
+            :published-at="post?.published_at || post?.created_at || null"
+            :updated-at="post?.updated_at || null"
+            :author-name="resolvedSiteName"
+            :site-name="resolvedSiteName"
+            :media-url="resolvedPrimaryMediaUrl"
+            :media-kind="resolvedMediaKind"
+            :read-minutes="readMinutes"
+            :blocks="blocks"
+            :template="templateName"
+            editable
+            :show-meta="false"
+            @update:block="updateBlock"
+            @insert-block="handleInsertBlock"
+            @insert-block-type="handleInsertBlockType"
+            @move-block="moveBlock"
+            @merge-block="handleMergeBlock"
+            @split-insert="handleSplitInsert"
           >
-            Post settings
-          </UButton>
+            <template #image-editor="{ block, index }">
+              <component
+                :is="mediaPickerComponent || PlatformMediaPicker"
+                :site-id="siteId"
+                :model-value="block.media?.find(item => item.slot === 'media')?.asset_id || ''"
+                accept="image"
+                @change="changeImage(index, $event)"
+              />
+              <div class="mt-2 grid gap-2 sm:grid-cols-2">
+                <UInput :model-value="String(block.data.alt || '')" placeholder="Alt text" @update:model-value="value => setBlockData(index, 'alt', value)" />
+                <UInput :model-value="String(block.data.caption || '')" placeholder="Caption" @update:model-value="value => setBlockData(index, 'caption', value)" />
+              </div>
+            </template>
+          </BlogArticleView>
+        </div>
+      </div>
 
-          <EditorNavigationList
-            v-if="!settingsSection"
-            :groups="settingsGroups"
-            @select="id => settingsSection = id as SettingsSection"
-          />
+      <!--
+        The body autosaves, so there is no commit bar for it. This one line is
+        the only place that state is reported.
+      -->
+      <p class="px-1 text-xs text-muted">
+        <span :class="saveState === 'failed' || saveState === 'conflict' ? 'text-error' : ''">{{ saveLabel }}</span>
+      </p>
 
-          <UFormField v-else-if="settingsSection === 'category'" label="Category">
-            <UInput ref="categoryInput" v-model="form.category" class="w-full" />
+      <EditorNavigationList :groups="settingsGroups" />
+
+      <UButton v-if="post" color="error" variant="ghost" block @click="remove">Delete post</UButton>
+    </template>
+  </div>
+
+  <UDashboardPanel v-else :id="panelId">
+    <template #header>
+      <UDashboardNavbar :title="form.title || 'Untitled post'" :toggle="false">
+        <template #leading>
+          <DashboardNavbarLeading :to="postPath" label="Post" />
+        </template>
+        <template #right>
+          <slot name="actions" />
+        </template>
+      </UDashboardNavbar>
+    </template>
+
+    <template #body>
+      <p v-if="actionError" role="alert" class="mb-4 rounded-lg border border-error/30 bg-error/10 px-4 py-2 text-sm text-error">{{ actionError }}</p>
+
+      <EditorPaneShell
+        has-detail
+        show-desktop-detail
+        :show-actions="section !== 'share'"
+        :saving="savingExplicitly || publishing"
+        :detail-title="sectionLabel"
+        :dismiss-to="postPath"
+        @cancel="cancelSection"
+        @save="saveSection"
+      >
+        <template #index>
+          <EditorNavigationList :groups="settingsGroups" :active-item="section" />
+        </template>
+
+        <template #detail>
+          <UFormField v-if="section === 'category'" label="Category">
+            <UInput v-model="form.category" autofocus class="w-full" />
           </UFormField>
 
-          <UFormField v-else-if="settingsSection === 'tags'" label="Tags" help="Comma separated">
-            <UInput v-model="tagsText" class="w-full" />
+          <UFormField v-else-if="section === 'tags'" label="Tags" help="Comma separated">
+            <UInput v-model="tagsText" autofocus class="w-full" />
           </UFormField>
 
-          <UFormField v-else-if="settingsSection === 'excerpt'" label="Excerpt">
-            <UTextarea v-model="form.excerpt" :rows="5" :placeholder="resolvedExcerpt" class="w-full" />
+          <UFormField v-else-if="section === 'excerpt'" label="Excerpt">
+            <UTextarea v-model="form.excerpt" :rows="5" autofocus :placeholder="resolvedExcerpt" class="w-full" />
             <p class="mt-1 text-xs text-dimmed">{{ form.excerpt ? 'Custom' : `Auto: ${resolvedExcerpt}` }}</p>
           </UFormField>
 
-          <div v-else-if="settingsSection === 'publishing'" class="space-y-5">
-            <UFormField label="Publish timing">
-              <USelect v-if="!post || post.status === 'scheduled'" v-model="publishTiming" :items="['Now', 'Scheduled']" class="w-full" />
-              <p v-else class="text-sm text-muted">{{ statusLabel }}</p>
+          <!--
+            Publishing is a leaf like any other, so the lifecycle controls live
+            in its commit bar rather than floating over the canvas. Publishing
+            is the one action here that changes what the public sees, which is
+            exactly why it belongs behind a deliberate step.
+          -->
+          <div v-else-if="section === 'publishing'" class="space-y-5">
+            <UFormField label="Status">
+              <p class="text-sm text-muted">{{ lifecycleLabel }}</p>
+            </UFormField>
+            <UFormField v-if="!post || post.status === 'scheduled'" label="Publish timing">
+              <USelect v-model="publishTiming" :items="['Now', 'Scheduled']" class="w-full" />
             </UFormField>
             <UFormField v-if="(!post || post.status === 'scheduled') && publishTiming === 'Scheduled'" label="Scheduled for (UTC)">
               <UInput v-model="form.scheduled_for" type="datetime-local" step="any" class="w-full" />
@@ -123,9 +132,18 @@
             <UFormField label="Visibility">
               <USelect v-model="form.visibility" :items="['public', 'unlisted']" class="w-full" />
             </UFormField>
+            <UButton
+              v-if="post?.status !== 'published'"
+              :loading="publishing"
+              :disabled="!interactive || publishing || loadPending || saveState === 'conflict'"
+              block
+              @click="publish"
+            >
+              {{ publishTiming === 'Scheduled' ? (post ? 'Reschedule' : 'Schedule') : 'Publish now' }}
+            </UButton>
           </div>
 
-          <div v-else-if="settingsSection === 'search'" class="space-y-5">
+          <div v-else-if="section === 'search'" class="space-y-5">
             <div class="rounded-lg border border-default bg-muted p-3">
               <p class="truncate text-sm text-primary">{{ resolvedSeo.title }}</p>
               <p class="truncate text-xs text-success">{{ resolvedSeo.canonicalUrl }}</p>
@@ -135,15 +153,15 @@
             <UFormField label="Meta description"><UTextarea v-model="form.seo_description" :rows="4" :placeholder="resolvedExcerpt" class="w-full" /></UFormField>
           </div>
 
-          <UFormField v-else-if="settingsSection === 'share'" label="Share preview">
+          <UFormField v-else-if="section === 'share'" label="Share preview">
             <img v-if="resolvedPrimaryImageUrl" :src="resolvedPrimaryImageUrl" alt="Resolved share preview" class="aspect-video w-full rounded-lg object-cover">
             <video v-else-if="resolvedPrimaryVideoUrl" :src="resolvedPrimaryVideoUrl" controls muted playsinline class="aspect-video w-full rounded-lg object-cover" />
             <p v-else class="text-xs text-dimmed">Add a featured or content image to use it in the generated share card.</p>
           </UFormField>
 
-          <div v-else-if="settingsSection === 'url'" class="space-y-5">
+          <div v-else-if="section === 'url'" class="space-y-5">
             <UFormField label="URL slug">
-              <UInput v-model="form.slug" :disabled="slugResetRequested" class="w-full" />
+              <UInput v-model="form.slug" :disabled="slugResetRequested" autofocus class="w-full" />
               <div class="mt-1 flex items-center justify-between gap-3">
                 <p class="text-xs text-dimmed">{{ slugResetRequested ? generatedSlug : form.slug || generatedSlug }}</p>
                 <UButton v-if="post?.slug_manually_overridden" size="xs" variant="link" @click="resetSlugOverride">Use automatic slug</UButton>
@@ -152,19 +170,17 @@
             <UCheckbox v-if="post?.first_published_at && form.slug !== post.slug" v-model="form.redirect_old_slug" label="Redirect old URL" />
           </div>
 
-          <UFormField v-else-if="settingsSection === 'canonical'" label="Canonical URL">
-            <UInput v-model="form.canonical_url" :placeholder="resolvedSeo.canonicalUrl" class="w-full" />
+          <UFormField v-else-if="section === 'canonical'" label="Canonical URL">
+            <UInput v-model="form.canonical_url" autofocus :placeholder="resolvedSeo.canonicalUrl" class="w-full" />
           </UFormField>
 
-          <UFormField v-else-if="settingsSection === 'robots'" label="Robots">
-            <UInput v-model="form.robots" placeholder="index, follow" class="w-full" />
+          <UFormField v-else-if="section === 'robots'" label="Robots">
+            <UInput v-model="form.robots" autofocus placeholder="index, follow" class="w-full" />
           </UFormField>
-
-          <UButton v-if="post && !settingsSection" color="error" variant="ghost" block @click="remove">Delete post</UButton>
-        </div>
-      </template>
-    </USlideover>
-  </div>
+        </template>
+      </EditorPaneShell>
+    </template>
+  </UDashboardPanel>
 </template>
 
 <script setup lang="ts">
@@ -172,6 +188,7 @@ import { instantDate } from '~/utils/timezone'
 import type { Component } from 'vue'
 import BlogArticleView from '~/components/blog/BlogArticleView.vue'
 import EditorNavigationList, { type EditorNavigationGroup } from '~/components/dashboard/EditorNavigationList.vue'
+import EditorPaneShell from '~/components/dashboard/EditorPaneShell.vue'
 import PlatformMediaPicker from '~/lib/components/workspace/media/PlatformMediaPicker.vue'
 import type { BlogLifecycleState, BlogPostRepository, BlogPost, BlogEditorBlock, BlogPostUpdateInput } from './types'
 import { cloneEditorBlocks, generatedExcerpt, initialBlogEditorBlocks, normalizeBlogSlug, resolveBlogPublicPath, resolveBlogSeo, scheduledLifecycleValue, SerializedSnapshotQueue } from '~/utils/blog-editor'
@@ -193,18 +210,26 @@ const saveState = ref<'saved' | 'saving' | 'failed' | 'conflict'>('saved')
 const actionError = ref('')
 const publishing = ref(false)
 const savingExplicitly = ref(false)
-const settingsOpen = ref(false)
-const settingsButton = ref<{ $el?: HTMLElement } | null>(null)
-const settingsPanel = ref<HTMLElement | null>(null)
-const categoryInput = ref<{ inputRef?: HTMLInputElement | null } | null>(null)
 type SettingsSection = 'category' | 'tags' | 'excerpt' | 'publishing' | 'search' | 'share' | 'url' | 'canonical' | 'robots'
-const settingsSection = ref<SettingsSection | null>(null)
+const SETTINGS_SECTIONS: SettingsSection[] = ['category', 'tags', 'excerpt', 'publishing', 'search', 'share', 'url', 'canonical', 'robots']
 const contentDirty = ref(false)
 const lifecycleDirty = ref(false)
 const dirtyState = computed(() => contentDirty.value || lifecycleDirty.value)
 let applyingServerSnapshot = false
 let serverPostUpdatedAt: string | undefined
 const slugResetRequested = ref(false)
+
+/**
+ * This post's own base path, and the frame computed from it. `blog.vue` yields
+ * once a section is open, so this level draws the panel only then — the same
+ * index/pair split every other editor uses.
+ */
+const postPath = computed(() => `${props.backUrl}/${persistedPostId.value}`)
+const frame = useEditorFrame(postPath)
+const section = computed<SettingsSection | null>(() => {
+  const segment = frame.childSegment.value
+  return segment && (SETTINGS_SECTIONS as string[]).includes(segment) ? segment as SettingsSection : null
+})
 
 const form = reactive({ title: '', category: '', excerpt: '', seo_title: '', seo_description: '', slug: '', canonical_url: '', robots: '', visibility: 'public' as 'public' | 'unlisted', scheduled_for: '', redirect_old_slug: true })
 const tagsText = ref('')
@@ -266,6 +291,7 @@ const settingsGroups = computed<EditorNavigationGroup[]>(() => {
   const row = (id: SettingsSection, label: string, value: string | null | undefined, fallback = 'Not set') => ({
     id,
     label,
+    to: `${postPath.value}/${id}`,
     summary: unset(value) ? fallback : String(value),
     placeholder: unset(value),
   })
@@ -279,6 +305,7 @@ const settingsGroups = computed<EditorNavigationGroup[]>(() => {
         {
           id: 'excerpt',
           label: 'Excerpt',
+          to: `${postPath.value}/excerpt`,
           summary: form.excerpt.trim() || resolvedExcerpt.value,
           placeholder: !form.excerpt.trim(),
         },
@@ -288,7 +315,7 @@ const settingsGroups = computed<EditorNavigationGroup[]>(() => {
       id: 'publishing',
       label: 'Publishing',
       items: [
-        { id: 'publishing', label: 'Publishing', summary: publishingSummary.value },
+        { id: 'publishing', to: `${postPath.value}/publishing`, label: 'Publishing', summary: publishingSummary.value },
         row('url', 'URL', form.slug || generatedSlug.value, 'Generated from the headline'),
       ],
     },
@@ -296,10 +323,11 @@ const settingsGroups = computed<EditorNavigationGroup[]>(() => {
       id: 'search',
       label: 'Search & sharing',
       items: [
-        { id: 'search', label: 'Search appearance', summary: resolvedSeo.value.title },
+        { id: 'search', to: `${postPath.value}/search`, label: 'Search appearance', summary: resolvedSeo.value.title },
         {
           id: 'share',
           label: 'Share preview',
+          to: `${postPath.value}/share`,
           summary: resolvedPrimaryImageUrl.value || resolvedPrimaryVideoUrl.value ? 'Set' : 'No image yet',
           placeholder: !resolvedPrimaryImageUrl.value && !resolvedPrimaryVideoUrl.value,
         },
@@ -319,9 +347,9 @@ const publishingSummary = computed(() => {
   return `${statusLabel.value} · ${visibility}`
 })
 
-const settingsSectionLabel = computed(() => {
+const sectionLabel = computed(() => {
   for (const group of settingsGroups.value) {
-    const match = group.items.find(item => item.id === settingsSection.value)
+    const match = group.items.find(item => item.id === section.value)
     if (match) return match.label
   }
   return 'Post settings'
@@ -398,10 +426,9 @@ watch([() => form.scheduled_for, publishTiming], () => {
 onMounted(async () => {
   interactive.value = true
   window.addEventListener('beforeunload', beforeUnload)
-  window.addEventListener('popstate', onPopState)
   if (!props.initialPost && !props.deferLoad) await load()
 })
-onBeforeUnmount(() => { if (import.meta.client) { window.removeEventListener('beforeunload', beforeUnload); window.removeEventListener('popstate', onPopState) } })
+onBeforeUnmount(() => { if (import.meta.client) { window.removeEventListener('beforeunload', beforeUnload) } })
 
 async function load() {
   if (!postId.value || !props.isEdit) { loadPending.value = false; return }
@@ -494,6 +521,12 @@ function recordLifecycleError(error: unknown) {
   const status = Number((error as { statusCode?: number; status?: number })?.statusCode ?? (error as { status?: number })?.status)
   saveState.value = status === 409 ? 'conflict' : 'failed'
   actionError.value = getErrorMessage(error, 'Failed to change publishing status.')
+}
+function cancelSection() { return navigateTo(postPath.value) }
+async function saveSection() {
+  if (!post.value) return
+  await saveLiveChanges()
+  if (!actionError.value) await navigateTo(postPath.value)
 }
 async function saveLiveChanges() {
   if (!post.value || !contentDirty.value) return
@@ -642,38 +675,7 @@ function changeImage(index: number, value: unknown) {
     media: assetId ? [{ asset_id: assetId, slot: 'media', public_url: publicUrl, thumbnail_url: thumbnailUrl, kind: typeof asset?.kind === 'string' ? asset.kind : 'image', alt_text: altText }] : [],
   }
 }
-async function share() { if (!post.value || !persistedPostId.value) return; const url = new URL(post.value.edit_url || props.repository.editUrl(persistedPostId.value), windowOrigin()).toString(); await navigator.clipboard?.writeText(url) }
-function openSettings() { settingsOpen.value = true; if (import.meta.client) history.pushState({ blogSettings: true }, '') }
-function closeSettings() {
-  settingsOpen.value = false
-  settingsSection.value = null
-  settingsButton.value?.$el?.focus()
-}
-function settingsFocusableElements() {
-  if (!settingsPanel.value) return []
-  return Array.from(settingsPanel.value.querySelectorAll<HTMLElement>('button:not([disabled]), a[href], input:not([disabled]), textarea:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])'))
-}
-// The pane opens on its index now, so focus belongs on the pane itself rather
-// than on one field that used to be first.
-function focusSettings(event: Event) { event.preventDefault(); settingsPanel.value?.focus() }
-function onSettingsKeydown(event: KeyboardEvent) {
-  if (event.key === 'Escape') {
-    event.preventDefault()
-    // Escape backs out one level, the way the back control does, rather than
-    // discarding the whole pane from inside a leaf.
-    if (settingsSection.value) settingsSection.value = null
-    else closeSettings()
-    return
-  }
-  if (event.key !== 'Tab') return
-  const focusable = settingsFocusableElements()
-  if (!focusable.length) { event.preventDefault(); settingsPanel.value?.focus(); return }
-  const first = focusable[0]!
-  const last = focusable[focusable.length - 1]!
-  if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus() }
-  else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus() }
-}
-function onPopState() { if (settingsOpen.value) closeSettings() }
+
 function beforeUnload(event: BeforeUnloadEvent) { if (dirtyState.value) event.preventDefault() }
 async function remove() { if (!post.value || !persistedPostId.value || !confirm('Delete this post permanently?')) return; await props.repository.delete(persistedPostId.value); await navigateTo(props.backUrl) }
 function windowOrigin() { return import.meta.client ? window.location.origin : 'https://krabiclaw.com' }
@@ -686,7 +688,6 @@ function resetSlugOverride() { slugResetRequested.value = true; form.slug = gene
 function syncServerVersions(value: BlogPost) { serverPostUpdatedAt = value.updated_at || serverPostUpdatedAt }
 
 onBeforeRouteLeave(async () => {
-  if (settingsOpen.value) { settingsOpen.value = false; return false }
   if (dirtyState.value) return confirm('You have unsaved changes. Leave without saving them?')
   return true
 })

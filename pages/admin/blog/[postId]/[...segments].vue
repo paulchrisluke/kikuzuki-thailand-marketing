@@ -1,33 +1,21 @@
 <template>
-  <UDashboardPanel id="admin-blog-editor">
-    <template #header>
-      <UDashboardNavbar title="Edit Post" :toggle="false">
-        <template #leading>
-          <DashboardNavbarLeading to="/admin/blog" label="Posts" />
-        </template>
-      </UDashboardNavbar>
-    </template>
-
-    <template #body>
-      <UAlert
-        v-if="postError"
-        color="error"
-        variant="soft"
-        title="Post could not be loaded"
-        :description="postError.message"
-      />
-      <BlogPostEditor
-        v-else
-        :repository="repository"
-        :initial-post="postResource?.post ?? null"
-        defer-load
-        title="Edit Post"
-        back-url="/admin/blog"
-        back-label="Posts"
-        :is-edit="true"
-      />
-    </template>
-  </UDashboardPanel>
+  <UAlert
+    v-if="postError"
+    color="error"
+    variant="soft"
+    title="Post could not be loaded"
+    :description="postError.message"
+  />
+  <BlogPostEditor
+    v-else
+    :repository="repository"
+    :initial-post="postResource?.post ?? null"
+    defer-load
+    title="Edit Post"
+    back-url="/admin/blog"
+    back-label="Posts"
+    :is-edit="true"
+  />
 </template>
 
 <script setup lang="ts">
