@@ -10,7 +10,7 @@ import { resolveSiteCmsCapabilities } from '~/server/utils/cms-capabilities'
 import { checkModuleHasLiveData } from '~/server/utils/module-content-guard'
 import type { SiteVertical } from '~/utils/vertical-copy'
 import { buildSingleMediaPlacementQueries, hydrateMediaAssetRefs } from '~/server/utils/media-asset-manager'
-import { refreshSocialCard, refreshSiteBrandSocialCards } from '~/server/utils/social-card'
+import { refreshSocialCard } from '~/server/utils/social-card'
 
 type SetupEnv = Parameters<typeof createSystemSubdomain>[0]
 
@@ -454,11 +454,7 @@ async function attemptSiteUpdate(
     || updates.seo_description !== undefined
     || siteMedia?.some(item => item.slot === 'logo' || item.slot === 'social_share') === true
   if (cardInputChanged) {
-    if (updates.brand_name !== undefined || siteMedia?.some(item => item.slot === 'logo' || item.slot === 'social_share')) {
-      await refreshSiteBrandSocialCards({ db, env, siteId, actorId: userId })
-    } else {
-      await refreshSocialCard({ db, env, owner: { owner_type: 'site', owner_id: siteId }, actorId: userId })
-    }
+    await refreshSocialCard({ db, env, owner: { owner_type: 'site', owner_id: siteId }, actorId: userId })
   }
 
   const settings = await loadSettingsPayload(db, organizationId, siteId)

@@ -3,7 +3,7 @@ import { defineScheduledTask } from '~/server/utils/scheduled-task'
 import { listSocialCardOwners, refreshSocialCard } from '~/server/utils/social-card'
 import { summarizeSocialCardRefreshResults } from '~/utils/social-card-refresh'
 
-const OWNERS_PER_RUN = 25
+const OWNERS_PER_RUN = 1
 const CURSOR_KEY = 'social-card-backfill:cursor'
 
 export default defineScheduledTask({

@@ -81,6 +81,7 @@ interface BlogPost {
     width: number | null
     height: number | null
   }>
+  social_image?: import('~/utils/social-metadata').SocialImageSource | null
   components?: ContentComponent[]
   content_blocks?: import('~/lib/components/workspace/blog/types').BlogEditorBlock[] | null
 }
@@ -220,6 +221,7 @@ const { canonicalUrl } = useSocialMetadata(() => ({
   publishedAt: post.value?.published_at || null,
   robots: resolvedSeo.value.robots,
   indexable: post.value?.visibility !== 'unlisted' && (!post.value?.robots || !/noindex/i.test(post.value.robots)),
+  socialImage: post.value?.social_image ?? null,
 }))
 
 useHead(() => ({

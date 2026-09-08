@@ -673,13 +673,9 @@ export async function deleteMediaAsset(db: DbClient, env: MediaProviderEnv, id: 
     },
   })
   if (sourcePlacements.length) {
-    const { refreshSocialCard, refreshSiteBrandSocialCards, socialCardRefreshOwnersForPlacement } = await import('~/server/utils/social-card')
-    if (sourcePlacements.some(placement => placement.owner_type === 'site' && ['logo', 'social_share'].includes(placement.slot))) {
-      await refreshSiteBrandSocialCards({ db, env, siteId, actorId: deletedByUserId })
-    } else {
-      for (const placement of sourcePlacements) {
-        for (const owner of await socialCardRefreshOwnersForPlacement(db, placement)) await refreshSocialCard({ db, env, owner, actorId: deletedByUserId })
-      }
+    const { refreshSocialCard, socialCardRefreshOwnersForPlacement } = await import('~/server/utils/social-card')
+    for (const placement of sourcePlacements) {
+      for (const owner of await socialCardRefreshOwnersForPlacement(db, placement)) await refreshSocialCard({ db, env, owner, actorId: deletedByUserId })
     }
   }
 }

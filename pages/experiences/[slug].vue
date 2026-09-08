@@ -1,304 +1,301 @@
 <template>
-  <NuxtLayout name="saya">
-
-    <!-- Loading -->
-    <div v-if="pending" class="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8">
-      <div class="grid gap-10 lg:grid-cols-[1fr_420px] lg:items-start">
-        <div class="aspect-4/3 animate-pulse rounded-xl bg-elevated" />
-        <div class="space-y-4">
-          <div class="h-6 w-24 animate-pulse rounded bg-elevated" />
-          <div class="h-10 w-full animate-pulse rounded bg-elevated" />
-          <div class="h-24 w-full animate-pulse rounded bg-elevated" />
-          <div class="h-12 w-full animate-pulse rounded-full bg-elevated" />
-        </div>
+  <!-- Loading -->
+  <div v-if="pending" class="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8">
+    <div class="grid gap-10 lg:grid-cols-[1fr_420px] lg:items-start">
+      <div class="aspect-4/3 animate-pulse rounded-xl bg-elevated" />
+      <div class="space-y-4">
+        <div class="h-6 w-24 animate-pulse rounded bg-elevated" />
+        <div class="h-10 w-full animate-pulse rounded bg-elevated" />
+        <div class="h-24 w-full animate-pulse rounded bg-elevated" />
+        <div class="h-12 w-full animate-pulse rounded-full bg-elevated" />
       </div>
     </div>
+  </div>
 
-    <!-- Not found -->
-    <div v-else-if="!experience" class="mx-auto max-w-7xl px-4 py-32 text-center">
-      <h1 class="text-2xl font-semibold text-default">{{ t('saya.experience_detail.not_found') }}</h1>
-      <p class="mt-3 text-muted">{{ t('saya.experience_detail.not_found_description') }}</p>
-      <NuxtLink :to="localePath('/experiences')" class="mt-6 inline-flex items-center rounded-full bg-muted px-5 py-2.5 text-sm font-medium text-default no-underline transition hover:bg-elevated">{{ experienceCopy.viewExperienceCta }}</NuxtLink>
-    </div>
+  <!-- Not found -->
+  <div v-else-if="!experience" class="mx-auto max-w-7xl px-4 py-32 text-center">
+    <h1 class="text-2xl font-semibold text-default">{{ t('saya.experience_detail.not_found') }}</h1>
+    <p class="mt-3 text-muted">{{ t('saya.experience_detail.not_found_description') }}</p>
+    <NuxtLink :to="localePath('/experiences')" class="mt-6 inline-flex items-center rounded-full bg-muted px-5 py-2.5 text-sm font-medium text-default no-underline transition hover:bg-elevated">{{ experienceCopy.viewExperienceCta }}</NuxtLink>
+  </div>
 
-    <div v-else>
+  <div v-else>
 
-      <!-- One responsive primary CTA: the mobile sticky row and desktop card
-           resolve the same action, so the footer remains secondary navigation. -->
-      <div
-        v-if="experienceCta"
-        data-experience-cta="mobile"
-        class="lg:hidden fixed bottom-0 inset-x-0 z-30 flex items-center justify-between gap-4 border-t border-default bg-default/95 backdrop-blur-sm px-5 py-4 shadow-lg"
+    <!-- One responsive primary CTA: the mobile sticky row and desktop card
+         resolve the same action, so the footer remains secondary navigation. -->
+    <div
+      v-if="experienceCta"
+      data-experience-cta="mobile"
+      class="lg:hidden fixed bottom-0 inset-x-0 z-30 flex items-center justify-between gap-4 border-t border-default bg-default/95 backdrop-blur-sm px-5 py-4 shadow-lg"
+    >
+      <div v-if="experienceCta.action === 'book' && experiencePrice" class="min-w-0">
+        <p v-if="experienceIsOnSale" class="text-xs text-muted line-through">{{ experienceCompareAtPrice }}</p>
+        <p class="font-semibold text-default leading-tight">{{ experiencePrice }}</p>
+        <p class="text-xs text-muted">{{ t('saya.experience_detail.per_person') }}</p>
+      </div>
+      <SayaButton
+        class="shrink-0"
+        :control-id="experienceCta.action === 'book' ? 'experience-booking-toggle' : undefined"
+        :to="experienceCta.to"
+        @click="handleExperienceCtaClick"
       >
-        <div v-if="experienceCta.action === 'book' && experiencePrice" class="min-w-0">
-          <p v-if="experienceIsOnSale" class="text-xs text-muted line-through">{{ experienceCompareAtPrice }}</p>
-          <p class="font-semibold text-default leading-tight">{{ experiencePrice }}</p>
-          <p class="text-xs text-muted">{{ t('saya.experience_detail.per_person') }}</p>
-        </div>
-        <SayaButton
-          class="shrink-0"
-          :control-id="experienceCta.action === 'book' ? 'experience-booking-toggle' : undefined"
-          :to="experienceCta.to"
-          @click="handleExperienceCtaClick"
-        >
-          {{ experienceCta.label }}
-        </SayaButton>
-      </div>
-
-      <!-- ── Main layout ────────────────────────────────────── -->
-      <section class="mx-auto max-w-7xl px-4 pt-10 pb-28 lg:pb-10 sm:px-6 lg:px-8">
-
-        <!-- Breadcrumb -->
-        <nav class="mb-8 flex items-center gap-2 text-xs text-muted">
-          <NuxtLink :to="localePath('/')" class="hover:text-default transition-colors">{{ t('saya.experience_detail.home') }}</NuxtLink>
-          <SayaIcon name="chevron-right" class="size-3.5" />
-          <NuxtLink :to="localePath('/experiences')" class="hover:text-default transition-colors">{{ experienceCopy.experiencesPageTitle }}</NuxtLink>
-          <SayaIcon name="chevron-right" class="size-3.5" />
-          <span class="text-default">{{ experience.title }}</span>
-        </nav>
-
-        <div class="grid gap-10 lg:grid-cols-[1fr_420px] lg:items-start">
-
-          <!-- ── LEFT: Gallery + Content ───────────────────── -->
-          <div class="min-w-0">
-
-            <SayaMediaGallery :items="mediaItems" :title="experience.title">
-              <template v-if="experience.tagline" #caption>
-                <p class="text-sm text-white/80">{{ experience.tagline }}</p>
-              </template>
-            </SayaMediaGallery>
-
-            <!-- Mobile: title + key facts (hidden on desktop) -->
-            <div class="mt-7 lg:hidden space-y-4">
-              <div>
-                <p class="saya-kicker mb-2">{{ t('saya.experience_detail.experience') }}</p>
-                <h1 class="text-2xl font-bold leading-tight text-default">{{ experience.title }}</h1>
-                <p v-if="experience.tagline" class="mt-2 text-muted">{{ experience.tagline }}</p>
-              </div>
-              <div class="flex flex-wrap gap-2">
-                <span
-                  v-if="experience.duration_minutes"
-                  class="inline-flex items-center gap-1.5 rounded-full border border-default bg-elevated px-3 py-1 text-xs font-medium text-muted"
-                >
-                  <SayaIcon name="clock" class="size-3.5" />
-                  {{ formatDuration(experience.duration_minutes) }}
-                </span>
-                <span
-                  v-if="experience.max_capacity"
-                  class="inline-flex items-center gap-1.5 rounded-full border border-default bg-elevated px-3 py-1 text-xs font-medium text-muted"
-                >
-                  <SayaIcon name="user-group" class="size-3.5" />
-                  {{ t('saya.experience_detail.capacity', { count: experience.max_capacity }) }}
-                </span>
-              </div>
-            </div>
-
-            <!-- What you'll do (body) -->
-            <div v-if="experience.body" class="mt-10 border-t border-default pt-10">
-              <h2 class="text-xl font-semibold text-default mb-6">{{ t('saya.experience_detail.what_youll_do') }}</h2>
-              <!-- eslint-disable vue/no-v-html -->
-              <div class="prose prose-lg max-w-none text-default" v-html="sanitizedBody" />
-              <!-- eslint-enable vue/no-v-html -->
-            </div>
-
-            <!--
-              One block instead of four stacked sections. Included items, what
-              to bring and the policy lines are all the same kind of thing —
-              short practical facts — and giving each its own full-width heading
-              made boilerplate look like the main event.
-            -->
-            <div v-if="thingsToKnow.length" class="mt-10 border-t border-default pt-10">
-              <h2 class="text-xl font-semibold text-default mb-6">{{ t('saya.experience_detail.things_to_know') }}</h2>
-              <div class="grid gap-x-10 gap-y-8 sm:grid-cols-2">
-                <div v-for="group in thingsToKnow" :key="group.id">
-                  <div class="flex items-center gap-2">
-                    <SayaIcon :name="group.icon" class="size-4 shrink-0 text-primary" />
-                    <h3 class="text-sm font-semibold text-default">{{ group.title }}</h3>
-                  </div>
-                  <ul class="mt-2 space-y-1.5">
-                    <li v-for="line in group.lines" :key="line" class="text-sm leading-6 text-muted">{{ line }}</li>
-                  </ul>
-                </div>
-              </div>
-            </div>
-
-            <!-- Where you'll meet -->
-            <div v-if="experienceLocation" class="mt-10 border-t border-default pt-10">
-              <h2 class="text-xl font-semibold text-default mb-5">{{ t('saya.experience_detail.where_youll_meet') }}</h2>
-              <div class="rounded-xl border border-default bg-elevated overflow-hidden">
-                <div class="p-6 flex items-start gap-4">
-                  <SayaIcon name="map-pin" class="mt-0.5 size-5 shrink-0 text-primary" />
-                  <div class="min-w-0">
-                    <p class="font-semibold text-default">{{ (experienceLocation as ApiRecord).title }}</p>
-                    <p v-if="locationAddress" class="mt-1 text-sm text-muted">{{ locationAddress }}</p>
-                    <p v-if="(experienceLocation as ApiRecord).phone" class="mt-1 text-sm text-muted">
-                      {{ (experienceLocation as ApiRecord).phone }}
-                    </p>
-                    <p v-if="experience.meeting_point" class="mt-3 whitespace-pre-line text-sm leading-6 text-default">
-                      {{ experience.meeting_point }}
-                    </p>
-                    <p v-if="(experienceLocation as ApiRecord).email" class="mt-0.5 text-sm text-muted">
-                      {{ (experienceLocation as ApiRecord).email }}
-                    </p>
-                    <a
-                      v-if="(experienceLocation as ApiRecord).maps_url"
-                      :href="(experienceLocation as ApiRecord).maps_url"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      class="mt-2 inline-flex items-center gap-1 text-xs text-primary hover:underline"
-                    >
-                      {{ t('saya.experience_detail.open_in_maps') }}
-                      <SayaIcon name="arrow-top-right-on-square" class="size-3" />
-                    </a>
-                  </div>
-                </div>
-                <div
-                  v-if="(experienceLocation as ApiRecord).map_embed_url"
-                  class="border-t border-default"
-                >
-                  <iframe
-                    :src="(experienceLocation as ApiRecord).map_embed_url"
-                    class="h-56 w-full"
-                    style="border:0"
-                    loading="lazy"
-                    referrerpolicy="no-referrer-when-downgrade"
-                    allowfullscreen
-                  />
-                </div>
-              </div>
-            </div>
-
-          </div>
-
-          <!-- ── RIGHT: Sticky booking card ───────────────── -->
-          <div class="hidden lg:block lg:sticky lg:top-8">
-            <div class="rounded-xl border border-default bg-elevated p-6 shadow-sm space-y-5">
-
-              <!-- Title + tagline (desktop only) -->
-              <div class="hidden lg:block">
-                <p class="saya-kicker mb-2">{{ t('saya.experience_detail.experience') }}</p>
-                <h1 class="text-2xl font-bold leading-tight text-default">{{ experience.title }}</h1>
-                <p v-if="experience.tagline" class="mt-1.5 text-sm text-muted">{{ experience.tagline }}</p>
-              </div>
-
-              <!-- Price -->
-              <div v-if="experiencePrice" class="hidden lg:flex items-baseline gap-1.5">
-                <span v-if="experienceIsOnSale" class="text-lg text-muted line-through">{{ experienceCompareAtPrice }}</span>
-                <span class="text-2xl font-bold text-default">{{ experiencePrice }}</span>
-                <span class="text-sm text-muted">{{ t('saya.experience_detail.per_person') }}</span>
-              </div>
-
-              <!-- Key facts (desktop only) -->
-              <div class="hidden lg:flex flex-wrap gap-2">
-                <span
-                  v-if="experience.duration_minutes"
-                  class="inline-flex items-center gap-1.5 rounded-full border border-default bg-default px-3 py-1 text-xs font-medium text-muted"
-                >
-                  <SayaIcon name="clock" class="size-3.5" />
-                  {{ formatDuration(experience.duration_minutes) }}
-                </span>
-                <span
-                  v-if="experience.max_capacity"
-                  class="inline-flex items-center gap-1.5 rounded-full border border-default bg-default px-3 py-1 text-xs font-medium text-muted"
-                >
-                  <SayaIcon name="user-group" class="size-3.5" />
-                  {{ t('saya.experience_detail.capacity', { count: experience.max_capacity }) }}
-                </span>
-              </div>
-
-              <!-- Sold out -->
-              <div
-                v-if="experience.status === 'sold_out'"
-                class="rounded-lg bg-red-50 dark:bg-red-950/30 px-4 py-3 text-sm font-medium text-red-600 dark:text-red-400 text-center"
-              >
-                {{ experienceCopy.soldOutLabel }}
-              </div>
-
-              <!-- Location closed (e.g. renovations) -->
-              <div
-                v-else-if="experienceLocationClosureMessage"
-                class="rounded-lg bg-amber-50 dark:bg-amber-950/30 px-4 py-3 text-sm font-medium text-amber-700 dark:text-amber-400 text-center"
-              >
-                {{ experienceLocationClosureMessage }}
-              </div>
-
-              <div v-else-if="experienceCta" data-experience-cta="desktop" class="pt-2">
-                <SayaButton
-                  block
-                  :control-id="experienceCta.action === 'book' ? 'experience-booking-toggle' : undefined"
-                  :to="experienceCta.to"
-                  @click="handleExperienceCtaClick"
-                >
-                  {{ experienceCta.label }}
-                </SayaButton>
-              </div>
-
-              <div
-                v-else-if="noBookableSlotsMessage"
-                class="rounded-lg bg-amber-50 dark:bg-amber-950/30 px-4 py-3 text-sm font-medium text-amber-700 dark:text-amber-400 text-center"
-              >
-                {{ noBookableSlotsMessage }}
-              </div>
-
-            </div>
-          </div>
-
-        </div>
-
-        <!-- One shared booking modal is mounted outside responsive card visibility. -->
-        <BookingModal
-          v-model="isBookingModalOpen"
-          target-id="experience-booking"
-          :title="modalTitle"
-          :can-go-back="bookingStep > 1 && !submitting"
-          @back="prevStep"
-        >
-          <!-- STEP 1: TIME (party size + day-grouped availability, single scrollable surface) -->
-          <div v-if="bookingStep === 1" class="flex flex-1 flex-col min-h-0">
-            <BookingTimeStep
-              v-model="timeSelection"
-              :dates="availabilityDates"
-              :loading="availabilityLoading || !isHydrated"
-              :guests="form.party_size_num"
-              :guests-max="experience.max_capacity ?? 8"
-              :guests-label="t('saya.experience_detail.guests')"
-              :guest-singular="t('saya.experience_detail.guest')"
-              :guest-plural="t('saya.experience_detail.guests')"
-              :continue-label="t('saya.experience_detail.continue')"
-              :choose-seating-label="t('saya.experience_detail.choose_time')"
-              @update:guests="form.party_size_num = $event"
-              @next="nextStep"
-            />
-            <div v-if="bookingError" role="alert" class="mt-4 rounded-lg border border-red-500/30 bg-red-500/5 px-4 py-3 text-sm text-red-500">
-              {{ bookingError }}
-            </div>
-          </div>
-
-          <!-- STEP 2: CONTACT DETAILS -->
-          <div v-else-if="bookingStep === 2" class="flex-1 overflow-y-auto">
-            <BookingRecap
-              v-if="timeSelection"
-              :main-line="`${timeSelection.label.split(',')[0]} · ${formatTime(timeSelection.time, locale)}`"
-              :meta-line="t('saya.experience_detail.guest_count', { count: form.party_size_num })"
-              :edit-label="t('saya.experience_detail.change')"
-              @edit="bookingStep = 1"
-            />
-            <div v-if="bookingError" role="alert" class="mb-4 rounded-lg border border-red-500/30 bg-red-500/5 px-4 py-3 text-sm text-red-500">
-              {{ bookingError }}
-            </div>
-            <BookingContactForm
-              :initial-state="{ name: form.guest_name, email: form.guest_email, phone: form.guest_phone, notes: form.notes }"
-              :loading="submitting"
-              :submit-text="t('saya.experience_detail.confirm_booking')"
-              @submit="handleContactSubmit"
-            />
-          </div>
-        </BookingModal>
-      </section>
-
+        {{ experienceCta.label }}
+      </SayaButton>
     </div>
 
-  </NuxtLayout>
+    <!-- ── Main layout ────────────────────────────────────── -->
+    <section class="mx-auto max-w-7xl px-4 pt-10 pb-28 lg:pb-10 sm:px-6 lg:px-8">
+
+      <!-- Breadcrumb -->
+      <nav class="mb-8 flex items-center gap-2 text-xs text-muted">
+        <NuxtLink :to="localePath('/')" class="hover:text-default transition-colors">{{ t('saya.experience_detail.home') }}</NuxtLink>
+        <SayaIcon name="chevron-right" class="size-3.5" />
+        <NuxtLink :to="localePath('/experiences')" class="hover:text-default transition-colors">{{ experienceCopy.experiencesPageTitle }}</NuxtLink>
+        <SayaIcon name="chevron-right" class="size-3.5" />
+        <span class="text-default">{{ experience.title }}</span>
+      </nav>
+
+      <div class="grid gap-10 lg:grid-cols-[1fr_420px] lg:items-start">
+
+        <!-- ── LEFT: Gallery + Content ───────────────────── -->
+        <div class="min-w-0">
+
+          <SayaMediaGallery :items="mediaItems" :title="experience.title">
+            <template v-if="experience.tagline" #caption>
+              <p class="text-sm text-white/80">{{ experience.tagline }}</p>
+            </template>
+          </SayaMediaGallery>
+
+          <!-- Mobile: title + key facts (hidden on desktop) -->
+          <div class="mt-7 lg:hidden space-y-4">
+            <div>
+              <p class="saya-kicker mb-2">{{ t('saya.experience_detail.experience') }}</p>
+              <h1 class="text-2xl font-bold leading-tight text-default">{{ experience.title }}</h1>
+              <p v-if="experience.tagline" class="mt-2 text-muted">{{ experience.tagline }}</p>
+            </div>
+            <div class="flex flex-wrap gap-2">
+              <span
+                v-if="experience.duration_minutes"
+                class="inline-flex items-center gap-1.5 rounded-full border border-default bg-elevated px-3 py-1 text-xs font-medium text-muted"
+              >
+                <SayaIcon name="clock" class="size-3.5" />
+                {{ formatDuration(experience.duration_minutes) }}
+              </span>
+              <span
+                v-if="experience.max_capacity"
+                class="inline-flex items-center gap-1.5 rounded-full border border-default bg-elevated px-3 py-1 text-xs font-medium text-muted"
+              >
+                <SayaIcon name="user-group" class="size-3.5" />
+                {{ t('saya.experience_detail.capacity', { count: experience.max_capacity }) }}
+              </span>
+            </div>
+          </div>
+
+          <!-- What you'll do (body) -->
+          <div v-if="experience.body" class="mt-10 border-t border-default pt-10">
+            <h2 class="text-xl font-semibold text-default mb-6">{{ t('saya.experience_detail.what_youll_do') }}</h2>
+            <!-- eslint-disable vue/no-v-html -->
+            <div class="prose prose-lg max-w-none text-default" v-html="sanitizedBody" />
+            <!-- eslint-enable vue/no-v-html -->
+          </div>
+
+          <!--
+            One block instead of four stacked sections. Included items, what
+            to bring and the policy lines are all the same kind of thing —
+            short practical facts — and giving each its own full-width heading
+            made boilerplate look like the main event.
+          -->
+          <div v-if="thingsToKnow.length" class="mt-10 border-t border-default pt-10">
+            <h2 class="text-xl font-semibold text-default mb-6">{{ t('saya.experience_detail.things_to_know') }}</h2>
+            <div class="grid gap-x-10 gap-y-8 sm:grid-cols-2">
+              <div v-for="group in thingsToKnow" :key="group.id">
+                <div class="flex items-center gap-2">
+                  <SayaIcon :name="group.icon" class="size-4 shrink-0 text-primary" />
+                  <h3 class="text-sm font-semibold text-default">{{ group.title }}</h3>
+                </div>
+                <ul class="mt-2 space-y-1.5">
+                  <li v-for="line in group.lines" :key="line" class="text-sm leading-6 text-muted">{{ line }}</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+
+          <!-- Where you'll meet -->
+          <div v-if="experienceLocation" class="mt-10 border-t border-default pt-10">
+            <h2 class="text-xl font-semibold text-default mb-5">{{ t('saya.experience_detail.where_youll_meet') }}</h2>
+            <div class="rounded-xl border border-default bg-elevated overflow-hidden">
+              <div class="p-6 flex items-start gap-4">
+                <SayaIcon name="map-pin" class="mt-0.5 size-5 shrink-0 text-primary" />
+                <div class="min-w-0">
+                  <p class="font-semibold text-default">{{ (experienceLocation as ApiRecord).title }}</p>
+                  <p v-if="locationAddress" class="mt-1 text-sm text-muted">{{ locationAddress }}</p>
+                  <p v-if="(experienceLocation as ApiRecord).phone" class="mt-1 text-sm text-muted">
+                    {{ (experienceLocation as ApiRecord).phone }}
+                  </p>
+                  <p v-if="experience.meeting_point" class="mt-3 whitespace-pre-line text-sm leading-6 text-default">
+                    {{ experience.meeting_point }}
+                  </p>
+                  <p v-if="(experienceLocation as ApiRecord).email" class="mt-0.5 text-sm text-muted">
+                    {{ (experienceLocation as ApiRecord).email }}
+                  </p>
+                  <a
+                    v-if="(experienceLocation as ApiRecord).maps_url"
+                    :href="(experienceLocation as ApiRecord).maps_url"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    class="mt-2 inline-flex items-center gap-1 text-xs text-primary hover:underline"
+                  >
+                    {{ t('saya.experience_detail.open_in_maps') }}
+                    <SayaIcon name="arrow-top-right-on-square" class="size-3" />
+                  </a>
+                </div>
+              </div>
+              <div
+                v-if="(experienceLocation as ApiRecord).map_embed_url"
+                class="border-t border-default"
+              >
+                <iframe
+                  :src="(experienceLocation as ApiRecord).map_embed_url"
+                  class="h-56 w-full"
+                  style="border:0"
+                  loading="lazy"
+                  referrerpolicy="no-referrer-when-downgrade"
+                  allowfullscreen
+                />
+              </div>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- ── RIGHT: Sticky booking card ───────────────── -->
+        <div class="hidden lg:block lg:sticky lg:top-8">
+          <div class="rounded-xl border border-default bg-elevated p-6 shadow-sm space-y-5">
+
+            <!-- Title + tagline (desktop only) -->
+            <div class="hidden lg:block">
+              <p class="saya-kicker mb-2">{{ t('saya.experience_detail.experience') }}</p>
+              <h1 class="text-2xl font-bold leading-tight text-default">{{ experience.title }}</h1>
+              <p v-if="experience.tagline" class="mt-1.5 text-sm text-muted">{{ experience.tagline }}</p>
+            </div>
+
+            <!-- Price -->
+            <div v-if="experiencePrice" class="hidden lg:flex items-baseline gap-1.5">
+              <span v-if="experienceIsOnSale" class="text-lg text-muted line-through">{{ experienceCompareAtPrice }}</span>
+              <span class="text-2xl font-bold text-default">{{ experiencePrice }}</span>
+              <span class="text-sm text-muted">{{ t('saya.experience_detail.per_person') }}</span>
+            </div>
+
+            <!-- Key facts (desktop only) -->
+            <div class="hidden lg:flex flex-wrap gap-2">
+              <span
+                v-if="experience.duration_minutes"
+                class="inline-flex items-center gap-1.5 rounded-full border border-default bg-default px-3 py-1 text-xs font-medium text-muted"
+              >
+                <SayaIcon name="clock" class="size-3.5" />
+                {{ formatDuration(experience.duration_minutes) }}
+              </span>
+              <span
+                v-if="experience.max_capacity"
+                class="inline-flex items-center gap-1.5 rounded-full border border-default bg-default px-3 py-1 text-xs font-medium text-muted"
+              >
+                <SayaIcon name="user-group" class="size-3.5" />
+                {{ t('saya.experience_detail.capacity', { count: experience.max_capacity }) }}
+              </span>
+            </div>
+
+            <!-- Sold out -->
+            <div
+              v-if="experience.status === 'sold_out'"
+              class="rounded-lg bg-red-50 dark:bg-red-950/30 px-4 py-3 text-sm font-medium text-red-600 dark:text-red-400 text-center"
+            >
+              {{ experienceCopy.soldOutLabel }}
+            </div>
+
+            <!-- Location closed (e.g. renovations) -->
+            <div
+              v-else-if="experienceLocationClosureMessage"
+              class="rounded-lg bg-amber-50 dark:bg-amber-950/30 px-4 py-3 text-sm font-medium text-amber-700 dark:text-amber-400 text-center"
+            >
+              {{ experienceLocationClosureMessage }}
+            </div>
+
+            <div v-else-if="experienceCta" data-experience-cta="desktop" class="pt-2">
+              <SayaButton
+                block
+                :control-id="experienceCta.action === 'book' ? 'experience-booking-toggle' : undefined"
+                :to="experienceCta.to"
+                @click="handleExperienceCtaClick"
+              >
+                {{ experienceCta.label }}
+              </SayaButton>
+            </div>
+
+            <div
+              v-else-if="noBookableSlotsMessage"
+              class="rounded-lg bg-amber-50 dark:bg-amber-950/30 px-4 py-3 text-sm font-medium text-amber-700 dark:text-amber-400 text-center"
+            >
+              {{ noBookableSlotsMessage }}
+            </div>
+
+          </div>
+        </div>
+
+      </div>
+
+      <!-- One shared booking modal is mounted outside responsive card visibility. -->
+      <BookingModal
+        v-model="isBookingModalOpen"
+        target-id="experience-booking"
+        :title="modalTitle"
+        :can-go-back="bookingStep > 1 && !submitting"
+        @back="prevStep"
+      >
+        <!-- STEP 1: TIME (party size + day-grouped availability, single scrollable surface) -->
+        <div v-if="bookingStep === 1" class="flex flex-1 flex-col min-h-0">
+          <BookingTimeStep
+            v-model="timeSelection"
+            :dates="availabilityDates"
+            :loading="availabilityLoading || !isHydrated"
+            :guests="form.party_size_num"
+            :guests-max="experience.max_capacity ?? 8"
+            :guests-label="t('saya.experience_detail.guests')"
+            :guest-singular="t('saya.experience_detail.guest')"
+            :guest-plural="t('saya.experience_detail.guests')"
+            :continue-label="t('saya.experience_detail.continue')"
+            :choose-seating-label="t('saya.experience_detail.choose_time')"
+            @update:guests="form.party_size_num = $event"
+            @next="nextStep"
+          />
+          <div v-if="bookingError" role="alert" class="mt-4 rounded-lg border border-red-500/30 bg-red-500/5 px-4 py-3 text-sm text-red-500">
+            {{ bookingError }}
+          </div>
+        </div>
+
+        <!-- STEP 2: CONTACT DETAILS -->
+        <div v-else-if="bookingStep === 2" class="flex-1 overflow-y-auto">
+          <BookingRecap
+            v-if="timeSelection"
+            :main-line="`${timeSelection.label.split(',')[0]} · ${formatTime(timeSelection.time, locale)}`"
+            :meta-line="t('saya.experience_detail.guest_count', { count: form.party_size_num })"
+            :edit-label="t('saya.experience_detail.change')"
+            @edit="bookingStep = 1"
+          />
+          <div v-if="bookingError" role="alert" class="mb-4 rounded-lg border border-red-500/30 bg-red-500/5 px-4 py-3 text-sm text-red-500">
+            {{ bookingError }}
+          </div>
+          <BookingContactForm
+            :initial-state="{ name: form.guest_name, email: form.guest_email, phone: form.guest_phone, notes: form.notes }"
+            :loading="submitting"
+            :submit-text="t('saya.experience_detail.confirm_booking')"
+            @submit="handleContactSubmit"
+          />
+        </div>
+      </BookingModal>
+    </section>
+
+  </div>
+
 </template>
 
 <script setup lang="ts">
@@ -312,7 +309,7 @@ import {
   resolveExperienceDetailCta,
 } from '~/utils/experience-cta'
 
-definePageMeta({ key: (route) => route.fullPath })
+definePageMeta({ layout: 'saya', key: (route) => route.fullPath })
 
 const DOMPurify = useHtmlSanitizer()
 

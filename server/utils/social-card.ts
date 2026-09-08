@@ -19,7 +19,7 @@ import {
 import { resolvePublicTemplate } from '~/utils/template-registry'
 
 const SOCIAL_CARD_OWNERS = {
-  site: { table: 'sites', site: 'o.id', filter: "o.status = 'active'", slots: [] },
+  site: { table: 'sites', site: 'o.id', filter: "o.status = 'active'", slots: ['social_share'] },
   business_location: { table: 'business_locations', site: 'o.site_id', filter: "o.status = 'active'", slots: ['hero', 'gallery'] },
   product: { table: 'products', site: 'o.site_id', filter: 'o.is_visible = 1', slots: ['image', 'gallery'] },
   content_document: { table: 'content_documents', site: 'o.site_id', filter: "o.kind IN ('page','article','platform_doc','social_post') AND EXISTS (SELECT 1 FROM content_documents root WHERE root.id = COALESCE(o.root_id, o.id) AND (root.kind IN ('page','platform_doc') OR root.status = 'published')) AND (o.kind != 'page' OR o.path != '/')", slots: ['cover', 'featured', 'gallery'] },
@@ -69,7 +69,7 @@ interface SiteRecord {
 export type SocialCardPlacedAsset = StoredMediaPlacementItem
 
 const SOCIAL_CARD_RENDERER_VERSION = 'social-card-v2'
-type SocialCardEnv = UploadResolvedMediaInput['env'] & { NUXT_PUBLIC_PLATFORM_DOMAIN?: string }
+type SocialCardEnv = UploadResolvedMediaInput['env'] & { IMAGES?: ImagesBinding; NUXT_PUBLIC_PLATFORM_DOMAIN?: string }
 
 export async function socialCardRefreshOwnersForPlacement(db: DbClient, placement: {
   owner_type: string
@@ -165,38 +165,6 @@ async function loadSite(db: DbClient, siteId: string): Promise<SiteRecord | null
     FROM sites s WHERE s.id = ? LIMIT 1`, [siteId]) ?? null
 }
 
-async function loadDocumentBlockAssets(db: DbClient, siteId: string, documentId: string): Promise<SocialCardPlacedAsset[]> {
-  const blocks = await queryAll<{ id: string }>(db, `
-    SELECT cb.id
-      FROM content_blocks cb
-     WHERE cb.document_id = ?
-     ORDER BY CASE cb.type WHEN 'hero' THEN 0 WHEN 'image' THEN 1 WHEN 'gallery' THEN 2 ELSE 3 END,
-              cb.position, cb.created_at, cb.id
-  `, [documentId])
-  if (!blocks.length) return []
-  const placements = await readMediaPlacements(db, {
-    siteId,
-    ownerType: 'content_block',
-    ownerIds: blocks.map(block => block.id),
-  })
-  return blocks.flatMap(block => {
-    const items = placements.get(block.id) ?? []
-    return [...items].sort((left, right) => {
-      const slotRank = (slot: string) => slot === 'media' ? 0 : slot === 'gallery' ? 1 : 2
-      return slotRank(left.slot) - slotRank(right.slot) || left.sort_order - right.sort_order
-    })
-  })
-}
-
-async function homepageDocumentId(db: DbClient, siteId: string): Promise<string | null> {
-  const row = await queryFirst<{ id: string }>(db, `
-    SELECT id FROM content_documents
-     WHERE site_id = ? AND kind = 'page' AND path = '/' AND row_role = 'root'
-     LIMIT 1
-  `, [siteId])
-  return row?.id ?? null
-}
-
 async function loadPlacedAssets(db: DbClient, siteId: string, owner: SocialCardOwner): Promise<SocialCardPlacedAsset[]> {
   const ownerAssets = (await readMediaPlacements(db, {
     siteId,
@@ -204,19 +172,13 @@ async function loadPlacedAssets(db: DbClient, siteId: string, owner: SocialCardO
     ownerIds: [owner.owner_id],
     includePendingSocialCard: true,
   })).get(owner.owner_id) ?? []
-  const documentId = owner.owner_type === 'content_document'
-    ? owner.owner_id
-    : owner.owner_type === 'site'
-      ? await homepageDocumentId(db, siteId)
-      : null
-  const pageAssets = documentId ? await loadDocumentBlockAssets(db, siteId, documentId) : []
-  if (owner.owner_type === 'site') return [...ownerAssets, ...pageAssets]
+  if (owner.owner_type === 'site') return ownerAssets
   const siteAssets = (await readMediaPlacements(db, {
     siteId,
     ownerType: 'site',
     ownerIds: [siteId],
   })).get(siteId) ?? []
-  return [...ownerAssets, ...pageAssets, ...siteAssets]
+  return [...ownerAssets, ...siteAssets]
 }
 
 function firstAsset(assets: SocialCardPlacedAsset[], owner: SocialCardOwner, slots: readonly string[]): SocialCardPlacedAsset | null {
@@ -238,15 +200,11 @@ export function selectSocialCardPlacements(
   owner: SocialCardOwner,
   siteId: string,
 ) {
-  const ownerSource = firstAsset(assets, owner, SOCIAL_CARD_OWNERS[owner.owner_type].slots)
-  const contentSource = (owner.owner_type === 'site' || owner.owner_type === 'content_document')
-    ? assets.find(item => item.owner_type === 'content_block' && mediaUrl(item)) ?? null
-    : null
-  const socialShare = siteAsset(assets, siteId, 'social_share')
+  const source = firstAsset(assets, owner, SOCIAL_CARD_OWNERS[owner.owner_type].slots)
   const logo = siteAsset(assets, siteId, 'logo')
   const current = assets.find(item => item.owner_type === owner.owner_type
     && item.owner_id === owner.owner_id && item.slot === 'social_card') ?? null
-  return { ownerSource, contentSource, socialShare, logo, current, source: contentSource ?? ownerSource ?? socialShare ?? logo }
+  return { logo, current, source }
 }
 
 export function buildSocialCardGenerationKey(input: {
@@ -318,7 +276,8 @@ export async function refreshSocialCard(input: {
     }
     await executeBatch(db, [{ query: "UPDATE media_placements SET status = 'pending' WHERE owner_type = ? AND owner_id = ? AND slot = 'social_card'", params: [owner.owner_type, owner.owner_id] }])
 
-    const png = await renderOgImagePng(payload, { platformDomain: env.NUXT_PUBLIC_PLATFORM_DOMAIN })
+    if (!env.IMAGES) throw new Error('Cloudflare Images binding is required to render social cards')
+    const png = await renderOgImagePng(payload, { images: env.IMAGES, platformDomain: env.NUXT_PUBLIC_PLATFORM_DOMAIN })
     const uploaded = await uploadResolvedMediaToAssetStore({
       db,
       env,
@@ -376,24 +335,9 @@ export async function regenerateSiteSocialCards(input: {
   after?: string | null
   limit?: number
 }) {
-  const owners = await listSocialCardOwners(input.db, { siteId: input.siteId, after: input.after, limit: (input.limit ?? 5) + 1 })
+  const owners = await listSocialCardOwners(input.db, { siteId: input.siteId, after: input.after, limit: (input.limit ?? 1) + 1 })
   const results: SocialCardRefreshResult[] = []
-  const batch = owners.slice(0, input.limit ?? 5)
+  const batch = owners.slice(0, input.limit ?? 1)
   for (const { owner_type, owner_id } of batch) results.push(await refreshSocialCard({ ...input, owner: { owner_type, owner_id } }))
   return { results, next_cursor: owners.length > batch.length ? batch.at(-1)!.cursor : null }
-}
-
-export async function refreshSiteBrandSocialCards(input: {
-  db: DbClient; env: SocialCardEnv; siteId: string; actorId?: string | null
-}) {
-  try {
-    await executeBatch(input.db, [{
-      query: "UPDATE media_placements SET status = 'pending', updated_at = ? WHERE site_id = ? AND slot = 'social_card'",
-      params: [new Date().toISOString(), input.siteId],
-    }])
-    const owners = await listSocialCardOwners(input.db, { siteId: input.siteId })
-    for (const { owner_type, owner_id } of owners) await refreshSocialCard({ ...input, owner: { owner_type, owner_id } })
-  } catch (error) {
-    console.error('[social-card]', { stage: 'brand_refresh', siteId: input.siteId, error: errorMessage(error) })
-  }
 }

@@ -1,5 +1,7 @@
 import { BLOG_CATEGORY_SLUGS, blogCategoryToSlug } from '~/utils/blog-categories'
 import { groupItemsByNavSection } from '~/utils/platform-content-nav'
+import { publicApiRequest } from '~/utils/api-clients'
+import { validateApiShape } from '~/utils/api-validation'
 
 interface PublicBlogPost {
   id: string
@@ -31,7 +33,22 @@ interface BlogNavCategory {
 }
 
 export function useBlogNav() {
-  const { data, pending, error } = useFetch<{ posts: PublicBlogPost[] }, unknown, string>('/api/public/blog')
+  const requestEvent = useRequestEvent()
+  const { data, pending, error } = useAsyncData<{ posts: PublicBlogPost[] }>('public-blog-index', async () => {
+    if (import.meta.server) {
+      if (!requestEvent) throw createError({ statusCode: 500, statusMessage: 'Request context unavailable' })
+      const [{ cloudflareEnv }, { listPublicPlatformBlogPosts }] = await Promise.all([
+        import('~/server/utils/api-response'),
+        import('~/server/utils/content/publishing'),
+      ])
+      const db = cloudflareEnv(requestEvent).db
+      if (!db) throw createError({ statusCode: 503, statusMessage: 'Blog data is temporarily unavailable' })
+      return { posts: await listPublicPlatformBlogPosts(db) }
+    }
+    return await publicApiRequest<{ posts: PublicBlogPost[] }>('/api/public/blog', {
+      validate: validateApiShape({ posts: { arrayOf: { id: 'string', slug: 'string', title: 'string' } } }),
+    })
+  })
 
   const posts = computed<PublicBlogPost[]>(() => data.value?.posts ?? [])
 

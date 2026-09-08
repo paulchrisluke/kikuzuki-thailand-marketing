@@ -62,9 +62,6 @@
           <div v-else-if="detailKey === 'sharing-image'" class="space-y-6">
             <p class="text-base text-muted">Choose the image used as the source for generated social sharing cards.</p>
             <MediaPicker v-model="form.socialShareAssetId" :site-id="siteId" accept="image" title="Select social sharing image" />
-            <div class="flex justify-end">
-              <UButton color="neutral" variant="outline" :loading="regeneratingCards" @click="regenerateSocialCards">Regenerate social cards</UButton>
-            </div>
           </div>
 
           <div v-else-if="detailKey === 'description'" class="space-y-6">
@@ -215,7 +212,6 @@ import MediaPicker from '~/lib/components/workspace/media/MediaPicker.vue'
 import EditorPaneShell from '~/components/dashboard/EditorPaneShell.vue'
 import EditorNavigationList from '~/components/dashboard/EditorNavigationList.vue'
 import { CURRENCY_OPTIONS, DEFAULT_CURRENCY, isCurrencyCode, type CurrencyCode } from '~/shared/currencies'
-import { isSocialCardRegenerationResponse, socialCardRefreshNotice, type SocialCardRegenerationResponse } from '~/utils/social-card-refresh'
 
 const props = withDefaults(defineProps<{ surface?: 'brand' | 'settings' }>(), { surface: 'settings' })
 const surface = computed(() => props.surface)
@@ -312,7 +308,6 @@ watchEffect(() => {
 const loading = ref(true)
 const loadError = ref<string | null>(null)
 const saving = ref(false)
-const regeneratingCards = ref(false)
 const connectingFacebook = ref(false)
 const notificationChannels = ref<string[]>([])
 const whatsappPhone = ref('')
@@ -373,7 +368,7 @@ const domainSummary = computed(() => dashboard.site.value?.custom_domain || dash
 const brandItems = computed<EditorNavigationItem[]>(() => [
   { id: 'name', label: 'Brand name', summary: explicitSummary(loadedSettings.value?.brand_name), icon: 'i-lucide-type', to: `${brandPath.value}/name` },
   { id: 'logo', label: 'Logo', summary: loadedSettings.value?.media?.some(item => item.slot === 'logo') ? 'Logo selected' : 'Not set', icon: 'i-lucide-image', to: `${brandPath.value}/logo` },
-  { id: 'sharing-image', label: 'Social sharing image', summary: loadedSettings.value?.media?.some(item => item.slot === 'social_share') ? 'Image selected' : 'Uses the site logo', icon: 'i-lucide-panels-top-left', to: `${brandPath.value}/sharing-image` },
+  { id: 'sharing-image', label: 'Social sharing image', summary: loadedSettings.value?.media?.some(item => item.slot === 'social_share') ? 'Image selected' : 'Not set', icon: 'i-lucide-panels-top-left', to: `${brandPath.value}/sharing-image` },
   { id: 'description', label: 'Description', summary: explicitSummary(loadedSettings.value?.brand_description), icon: 'i-lucide-align-left', to: `${brandPath.value}/description` },
   { id: 'color', label: 'Brand color', summary: explicitSummary(loadedSettings.value?.brand_color), icon: 'i-lucide-palette', to: `${brandPath.value}/color` },
   { id: 'contact', label: 'Contact details', summary: explicitSummary(loadedSettings.value?.contact_email), icon: 'i-lucide-mail', to: `${brandPath.value}/contact` },
@@ -537,26 +532,6 @@ async function patchSettings(body: Record<string, unknown>, successMessage: stri
   originalSignature.value = editorSignature(detailKey.value)
   toast.add({ description: successMessage, color: 'success' })
   await dashboard.refresh()
-}
-async function regenerateSocialCards() {
-  regeneratingCards.value = true
-  try {
-    const summary = { generated: 0, reused: 0, skipped: 0, failed: 0, total: 0 }
-    let after: string | null = null
-    do {
-      const response: SocialCardRegenerationResponse = await dashboardApi<SocialCardRegenerationResponse>(`/api/editor/sites/${siteId}/social-cards/regenerate`, {
-        method: 'POST', body: { after }, validate: isSocialCardRegenerationResponse,
-      })
-      for (const key of ['generated', 'reused', 'skipped', 'failed', 'total'] as const) summary[key] += response.summary[key]
-      after = response.next_cursor
-    } while (after)
-    const notice = socialCardRefreshNotice(summary)
-    toast.add({ description: notice.message, color: notice.color })
-  } catch (error) {
-    toast.add({ description: errorMessage(error, 'Failed to regenerate social cards'), color: 'error' })
-  } finally {
-    regeneratingCards.value = false
-  }
 }
 async function saveCurrentEditor() {
   if (saveDisabled.value || !detailKey.value) return

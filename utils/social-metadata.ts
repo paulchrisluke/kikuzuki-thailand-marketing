@@ -138,13 +138,6 @@ export function publicSocialMediaFromPlacements<T extends SocialMediaSource>(
   }
 }
 
-export function resolvePublicSocialImage(
-  ownerImage: SocialImageSource | null,
-  siteImage: SocialImageSource | null,
-): SocialImageSource | null {
-  return ownerImage ?? siteImage
-}
-
 export interface SocialBrand {
   /** og:site_name and the name rendered on generated OG image cards. */
   siteName: string

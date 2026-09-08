@@ -189,11 +189,14 @@ function wrapStatement(statement: object, metrics: RequestDataMetrics, event: H3
   return proxy
 }
 
-export function instrumentD1(event: H3Event, database: D1Database): D1Database {
+// `database` is what queries run through (a per-request D1 session); `primary` is the
+// raw binding handed back by unwrapInstrumentedD1 to code that must not share the
+// session, such as Better Auth's adapter.
+export function instrumentD1(event: H3Event, database: D1Database | D1DatabaseSession, primary: D1Database): D1Database {
   const existing = databaseByEvent.get(event)
   if (existing) return existing
   const metrics = getRequestDataMetrics(event)
-  const proxy = new Proxy(database, {
+  const proxy = new Proxy(database as D1Database, {
     get(target, property) {
       const value = Reflect.get(target, property, target)
       if (property === 'prepare' && typeof value === 'function') {
@@ -246,7 +249,7 @@ export function instrumentD1(event: H3Event, database: D1Database): D1Database {
     },
   }) as D1Database
   databaseByEvent.set(event, proxy)
-  databaseTargets.set(proxy, database)
+  databaseTargets.set(proxy, primary)
   return proxy
 }
 
@@ -330,8 +333,6 @@ export async function flushRequestMetrics(event: HTTPEvent, response: Response) 
   const metrics = metricsByEvent.get(event)
   if (!metrics) return
 
-  // The response hook is logging only; setting headers here causes
-  // ERR_HTTP_HEADERS_SENT in Nitro.
   if (metrics.resources.size === 0 && response.status !== 101) {
     const serialized = await response.clone().text()
     metrics.resources.set(new URL(event.req.url).pathname, new TextEncoder().encode(serialized).byteLength)
@@ -344,6 +345,22 @@ export async function flushRequestMetrics(event: HTTPEvent, response: Response) 
   const status = response.status
   const errorCode = status >= 400 ? `HTTP_${status}` : null
   const totalDuration = performance.now() - metrics.startedAt
+  if (response.status !== 101 && !response.headers.has('x-d1-query-count')) {
+    try {
+      response.headers.set('x-request-id', metrics.requestId)
+      response.headers.set('x-d1-query-count', String(metrics.statementCount))
+      response.headers.set('x-d1-batch-count', String(metrics.batchRoundTrips))
+      response.headers.set('x-d1-duration-ms', metrics.d1DurationMs.toFixed(2))
+      response.headers.set('x-total-duration-ms', totalDuration.toFixed(2))
+    } catch (error) {
+      console.warn('[data-request]', JSON.stringify({
+        event: 'metric_headers_not_writable',
+        requestId: metrics.requestId,
+        resource: new URL(event.req.url).pathname,
+        error: error instanceof Error ? error.message : String(error),
+      }))
+    }
+  }
   console.info('[data-request]', JSON.stringify({
     requestId: metrics.requestId,
     rayId: event.req.headers.get('cf-ray'),
