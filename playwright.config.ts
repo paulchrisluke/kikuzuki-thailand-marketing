@@ -13,7 +13,9 @@ const optionalWorkerVars = ['CF_ACCOUNT_ID', 'CLOUDFLARE_IMAGES_API_TOKEN', 'CLO
   .flatMap(name => process.env[name] ? ['--var', `${name}:${shellQuote(process.env[name]!)}`] : [])
 
 if (!previewUrl && !process.env.E2E_TEST_PASSWORD) {
-  process.env.E2E_TEST_PASSWORD = Buffer.from(randomBytes(32)).toString('hex')
+  // Same shape as CI's generated password: the app's password policy requires an
+  // uppercase letter and a special character, which a bare hex string never has.
+  process.env.E2E_TEST_PASSWORD = `${Buffer.from(randomBytes(32)).toString('hex')}Aa1!`
 }
 if (!previewUrl) {
   process.env.E2E_DEV_ROUTE_SECRET = localDevRouteSecret
