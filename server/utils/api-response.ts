@@ -168,7 +168,13 @@ export const cloudflareEnv = (event: H3Event): CloudflareEnv => {
   const whatsappDeliveryMode = typeof effectiveEnv.WHATSAPP_DELIVERY_MODE === 'string' ? effectiveEnv.WHATSAPP_DELIVERY_MODE : undefined
 
   const rawD1 = runtimeEnv.DB as D1Database | undefined
-  const d1 = rawD1 ? instrumentD1(event, rawD1) : undefined
+  // One D1 session per request, anchored on the primary. The first statement reads the
+  // primary's current version; later reads may be served by a read replica that has
+  // caught up to that bookmark, and writes always go to the primary. That keeps
+  // read-your-writes across requests while a Worker running far from the primary stops
+  // paying a cross-region round trip for every SELECT. Without read replication enabled
+  // on the database, the session is served by the primary and behaves as before.
+  const d1 = rawD1 ? instrumentD1(event, rawD1.withSession('first-primary'), rawD1) : undefined
   const db = d1 ? createDb(d1) : undefined
 
   // Apply E2E delivery-mode overrides only for approved dev/E2E requests

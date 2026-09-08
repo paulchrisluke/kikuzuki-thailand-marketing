@@ -189,11 +189,14 @@ function wrapStatement(statement: object, metrics: RequestDataMetrics, event: H3
   return proxy
 }
 
-export function instrumentD1(event: H3Event, database: D1Database): D1Database {
+// `database` is what queries run through (a per-request D1 session); `primary` is the
+// raw binding handed back by unwrapInstrumentedD1 to code that must not share the
+// session, such as Better Auth's adapter.
+export function instrumentD1(event: H3Event, database: D1Database | D1DatabaseSession, primary: D1Database): D1Database {
   const existing = databaseByEvent.get(event)
   if (existing) return existing
   const metrics = getRequestDataMetrics(event)
-  const proxy = new Proxy(database, {
+  const proxy = new Proxy(database as D1Database, {
     get(target, property) {
       const value = Reflect.get(target, property, target)
       if (property === 'prepare' && typeof value === 'function') {
@@ -246,7 +249,7 @@ export function instrumentD1(event: H3Event, database: D1Database): D1Database {
     },
   }) as D1Database
   databaseByEvent.set(event, proxy)
-  databaseTargets.set(proxy, database)
+  databaseTargets.set(proxy, primary)
   return proxy
 }
 
