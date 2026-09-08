@@ -1,7 +1,7 @@
 import { jsonResponse } from "~/server/utils/api-response";
 import { finalizeRequestMetrics } from "~/server/utils/request-metrics";
 import { requireBlogAccess } from "~/server/utils/blog-access";
-import { parsePlatformBlogLifecycleInput, updatePlatformBlogLifecycle } from "~/server/utils/platform-content";
+import { parseBlogLifecycleInput, updateBlogLifecycle } from "~/server/utils/content/publishing";
 import { httpErrorDetails } from "~/server/utils/http-error";
 
 export default defineHandler(async (event) => {
@@ -20,8 +20,8 @@ export default defineHandler(async (event) => {
 
   try {
     const { db } = await requireBlogAccess(event, siteId);
-    const input = parsePlatformBlogLifecycleInput(await readBody(event) as unknown, "publish");
-    const lifecycle = await updatePlatformBlogLifecycle(db, postId, input, siteId);
+    const input = parseBlogLifecycleInput(await readBody(event) as unknown, "publish");
+    const lifecycle = await updateBlogLifecycle(db, postId, input, siteId);
 
     return jsonResponse(finalizeRequestMetrics(event, "editor-blog-publish", { success: true, lifecycle }));
   } catch (error) {

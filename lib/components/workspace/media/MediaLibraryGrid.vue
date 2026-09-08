@@ -76,7 +76,7 @@
         <UImage
           v-if="asset.thumbnail_url || (asset.kind === 'image' && asset.public_url)"
           :src="asset.thumbnail_url || asset.public_url"
-          :alt="asset.alt_text || asset.title || asset.description || ''"
+          :alt="asset.alt_text ?? ''"
           class="h-full w-full object-cover"
           loading="lazy"
         />

@@ -12,7 +12,7 @@ import {
   type ContentDocumentChanges,
   type ContentDocumentKind,
   type ContentBlockInput,
-} from '~/server/utils/content-documents'
+} from '~/server/utils/content/documents'
 import { localizationError } from '~/server/utils/localization-errors'
 import {
   RESOURCE_LOCALIZATION_REGISTRY,
@@ -487,7 +487,7 @@ export async function putLocalizationForAuthoring(db: D1Database,
   if (blocks !== undefined && !Array.isArray(blocks)) localizationError(422, 'LOCALIZATION_VALIDATION_FAILED', 'content_blocks must be an array')
   if ((root.kind === 'article' || root.kind === 'platform_doc' || root.kind === 'page') && !existing && (!Array.isArray(blocks) || !blocks.length)) localizationError(422, 'LOCALIZATION_VALIDATION_FAILED', 'Translated content blocks are required')
   const requested = blocks === undefined ? undefined : existing ? blocks as ContentBlockInput[] : remapNewLocalizedBlockIds(blocks as ContentBlockInput[])
-  const { prepareTenantBlogContentBlocks } = await import('~/server/utils/platform-content')
+  const { prepareTenantBlogContentBlocks } = await import('~/server/utils/content/publishing')
   const prepared = requested ? await prepareTenantBlogContentBlocks(db, requested, input.siteId, input.organizationId, new Date().toISOString()) : null
   const after = [...(prepared?.placementQueries ?? []), publicResourceCacheInvalidationQuery(input.siteId, 'document-localization-put')]
   if (existing) {

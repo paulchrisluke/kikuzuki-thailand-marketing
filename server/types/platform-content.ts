@@ -1,5 +1,5 @@
-import type { ContentBlockInput } from '~/server/utils/content-documents'
-import type { PlatformBlogCreateInput } from '~/server/utils/platform-content'
+import type { ContentBlockInput } from '~/server/utils/content/documents'
+import type { PlatformBlogCreateInput } from '~/server/utils/content/publishing'
 
 export interface PlatformContentNavRequestBody {
   nav_section?: string | null

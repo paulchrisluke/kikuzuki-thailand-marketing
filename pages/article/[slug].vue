@@ -37,7 +37,7 @@
                 <NuxtLink :to="localePath(`/blog?tags[]=${encodeURIComponent(tag)}`)" class="text-white no-underline">{{ tag }}</NuxtLink>
               </template>
             </h3>
-            <BlogArticleView :title="post.title" :excerpt="post.excerpt" :category="t('saya.search.article')" :published-at="post.published_at" :updated-at="hasUpdatedDate ? post.updated_at : null" :author-name="post.author?.name" :author-image="post.author?.image" :site-name="identity.brand_name" :media-url="articleDisplayMedia?.public_url" :media-kind="articleDisplayMedia?.kind || 'image'" :blocks="post.content_blocks" template="blawby" />
+            <BlogArticleView :title="post.title" :excerpt="post.excerpt" :category="t('saya.search.article')" :published-at="post.published_at" :updated-at="hasUpdatedDate ? post.updated_at : null" :author-name="post.author?.name" :author-image="post.author?.image" :site-name="identity.brand_name" :media-url="articleDisplayMedia?.public_url" :media-alt="articleDisplayMedia?.alt_text" :media-kind="articleDisplayMedia?.kind || 'image'" :blocks="post.content_blocks" template="blawby" />
             <p v-if="compliance?.disclaimer" class="mt-8 text-sm italic text-gray-500">{{ compliance.disclaimer }}</p>
           </div>
 

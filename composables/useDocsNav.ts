@@ -47,7 +47,7 @@ export async function useDocsNav() {
       if (!requestEvent) throw createError({ statusCode: 500, statusMessage: 'Request context unavailable' })
       const [{ cloudflareEnv }, { listPlatformDocs }] = await Promise.all([
         import('~/server/utils/api-response'),
-        import('~/server/utils/platform-content'),
+        import('~/server/utils/content/publishing'),
       ])
       const db = cloudflareEnv(requestEvent).db
       if (!db) throw createError({ statusCode: 503, statusMessage: 'Documentation data is temporarily unavailable' })

@@ -1,6 +1,6 @@
 import { cloudflareEnv, textResponse } from '~/server/utils/api-response'
 import {
-  getPublishedPlatformBlogPostBySlug, renderPlatformBlogMarkdown, resolvePublicOrigin, } from '~/server/utils/platform-llm'
+  getPublishedBlogPostBySlug, renderPlatformBlogMarkdown, resolvePublicOrigin, } from '~/server/utils/platform-llm'
 
 export default defineHandler(async (event) => {
   const category = getRouterParam(event, 'category')
@@ -14,7 +14,7 @@ export default defineHandler(async (event) => {
   const db = env.db
   if (!db) return textResponse('Database not available\n', { status: 500 })
 
-  const post = await getPublishedPlatformBlogPostBySlug(db, category, slug)
+  const post = await getPublishedBlogPostBySlug(db, category, slug)
   if (!post) return textResponse('Post not found\n', { status: 404 })
 
   return textResponse(renderPlatformBlogMarkdown(post, resolvePublicOrigin(event), category), {}, 'text/markdown; charset=utf-8')

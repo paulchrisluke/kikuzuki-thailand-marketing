@@ -1,6 +1,6 @@
 import type { IntegrationVersion, FacebookIntegration } from '~/shared/site-settings'
 import type { D1Database } from '@cloudflare/workers-types'
-import { prepareContentDocumentWithBlocks } from './content-documents'
+import { prepareContentDocumentWithBlocks } from './content/documents'
 import { parsePostInput } from '~/shared/posts'
 import { execute, executeBatch, queryFirst } from '~/server/db'
 import { encryptSecret, decryptSecret, encryptionEnv } from './encryption'

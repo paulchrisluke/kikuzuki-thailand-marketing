@@ -2,7 +2,7 @@
 import { cloudflareEnv, jsonResponse } from '~/server/utils/api-response'
 import { getAuthSession } from '~/server/utils/auth'
 import { platformPermissionJsonResponse } from '~/server/utils/platform-admin-users'
-import { deletePlatformDoc } from '~/server/utils/platform-content'
+import { deletePlatformDoc } from '~/server/utils/content/publishing'
 import { schedulePlatformKnowledgeIndexRebuild } from '~/server/utils/platform-search-rebuild'
 
 export default defineHandler(async (event) => {

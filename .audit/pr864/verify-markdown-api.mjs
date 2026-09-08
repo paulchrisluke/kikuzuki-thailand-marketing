@@ -4,7 +4,7 @@ import { writeFileSync } from 'node:fs'
 import { generateSQLiteDrizzleJson, generateSQLiteMigration } from 'drizzle-kit/api'
 import { Miniflare } from 'miniflare'
 import * as schema from '../../server/db/schema.ts'
-import { createPlatformBlogPost, updatePlatformBlogPost } from '../../server/utils/platform-content.ts'
+import { createBlogPost, updateBlogPost } from '../../server/utils/content/publishing.ts'
 
 test('canonical blog writes preserve editor mode and root-relative canonical URLs', { timeout: 120_000 }, async t => {
   const runtime = new Miniflare({ workers: [{ config: {
@@ -35,10 +35,10 @@ test('canonical blog writes preserve editor mode and root-relative canonical URL
     const input = { title: name, category: 'Technology', canonical_url, content_blocks: [{ type: 'markdown', data: { markdown, editor_mode } }] }
     if (!accepts) {
       const before = await db.prepare('SELECT COUNT(*) AS count FROM content_documents').first('count')
-      await assert.rejects(createPlatformBlogPost(db, 'probe-author', input), error => error.statusCode === 400)
+      await assert.rejects(createBlogPost(db, 'probe-author', input), error => error.statusCode === 400)
       assert.equal(await db.prepare('SELECT COUNT(*) AS count FROM content_documents').first('count'), before)
     } else {
-      const created = await createPlatformBlogPost(db, 'probe-author', input)
+      const created = await createBlogPost(db, 'probe-author', input)
       assert.equal(created.success, true)
       assert.equal(await db.prepare('SELECT canonical_url FROM content_documents WHERE id=?').bind(created.id).first('canonical_url'), canonical_url)
       const stored = await db.prepare('SELECT data_json FROM content_blocks WHERE document_id=?').bind(created.id).first('data_json')
@@ -46,17 +46,17 @@ test('canonical blog writes preserve editor mode and root-relative canonical URL
     }
     results.push({ operation: 'create', case: name, result: accepts ? 'persisted unchanged' : 'rejected 400 without write' })
   }
-  const base = await createPlatformBlogPost(db, 'probe-author', { title: 'Update proof', category: 'Technology', content_blocks: [{ type: 'markdown', data: { markdown: 'Initial', editor_mode: 'rich' } }] })
+  const base = await createBlogPost(db, 'probe-author', { title: 'Update proof', category: 'Technology', content_blocks: [{ type: 'markdown', data: { markdown: 'Initial', editor_mode: 'rich' } }] })
   for (const [name, markdown, editor_mode, canonical_url, accepts] of cases) {
     const before = await db.prepare('SELECT canonical_url,updated_at FROM content_documents WHERE id=?').bind(base.id).first()
     const beforeBlocks = (await db.prepare('SELECT id,data_json FROM content_blocks WHERE document_id=?').bind(base.id).all()).results
     const input = { canonical_url, expected_updated_at: before.updated_at, content_blocks: [{ type: 'markdown', data: { markdown, editor_mode } }] }
     if (!accepts) {
-      await assert.rejects(updatePlatformBlogPost(db, base.id, input), error => error.statusCode === 400)
+      await assert.rejects(updateBlogPost(db, base.id, input), error => error.statusCode === 400)
       assert.deepEqual(await db.prepare('SELECT canonical_url,updated_at FROM content_documents WHERE id=?').bind(base.id).first(), before)
       assert.deepEqual((await db.prepare('SELECT id,data_json FROM content_blocks WHERE document_id=?').bind(base.id).all()).results, beforeBlocks)
     } else {
-      assert.equal((await updatePlatformBlogPost(db, base.id, input)).success, true)
+      assert.equal((await updateBlogPost(db, base.id, input)).success, true)
       assert.equal(await db.prepare('SELECT canonical_url FROM content_documents WHERE id=?').bind(base.id).first('canonical_url'), canonical_url)
       const stored = await db.prepare('SELECT data_json FROM content_blocks WHERE document_id=?').bind(base.id).first('data_json')
       assert.deepEqual(JSON.parse(stored), { markdown, editor_mode })
@@ -64,5 +64,5 @@ test('canonical blog writes preserve editor mode and root-relative canonical URL
     results.push({ operation: 'update', case: name, result: accepts ? 'persisted unchanged' : 'rejected 400 without write' })
   }
   assert.deepEqual((await db.prepare('PRAGMA foreign_key_check').all()).results, [])
-  writeFileSync('.audit/pr864/markdown-api-probe.json', JSON.stringify({ node: process.version, boundary: 'real Miniflare D1, actual createPlatformBlogPost and updatePlatformBlogPost, platform scope', cases: results, foreign_keys: 'passed', production_writes: false }, null, 2))
+  writeFileSync('.audit/pr864/markdown-api-probe.json', JSON.stringify({ node: process.version, boundary: 'real Miniflare D1, actual createBlogPost and updateBlogPost, platform scope', cases: results, foreign_keys: 'passed', production_writes: false }, null, 2))
 })

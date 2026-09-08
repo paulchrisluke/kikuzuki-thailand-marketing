@@ -9,7 +9,7 @@ import {
   appendContentBlock, replaceContentBlock, deleteContentBlock,
   createContentDocumentWithBlocks, getContentDocumentById, listBlocksForDocument,
   prepareContentDocumentUpdate, prepareContentDocumentDeletion, updateContentDocument,
-} from '../../server/utils/content-documents.ts'
+} from '../../server/utils/content/documents.ts'
 
 test('document scopes, translations, block ownership and concurrent edits persist through real D1', async () => {
   const miniflare = new Miniflare({ workers: [{ config: {
@@ -32,9 +32,9 @@ test('document scopes, translations, block ownership and concurrent edits persis
     const { document } = await createContentDocumentWithBlocks(db, {
       id: 'article', organizationId: 'one', siteId: 'one', kind: 'article', rowRole: 'root', locale: 'en',
       title: 'Original', slug: 'article', status: 'published', visibility: 'public',
-    }, [{ id: 'body', type: 'markdown', data: { markdown: 'Original' } }])
+    }, [{ id: 'body', type: 'markdown', data: { markdown: 'Original', editor_mode: 'rich' } }])
     const prepare = (label: string) => prepareContentDocumentUpdate(document, { expected_updated_at: document.updated_at,
-      changes: { title: label, summary: label }, blocks: [{ id: 'body', type: 'markdown', data: { markdown: label } }],
+      changes: { title: label, summary: label }, blocks: [{ id: 'body', type: 'markdown', data: { markdown: label, editor_mode: 'rich' } }],
     })
     await executeBatch(db, prepare('Winner').queries)
     await assert.rejects(executeBatch(db, prepare('Stale').queries))
@@ -42,7 +42,7 @@ test('document scopes, translations, block ownership and concurrent edits persis
     assert.equal(JSON.parse((await listBlocksForDocument(db, document.id))[0]!.data_json).markdown, 'Winner')
     const translated = await createContentDocumentWithBlocks(db, { id: 'translation', organizationId: 'one', siteId: 'one',
       kind: 'article', rowRole: 'representation', rootId: document.id, locale: 'th', title: 'Translated', slug: 'translated' },
-    [{ id: 'translated-body', type: 'markdown', data: { markdown: 'Translated' } }])
+    [{ id: 'translated-body', type: 'markdown', data: { markdown: 'Translated', editor_mode: 'rich' } }])
     await assert.rejects(createContentDocumentWithBlocks(db, { organizationId: 'two', siteId: 'two', kind: 'article',
       rowRole: 'representation', rootId: document.id, locale: 'th' }, []))
     await assert.rejects(createContentDocumentWithBlocks(db, { organizationId: 'one', siteId: 'one', kind: 'qa',
@@ -50,7 +50,7 @@ test('document scopes, translations, block ownership and concurrent edits persis
     await assert.rejects(createContentDocumentWithBlocks(db, { organizationId: 'one', siteId: 'one', kind: 'article',
       rowRole: 'representation', rootId: translated.document.id, locale: 'th' }, []))
     await assert.rejects(updateContentDocument(db, translated.document.id, { expected_updated_at: translated.document.updated_at,
-      blocks: [{ id: 'body', type: 'markdown', data: { markdown: 'Cross-document overwrite' } }] }))
+      blocks: [{ id: 'body', type: 'markdown', data: { markdown: 'Cross-document overwrite', editor_mode: 'rich' } }] }))
     await db.prepare("INSERT INTO media_assets (id,organization_id,site_id,kind,provider,source) VALUES ('shared-image','one','one','image','cloudflare_r2','uploaded')").run()
     const sourceLinks = await createContentDocumentWithBlocks(db, { id: 'links', organizationId: 'one', siteId: 'one',
       kind: 'page', rowRole: 'root', locale: 'en', title: 'Links', path: '/links', metadata: { recipe: 'links', page_type: 'custom' } },
@@ -109,10 +109,10 @@ test('document scopes, translations, block ownership and concurrent edits persis
     await updateContentDocument(db, emptyTranslation.id, { expected_updated_at: emptyTranslation.updated_at,
       blocks: [{ id: 'heading-th', source_block_id: 'link-b', type: 'heading', data: { text: 'Translated heading' } }] })
     await assert.rejects(updateContentDocument(db, headingSource.id, { expected_updated_at: headingSource.updated_at,
-      blocks: [{ id: 'link-b', type: 'markdown', data: { markdown: 'Changed type' } }] }))
+      blocks: [{ id: 'link-b', type: 'markdown', data: { markdown: 'Changed type', editor_mode: 'rich' } }] }))
     await updateContentDocument(db, headingSource.id, { expected_updated_at: headingSource.updated_at,
       additionalQueriesBefore: prepareContentDocumentDeletion({ documentId: emptyTranslation.id, organizationId: 'one', siteId: 'one' }),
-      blocks: [{ id: 'link-b', type: 'markdown', data: { markdown: 'Changed after removing translation' } }] })
+      blocks: [{ id: 'link-b', type: 'markdown', data: { markdown: 'Changed after removing translation', editor_mode: 'rich' } }] })
     assert.equal((await listBlocksForDocument(db, headingSource.id))[0]?.type, 'markdown')
     assert.equal(await getContentDocumentById(db, emptyTranslation.id), undefined)
     await assert.rejects(db.prepare("INSERT INTO content_documents(id,organization_id,site_id,kind,row_role,locale,summary,status,published_at,source,metadata_json) VALUES ('invalid-social','one','one','social_post','root','en','Body','published','2026-09-06T00:00:00.000Z','manual','{}')").run())

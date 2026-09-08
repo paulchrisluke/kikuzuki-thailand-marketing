@@ -1,7 +1,7 @@
 // GET /api/public/sites/[siteId]/blog - List a tenant site's published blog posts
 import { queryAll } from '~/server/db'
 import { cloudflareEnv, jsonResponse } from '~/server/utils/api-response'
-import { attachFeaturedMediaFromBareJoin } from '~/server/utils/platform-content'
+import { attachFeaturedMediaFromBareJoin } from '~/server/utils/content/publishing'
 
 export default defineHandler(async (event) => {
   const siteId = getRouterParam(event, 'siteId')
@@ -13,7 +13,7 @@ export default defineHandler(async (event) => {
 
   const sql = `
     SELECT
-      p.id, p.title, p.slug, p.summary AS excerpt, (p.metadata_json ->> '$.category') AS category, p.seo_description, p.seo_keywords, p.canonical_url, p.robots, p.published_at, p.updated_at, mp.asset_id AS asset_id, ma.public_url, ma.thumbnail_url, ma.kind, ma.width, ma.height
+      p.id, p.title, p.slug, p.summary AS excerpt, (p.metadata_json ->> '$.category') AS category, p.seo_description, p.seo_keywords, p.canonical_url, p.robots, p.published_at, p.updated_at, mp.asset_id AS asset_id, ma.public_url, ma.thumbnail_url, ma.kind, ma.alt_text, ma.width, ma.height
     FROM content_documents p
     LEFT JOIN media_placements mp ON mp.owner_type = 'content_document' AND mp.owner_id = p.id AND mp.slot = 'featured' AND mp.sort_order = 0 AND mp.status = 'active'
     LEFT JOIN media_assets ma ON ma.id = mp.asset_id AND ma.status = 'active'

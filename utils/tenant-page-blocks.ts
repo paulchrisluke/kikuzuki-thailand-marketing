@@ -85,7 +85,7 @@ export const TENANT_PAGE_TYPES: readonly TenantPageType[] = ['custom', 'recipe',
 export const TENANT_PAGE_BLOCK_REGISTRY: Record<TenantPageBlockType, TenantPageBlockDefinition> = {
   heading: blockDefinitionWithMetadata('heading', 'Heading', 'A semantic heading.', ALL_RECIPES, ['text', 'level'], { accessibility: 'required', seo: 'structured' }),
   markdown: blockDefinitionWithMetadata('markdown', 'Rich text', 'Markdown-safe prose.', ALL_RECIPES, ['markdown'], { accessibility: 'required', seo: 'inherited' }),
-  image: blockDefinitionWithMetadata('image', 'Image', 'A tenant media placement.', ALL_RECIPES, ['alt', 'caption']),
+  image: blockDefinitionWithMetadata('image', 'Image', 'A tenant media placement.', ALL_RECIPES, ['caption']),
   gallery: blockDefinitionWithMetadata('gallery', 'Gallery', 'An ordered media placement.', ALL_RECIPES, ['caption']),
   faq: blockDefinitionWithMetadata('faq', 'FAQ', 'Structured frequently asked questions.', ALL_RECIPES, ['items'], { accessibility: 'required', seo: 'structured' }),
   divider: blockDefinitionWithMetadata('divider', 'Divider', 'A visual section divider.', ALL_RECIPES, [], { accessibility: 'inherited', seo: 'none' }),
@@ -173,7 +173,7 @@ function blockDefinitionWithMetadata(
 }
 
 const STRING_FIELDS = new Set([
-  'eyebrow', 'title', 'subtitle', 'text', 'markdown', 'alt', 'caption', 'description',
+  'eyebrow', 'title', 'subtitle', 'text', 'markdown', 'caption', 'description',
   'label', 'url', 'body', 'tone', 'cta_label', 'cta_url', 'source',
   'source_url', 'effective_date', 'field', 'section', 'destination',
 ])
@@ -217,7 +217,7 @@ export function createTenantPageBlock(type: TenantPageBlockType, data: Record<st
 }
 
 const TRANSLATABLE_DATA_FIELDS = new Set([
-  'alt', 'answer', 'body', 'caption', 'copy_label', 'description', 'eyebrow', 'heading',
+  'answer', 'body', 'caption', 'copy_label', 'description', 'eyebrow', 'heading',
   'intro', 'label', 'markdown', 'name', 'note', 'prompt', 'question', 'short_description',
   'subtitle', 'summary', 'text', 'title', 'cta_label',
 ])

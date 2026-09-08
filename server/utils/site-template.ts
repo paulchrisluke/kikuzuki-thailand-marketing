@@ -4,7 +4,7 @@
 
 import type { SiteVertical } from "~/utils/vertical-copy";
 import { executeBatch, queryFirst, type BatchQuery, type DbClient } from "~/server/db";
-import { createTenantPagesBatch } from "~/server/utils/tenant-pages";
+import { createTenantPagesBatch } from "~/server/utils/content/pages";
 
 function uid(prefix: string) {
   return `${prefix}-${crypto.randomUUID()}`;

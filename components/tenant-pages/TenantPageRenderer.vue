@@ -23,7 +23,7 @@
             autoplay muted loop playsinline
             class="mx-auto mt-10 max-h-[34rem] w-full rounded-3xl object-cover shadow-xl"
           />
-          <img v-else-if="blockMedia(block, 'media')" :src="blockMedia(block, 'media')!.public_url!" :alt="text(block.data.alt) || page.title" class="mx-auto mt-10 max-h-[34rem] w-full rounded-3xl object-cover shadow-xl">
+          <img v-else-if="blockMedia(block, 'media')" :src="blockMedia(block, 'media')!.public_url!" :alt="blockMedia(block, 'media')!.alt_text ?? ''" class="mx-auto mt-10 max-h-[34rem] w-full rounded-3xl object-cover shadow-xl">
         </div>
       </template>
 
@@ -38,7 +38,7 @@
             autoplay muted loop playsinline
             class="w-full rounded-2xl object-cover shadow-lg"
           />
-          <img v-else :src="blockMedia(block, 'media')!.public_url!" :alt="text(block.data.alt) || page.title" class="w-full rounded-2xl object-cover shadow-lg">
+          <img v-else :src="blockMedia(block, 'media')!.public_url!" :alt="blockMedia(block, 'media')!.alt_text ?? ''" class="w-full rounded-2xl object-cover shadow-lg">
           <figcaption v-if="text(block.data.caption)" class="mt-3 text-center text-sm text-muted">{{ text(block.data.caption) }}</figcaption>
         </figure>
       </template>
@@ -54,7 +54,7 @@
               autoplay muted loop playsinline
               class="aspect-[4/3] w-full rounded-2xl object-cover"
             />
-            <img v-else :src="image.url" :alt="image.alt || page.title" class="aspect-[4/3] w-full rounded-2xl object-cover">
+            <img v-else :src="image.url" :alt="image.alt ?? ''" class="aspect-[4/3] w-full rounded-2xl object-cover">
             <figcaption v-if="image.caption" class="mt-2 text-sm text-muted">{{ image.caption }}</figcaption>
           </figure>
         </div>
@@ -109,7 +109,7 @@
           <h2 v-if="text(block.data.title)" class="mb-6 text-2xl font-semibold">{{ text(block.data.title) }}</h2>
           <div class="grid gap-5 md:grid-cols-2 lg:grid-cols-3">
             <article v-for="(item, index) in gridItems(block)" :key="item.id || item.title || index" class="rounded-2xl border border-default bg-default p-6 shadow-sm">
-              <img v-if="gridItemMedia(item)" :src="gridItemMedia(item)!" :alt="item.title || page.title" class="mb-5 aspect-[4/3] w-full rounded-xl object-cover">
+              <img v-if="gridItemImage(item)" :src="gridItemImage(item)!.url" :alt="gridItemImage(item)!.alt" class="mb-5 aspect-[4/3] w-full rounded-xl object-cover">
               <p v-if="item.value" class="text-3xl font-bold text-primary">{{ item.value }}</p>
               <h3 v-if="item.title" class="text-lg font-semibold">{{ item.title }}</h3>
               <p v-if="item.description" class="mt-2 text-sm leading-6 text-muted">{{ item.description }}</p>
@@ -156,7 +156,7 @@ const { t } = useI18n()
 const canonicalBlawbyPaths = new Set(['/about', '/pricing', '/donate', '/policies/privacy', '/policies/terms', '/third-party-notices'])
 const isCanonicalBlawbyPage = (path: string) => canonicalBlawbyPaths.has(path)
 
-type GridItem = { id?: string; title?: string; description?: string; value?: string; media?: Array<{ slot?: string; public_url?: string | null; thumbnail_url?: string | null }>; label?: string; labelKey?: string; url?: string; amount?: string }
+type GridItem = { id?: string; title?: string; description?: string; value?: string; media?: Array<{ slot?: string; public_url?: string | null; thumbnail_url?: string | null; alt_text?: string | null }>; label?: string; labelKey?: string; url?: string; amount?: string }
 
 function text(value: unknown): string {
   return typeof value === 'string' ? value.trim() : ''
@@ -199,10 +199,11 @@ function itemLabel(item: GridItem): string {
   return item.labelKey ? t(item.labelKey) : item.label || ''
 }
 
-function gridItemMedia(item: GridItem) {
+function gridItemImage(item: GridItem): { url: string; alt: string } | null {
   const media = item.media ?? []
   const asset = media.find(candidate => ['thumbnail', 'hero', 'featured', 'cover'].includes(candidate.slot ?? '')) ?? media[0]
-  return asset?.thumbnail_url || asset?.public_url || null
+  const url = asset?.thumbnail_url || asset?.public_url
+  return url ? { url, alt: asset?.alt_text ?? '' } : null
 }
 
 function gridItems(block: TenantPageBlock): GridItem[] {

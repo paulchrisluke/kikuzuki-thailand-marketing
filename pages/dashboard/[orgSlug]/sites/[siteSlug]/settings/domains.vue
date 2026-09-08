@@ -162,7 +162,7 @@
 <script setup lang="ts">
 import { formatTimestamp } from '~/utils/timezone'
 const dashboardApi = useDashboardApi()
-definePageMeta({ layout: 'dashboard' })
+definePageMeta({ layout: 'dashboard', ownsChrome: true })
 
 const { sitePaths } = useDashboardSiteLinks()
 

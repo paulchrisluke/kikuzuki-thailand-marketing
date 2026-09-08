@@ -14,7 +14,7 @@ export function createTenantPageEditorData(type: TenantPageBlockType): EditorDat
     case 'markdown':
       return { markdown: '', editor_mode: 'rich' }
     case 'image':
-      return { alt: '', caption: '' }
+      return { caption: '' }
     case 'gallery':
       return {}
     case 'faq':
@@ -28,7 +28,7 @@ export function createTenantPageEditorData(type: TenantPageBlockType): EditorDat
     case 'callout':
       return { title: '', body: '', tone: 'neutral', buttons: [] }
     case 'hero':
-      return { eyebrow: '', title: '', subtitle: '', alt: '', cta_label: '', cta_url: '' }
+      return { eyebrow: '', title: '', subtitle: '', cta_label: '', cta_url: '' }
     case 'button_group':
       return { buttons: [{ label: '', url: '' }] }
     case 'feature_grid':

@@ -1,5 +1,4 @@
 import { HTTPError } from 'nitro';
-import { markdownRequiresSourceMode } from '~/shared/markdown-editor-mode'
 
 import { executeBatch, queryAll, queryFirst, type BatchQuery, type DbClient } from '~/server/db'
 import {
@@ -15,7 +14,7 @@ import {
   type ContentDocumentChanges,
   renderContentBlocksToMarkdown,
   type ContentBlockInput,
-} from '~/server/utils/content-documents'
+} from '~/server/utils/content/documents'
 import {
   loadExactPublicLocalizations,
   projectLocalizedMediaAlt,
@@ -207,7 +206,7 @@ export interface PlatformBlogLifecycleState {
   updated_at: string
 }
 
-export function parsePlatformBlogLifecycleInput(body: unknown, _action: 'publish' = 'publish'): PlatformBlogLifecycleInput {
+export function parseBlogLifecycleInput(body: unknown, _action: 'publish' = 'publish'): PlatformBlogLifecycleInput {
   if (!body || typeof body !== 'object' || Array.isArray(body)) badRequest('Request body must be a valid object')
   const record = body as Record<string, unknown>
   const allowed = new Set(['expected_updated_at', 'scheduled_for'])
@@ -351,13 +350,6 @@ async function normalizeEditorContentBlocks(
   return await Promise.all(blocks.map(async (block): Promise<NormalizedEditorBlock> => {
     if (!block || typeof block !== 'object' || !block.data || typeof block.data !== 'object' || Array.isArray(block.data)) badRequest('Every content block requires an object data payload')
     if (block.type === 'heading' && (typeof block.data.text !== 'string' || !block.data.text.trim())) badRequest('Heading blocks require non-empty data.text')
-    if (block.type === 'markdown') {
-      if (typeof block.data.markdown !== 'string') badRequest('Markdown blocks require data.markdown')
-      if (block.data.editor_mode !== 'rich' && block.data.editor_mode !== 'source') badRequest('Markdown blocks require data.editor_mode to be rich or source')
-      if (block.data.editor_mode === 'rich' && markdownRequiresSourceMode(block.data.markdown)) {
-        badRequest('Markdown tables and raw HTML require editor_mode source')
-      }
-    }
     const id = block.id ?? crypto.randomUUID()
     const media = Array.isArray(block.media) ? block.media : []
     if (block.type === 'image' && media.length > 1) badRequest('Image blocks accept one media asset')
@@ -492,6 +484,7 @@ export function attachFeaturedMedia(record: ApiRecord) {
     media_public_url: publicUrl,
     media_thumbnail_url: thumbnailUrl,
     media_kind: kind,
+    media_alt_text: altText,
     media_width: width,
     media_height: height,
     ...rest
@@ -499,19 +492,19 @@ export function attachFeaturedMedia(record: ApiRecord) {
 
   return {
     ...normalizeNavVisibility(rest),
-    media: assetId ? [{ asset_id: assetId, slot: 'featured', public_url: publicUrl ?? null, thumbnail_url: thumbnailUrl ?? null, kind: kind ?? null, width: width ?? null, height: height ?? null }] : [],
+    media: assetId ? [{ asset_id: assetId, slot: 'featured', public_url: publicUrl ?? null, thumbnail_url: thumbnailUrl ?? null, kind: kind ?? null, alt_text: altText ?? null, width: width ?? null, height: height ?? null }] : [],
   }
 }
 
 export function attachFeaturedMediaFromBareJoin(record: ApiRecord) {
   const {
-    public_url: publicUrl, thumbnail_url: thumbnailUrl, kind, width, height, asset_id: assetId,
+    public_url: publicUrl, thumbnail_url: thumbnailUrl, kind, alt_text: altText, width, height, asset_id: assetId,
     ...rest
   } = record
 
   return {
     ...normalizeNavVisibility(rest),
-    media: assetId ? [{ asset_id: assetId, slot: 'featured', public_url: publicUrl ?? null, thumbnail_url: thumbnailUrl ?? null, kind: kind ?? null, width: width ?? null, height: height ?? null }] : [],
+    media: assetId ? [{ asset_id: assetId, slot: 'featured', public_url: publicUrl ?? null, thumbnail_url: thumbnailUrl ?? null, kind: kind ?? null, alt_text: altText ?? null, width: width ?? null, height: height ?? null }] : [],
   }
 }
 
@@ -604,7 +597,7 @@ async function resolveTenantContext(db: DbClient, siteId: string | null, env?: C
  * request, which was causing the page to 404 on posts the API itself
  * served fine.
  */
-export async function getPublicPlatformBlogPost(db: DbClient, category: string, slug: string, env: CloudflareEnv, token?: string) {
+export async function getPublishedBlogPost(db: DbClient, category: string, slug: string, env: CloudflareEnv, token?: string) {
   const post = await queryFirst<ApiRecord>(db, `
     SELECT
       p.id, p.title, p.slug, p.summary AS excerpt, (p.metadata_json ->> '$.category') AS category, json_extract(p.metadata_json, '$.tags') AS tags_json, p.seo_title, p.seo_description, p.seo_keywords,
@@ -616,6 +609,7 @@ export async function getPublicPlatformBlogPost(db: DbClient, category: string, 
       ma.public_url,
       ma.thumbnail_url,
       ma.kind,
+      ma.alt_text,
       ma.width,
       ma.height
     FROM content_documents p
@@ -644,7 +638,7 @@ export async function getPublicPlatformBlogPost(db: DbClient, category: string, 
 
 /**
  * Shared by the public docs API route and the docs page's SSR data fetch.
- * See getPublicPlatformBlogPost above for why the page must call this
+ * See getPublishedBlogPost above for why the page must call this
  * directly rather than doing a nested self-fetch back to the API route.
  */
 export async function getPublishedPlatformDoc(db: DbClient, category: string, slug: string, env: CloudflareEnv) {
@@ -656,7 +650,7 @@ export async function getPublishedPlatformDoc(db: DbClient, category: string, sl
        (p.metadata_json ->> '$.nav_section') AS nav_section, (p.metadata_json ->> '$.nav_title') AS nav_title, (p.metadata_json ->> '$.nav_order') AS nav_order, (p.metadata_json ->> '$.nav_section_order') AS nav_section_order, (p.metadata_json ->> '$.nav_group') AS nav_group, (p.metadata_json ->> '$.nav_group_order') AS nav_group_order, (p.metadata_json ->> '$.hide_from_nav') AS hide_from_nav, (p.metadata_json ->> '$.featured_order') AS featured_order,
        p.author_id,
        mp.asset_id AS asset_id, p.updated_at,
-       ma.public_url, ma.thumbnail_url, ma.kind, ma.width, ma.height
+       ma.public_url, ma.thumbnail_url, ma.kind, ma.alt_text, ma.width, ma.height
      FROM content_documents p
      LEFT JOIN media_placements mp ON mp.owner_type = 'content_document' AND mp.owner_id = p.id AND mp.slot = 'featured' AND mp.sort_order = 0
      LEFT JOIN media_assets ma ON ma.id = mp.asset_id AND ma.status = 'active'
@@ -768,7 +762,7 @@ function validateDocCommon(input: Partial<PlatformDocCreateInput>) {
 export async function listPublicPlatformBlogPosts(db: DbClient) {
   const sql = `
     SELECT
-      p.id, p.title, p.slug, p.summary AS excerpt, (p.metadata_json ->> '$.category') AS category, p.seo_description, p.seo_keywords, p.canonical_url, p.robots, p.published_at, (p.metadata_json ->> '$.nav_section') AS nav_section, (p.metadata_json ->> '$.nav_title') AS nav_title, (p.metadata_json ->> '$.nav_order') AS nav_order, (p.metadata_json ->> '$.nav_section_order') AS nav_section_order, (p.metadata_json ->> '$.hide_from_nav') AS hide_from_nav, (p.metadata_json ->> '$.featured_order') AS featured_order, mp.asset_id AS asset_id, ma.public_url, ma.thumbnail_url, ma.kind, ma.width, ma.height
+      p.id, p.title, p.slug, p.summary AS excerpt, (p.metadata_json ->> '$.category') AS category, p.seo_description, p.seo_keywords, p.canonical_url, p.robots, p.published_at, (p.metadata_json ->> '$.nav_section') AS nav_section, (p.metadata_json ->> '$.nav_title') AS nav_title, (p.metadata_json ->> '$.nav_order') AS nav_order, (p.metadata_json ->> '$.nav_section_order') AS nav_section_order, (p.metadata_json ->> '$.hide_from_nav') AS hide_from_nav, (p.metadata_json ->> '$.featured_order') AS featured_order, mp.asset_id AS asset_id, ma.public_url, ma.thumbnail_url, ma.kind, ma.alt_text, ma.width, ma.height
     FROM content_documents p
     LEFT JOIN media_placements mp ON mp.owner_type = 'content_document' AND mp.owner_id = p.id AND mp.slot = 'featured' AND mp.sort_order = 0 AND mp.status = 'active'
     LEFT JOIN media_assets ma ON ma.id = mp.asset_id AND ma.status = 'active'
@@ -781,12 +775,12 @@ export async function listPublicPlatformBlogPosts(db: DbClient) {
   return results.filter(post => blogCategoryToSlug(post.category)).map(attachFeaturedMediaFromBareJoin)
 }
 
-export async function listPlatformBlogPosts(db: DbClient, status?: string | null, siteId: string | null = null, env?: CloudflareEnv) {
+export async function listBlogPosts(db: DbClient, status?: string | null, siteId: string | null = null, env?: CloudflareEnv) {
   let sql = `SELECT
       p.id, p.title, p.slug, p.summary AS excerpt, (p.metadata_json ->> '$.category') AS category, json_extract(p.metadata_json, '$.tags') AS tags_json, p.status, p.visibility, p.scheduled_for,
       p.seo_title, p.seo_description, p.seo_keywords, p.canonical_url, p.robots,
       (p.metadata_json ->> '$.nav_section') AS nav_section, (p.metadata_json ->> '$.nav_title') AS nav_title, (p.metadata_json ->> '$.nav_order') AS nav_order, (p.metadata_json ->> '$.nav_section_order') AS nav_section_order, (p.metadata_json ->> '$.hide_from_nav') AS hide_from_nav, (p.metadata_json ->> '$.featured_order') AS featured_order,
-      mp.asset_id AS asset_id, ma.public_url AS media_public_url, ma.thumbnail_url AS media_thumbnail_url, ma.kind AS media_kind,
+      mp.asset_id AS asset_id, ma.public_url AS media_public_url, ma.thumbnail_url AS media_thumbnail_url, ma.kind AS media_kind, ma.alt_text AS media_alt_text,
       ma.width AS media_width, ma.height AS media_height,
       p.published_at, p.created_at, p.updated_at
     FROM content_documents p
@@ -811,7 +805,7 @@ export async function listPlatformBlogPosts(db: DbClient, status?: string | null
   }))
 }
 
-export async function getPlatformBlogPost(db: DbClient, postIdOrSlug: string, siteId: string | null = null, env?: CloudflareEnv) {
+export async function getBlogPost(db: DbClient, postIdOrSlug: string, siteId: string | null = null, env?: CloudflareEnv) {
   const resolvedSiteId = siteId ?? PLATFORM_SITE_ID
   const postId = await resolvePlatformContentId(db, 'article', postIdOrSlug, 'Post not found', resolvedSiteId)
   const post = await queryFirst<ApiRecord | null>(
@@ -821,7 +815,7 @@ export async function getPlatformBlogPost(db: DbClient, postIdOrSlug: string, si
        p.first_published_at, (p.metadata_json ->> '$.slug_manually_overridden') AS slug_manually_overridden,
        p.seo_title, p.seo_description, p.seo_keywords, p.canonical_url, p.robots,
        (p.metadata_json ->> '$.nav_section') AS nav_section, (p.metadata_json ->> '$.nav_title') AS nav_title, (p.metadata_json ->> '$.nav_order') AS nav_order, (p.metadata_json ->> '$.nav_section_order') AS nav_section_order, (p.metadata_json ->> '$.hide_from_nav') AS hide_from_nav, (p.metadata_json ->> '$.featured_order') AS featured_order,
-       mp.asset_id AS asset_id, ma.public_url AS media_public_url, ma.thumbnail_url AS media_thumbnail_url, ma.kind AS media_kind,
+       mp.asset_id AS asset_id, ma.public_url AS media_public_url, ma.thumbnail_url AS media_thumbnail_url, ma.kind AS media_kind, ma.alt_text AS media_alt_text,
        ma.width AS media_width, ma.height AS media_height,
        p.published_at, p.created_at, p.updated_at
      FROM content_documents p
@@ -873,6 +867,7 @@ export async function getPublicSiteBlogPost(db: DbClient, siteId: string, slug: 
       ma.public_url,
       ma.thumbnail_url,
       ma.kind,
+      ma.alt_text,
       ma.width,
       ma.height
     FROM content_documents p
@@ -904,7 +899,7 @@ export async function getPublicSiteBlogPost(db: DbClient, siteId: string, slug: 
   }
 }
 
-export async function getPublicLocalizedSiteBlogPost(
+export async function getPublishedLocalizedSiteBlogPost(
   db: DbClient,
   siteId: string,
   slug: string,
@@ -962,7 +957,7 @@ export async function getPublicLocalizedSiteBlogPost(
   }
 }
 
-export async function createPlatformBlogPost(
+export async function createBlogPost(
   db: D1Database,
   authorId: string,
   input: PlatformBlogCreateInput,
@@ -1030,7 +1025,7 @@ export async function createPlatformBlogPost(
           ...await contentBlockPlacementQueries(db, canonicalBlocks, placementScope, now),
         ],
       })
-      const post = await getPlatformBlogPost(db, id, siteId, env)
+      const post = await getBlogPost(db, id, siteId, env)
       if (env) await refreshSocialCard({ db, env, owner: { owner_type: 'content_document', owner_id: id }, actorId: authorId })
       return {
         success: true,
@@ -1054,7 +1049,7 @@ export async function createPlatformBlogPost(
   throw new HTTPError({ statusCode: 500, statusMessage: 'Failed to create post' })
 }
 
-export async function updatePlatformBlogLifecycle(
+export async function updateBlogLifecycle(
   db: D1Database,
   postIdOrSlug: string,
   input: PlatformBlogLifecycleInput,
@@ -1089,7 +1084,7 @@ export async function updatePlatformBlogLifecycle(
     published_at: scheduledFor ? null : committedAt, scheduled_for: scheduledFor, updated_at: committedAt }
 }
 
-export async function updatePlatformBlogPost(
+export async function updateBlogPost(
   db: D1Database, postIdOrSlug: string, input: PlatformBlogUpdateInput,
   siteId: string | null = null, env?: CloudflareEnv,
 ) {
@@ -1156,7 +1151,7 @@ export async function updatePlatformBlogPost(
     if (requestedSlug && requestedSlug !== current.slug && current.first_published_at && input.redirect_old_slug !== false) {
       await createBlogRedirect(db, postId, siteId, current.slug)
     }
-    const post = await getPlatformBlogPost(db, postId, siteId, env)
+    const post = await getBlogPost(db, postId, siteId, env)
     if (env) await refreshSocialCard({ db, env, owner: { owner_type: 'content_document', owner_id: postId } })
     return { success: true, admin_edit_url: post.admin_edit_url, edit_url: post.edit_url,
       public_path: post.public_path, public_url: post.public_url, preview_url: post.preview_url, post }
@@ -1166,7 +1161,7 @@ export async function updatePlatformBlogPost(
   }
 }
 
-export async function deletePlatformBlogPost(db: D1Database, postIdOrSlug: string, siteId: string | null = null) {
+export async function deleteBlogPost(db: D1Database, postIdOrSlug: string, siteId: string | null = null) {
   const postId = await resolvePlatformContentId(db, 'article', postIdOrSlug, 'Post not found', siteId ?? PLATFORM_SITE_ID)
   const document = await getContentDocumentById(db, postId)
   if (!document) notFound('Document not found')
@@ -1175,7 +1170,7 @@ export async function deletePlatformBlogPost(db: D1Database, postIdOrSlug: strin
   return { success: true }
 }
 
-export async function reorderPlatformBlogPosts(
+export async function reorderBlogPosts(
   db: D1Database,
   items: Array<{
     post_id: string
@@ -1203,14 +1198,14 @@ export async function reorderPlatformBlogPosts(
     queries.push(...prepareContentDocumentUpdate(document, { expected_updated_at: document.updated_at, changes: { metadata } }).queries)
   }
   await executeBatch(db, queries)
-  return { success: true, posts: await listPlatformBlogPosts(db, null, siteId, env) }
+  return { success: true, posts: await listBlogPosts(db, null, siteId, env) }
 }
 
 export async function listPlatformDocs(db: DbClient, _status?: string | null) {
   const sql = `SELECT
       d.id, d.title, d.slug, d.summary AS excerpt, (d.metadata_json ->> '$.category') AS category, d.seo_description, d.seo_keywords, d.canonical_url, d.robots,
       (d.metadata_json ->> '$.nav_section') AS nav_section, (d.metadata_json ->> '$.nav_title') AS nav_title, (d.metadata_json ->> '$.nav_order') AS nav_order, (d.metadata_json ->> '$.nav_section_order') AS nav_section_order, (d.metadata_json ->> '$.nav_group') AS nav_group, (d.metadata_json ->> '$.nav_group_order') AS nav_group_order, (d.metadata_json ->> '$.hide_from_nav') AS hide_from_nav, (d.metadata_json ->> '$.featured_order') AS featured_order,
-      mp.asset_id AS asset_id, ma.public_url AS media_public_url, ma.thumbnail_url AS media_thumbnail_url, ma.kind AS media_kind,
+      mp.asset_id AS asset_id, ma.public_url AS media_public_url, ma.thumbnail_url AS media_thumbnail_url, ma.kind AS media_kind, ma.alt_text AS media_alt_text,
       ma.width AS media_width, ma.height AS media_height,
       (d.metadata_json ->> '$.difficulty_level') AS difficulty_level, d.sort_order, d.created_at, d.updated_at
     FROM content_documents d
@@ -1229,7 +1224,7 @@ export async function getPlatformDoc(db: DbClient, docIdOrSlug: string) {
        d.id, d.title, d.slug, d.summary AS excerpt, (d.metadata_json ->> '$.category') AS category, d.seo_description, d.seo_keywords, d.canonical_url, d.robots,
        (d.metadata_json ->> '$.nav_section') AS nav_section, (d.metadata_json ->> '$.nav_title') AS nav_title, (d.metadata_json ->> '$.nav_order') AS nav_order, (d.metadata_json ->> '$.nav_section_order') AS nav_section_order, (d.metadata_json ->> '$.nav_group') AS nav_group, (d.metadata_json ->> '$.nav_group_order') AS nav_group_order, (d.metadata_json ->> '$.hide_from_nav') AS hide_from_nav, (d.metadata_json ->> '$.featured_order') AS featured_order,
        (d.metadata_json ->> '$.difficulty_level') AS difficulty_level, d.sort_order,
-       mp.asset_id AS asset_id, ma.public_url AS media_public_url, ma.thumbnail_url AS media_thumbnail_url, ma.kind AS media_kind,
+       mp.asset_id AS asset_id, ma.public_url AS media_public_url, ma.thumbnail_url AS media_thumbnail_url, ma.kind AS media_kind, ma.alt_text AS media_alt_text,
        ma.width AS media_width, ma.height AS media_height,
        d.created_at, d.updated_at
      FROM content_documents d

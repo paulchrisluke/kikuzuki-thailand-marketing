@@ -1,6 +1,6 @@
 import { jsonResponse } from "~/server/utils/api-response";
 import { requireBlogAccess } from "~/server/utils/blog-access";
-import { createPlatformBlogPost, type PlatformBlogCreateInput } from "~/server/utils/platform-content";
+import { createBlogPost, type PlatformBlogCreateInput } from "~/server/utils/content/publishing";
 import { httpErrorDetails } from "~/server/utils/http-error";
 import { finalizeRequestMetrics } from "~/server/utils/request-metrics";
 
@@ -21,7 +21,7 @@ export default defineHandler(async (event) => {
   try {
     const { env, db, session, site } = await requireBlogAccess(event, siteId);
 
-    const result = await createPlatformBlogPost(db, session.user.id, body as PlatformBlogCreateInput, {
+    const result = await createBlogPost(db, session.user.id, body as PlatformBlogCreateInput, {
       site_id: siteId, organization_id: site.organization_id, }, env);
 
     return jsonResponse(finalizeRequestMetrics(event, 'editor-blog-post-create', result));

@@ -96,7 +96,7 @@ import { resolvePublicTemplate } from '~/utils/template-registry'
 import { getTodayHoursLabel, type OpeningHours } from '~/shared/reservation-hours'
 import { normalizeVertical, type SiteVertical } from '~/utils/vertical-copy'
 
-definePageMeta({ layout: 'dashboard' })
+definePageMeta({ layout: 'dashboard', ownsChrome: true })
 
 interface LocationOverview {
   id: string

@@ -1,6 +1,6 @@
 {
   "surface": "tenant",
-  "fingerprint": "sha256:6b94139dadd32cd23aa61ba70d8827828847fd2fef7696043fc8fca1c9c2b986",
+  "fingerprint": "sha256:f5dc1a818617dd008a9c8383e08417f4d57adec56bb97e73023c2062986c6831",
   "tools": [
     {
       "name": "attach_media",
@@ -845,7 +845,7 @@
             "items": {
               "properties": {
                 "data": {
-                  "description": "Typed non-media block payload. Markdown requires markdown plus editor_mode (rich for visual-editor-safe prose, source for tables/raw HTML). FAQ uses items; How-To uses steps. Asset IDs and delivery URLs belong only in the block media array.",
+                  "description": "Typed block payload. Plain-text fields are rendered literally, so markdown syntax written into one reaches the reader as raw characters — a heading of \"**Title**\" publishes with the asterisks showing. Only the fields listed as markdown are parsed. A markdown field also requires editor_mode alongside it: \"rich\" for prose the visual editor can handle, \"source\" for tables or raw HTML. Asset IDs and delivery URLs belong in the block media array, never in data. Fields by block type — heading block: literal — text. markdown block: parsed as markdown — markdown. image block: literal — caption. gallery block: literal — caption. faq block: literal — label, items.*.question, items.*.answer. how_to block: literal — label, estimated_time, tool_items.*, supply_items.*, steps.*.name, steps.*.text. divider block: no text fields. ai_assistance block: literal — label, intro, prompts.*.title, prompts.*.prompt, prompts.*.description, prompts.*.copy_label. cta block: literal — title, description, label. callout block: literal — title, body.",
                   "type": "object"
                 },
                 "id": {
@@ -3050,6 +3050,7 @@
               "additionalProperties": false,
               "properties": {
                 "data": {
+                  "description": "Typed block payload. Plain-text fields are rendered literally, so markdown syntax written into one reaches the reader as raw characters — a heading of \"**Title**\" publishes with the asterisks showing. Only the fields listed as markdown are parsed. A markdown field also requires editor_mode alongside it: \"rich\" for prose the visual editor can handle, \"source\" for tables or raw HTML. Asset IDs and delivery URLs belong in the block media array, never in data. Fields by block type — heading block: literal — text. markdown block: parsed as markdown — markdown. image block: literal — caption. gallery block: literal — caption. faq block: literal — label, items.*.question, items.*.answer. how_to block: literal — label, estimated_time, tool_items.*, supply_items.*, steps.*.name, steps.*.text. divider block: no text fields. ai_assistance block: literal — label, intro, prompts.*.title, prompts.*.prompt, prompts.*.description, prompts.*.copy_label. cta block: literal — title, description, label. callout block: literal — title, body. hero block: literal — eyebrow, title, subtitle, description, cta_label. button_group block: literal — buttons.*.label. feature_grid block: literal — title, description, items.*.title, items.*.description. testimonial_grid block: literal — title, description, items.*.title, items.*.description. contact_cta block: literal — title, description, label. booking_cta block: literal — title, description, label. donation_choices block: literal — tiers.*.label. offering_grid block: literal — title, description. location_grid block: literal — title, description.",
                   "type": "object"
                 },
                 "id": {
@@ -12048,7 +12049,7 @@
             "items": {
               "properties": {
                 "data": {
-                  "description": "Typed non-media block payload. Markdown requires markdown plus editor_mode (rich for visual-editor-safe prose, source for tables/raw HTML). FAQ uses items; How-To uses steps. Asset IDs and delivery URLs belong only in the block media array.",
+                  "description": "Typed block payload. Plain-text fields are rendered literally, so markdown syntax written into one reaches the reader as raw characters — a heading of \"**Title**\" publishes with the asterisks showing. Only the fields listed as markdown are parsed. A markdown field also requires editor_mode alongside it: \"rich\" for prose the visual editor can handle, \"source\" for tables or raw HTML. Asset IDs and delivery URLs belong in the block media array, never in data. Fields by block type — heading block: literal — text. markdown block: parsed as markdown — markdown. image block: literal — caption. gallery block: literal — caption. faq block: literal — label, items.*.question, items.*.answer. how_to block: literal — label, estimated_time, tool_items.*, supply_items.*, steps.*.name, steps.*.text. divider block: no text fields. ai_assistance block: literal — label, intro, prompts.*.title, prompts.*.prompt, prompts.*.description, prompts.*.copy_label. cta block: literal — title, description, label. callout block: literal — title, body.",
                   "type": "object"
                 },
                 "id": {
@@ -14516,7 +14517,7 @@
             "items": {
               "properties": {
                 "data": {
-                  "description": "Typed non-media block payload. Markdown requires markdown plus editor_mode (rich for visual-editor-safe prose, source for tables/raw HTML). FAQ uses items; How-To uses steps. Asset IDs and delivery URLs belong only in the block media array.",
+                  "description": "Typed block payload. Plain-text fields are rendered literally, so markdown syntax written into one reaches the reader as raw characters — a heading of \"**Title**\" publishes with the asterisks showing. Only the fields listed as markdown are parsed. A markdown field also requires editor_mode alongside it: \"rich\" for prose the visual editor can handle, \"source\" for tables or raw HTML. Asset IDs and delivery URLs belong in the block media array, never in data. Fields by block type — heading block: literal — text. markdown block: parsed as markdown — markdown. image block: literal — caption. gallery block: literal — caption. faq block: literal — label, items.*.question, items.*.answer. how_to block: literal — label, estimated_time, tool_items.*, supply_items.*, steps.*.name, steps.*.text. divider block: no text fields. ai_assistance block: literal — label, intro, prompts.*.title, prompts.*.prompt, prompts.*.description, prompts.*.copy_label. cta block: literal — title, description, label. callout block: literal — title, body.",
                   "type": "object"
                 },
                 "id": {
@@ -17695,6 +17696,7 @@
               "additionalProperties": false,
               "properties": {
                 "data": {
+                  "description": "Typed block payload. Plain-text fields are rendered literally, so markdown syntax written into one reaches the reader as raw characters — a heading of \"**Title**\" publishes with the asterisks showing. Only the fields listed as markdown are parsed. A markdown field also requires editor_mode alongside it: \"rich\" for prose the visual editor can handle, \"source\" for tables or raw HTML. Asset IDs and delivery URLs belong in the block media array, never in data. Fields by block type — heading block: literal — text. markdown block: parsed as markdown — markdown. image block: literal — caption. gallery block: literal — caption. faq block: literal — label, items.*.question, items.*.answer. how_to block: literal — label, estimated_time, tool_items.*, supply_items.*, steps.*.name, steps.*.text. divider block: no text fields. ai_assistance block: literal — label, intro, prompts.*.title, prompts.*.prompt, prompts.*.description, prompts.*.copy_label. cta block: literal — title, description, label. callout block: literal — title, body. hero block: literal — eyebrow, title, subtitle, description, cta_label. button_group block: literal — buttons.*.label. feature_grid block: literal — title, description, items.*.title, items.*.description. testimonial_grid block: literal — title, description, items.*.title, items.*.description. contact_cta block: literal — title, description, label. booking_cta block: literal — title, description, label. donation_choices block: literal — tiers.*.label. offering_grid block: literal — title, description. location_grid block: literal — title, description.",
                   "type": "object"
                 },
                 "id": {

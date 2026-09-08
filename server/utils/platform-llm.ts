@@ -3,7 +3,7 @@ import { HTTPError } from 'nitro';
 import type { H3Event } from 'nitro';
 import {  getRequestHost } from 'nitro/h3';
 import { queryAll, queryFirst, type DbClient } from '../db/index.ts'
-import { getContentBlocksForDocument } from './content-documents.ts'
+import { getContentBlocksForDocument } from './content/documents.ts'
 import { findAuthUsersByIds, type CloudflareEnv } from './auth.ts'
 import { blogCategoryToSlug, slugToBlogCategory } from '../../utils/blog-categories.ts'
 import { categoryToSlug, slugToCategory } from '../../utils/docs-categories.ts'
@@ -311,7 +311,7 @@ export async function getPublishedPlatformDocBySlug(db: DbClient, categorySlug: 
   return { ...detail, content_blocks: contentBlocks }
 }
 
-export async function getPublishedPlatformBlogPostBySlug(db: DbClient, categorySlug: string, slug: string) {
+export async function getPublishedBlogPostBySlug(db: DbClient, categorySlug: string, slug: string) {
   const category = slugToBlogCategory(categorySlug)
   if (!category) return null
   const detail = await getPublishedTenantBlogPostBySlug(db, PLATFORM_SITE_ID, slug)

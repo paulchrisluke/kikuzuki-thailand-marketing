@@ -1,11 +1,23 @@
 <template>
-  <BlogPostEditor
-    :repository="repository"
-    title="New Blog Post"
-    back-url="/admin/blog"
-    back-label="Posts"
-    :is-edit="false"
-  />
+  <UDashboardPanel id="admin-blog-editor">
+    <template #header>
+      <UDashboardNavbar title="New Post" :toggle="false">
+        <template #leading>
+          <DashboardNavbarLeading to="/admin/blog" label="Posts" />
+        </template>
+      </UDashboardNavbar>
+    </template>
+
+    <template #body>
+      <BlogPostEditor
+        :repository="repository"
+        title="New Blog Post"
+        back-url="/admin/blog"
+        back-label="Posts"
+        :is-edit="false"
+      />
+    </template>
+  </UDashboardPanel>
 </template>
 
 <script setup lang="ts">

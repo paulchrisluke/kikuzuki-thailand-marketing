@@ -21,7 +21,7 @@ if (changedSince) {
     'config/platform-knowledge.ts',
     'server/utils/public-search.ts',
     'server/utils/platform-llm.ts',
-    'server/utils/content-documents.ts',
+    'server/utils/content/documents.ts',
     'shared/platform-scope.ts',
     'utils/blog-categories.ts',
     'utils/docs-categories.ts',

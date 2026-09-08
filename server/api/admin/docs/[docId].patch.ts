@@ -2,7 +2,7 @@
 import { cloudflareEnv, jsonResponse, readRequiredBody } from '~/server/utils/api-response'
 import { getAuthSession } from '~/server/utils/auth'
 import { platformPermissionJsonResponse } from '~/server/utils/platform-admin-users'
-import { updatePlatformDoc } from '~/server/utils/platform-content'
+import { updatePlatformDoc } from '~/server/utils/content/publishing'
 import { schedulePlatformKnowledgeIndexRebuild } from '~/server/utils/platform-search-rebuild'
 
 import type { PlatformDocRequestBody } from '~/server/types/platform-content'

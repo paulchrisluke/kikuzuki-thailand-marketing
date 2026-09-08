@@ -1,5 +1,5 @@
 import { cloudflareEnv, jsonResponse } from '~/server/utils/api-response'
-import { getPublicLocalizedSiteBlogPost } from '~/server/utils/platform-content'
+import { getPublishedLocalizedSiteBlogPost } from '~/server/utils/content/publishing'
 import { assertExactCanonicalLocale } from '~/server/utils/localization'
 import { getQuery } from 'nitro/h3'
 
@@ -15,7 +15,7 @@ export default defineHandler(async (event) => {
   const query = getQuery(event)
   const locale = assertExactCanonicalLocale(query.locale ?? 'en')
   if (query.token !== undefined && typeof query.token !== 'string') return jsonResponse({ error: 'Invalid preview token' }, { status: 400 })
-  const post = await getPublicLocalizedSiteBlogPost(db, siteId, slug, locale, env, query.token)
+  const post = await getPublishedLocalizedSiteBlogPost(db, siteId, slug, locale, env, query.token)
   if (!post) return jsonResponse({ error: 'Post not found' }, { status: 404 })
   return jsonResponse({ post })
 })

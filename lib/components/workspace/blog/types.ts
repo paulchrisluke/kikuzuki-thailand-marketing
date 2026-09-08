@@ -23,7 +23,7 @@ export interface BlogPost {
   visibility?: 'public' | 'unlisted'
   tags?: string[]
   seo_title?: string | null
-  media?: Array<{ asset_id: string; slot: string; public_url?: string | null; thumbnail_url?: string | null; kind?: string | null }>
+  media?: Array<{ asset_id: string; slot: string; public_url?: string | null; thumbnail_url?: string | null; kind?: string | null; alt_text?: string | null }>
   edit_url?: string | null
   content_document?: {
     document: { id: string; updated_at: string }

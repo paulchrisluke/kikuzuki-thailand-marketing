@@ -16,6 +16,7 @@
         has-detail
         show-desktop-detail
         :dismiss-to="experiencesPath"
+        detail-title="Experience"
         wide-detail
         hide-detail-heading
       >

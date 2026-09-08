@@ -2,7 +2,7 @@
 import { cloudflareEnv, jsonResponse } from '~/server/utils/api-response'
 import { getAuthSession } from '~/server/utils/auth'
 import { platformPermissionJsonResponse } from '~/server/utils/platform-admin-users'
-import { deletePlatformBlogPost } from '~/server/utils/platform-content'
+import { deleteBlogPost } from '~/server/utils/content/publishing'
 import { schedulePlatformKnowledgeIndexRebuild } from '~/server/utils/platform-search-rebuild'
 
 export default defineHandler(async (event) => {
@@ -20,7 +20,7 @@ export default defineHandler(async (event) => {
   if (permissionDenied) return permissionDenied
 
   try {
-    const result = await deletePlatformBlogPost(db, postId)
+    const result = await deleteBlogPost(db, postId)
     schedulePlatformKnowledgeIndexRebuild(event, env, 'blog post delete')
     return jsonResponse(result)
   } catch (err) {
