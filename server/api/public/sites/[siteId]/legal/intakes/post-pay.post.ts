@@ -14,11 +14,23 @@
 // "exact-origin BFF POST" in the plan text means this same R13/R26 check,
 // not a separate mechanism.
 //
-// BlawbyRouteKey 'intakePostPay' -- PLACEHOLDER path
-// '/legal/public/intakes/post-pay', called with method GET (U8's
-// "server-to-server post-pay GET" per plan step 5) to verify the
-// correlation between request reference, intake id, and checkout session
-// id before anything is attached; not a verified U8 contract.
+// BlawbyRouteKey 'intakePostPay' -- real U8 route `GET
+// /intakes/{uuid}/post-pay/status` (U8's "server-to-server post-pay GET"
+// per plan step 5) to verify the correlation between request reference,
+// intake id, and checkout session id before anything is attached. The path
+// param is the Blawby intake UUID.
+//
+// KNOWN GAP: per task-u8-reconciliation-brief.md section 2, U8's real
+// post-pay route also takes a query param
+// (`checkoutSessionStatusQuerySchema`, likely the Stripe Checkout Session
+// id) that this task's scope (path-param support only, section 4) does not
+// add plumbing for -- callBlawbyRoute has no query-param support yet, and
+// the brief could not confirm the exact query field name from this repo
+// alone. This call currently sends no query string at all; U8's response
+// may therefore not reflect the specific checkoutSessionId being verified.
+// Flagged in task-u8-reconciliation-report.md; needs the real query field
+// name confirmed against blawby-ts before this route can be trusted for
+// production traffic.
 //
 // Every field the browser sends here (requestReference, blawbyIntakeId,
 // checkoutSessionId) originated from Blawby's own Payment Link redirect
@@ -116,6 +128,11 @@ export default defineHandler(async (event) => {
       identity: { organizationId: context.organizationId, actorId: actor.actorId, actorKind: actor.actorKind },
       correlationId,
       requestReference,
+      // blawbyIntakeId (the body-validated, already-matched-to-record value)
+      // is used rather than record.blawbyIntakeId directly -- both are equal
+      // at this point (checked above), but blawbyIntakeId's type is a plain
+      // non-null string, avoiding a redundant null-narrowing assertion.
+      pathParam: blawbyIntakeId,
       clientIp: getClientIp(event),
       parseResponse: parsePostPayVerification,
     })

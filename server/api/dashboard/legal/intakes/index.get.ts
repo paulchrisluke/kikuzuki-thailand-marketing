@@ -1,9 +1,9 @@
 // GET /api/dashboard/legal/intakes
 //
 // Staff intake listing (LegalOperation 'intake_without_payment',
-// BlawbyRouteKey 'intakeList' — PLACEHOLDER path '/legal/intakes', see
-// blawby-client.ts; not a verified U8 contract). Read-only: no Origin
-// pre-check (R26 only requires it for mutations).
+// BlawbyRouteKey 'intakeList' — real U8 route `GET /intakes`, see
+// blawby-client.ts). Read-only: no Origin pre-check (R26 only requires it
+// for mutations).
 
 import { apiErrorResponse, rethrowHttpError } from '~/server/utils/api-response'
 import { callBlawbyRoute } from '~/server/utils/blawby-client'
@@ -38,7 +38,7 @@ export default defineHandler(async (event) => {
       routeKey: 'intakeList',
       scope: 'legal:intake:read',
       method: 'GET',
-      identity: { organizationId: access.organizationId, actorId: access.userId, actorKind: 'staff' },
+      identity: { organizationId: access.organizationId, actorId: access.userId, actorKind: 'human' },
       correlationId,
       parseResponse: parseIntakeList,
     })

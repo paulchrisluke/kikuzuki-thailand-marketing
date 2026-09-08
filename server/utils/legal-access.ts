@@ -15,9 +15,10 @@
 
 import { HTTPError } from 'nitro'
 import type { H3Event } from 'nitro'
+import { appendResponseHeader } from 'nitro/h3'
 
 import { queryFirst, type DbClient } from '~/server/db'
-import { getAuthSession, normalizeOrigin, type CloudflareEnv } from '~/server/utils/auth'
+import { createAuth, getAuthSession, normalizeOrigin, type CloudflareEnv } from '~/server/utils/auth'
 import { apiErrorResponse, cloudflareEnv, jsonResponse } from '~/server/utils/api-response'
 import { getDashboardContext } from '~/server/utils/dashboard-context'
 import { assertOrganizationAccess } from '~/server/utils/member-access'
@@ -477,18 +478,100 @@ export function resolveLegalPublicActor(
   return { actorId: user.id, actorKind: user.isAnonymous ? 'anonymous' : 'human' }
 }
 
+// Forwards every set-cookie value from a Better Auth API `Response`
+// (obtained with `asResponse: true`) onto the current H3Event's outgoing
+// response. Same header-bag-variant handling server/api/sites.post.ts's
+// activateOrganization already established (Headers.getSetCookie where
+// supported, getAll('set-cookie') as a fallback, or a raw() bag) — extracted
+// here rather than re-implemented so this stays the one place that logic
+// lives for the legal-access module. Returns the raw set-cookie values so
+// the caller can pull a session cookie out of them directly.
+function forwardSetCookies(event: H3Event, response: Response): string[] {
+  const headerBag = response.headers as Headers & {
+    getSetCookie?: () => string[]
+    getAll?: (_name: string) => string[]
+    raw?: () => Record<string, string[]>
+  }
+  const setCookies = typeof headerBag.getSetCookie === 'function'
+    ? headerBag.getSetCookie()
+    : typeof headerBag.getAll === 'function'
+      ? headerBag.getAll('set-cookie')
+      : (headerBag.raw?.()['set-cookie'] || [])
+  for (const cookieValue of setCookies) {
+    appendResponseHeader(event, 'set-cookie', cookieValue)
+  }
+  return setCookies
+}
+
 // R13's "establish or reuse a Better Auth session" step. Must only be called
 // after resolveLegalPublicSiteAccess has already passed for this request —
 // it does not repeat the site/flag/entitlement/IP-budget checks itself.
-// Denies (no anonymous user/session row is created by this module) when
-// there is no session, or the session lacks a verified user id — covers both
-// a missing session and a fabricated/expired anonymous identifier that
-// Better Auth itself already rejected.
+//
+// U9 reconciliation (task-u8-reconciliation-brief.md section 5a): the old
+// version of this function only ever REUSED an existing session — a
+// first-time visitor with no session cookie at all could never create an
+// intake. This now establishes a fresh anonymous Better Auth session when
+// there is NO session at all (getAuthSession returns null/undefined), using
+// the same real, proven-in-this-repo pattern as
+// tests/integration/legal-entitlement-rollout-matrix-d1.test.ts's
+// `auth.api.signInAnonymous` and server/api/sites.post.ts's set-cookie
+// forwarding. A session that DOES exist but resolves to no verified actor
+// (a fabricated/expired anonymous identifier Better Auth itself already
+// rejected — see the old comment this replaces) is a DIFFERENT case and
+// keeps denying exactly as before; it is never treated as "no session".
+// The anonymous plugin's signInAnonymous endpoint is not part of the
+// statically-inferred Better Auth API surface in this file's tsconfig
+// (same situation server/api/sites.post.ts already documents for
+// setActiveOrganization) — cast narrowly to the one method actually called,
+// rather than widening createAuth's return type globally.
+interface SignInAnonymousApi {
+  signInAnonymous(_input: { headers: HeadersInit, asResponse: true }): Promise<Response>
+}
+
 export async function requireLegalPublicActor(
   event: H3Event,
   context: LegalPublicSiteContext,
 ): Promise<LegalPublicActor> {
   const session = await getAuthSession(event, context.env)
+
+  if (!session) {
+    const auth = createAuth(context.env)
+    const anonymousApi = auth.api as unknown as SignInAnonymousApi
+    let signIn: Response | undefined
+    try {
+      signIn = await anonymousApi.signInAnonymous({ headers: event.req.headers, asResponse: true })
+    } catch {
+      signIn = undefined
+    }
+    if (!signIn || !signIn.ok) {
+      denyLegal({
+        event, reason: 'session_required', organizationId: context.organizationId, siteId: context.siteId, actorKind: null,
+        statusCode: 401, message: 'Authentication required',
+      })
+    }
+
+    // event.req.headers does not see the response's set-cookie, so
+    // getAuthSession(event, env) cannot be re-run to observe the new
+    // session — instead, resolve the fresh session directly from the
+    // freshly-issued cookie (its first set-cookie value, cookie-pair only,
+    // matching tests/integration/legal-entitlement-rollout-matrix-d1.test.ts's
+    // `.split(';')[0]` technique), after forwarding every set-cookie value
+    // onto the outgoing response so the browser retains the new session too.
+    const setCookies = forwardSetCookies(event, signIn)
+    const cookiePair = setCookies[0]?.split(';')[0]
+    const freshSession = cookiePair
+      ? await auth.api.getSession({ headers: new Headers({ cookie: cookiePair }) })
+      : null
+    const freshActor = resolveLegalPublicActor(freshSession)
+    if (!freshActor) {
+      denyLegal({
+        event, reason: 'session_required', organizationId: context.organizationId, siteId: context.siteId, actorKind: null,
+        statusCode: 401, message: 'Authentication required',
+      })
+    }
+    return freshActor
+  }
+
   const actor = resolveLegalPublicActor(session)
   if (!actor) {
     denyLegal({

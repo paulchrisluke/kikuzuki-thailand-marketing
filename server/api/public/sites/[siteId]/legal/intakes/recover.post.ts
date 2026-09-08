@@ -12,9 +12,11 @@
 //   resolveLegalPublicSiteAccess -> requireLegalPublicActor
 //   -> assertLegalPublicActorBudgets -> findLegalIntakeReferenceForActor (U4)
 //   -> callBlawbyRoute (U2), only if no Blawby intake id is bound yet.
-// BlawbyRouteKey 'intakeRecover' -- PLACEHOLDER path
-// '/legal/public/intakes/recover' (blawby-client.ts); not a verified U8
-// contract.
+// BlawbyRouteKey 'intakeRecover' -- real U8 route `GET
+// /intakes/requests/{request_id}` (blawby-client.ts). The path param IS the
+// request reference -- U8 correlates by the {request_id} path segment
+// itself, so no `x-krabiclaw-request-reference` header is sent for this
+// specific call (unlike every other route in this family).
 
 import { rethrowHttpError } from '~/server/utils/api-response'
 import { callBlawbyRoute } from '~/server/utils/blawby-client'
@@ -93,11 +95,13 @@ export default defineHandler(async (event) => {
     const result = await callBlawbyRoute<IntakeRecoverResult>(context.env, {
       routeKey: 'intakeRecover',
       scope: 'legal:intake:public:read',
-      method: 'POST',
+      method: 'GET',
       identity: { organizationId: context.organizationId, actorId: actor.actorId, actorKind: actor.actorKind },
       correlationId,
-      requestReference,
-      body: {},
+      // No requestReference header here -- the {request_id} path param IS
+      // the request reference (see file-header comment); pathParam carries
+      // it instead.
+      pathParam: requestReference,
       parseResponse: parseIntakeRecoverResult,
     })
 

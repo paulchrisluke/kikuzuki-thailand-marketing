@@ -1,9 +1,11 @@
 // POST /api/public/sites/[siteId]/legal/intakes
 //
 // Public intake creation (LegalOperation 'intake_without_payment',
-// BlawbyRouteKey 'intakeCreate' -- PLACEHOLDER path
-// '/legal/public/intakes', see blawby-client.ts; not a verified U8
-// contract).
+// BlawbyRouteKey 'intakeCreate' -- real U8 route `POST /intakes`, see
+// blawby-client.ts. Body must NOT include `slug` or `user_id` -- U8
+// strips/rejects those as forbidden identity fields;
+// legal-intake-payload.ts's allowlist already omits both, so no change was
+// needed there).
 //
 // R13's exact call order, enforced by this file's own statement order:
 //   resolveLegalPublicSiteAccess -> requireLegalPublicActor

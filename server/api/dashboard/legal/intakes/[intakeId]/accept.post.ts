@@ -1,10 +1,17 @@
 // POST /api/dashboard/legal/intakes/[intakeId]/accept
 //
 // Staff acceptance of a payment-required intake (LegalOperation
-// 'intake_payment', BlawbyRouteKey 'intakeAccept' — PLACEHOLDER path
-// '/legal/intakes/accept', see blawby-client.ts; not a verified U8
-// contract). A mutation: Origin is validated FIRST, before
+// 'intake_payment', BlawbyRouteKey 'intakeAccept' — real U8 route `PATCH
+// /intakes/{uuid}/triage`, see blawby-client.ts). [intakeId] is the Blawby
+// intake UUID, interpolated into the route's path param; it is NOT sent as
+// a body field. A mutation: Origin is validated FIRST, before
 // resolveLegalStaffAccess (see assertLegalStaffMutationOrigin).
+//
+// U9 reconciliation scope note: U8's real triage route is a full decision
+// dispatch — `{ status: 'accepted' | 'declined', reason?: string }` (reason
+// required when declining) — not accept-only. This route only ever sends
+// the 'accepted' branch; declining an intake with a reason is NOT
+// implemented here (known gap — see task-u8-reconciliation-report.md).
 
 import { apiErrorResponse, cloudflareEnv, rethrowHttpError } from '~/server/utils/api-response'
 import { callBlawbyRoute } from '~/server/utils/blawby-client'
@@ -39,10 +46,11 @@ export default defineHandler(async (event) => {
     const result = await callBlawbyRoute(access.env, {
       routeKey: 'intakeAccept',
       scope: 'legal:intake:write',
-      method: 'POST',
-      identity: { organizationId: access.organizationId, actorId: access.userId, actorKind: 'staff' },
+      method: 'PATCH',
+      identity: { organizationId: access.organizationId, actorId: access.userId, actorKind: 'human' },
       correlationId,
-      body: { intakeId },
+      pathParam: intakeId,
+      body: { status: 'accepted' },
       parseResponse: parseIntakeAcceptResult,
     })
 

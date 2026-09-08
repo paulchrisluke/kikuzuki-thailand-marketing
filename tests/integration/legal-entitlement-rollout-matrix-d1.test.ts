@@ -103,7 +103,16 @@ function buildEvent(env: CloudflareEnv, opts: { cookie?: string; origin?: string
   if (opts.origin) headers.set('origin', opts.origin)
   if (opts.ip) headers.set('cf-connecting-ip', opts.ip)
   const url = new URL('https://dashboard.example/api/dashboard/legal/practice?org=org-a&site=site-a')
-  return { req: { headers, runtime: { cloudflare: { env } } }, path: url.pathname, url } as unknown as Parameters<typeof resolveLegalStaffAccess>[0]
+  // res.headers: requireLegalPublicActor's anonymous-session-establishment
+  // fix (U9 reconciliation section 5a) forwards a fresh set-cookie onto the
+  // event's outgoing response via appendResponseHeader, which needs
+  // event.res.headers to exist even on a cookie-less request.
+  return {
+    req: { headers, runtime: { cloudflare: { env } } },
+    res: { headers: new Headers() },
+    path: url.pathname,
+    url,
+  } as unknown as Parameters<typeof resolveLegalStaffAccess>[0]
 }
 
 // Captures R29 emitLegalSecurityEvent lines (plain console.log JSON) without
@@ -364,13 +373,20 @@ test('public actor/session gates: a denied request creates no anonymous user or 
       assert.equal(actor.actorKind, 'human')
     })
 
-    await t.test('a missing session is denied (session_required), even once entitled/flag/origin/budget all pass', async () => {
+    // U9 reconciliation (task-u8-reconciliation-brief.md section 5a): R13
+    // is "establish OR reuse" a session — a request with NO session at all
+    // (no cookie whatsoever) now establishes a fresh anonymous session
+    // rather than being denied outright. See
+    // legal-public-actor-anonymous-session-d1.test.ts for the dedicated,
+    // fuller proof of this (real D1 user/session rows created, set-cookie
+    // forwarded); this test only confirms the entitlement-matrix call path
+    // itself reflects the new behavior rather than the old 401.
+    await t.test('a missing session establishes a fresh anonymous session, once entitled/flag/origin/budget all pass', async () => {
       const event = buildEvent(env, { origin: 'https://site-a.example.com', ip: '4.4.4.4' })
       const context = await resolveLegalPublicSiteAccess(event, 'intake_without_payment', 'site-a', alwaysEntitled)
-      await assert.rejects(
-        requireLegalPublicActor(event, context),
-        (error: unknown) => (error as { statusCode?: number })?.statusCode === 401,
-      )
+      const actor = await requireLegalPublicActor(event, context)
+      assert.equal(actor.actorKind, 'anonymous')
+      assert.ok(actor.actorId)
     })
   } finally {
     clearTimeout(deadline)

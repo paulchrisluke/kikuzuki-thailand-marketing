@@ -1,9 +1,9 @@
 // GET /api/dashboard/legal/engagement-contracts
 //
 // Staff engagement-contract listing (LegalOperation 'engagement',
-// BlawbyRouteKey 'engagementContractsList' — PLACEHOLDER path
-// '/legal/engagements', see blawby-client.ts; not a verified U8 contract).
-// Read-only: no Origin pre-check.
+// BlawbyRouteKey 'engagementContractsList' — real U8 route `GET
+// /engagement-contracts`, see blawby-client.ts). Read-only: no Origin
+// pre-check.
 
 import { apiErrorResponse, rethrowHttpError } from '~/server/utils/api-response'
 import { callBlawbyRoute } from '~/server/utils/blawby-client'
@@ -38,7 +38,7 @@ export default defineHandler(async (event) => {
       routeKey: 'engagementContractsList',
       scope: 'legal:engagement:read',
       method: 'GET',
-      identity: { organizationId: access.organizationId, actorId: access.userId, actorKind: 'staff' },
+      identity: { organizationId: access.organizationId, actorId: access.userId, actorKind: 'human' },
       correlationId,
       parseResponse: parseEngagementContractsList,
     })

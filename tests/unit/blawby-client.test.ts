@@ -24,7 +24,7 @@ function stubFetch(handler: (url: string, init: RequestInit | undefined) => Resp
   return () => { globalThis.fetch = original }
 }
 
-const identity = { organizationId: 'org_1', actorId: 'actor_1', actorKind: 'staff' }
+const identity = { organizationId: 'org_1', actorId: 'actor_1', actorKind: 'human' }
 const statusOf = (error: unknown) => (error as { statusCode?: number }).statusCode
 
 test('token exchange: scope isolation, coalescing, and renewal skew', async (t) => {
@@ -121,9 +121,9 @@ test('callBlawbyRoute: bounded machine-auth refresh-and-replay', async (t) => {
   await t.test('one discriminated failure refreshes the token and replays once', async () => {
     let calls = 0
     const restore = stubFetch(async (url) => {
-      if (url.endsWith('/oauth/token')) return tokenResponse()
+      if (url.endsWith('/oauth2/token')) return tokenResponse()
       calls += 1
-      return calls === 1 ? Response.json({ error: 'invalid_token' }, { status: 401 }) : Response.json({ ok: true })
+      return calls === 1 ? Response.json({ error: { code: 'invalid_token' } }, { status: 401 }) : Response.json({ ok: true })
     })
     try {
       const result = await callBlawbyRoute(makeEnv(), {
@@ -138,7 +138,7 @@ test('callBlawbyRoute: bounded machine-auth refresh-and-replay', async (t) => {
   await t.test('a domain 401 without the discriminator does not retry', async () => {
     let businessCalls = 0
     const restore = stubFetch(async (url) => {
-      if (url.endsWith('/oauth/token')) return tokenResponse()
+      if (url.endsWith('/oauth2/token')) return tokenResponse()
       businessCalls += 1
       return Response.json({ error: 'forbidden_actor' }, { status: 401 })
     })
@@ -154,9 +154,9 @@ test('callBlawbyRoute: bounded machine-auth refresh-and-replay', async (t) => {
   await t.test('a second discriminated failure after refresh stops without a further retry', async () => {
     let businessCalls = 0
     const restore = stubFetch(async (url) => {
-      if (url.endsWith('/oauth/token')) return tokenResponse()
+      if (url.endsWith('/oauth2/token')) return tokenResponse()
       businessCalls += 1
-      return Response.json({ error: 'invalid_token' }, { status: 401 })
+      return Response.json({ error: { code: 'invalid_token' } }, { status: 401 })
     })
     try {
       await assert.rejects(
@@ -172,29 +172,29 @@ test('callBlawbyRoute: no-retry error classification (R24)', async (t) => {
   const cases: Array<{ name: string, respond: (url: string, init?: RequestInit) => Response | Promise<Response>, expectStatus: number }> = [
     {
       name: 'timeout',
-      respond: (url, init) => url.endsWith('/oauth/token')
+      respond: (url, init) => url.endsWith('/oauth2/token')
         ? tokenResponse()
         : new Promise((_r, reject) => init?.signal?.addEventListener('abort', () => reject(new DOMException('aborted', 'AbortError')))),
       expectStatus: 503,
     },
     {
       name: 'network error',
-      respond: (url) => { if (url.endsWith('/oauth/token')) return tokenResponse(); throw new TypeError('network down') },
+      respond: (url) => { if (url.endsWith('/oauth2/token')) return tokenResponse(); throw new TypeError('network down') },
       expectStatus: 503,
     },
     {
       name: '5xx',
-      respond: (url) => url.endsWith('/oauth/token') ? tokenResponse() : new Response('server exploded', { status: 500 }),
+      respond: (url) => url.endsWith('/oauth2/token') ? tokenResponse() : new Response('server exploded', { status: 500 }),
       expectStatus: 503,
     },
     {
       name: 'malformed JSON',
-      respond: (url) => url.endsWith('/oauth/token') ? tokenResponse() : new Response('<html>not json</html>', { status: 200 }),
+      respond: (url) => url.endsWith('/oauth2/token') ? tokenResponse() : new Response('<html>not json</html>', { status: 200 }),
       expectStatus: 502,
     },
     {
       name: 'schema mismatch',
-      respond: (url) => url.endsWith('/oauth/token') ? tokenResponse() : Response.json({ unexpected: true }),
+      respond: (url) => url.endsWith('/oauth2/token') ? tokenResponse() : Response.json({ unexpected: true }),
       expectStatus: 502,
     },
   ]
@@ -203,7 +203,7 @@ test('callBlawbyRoute: no-retry error classification (R24)', async (t) => {
     await t.test(testCase.name, async () => {
       let businessCalls = 0
       const restore = stubFetch(async (url, init) => {
-        if (!url.endsWith('/oauth/token')) businessCalls += 1
+        if (!url.endsWith('/oauth2/token')) businessCalls += 1
         return testCase.respond(url, init)
       })
       const env = makeEnv({ LEGAL_BLAWBY_TIMEOUT_MS: '20' })
@@ -225,11 +225,11 @@ test('callBlawbyRoute: no-retry error classification (R24)', async (t) => {
 test('callBlawbyRoute: header allowlist, client-IP scoping, redirects, and sanitized errors', async (t) => {
   await t.test('fresh header allowlist: no cookies, no forwarding, no inbound x-krabiclaw-* override', async () => {
     const restore = stubFetch(async (url, init) => {
-      if (url.endsWith('/oauth/token')) return tokenResponse()
+      if (url.endsWith('/oauth2/token')) return tokenResponse()
       const headers = init?.headers as Headers
       assert.deepEqual(Array.from(headers.keys()).sort(), [
         'authorization', 'content-type', 'x-krabiclaw-actor-id', 'x-krabiclaw-actor-kind',
-        'x-krabiclaw-correlation-id', 'x-krabiclaw-organization-id', 'x-krabiclaw-request-reference',
+        'x-krabiclaw-organization-id', 'x-krabiclaw-request-reference',
       ])
       assert.equal(headers.get('x-krabiclaw-organization-id'), 'org_1')
       assert.equal(headers.get('x-krabiclaw-request-reference'), 'req-ref-1')
@@ -248,14 +248,14 @@ test('callBlawbyRoute: header allowlist, client-IP scoping, redirects, and sanit
 
   await t.test('engagement acceptance forwards the trusted client IP; other routes omit it', async () => {
     const restore = stubFetch(async (url, init) => {
-      if (url.endsWith('/oauth/token')) return tokenResponse()
+      if (url.endsWith('/oauth2/token')) return tokenResponse()
       const headers = init?.headers as Headers
-      assert.equal(headers.get('x-krabiclaw-client-ip'), url.includes('/legal/engagements/accept') ? '203.0.113.9' : null)
+      assert.equal(headers.get('x-krabiclaw-originating-client-ip'), url.includes('/engagement-contracts/contract-1/status') ? '203.0.113.9' : null)
       return Response.json({ ok: true })
     })
     try {
       const env = makeEnv()
-      await callBlawbyRoute(env, { routeKey: 'engagementAcceptance', scope: 'legal:test-ip', method: 'POST', identity, correlationId: 'corr-ip-1', clientIp: '203.0.113.9', body: {}, parseResponse: (b) => b })
+      await callBlawbyRoute(env, { routeKey: 'engagementAcceptance', scope: 'legal:test-ip', method: 'PATCH', identity, correlationId: 'corr-ip-1', pathParam: 'contract-1', clientIp: '203.0.113.9', body: { status: 'accepted' }, parseResponse: (b) => b })
       // A non-engagement route with a caller-supplied clientIp must still omit it.
       await callBlawbyRoute(env, { routeKey: 'practiceRead', scope: 'legal:test-ip', method: 'GET', identity, correlationId: 'corr-ip-2', clientIp: '198.51.100.7', parseResponse: (b) => b })
     } finally { restore() }
@@ -264,7 +264,7 @@ test('callBlawbyRoute: header allowlist, client-IP scoping, redirects, and sanit
   await t.test('a redirect (any host, port, userinfo, or fragment) is rejected without a second request', async () => {
     let calls = 0
     const restore = stubFetch(async (url) => {
-      if (url.endsWith('/oauth/token')) return tokenResponse()
+      if (url.endsWith('/oauth2/token')) return tokenResponse()
       calls += 1
       return new Response(null, { status: 302, headers: { Location: 'https://evil.example:8443/x?u=user:pass@evil.example#frag' } })
     })
@@ -278,7 +278,7 @@ test('callBlawbyRoute: header allowlist, client-IP scoping, redirects, and sanit
   })
 
   await t.test('errors contain a request correlation id but never the upstream body', async () => {
-    const restore = stubFetch(async (url) => url.endsWith('/oauth/token')
+    const restore = stubFetch(async (url) => url.endsWith('/oauth2/token')
       ? tokenResponse()
       : Response.json({ error: 'unexpected_upstream_shape', secret_leak: 'sk_live_should_never_appear', upstream_note: 'do not leak this body' }, { status: 418 }))
     try {

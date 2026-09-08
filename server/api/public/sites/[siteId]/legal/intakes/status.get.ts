@@ -2,9 +2,9 @@
 //
 // Read-only status poll for a bound intake (LegalOperation
 // 'intake_without_payment' -- status is a plain read of the intake's own
-// state, not a payment action; BlawbyRouteKey 'intakeStatus' --
-// PLACEHOLDER path '/legal/public/intakes/status', see blawby-client.ts;
-// not a verified U8 contract).
+// state, not a payment action; BlawbyRouteKey 'intakeStatus' -- real U8
+// route `GET /intakes/{uuid}/status`, see blawby-client.ts). The path param
+// is the Blawby intake UUID (record.blawbyIntakeId).
 //
 // Same R13 call order as the other routes in this family, EXCEPT Origin
 // validation: R26 scopes Origin validation to "every cookie-authenticated
@@ -84,10 +84,12 @@ export default defineHandler(async (event) => {
       correlationId,
       // Matches this repo's existing GET-route convention (e.g. staff
       // practiceRead): no body on a GET, only the trusted headers.
-      // requestReference alone is sufficient for Blawby to resolve which
-      // intake this is -- KrabiClaw's own durable record already bound
-      // record.blawbyIntakeId to this exact request reference.
+      // requestReference is still forwarded as a header (R18); the
+      // {uuid} path param is what U8 actually keys the lookup on --
+      // KrabiClaw's own durable record already bound record.blawbyIntakeId
+      // to this exact request reference.
       requestReference,
+      pathParam: record.blawbyIntakeId,
       parseResponse: parseIntakeStatusResult,
     })
 

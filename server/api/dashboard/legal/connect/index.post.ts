@@ -2,8 +2,28 @@
 //
 // Starts (or resumes) a Blawby Connect onboarding flow (LegalOperation
 // 'connect', BlawbyRouteKey 'connectStart' — PLACEHOLDER path
-// '/legal/connect/onboard', see blawby-client.ts; not a verified U8
-// contract).
+// '/legal/connect/onboard', see blawby-client.ts).
+//
+// *** KNOWN ARCHITECTURAL MISMATCH — DO NOT TREAT THIS ROUTE AS WORKING ***
+// U9 reconciliation (task-u8-reconciliation-brief.md section 3, read
+// directly from blawby-ts's real Connect route files) found that this
+// route's entire model — one call, returning a hosted-onboarding redirect
+// URL the browser is sent to — does NOT match what U8 actually exposes.
+// Real U8 has FOUR separate Connect endpoints (`POST
+// /connect/connected-accounts`, `GET /connect/status`, `POST
+// /connect/account-session`, `GET /connect/account`), and NONE of them
+// return a redirect URL: `POST /connect/account-session` creates an
+// EMBEDDED Stripe Account Session (a client_secret meant to be consumed by
+// Stripe.js on the frontend as an embedded component), not a
+// hosted-onboarding link. This is a real product/frontend-architecture
+// decision, not a path-string fix, and is explicitly OUT OF SCOPE for this
+// task — implementing a redesign here without product/frontend sign-off
+// risks shipping a second wrong assumption on top of the first. This route
+// is left exactly as it was (still calling the old placeholder path/shape)
+// and does NOT work against real U8; see
+// task-u8-reconciliation-report.md for the full findings and
+// recommendation. Do not build on top of this route until that decision is
+// made.
 //
 // R22: callback URLs are built server-side from
 // LEGAL_BLAWBY_CALLBACK_URL_RETURN/LEGAL_BLAWBY_CALLBACK_URL_REFRESH (U1's
@@ -113,7 +133,7 @@ export default defineHandler(async (event) => {
       routeKey: 'connectStart',
       scope: 'legal:connect:write',
       method: 'POST',
-      identity: { organizationId: access.organizationId, actorId: access.userId, actorKind: 'staff' },
+      identity: { organizationId: access.organizationId, actorId: access.userId, actorKind: 'human' },
       correlationId,
       // The Connect UUID is forwarded ONLY as requestReference (U8's
       // recovery-key mechanism), never as a body field the browser could

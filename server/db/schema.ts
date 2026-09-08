@@ -755,6 +755,17 @@ export const legal_intake_references = sqliteTable("legal_intake_references", {
 	check("legal_intake_references_actor_kind_check", sql`original_actor_kind IN ('human', 'anonymous')`),
 	index("idx_legal_intake_references_site_actor").on(table.site_id, table.original_actor_id),
 	index("legal_intake_references_organization_id_idx").on(table.organization_id),
+	// U9 reconciliation (task-u8-reconciliation-brief.md section 6):
+	// linkLegalIntakeAuthorizedUser's account-link query
+	// (server/utils/legal-intake-references.ts) filters on
+	// original_actor_id alone, with no site_id predicate -- it cannot use
+	// idx_legal_intake_references_site_actor's leftmost-prefix (site_id
+	// leads that index), so it was a full table scan on every Better Auth
+	// account-link event. This index leads with original_actor_id so that
+	// query can use it. The existing (site_id, original_actor_id) index is
+	// left untouched -- it still serves the more frequent per-request
+	// site+actor ownership lookup (findLegalIntakeReferenceForActor).
+	index("idx_legal_intake_references_actor").on(table.original_actor_id),
 ]);
 
 export const reviews = sqliteTable("reviews", {

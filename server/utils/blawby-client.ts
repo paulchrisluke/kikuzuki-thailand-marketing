@@ -7,19 +7,34 @@
 // R28-R29). It does not own route eligibility, flags, or domain workflows —
 // callers (U3/U5/U6) decide whether a call is allowed before reaching here.
 //
-// ASSUMPTIONS pending real U8 verification (flag for U7/U10 reconciliation):
-//   - Token endpoint path `/oauth/token` and standard OAuth2 client_credentials
-//     JSON shape (`access_token`, `expires_in`, `token_type`) — the plan names
-//     the grant type and `client_secret_basic` but not the concrete path or
-//     response shape, so this follows RFC 6749/8414 convention.
-//   - The machine-auth discriminator for "this 401 means the token itself is
-//     stale" is assumed to be a `WWW-Authenticate` header or JSON body
-//     containing `error: "invalid_token"` (RFC 6750 convention). U8's real
-//     discriminator is not documented in this repo.
-//   - `engagementAcceptance` and `practiceRead` route paths below are
-//     PLACEHOLDERS proving the route-key/client-IP-allowlist mechanism works;
-//     they are not confirmed U8 paths. U5/U6 must replace them with the real
-//     paths (and add further route keys) once U8's route contract is known.
+// U9 reconciliation (task-u8-reconciliation-brief.md) replaced the U2-U6
+// placeholder route table below with U8's REAL, verified contract, read
+// directly from blawby-ts (repo `blawby-backend`) source:
+//   - Token endpoint: `${LEGAL_BLAWBY_ORIGIN}/api/auth/oauth2/token` (Better
+//     Auth's OAuth2 plugin convention, mounted off the Better Auth issuer
+//     `/api/auth`, NOT under the facade mount path and NOT `/oauth/token`).
+//   - Facade mount path: `/api/integrations/krabiclaw/v1`
+//     (blawby-ts src/modules/krabiclaw-integration/config/mount-path.ts:9).
+//     Every BLAWBY_BEARER_ROUTES path below is `${BLAWBY_FACADE_MOUNT}${...}`.
+//   - Machine-auth discriminator: `WWW-Authenticate: Bearer
+//     realm="krabiclaw-facade", error="invalid_token"` (header check, as
+//     before) OR a JSON body `{ error: { code: 'invalid_token', ... } }` --
+//     `error` is an OBJECT with a `code` field, not a plain string (fixed
+//     below in isMachineAuthFailure).
+//
+// ONE remaining unresolved item, deliberately NOT implemented here per the
+// brief's explicit instruction (section 3): Connect. KrabiClaw's
+// `connectStart`/`connect/index.post.ts` models Connect as one call
+// returning a hosted-onboarding redirect URL. Real U8 exposes four separate
+// Connect endpoints (`POST /connect/connected-accounts`, `GET
+// /connect/status`, `POST /connect/account-session`, `GET /connect/account`)
+// and none of them return a redirect URL -- `POST /connect/account-session`
+// creates an EMBEDDED Stripe Account Session (a client_secret consumed by
+// Stripe.js on the frontend), not a hosted-redirect URL. This is a real
+// product/frontend-architecture mismatch, not a path-string fix -- see
+// connect/index.post.ts's own comment and task-u8-reconciliation-report.md
+// for the full analysis/recommendation. `connectStart`'s path below is left
+// as its old U5 placeholder on purpose; it does not work against real U8.
 
 import { HTTPError } from 'nitro'
 import type { CloudflareEnv } from '~/server/utils/auth'
@@ -100,69 +115,89 @@ function resolvePinnedOrigin(env: CloudflareEnv, correlationId: string): URL {
 // with the origin-match assertion in buildBlawbyUrl this rejects absolute
 // overrides, scheme-relative overrides, encoded host escapes, userinfo, and
 // fragments even if a future edit to this file introduced a bad literal.
+// This is checked AFTER any `{param}` placeholder has already been
+// interpolated (see interpolatePathParam below) — a resolved path never
+// contains `{`/`}`, so this pattern does not need to allow them.
 const SAFE_PATH_PATTERN = /^\/[A-Za-z0-9/_-]+$/
 
-const BLAWBY_TOKEN_PATH = '/oauth/token'
+// A single interpolated path segment (UUID, request-reference UUID, or
+// contract id) — no `/`, no `{`/`}`, no other characters that could alter
+// the route shape once substituted into the path template.
+const SAFE_PATH_SEGMENT_PATTERN = /^[A-Za-z0-9_-]+$/
+
+// Better Auth's OAuth2 plugin issuer is `${LEGAL_BLAWBY_ORIGIN}/api/auth`
+// (blawby-ts src/modules/krabiclaw-integration/middleware/verify-facade-token.ts:65);
+// its OAuth2 provider mounts the client_credentials token grant at
+// `/api/auth/oauth2/token` off that issuer — NOT under the facade mount path.
+const BLAWBY_TOKEN_PATH = '/api/auth/oauth2/token'
+
+// blawby-ts src/modules/krabiclaw-integration/config/mount-path.ts:9.
+const BLAWBY_FACADE_MOUNT = '/api/integrations/krabiclaw/v1'
 
 interface BlawbyRouteDescriptor {
+  /** May contain exactly one `{param}` placeholder, substituted by callBlawbyRoute's `pathParam`. */
   path: string
   includeClientIp: boolean
 }
 
-// Placeholder route metadata — see file-header ASSUMPTIONS. Real route keys
-// and paths must be added here (never accepted from a caller) as U5/U6 learn
-// U8's actual contract.
+// Real U8 route table (task-u8-reconciliation-brief.md section 1-2), read
+// directly from blawby-ts's route files under
+// src/modules/krabiclaw-integration/routes/{practice,connect,intakes,
+// engagement-contracts}.routes.ts. All paths are relative to
+// BLAWBY_FACADE_MOUNT, prefixed below.
 //
-// U5 additions (ALL placeholder paths, unverified — see U5 report for the
-// same PLACEHOLDER flag U2 already carries for engagementAcceptance/
-// practiceRead above):
-//   - practiceMutate: staff practice-profile updates.
-//   - connectStart: begins a Blawby Connect onboarding flow, returning an
-//     onboarding-link URL (validated against a Stripe-origin allowlist by
-//     the route, R30) and binding it to the caller-supplied Connect
-//     request key (forwarded as requestReference).
-//   - intakeList / intakeAccept: staff intake review and payment-required
-//     intake acceptance.
-//   - engagementContractsList: staff engagement-contract listing.
-// engagement-contracts accept reuses engagementAcceptance verbatim rather
-// than adding a duplicate route key.
+// `intakeAccept` and `engagementAcceptance` map to real U8 routes that are
+// general status-action dispatchers (`accepted`/`declined`/`send`), not
+// accept-only, despite their KrabiClaw route-key names. KrabiClaw's own
+// route files (intakes/[intakeId]/accept.post.ts,
+// engagement-contracts/[contractId]/accept.post.ts) only ever send the
+// 'accepted' branch of that dispatch — decline/send are NOT implemented by
+// this task; see task-u8-reconciliation-report.md's scope-decision section.
 //
-// U6 additions (ALL placeholder paths, unverified -- same PLACEHOLDER flag
-// as every other route key above; see the U6 report):
-//   - intakeCreate: public actor creates a new intake.
-//   - intakeRecover: re-fetches an already-claimed intake by request
-//     reference after response loss, without resubmitting the payload.
-//   - intakeCheckout: begins or replaces a Blawby Checkout/Payment Link
-//     session for an already-created intake.
-//   - intakeStatus: read-only status poll for a bound intake.
-//   - intakePostPay: server-to-server verification GET called ONLY by the
-//     BFF's post-pay route (never directly reachable by the browser) after
-//     a Payment Link return, to correlate and confirm a Checkout session
-//     before it is ever attached.
+// connectStart is UNCHANGED (still the old U5 placeholder path) — Connect
+// is explicitly out of scope for this task; see the file-header comment
+// above and connect/index.post.ts.
 //
 // R5 scopes the dedicated originating-client-IP forward to engagement
-// acceptance ONLY ("engagement acceptance may additionally include the
-// dedicated originating-client-IP value"). intakeCreate, intakeCheckout,
-// and intakePostPay must NOT set includeClientIp: true -- doing so silently
-// widens R5 beyond its documented scope with no brief/report/ledger record.
-// Every route below other than engagementAcceptance omits client IP, same
-// as practiceRead's existing test pattern.
+// acceptance ONLY (confirmed by U8's own `acceptsOriginatingClientIp: true`
+// on PATCH /engagement-contracts/{contract_id}/status, read on the
+// 'accepted' branch server-side only). Every other route omits client IP.
 const BLAWBY_BEARER_ROUTES = {
-  engagementAcceptance: { path: '/legal/engagements/accept', includeClientIp: true },
-  practiceRead: { path: '/legal/practice', includeClientIp: false },
-  practiceMutate: { path: '/legal/practice/update', includeClientIp: false },
+  practiceRead: { path: `${BLAWBY_FACADE_MOUNT}/practice/details`, includeClientIp: false },
+  practiceMutate: { path: `${BLAWBY_FACADE_MOUNT}/practice/details`, includeClientIp: false },
+  intakeList: { path: `${BLAWBY_FACADE_MOUNT}/intakes`, includeClientIp: false },
+  intakeAccept: { path: `${BLAWBY_FACADE_MOUNT}/intakes/{uuid}/triage`, includeClientIp: false },
+  engagementContractsList: { path: `${BLAWBY_FACADE_MOUNT}/engagement-contracts`, includeClientIp: false },
+  engagementAcceptance: { path: `${BLAWBY_FACADE_MOUNT}/engagement-contracts/{contract_id}/status`, includeClientIp: true },
+  intakeCreate: { path: `${BLAWBY_FACADE_MOUNT}/intakes`, includeClientIp: false },
+  intakeRecover: { path: `${BLAWBY_FACADE_MOUNT}/intakes/requests/{request_id}`, includeClientIp: false },
+  intakeCheckout: { path: `${BLAWBY_FACADE_MOUNT}/intakes/{uuid}/checkout-session`, includeClientIp: false },
+  intakeStatus: { path: `${BLAWBY_FACADE_MOUNT}/intakes/{uuid}/status`, includeClientIp: false },
+  intakePostPay: { path: `${BLAWBY_FACADE_MOUNT}/intakes/{uuid}/post-pay/status`, includeClientIp: false },
+  // Out of scope (section 3) — unchanged U5 placeholder, does not work
+  // against real U8. See file-header comment.
   connectStart: { path: '/legal/connect/onboard', includeClientIp: false },
-  intakeList: { path: '/legal/intakes', includeClientIp: false },
-  intakeAccept: { path: '/legal/intakes/accept', includeClientIp: false },
-  engagementContractsList: { path: '/legal/engagements', includeClientIp: false },
-  intakeCreate: { path: '/legal/public/intakes', includeClientIp: false },
-  intakeRecover: { path: '/legal/public/intakes/recover', includeClientIp: false },
-  intakeCheckout: { path: '/legal/public/intakes/checkout', includeClientIp: false },
-  intakeStatus: { path: '/legal/public/intakes/status', includeClientIp: false },
-  intakePostPay: { path: '/legal/public/intakes/post-pay', includeClientIp: false },
 } as const satisfies Record<string, BlawbyRouteDescriptor>
 
 export type BlawbyRouteKey = keyof typeof BLAWBY_BEARER_ROUTES
+
+// Substitutes a route template's single `{param}` placeholder (if any) with
+// a caller-supplied, validated path segment. Never accepts an arbitrary path
+// from a caller — only a bare segment value, checked against
+// SAFE_PATH_SEGMENT_PATTERN, which is then interpolated into the static
+// template already defined above.
+function interpolatePathParam(pathTemplate: string, pathParam: string | undefined, correlationId: string): string {
+  const hasPlaceholder = /\{[^}]+\}/.test(pathTemplate)
+  if (!hasPlaceholder) return pathTemplate
+  if (!pathParam || !SAFE_PATH_SEGMENT_PATTERN.test(pathParam)) {
+    throw new HTTPError({
+      statusCode: 500,
+      statusMessage: 'Blawby route path parameter is missing or invalid',
+      data: { code: 'BLAWBY_INVALID_PATH_PARAM', requestCorrelationId: correlationId },
+    })
+  }
+  return pathTemplate.replace(/\{[^}]+\}/, encodeURIComponent(pathParam))
+}
 
 function buildBlawbyUrl(origin: URL, path: string, correlationId: string): URL {
   if (!SAFE_PATH_PATTERN.test(path)) {
@@ -196,7 +231,6 @@ function buildOutboundHeaders(params: {
   identity?: BlawbyTrustedIdentity
   requestReference?: string
   clientIp?: string
-  correlationId: string
 }): Headers {
   const headers = new Headers()
   if (params.contentType) headers.set('content-type', params.contentType)
@@ -207,8 +241,11 @@ function buildOutboundHeaders(params: {
     headers.set('x-krabiclaw-actor-kind', params.identity.actorKind)
   }
   if (params.requestReference) headers.set('x-krabiclaw-request-reference', params.requestReference)
-  headers.set('x-krabiclaw-correlation-id', params.correlationId)
-  if (params.clientIp) headers.set('x-krabiclaw-client-ip', params.clientIp)
+  // x-krabiclaw-correlation-id (KrabiClaw's own internal logging id) is
+  // deliberately NOT forwarded to U8 — it is not part of U8's documented
+  // header schema (task-u8-reconciliation-brief.md section 1); dropped
+  // rather than sent speculatively.
+  if (params.clientIp) headers.set('x-krabiclaw-originating-client-ip', params.clientIp)
   return headers
 }
 
@@ -223,7 +260,7 @@ interface BlawbyRawResponse {
 async function fetchBlawby(params: {
   env: CloudflareEnv
   path: string
-  method: 'GET' | 'POST'
+  method: 'GET' | 'POST' | 'PATCH'
   headers: Headers
   body?: string
   correlationId: string
@@ -371,7 +408,6 @@ async function requestFreshToken(
   const headers = buildOutboundHeaders({
     contentType: 'application/x-www-form-urlencoded',
     authorization: `Basic ${encodeBasicAuth(clientId, clientSecret)}`,
-    correlationId,
   })
 
   const result = await fetchBlawby({ env, path: BLAWBY_TOKEN_PATH, method: 'POST', headers, body, correlationId })
@@ -420,15 +456,24 @@ function getCachedOrFreshToken(
   const now = Date.now()
   const entry = tokenCache.get(key)
 
+  // U9 reconciliation (task-u8-reconciliation-brief.md section 5b): join an
+  // already-in-progress refresh for this key BEFORE any deletion, and
+  // regardless of forceRefresh. The old ordering deleted+forgot the entry
+  // whenever forceRefresh was true without first checking entry.inflight, so
+  // two callers hitting invalid_token for the same scope in the same tick
+  // would each delete the other's just-registered inflight refresh and start
+  // a duplicate token exchange -- exactly the coalescing R3 requires ("only
+  // U8's stable machine-auth discriminator may clear and refresh the token
+  // once") but did not actually provide under this race.
+  if (entry?.inflight) {
+    return entry.inflight
+  }
+
   if (forceRefresh && entry) {
     tokenCache.delete(key)
   }
 
   const current = forceRefresh ? undefined : entry
-
-  if (current?.inflight) {
-    return current.inflight
-  }
 
   if (!forceRefresh && current && current.expiresAt - TOKEN_RENEWAL_SKEW_MS > now) {
     return Promise.resolve(current.token)
@@ -461,7 +506,13 @@ export async function getBlawbyServiceToken(
 function isMachineAuthFailure(result: BlawbyRawResponse): boolean {
   if (result.status !== 401) return false
   if (result.wwwAuthenticate && /invalid_token/i.test(result.wwwAuthenticate)) return true
-  return isRecord(result.body) && readString(result.body, 'error') === 'invalid_token'
+  // U8's real body shape is `{ error: { code: 'invalid_token', message }
+  // }` -- `error` is an OBJECT with a `code` field, not a plain string (the
+  // old `readString(result.body, 'error') === 'invalid_token'` check
+  // expected the wrong shape and could never match a real response; this is
+  // defense-in-depth alongside the WWW-Authenticate check above, which
+  // remains the primary, already-correct signal).
+  return isRecord(result.body) && isRecord(result.body.error) && readString(result.body.error, 'code') === 'invalid_token'
 }
 
 // -- Generic authenticated route dispatch (R2-R7, R23-R25, R28) ---------
@@ -469,10 +520,19 @@ function isMachineAuthFailure(result: BlawbyRawResponse): boolean {
 export interface BlawbyRouteCallParams<TResponse> {
   routeKey: BlawbyRouteKey
   scope: string
-  method: 'GET' | 'POST'
+  method: 'GET' | 'POST' | 'PATCH'
   identity: BlawbyTrustedIdentity
   correlationId: string
   requestReference?: string
+  /**
+   * A single path-segment value substituted into the route's `{param}`
+   * placeholder (e.g. the Blawby intake UUID, the request reference, or the
+   * contract id — see BLAWBY_BEARER_ROUTES). Required when the route's path
+   * template contains a placeholder; ignored otherwise. Never accepted from
+   * a caller as a raw path — always validated against
+   * SAFE_PATH_SEGMENT_PATTERN before interpolation.
+   */
+  pathParam?: string
   clientIp?: string
   body?: unknown
   /** Runtime-validate a successful (2xx) response body. Return undefined on mismatch. */
@@ -492,6 +552,9 @@ export async function callBlawbyRoute<TResponse>(
 ): Promise<TResponse> {
   const route = BLAWBY_BEARER_ROUTES[params.routeKey]
   const serializedBody = params.body !== undefined ? JSON.stringify(params.body) : undefined
+  // Path-param interpolation happens once, up front — not per-attempt — so
+  // a refresh-and-replay never re-validates/re-derives the resolved path.
+  const resolvedPath = interpolatePathParam(route.path, params.pathParam, params.correlationId)
 
   const attempt = async (forceRefresh: boolean): Promise<BlawbyRawResponse> => {
     const token = await getCachedOrFreshToken(env, params.scope, params.correlationId, forceRefresh)
@@ -504,11 +567,10 @@ export async function callBlawbyRoute<TResponse>(
       // flagged to carry it (engagement acceptance); every other route
       // omits it even if a caller passed one.
       clientIp: route.includeClientIp ? params.clientIp : undefined,
-      correlationId: params.correlationId,
     })
     return fetchBlawby({
       env,
-      path: route.path,
+      path: resolvedPath,
       method: params.method,
       headers,
       body: serializedBody,

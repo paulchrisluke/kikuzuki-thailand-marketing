@@ -1,9 +1,9 @@
 // GET /api/dashboard/legal/practice
 //
 // Staff practice-profile read (LegalOperation 'practice_read', BlawbyRouteKey
-// 'practiceRead' — U2's own placeholder route, reused verbatim). Read-only:
-// no Origin pre-check (R26 only requires it for cookie-authenticated
-// mutations).
+// 'practiceRead' — real U8 route `GET /practice/details`, see
+// blawby-client.ts). Read-only: no Origin pre-check (R26 only requires it
+// for cookie-authenticated mutations).
 
 import { rethrowHttpError, apiErrorResponse } from '~/server/utils/api-response'
 import { callBlawbyRoute } from '~/server/utils/blawby-client'
@@ -31,7 +31,7 @@ export default defineHandler(async (event) => {
       routeKey: 'practiceRead',
       scope: 'legal:practice:read',
       method: 'GET',
-      identity: { organizationId: access.organizationId, actorId: access.userId, actorKind: 'staff' },
+      identity: { organizationId: access.organizationId, actorId: access.userId, actorKind: 'human' },
       correlationId,
       parseResponse: parsePracticeProfile,
     })

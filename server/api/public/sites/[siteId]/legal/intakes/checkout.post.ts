@@ -2,8 +2,10 @@
 //
 // Begins (or replaces) a Blawby Checkout/Payment Link session for an
 // already-created intake (LegalOperation 'intake_payment', BlawbyRouteKey
-// 'intakeCheckout' -- PLACEHOLDER path '/legal/public/intakes/checkout',
-// see blawby-client.ts; not a verified U8 contract).
+// 'intakeCheckout' -- real U8 route `POST
+// /intakes/{uuid}/checkout-session`, see blawby-client.ts). The path param
+// is the Blawby intake UUID (record.blawbyIntakeId), looked up server-side
+// from the durable record -- never sent as a body field.
 //
 // Same R13 call order as index.post.ts, using 'intake_payment' as the
 // gated operation (this is a payment-adjacent write, not the base intake
@@ -91,9 +93,9 @@ export default defineHandler(async (event) => {
       identity: { organizationId: context.organizationId, actorId: actor.actorId, actorKind: actor.actorKind },
       correlationId,
       requestReference,
+      pathParam: record.blawbyIntakeId,
       clientIp: getClientIp(event),
       body: {
-        intakeId: record.blawbyIntakeId,
         ...(record.checkoutSessionId ? { priorCheckoutSessionId: record.checkoutSessionId } : {}),
       },
       parseResponse: parseIntakeCheckoutResult,

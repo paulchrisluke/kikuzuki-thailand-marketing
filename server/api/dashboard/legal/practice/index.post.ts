@@ -1,9 +1,10 @@
 // POST /api/dashboard/legal/practice
 //
 // Staff practice-profile mutation (LegalOperation 'practice_mutation',
-// BlawbyRouteKey 'practiceMutate' — PLACEHOLDER path '/legal/practice/update',
-// see server/utils/blawby-client.ts's BLAWBY_BEARER_ROUTES comment; not a
-// verified U8 contract). Origin is validated FIRST (before
+// BlawbyRouteKey 'practiceMutate' — real U8 route `PATCH
+// /practice/details`, which upserts (creates if it doesn't exist) per its
+// own doc comment; see server/utils/blawby-client.ts's BLAWBY_BEARER_ROUTES).
+// Origin is validated FIRST (before
 // resolveLegalStaffAccess) per the plan's step-3 ordering — see
 // assertLegalStaffMutationOrigin's own comment in legal-access.ts for why
 // dashboard origin is pre-checked this way and which env field stands in
@@ -52,8 +53,8 @@ export default defineHandler(async (event) => {
     const profile = await callBlawbyRoute(access.env, {
       routeKey: 'practiceMutate',
       scope: 'legal:practice:write',
-      method: 'POST',
-      identity: { organizationId: access.organizationId, actorId: access.userId, actorKind: 'staff' },
+      method: 'PATCH',
+      identity: { organizationId: access.organizationId, actorId: access.userId, actorKind: 'human' },
       correlationId,
       body: { name, description },
       parseResponse: parsePracticeProfile,
