@@ -4,33 +4,34 @@ import type { ReactNode } from 'react'
 import { OG_IMAGE_WIDTH, OG_IMAGE_HEIGHT, type SocialCardRenderPayload } from '~/utils/social-metadata'
 import { getOgImageFonts } from './fonts.ts'
 import { resolveOgImageRenderer } from './renderers/index.ts'
-import { fetchImageAsDataUri } from './fetch-image.ts'
-import { convertWebpDataUriToPng } from './webp-to-png.ts'
+import { fetchTransformedImageAsDataUri } from './fetch-image.ts'
 import { ensureResvgInitialized, loadLocalWasmModule } from '~/server/utils/resvg-runtime'
 import platformLogoBase64 from '~/server/assets/platform-logo'
 
 // A same-zone self-fetch (this Worker requesting its own krabiclaw.com/krabi-claw-logo.png)
 // was found to silently fail in production while third-party image URLs fetch fine — see
 // server/assets/platform-logo.ts. Resolve the platform's own logo from the bundled asset
-// instead of going through fetchImageAsDataUri whenever the URL points at that file, so the
+// instead of going through the Images binding whenever the URL points at that file, so the
 // brand mark on platform-template cards never depends on that self-fetch succeeding.
 function resolveLogoDataUri(
+  images: ImagesBinding,
   logoUrl: string | null | undefined,
   platformDomain?: string,
 ): Promise<string | null> {
   if (logoUrl) {
     try {
       const url = new URL(logoUrl)
-      if (!platformDomain) return fetchImageAsDataUri(logoUrl, { timeoutMs: 4000 })
-      const platformOrigin = platformDomain.startsWith('http') ? platformDomain : `https://${platformDomain}`
-      if (url.pathname === '/krabi-claw-logo.png' && url.origin === new URL(platformOrigin).origin) {
-        return Promise.resolve(`data:image/png;base64,${platformLogoBase64}`)
+      if (platformDomain) {
+        const platformOrigin = platformDomain.startsWith('http') ? platformDomain : `https://${platformDomain}`
+        if (url.pathname === '/krabi-claw-logo.png' && url.origin === new URL(platformOrigin).origin) {
+          return Promise.resolve(`data:image/png;base64,${platformLogoBase64}`)
+        }
       }
     } catch {
-      // Not a parseable absolute URL — fall through to the normal fetch path.
+      // The fetch helper rejects invalid and non-public URLs.
     }
   }
-  return fetchImageAsDataUri(logoUrl, { timeoutMs: 4000 })
+  return fetchTransformedImageAsDataUri(images, logoUrl, { width: 160, height: 160, fit: 'contain' }, { format: 'image/png' }, { timeoutMs: 4000 })
 }
 
 // initWasm() may only run once per isolate. Cached at module scope so repeated renders in
@@ -41,37 +42,6 @@ async function loadBundledYogaWasm(): Promise<WebAssembly.Module> {
   if (import.meta.dev) return await loadLocalWasmModule('satori/yoga.wasm')
   const { default: wasmModule } = await import('satori/yoga.wasm')
   return wasmModule
-}
-
-async function loadBundledWebpDecoderWasm(): Promise<WebAssembly.Module> {
-  if (import.meta.dev) return await loadLocalWasmModule('@jsquash/webp/codec/dec/webp_dec.wasm')
-  const { default: wasmModule } = await import('@jsquash/webp/codec/dec/webp_dec.wasm')
-  return wasmModule
-}
-
-async function loadBundledPngEncoderWasm(): Promise<WebAssembly.Module> {
-  if (import.meta.dev) return await loadLocalWasmModule('@jsquash/png/codec/pkg/squoosh_png_bg.wasm')
-  // squoosh_png_bg.wasm ships its own wasm-bindgen .d.ts declaring named function exports,
-  // which TypeScript prefers over this repo's ambient `declare module '*.wasm'` default-export
-  // fallback (types/wasm.d.ts) — the real runtime import (matching resvg/yoga/webp_dec, all
-  // bundled by Wrangler as a precompiled Module) does resolve to { default: WebAssembly.Module }.
-  const mod = await import('@jsquash/png/codec/pkg/squoosh_png_bg.wasm') as unknown as { default: WebAssembly.Module }
-  return mod.default
-}
-
-// Satori preserves WebP images in its SVG output, but the pinned Resvg rasterizer
-// cannot render those embedded images. Convert to PNG before building the SVG so
-// backgrounds and logos remain visible in the final social-card PNG.
-async function resolveWebpSafeDataUri(
-  dataUri: string | null,
-  deps: Pick<RenderOgImageDeps, 'webpDecoderWasmModule' | 'pngEncoderWasmModule'>,
-): Promise<string | null> {
-  if (!dataUri || !dataUri.startsWith('data:image/webp')) return dataUri
-  const [webpDecoderWasmModule, pngEncoderWasmModule] = await Promise.all([
-    deps.webpDecoderWasmModule ? Promise.resolve(deps.webpDecoderWasmModule) : loadBundledWebpDecoderWasm(),
-    deps.pngEncoderWasmModule ? Promise.resolve(deps.pngEncoderWasmModule) : loadBundledPngEncoderWasm(),
-  ])
-  return convertWebpDataUriToPng(dataUri, { webpDecoderWasmModule, pngEncoderWasmModule })
 }
 
 async function ensureSatoriInitialized(wasmModule?: InitInput): Promise<void> {
@@ -87,19 +57,13 @@ async function ensureSatoriInitialized(wasmModule?: InitInput): Promise<void> {
 }
 
 export interface RenderOgImageDeps {
+  images: ImagesBinding
   /**
    * Tests and local scripts can provide raw bytes. Deployed Workers omit this so Wrangler
    * supplies the statically imported file as a precompiled WebAssembly.Module.
    */
   wasmModule?: InitInput
   yogaModule?: InitInput
-  /**
-   * jsquash's emscripten/wasm-bindgen glue instantiates from a real WebAssembly.Module
-   * (not raw bytes) — tests must pass an already-compiled Module. Deployed Workers omit
-   * these so Wrangler supplies the statically imported files as precompiled Modules.
-   */
-  webpDecoderWasmModule?: WebAssembly.Module
-  pngEncoderWasmModule?: WebAssembly.Module
   platformDomain?: string
 }
 
@@ -113,25 +77,24 @@ export async function renderOgImagePng(
     ensureSatoriInitialized(deps.yogaModule),
   ])
 
-  const [rawBackgroundImageDataUri, rawLogoDataUri] = await Promise.all([
-    // Convert accepted WebP media below for the final Resvg rasterization.
-    fetchImageAsDataUri(payload.backgroundImageUrl, {
+  const [backgroundImageDataUri, logoDataUri] = await Promise.all([
+    fetchTransformedImageAsDataUri(deps.images, payload.backgroundImageUrl, {
+      width: OG_IMAGE_WIDTH,
+      height: OG_IMAGE_HEIGHT,
+      fit: 'cover',
+    }, {
+      format: 'image/jpeg',
+      quality: 85,
+    }, {
       timeoutMs: 4000,
       acceptedContentTypes: ['image/png', 'image/jpeg', 'image/webp'],
     }),
-    resolveLogoDataUri(payload.logoUrl, deps.platformDomain),
+    resolveLogoDataUri(deps.images, payload.logoUrl, deps.platformDomain),
   ])
-  if (!rawBackgroundImageDataUri) {
+  if (!backgroundImageDataUri) {
     throw new Error(`OG page media could not be loaded: ${payload.backgroundImageUrl}`)
   }
-  if (payload.logoUrl && !rawLogoDataUri) throw new Error(`OG logo could not be loaded: ${payload.logoUrl}`)
-
-  const [backgroundImageDataUri, logoDataUri] = await Promise.all([
-    resolveWebpSafeDataUri(rawBackgroundImageDataUri, deps),
-    resolveWebpSafeDataUri(rawLogoDataUri, deps),
-  ])
-
-  if (!backgroundImageDataUri) throw new Error('OG page media could not be decoded')
+  if (payload.logoUrl && !logoDataUri) throw new Error(`OG logo could not be loaded: ${payload.logoUrl}`)
   const renderer = resolveOgImageRenderer(payload.template)
   const tree = renderer({ ...payload, backgroundImageDataUri, logoDataUri })
 

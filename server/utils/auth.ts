@@ -109,6 +109,7 @@ async function normalizeCimdClientAuthentication(data: {
 
 export interface CloudflareEnv {
   DB: D1Database
+  IMAGES: ImagesBinding
   BETTER_AUTH_SECRET: string
   BETTER_AUTH_URL?: string
   GOOGLE_CLIENT_ID: string
