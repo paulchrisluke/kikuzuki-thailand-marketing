@@ -436,7 +436,7 @@ const clients = ref<Client[]>([])
 const clientsLoading = ref(true)
 const impersonatingClientOrgId = ref<string | null>(null)
 const isImpersonatingClient = computed(() => impersonatingClientOrgId.value !== null)
-const { refreshSession } = useAuth()
+const { waitForSession } = useAuth()
 
 const PLAN_LABELS: Record<string, string> = {
   growth: 'Growth',
@@ -475,7 +475,7 @@ async function openWorkspace(client: Client) {
     const { authClient } = await import('~/lib/auth-client')
     const result = await authClient.admin.impersonateUser({ userId: client.impersonation_user_id })
     if (result.error) throw new Error(result.error.message)
-    await refreshSession()
+    await waitForSession(result.data.session.id)
     await navigateTo(`/dashboard/${client.org_slug}`)
   } catch {
     toast.add({ title: 'Failed to enter client workspace', color: 'error' })

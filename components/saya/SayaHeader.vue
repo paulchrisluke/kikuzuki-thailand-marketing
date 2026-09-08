@@ -125,7 +125,6 @@ const props = defineProps<{
   locations: ApiRecord[]
   hasProducts: boolean
   hasExperiences: boolean
-  experienceCtaPath?: string | null
 }>()
 
 const i18n = useI18n() as ApiValue as I18nComposable
@@ -180,7 +179,6 @@ const hasOrderLinks = computed(() =>
 
 const primaryCtaPath = computed(() => {
   if (hasOrderLinks.value && !isExperienceSite.value) return '/order'
-  if (isExperienceSite.value) return props.experienceCtaPath ?? null
   return verticalCopy.value.ctaRoute
 })
 

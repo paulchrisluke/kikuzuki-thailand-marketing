@@ -1,5 +1,13 @@
 # PR 864 combined local completion
 
+> Superseded as the current completeness record by
+> [publication-local-completion.md](publication-local-completion.md). This file
+> predates owner comments 5578745078 and 5578932432; its statement that no
+> implementation obligation remained applied only to the earlier batch. The
+> publication batch now has a complete pre-review source/local verdict, while
+> exact-candidate preview, staging, production cutover, and deployed verification
+> remain release work.
+
 Recorded 2026-09-08. This record covers production source `c38d16fbc74b0d8fc231548b1e5c8015f7326a60` plus the two reviewed browser-test resource changes committed with this file. Those changes reuse the NCLS page across six routes and close the completed CMS page before public localization checks. They preserve assertions and keep one task page open alongside the user's two tabs.
 
 The complete comment and review inventory is [full-obligation-audit.md](full-obligation-audit.md). It covers the original release handoff, all retirement and Markdown additions, all three owner inline comments, and the actionable CodeRabbit inline finding. No demonstrated implementation obligation remains open. This record supersedes the retirement-only and Markdown-only completion summaries for local qualification. It does not claim a deployed release passed.

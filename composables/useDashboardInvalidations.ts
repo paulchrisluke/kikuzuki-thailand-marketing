@@ -157,7 +157,7 @@ export function provideDashboardInvalidations(organizationSlug: Readonly<Ref<str
     if (!stopped && organizationSlug.value) connect()
   }
 
-  watch(organizationSlug, resetConnection)
+  watch(organizationSlug, resetConnection, { flush: 'sync' })
 
   onMounted(() => {
     mounted = true

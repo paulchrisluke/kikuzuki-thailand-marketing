@@ -183,30 +183,33 @@ test('Kikuzuki keeps customer identity, locations, and reservation entry point',
   await expect(page.locator('#reservation-booking-toggle').first()).toBeVisible()
 })
 
-test('NCLS exposes header, footer, pricing, article, contact, taxonomy, and donation journeys', async ({ page }) => {
-  await page.setViewportSize({ width: 1920, height: 1080 })
-  await openTenantPage(page, `${blawbyBaseURL}/`, blawbyExtraHeaders)
-  for (const label of ['Services', 'Pricing', 'About', 'Contact', 'Blog', 'Donate'])
-    await expect(page.locator('header').getByRole('link', { name: label, exact: true })).toBeVisible()
-  const navLinks = page.locator('header nav > div:last-child > div:first-child a')
-  for (const width of [1920, 1600, 1440, 1024]) {
-    await page.setViewportSize({ width, height: 1080 })
-    const tops = await navLinks.evaluateAll(links => links.map(link => Math.round(link.getBoundingClientRect().top)))
-    expect(new Set(tops).size).toBe(1)
-    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBe(true)
-  }
-  for (const width of [390]) {
-    await page.setViewportSize({ width, height: 900 })
-    await expect(navLinks.first()).toBeHidden()
-    await page.locator('header summary').click()
-    await expect(page.locator('header details').getByRole('link', { name: 'Services', exact: true })).toBeVisible()
-    await page.locator('header summary').click()
-    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBe(true)
-  }
-  for (const label of ['Family law', 'Request a Legal Consultation', 'About', 'Privacy Policy'])
-    await expect(page.locator('footer').getByRole('link', { name: label, exact: true })).toBeVisible()
-  await page.setViewportSize({ width: 1280, height: 720 })
-  const errors = collectPageErrors(page, { failOnAllWarnings: true })
+test.describe('NCLS representative journeys', () => {
+  test.describe.configure({ mode: 'default' })
+
+  test('header and footer navigation at desktop and narrow widths', async ({ page }) => {
+    await page.setViewportSize({ width: 1920, height: 1080 })
+    await openTenantPage(page, `${blawbyBaseURL}/`, blawbyExtraHeaders)
+    for (const label of ['Services', 'Pricing', 'About', 'Contact', 'Blog', 'Donate'])
+      await expect(page.locator('header').getByRole('link', { name: label, exact: true })).toBeVisible()
+    const navLinks = page.locator('header nav > div:last-child > div:first-child a')
+    for (const width of [1920, 1600, 1440, 1024]) {
+      await page.setViewportSize({ width, height: 1080 })
+      const tops = await navLinks.evaluateAll(links => links.map(link => Math.round(link.getBoundingClientRect().top)))
+      expect(new Set(tops).size).toBe(1)
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBe(true)
+    }
+    for (const width of [390]) {
+      await page.setViewportSize({ width, height: 900 })
+      await expect(navLinks.first()).toBeHidden()
+      await page.locator('header summary').click()
+      await expect(page.locator('header details').getByRole('link', { name: 'Services', exact: true })).toBeVisible()
+      await page.locator('header summary').click()
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBe(true)
+    }
+    for (const label of ['Family law', 'Request a Legal Consultation', 'About', 'Privacy Policy'])
+      await expect(page.locator('footer').getByRole('link', { name: label, exact: true })).toBeVisible()
+  })
+
   for (const journey of [
     { path: '/pricing', text: /pricing|income|calculator/i },
     { path: '/article/writing-your-own-will-how-it-works', text: /will|North Carolina/i },
@@ -215,10 +218,14 @@ test('NCLS exposes header, footer, pricing, article, contact, taxonomy, and dona
     { path: '/blog', text: /blog|legal/i },
     { path: '/donate', text: /donate|support/i },
   ]) {
-    const response = await openTenantPage(page, `${blawbyBaseURL}${journey.path}`, blawbyExtraHeaders)
-    expect(response?.status(), journey.path).toBeLessThan(400)
-    await page.waitForTimeout(250)
-    expect(errors, journey.path).toEqual([])
-    await expect(page.locator('main')).toContainText(journey.text)
+    test(`renders ${journey.path}`, async ({ page }) => {
+      await page.setViewportSize({ width: 1280, height: 720 })
+      const errors = collectPageErrors(page, { failOnAllWarnings: true })
+      const response = await openTenantPage(page, `${blawbyBaseURL}${journey.path}`, blawbyExtraHeaders)
+      expect(response?.status(), journey.path).toBeLessThan(400)
+      await page.waitForTimeout(250)
+      expect(errors, journey.path).toEqual([])
+      await expect(page.locator('main')).toContainText(journey.text)
+    })
   }
 })

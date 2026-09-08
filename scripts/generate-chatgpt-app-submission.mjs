@@ -20,7 +20,7 @@ const effects = {
   create_experience: 'Creates a bookable experience with pricing and scheduling at the selected location.',
   create_location_qa: 'Adds a public question and answer to the selected location.',
   create_owner_entered_site_review: 'Creates an owner-entered review with source and attribution provenance for the selected site.',
-  create_post: 'Creates a website announcement, publishing immediately unless scheduled for later.',
+  create_post: 'Creates a private website announcement draft, or schedules publication when a future date is supplied.',
   create_product: 'Creates a product with explicit price semantics in the selected location and category.',
   create_product_category: 'Adds a product category to the selected location.',
   create_site_qa: 'Adds a public question and answer to the selected site.',

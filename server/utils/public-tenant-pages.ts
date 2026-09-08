@@ -74,10 +74,6 @@ export async function listPublicTenantPageOfferingRows(
   return rows.map(row => ({ ...row, media: placements.get(row.id)?.media ?? [] }))
 }
 
-export function selectPublicTenantPageBlocks(blocks: TenantPageBlock[]): TenantPageBlock[] {
-  return blocks.filter(block => !(block.type === 'callout' && block.data.type === 'legal_meta'))
-}
-
 async function hydrateBlocks(
   db: DbClient,
   siteId: string,
@@ -87,14 +83,13 @@ async function hydrateBlocks(
   resources: PublicTenantPageHydrationResources = {},
   localizations: readonly ExactPublicLocalization[] | null = null,
 ): Promise<TenantPageBlock[]> {
-  const publicBlocks = selectPublicTenantPageBlocks(blocks)
   const offeringIds = new Set<string>()
   const locationIds = new Set<string>()
-  const hasOfferingSource = publicBlocks.some(block => block.type === 'offering_grid' && block.data.source === 'site_offerings')
-  const hasQaSource = publicBlocks.some(block => block.type === 'faq' && block.data.source === 'page_qa')
-  const hasReviewSource = publicBlocks.some(block => block.type === 'testimonial_grid' && block.data.source === 'site_reviews')
-  const hasPostSource = publicBlocks.some(block => block.type === 'feature_grid' && block.data.source === 'site_posts')
-  for (const block of publicBlocks) {
+  const hasOfferingSource = blocks.some(block => block.type === 'offering_grid' && block.data.source === 'site_offerings')
+  const hasQaSource = blocks.some(block => block.type === 'faq' && block.data.source === 'page_qa')
+  const hasReviewSource = blocks.some(block => block.type === 'testimonial_grid' && block.data.source === 'site_reviews')
+  const hasPostSource = blocks.some(block => block.type === 'feature_grid' && block.data.source === 'site_posts')
+  for (const block of blocks) {
     if (block.type === 'offering_grid' && Array.isArray(block.data.offering_ids)) {
       for (const value of block.data.offering_ids) if (typeof value === 'string' && value.trim()) offeringIds.add(value)
     }
@@ -175,7 +170,7 @@ async function hydrateBlocks(
       ? projectLocalizedMediaAlt([{ asset_id: post.asset_id, slot: 'featured', public_url: post.public_url, thumbnail_url: post.thumbnail_url, kind: post.kind, alt_text: post.alt_text }], localizations ?? [])
       : [],
   }))
-  return publicBlocks.map(block => {
+  return blocks.map(block => {
     const data = { ...block.data }
     if (block.type === 'offering_grid' && Array.isArray(data.offering_ids)) {
       data.items = data.offering_ids.flatMap((id) => {

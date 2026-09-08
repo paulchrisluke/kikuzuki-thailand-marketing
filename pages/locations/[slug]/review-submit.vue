@@ -136,7 +136,6 @@ const submitting = ref(false)
 const submitted = ref(false)
 const optedOut = ref(false)
 const submitError = ref('')
-const loadError = ref('')
 const mediaError = ref('')
 const uploadingMedia = ref(false)
 const removingMediaAssetId = ref<string | null>(null)
@@ -146,19 +145,15 @@ const activeVideoUploads = new Set<AbortController>()
 const imageCount = computed(() => media.value.filter(item => item.kind === 'image').length)
 const videoCount = computed(() => media.value.filter(item => item.kind === 'video').length)
 
-const { data: requestData, pending } = await useAsyncData<{
+const { data: requestData, pending, error: validationError } = await useAsyncData<{
   request: { id: string; bookingType: string; expiresAt: string }
   site: { id: string; name: string | null }
   location: { id: string | null; slug: string | null; title: string | null; googleReviewUrl: string | null }
   customer: { name: string | null }
-}>('review-request-validation', async () => {
-  try {
-    return await $fetch('/api/public/review-requests/validate', { query: { token } })
-  } catch (error) {
-    loadError.value = (error as { data?: { error?: string } })?.data?.error || 'The link may have expired or already been used.'
-    throw error
-  }
-})
+}>(() => `review-request-validation-${token.value}`, () =>
+  $fetch('/api/public/review-requests/validate', { query: { token: token.value } }),
+)
+const loadError = computed(() => validationError.value ? 'The link may have expired or already been used.' : '')
 
 onMounted(async () => {
   if (route.query.optOut === '1' || route.query.optOut === 'true') {

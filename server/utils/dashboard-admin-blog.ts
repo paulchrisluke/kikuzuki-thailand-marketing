@@ -21,7 +21,7 @@ export async function loadDashboardAdminBlogPost(event: H3Event, postId: string)
     const permission = platformPermissionError(error)
     throw new HTTPError({ statusCode: permission.statusCode, statusMessage: permission.message })
   }
-  const post = await getBlogPost(db, postId)
+  const post = await getBlogPost(db, postId, null, env)
   if (!post) throw new HTTPError({ statusCode: 404, statusMessage: 'Post not found' })
   console.info('[audit]', {
     action: 'admin_read_post',

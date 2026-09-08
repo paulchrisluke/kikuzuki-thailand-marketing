@@ -1,0 +1,8 @@
+{
+  "boundary": "actual ensurePlatformMediaScope, Better Auth adapters, isolated Miniflare D1 and R2, actual createPlatformBlogPost",
+  "initializedSourceLocale": true,
+  "existingSourceAndTranslationUnchangedAfterTwoRepeatedCalls": true,
+  "platformDraftPersisted": true,
+  "foreignKeyViolations": 0,
+  "remoteWrites": false
+}

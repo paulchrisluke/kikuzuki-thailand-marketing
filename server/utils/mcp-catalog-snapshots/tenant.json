@@ -1,6 +1,6 @@
 {
   "surface": "tenant",
-  "fingerprint": "sha256:dd224b0efad281fbebb1c1f34f0e3373c47e3e0199f790e5b501e2e0acfdc763",
+  "fingerprint": "sha256:f5dc1a818617dd008a9c8383e08417f4d57adec56bb97e73023c2062986c6831",
   "tools": [
     {
       "name": "attach_media",
@@ -930,7 +930,7 @@
             ]
           },
           "scheduled_for": {
-            "description": "Optional future ISO 8601 datetime with timezone. Omit or pass null to publish immediately.",
+            "description": "Optional future ISO 8601 datetime with timezone. With no status or schedule, creation saves a draft.",
             "format": "date-time",
             "pattern": "^\\d{4}-\\d{2}-\\d{2}T(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d{1,9})?(?:Z|[+-](?:[01]\\d|2[0-3]):[0-5]\\d)$",
             "type": [
@@ -957,6 +957,15 @@
           },
           "site_id": {
             "description": "Internal KrabiClaw site ID from get_workspace_context or list_sites, e.g. site-pottery-house. Do not pass a public URL, hostname, subdomain, custom domain, slug, or site name here.",
+            "type": "string"
+          },
+          "status": {
+            "description": "Creation defaults to draft. Scheduled requires a future scheduled_for; published goes live immediately.",
+            "enum": [
+              "draft",
+              "scheduled",
+              "published"
+            ],
             "type": "string"
           },
           "tags": {
@@ -1265,6 +1274,7 @@
               },
               "status": {
                 "enum": [
+                  "draft",
                   "published",
                   "scheduled"
                 ],
@@ -2258,6 +2268,12 @@
               {
                 "type": "null"
               }
+            ]
+          },
+          "visibility": {
+            "enum": [
+              "public",
+              "unlisted"
             ]
           }
         },
@@ -3844,6 +3860,7 @@
               },
               "status": {
                 "enum": [
+                  "draft",
                   "published",
                   "scheduled"
                 ],
@@ -5308,6 +5325,7 @@
               },
               "status": {
                 "enum": [
+                  "draft",
                   "published",
                   "scheduled"
                 ],
@@ -5326,6 +5344,12 @@
                 "type": [
                   "string",
                   "null"
+                ]
+              },
+              "visibility": {
+                "enum": [
+                  "public",
+                  "unlisted"
                 ]
               }
             },
@@ -7504,6 +7528,7 @@
           },
           "status": {
             "enum": [
+              "draft",
               "published",
               "scheduled"
             ],
@@ -7720,6 +7745,7 @@
                 },
                 "status": {
                   "enum": [
+                    "draft",
                     "published",
                     "scheduled"
                   ],
@@ -8952,6 +8978,7 @@
           },
           "status": {
             "enum": [
+              "draft",
               "published",
               "scheduled"
             ],
@@ -9426,6 +9453,7 @@
                 },
                 "status": {
                   "enum": [
+                    "draft",
                     "published",
                     "scheduled"
                   ],
@@ -9444,6 +9472,12 @@
                   "type": [
                     "string",
                     "null"
+                  ]
+                },
+                "visibility": {
+                  "enum": [
+                    "public",
+                    "unlisted"
                   ]
                 }
               },
@@ -10573,6 +10607,7 @@
               },
               "status": {
                 "enum": [
+                  "draft",
                   "published",
                   "scheduled"
                 ],
@@ -11524,6 +11559,7 @@
                 },
                 "status": {
                   "enum": [
+                    "draft",
                     "published",
                     "scheduled"
                   ],
@@ -12382,6 +12418,7 @@
               },
               "status": {
                 "enum": [
+                  "draft",
                   "published",
                   "scheduled"
                 ],
@@ -14389,6 +14426,7 @@
               },
               "status": {
                 "enum": [
+                  "draft",
                   "published",
                   "scheduled"
                 ],
@@ -14910,6 +14948,7 @@
               },
               "status": {
                 "enum": [
+                  "draft",
                   "published",
                   "scheduled"
                 ],
@@ -16587,6 +16626,12 @@
               {
                 "type": "null"
               }
+            ]
+          },
+          "visibility": {
+            "enum": [
+              "public",
+              "unlisted"
             ]
           }
         },

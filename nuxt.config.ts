@@ -195,8 +195,11 @@ export default defineNuxtConfig({
     },
   },
 
-  // Bundle analysis is opt-in and client-only; it has no runtime effect.
   hooks: {
+    ready(nuxt) {
+      const clientComposables = nuxt.options.optimization.treeShake.composables.client
+      if (clientComposables.vue) clientComposables.vue = clientComposables.vue.filter(name => name !== 'onServerPrefetch')
+    },
     'pages:extend'(pages) {
       pages.push(...localizedPublicRouteAliases(pages))
     },

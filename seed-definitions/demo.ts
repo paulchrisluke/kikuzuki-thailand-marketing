@@ -1962,6 +1962,7 @@ export function renderCompiledDemoPostsBlock(): string {
       sqlValue('social_post'), sqlValue('root'), sqlValue('en'), sqlValue('template'),
       sqlJson({ post_type: post.post_type, call_to_action: post.call_to_action, event: post.event, offer: post.offer, alert_type: post.alert_type }),
       sqlValue(post.status),
+      sqlValue('public'),
       sqlValue(post.publishedAt),
       sqlValue(post.createdBy),
     ].join(', ')})`)
@@ -1984,7 +1985,7 @@ VALUES (${sqlValue(post.id)}, ${sqlValue(originalPost.organizationId)}, ${sqlVal
 
   return `-- BEGIN GENERATED: demo_posts
 INSERT INTO content_documents
-  (id, organization_id, site_id, location_id, title, summary, kind, row_role, locale, source, metadata_json, status, published_at, created_by)
+  (id, organization_id, site_id, location_id, title, summary, kind, row_role, locale, source, metadata_json, status, visibility, published_at, created_by)
 VALUES
 ${postRows};
 

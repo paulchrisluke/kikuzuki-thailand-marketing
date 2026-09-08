@@ -1,0 +1,69 @@
+{
+  "sourceSha256": "03ca012a59b10cde0c812670d286536cab04ff8b58bb8922187a90d0305ac8e0",
+  "targetSha256": "f385d86861a915def1a6375a61c08c81c59a0213c7e3e69b8139f7a9af36ea8b",
+  "baselineSha256": "6caaf8aa51cd49168b22723f2a29a431357c5388caf2836647cba6be0da4adba",
+  "tables": 52,
+  "rows": 42429,
+  "markdown": {
+    "total_blocks": 316,
+    "source_blocks": 268,
+    "requires_source": 4,
+    "reclassified_blocks": 264,
+    "missing_blocks": 48,
+    "null_blocks": 0,
+    "backfilled_source": 1,
+    "backfilled_rich": 47
+  },
+  "targetMarkdown": {
+    "blocks": 316,
+    "rich": 311,
+    "source": 5,
+    "invalid": 0
+  },
+  "headings": {
+    "total_blocks": 293,
+    "normalized_blocks": 23,
+    "escaped_punctuation_blocks": 7
+  },
+  "remainingHeadingMarkers": 0,
+  "residue": {
+    "legacy_type_blocks": 5,
+    "duplicate_type_blocks": 5,
+    "image_alt_blocks": 8,
+    "flattened_markdown_blocks": 1,
+    "changed_blocks": 13,
+    "source_sha256": "714e5efae61c78437fbcf39851e7c9a5d8fb8359ebc5ceb0573a74a8b88d073c",
+    "projected_sha256": "dfdb5e6f0022f8c778d6dc0ba7b631bb07be9b4b3b8e29972bd6a26c914a240f"
+  },
+  "remainingResidue": 0,
+  "blockReconciliation": {
+    "changed_blocks": 347,
+    "overlapping_projections": 1
+  },
+  "mediaAlt": {
+    "source_machine_keys": 144,
+    "projected_nulls": 144,
+    "source_sha256": "2a86c5b057191f2b364804eacda3c7ae5a0c70564dcdcd417be6cf428f06a716",
+    "projected_sha256": "b96b0d147836623470e7d7aff94a6269d144017fcf73026d460ab41e6b948584"
+  },
+  "preservedOtherAltValues": 197,
+  "scheduleMarkdownLiteralSha256": "07163c9f78c942a79d11b12fee43b9f54a40b96d7a43c7ef56ce0004cdaabacf",
+  "scheduleChangedColumns": [
+    "data_json",
+    "created_at",
+    "updated_at"
+  ],
+  "media": [
+    {
+      "table": "media_assets",
+      "retainedSha256": "babdd927d33764825b43a37b5d7cc7ec7d65d3d87cd1a9aba2db4b716fbf2377"
+    },
+    {
+      "table": "media_placements",
+      "retainedSha256": "f2016eb8e52986662bcc0ac8ecf9e669113196569da211ea082feaab945ad77e"
+    }
+  ],
+  "invariantViolations": 0,
+  "exactProjectionVerified": true,
+  "remoteWrites": false
+}

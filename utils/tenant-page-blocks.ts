@@ -175,7 +175,7 @@ function blockDefinitionWithMetadata(
 const STRING_FIELDS = new Set([
   'eyebrow', 'title', 'subtitle', 'text', 'markdown', 'caption', 'description',
   'label', 'url', 'body', 'tone', 'cta_label', 'cta_url', 'source',
-  'source_url', 'effective_date', 'field', 'section', 'destination', 'legacy_type',
+  'source_url', 'effective_date', 'field', 'section', 'destination',
 ])
 const ARRAY_FIELDS = new Set(['offering_ids', 'location_ids'])
 
@@ -404,12 +404,10 @@ export function blockDefinition(type: TenantPageBlockType): TenantPageBlockDefin
 
 export function findTenantPageBlock(
   blocks: TenantPageBlock[],
-  legacyType: string,
-  canonicalType?: TenantPageBlockType,
+  type: TenantPageBlockType,
 ): Record<string, unknown> | null {
-  const block = blocks.find((candidate) =>
-    candidate.data.legacy_type === legacyType
-    || (canonicalType ? candidate.type === canonicalType : false),
-  )
+  const matches = blocks.filter(candidate => candidate.type === type)
+  if (matches.length > 1) throw new Error(`Multiple ${type} blocks require an explicit selection.`)
+  const block = matches[0]
   return block ? { ...block.data, media: block.media } : null
 }

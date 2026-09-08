@@ -1,0 +1,35 @@
+{
+  "expectedBuild": "bb52bb9e-51b2-4843-be1d-561ece4ad3a4",
+  "stopTime": 1788856159910.222,
+  "lifecycle": [
+    {
+      "action": "created",
+      "id": 1,
+      "state": 0,
+      "time": 1788856159572.9001
+    },
+    {
+      "action": "close called",
+      "id": 1,
+      "state": 0,
+      "time": 1788856159908,
+      "reason": "Dashboard scope changed"
+    },
+    {
+      "action": "close called",
+      "id": 1,
+      "state": 3,
+      "time": 1788856159910.8
+    },
+    {
+      "action": "closed",
+      "id": 1,
+      "state": 3,
+      "time": 1788856159910.9001,
+      "reason": ""
+    }
+  ],
+  "connectingCancellationObserved": 1,
+  "classifiedCancellationWarnings": 1,
+  "postStopConnections": 0
+}

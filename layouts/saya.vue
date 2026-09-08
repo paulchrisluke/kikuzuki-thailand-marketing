@@ -19,8 +19,7 @@
       :site="resolvedSite"
       :locations="locations"
       :has-products="shell.hasProducts.value"
-      :has-experiences="showExperiences"
-      :experience-cta-path="locationExperienceCtaPath"
+      :has-experiences="hasExperiences"
     />
     <main class="grow" :data-route-shell="route.path">
       <slot />
@@ -33,13 +32,12 @@
       :error="bootstrapError"
       :config="config"
       :has-products="shell.hasProducts.value"
-      :has-experiences="showExperiences"
+      :has-experiences="hasExperiences"
     />
   </div>
 </template>
 
 <script setup lang="ts">
-import { resolveLocationExperienceHref } from '~/utils/experience-navigation'
 import { getPreviewSubpath } from '~/composables/usePublicPageRequest'
 import sayaCriticalCss from '~/assets/css/saya-critical.css?raw'
 import '~/assets/css/saya-entry.css'
@@ -85,21 +83,7 @@ if (import.meta.dev) useDebugLCP()
 const shell = useSiteShellState()
 if (import.meta.server && isHome.value) await shell.ready
 const { config, locations, hasExperiences, locales, error: bootstrapError, site: shellSite } = shell
-const { isPlatform, siteId, draftId, site } = useTenantSite()
-const pageParams = usePublicPageRequest()
-const activePageKey = computed(() => usePublicPageKey(siteId || draftId || null, pageParams.value))
-const nuxtApp = useNuxtApp()
-const pagePayload = computed(() =>
-  (nuxtApp.payload.data[activePageKey.value] as ApiRecord | undefined)
-  ?? (nuxtApp.static.data[activePageKey.value] as ApiRecord | undefined)
-  ?? null,
-)
-const experiencesList = computed(() =>
-  Array.isArray(pagePayload.value?.experiencesList)
-    ? pagePayload.value.experiencesList as ApiRecord[]
-    : [],
-)
-const showExperiences = computed(() => hasExperiences.value || experiencesList.value.length > 0)
+const { isPlatform, site } = useTenantSite()
 const resolvedSite = computed(() => shellSite.value || site)
 const brandColor = computed(
   () => config.value?.brand_color || null
@@ -121,10 +105,6 @@ const googleSiteVerification = computed(() => config.value?.google_site_verifica
 // rendered request origin is the canonical origin for every indexable tenant page.
 const requestURL = useRequestURL()
 const requestHostname = requestURL.hostname
-const routeLocationSlug = computed(() => {
-  const match = route.path.match(/^\/locations\/([^/]+)/)
-  return match?.[1] ?? null
-})
 
 if (import.meta.client) {
   const sayaTheme = usePlatformTheme()
@@ -143,10 +123,6 @@ if (import.meta.client) {
     delete window.toggleSayaDark
   })
 }
-const locationExperienceCtaPath = computed(() => {
-  if (!routeLocationSlug.value) return undefined
-  return resolveLocationExperienceHref(routeLocationSlug.value, experiencesList.value)
-})
 
 // Shared demo-host check: the synthetic "Ember & Slice" showcase site isn't a
 // real business collecting real visitor data, so it's excluded from search

@@ -3,9 +3,9 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import test from 'node:test'
 import { Miniflare } from 'miniflare'
-import { publishDuePosts } from '../../server/utils/post-management.ts'
+import { createPost, updatePost, publishPost, getPublishedPosts, getPublishedPostBySlug, listPosts, publishDuePosts } from '../../server/utils/post-management.ts'
 
-test('scheduled posts compare instants across timezone offsets and publish once', async () => {
+test('social drafts, unlisted publication and scheduled posts preserve lifecycle at the D1 boundary', async () => {
   const runtime = new Miniflare({ workers: [{ config: {
     name: 'post-scheduling-proof', type: 'worker', compatibilityDate: '2024-11-01',
     manifest: { mainModule: 'index.mjs', modules: { 'index.mjs': { type: 'esm', contents: 'export default { fetch() { return new Response("ok") } }' } } },
@@ -27,8 +27,8 @@ test('scheduled posts compare instants across timezone offsets and publish once'
       ['positive-offset', '2099-01-01T11:00:00+02:00'],
     ]) {
       await db.prepare(`
-        INSERT INTO content_documents (id, organization_id, site_id, kind, row_role, locale, summary, status, source, metadata_json, scheduled_for, created_by, updated_at)
-        VALUES (?, 'org-proof', 'site-proof', 'social_post', 'root', 'en', 'Scheduled proof', 'scheduled', 'manual', '{"post_type":"standard","channels":{}}', ?, 'user-proof', '2098-12-31T00:00:00.000Z')
+        INSERT INTO content_documents (id, organization_id, site_id, kind, row_role, locale, summary, status, visibility, source, metadata_json, scheduled_for, created_by, updated_at)
+        VALUES (?, 'org-proof', 'site-proof', 'social_post', 'root', 'en', 'Scheduled proof', 'scheduled', 'public', 'manual', '{"post_type":"standard","channels":{}}', ?, 'user-proof', '2098-12-31T00:00:00.000Z')
       `).bind(id, parsePostInput({ body: 'Scheduled proof', scheduled_for: scheduledFor }).scheduled_for).run()
     }
     const cutoff = new Date('2099-01-01T10:00:00.000Z')
@@ -45,6 +45,47 @@ test('scheduled posts compare instants across timezone offsets and publish once'
     assert.deepEqual(await publishDuePosts(db, finalCutoff), { published: 0 })
     assert.equal(await db.prepare("SELECT count(*) FROM activity_entries WHERE kind = 'audit'").first('count(*)'), 2)
     assert.equal(await db.prepare("SELECT count(*) FROM content_documents, json_each(metadata_json, '$.channels') WHERE kind = 'social_post'").first('count(*)'), 0)
+    assert.equal(await db.prepare("SELECT first_published_at FROM content_documents WHERE id = 'positive-offset'").first('first_published_at'), '2099-01-01T09:00:00.000Z')
+
+    const post = await createPost(db, 'org-proof', 'site-proof', { body: 'Private first draft', slug: 'draft-first' }, 'user-proof', {})
+    assert.equal(post.status, 'draft')
+    assert.equal(post.visibility, 'public')
+    assert.equal(post.published_at, null)
+    assert.equal(post.public_path, null)
+    assert.equal(post.canonical_url, null)
+    assert.equal(await db.prepare('SELECT first_published_at FROM content_documents WHERE id=?').bind(post.id).first('first_published_at'), null)
+    assert.deepEqual((await listPosts(db, 'org-proof', 'site-proof', 'draft')).map(row => row.id), [post.id])
+    assert.equal(await getPublishedPostBySlug(db, 'site-proof', 'draft-first'), null)
+    assert(!(await getPublishedPosts(db, 'site-proof')).some(row => row.id === post.id))
+
+    await updatePost(db, 'org-proof', 'site-proof', post.id, { slug: 'draft-renamed', visibility: 'unlisted' }, 'user-proof', {})
+    assert.equal(await db.prepare('SELECT count(*) FROM site_redirects WHERE owner_id=?').bind(post.id).first('count(*)'), 0)
+    assert.equal(await db.prepare('SELECT first_published_at FROM content_documents WHERE id=?').bind(post.id).first('first_published_at'), null)
+    const live = await publishPost(db, 'org-proof', 'site-proof', post.id, ['site'], {}, null)
+    assert(live)
+    assert.equal(live.status, 'published')
+    assert.equal(live.visibility, 'unlisted')
+    const firstPublished = await db.prepare('SELECT first_published_at FROM content_documents WHERE id=?').bind(post.id).first('first_published_at')
+    assert.equal(firstPublished, live.published_at)
+    assert(firstPublished)
+    assert.equal((await getPublishedPostBySlug(db, 'site-proof', 'draft-renamed'))?.id, post.id)
+    assert(!(await getPublishedPosts(db, 'site-proof')).some(row => row.id === post.id))
+    await updatePost(db, 'org-proof', 'site-proof', post.id, { visibility: 'public' }, 'user-proof', {})
+    assert((await getPublishedPosts(db, 'site-proof')).some(row => row.id === post.id))
+    await assert.rejects(updatePost(db, 'org-proof', 'site-proof', post.id, { scheduled_for: '2099-02-01T00:00:00.000Z' }, 'user-proof', {}), /cannot be rescheduled/)
+    await assert.rejects(updatePost(db, 'org-proof', 'site-proof', post.id, { status: 'draft' }, 'user-proof', {}), /unknown field status/)
+    await publishPost(db, 'org-proof', 'site-proof', post.id, ['site'], {}, null)
+    assert.equal(await db.prepare('SELECT first_published_at FROM content_documents WHERE id=?').bind(post.id).first('first_published_at'), firstPublished)
+
+    const queued = await createPost(db, 'org-proof', 'site-proof', { body: 'Queue this draft' }, 'user-proof', {})
+    await updatePost(db, 'org-proof', 'site-proof', queued.id, { scheduled_for: '2099-02-01T00:00:00.000Z' }, 'user-proof', {})
+    assert.equal(await db.prepare('SELECT status FROM content_documents WHERE id=?').bind(queued.id).first('status'), 'scheduled')
+    await assert.rejects(updatePost(db, 'org-proof', 'site-proof', queued.id, { scheduled_for: null }, 'user-proof', {}), /cannot be cleared/)
+    assert(queued.slug)
+    assert.equal(await getPublishedPostBySlug(db, 'site-proof', queued.slug), null)
+    assert.deepEqual(await publishDuePosts(db, new Date('2099-02-01T00:00:00.000Z')), { published: 1 })
+    assert.equal(await db.prepare('SELECT first_published_at FROM content_documents WHERE id=?').bind(queued.id).first('first_published_at'), '2099-02-01T00:00:00.000Z')
+    assert.deepEqual((await db.prepare('PRAGMA foreign_key_check').all()).results, [])
   } finally {
     await runtime.dispose()
   }

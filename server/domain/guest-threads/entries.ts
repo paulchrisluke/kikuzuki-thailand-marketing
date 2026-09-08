@@ -2,6 +2,8 @@ import { execute, queryAll, queryFirst, type DbClient } from '~/server/db'
 import { d1JsonStringSet } from '~/server/db/d1-limits'
 import type { GuestThreadActorKind, GuestThreadChannel, GuestThreadEntryKind, GuestThreadEntryRow } from './types'
 
+export class GuestThreadEntryDedupeConflictError extends Error {}
+
 export interface AppendEntryInput {
   threadId: string
   kind: GuestThreadEntryKind
@@ -35,7 +37,7 @@ function matchingDedupeEntry(
     && entry.payload_json === payloadJson
 
   if (!matches) {
-    throw new Error('Guest thread entry dedupe key belongs to a different ledger fact')
+    throw new GuestThreadEntryDedupeConflictError('Guest thread entry dedupe key belongs to a different ledger fact')
   }
   return entry
 }

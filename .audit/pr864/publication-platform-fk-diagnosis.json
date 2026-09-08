@@ -1,0 +1,17 @@
+{
+  "platform_site": [
+    [
+      "platform",
+      "platform"
+    ]
+  ],
+  "platform_org_exists": 1,
+  "platform_locales": [],
+  "developer_identity": [
+    [
+      "user-local-developer",
+      "admin"
+    ]
+  ],
+  "canaries": []
+}

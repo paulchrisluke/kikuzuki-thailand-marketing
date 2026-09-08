@@ -99,9 +99,9 @@
         "destructiveHint": false
       },
       "justifications": {
-        "read_only_justification": "Creates a website announcement, publishing immediately unless scheduled for later.",
-        "open_world_justification": "Creates a website announcement, publishing immediately unless scheduled for later. Its effects can change content or behavior on the public website.",
-        "destructive_justification": "Creates a website announcement, publishing immediately unless scheduled for later. Existing content is not deleted or overwritten."
+        "read_only_justification": "Creates a private website announcement draft, or schedules publication when a future date is supplied.",
+        "open_world_justification": "Creates a private website announcement draft, or schedules publication when a future date is supplied. Its effects can change content or behavior on the public website.",
+        "destructive_justification": "Creates a private website announcement draft, or schedules publication when a future date is supplied. Existing content is not deleted or overwritten."
       }
     },
     "create_product": {
