@@ -155,11 +155,12 @@ export interface DashboardContextOptions {
   // The scoped-role path allowlist (SCOPED_ROLE_DASHBOARD_ROUTES) only lists
   // /api/dashboard/* patterns. event.path is correct when a real API route
   // handler calls this directly, but SSR callers that bypass the self-fetch
-  // (see AGENTS.md) invoke this with the *page's* own event to preserve
-  // Cloudflare bindings — event.path there is a /dashboard/... page path,
-  // which never matches the allowlist and would 403 every scoped-role page
-  // load regardless of whether that page is actually restricted. Those
-  // callers must pass the /api/dashboard/* path they're logically emulating.
+  // (see docs/performance/data-loading-architecture.md) invoke this with the
+  // *page's* own event to preserve Cloudflare bindings — event.path there is a
+  // /dashboard/... page path, which never matches the allowlist and would 403
+  // every scoped-role page load regardless of whether that page is actually
+  // restricted. Those callers must pass the /api/dashboard/* path they're
+  // logically emulating.
   pathname?: string
 }
 

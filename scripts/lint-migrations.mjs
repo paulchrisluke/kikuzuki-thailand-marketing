@@ -2,8 +2,8 @@
 /**
  * D1 migration guardrails.
  *
- * D1 rejects raw BEGIN/COMMIT/ROLLBACK (see AGENTS.md "D1 does not support raw
- * transactions" — confirmed both via Drizzle's execute() and the raw binding).
+ * D1 rejects raw BEGIN/COMMIT/ROLLBACK, confirmed both via Drizzle's execute()
+ * and the raw binding.
  * A migration that slips one in applies fine in isolation but breaks the first
  * write path that tries to wrap it, so this is checked at the SQL-file level:
  *
@@ -40,7 +40,7 @@ function lintTransactionControl(sql, filePath) {
     violations.push({
       file: relative(ROOT, filePath),
       line,
-      message: `Bare "${match[1]}" statement outside a CREATE TRIGGER body — D1 rejects raw transaction control (see AGENTS.md "D1 does not support raw transactions").`,
+      message: `Bare "${match[1]}" statement outside a CREATE TRIGGER body — D1 rejects raw transaction control.`,
     })
   }
 
