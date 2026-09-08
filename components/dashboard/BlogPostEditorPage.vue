@@ -1,23 +1,25 @@
 <template>
   <UAlert
-    v-if="postError"
+    v-if="loadError"
     color="error"
     variant="soft"
+    icon="i-lucide-triangle-alert"
     title="Post could not be loaded"
-    :description="postError.message"
+    :description="loadError"
   />
+
   <BlogPostEditor
     v-else
     :repository="repository"
     :initial-post="postResource?.post ?? null"
     defer-load
     :site-id="siteId"
-    title="Edit Post"
-    :back-url="baseUrl"
+    :back-url="blogPath"
     back-label="Blog"
+    panel-id="site-blog-post"
     :is-edit="true"
     :media-picker-component="MediaPicker"
-    :free-text-category="true"
+    free-text-category
   >
     <template #actions>
       <DashboardResourceLocalization
@@ -44,15 +46,19 @@ import type { BlogEditorBlock, BlogPost } from '~/lib/components/workspace/blog/
 import { blankBlogLocalizedText, blogLocalizedTextFields, writeBlogLocalizedText, type BlogLocalizedFieldPath } from '~/utils/blog-editor'
 import { tenantBlogPostPath } from '~/utils/tenant-blog-route'
 import { publicTemplateRegistry } from '~/utils/template-registry'
+import { getErrorMessage, isNotFoundError } from '~/utils/errors'
 
-definePageMeta({ layout: 'dashboard', cmsCapabilityKey: 'site.blog' })
-
+// One post. Rendered by `blog.vue`, which owns the frame — this level draws its
+// own panel and navbar because it is the outermost level on screen.
 const route = useRoute()
 const orgSlug = route.params.orgSlug as string
 const siteSlug = route.params.siteSlug as string
 const siteId = await useDashboardSiteId()
 const postId = String(route.params.postId || '')
 if (!postId) throw createError({ statusCode: 400, statusMessage: 'Post ID is required' })
+
+const blogPath = `/dashboard/${orgSlug}/sites/${siteSlug}/blog`
+const siteLocalizationSettingsPath = `/dashboard/${orgSlug}/sites/${siteSlug}/settings/localization`
 
 const requestEvent = useRequestEvent()
 const { data: postResource, error: postError } = await useAsyncData(
@@ -72,15 +78,18 @@ const { data: postResource, error: postError } = await useAsyncData(
   { lazy: import.meta.client },
 )
 
-const repository = tenantBlogRepository({
-  siteId,
-  orgSlug,
-  siteSlug,
+// A post that is not there is not a page. A request that failed is a state this
+// surface shows, because the post may well still exist.
+watchEffect(() => {
+  if (postError.value && isNotFoundError(postError.value)) {
+    showError(createError({ statusCode: 404, statusMessage: 'Post not found' }))
+  }
 })
+const loadError = computed(() => (postError.value && !isNotFoundError(postError.value)
+  ? getErrorMessage(postError.value, 'Failed to load this post')
+  : null))
 
-const baseUrl = `/dashboard/${orgSlug}/sites/${siteSlug}/blog`
-
-useSeoMeta({ title: 'Edit Post | Dashboard' })
+const repository = tenantBlogRepository({ siteId, orgSlug, siteSlug })
 
 const dashboardApi = useDashboardApi()
 type BlogTranslationResponse = { localization: Record<string, unknown> & { metadata: Record<string, unknown>; updated_at: string; content_blocks: BlogEditorBlock[] } }
@@ -91,7 +100,6 @@ interface BlogLocalizationState {
 }
 let blogLocalizationState: BlogLocalizationState | null = null
 let blogLocalizationLoadGeneration = 0
-
 
 function isBlogTranslationResponse(value: unknown): value is BlogTranslationResponse {
   return isRecord(value) && isRecord(value.localization) && typeof value.localization.updated_at === 'string'
@@ -145,7 +153,6 @@ async function loadBlogLocalization(locale: string): Promise<Record<string, unkn
       'metadata.tags': response.localization.metadata.tags, 'metadata.nav_title': response.localization.metadata.nav_title }
     blocks = structuredClone(response.localization.content_blocks)
     documentUpdatedAt = response.localization.updated_at
-
   } catch (cause) {
     const statusCode = isRecord(cause) && typeof cause.statusCode === 'number' ? cause.statusCode : null
     if (statusCode !== 404) throw cause
@@ -202,9 +209,8 @@ async function saveBlogLocalization(locale: string, submitted: Record<string, un
     locale,
     blocks: structuredClone(response.localization.content_blocks),
     documentUpdatedAt: response.localization.updated_at,
-
   }
 }
 
-const siteLocalizationSettingsPath = `/dashboard/${orgSlug}/sites/${siteSlug}/settings/localization`
+useSeoMeta({ title: 'Edit Post | Dashboard' })
 </script>

@@ -85,8 +85,16 @@ else.
 readers will see. There is no field list because there are no fields; the body
 is the control.
 
-A canvas is full-bleed, owns the viewport, and autosaves. It carries no
-Cancel/Save bar — the commit rule governs forms.
+**The exemption is from leaf size, and from nothing else.** A canvas is a level
+of the chain like any other: it renders inside the shell, it computes its own
+frame mode, and it re-roots. Full-bleed means the writing column fills its own
+pane — never that the canvas replaces the application. A surface that escapes
+the frame takes the tenant's rail, navbar and place in the chain with it, which
+is what re-rooting exists to prevent.
+
+The canvas carries no Cancel/Save bar, because you cannot cancel an hour of
+writing. It leads its level the way a photograph leads a product: the article
+first, then the rows that describe it.
 
 **The exception covers the writing and nothing around it.** Category, tags,
 excerpt, publishing time, visibility, slug, canonical URL and search appearance

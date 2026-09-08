@@ -1,11 +1,11 @@
 <template>
-  <BlogPostList />
+  <!--
+    The default child. Nothing renders here: with no post open, the parent is
+    showing its own list as its parent's detail column.
+  -->
+  <div />
 </template>
 
 <script setup lang="ts">
-import BlogPostList from '~/components/dashboard/BlogPostList.vue'
-
-definePageMeta({ layout: 'dashboard', cmsCapabilityKey: 'site.blog' })
-
-useSeoMeta({ title: 'Blog | Dashboard' })
+definePageMeta({ layout: 'dashboard' })
 </script>

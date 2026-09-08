@@ -1,21 +1,30 @@
 <template>
-  <div :inert="publishing" class="fixed inset-0 z-50 flex min-h-0 flex-col bg-default text-default">
-    <header class="sticky top-0 z-30 flex min-h-14 shrink-0 items-center gap-2 border-b border-default bg-elevated px-2 pb-[env(safe-area-inset-top)] sm:px-4">
-      <UButton icon="i-lucide-arrow-left" color="neutral" variant="ghost" size="sm" :disabled="!interactive" @click="goBack">{{ backLabel }}</UButton>
-      <p class="min-w-0 flex-1 truncate text-xs text-muted sm:text-sm">
+  <!--
+    The canvas is a level of the chain, not a takeover, and it does not draw a
+    panel or a navbar of its own — the outermost level on screen owns that
+    chrome. Drawing one here put the site rail, the blog list and this editor
+    on screen at once and left the article 90px of a 1280px window.
+
+    Its lifecycle controls sit in a slim row at the top of the pane instead.
+    They are not a commit bar: a canvas autosaves, and Publish changes what the
+    public sees rather than saving a draft.
+  -->
+  <div :inert="publishing" class="flex min-h-0 flex-1 flex-col">
+    <div class="sticky top-0 z-20 flex shrink-0 items-center gap-2 border-b border-default bg-default/95 px-1 py-2 backdrop-blur">
+      <p class="min-w-0 flex-1 truncate text-xs text-muted">
         {{ lifecycleLabel }} · <span :class="saveState === 'failed' || saveState === 'conflict' ? 'text-error' : ''">{{ saveLabel }}</span>
       </p>
       <slot name="actions" />
-      <UButton icon="i-lucide-share-2" color="neutral" variant="ghost" size="sm" aria-label="Share editor" :disabled="!interactive || !post" @click="share"><span class="hidden sm:inline">Share</span></UButton>
-      <UButton ref="settingsButton" icon="i-lucide-settings" color="neutral" variant="ghost" size="sm" aria-label="Post settings" :disabled="!interactive" @click="openSettings"><span class="hidden sm:inline">Settings</span></UButton>
+      <UButton icon="i-lucide-share-2" color="neutral" variant="ghost" size="sm" aria-label="Share editor" :disabled="!interactive || !post" @click="share" />
+      <UButton ref="settingsButton" icon="i-lucide-settings" color="neutral" variant="ghost" size="sm" aria-label="Post settings" :disabled="!interactive" @click="openSettings" />
       <UButton v-if="post?.status === 'published'" size="sm" :loading="savingExplicitly" :disabled="!interactive || savingExplicitly || loadPending || saveState === 'conflict' || !dirtyState" @click="saveLiveChanges">Save live changes</UButton>
       <UButton v-else size="sm" :loading="publishing" :disabled="!interactive || publishing || loadPending || saveState === 'conflict'" @click="publish">{{ publishTiming === 'Scheduled' ? (post ? 'Reschedule' : 'Schedule') : 'Publish now' }}</UButton>
-    </header>
+    </div>
     <p v-if="actionError" role="alert" class="shrink-0 border-b border-error/30 bg-error/10 px-4 py-2 text-sm text-error">{{ actionError }}</p>
 
     <div v-if="loadPending" class="grid min-h-0 flex-1 place-items-center"><UIcon name="i-lucide-loader-circle" class="size-6 animate-spin" /></div>
     <div v-else-if="loadError" class="grid min-h-0 flex-1 place-items-center p-6"><UAlert color="error" :description="loadError" /></div>
-    <main v-else class="min-h-0 flex-1 overflow-y-auto bg-[var(--editor-canvas,#fff)] text-[var(--editor-ink,#1f2937)] [overscroll-behavior:contain]" :style="editorCanvasStyle">
+    <main v-else class="min-h-0 flex-1 overflow-y-auto rounded-lg bg-[var(--editor-canvas,#fff)] text-[var(--editor-ink,#1f2937)] [overscroll-behavior:contain]" :style="editorCanvasStyle">
       <div class="mx-auto max-w-4xl px-4 py-10 sm:px-6 sm:py-14 lg:px-8">
         <BlogArticleView
           v-model:title="form.title"
@@ -169,8 +178,8 @@ import { cloneEditorBlocks, generatedExcerpt, initialBlogEditorBlocks, normalize
 import { getErrorMessage } from '~/utils/errors'
 import { resolveSocialImageUrl } from '~/utils/social-metadata'
 
-const props = withDefaults(defineProps<{ repository: BlogPostRepository; initialPost?: BlogPost | null; deferLoad?: boolean; postId?: string; siteId?: string; isEdit?: boolean; backUrl?: string; backLabel?: string; mediaPickerComponent?: Component; freeTextCategory?: boolean }>(), {
-  initialPost: null, deferLoad: false, postId: undefined, siteId: '', isEdit: false, backUrl: '/admin', backLabel: 'Posts', mediaPickerComponent: undefined, freeTextCategory: false,
+const props = withDefaults(defineProps<{ repository: BlogPostRepository; initialPost?: BlogPost | null; deferLoad?: boolean; postId?: string; siteId?: string; isEdit?: boolean; backUrl?: string; backLabel?: string; panelId?: string; mediaPickerComponent?: Component; freeTextCategory?: boolean }>(), {
+  initialPost: null, deferLoad: false, postId: undefined, siteId: '', isEdit: false, backUrl: '/admin', backLabel: 'Posts', panelId: 'blog-post-editor', mediaPickerComponent: undefined, freeTextCategory: false,
 })
 const route = useRoute()
 const postId = computed(() => props.postId || String(route.params.postId || ''))
@@ -634,10 +643,6 @@ function changeImage(index: number, value: unknown) {
   }
 }
 async function share() { if (!post.value || !persistedPostId.value) return; const url = new URL(post.value.edit_url || props.repository.editUrl(persistedPostId.value), windowOrigin()).toString(); await navigator.clipboard?.writeText(url) }
-async function goBack() {
-  if (settingsOpen.value) { closeSettings(); return }
-  await navigateTo(props.backUrl)
-}
 function openSettings() { settingsOpen.value = true; if (import.meta.client) history.pushState({ blogSettings: true }, '') }
 function closeSettings() {
   settingsOpen.value = false

@@ -8,6 +8,6 @@ import GuestThreadInbox from '~/lib/components/workspace/inbox/GuestThreadInbox.
 const route = useRoute()
 const threadId = computed(() => typeof route.params.threadId === 'string' ? route.params.threadId : null)
 
-definePageMeta({ layout: 'dashboard' })
+definePageMeta({ layout: 'dashboard', ownsChrome: true })
 useSeoMeta({ title: 'Conversation | KrabiClaw Dashboard', robots: 'noindex, nofollow' })
 </script>
