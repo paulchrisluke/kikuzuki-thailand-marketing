@@ -25,11 +25,11 @@ type TaskLoader = () => Promise<{ default: ScheduledTaskDefinition }>
 
 /** The single source of truth for cron-to-task dispatch in Nitro's scheduled hook. */
 export const SCHEDULED_TASKS: Readonly<Record<string, readonly ScheduledTaskName[]>> = {
-  '*/5 * * * *': ['blog-scheduled-publish', 'post-scheduled-publish'],
+  '*/5 * * * *': ['blog-scheduled-publish', 'post-scheduled-publish', 'social-card-backfill'],
   '*/2 * * * *': ['public-resource-cache-invalidation'],
   '*/10 * * * *': ['domain-reconciliation', 'zaraz-analytics-reconciliation'],
   '0 3 * * *': ['domain-reconciliation-daily', 'analytics-aggregate-daily'],
-  '0 4 * * *': ['site-transfer-reminders', 'social-card-backfill'],
+  '0 4 * * *': ['site-transfer-reminders'],
   '0 0 * * SUN': ['google-places-sync'],
   '0 * * * *': ['instagram-sync-process', 'review-request-automation', 'stripe-reconciliation'],
 }

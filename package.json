@@ -143,8 +143,6 @@
     "@better-auth/oauth-provider": "1.7.0-beta.10",
     "@better-auth/stripe": "1.7.0-beta.10",
     "@internationalized/date": "^3.12.3",
-    "@jsquash/png": "^3.1.1",
-    "@jsquash/webp": "^1.5.0",
     "@noble/hashes": "^2.4.0",
     "@nuxt/ui": "^4.11.0",
     "@nuxtjs/robots": "6.2.0",

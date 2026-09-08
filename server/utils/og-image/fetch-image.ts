@@ -44,8 +44,36 @@ async function cancelBody(response: Response): Promise<void> {
   await response.body?.cancel().catch(() => undefined)
 }
 
-export async function fetchImageAsDataUri(
+async function readBoundedStream(stream: ReadableStream<Uint8Array>, maxBytes: number): Promise<Uint8Array | null> {
+  const reader = stream.getReader()
+  const chunks: Uint8Array[] = []
+  let size = 0
+  while (true) {
+    const { done, value } = await reader.read()
+    if (done) break
+    size += value.byteLength
+    if (size > maxBytes) {
+      await reader.cancel()
+      return null
+    }
+    chunks.push(value)
+  }
+  if (size === 0) return null
+
+  const buffer = new Uint8Array(size)
+  let offset = 0
+  for (const chunk of chunks) {
+    buffer.set(chunk, offset)
+    offset += chunk.byteLength
+  }
+  return buffer
+}
+
+export async function fetchTransformedImageAsDataUri(
+  images: ImagesBinding,
   url: string | null | undefined,
+  transform: ImageTransform,
+  output: ImageOutputOptions,
   options: FetchImageOptions = {},
 ): Promise<string | null> {
   if (!url) return null
@@ -89,30 +117,9 @@ export async function fetchImageAsDataUri(
     }
     if (!response.body) return null
 
-    const reader = response.body.getReader()
-    const chunks: Uint8Array[] = []
-    let size = 0
-    while (true) {
-      const { done, value } = await reader.read()
-      if (done) break
-      size += value.byteLength
-      if (size > maxBytes) {
-        await reader.cancel()
-        return null
-      }
-      chunks.push(value)
-    }
-    if (size === 0) return null
-
-    const buffer = new Uint8Array(size)
-    let offset = 0
-    for (const chunk of chunks) {
-      buffer.set(chunk, offset)
-      offset += chunk.byteLength
-    }
-    return `data:${contentType};base64,${uint8ArrayToBase64(buffer)}`
-  } catch {
-    return null
+    const transformed = await images.input(response.body).transform(transform).output(output)
+    const buffer = await readBoundedStream(transformed.image(), maxBytes)
+    return buffer ? `data:${transformed.contentType()};base64,${uint8ArrayToBase64(buffer)}` : null
   } finally {
     clearTimeout(timeout)
   }

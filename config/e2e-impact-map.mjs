@@ -21,6 +21,14 @@ export const CORE_ONLY_PATTERNS = [
 
 export const IMPACT_GROUPS = [
   {
+    id: 'platform-blog',
+    patterns: [
+      'composables/useBlogNav.ts', 'components/blog/**',
+      'server/api/public/blog.get.ts', 'server/utils/platform-content.ts',
+    ],
+    specs: ['tests/e2e/platform-blog-ssr.spec.ts'],
+  },
+  {
     id: 'tenant-public',
     patterns: [
       'components/saya/**', 'components/blawby/**', 'components/blog/**',
