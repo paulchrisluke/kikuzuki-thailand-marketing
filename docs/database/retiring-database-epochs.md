@@ -129,12 +129,35 @@ Worse, staging *passed* the ten Thai demo tests that could never pass against
 production, because staging is seeded and production is not. A green check that
 is green only because the environment happens to be seeded is not a signal.
 
-The existing rule that production data must never seed staging is correct and
-should stay — it is about customer content. But it was allowed to become
-"staging fixtures must be clean", which is a different and unjustified claim.
-Nobody's privacy requires staging to lack production's *shapes*. A shape census —
-distributions, key sets, nesting patterns, locale asymmetry — can be reproduced
-with entirely synthetic content.
+`epoch-6-cutover.md:115` states the rule in one sentence — "Production data is
+never staging seed" — and gives no reason. There is no privacy, PII, or data
+protection rationale for it anywhere in `docs/` or `CLAUDE.md`. The content is
+the business's own: menus, legal articles, class listings, most of it already
+published on the internet.
+
+So the direct fix is the obvious one: **staging is seeded from production.** That
+is what makes staging a reflection of production, and no elaborate substitute for
+it is needed.
+
+The real constraint is secrets, not content. Sixteen of the fifty-four tables
+carry live credential or payment material and must be excluded or regenerated
+rather than copied:
+
+    account                 oauthClientAssertion    session
+    invitation              oauthClientResource     verification
+    jwks                    oauthConsent            stripe_ga4_subscription_intents
+    oauthAccessToken        oauthRefreshToken       stripe_invoice_payments
+    oauthClient             oauthResource           stripe_subscription_versions
+                                                    stripe_webhook_events
+
+Better Auth owns the first group; copying live sessions and tokens into a second
+environment is a credential problem. The Stripe tables would confuse
+reconciliation against real payment state. Outbound delivery is already gated by
+`EMAIL_DELIVERY_MODE` and `WHATSAPP_DELIVERY_MODE`, so it is configuration, not
+data, that keeps staging from contacting real customers.
+
+That is a scrub list of sixteen tables, not a prohibition on the other
+thirty-eight.
 
 ## Proposed changes
 
