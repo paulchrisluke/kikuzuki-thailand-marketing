@@ -376,9 +376,9 @@ export async function regenerateSiteSocialCards(input: {
   after?: string | null
   limit?: number
 }) {
-  const owners = await listSocialCardOwners(input.db, { siteId: input.siteId, after: input.after, limit: (input.limit ?? 5) + 1 })
+  const owners = await listSocialCardOwners(input.db, { siteId: input.siteId, after: input.after, limit: (input.limit ?? 1) + 1 })
   const results: SocialCardRefreshResult[] = []
-  const batch = owners.slice(0, input.limit ?? 5)
+  const batch = owners.slice(0, input.limit ?? 1)
   for (const { owner_type, owner_id } of batch) results.push(await refreshSocialCard({ ...input, owner: { owner_type, owner_id } }))
   return { results, next_cursor: owners.length > batch.length ? batch.at(-1)!.cursor : null }
 }
