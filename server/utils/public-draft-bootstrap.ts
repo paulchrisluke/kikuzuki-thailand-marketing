@@ -103,7 +103,7 @@ export function buildPublicDraftBlawbyDocument(
         brand_name: payload.preview.brandName,
         brand_description: heroDescription,
         media: logoUrl ? [{ asset_id: logoMedia!.draftAssetId, slot: 'logo', public_url: logoUrl, thumbnail_url: logoMedia!.thumbnailUrl, kind: 'image' }] : [],
-        social_image: logoUrl ? { url: logoUrl } : null,
+        social_image: null,
         phone: payload.source.details.phone ?? null,
         banner_content: null,
         banner_dismissible: false,

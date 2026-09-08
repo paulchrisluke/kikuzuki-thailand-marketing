@@ -19,7 +19,7 @@ import {
 import { resolvePublicTemplate } from '~/utils/template-registry'
 
 const SOCIAL_CARD_OWNERS = {
-  site: { table: 'sites', site: 'o.id', filter: "o.status = 'active'", slots: [] },
+  site: { table: 'sites', site: 'o.id', filter: "o.status = 'active'", slots: ['social_share'] },
   business_location: { table: 'business_locations', site: 'o.site_id', filter: "o.status = 'active'", slots: ['hero', 'gallery'] },
   product: { table: 'products', site: 'o.site_id', filter: 'o.is_visible = 1', slots: ['image', 'gallery'] },
   content_document: { table: 'content_documents', site: 'o.site_id', filter: "o.kind IN ('page','article','platform_doc','social_post') AND EXISTS (SELECT 1 FROM content_documents root WHERE root.id = COALESCE(o.root_id, o.id) AND (root.kind IN ('page','platform_doc') OR root.status = 'published')) AND (o.kind != 'page' OR o.path != '/')", slots: ['cover', 'featured', 'gallery'] },
@@ -200,13 +200,11 @@ export function selectSocialCardPlacements(
   owner: SocialCardOwner,
   siteId: string,
 ) {
-  const ownerSource = firstAsset(assets, owner, SOCIAL_CARD_OWNERS[owner.owner_type].slots)
-  const socialShare = siteAsset(assets, siteId, 'social_share')
+  const source = firstAsset(assets, owner, SOCIAL_CARD_OWNERS[owner.owner_type].slots)
   const logo = siteAsset(assets, siteId, 'logo')
   const current = assets.find(item => item.owner_type === owner.owner_type
     && item.owner_id === owner.owner_id && item.slot === 'social_card') ?? null
-  const source = owner.owner_type === 'site' ? socialShare : ownerSource
-  return { ownerSource, socialShare, logo, current, source }
+  return { logo, current, source }
 }
 
 export function buildSocialCardGenerationKey(input: {
@@ -342,18 +340,4 @@ export async function regenerateSiteSocialCards(input: {
   const batch = owners.slice(0, input.limit ?? 1)
   for (const { owner_type, owner_id } of batch) results.push(await refreshSocialCard({ ...input, owner: { owner_type, owner_id } }))
   return { results, next_cursor: owners.length > batch.length ? batch.at(-1)!.cursor : null }
-}
-
-export async function refreshSiteBrandSocialCards(input: {
-  db: DbClient; env: SocialCardEnv; siteId: string; actorId?: string | null
-}) {
-  try {
-    await executeBatch(input.db, [{
-      query: "UPDATE media_placements SET status = 'pending', updated_at = ? WHERE site_id = ? AND slot = 'social_card'",
-      params: [new Date().toISOString(), input.siteId],
-    }])
-    await refreshSocialCard({ ...input, owner: { owner_type: 'site', owner_id: input.siteId } })
-  } catch (error) {
-    console.error('[social-card]', { stage: 'brand_refresh', siteId: input.siteId, error: errorMessage(error) })
-  }
 }
