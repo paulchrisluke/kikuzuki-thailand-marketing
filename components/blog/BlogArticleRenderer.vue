@@ -1,5 +1,5 @@
 <template>
-  <article class="blog-article-renderer mx-auto w-full max-w-4xl px-5 py-10 sm:px-8 sm:py-14" :data-template="template">
+  <article ref="rootEl" class="blog-article-renderer mx-auto w-full max-w-4xl px-5 py-10 sm:px-8 sm:py-14" :data-template="template">
     <input
       v-if="editable && showTitle"
       :value="title"
@@ -12,30 +12,44 @@
 
     <div class="space-y-4">
       <template v-for="(block, index) in blocks" :key="block.id || index">
-        <section class="group relative">
-          <div v-if="editable" class="mb-2 flex items-center gap-1 sm:absolute sm:right-full sm:top-0 sm:mb-0 sm:mr-2">
-            <button class="flex size-8 shrink-0 items-center justify-center rounded-full border border-current/30 bg-transparent hover:bg-current/5 disabled:opacity-30" :disabled="index === 0" aria-label="Move block up" @click="$emit('move-block', index, -1)">
-              <UIcon name="i-lucide-chevron-up" class="size-4" />
+        <section :data-block-index="index" :tabindex="editable && !hasTextCaret(block) ? 0 : undefined" class="group relative outline-none" @focusin="focusedIndex = index" @focusout="releaseFocus(index, $event)" @keydown="handleStructuralKey(index, block, $event)">
+          <!--
+            One control, on the block the caret is in, and only while that block
+            is empty. Every block used to carry four buttons — up, down, delete,
+            insert — so a nine-block post rendered thirty-seven of them at once
+            and the page read as a control panel with prose in it. Moving and
+            deleting are keys now; this is the only thing left on the canvas.
+          -->
+          <div v-if="editable && showInserter(index, block)" class="mb-2 sm:absolute sm:right-full sm:top-0 sm:mb-0 sm:mr-2">
+            <button
+              class="flex size-8 shrink-0 items-center justify-center rounded-full border border-current/30 text-current/60 transition hover:border-current/60 hover:text-current"
+              :aria-label="inserterIndex === index ? 'Close the insert menu' : 'Insert an image, question list, how-to, call to action, or divider'"
+              :aria-expanded="inserterIndex === index"
+              @click="toggleInserter(index)"
+            >
+              <UIcon name="i-lucide-plus" class="size-4 transition-transform" :class="inserterIndex === index && 'rotate-45'" />
             </button>
-            <button class="flex size-8 shrink-0 items-center justify-center rounded-full border border-current/30 bg-transparent hover:bg-current/5 disabled:opacity-30" :disabled="index === blocks.length - 1" aria-label="Move block down" @click="$emit('move-block', index, 1)">
-              <UIcon name="i-lucide-chevron-down" class="size-4" />
-            </button>
-            <button class="flex size-8 shrink-0 items-center justify-center rounded-full border border-current/30 hover:border-current/50 hover:bg-current/5 bg-transparent" aria-label="Remove block" @click="$emit('merge-block', index, index === 0 ? 'forward' : 'back')">
+          </div>
+          <div v-if="editable && focusedIndex === index && !hasTextCaret(block)" class="mb-2 sm:absolute sm:right-full sm:top-10 sm:mb-0 sm:mr-2">
+            <button
+              class="flex size-8 shrink-0 items-center justify-center rounded-full border border-current/30 text-current/60 transition hover:border-current/60 hover:text-current"
+              aria-label="Remove block"
+              @click="$emit('merge-block', index, index === 0 ? 'forward' : 'back')"
+            >
               <UIcon name="i-lucide-trash-2" class="size-4" />
             </button>
-            <UPopover v-model:open="inserterOpenLocal[index]">
-              <button class="flex size-8 shrink-0 items-center justify-center rounded-full border border-current/30 hover:border-current/50 bg-transparent" aria-label="Insert block">
-                <UIcon name="i-lucide-plus" class="size-4" />
-              </button>
-              <template #content>
-                <div class="flex gap-1 p-1">
-                  <button v-for="item in inserterItems" :key="item.type" class="flex flex-col items-center gap-1 rounded px-3 py-2 text-sm text-default hover:bg-elevated" @click="$emit('insert-block-type', index, item.type)">
-                    <UIcon :name="item.icon" class="size-4" />
-                    <span class="text-xs">{{ item.label }}</span>
-                  </button>
-                </div>
-              </template>
-            </UPopover>
+          </div>
+          <div v-if="editable && inserterIndex === index" class="mb-2 flex flex-wrap items-center gap-2">
+            <button
+              v-for="item in inserterItems"
+              :key="item.type"
+              class="flex size-8 shrink-0 items-center justify-center rounded-full border border-current/30 text-current/70 transition hover:border-current/60 hover:text-current"
+              :aria-label="item.label"
+              :title="item.label"
+              @click="insertHere(index, item.type)"
+            >
+              <UIcon :name="item.icon" class="size-4" />
+            </button>
           </div>
         <RichTextEditor
           v-if="editable && block.type === 'markdown'"
@@ -52,9 +66,6 @@
           class="field-sizing-content min-h-12 w-full resize-none overflow-hidden border-0 bg-transparent p-0 text-lg leading-8 text-inherit outline-none"
           :class="'text-2xl font-semibold sm:text-3xl'"
           @input="updateText(index, block, $event)"
-          @keydown.enter="handleEnterKey(index, $event)"
-          @keydown.backspace="handleBackspace(index, $event)"
-          @keydown.delete="handleDelete(index, $event)"
         />
         <!-- eslint-disable vue/no-v-html -->
         <div v-else-if="block.type === 'markdown'" class="prose prose-lg max-w-none" v-html="renderMarkdown(String(block.data.markdown || ''))" />
@@ -152,7 +163,8 @@ const props = withDefaults(defineProps<{ title: string; blocks: BlogEditorBlock[
   showTitle: true,
 })
 const emit = defineEmits<{ 'update:title': [value: string]; 'update:block': [index: number, block: BlogEditorBlock]; 'insert-block': [index: number, cursorPosition: number]; 'insert-block-type': [index: number, type: string]; 'move-block': [index: number, delta: -1 | 1]; 'merge-block': [index: number, direction: 'back' | 'forward']; 'split-insert': [index: number, payload: { after: string; blockType: 'image' | 'faq' | 'how_to'; editorMode: 'rich' | 'source' }] }>()
-const inserterOpenLocal = ref<Record<number, boolean>>({})
+const focusedIndex = ref<number | null>(null)
+const inserterIndex = ref<number | null>(null)
 const inserterItems = [
   { type: 'image', label: 'Image', icon: 'i-lucide-image' },
   { type: 'faq', label: 'FAQ', icon: 'i-lucide-circle-help' },
@@ -160,6 +172,50 @@ const inserterItems = [
   { type: 'cta', label: 'Call to action', icon: 'i-lucide-megaphone' },
   { type: 'divider', label: 'Divider', icon: 'i-lucide-minus' },
 ] as const
+
+/** An empty block the caret is in, or one whose menu is already open. */
+function showInserter(index: number, block: BlogEditorBlock) {
+  if (inserterIndex.value === index) return true
+  return focusedIndex.value === index && isBlockEmpty(block)
+}
+
+function toggleInserter(index: number) {
+  inserterIndex.value = inserterIndex.value === index ? null : index
+}
+
+function insertHere(index: number, type: string) {
+  inserterIndex.value = null
+  emit('insert-block-type', index, type)
+}
+
+/** Focus moving between the block and its own control is not leaving the block. */
+function releaseFocus(index: number, event: FocusEvent) {
+  const next = event.relatedTarget
+  const section = event.currentTarget as HTMLElement | null
+  if (next instanceof Node && section?.contains(next)) return
+  if (focusedIndex.value === index) focusedIndex.value = null
+  if (inserterIndex.value === index) inserterIndex.value = null
+}
+
+const rootEl = useTemplateRef<HTMLElement>('rootEl')
+
+async function moveBlock(index: number, delta: -1 | 1) {
+  const target = index + delta
+  if (target < 0 || target > props.blocks.length - 1) return
+  emit('move-block', index, delta)
+  // The caret belongs to the block, not to the slot it was sitting in. Without
+  // this a second press does nothing, because focus stayed behind on whatever
+  // block moved into the old position.
+  await nextTick()
+  focusedIndex.value = target
+  // Addressed by index rather than through a v-for ref array, whose order Vue
+  // does not promise matches the blocks: it handed back the neighbour and the
+  // caret landed one block off.
+  const section = rootEl.value?.querySelector<HTMLElement>(`[data-block-index="${target}"]`)
+  const editor = section?.querySelector<HTMLElement>('[contenteditable="true"], textarea')
+  ;(editor ?? section)?.focus()
+}
+
 function isBlockEmpty(block: BlogEditorBlock) {
   if (block.type === 'markdown' || block.type === 'heading') {
     const text = String(block.data[block.type === 'heading' ? 'text' : 'markdown'] || '')
@@ -177,24 +233,59 @@ function updateText(index: number, block: BlogEditorBlock, event: Event) {
 function updateMarkdown(index: number, block: BlogEditorBlock, value: string) {
   emit('update:block', index, { ...block, data: { ...block.data, markdown: value } })
 }
-function handleEnterKey(index: number, event: KeyboardEvent) {
-  if (event.shiftKey) return
-  emit('insert-block', index, 0)
+/** A block the writer types into, where the keyboard is the structural control. */
+function hasTextCaret(block: BlogEditorBlock) {
+  return block.type === 'markdown' || block.type === 'heading'
+}
+
+/**
+ * The block's own editor, as opposed to a field inside a block that happens to
+ * be built from inputs. Backspace in an empty FAQ answer must not delete the FAQ.
+ */
+function isPrimaryEditor(target: EventTarget | null, block: BlogEditorBlock) {
+  if (!(target instanceof HTMLElement)) return false
+  if (block.type === 'heading') return target.getAttribute('aria-label') === 'Heading'
+  return target.isContentEditable || target.getAttribute('aria-label') === 'Article Markdown'
+}
+
+/**
+ * Splitting, merging and reordering, from the keyboard. These were four buttons
+ * on every block; the block a writer is typing in is the one they mean, so the
+ * caret already says which block without anything being drawn to say it.
+ */
+function handleStructuralKey(index: number, block: BlogEditorBlock, event: KeyboardEvent) {
+  if (!props.editable) return
+  // An image or divider has no caret, so the block itself takes focus and the
+  // keys act on it. A field inside a block is not the block: backspace in an
+  // empty FAQ answer must not take the FAQ with it.
+  const owns = hasTextCaret(block)
+    ? isPrimaryEditor(event.target, block)
+    : event.target === event.currentTarget
+  if (!owns) return
+
+  if ((event.metaKey || event.ctrlKey) && event.shiftKey) {
+    const delta = event.key === 'ArrowUp' ? -1 : event.key === 'ArrowDown' ? 1 : null
+    if (delta === null) return
+    moveBlock(index, delta)
+    event.preventDefault()
+    return
+  }
+  if (event.metaKey || event.ctrlKey || event.altKey) return
+
+  // Enter splits, but only from a heading: the markdown editor owns its own
+  // Enter, and takes a split through `split-insert` when the writer asks for one.
+  if (event.key === 'Enter' && block.type === 'heading' && !event.shiftKey) {
+    emit('insert-block', index, 0)
+    event.preventDefault()
+    return
+  }
+  // A text block is removed once it is empty, the way backspacing off the front
+  // of a paragraph works anywhere. A block with no text is removed as a whole.
+  if (hasTextCaret(block) && !isBlockEmpty(block)) return
+  const direction = event.key === 'Backspace' ? 'back' : event.key === 'Delete' ? 'forward' : null
+  if (direction === null) return
+  emit('merge-block', index, direction)
   event.preventDefault()
-}
-function handleBackspace(index: number, event: KeyboardEvent) {
-  const block = props.blocks[index]
-  if (block && isBlockEmpty(block)) {
-    emit('merge-block', index, 'back')
-    event.preventDefault()
-  }
-}
-function handleDelete(index: number, event: KeyboardEvent) {
-  const block = props.blocks[index]
-  if (block && isBlockEmpty(block)) {
-    emit('merge-block', index, 'forward')
-    event.preventDefault()
-  }
 }
 function faqItems(block: BlogEditorBlock) { return Array.isArray(block.data.items) ? block.data.items as Array<{ question?: string; answer?: string }> : [] }
 function howToSteps(block: BlogEditorBlock) { return Array.isArray(block.data.steps) ? block.data.steps as Array<{ name?: string; text?: string }> : [] }
