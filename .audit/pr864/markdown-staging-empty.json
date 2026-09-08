@@ -1,0 +1,11 @@
+{
+  "database_id": "aa9db76b-b698-4c92-8cf3-c140321a064c",
+  "tables": 52,
+  "rows": 0,
+  "ledger": [
+    {
+      "name": "0000_epoch_6_baseline.sql"
+    }
+  ],
+  "verifiedAt": "2026-09-08T02:21:29.898Z"
+}

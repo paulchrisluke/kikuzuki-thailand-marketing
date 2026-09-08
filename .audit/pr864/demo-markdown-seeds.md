@@ -1,0 +1,11 @@
+# Demo Markdown seed correction
+
+The existing `markdownToContentBlocks` implementation moved from `server/utils/content-documents.ts` to the dependency-free `shared/markdown-content-blocks.ts`. Repository-wide search found only its definition, with no existing importer or other call site on this branch. The obsolete server export was deleted. The demo seed now calls the shared splitter; no second importer path was introduced.
+
+Four English articles and three Thai representations were single Markdown blocks. They now contain heading, prose, and image blocks. Only an initial H1 equal to the document title is removed. Each image uses the article's existing featured asset through a canonical `content_block` media placement with slot `media`. Featured document placements remain. Thai blocks retain explicit source links to the corresponding English blocks and explicit placements pointing to the same existing assets. Article reads load each document's own media placements. Seed generation rejects a mismatch in translated block count, type, or heading level.
+
+The shared editor predicate selects `rich` for ordinary prose and empty documents, and retains `source` for tables or raw HTML. The Pottery House direct Markdown constructor also uses this predicate.
+
+Offline verification executed the old and new article seed SQL against the real Epoch 6 schema in separate in-memory SQLite databases. All seven document rows and all article text were preserved, apart from the requested duplicate H1 removal. Existing featured placements were identical excluding their automatically generated timestamps. Block positions and translated source links were checked. Seven image placements reference four existing assets, and all three translated image placements match their root assets. The resulting seven documents contain 8–12 blocks each. The SQL probe deliberately disabled foreign keys because it executes only article seed fragments; full fixture integrity and browser behavior still require the canonical setup and runtime checks.
+
+The source mode probes cover plain prose, empty content, a Markdown table, and raw HTML. Focused ESLint passed for the four changed implementation paths. Counts are recorded in `demo-markdown-probe.json`; the local verification script is `.tmp/pr864-demo-probe.mjs`.

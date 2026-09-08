@@ -110,8 +110,6 @@ interface ContentDocumentWriteOptions {
   additionalQueriesAfter?: BatchQuery[]
 }
 
-const HEADING_RE = /^(#{1,6})\s+(.+?)\s*$/
-
 function badRequest(message: string): never {
   throw new HTTPError({ statusCode: 400, statusMessage: message })
 }
@@ -153,55 +151,6 @@ function parseBlockData(row: Pick<ContentBlockRow, 'data_json' | 'id' | 'type'>)
       cause: error,
     })
   }
-}
-
-export function markdownToContentBlocks(bodyMarkdown: string): Array<Omit<ContentBlockSnapshot, 'id'>> {
-  const lines = String(bodyMarkdown ?? '').replace(/\r/g, '').split('\n')
-  const blocks: Array<Omit<ContentBlockSnapshot, 'id'>> = []
-  let markdownLines: string[] = []
-
-  function flushMarkdown() {
-    const markdown = markdownLines.join('\n').trim()
-    if (markdown) {
-      blocks.push({
-        parent_block_id: null,
-        type: 'markdown',
-        position: blocks.length,
-        level: null,
-        data: { markdown, editor_mode: 'source' },
-      })
-    }
-    markdownLines = []
-  }
-
-  for (const line of lines) {
-    const heading = HEADING_RE.exec(line)
-    if (heading) {
-      flushMarkdown()
-      blocks.push({
-        parent_block_id: null,
-        type: 'heading',
-        position: blocks.length,
-        level: heading[1]?.length ?? 1,
-        data: { text: heading[2]?.trim() ?? '', markdown: line.trim() },
-      })
-      continue
-    }
-    markdownLines.push(line)
-  }
-  flushMarkdown()
-
-  if (!blocks.length) {
-    blocks.push({
-      parent_block_id: null,
-      type: 'markdown',
-      position: 0,
-      level: null,
-      data: { markdown: '', editor_mode: 'source' },
-    })
-  }
-
-  return blocks.map((block, index) => ({ ...block, position: index }))
 }
 
 export function renderContentBlocksToMarkdown(blocks: Array<Pick<ContentBlockRow, 'type' | 'position' | 'level' | 'data_json' | 'id'>>) {

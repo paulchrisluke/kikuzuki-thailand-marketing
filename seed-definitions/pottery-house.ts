@@ -1,3 +1,4 @@
+import { editorModeFor } from '../shared/markdown-editor-mode.ts'
 import { compileCuratedSiteFixture } from './compile.ts'
 import type { CuratedSiteDefinition } from './contracts.ts'
 import { buildSeedExperienceCategories } from './contracts.ts'
@@ -1189,7 +1190,7 @@ We can shape sessions around wheel throwing, handbuilding, glazing, or a slower 
 ## Ideal for teams and retreat hosts
 
 Our team can help organise group timing, capacity, and the right workshop format for your guests.`
-  const blockData = { markdown: body, editor_mode: 'source' }
+  const blockData = { markdown: body, editor_mode: editorModeFor(body) }
 
   return `-- BEGIN GENERATED: pottery_blog
 -- Tenant blog coverage for Pottery House Krabi parity checks.

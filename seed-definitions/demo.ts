@@ -1,4 +1,5 @@
 import { postPublicPath } from '../utils/post-slugs.ts'
+import { markdownToContentBlocks } from '../shared/markdown-content-blocks.ts'
 import { compileCuratedSiteFixture } from './compile.ts'
 import type { CuratedProductDefinition, CuratedSiteDefinition } from './contracts.ts'
 import { buildSeedExperienceCategories, buildSeedProductCategories } from './contracts.ts'
@@ -2019,6 +2020,36 @@ ${resourceRows};
 -- END GENERATED: demo_resource_localizations`
 }
 
+function demoArticleBlocks(body: string, title: string, blockId: string, assetId: string) {
+  const content = markdownToContentBlocks(body)
+  const first = content[0]
+  if (first?.type === 'heading' && first.level === 1 && first.data.text === title) content.shift()
+  const blocks = content.map((block, index) => ({ ...block, id: index === 0 ? blockId : `${blockId}-${index}`, position: index }))
+  const image = { id: `${blockId}-image`, type: 'image' as const, level: null, position: blocks.length, data: {}, assetId }
+  return [...blocks, image]
+}
+
+function renderDemoArticleBlocks(documentId: string, blocks: ReturnType<typeof demoArticleBlocks>, publishedAt: string, sourceBlocks?: ReturnType<typeof demoArticleBlocks>) {
+  if (sourceBlocks && sourceBlocks.length !== blocks.length) {
+    throw new Error(`Translated article ${documentId} has no matching source block structure`)
+  }
+  const rows = blocks.map((block, index) => {
+    const source = sourceBlocks?.[index]
+    if (sourceBlocks && (!source || block.type !== source.type || block.level !== source.level)) {
+      throw new Error(`Translated article ${documentId} has no matching source block at position ${index}`)
+    }
+    const sourceBlockId = source ? source.id : null
+    return `(${sqlValue(block.id)}, ${sqlValue(documentId)}, NULL, ${sqlValue(block.type)}, ${block.position}, ${sqlValue(block.level)}, ${sqlJson(block.data)}, ${sqlValue(publishedAt)}, ${sqlValue(publishedAt)}, ${sqlValue(sourceBlockId)})`
+  }).join(',\n')
+  const placements = blocks.filter(block => block.type === 'image').map(block => `INSERT OR REPLACE INTO media_placements
+  (id, organization_id, site_id, owner_type, owner_id, slot, asset_id, sort_order, status)
+VALUES (${sqlValue(`${block.id}-media`)}, 'org-demo', 'site-demo', 'content_block', ${sqlValue(block.id)}, 'media', ${sqlValue(block.assetId)}, 0, 'active');`).join('\n')
+  return `INSERT OR REPLACE INTO content_blocks
+  (id, document_id, parent_block_id, type, position, level, data_json, created_at, updated_at, source_block_id)
+VALUES ${rows};
+${placements}`
+}
+
 export function renderCompiledDemoBlogBlock(): string {
   const publishedAt = '2026-07-08T00:00:00.000Z'
   const postId = 'blog-demo-wood-fired-guide'
@@ -2038,7 +2069,7 @@ The menu, music, and pacing of service all revolve around the heat and rhythm of
 ## Finish with neighborhood hospitality
 
 We want the room to feel energetic but never rushed, whether you come in for one pie or settle in for the evening.`
-  const blockData = { markdown: body, editor_mode: 'source' }
+  const blocks = demoArticleBlocks(body, 'How We Build a Wood-Fired Pizza Night', blockId, 'media-demo-hero')
 
   return `-- BEGIN GENERATED: demo_blog
 -- Tenant blog post for local demo verification.
@@ -2071,9 +2102,7 @@ INSERT OR REPLACE INTO media_placements
 VALUES ('placement-blog-demo-wood-fired-guide-featured', 'org-demo', 'site-demo', 'content_document', ${sqlValue(postId)}, 'featured', 'media-demo-hero', 0, 'active');
 
 
-INSERT OR REPLACE INTO content_blocks
-  (id, document_id, parent_block_id, type, position, level, data_json, created_at, updated_at)
-VALUES (${sqlValue(blockId)}, ${sqlValue(postId)}, NULL, 'markdown', 0, NULL, ${sqlJson(blockData)}, ${sqlValue(publishedAt)}, ${sqlValue(publishedAt)});
+${renderDemoArticleBlocks(postId, blocks, publishedAt)}
 -- END GENERATED: demo_blog`
 }
 
@@ -2107,7 +2136,7 @@ Our oven runs at 700-800°F, cooking each pizza in 60-90 seconds. This intense h
 
 Every element of our process serves a purpose. The 72-hour fermentation isn't just tradition—it's the foundation of the flavor, texture, and digestibility that make Ember & Slice pizzas unique. When you bite into that first slice, you're tasting three days of careful timing, temperature control, and patience.`
 
-  const article1Data = { markdown: article1Body, editor_mode: 'source' }
+  const article1Blocks = demoArticleBlocks(article1Body, 'The Secret to Our 72-Hour Sourdough Crust', article1BlockId, 'media-demo-article-sourdough')
 
   const article2Id = 'article-demo-natural-wine-pairing'
   const article2BlockId = 'content-block-demo-natural-wine-pairing'
@@ -2139,7 +2168,7 @@ Natural wines are conversation starters. They have stories—about the winemaker
 
 This aligns perfectly with our mission: to create a dining experience that's connected, thoughtful, and rooted in quality. Every element of what we serve, from the dough to the wine, is chosen with intention and care.`
 
-  const article2Data = { markdown: article2Body, editor_mode: 'source' }
+  const article2Blocks = demoArticleBlocks(article2Body, 'Why We Only Pair Natural Wines with Wood-Fired Pizza', article2BlockId, 'media-demo-article-wine')
 
   const article3Id = 'article-demo-ember-slice-story'
   const article3BlockId = 'content-block-demo-ember-slice-story'
@@ -2177,7 +2206,7 @@ Today, Ember & Slice is a Brooklyn staple, but we still operate like a pop-up in
 
 This is our story. We're grateful you're part of it.`
 
-  const article3Data = { markdown: article3Body, editor_mode: 'source' }
+  const article3Blocks = demoArticleBlocks(article3Body, 'From Pop-Up to Brooklyn Staple: The Ember & Slice Story', article3BlockId, 'media-demo-article-oven')
 
   const thaiTranslations = [
     {
@@ -2288,10 +2317,16 @@ Ember & Slice ไม่ได้เริ่มต้นด้วยแผนธ
     },
   ]
 
+  const sourceArticles = new Map([
+    [article1Id, { blocks: article1Blocks, assetId: 'media-demo-article-sourdough' }],
+    [article2Id, { blocks: article2Blocks, assetId: 'media-demo-article-wine' }],
+    [article3Id, { blocks: article3Blocks, assetId: 'media-demo-article-oven' }],
+  ])
   const thaiSql = thaiTranslations.map((th) => {
     const thaiBlockId = `content-block-${th.id}`
-    const thaiBlockData = { markdown: th.body, editor_mode: 'source' }
-    const englishBlockId = th.originalId === article1Id ? article1BlockId : th.originalId === article2Id ? article2BlockId : article3BlockId
+    const original = sourceArticles.get(th.originalId)
+    if (!original) throw new Error(`Original article not found: ${th.originalId}`)
+    const blocks = demoArticleBlocks(th.body, th.title, thaiBlockId, original.assetId)
     return `INSERT INTO content_documents
   (id, organization_id, site_id, title, slug, summary, metadata_json, status,
    author_id, published_at, created_at, updated_at,
@@ -2319,9 +2354,7 @@ VALUES (
   'root', NULL
 );
 
-INSERT OR IGNORE INTO content_blocks
-  (id, document_id, parent_block_id, type, position, level, data_json, created_at, updated_at, source_block_id)
-VALUES (${sqlValue(thaiBlockId)}, ${sqlValue(th.id)}, NULL, 'markdown', 0, NULL, ${sqlJson(thaiBlockData)}, ${sqlValue(publishedAt)}, ${sqlValue(publishedAt)}, ${sqlValue(englishBlockId)});`
+${renderDemoArticleBlocks(th.id, blocks, publishedAt, original.blocks)}`
   }).join('\n')
 
   return `-- BEGIN GENERATED: demo_articles
@@ -2354,9 +2387,7 @@ INSERT OR REPLACE INTO media_placements
   (id, organization_id, site_id, owner_type, owner_id, slot, asset_id, sort_order, status)
 VALUES ('placement-article-sourdough-featured', 'org-demo', 'site-demo', 'content_document', ${sqlValue(article1Id)}, 'featured', 'media-demo-article-sourdough', 0, 'active');
 
-INSERT OR REPLACE INTO content_blocks
-  (id, document_id, parent_block_id, type, position, level, data_json, created_at, updated_at)
-VALUES (${sqlValue(article1BlockId)}, ${sqlValue(article1Id)}, NULL, 'markdown', 0, NULL, ${sqlJson(article1Data)}, ${sqlValue(publishedAt)}, ${sqlValue(publishedAt)});
+${renderDemoArticleBlocks(article1Id, article1Blocks, publishedAt)}
 
 INSERT INTO content_documents
   (id, organization_id, site_id, title, slug, summary, metadata_json, status,
@@ -2386,9 +2417,7 @@ INSERT OR REPLACE INTO media_placements
   (id, organization_id, site_id, owner_type, owner_id, slot, asset_id, sort_order, status)
 VALUES ('placement-article-wine-featured', 'org-demo', 'site-demo', 'content_document', ${sqlValue(article2Id)}, 'featured', 'media-demo-article-wine', 0, 'active');
 
-INSERT OR REPLACE INTO content_blocks
-  (id, document_id, parent_block_id, type, position, level, data_json, created_at, updated_at)
-VALUES (${sqlValue(article2BlockId)}, ${sqlValue(article2Id)}, NULL, 'markdown', 0, NULL, ${sqlJson(article2Data)}, ${sqlValue(publishedAt)}, ${sqlValue(publishedAt)});
+${renderDemoArticleBlocks(article2Id, article2Blocks, publishedAt)}
 
 INSERT INTO content_documents
   (id, organization_id, site_id, title, slug, summary, metadata_json, status,
@@ -2418,9 +2447,7 @@ INSERT OR REPLACE INTO media_placements
   (id, organization_id, site_id, owner_type, owner_id, slot, asset_id, sort_order, status)
 VALUES ('placement-article-oven-featured', 'org-demo', 'site-demo', 'content_document', ${sqlValue(article3Id)}, 'featured', 'media-demo-article-oven', 0, 'active');
 
-INSERT OR REPLACE INTO content_blocks
-  (id, document_id, parent_block_id, type, position, level, data_json, created_at, updated_at)
-VALUES (${sqlValue(article3BlockId)}, ${sqlValue(article3Id)}, NULL, 'markdown', 0, NULL, ${sqlJson(article3Data)}, ${sqlValue(publishedAt)}, ${sqlValue(publishedAt)});
+${renderDemoArticleBlocks(article3Id, article3Blocks, publishedAt)}
 ${thaiSql}
 -- END GENERATED: demo_articles`
 }

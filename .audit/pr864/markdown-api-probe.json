@@ -1,0 +1,88 @@
+{
+  "node": "v24.18.1",
+  "boundary": "real Miniflare D1, actual createPlatformBlogPost and updatePlatformBlogPost, platform scope",
+  "cases": [
+    {
+      "operation": "create",
+      "case": "rich prose",
+      "result": "persisted unchanged"
+    },
+    {
+      "operation": "create",
+      "case": "rich table",
+      "result": "rejected 400 without write"
+    },
+    {
+      "operation": "create",
+      "case": "rich HTML",
+      "result": "rejected 400 without write"
+    },
+    {
+      "operation": "create",
+      "case": "source table",
+      "result": "persisted unchanged"
+    },
+    {
+      "operation": "create",
+      "case": "source HTML",
+      "result": "persisted unchanged"
+    },
+    {
+      "operation": "create",
+      "case": "absolute canonical",
+      "result": "persisted unchanged"
+    },
+    {
+      "operation": "create",
+      "case": "protocol-relative canonical",
+      "result": "rejected 400 without write"
+    },
+    {
+      "operation": "create",
+      "case": "slash-backslash canonical",
+      "result": "rejected 400 without write"
+    },
+    {
+      "operation": "update",
+      "case": "rich prose",
+      "result": "persisted unchanged"
+    },
+    {
+      "operation": "update",
+      "case": "rich table",
+      "result": "rejected 400 without write"
+    },
+    {
+      "operation": "update",
+      "case": "rich HTML",
+      "result": "rejected 400 without write"
+    },
+    {
+      "operation": "update",
+      "case": "source table",
+      "result": "persisted unchanged"
+    },
+    {
+      "operation": "update",
+      "case": "source HTML",
+      "result": "persisted unchanged"
+    },
+    {
+      "operation": "update",
+      "case": "absolute canonical",
+      "result": "persisted unchanged"
+    },
+    {
+      "operation": "update",
+      "case": "protocol-relative canonical",
+      "result": "rejected 400 without write"
+    },
+    {
+      "operation": "update",
+      "case": "slash-backslash canonical",
+      "result": "rejected 400 without write"
+    }
+  ],
+  "foreign_keys": "passed",
+  "production_writes": false
+}

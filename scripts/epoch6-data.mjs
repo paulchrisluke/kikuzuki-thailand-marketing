@@ -4,6 +4,7 @@ import { createHash } from 'node:crypto'
 import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import Database from 'better-sqlite3'
+import { editorModeFor } from '../shared/markdown-editor-mode.ts'
 import { CONTENT_DOCUMENT_SCOPE_QUERY, MEDIA_PLACEMENT_OWNER_AUDIT_QUERY } from './audit-orphaned-media-placements.mjs'
 
 export function openDatabase(path) {
@@ -56,6 +57,26 @@ const qi = value => `"${value.replaceAll('"', '""')}"`
 const tableNames = db => db.prepare("SELECT name FROM sqlite_schema WHERE type='table' AND name NOT LIKE 'sqlite_%' AND name NOT LIKE '_cf_%' AND name NOT IN ('d1_migrations','__drizzle_migrations') ORDER BY name").all().map(row => row.name)
 const columns = (db, table) => db.prepare(`PRAGMA table_info(${qi(table)})`).all().map(row => row.name)
 const digest = (rows, names) => hash(rows.map(row => JSON.stringify(names.map(name => row[name]))).sort().join('\n'))
+const reclassifyMarkdown = value => {
+  const data = JSON.parse(value)
+  if (data.editor_mode !== 'source') return value
+  assert(typeof data.markdown === 'string', 'content_blocks.data_json: source markdown must be a string')
+  if (editorModeFor(data.markdown) === 'source') return value
+  const tokens = [...value.matchAll(/"(?:\\.|[^"\\])*"|[{}\[\]:,]/g)]
+  let depth = 0
+  const modes = []
+  for (let index = 0; index < tokens.length; index++) {
+    const token = tokens[index][0]
+    if (token === '{' || token === '[') depth++
+    else if (token === '}' || token === ']') depth--
+    else if (depth === 1 && token.startsWith('"') && tokens[index + 1]?.[0] === ':' && JSON.parse(token) === 'editor_mode') modes.push(tokens[index + 2])
+  }
+  assert(modes.length === 1 && JSON.parse(modes[0][0]) === 'source', 'content_blocks.data_json: ambiguous editor_mode')
+  const mode = modes[0]
+  const projected = `${value.slice(0, mode.index)}"rich"${value.slice(mode.index + mode[0].length)}`
+  assert(JSON.stringify(JSON.parse(projected)) === JSON.stringify({ ...data, editor_mode: 'rich' }), 'content_blocks.data_json: another key changed')
+  return projected
+}
 const removed = { customers: ['last_booking_at', 'last_review_at'] }
 const retired = {
   usage_quota_grants: ['id', 'organization_id', 'resource', 'quantity', 'unit', 'period_key', 'period_start', 'period_end', 'grant_type', 'reason', 'created_by', 'idempotency_key', 'applied_at', 'created_at'],
@@ -75,7 +96,13 @@ try {
   expectedSchema.close()
   const names = tableNames(target)
   assert(JSON.stringify(tableNames(source)) === JSON.stringify([...names, ...Object.keys(retired)].sort()), 'Source/target table inventory differs')
-  const manifest = { epoch: 6, baseline_sha256: hash(baseline), source_sha256: hash(readFileSync(sourcePath)), removed_columns: removed, retired_tables: [], tables: [], invariants: [] }
+  const sourceMarkdown = source.prepare("SELECT data_json FROM content_blocks WHERE type = 'markdown'").all().map(row => JSON.parse(row.data_json)).filter(data => data.editor_mode === 'source')
+  const requiresSource = sourceMarkdown.filter(data => {
+    assert(typeof data.markdown === 'string', 'content_blocks.data_json: source markdown must be a string')
+    return editorModeFor(data.markdown) === 'source'
+  }).length
+  const markdownEditorModes = { source_blocks: sourceMarkdown.length, requires_source: requiresSource, reclassified_blocks: sourceMarkdown.length - requiresSource }
+  const manifest = { epoch: 6, baseline_sha256: hash(baseline), source_sha256: hash(readFileSync(sourcePath)), removed_columns: removed, retired_tables: [], markdown_editor_modes: markdownEditorModes, tables: [], invariants: [] }
   for (const [table, expectedColumns] of Object.entries(retired)) {
     assert(JSON.stringify(columns(source, table).sort()) === JSON.stringify([...expectedColumns].sort()), `${table}: undeclared column change`)
     const records = source.prepare(`SELECT * FROM ${qi(table)}`).all()
@@ -104,8 +131,13 @@ try {
           if (canonical !== value) { changed.add(name); changes[name] = (changes[name] ?? 0) + 1 }
           value = canonical
         }
+        if (table === 'content_blocks' && name === 'data_json' && record.type === 'markdown') {
+          value = reclassifyMarkdown(value)
+          if (value !== record[name]) { changed.add(name); changes[name] = (changes[name] ?? 0) + 1 }
+        }
         return [name, value]
       })))
+      if (table === 'content_blocks') assert((changes.data_json ?? 0) === markdownEditorModes.reclassified_blocks, 'Markdown reclassification count differs from source census')
       if (command === 'transform') {
         const insert = target.prepare(`INSERT INTO ${qi(table)} (${targetColumns.map(qi).join(',')}) VALUES (${targetColumns.map(() => '?').join(',')})`)
         for (const record of projected) insert.run(...targetColumns.map(name => record[name]))

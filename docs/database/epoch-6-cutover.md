@@ -18,7 +18,8 @@ in `migrations-archive/epoch-5`; its live production database remains rollback s
 | `krabiclaw-db-epoch6-production` | `c38458ef-eb4f-4bc2-8922-13cec27237dd` | Empty production candidate |
 | `krabiclaw-db-staging-epoch6` | `e93edb59-fe24-4da4-99df-0957be6e6660` | Retained pre-consolidation candidate; superseded |
 | `krabiclaw-db-staging-epoch6-combined` | `bc837e8a-b103-42e8-aecb-2c715a156e8f` | Retained 53-table candidate; superseded by credit retirement |
-| `krabiclaw-db-staging-epoch6-retirement` | `880e144d-30c8-42a9-b11c-412df4d5ad00` | Verified 52-table fixtures; Worker qualification pending |
+| `krabiclaw-db-staging-epoch6-retirement` | `880e144d-30c8-42a9-b11c-412df4d5ad00` | Retained retirement-only fixtures; superseded by editor-mode correction |
+| `krabiclaw-db-staging-epoch6-editor-mode` | `aa9db76b-b698-4c92-8cf3-c140321a064c` | Verified corrected 52-table fixtures; Worker qualification pending |
 | Existing configured preview | `d2f7a4a0-d6b8-493b-b484-8c0ead1ff83b` | Reset in place through the existing preview command |
 
 The generated baseline retains 52 tables. It removes the customer
@@ -33,6 +34,28 @@ Epoch 6 adds no tables or columns. It removes the two customer summaries and
 [the PR #864 comment](https://github.com/paulchrisluke/krabiclaw/pull/864#issuecomment-5572050864).
 All `usage_events` history remains, including historical credit consumption.
 MCP telemetry and scheduled Google Places usage still write that ledger.
+
+The owner also authorized Markdown editor-mode reclassification in
+[the September 8 scope addition](https://github.com/paulchrisluke/krabiclaw/pull/864#issuecomment-5577976570).
+This changes `content_blocks.data_json`, not the schema. Ordinary prose moves
+from `source` to `rich`; Markdown tables and raw HTML retain `source` because
+the visual editor cannot round-trip them. The Markdown splitter, validation, seeds and
+offline transfer share `shared/markdown-editor-mode.ts` as the classification rule.
+The transfer changes only the top-level `editor_mode` value and preserves every
+other JSON byte, including whitespace, escaping and other keys. Its manifest
+records the source census and reclassified count; `verify` compares the target
+with the exact source-derived projection and rejects any other content change.
+
+A fresh September 8 live-export census found 268 source-mode Markdown blocks.
+Four require source mode and 264 qualify for reclassification. The export SHA-256
+is `03ca012a59b10cde0c812670d286536cab04ff8b58bb8922187a90d0305ac8e0`.
+These are rehearsal counts. Remeasure the fresh frozen export during cutover
+and require its eligible count to match the transfer manifest. The earlier
+retirement-only staging fixtures and data hashes do not qualify this addition.
+The offline rehearsal passed `transform` and `verify` for 42,429 retained rows
+across 52 tables, including all 264 reclassifications, exact projected values,
+foreign keys, integrity and all nine domain invariants. No production write
+freeze or data mutation occurred.
 
 `scripts/epoch6-data.mjs` is an offline, one-time transfer, never a runtime reader.
 It replaces the retired Epoch 5 transfer tool and its obsolete conversion tests. The released implementation remains in Git history. It refuses an existing output file, undeclared table/column changes, invalid or
@@ -116,3 +139,18 @@ Repeat affected read-only production browser/MCP checks after deployment. The ow
 cancelled the ChatGPT review and will handle resubmission after production; the
 contributor must keep the MCP catalog and submission artifacts current and verify
 the deployed contract. Keep #829 open until its definition of done is evidenced.
+
+The editor-mode fixture replacement is prepared in
+`krabiclaw-db-staging-epoch6-editor-mode`,
+`aa9db76b-b698-4c92-8cf3-c140321a064c`. A separate checkout passed immutable
+installation, canonical `e2e:local:prepare`, and `fixtures:verify:local` before
+any browser or API writes. Its standard data-only dump passed exact offline
+replay verification. The new remote resource contained 52 empty tables and only
+the generated baseline ledger entry before import. Its re-export matches all
+2,816 fixture rows, column/storage and logical hashes, baseline schema, foreign
+keys, integrity and all nine ownership invariants. Three source-mode blocks
+remain, all required by the shared predicate; none is misclassified. Remote
+export SHA-256 is
+`d3533d8b64ac0cfe369e3a1463c1932a0fdae188d56e921fa717d2d0c5d6cad6`.
+Only the staging binding changes. Prior resources remain retained, and this
+candidate has no Worker deployment or post-start card initialization yet.

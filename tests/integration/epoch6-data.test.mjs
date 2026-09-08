@@ -21,6 +21,18 @@ test('epoch transfer preserves retained records, removes duplicate dates and rej
   source.prepare("INSERT INTO usage_events (id,organization_id,site_id,resource,source,quantity,unit,idempotency_key,created_at) VALUES ('history','org','site','ai_inference','seed',25,'credit','history','2026-07-01 00:00:00')").run()
   const grantColumns = source.pragma('table_info(usage_quota_grants)').map(column => column.name)
   const grantHash = createHash('sha256').update(source.prepare('SELECT * FROM usage_quota_grants').all().map(row => JSON.stringify(grantColumns.map(name => row[name]))).sort().join('\n')).digest('hex')
+  source.prepare("INSERT INTO content_documents (id,organization_id,site_id,kind,row_role,locale,status,visibility,title,slug) VALUES ('document','org','site','article','root','en','published','public','Proof','proof')").run()
+  const prose = String.raw`{ "nested": {"editor_mode":"source"}, "markdown": "**Prose** with \"quotes\" and Unicode ☃", "editor_mode" : "source", "extra": [1e3, {"keep":true}] }`
+  const blocks = [
+    ['prose', 'markdown', prose, prose.replace('"editor_mode" : "source"', '"editor_mode" : "rich"')],
+    ['empty', 'markdown', '{"markdown":"","editor_mode":"source"}', '{"markdown":"","editor_mode":"rich"}'],
+    ['escaped', 'markdown', String.raw`{"markdown":"A paragraph","editor_\u006dode":"\u0073ource"}`, String.raw`{"markdown":"A paragraph","editor_\u006dode":"rich"}`],
+    ['table', 'markdown', '{"markdown":"| A | B |\\n| - | - |","editor_mode":"source"}'],
+    ['html', 'markdown', '{"markdown":"<DIV>Keep HTML</DIV>","editor_mode":"source"}'],
+    ['rich', 'markdown', '{ "editor_mode": "rich", "markdown": "Already visual" }'],
+    ['heading', 'heading', '{"editor_mode":"source","text":"A heading"}'],
+  ]
+  for (const [id, type, data] of blocks) source.prepare("INSERT INTO content_blocks (id,document_id,type,data_json) VALUES (?,'document',?,?)").run(id, type, data)
   source.close()
   const run = (command, output = targetPath) => spawnSync(process.execPath, ['scripts/epoch6-data.mjs', command, sourcePath, output], { cwd: resolve('.'), encoding: 'utf8' })
   const transformed = run('transform')
@@ -31,7 +43,25 @@ test('epoch transfer preserves retained records, removes duplicate dates and rej
   assert.equal(target.pragma('table_info(usage_quota_grants)').length, 0)
   assert.deepEqual(target.prepare('SELECT id,quantity,unit,created_at FROM usage_events').get(), { id: 'history', quantity: 25, unit: 'credit', created_at: '2026-07-01T00:00:00.000Z' })
   assert.deepEqual(JSON.parse(readFileSync(`${targetPath}.transform.json`, 'utf8')).retired_tables, [{ table: 'usage_quota_grants', rows: 3, source_sha256: grantHash }])
+  const manifest = JSON.parse(readFileSync(`${targetPath}.transform.json`, 'utf8'))
+  assert.deepEqual(manifest.markdown_editor_modes, { source_blocks: 5, requires_source: 2, reclassified_blocks: 3 })
+  assert.equal(manifest.tables.find(table => table.table === 'content_blocks').changed_columns.data_json, 3)
+  for (const [id, , original, projected = original] of blocks) assert.equal(target.prepare('SELECT data_json FROM content_blocks WHERE id = ?').get(id).data_json, projected)
   assert.equal(run('verify').status, 0)
+  assert.deepEqual(JSON.parse(readFileSync(`${targetPath}.verify.json`, 'utf8')).markdown_editor_modes, manifest.markdown_editor_modes)
+  const originalProse = target.prepare("SELECT data_json FROM content_blocks WHERE id = 'prose'").get().data_json
+  for (const corrupted of [
+    originalProse.replace('**Prose**', '**Changed**'),
+    originalProse.replace('1e3', '1000'),
+    originalProse.replace('"keep":true', '"keep":false'),
+    originalProse.replace('"editor_mode" : "rich"', '"editor_mode" : "source"'),
+  ]) {
+    target.prepare("UPDATE content_blocks SET data_json = ? WHERE id = 'prose'").run(corrupted)
+    const rejected = run('verify')
+    assert.notEqual(rejected.status, 0)
+    assert.match(rejected.stderr, /content_blocks: target differs from exact projection/)
+  }
+  target.prepare("UPDATE content_blocks SET data_json = ? WHERE id = 'prose'").run(originalProse)
   assert.notEqual(run('transform').status, 0)
   target.prepare("UPDATE customers SET name='Tampered'").run()
   target.close()

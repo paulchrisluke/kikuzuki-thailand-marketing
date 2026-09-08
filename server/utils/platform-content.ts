@@ -1,4 +1,5 @@
 import { HTTPError } from 'nitro';
+import { markdownRequiresSourceMode } from '~/shared/markdown-editor-mode'
 
 import { execute, executeBatch, queryAll, queryFirst, type BatchQuery, type DbClient } from '~/server/db'
 import {
@@ -314,9 +315,14 @@ function assertValidBlogCategory(value: string | null | undefined) {
 function assertValidCanonicalUrl(value: string | null | undefined) {
   if (value == null || value === '') return
   try {
-    void new URL(value)
+    if (value.startsWith('/') && !/^\/[\\/]/.test(value)) {
+      const origin = 'https://canonical.invalid'
+      if (new URL(value, origin).origin !== origin) badRequest('canonical_url must be an absolute URL or a site-root path')
+    } else {
+      void new URL(value)
+    }
   } catch {
-    badRequest('canonical_url must be an absolute URL')
+    badRequest('canonical_url must be an absolute URL or a site-root path')
   }
 }
 
@@ -345,7 +351,7 @@ async function normalizeEditorContentBlocks(
     if (block.type === 'markdown') {
       if (typeof block.data.markdown !== 'string') badRequest('Markdown blocks require data.markdown')
       if (block.data.editor_mode !== 'rich' && block.data.editor_mode !== 'source') badRequest('Markdown blocks require data.editor_mode to be rich or source')
-      if (block.data.editor_mode === 'rich' && (/^\s*\|.*\|\s*$/m.test(block.data.markdown) || /<\/?[a-z][^>]*>/i.test(block.data.markdown))) {
+      if (block.data.editor_mode === 'rich' && markdownRequiresSourceMode(block.data.markdown)) {
         badRequest('Markdown tables and raw HTML require editor_mode source')
       }
     }
