@@ -139,25 +139,32 @@ So the direct fix is the obvious one: **staging is seeded from production.** Tha
 is what makes staging a reflection of production, and no elaborate substitute for
 it is needed.
 
-The real constraint is secrets, not content. Sixteen of the fifty-four tables
-carry live credential or payment material and must be excluded or regenerated
-rather than copied:
+The real constraint is smaller than it looks, because the three environments are
+already isolated. `krabiclaw`, `krabiclaw-staging` and `krabiclaw-preview` are
+separate Workers with separate secret sets — each has its own
+`BETTER_AUTH_SECRET`, `STRIPE_SECRET_KEY` and `STRIPE_WEBHOOK_SECRET`, and its own
+`BETTER_AUTH_URL`. That makes most copied credential material inert on arrival:
 
-    account                 oauthClientAssertion    session
-    invitation              oauthClientResource     verification
-    jwks                    oauthConsent            stripe_ga4_subscription_intents
-    oauthAccessToken        oauthRefreshToken       stripe_invoice_payments
-    oauthClient             oauthResource           stripe_subscription_versions
-                                                    stripe_webhook_events
+- `session`, `oauthAccessToken`, `oauthRefreshToken`, `oauthConsent`,
+  `verification` — validated against staging's own secret and issuer. Copied rows
+  authenticate nothing.
+- `jwks` — `privateKey` is stored opaque, consistent with Better Auth's symmetric
+  encryption under `BETTER_AUTH_SECRET`. Staging cannot decrypt production's.
+  Regenerate rather than copy; Better Auth mints a keypair when the table is empty.
+- `account` — carries no provider access or refresh tokens in this schema. Its only
+  credential column is `password`, populated on 3 of 19 rows and hashed.
+- `stripe_*` — staging holds its own Stripe key, so copied live-mode identifiers do
+  not resolve. Inert, though reconciliation code reading them can produce confusing
+  staging state; truncating them is a tidiness choice, not a safety one.
 
-Better Auth owns the first group; copying live sessions and tokens into a second
-environment is a credential problem. The Stripe tables would confuse
-reconciliation against real payment state. Outbound delivery is already gated by
-`EMAIL_DELIVERY_MODE` and `WHATSAPP_DELIVERY_MODE`, so it is configuration, not
-data, that keeps staging from contacting real customers.
+Outbound contact is gated by `EMAIL_DELIVERY_MODE` and `WHATSAPP_DELIVERY_MODE`,
+which is configuration rather than data.
 
-That is a scrub list of sixteen tables, not a prohibition on the other
-thirty-eight.
+What remains is therefore not a scrub list but two steps that already have tooling:
+regenerate `jwks`, and re-provision identities with
+`scripts/provision-development-auth.ts`, which mints the 19 Better Auth
+credentials today. A straight copy of production plus those two steps gives
+staging a real reflection of production.
 
 ## Proposed changes
 
