@@ -106,8 +106,22 @@
         :alt="editAltText"
         class="mx-auto h-32 w-32 rounded-lg object-cover"
       >
-      <UFormField label="Alt text" description="What is in the picture, in a sentence. Leave it empty if the image is decorative.">
-        <UInput v-model="editAltText" placeholder="Describe this image" class="w-full" />
+      <!--
+        The placeholder is a worked example rather than an instruction. "Describe
+        this image" tells a writer what to do without showing what good looks
+        like, and the alt text that came back was a noun or two; a sentence in
+        the box demonstrates the length and the specificity. Saying who it is
+        for is what makes anyone bother.
+      -->
+      <UFormField
+        label="Alt text"
+        description="A brief description of this image for readers who cannot see it. Leave it empty if the image is decorative."
+      >
+        <UInput
+          v-model="editAltText"
+          placeholder="e.g. A wood-fired oven with a margherita pizza blistering at the mouth"
+          class="w-full"
+        />
       </UFormField>
       <p v-if="editError" class="text-sm text-error">{{ editError }}</p>
     </template>
