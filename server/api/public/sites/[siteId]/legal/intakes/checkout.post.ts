@@ -88,7 +88,7 @@ export default defineHandler(async (event) => {
 
     const result = await callBlawbyRoute<IntakeCheckoutResult>(context.env, {
       routeKey: 'intakeCheckout',
-      scope: 'legal:intake:public:checkout',
+      scope: 'legal:intakes',
       method: 'POST',
       identity: { organizationId: context.organizationId, actorId: actor.actorId, actorKind: actor.actorKind },
       correlationId,

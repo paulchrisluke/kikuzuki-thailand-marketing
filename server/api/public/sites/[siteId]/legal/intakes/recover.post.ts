@@ -94,7 +94,7 @@ export default defineHandler(async (event) => {
     // request reference alone, then attach.
     const result = await callBlawbyRoute<IntakeRecoverResult>(context.env, {
       routeKey: 'intakeRecover',
-      scope: 'legal:intake:public:read',
+      scope: 'legal:intakes',
       method: 'GET',
       identity: { organizationId: context.organizationId, actorId: actor.actorId, actorKind: actor.actorKind },
       correlationId,

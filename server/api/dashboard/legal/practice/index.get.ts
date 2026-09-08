@@ -29,7 +29,7 @@ export default defineHandler(async (event) => {
 
     const profile = await callBlawbyRoute(access.env, {
       routeKey: 'practiceRead',
-      scope: 'legal:practice:read',
+      scope: 'legal:practice',
       method: 'GET',
       identity: { organizationId: access.organizationId, actorId: access.userId, actorKind: 'human' },
       correlationId,

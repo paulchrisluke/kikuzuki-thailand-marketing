@@ -78,7 +78,7 @@ export default defineHandler(async (event) => {
 
     const result = await callBlawbyRoute<IntakeStatusResult>(context.env, {
       routeKey: 'intakeStatus',
-      scope: 'legal:intake:public:read',
+      scope: 'legal:intakes',
       method: 'GET',
       identity: { organizationId: context.organizationId, actorId: actor.actorId, actorKind: actor.actorKind },
       correlationId,

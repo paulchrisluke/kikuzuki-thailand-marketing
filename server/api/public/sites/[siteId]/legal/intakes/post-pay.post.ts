@@ -123,7 +123,7 @@ export default defineHandler(async (event) => {
     // is passed only as the value to VERIFY, never trusted directly.
     const verification = await callBlawbyRoute<PostPayVerification>(context.env, {
       routeKey: 'intakePostPay',
-      scope: 'legal:intake:public:checkout',
+      scope: 'legal:intakes',
       method: 'GET',
       identity: { organizationId: context.organizationId, actorId: actor.actorId, actorKind: actor.actorKind },
       correlationId,

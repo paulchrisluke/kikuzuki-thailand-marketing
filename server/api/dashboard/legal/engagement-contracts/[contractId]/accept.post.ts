@@ -47,7 +47,7 @@ export default defineHandler(async (event) => {
 
     const result = await callBlawbyRoute(access.env, {
       routeKey: 'engagementAcceptance',
-      scope: 'legal:engagement:write',
+      scope: 'legal:engagements',
       method: 'PATCH',
       identity: { organizationId: access.organizationId, actorId: access.userId, actorKind: 'human' },
       correlationId,

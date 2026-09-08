@@ -131,7 +131,7 @@ export default defineHandler(async (event) => {
 
     const result = await callBlawbyRoute<ConnectOnboardingResult>(access.env, {
       routeKey: 'connectStart',
-      scope: 'legal:connect:write',
+      scope: 'legal:connect',
       method: 'POST',
       identity: { organizationId: access.organizationId, actorId: access.userId, actorKind: 'human' },
       correlationId,

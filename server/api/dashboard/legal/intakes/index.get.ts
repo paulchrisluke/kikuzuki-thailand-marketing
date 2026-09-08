@@ -36,7 +36,7 @@ export default defineHandler(async (event) => {
 
     const result = await callBlawbyRoute(access.env, {
       routeKey: 'intakeList',
-      scope: 'legal:intake:read',
+      scope: 'legal:intakes',
       method: 'GET',
       identity: { organizationId: access.organizationId, actorId: access.userId, actorKind: 'human' },
       correlationId,

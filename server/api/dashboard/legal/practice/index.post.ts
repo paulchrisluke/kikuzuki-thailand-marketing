@@ -52,7 +52,7 @@ export default defineHandler(async (event) => {
 
     const profile = await callBlawbyRoute(access.env, {
       routeKey: 'practiceMutate',
-      scope: 'legal:practice:write',
+      scope: 'legal:practice',
       method: 'PATCH',
       identity: { organizationId: access.organizationId, actorId: access.userId, actorKind: 'human' },
       correlationId,

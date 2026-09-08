@@ -130,7 +130,7 @@ export default defineHandler(async (event) => {
     // requestReference forwarded on every call in this route family (R18).
     const result = await callBlawbyRoute<IntakeCreateResult>(context.env, {
       routeKey: 'intakeCreate',
-      scope: 'legal:intake:public:write',
+      scope: 'legal:intakes',
       method: 'POST',
       identity: { organizationId: context.organizationId, actorId: actor.actorId, actorKind: actor.actorKind },
       correlationId,
