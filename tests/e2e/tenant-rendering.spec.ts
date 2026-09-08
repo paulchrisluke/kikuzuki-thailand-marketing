@@ -183,7 +183,7 @@ test('Kikuzuki keeps customer identity, locations, and reservation entry point',
   await expect(page.locator('#reservation-booking-toggle').first()).toBeVisible()
 })
 
-test('NCLS exposes header, footer, pricing, article, contact, taxonomy, and donation journeys', async ({ page, context }) => {
+test('NCLS exposes header, footer, pricing, article, contact, taxonomy, and donation journeys', async ({ page }) => {
   await page.setViewportSize({ width: 1920, height: 1080 })
   await openTenantPage(page, `${blawbyBaseURL}/`, blawbyExtraHeaders)
   for (const label of ['Services', 'Pricing', 'About', 'Contact', 'Blog', 'Donate'])
@@ -205,24 +205,20 @@ test('NCLS exposes header, footer, pricing, article, contact, taxonomy, and dona
   }
   for (const label of ['Family law', 'Request a Legal Consultation', 'About', 'Privacy Policy'])
     await expect(page.locator('footer').getByRole('link', { name: label, exact: true })).toBeVisible()
-  await Promise.all([
+  await page.setViewportSize({ width: 1280, height: 720 })
+  const errors = collectPageErrors(page, { failOnAllWarnings: true })
+  for (const journey of [
     { path: '/pricing', text: /pricing|income|calculator/i },
     { path: '/article/writing-your-own-will-how-it-works', text: /will|North Carolina/i },
     { path: '/contact', text: /contact|message/i },
     { path: '/schedule', text: /consultation|schedule/i },
     { path: '/blog', text: /blog|legal/i },
     { path: '/donate', text: /donate|support/i },
-  ].map(async (journey) => {
-    const routePage = await context.newPage()
-    try {
-      const errors = collectPageErrors(routePage, { failOnAllWarnings: true })
-      const response = await openTenantPage(routePage, `${blawbyBaseURL}${journey.path}`, blawbyExtraHeaders)
-      expect(response?.status(), journey.path).toBeLessThan(400)
-      await routePage.waitForTimeout(250)
-      expect(errors, journey.path).toEqual([])
-      await expect(routePage.locator('main')).toContainText(journey.text)
-    } finally {
-      await routePage.close()
-    }
-  }))
+  ]) {
+    const response = await openTenantPage(page, `${blawbyBaseURL}${journey.path}`, blawbyExtraHeaders)
+    expect(response?.status(), journey.path).toBeLessThan(400)
+    await page.waitForTimeout(250)
+    expect(errors, journey.path).toEqual([])
+    await expect(page.locator('main')).toContainText(journey.text)
+  }
 })

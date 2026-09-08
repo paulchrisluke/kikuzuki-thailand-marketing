@@ -351,6 +351,7 @@ test.describe.serial('published Thai content saves through the CMS and renders w
     expect(alignedSaveResponse.status()).toBe(200)
     const aligned = (await alignedSaveResponse.json() as { page: { blocks: Array<{ source_block_id: string | null }> } }).page
     expect(aligned.blocks.map(block => block.source_block_id)).toEqual([secondBlockId, firstBlockId])
+    await cms.close()
   })
 
   async function verifyThaiLinksAndHome(page: Page) {
