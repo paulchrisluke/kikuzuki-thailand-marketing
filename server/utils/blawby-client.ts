@@ -234,65 +234,87 @@ async function fetchBlawby(params: {
 
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), timeoutMs)
-  let response: Response
+  // The whole request/response cycle — including the body read below — must
+  // stay bounded by timeoutMs, not just the header phase: fetch() resolves
+  // as soon as headers arrive, so a slow/stalled body would otherwise be
+  // read with no timeout at all. The timer is therefore cleared only once,
+  // in this outer finally, after response.json() has settled either way.
   try {
-    response = await fetch(url, {
-      method: params.method,
-      headers: params.headers,
-      body: params.body,
-      redirect: 'manual',
-      signal: controller.signal,
-    })
-  } catch (error) {
-    // Exactly one attempt: network errors and timeouts are never retried here
-    // (KTD6) — the caller decides whether a higher-level replay applies.
-    const isAbort = controller.signal.aborted || (error instanceof Error && error.name === 'AbortError')
-    throw new HTTPError({
-      statusCode: 503,
-      statusMessage: isAbort ? 'Blawby request timed out' : 'Blawby request failed',
-      data: {
-        code: isAbort ? 'BLAWBY_TIMEOUT' : 'BLAWBY_UNAVAILABLE',
-        requestCorrelationId: params.correlationId,
-      },
-    })
+    let response: Response
+    try {
+      response = await fetch(url, {
+        method: params.method,
+        headers: params.headers,
+        body: params.body,
+        redirect: 'manual',
+        signal: controller.signal,
+      })
+    } catch (error) {
+      // Exactly one attempt: network errors and timeouts are never retried
+      // here (KTD6) — the caller decides whether a higher-level replay
+      // applies.
+      const isAbort = controller.signal.aborted || (error instanceof Error && error.name === 'AbortError')
+      throw new HTTPError({
+        statusCode: 503,
+        statusMessage: isAbort ? 'Blawby request timed out' : 'Blawby request failed',
+        data: {
+          code: isAbort ? 'BLAWBY_TIMEOUT' : 'BLAWBY_UNAVAILABLE',
+          requestCorrelationId: params.correlationId,
+        },
+      })
+    }
+
+    // Rejected redirects: `redirect: 'manual'` never follows automatically;
+    // any 3xx (or an opaque redirect result) is a classified failure, not a
+    // second request, so no credential is ever sent to a redirect target.
+    if (response.type === 'opaqueredirect' || (response.status >= 300 && response.status < 400)) {
+      throw new HTTPError({
+        statusCode: 502,
+        statusMessage: 'Blawby returned a redirect',
+        data: { code: 'BLAWBY_REDIRECT_REJECTED', requestCorrelationId: params.correlationId },
+      })
+    }
+
+    if (response.status >= 500) {
+      throw new HTTPError({
+        statusCode: 503,
+        statusMessage: 'Blawby is unavailable',
+        data: { code: 'BLAWBY_UPSTREAM_UNAVAILABLE', requestCorrelationId: params.correlationId },
+      })
+    }
+
+    let body: unknown
+    try {
+      body = await response.json()
+    } catch (error) {
+      // A body-read that fails because the controller aborted (the timeout
+      // fired while reading the body, not just the header phase) is the
+      // SAME timeout condition as the header-phase abort above, and must be
+      // classified identically (503 BLAWBY_TIMEOUT) — not misreported as a
+      // generic malformed-response error. A parse failure that is NOT an
+      // abort keeps its existing classification (502 malformed response).
+      const isAbort = controller.signal.aborted || (error instanceof Error && error.name === 'AbortError')
+      if (isAbort) {
+        throw new HTTPError({
+          statusCode: 503,
+          statusMessage: 'Blawby request timed out',
+          data: { code: 'BLAWBY_TIMEOUT', requestCorrelationId: params.correlationId },
+        })
+      }
+      throw new HTTPError({
+        statusCode: 502,
+        statusMessage: 'Blawby returned a malformed response',
+        data: { code: 'BLAWBY_MALFORMED_RESPONSE', requestCorrelationId: params.correlationId },
+      })
+    }
+
+    return {
+      status: response.status,
+      body,
+      wwwAuthenticate: response.headers.get('www-authenticate'),
+    }
   } finally {
     clearTimeout(timer)
-  }
-
-  // Rejected redirects: `redirect: 'manual'` never follows automatically;
-  // any 3xx (or an opaque redirect result) is a classified failure, not a
-  // second request, so no credential is ever sent to a redirect target.
-  if (response.type === 'opaqueredirect' || (response.status >= 300 && response.status < 400)) {
-    throw new HTTPError({
-      statusCode: 502,
-      statusMessage: 'Blawby returned a redirect',
-      data: { code: 'BLAWBY_REDIRECT_REJECTED', requestCorrelationId: params.correlationId },
-    })
-  }
-
-  if (response.status >= 500) {
-    throw new HTTPError({
-      statusCode: 503,
-      statusMessage: 'Blawby is unavailable',
-      data: { code: 'BLAWBY_UPSTREAM_UNAVAILABLE', requestCorrelationId: params.correlationId },
-    })
-  }
-
-  let body: unknown
-  try {
-    body = await response.json()
-  } catch {
-    throw new HTTPError({
-      statusCode: 502,
-      statusMessage: 'Blawby returned a malformed response',
-      data: { code: 'BLAWBY_MALFORMED_RESPONSE', requestCorrelationId: params.correlationId },
-    })
-  }
-
-  return {
-    status: response.status,
-    body,
-    wwwAuthenticate: response.headers.get('www-authenticate'),
   }
 }
 

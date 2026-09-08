@@ -38,7 +38,12 @@ interface IntakeRecoverResult {
 function parseIntakeRecoverResult(body: unknown): IntakeRecoverResult | undefined {
   if (!body || typeof body !== 'object') return undefined
   const record = body as Record<string, unknown>
-  return typeof record.intakeId === 'string' && typeof record.status === 'string'
+  // A non-empty intakeId is required: an empty string is a valid unique-index
+  // value in D1, so treating "" as success here would durably attach an
+  // empty blawby_intake_id, permanently blocking a real intake id from ever
+  // being attached to this request reference. Treat it as malformed, same as
+  // a missing/wrong-typed field.
+  return typeof record.intakeId === 'string' && record.intakeId.length > 0 && typeof record.status === 'string'
     ? { intakeId: record.intakeId, status: record.status }
     : undefined
 }

@@ -419,23 +419,29 @@ test('R26/I2: origin validation is scoped to mutations — a GET-shaped caller c
 
     await t.test('default (mutation-shaped, no options passed) still rejects a missing Origin header with 403 origin_invalid', async () => {
       const events = captureSecurityEvents()
-      const event = buildEvent(env, { ip: '5.5.5.3' })
-      await assert.rejects(
-        resolveLegalPublicSiteAccess(event, 'intake_without_payment', 'site-a', alwaysEntitled),
-        (error: unknown) => (error as { statusCode?: number })?.statusCode === 403,
-      )
-      events.restore()
+      try {
+        const event = buildEvent(env, { ip: '5.5.5.3' })
+        await assert.rejects(
+          resolveLegalPublicSiteAccess(event, 'intake_without_payment', 'site-a', alwaysEntitled),
+          (error: unknown) => (error as { statusCode?: number })?.statusCode === 403,
+        )
+      } finally {
+        events.restore()
+      }
       assert.ok(events.lines.some(line => JSON.parse(line).reason === 'origin_invalid'))
     })
 
     await t.test('default (mutation-shaped, no options passed) still rejects a mismatched Origin header with 403 origin_invalid', async () => {
       const events = captureSecurityEvents()
-      const event = buildEvent(env, { origin: 'https://attacker.example', ip: '5.5.5.4' })
-      await assert.rejects(
-        resolveLegalPublicSiteAccess(event, 'intake_without_payment', 'site-a', alwaysEntitled),
-        (error: unknown) => (error as { statusCode?: number })?.statusCode === 403,
-      )
-      events.restore()
+      try {
+        const event = buildEvent(env, { origin: 'https://attacker.example', ip: '5.5.5.4' })
+        await assert.rejects(
+          resolveLegalPublicSiteAccess(event, 'intake_without_payment', 'site-a', alwaysEntitled),
+          (error: unknown) => (error as { statusCode?: number })?.statusCode === 403,
+        )
+      } finally {
+        events.restore()
+      }
       assert.ok(events.lines.some(line => JSON.parse(line).reason === 'origin_invalid'))
     })
 

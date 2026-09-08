@@ -35,7 +35,7 @@
 
 <script setup lang="ts">
 import { $fetch } from 'ofetch'
-import { peekLegalIntakeRequestKey } from '~/composables/useLegalIntakeRequest'
+import { clearLegalIntakeRequestKey, peekLegalIntakeRequestKey } from '~/composables/useLegalIntakeRequest'
 
 definePageMeta({ layout: false })
 useSeoMeta({ title: 'Confirming payment', robots: 'noindex, nofollow', referrer: 'no-referrer' })
@@ -70,6 +70,12 @@ onMounted(async () => {
       method: 'POST',
       body: { requestReference, blawbyIntakeId, checkoutSessionId },
     })
+    // R14: this is the terminal (success) outcome for this site's retained
+    // request reference -- clear it so a later intake on the same site
+    // starts a fresh reference instead of reusing this now-completed one
+    // (which the create route would otherwise reject as
+    // LEGAL_INTAKE_PAYLOAD_CONFLICT).
+    clearLegalIntakeRequestKey(siteId)
     confirmed.value = true
   } catch (cause) {
     error.value = cause instanceof Error ? cause.message : 'Your payment could not be confirmed. Please contact support.'

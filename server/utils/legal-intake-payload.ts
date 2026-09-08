@@ -45,8 +45,12 @@ export function validateLegalIntakePayload(value: unknown): LegalIntakePayload |
   if (!email || email.length > 320 || !EMAIL_PATTERN.test(email)) return undefined
   if (!description || description.length > 5000) return undefined
   if (phoneRaw !== undefined && phoneRaw !== null && typeof phoneRaw !== 'string') return undefined
-  const phone = typeof phoneRaw === 'string' ? phoneRaw.trim().slice(0, 50) : null
-  if (typeof phoneRaw === 'string' && !phone) return undefined
+  // Reject an out-of-bound phone value, same as every other field in this
+  // validator — never silently truncate, which would accept a different,
+  // wrong value as if it were valid input.
+  const trimmedPhone = typeof phoneRaw === 'string' ? phoneRaw.trim() : null
+  if (typeof phoneRaw === 'string' && (!trimmedPhone || trimmedPhone.length > 50)) return undefined
+  const phone = trimmedPhone
 
   return { matterType, fullName, email, phone, description }
 }

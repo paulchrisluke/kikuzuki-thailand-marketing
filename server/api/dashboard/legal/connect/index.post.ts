@@ -11,7 +11,12 @@
 // validated by legal-access.ts's validateLegalCallbackUrl (exact HTTPS,
 // no userinfo, no fragment) before being forwarded to Blawby; a value that
 // fails validation is treated as a misconfiguration (503), same as a
-// missing value, rather than forwarded as-is.
+// missing value, rather than forwarded as-is. This validation runs AFTER
+// resolveLegalStaffAccess (auth/authz) — an unauthenticated or
+// unauthorized caller must never be able to learn whether callback URLs
+// are configured (CWE-209 information disclosure), so callback-URL
+// validation is deliberately not performed until the caller is known to
+// be an authorized staff actor.
 // Plan step 6 / R14: the browser must create-and-retain an
 // organization-and-operation-scoped Connect UUID v4 in sessionStorage
 // BEFORE calling this route (see composables/useLegalConnect.ts) and send
@@ -86,6 +91,14 @@ export default defineHandler(async (event) => {
       return apiErrorResponse(event, 400, 'LEGAL_CONNECT_REQUEST_KEY_INVALID', 'A valid Connect request key (UUID v4) is required')
     }
 
+    // Authentication/authorization MUST run before any check whose failure
+    // mode discloses server configuration state (CWE-209) — an
+    // unauthenticated caller must never learn whether Connect callback URLs
+    // are configured. Origin validation (assertLegalStaffMutationOrigin)
+    // stays first per this repo's R26 pattern; callback-URL validation is
+    // deferred until after resolveLegalStaffAccess below.
+    const access = await resolveLegalStaffAccess(event, 'connect', { pathname: '/api/dashboard/legal/connect' })
+
     const rawReturnUrl = typeof env.LEGAL_BLAWBY_CALLBACK_URL_RETURN === 'string' ? env.LEGAL_BLAWBY_CALLBACK_URL_RETURN : ''
     const rawRefreshUrl = typeof env.LEGAL_BLAWBY_CALLBACK_URL_REFRESH === 'string' ? env.LEGAL_BLAWBY_CALLBACK_URL_REFRESH : ''
     const returnUrl = validateLegalCallbackUrl(rawReturnUrl)
@@ -95,8 +108,6 @@ export default defineHandler(async (event) => {
       // never forward an unvalidated value to Blawby.
       return apiErrorResponse(event, 503, 'LEGAL_BLAWBY_NOT_CONFIGURED', 'Connect callback URLs are not configured for this environment')
     }
-
-    const access = await resolveLegalStaffAccess(event, 'connect', { pathname: '/api/dashboard/legal/connect' })
 
     const result = await callBlawbyRoute<ConnectOnboardingResult>(access.env, {
       routeKey: 'connectStart',

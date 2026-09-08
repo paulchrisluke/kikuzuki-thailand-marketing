@@ -33,8 +33,16 @@ export default defineHandler(async (event) => {
   try {
     const body = await readBody(event).catch(() => null) as { name?: unknown; description?: unknown } | null
     const name = typeof body?.name === 'string' ? body.name.trim() : ''
-    const description = typeof body?.description === 'string' ? body.description.trim() : null
     if (!name) return apiErrorResponse(event, 400, 'LEGAL_PRACTICE_NAME_REQUIRED', 'Practice name is required')
+
+    // No tolerant-parse fallback: an omitted/null description becomes null,
+    // but any other non-string value (e.g. `false`, a number, an object) is
+    // rejected outright rather than silently coerced to null.
+    const rawDescription = body?.description
+    if (rawDescription !== undefined && rawDescription !== null && typeof rawDescription !== 'string') {
+      return apiErrorResponse(event, 400, 'LEGAL_PRACTICE_DESCRIPTION_INVALID', 'Practice description is invalid')
+    }
+    const description = typeof rawDescription === 'string' ? rawDescription.trim() : null
 
     // Only server-derived fields (name/description from the narrowed body)
     // are forwarded — R6: no browser-supplied organizationId/actorId/token
