@@ -5,7 +5,7 @@ import type { CloudflareEnv } from '~/server/utils/auth'
 import { parseSocialImageSource } from '~/utils/social-metadata'
 import { listPageQa } from '~/server/utils/location-qa'
 import { listSiteReviews } from '~/server/utils/site-reviews'
-import { getPublishedLocalizedSiteBlogPost } from '~/server/utils/platform-content'
+import { getPublishedLocalizedSiteBlogPost } from '~/server/utils/content/publishing'
 import {
   loadExactPublicLocalizations,
   projectExactLocalizedCollection,
@@ -24,7 +24,7 @@ import {
   type PublicTenantPageHydrationResources,
   type PublicTenantPageOfferingRow,
 } from '~/server/utils/public-tenant-pages'
-import { listPublishedTenantPagePaths } from '~/server/utils/tenant-pages'
+import { listPublishedTenantPagePaths } from '~/server/utils/content/pages'
 import { isBlawbyShellOnlyRouteRecipe } from '~/types/blawby'
 import type {
   PublicBlawbyData,

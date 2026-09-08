@@ -1,9 +1,10 @@
+import { markdownRequiresSourceMode } from '~/shared/markdown-editor-mode'
 import { HTTPError } from 'nitro';
 
-import { executeBatch, queryAll, queryFirst, type BatchQuery, type DbClient } from '../db/index.ts'
-import { d1JsonStringSet } from '../db/d1-limits.ts'
-import { assertNoEmbeddedMediaFields } from '../../utils/tenant-page-blocks.ts'
-import type { content_documents } from '../db/schema.ts'
+import { executeBatch, queryAll, queryFirst, type BatchQuery, type DbClient } from '../../db/index.ts'
+import { d1JsonStringSet } from '../../db/d1-limits.ts'
+import { assertNoEmbeddedMediaFields } from '../../../utils/tenant-page-blocks.ts'
+import type { content_documents } from '../../db/schema.ts'
 import {
   CONTENT_BLOCK_TYPES,
   type ContentBlockType,
@@ -138,6 +139,23 @@ function mediaFreeBlockData(type: ContentBlockType, value: unknown, field: strin
     badRequest(error instanceof Error ? error.message : `${field} contains embedded media`)
   }
   if (type === 'image' && 'url' in data) badRequest(`${field}.url must use a media placement`)
+  // The markdown contract lives here, on the one batch builder every content
+  // document write passes through, because `content_blocks` is one table and a
+  // block cannot mean different things depending on which caller wrote it.
+  // It used to live in platform-content's blog path alone, so a tenant page
+  // could store a markdown block with no editor_mode that the blog path would
+  // then refuse — the same row, legal to one writer and rejected by the other.
+  // That left documents nobody could save from the CMS: not the block, every
+  // field on the page.
+  if (type === 'markdown') {
+    if (typeof data.markdown !== 'string') badRequest(`${field}.markdown is required`)
+    if (data.editor_mode !== 'rich' && data.editor_mode !== 'source') {
+      badRequest(`${field}.editor_mode must be rich or source`)
+    }
+    if (data.editor_mode === 'rich' && markdownRequiresSourceMode(data.markdown)) {
+      badRequest(`${field} uses markdown tables or raw HTML, which require editor_mode source`)
+    }
+  }
   return data
 }
 

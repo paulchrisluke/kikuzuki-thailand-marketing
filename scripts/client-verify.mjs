@@ -439,6 +439,96 @@ if (required.length > 0) {
   }
 }
 
+// ── Phase 5b: Image alt text ─────────────────────────────────────────────────
+//
+// Checks the alt text a crawler and a screen reader actually receive.
+//
+// Alt text describes what is in the picture, so the only place it can come from
+// is someone looking at that picture. Every other source is a guess wearing its
+// clothes, and the guesses were shipping: the NCLS import wrote media slot names
+// into media_assets.alt_text (article_inline_image, home_hero_background), the
+// MCP upload path fell back to the file name, and the renderers papered over
+// both by borrowing the page title or the CTA label. 141 of that tenant's 142
+// assets carried a machine key instead of a sentence.
+//
+// None of it was visible, because every image had *an* alt attribute and a
+// crawler cannot tell a description from a slug. This gate can: real alt text is
+// not a slug, not a file name, not the word "image", and not the same sentence
+// pasted onto every picture on the site. Short is fine — a logo's alt is the
+// brand name — so the rule names the words that never describe anything rather
+// than banning brevity.
+//
+// An empty alt is deliberately NOT a failure. alt="" is the correct, meaningful
+// markup for a decorative image, and HTML alone cannot distinguish one from a
+// forgotten description. Failing on it would fire on every tenant with a hero
+// backdrop, and a gate that cries wolf is a gate people learn to skip. Empty
+// alts are counted and reported so the number stays in view.
+
+info("── Image alt text");
+
+const IMG_TAG = /<img\b[^>]*>/gi;
+const ALT_ATTR = /\salt\s*=\s*"([^"]*)"/i;
+const SRC_ATTR = /\ssrc\s*=\s*"([^"]*)"/i;
+const MACHINE_KEY = /^[a-z0-9]+(?:[_.][a-z0-9]+)+$/;
+const FILE_NAME = /\.(?:png|jpe?g|webp|gif|svg|avif)$/i;
+const GENERIC_ALT = new Set(["image", "img", "photo", "picture", "thumbnail", "untitled", "screenshot", "graphic", "banner"]);
+
+const ARTICLE_BODY = /<article\b[\s\S]*?<\/article>/gi;
+
+// An image inside <article> is the content the page exists to show, so an empty
+// alt there is a missing description, not a decorative one. Outside it — site
+// chrome, a hero backdrop layered under text — alt="" is the correct markup.
+// The distinction matters because the epoch backfill clears the machine keys
+// that were standing in for alt text: without it, this gate would go quiet at
+// exactly the moment 140 placed images lost their (false) descriptions.
+const altBySrc = new Map();
+const contentImageSrcs = new Set();
+for (const html of Object.values(pageHtml)) {
+  for (const tag of html.match(IMG_TAG) ?? []) {
+    const src = tag.match(SRC_ATTR)?.[1];
+    if (!src || src.startsWith("data:")) continue;
+    if (!altBySrc.has(src)) altBySrc.set(src, tag.match(ALT_ATTR)?.[1] ?? null);
+  }
+  for (const body of html.match(ARTICLE_BODY) ?? []) {
+    for (const tag of body.match(IMG_TAG) ?? []) {
+      const src = tag.match(SRC_ATTR)?.[1];
+      if (src && !src.startsWith("data:")) contentImageSrcs.add(src);
+    }
+  }
+}
+
+if (altBySrc.size === 0) {
+  pass("No rendered images to alt-check");
+} else {
+  const timesUsed = new Map();
+  for (const alt of altBySrc.values()) {
+    const text = alt?.trim();
+    if (text) timesUsed.set(text, (timesUsed.get(text) ?? 0) + 1);
+  }
+
+  const unusable = [];
+  let decorative = 0;
+  for (const [src, alt] of altBySrc) {
+    const text = alt?.trim() ?? "";
+    const where = src.slice(-60);
+    if (text === "" && contentImageSrcs.has(src)) unusable.push(`no alt text on a content image — ${where}`);
+    else if (text === "") decorative += 1;
+    else if (MACHINE_KEY.test(text)) unusable.push(`machine key "${text}" — ${where}`);
+    else if (FILE_NAME.test(text)) unusable.push(`file name "${text}" — ${where}`);
+    else if (GENERIC_ALT.has(text.toLowerCase())) unusable.push(`says nothing "${text}" — ${where}`);
+    else if (timesUsed.get(text) > 2) unusable.push(`"${text}" reused on ${timesUsed.get(text)} different images`);
+  }
+
+  const described = altBySrc.size - decorative - unusable.length;
+  if (unusable.length > 0) {
+    for (const offender of [...new Set(unusable)].slice(0, 20)) fail(`Image alt: ${offender}`);
+    if (unusable.length > 20) fail(`Image alt: ${unusable.length - 20} further image(s) with unusable alt text`);
+  } else {
+    pass(`Alt text describes the subject on all ${described} non-decorative image(s)`);
+  }
+  if (decorative > 0) info(`  ${decorative} image(s) marked decorative with alt=""`);
+}
+
 // ── Phase 6: Bootstrap image URL validation ───────────────────────────────────
 
 if (SITE_ID) {

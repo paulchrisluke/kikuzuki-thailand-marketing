@@ -1,6 +1,6 @@
 import { jsonResponse } from '~/server/utils/api-response'
 import { requireTenantPageWriteAccess } from '~/server/utils/tenant-pages-api'
-import { listTenantPages } from '~/server/utils/tenant-pages'
+import { listTenantPages } from '~/server/utils/content/pages'
 
 export default defineHandler(async (event) => {
   const siteId = getRouterParam(event, 'siteId')

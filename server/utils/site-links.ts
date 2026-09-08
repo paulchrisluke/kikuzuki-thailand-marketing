@@ -1,5 +1,5 @@
 import { assertPublicSiteLanguageEntitlement, getPersistedSourceLocale } from '~/server/utils/localization'
-import { createContentDocumentWithBlocks, updateContentDocument } from '~/server/utils/content-documents'
+import { createContentDocumentWithBlocks, updateContentDocument } from '~/server/utils/content/documents'
 import { queryAll, queryFirst, type DbClient } from '~/server/db'
 import { d1JsonStringSet } from '~/server/db/d1-limits'
 import { cleanString } from '~/server/utils/api-response'

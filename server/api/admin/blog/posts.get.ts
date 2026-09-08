@@ -1,7 +1,7 @@
 // GET /api/admin/blog/posts - List platform blog posts
 import { cloudflareEnv, jsonResponse } from '~/server/utils/api-response'
 import { platformPermissionJsonResponse } from '~/server/utils/platform-admin-users'
-import { listPlatformBlogPosts } from '~/server/utils/platform-content'
+import { listBlogPosts } from '~/server/utils/content/publishing'
 
 export default defineHandler(async (event) => {
   const env = cloudflareEnv(event)
@@ -14,7 +14,7 @@ export default defineHandler(async (event) => {
   const query = getQuery(event)
   const status = query.status as string | undefined
 
-  return jsonResponse({ posts: await listPlatformBlogPosts(db, status) })
+  return jsonResponse({ posts: await listBlogPosts(db, status) })
 })
 import { defineHandler } from 'nitro';
 import { getQuery } from 'nitro/h3';

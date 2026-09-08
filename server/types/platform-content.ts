@@ -1,4 +1,4 @@
-import type { ContentBlockInput } from '~/server/utils/content-documents'
+import type { ContentBlockInput } from '~/server/utils/content/documents'
 
 export interface PlatformContentNavRequestBody {
   nav_section?: string | null

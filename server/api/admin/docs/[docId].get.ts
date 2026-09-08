@@ -3,7 +3,7 @@ import { cloudflareEnv, jsonResponse } from '~/server/utils/api-response'
 import { getAuthSession } from '~/server/utils/auth'
 import { anonymizeId } from '~/server/utils/platform-telemetry'
 import { platformPermissionJsonResponse } from '~/server/utils/platform-admin-users'
-import { getPlatformDoc } from '~/server/utils/platform-content'
+import { getPlatformDoc } from '~/server/utils/content/publishing'
 
 function auditLog(action: string, payload: ApiRecord) {
   console.info('[audit]', { action, timestamp: new Date().toISOString(), ...payload })

@@ -63,7 +63,7 @@
           {{ block.data.text }}
         </component>
         <figure v-else-if="block.type === 'image'" class="space-y-3">
-          <img v-if="blockMedia(block)[0]?.public_url" :src="String(blockMedia(block)[0]?.public_url)" :alt="String(block.data.alt || blockMedia(block)[0]?.alt_text || '')" class="max-h-[70vh] w-full object-cover">
+          <img v-if="blockMedia(block)[0]?.public_url" :src="String(blockMedia(block)[0]?.public_url)" :alt="String(blockMedia(block)[0]?.alt_text ?? '')" class="max-h-[70vh] w-full object-cover">
           <div v-else class="flex min-h-48 items-center justify-center bg-black/5 text-sm opacity-70">Choose an image</div>
           <figcaption v-if="block.data.caption" class="text-center text-sm opacity-70">{{ block.data.caption }}</figcaption>
           <slot v-if="editable" name="image-editor" :block="block" :index="index" />
@@ -106,8 +106,12 @@
         <ContentAiAssistanceSection v-else-if="block.type === 'ai_assistance' && aiAssistanceProps(block)" v-bind="aiAssistanceProps(block)!" />
         <aside v-else-if="block.type === 'callout'" class="rounded-xl border border-current/15 bg-current/5 p-5">
           <h3 v-if="block.data.title" class="mb-2 font-semibold">{{ block.data.title }}</h3>
-          <!-- eslint-disable-next-line vue/no-v-html -->
-          <div class="prose max-w-none" v-html="renderMarkdown(String(block.data.markdown || block.data.text || ''))" />
+          <!--
+            A callout's body is `body`, and it is literal text. This read
+            `data.markdown || data.text`, and no stored callout has either key,
+            so every callout in the blog rendered as an empty box.
+          -->
+          <div v-if="block.data.body" class="prose max-w-none whitespace-pre-wrap">{{ block.data.body }}</div>
         </aside>
         <div v-else-if="block.type === 'cta' && editable" class="space-y-2 rounded-xl border border-dashed border-current/25 p-4">
           <UInput :model-value="String(block.data.title || '')" placeholder="What do you want the reader to do?" class="w-full" @update:model-value="value => updateBlockData(index, 'title', String(value))" />
@@ -119,7 +123,7 @@
         </div>
         <div v-else-if="block.type === 'cta'" class="rounded-xl border border-current/15 p-6 text-center">
           <a v-if="blockMedia(block)[0]?.public_url && safeUrl(block.data.url)" :href="safeUrl(block.data.url)!" class="mb-4 block">
-            <img :src="blockMedia(block)[0]!.public_url || ''" :alt="String(blockMedia(block)[0]!.alt_text || block.data.label || '')" class="mx-auto max-h-[28rem] w-full object-contain">
+            <img :src="blockMedia(block)[0]!.public_url || ''" :alt="String(blockMedia(block)[0]!.alt_text ?? '')" class="mx-auto max-h-[28rem] w-full object-contain">
           </a>
           <h3 v-if="block.data.title" class="text-xl font-semibold">{{ block.data.title }}</h3>
           <p v-if="block.data.description" class="mt-2 opacity-75">{{ block.data.description }}</p>

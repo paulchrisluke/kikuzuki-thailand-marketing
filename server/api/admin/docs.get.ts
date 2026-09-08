@@ -1,7 +1,7 @@
 // GET /api/admin/docs - List platform docs
 import { cloudflareEnv, jsonResponse } from '~/server/utils/api-response'
 import { platformPermissionJsonResponse } from '~/server/utils/platform-admin-users'
-import { listPlatformDocs } from '~/server/utils/platform-content'
+import { listPlatformDocs } from '~/server/utils/content/publishing'
 
 export default defineHandler(async (event) => {
   const env = cloudflareEnv(event)

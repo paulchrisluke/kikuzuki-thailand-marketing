@@ -211,10 +211,9 @@ function setString(key: string, value: unknown) {
   emitBlock({ ...props.block, data: { ...props.block.data, [key]: value == null ? '' : String(value) } })
 }
 
-function setAsset(asset: { asset_id: string; alt_text?: string } | null) {
+function setAsset(asset: { asset_id: string } | null) {
   emitBlock({
     ...props.block,
-    data: { ...props.block.data, alt: asset?.alt_text ?? '' },
     media: asset ? [{ asset_id: asset.asset_id, slot: 'media', sort_order: 0 }, ...props.block.media.filter(item => item.slot !== 'media')] : props.block.media.filter(item => item.slot !== 'media'),
   })
 }

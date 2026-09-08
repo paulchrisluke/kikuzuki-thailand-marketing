@@ -2,7 +2,7 @@
 import { cloudflareEnv, jsonResponse, readRequiredBody } from '~/server/utils/api-response'
 import { getAuthSession } from '~/server/utils/auth'
 import { platformPermissionJsonResponse } from '~/server/utils/platform-admin-users'
-import { updatePlatformBlogPost } from '~/server/utils/platform-content'
+import { updateBlogPost } from '~/server/utils/content/publishing'
 import { schedulePlatformKnowledgeIndexRebuild } from '~/server/utils/platform-search-rebuild'
 
 import type { PlatformBlogPostRequestBody } from '~/server/types/platform-content'
@@ -27,7 +27,7 @@ export default defineHandler(async (event) => {
   }
 
   try {
-    const result = await updatePlatformBlogPost(db, postId, body, null, env)
+    const result = await updateBlogPost(db, postId, body, null, env)
     schedulePlatformKnowledgeIndexRebuild(event, env, 'blog post update')
     return jsonResponse(result)
   } catch (err) {

@@ -1,7 +1,7 @@
 // GET /api/public/blog - List published platform blog posts
 import { queryAll } from '~/server/db'
 import { cloudflareEnv, jsonResponse } from '~/server/utils/api-response'
-import { attachFeaturedMediaFromBareJoin } from '~/server/utils/platform-content'
+import { attachFeaturedMediaFromBareJoin } from '~/server/utils/content/publishing'
 import { blogCategoryToSlug } from '~/utils/blog-categories'
 import { PLATFORM_SITE_ID } from '~/shared/platform-scope'
 

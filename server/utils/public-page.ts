@@ -25,8 +25,8 @@ import {
 import { getMediaPlacements } from '~/server/utils/media-placement'
 import type { Product } from '~/server/types/products'
 import { resolveSiteCmsCapabilities } from '~/server/utils/cms-capabilities'
-import { attachFeaturedMediaFromBareJoin } from "~/server/utils/platform-content";
-import { getContentBlocksForDocument } from '~/server/utils/content-documents'
+import { attachFeaturedMediaFromBareJoin } from "~/server/utils/content/publishing";
+import { getContentBlocksForDocument } from '~/server/utils/content/documents'
 import {
   buildPublicResourceCacheKey,
   getPublicResourceCache,

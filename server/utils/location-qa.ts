@@ -1,5 +1,5 @@
 import { getPersistedSourceLocale } from '~/server/utils/localization'
-import { createContentDocumentWithBlocks, prepareContentDocumentDeletion } from '~/server/utils/content-documents'
+import { createContentDocumentWithBlocks, prepareContentDocumentDeletion } from '~/server/utils/content/documents'
 import { execute, executeBatch, queryAll, queryFirst, type DbClient } from '../db/index.ts'
 import { d1JsonStringSet } from '../db/d1-limits.ts'
 

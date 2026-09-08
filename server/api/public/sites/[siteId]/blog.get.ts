@@ -1,7 +1,7 @@
 // GET /api/public/sites/[siteId]/blog - List a tenant site's published blog posts
 import { queryAll } from '~/server/db'
 import { cloudflareEnv, jsonResponse } from '~/server/utils/api-response'
-import { attachFeaturedMediaFromBareJoin } from '~/server/utils/platform-content'
+import { attachFeaturedMediaFromBareJoin } from '~/server/utils/content/publishing'
 
 export default defineHandler(async (event) => {
   const siteId = getRouterParam(event, 'siteId')

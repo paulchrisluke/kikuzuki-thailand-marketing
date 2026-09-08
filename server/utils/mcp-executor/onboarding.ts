@@ -31,7 +31,7 @@ export async function handleOnboardingTools(ctx: McpExecutorContext): Promise<un
         kind: "image",
         source: "generated",
         provider,
-        altText: prompt ?? "AI-generated hero image",
+        altText: prompt,
       });
 
       return {
@@ -57,7 +57,7 @@ export async function handleOnboardingTools(ctx: McpExecutorContext): Promise<un
         kind: "image",
         source: "generated",
         provider,
-        altText: prompt ?? attachment.file_name ?? "AI-generated image attachment",
+        altText: prompt,
       });
 
       return {

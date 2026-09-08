@@ -7,6 +7,7 @@ import {
 } from '~/server/utils/agent-skills/mcp-schema'
 import {
   CONTENT_BLOCK_TYPES,
+  describeContentBlockTextFields,
   CONTENT_DOCUMENT_KINDS,
 } from '~/shared/content-registries'
 
@@ -125,7 +126,7 @@ const PLATFORM_MEDIA_ASSET_SCHEMA = {
   additionalProperties: false,
 }
 
-const CONTENT_BLOCK_DATA_SCHEMA = { type: 'object' }
+const CONTENT_BLOCK_DATA_SCHEMA = { type: 'object', description: describeContentBlockTextFields(CONTENT_BLOCK_TYPES) }
 
 const CONTENT_BLOCK_SCHEMA = {
   type: 'object',

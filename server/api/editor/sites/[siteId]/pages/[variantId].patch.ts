@@ -1,8 +1,8 @@
 import { jsonResponse, readRequiredBody, rethrowHttpError } from '~/server/utils/api-response'
 import { finalizeRequestMetrics } from '~/server/utils/request-metrics'
 import { requireTenantPageWriteAccess } from '~/server/utils/tenant-pages-api'
-import { updateTenantPage } from '~/server/utils/tenant-pages'
-import type { TenantPageEditorInput } from '~/server/utils/tenant-pages'
+import { updateTenantPage } from '~/server/utils/content/pages'
+import type { TenantPageEditorInput } from '~/server/utils/content/pages'
 
 export default defineHandler(async (event) => {
   const siteId = getRouterParam(event, 'siteId')

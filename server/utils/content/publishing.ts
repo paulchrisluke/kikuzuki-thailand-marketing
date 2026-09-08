@@ -1,5 +1,4 @@
 import { HTTPError } from 'nitro';
-import { markdownRequiresSourceMode } from '~/shared/markdown-editor-mode'
 
 import { execute, executeBatch, queryAll, queryFirst, type BatchQuery, type DbClient } from '~/server/db'
 import {
@@ -15,7 +14,7 @@ import {
   type ContentDocumentChanges,
   renderContentBlocksToMarkdown,
   type ContentBlockInput,
-} from '~/server/utils/content-documents'
+} from '~/server/utils/content/documents'
 import {
   loadExactPublicLocalizations,
   projectLocalizedMediaAlt,
@@ -204,7 +203,7 @@ export interface PlatformBlogLifecycleState {
   updated_at: string
 }
 
-export function parsePlatformBlogLifecycleInput(body: unknown, _action: 'publish' = 'publish'): PlatformBlogLifecycleInput {
+export function parseBlogLifecycleInput(body: unknown, _action: 'publish' = 'publish'): PlatformBlogLifecycleInput {
   if (!body || typeof body !== 'object' || Array.isArray(body)) badRequest('Request body must be a valid object')
   const record = body as Record<string, unknown>
   const allowed = new Set(['expected_updated_at', 'scheduled_for'])
@@ -348,13 +347,6 @@ async function normalizeEditorContentBlocks(
   return await Promise.all(blocks.map(async (block): Promise<NormalizedEditorBlock> => {
     if (!block || typeof block !== 'object' || !block.data || typeof block.data !== 'object' || Array.isArray(block.data)) badRequest('Every content block requires an object data payload')
     if (block.type === 'heading' && (typeof block.data.text !== 'string' || !block.data.text.trim())) badRequest('Heading blocks require non-empty data.text')
-    if (block.type === 'markdown') {
-      if (typeof block.data.markdown !== 'string') badRequest('Markdown blocks require data.markdown')
-      if (block.data.editor_mode !== 'rich' && block.data.editor_mode !== 'source') badRequest('Markdown blocks require data.editor_mode to be rich or source')
-      if (block.data.editor_mode === 'rich' && markdownRequiresSourceMode(block.data.markdown)) {
-        badRequest('Markdown tables and raw HTML require editor_mode source')
-      }
-    }
     const id = block.id ?? crypto.randomUUID()
     const media = Array.isArray(block.media) ? block.media : []
     if (block.type === 'image' && media.length > 1) badRequest('Image blocks accept one media asset')
@@ -593,7 +585,7 @@ async function resolveTenantContext(db: DbClient, siteId: string | null, env?: C
  * request, which was causing the page to 404 on posts the API itself
  * served fine.
  */
-export async function getPublishedPlatformBlogPost(db: DbClient, category: string, slug: string, env: CloudflareEnv) {
+export async function getPublishedBlogPost(db: DbClient, category: string, slug: string, env: CloudflareEnv) {
   const post = await queryFirst<ApiRecord>(db, `
     SELECT
       p.id, p.title, p.slug, p.summary AS excerpt, (p.metadata_json ->> '$.category') AS category, json_extract(p.metadata_json, '$.tags') AS tags_json, p.seo_title, p.seo_description, p.seo_keywords,
@@ -631,7 +623,7 @@ export async function getPublishedPlatformBlogPost(db: DbClient, category: strin
 
 /**
  * Shared by the public docs API route and the docs page's SSR data fetch.
- * See getPublishedPlatformBlogPost above for why the page must call this
+ * See getPublishedBlogPost above for why the page must call this
  * directly rather than doing a nested self-fetch back to the API route.
  */
 export async function getPublishedPlatformDoc(db: DbClient, category: string, slug: string, env: CloudflareEnv) {
@@ -752,7 +744,7 @@ function validateDocCommon(input: Partial<PlatformDocCreateInput>) {
   }
 }
 
-export async function listPlatformBlogPosts(db: DbClient, status?: string | null, siteId: string | null = null, env?: CloudflareEnv) {
+export async function listBlogPosts(db: DbClient, status?: string | null, siteId: string | null = null, env?: CloudflareEnv) {
   let sql = `SELECT
       p.id, p.title, p.slug, p.summary AS excerpt, (p.metadata_json ->> '$.category') AS category, json_extract(p.metadata_json, '$.tags') AS tags_json, p.status, p.visibility, p.scheduled_for,
       p.seo_title, p.seo_description, p.seo_keywords, p.canonical_url, p.robots,
@@ -781,7 +773,7 @@ export async function listPlatformBlogPosts(db: DbClient, status?: string | null
   })
 }
 
-export async function getPlatformBlogPost(db: DbClient, postIdOrSlug: string, siteId: string | null = null, env?: CloudflareEnv) {
+export async function getBlogPost(db: DbClient, postIdOrSlug: string, siteId: string | null = null, env?: CloudflareEnv) {
   const resolvedSiteId = siteId ?? PLATFORM_SITE_ID
   const postId = await resolvePlatformContentId(db, 'article', postIdOrSlug, 'Post not found', resolvedSiteId)
   const post = await queryFirst<ApiRecord | null>(
@@ -929,7 +921,7 @@ export async function getPublishedLocalizedSiteBlogPost(
   }
 }
 
-export async function createPlatformBlogPost(
+export async function createBlogPost(
   db: D1Database,
   authorId: string,
   input: PlatformBlogCreateInput,
@@ -993,7 +985,7 @@ export async function createPlatformBlogPost(
           ...await contentBlockPlacementQueries(db, canonicalBlocks, placementScope, now),
         ],
       })
-      const post = await getPlatformBlogPost(db, id, siteId, env)
+      const post = await getBlogPost(db, id, siteId, env)
       if (env) await refreshSocialCard({ db, env, owner: { owner_type: 'content_document', owner_id: id }, actorId: authorId })
       return {
         success: true,
@@ -1017,7 +1009,7 @@ export async function createPlatformBlogPost(
   throw new HTTPError({ statusCode: 500, statusMessage: 'Failed to create post' })
 }
 
-export async function updatePlatformBlogLifecycle(
+export async function updateBlogLifecycle(
   db: D1Database,
   postIdOrSlug: string,
   input: PlatformBlogLifecycleInput,
@@ -1051,7 +1043,7 @@ export async function updatePlatformBlogLifecycle(
     published_at: scheduledFor ? null : committedAt, scheduled_for: scheduledFor, updated_at: committedAt }
 }
 
-export async function updatePlatformBlogPost(
+export async function updateBlogPost(
   db: D1Database, postIdOrSlug: string, input: PlatformBlogUpdateInput,
   siteId: string | null = null, env?: CloudflareEnv,
 ) {
@@ -1117,7 +1109,7 @@ export async function updatePlatformBlogPost(
     if (requestedSlug && requestedSlug !== current.slug && current.first_published_at && input.redirect_old_slug !== false) {
       await createBlogRedirect(db, postId, siteId, current.slug)
     }
-    const post = await getPlatformBlogPost(db, postId, siteId, env)
+    const post = await getBlogPost(db, postId, siteId, env)
     if (env) await refreshSocialCard({ db, env, owner: { owner_type: 'content_document', owner_id: postId } })
     return { success: true, admin_edit_url: post.admin_edit_url, edit_url: post.edit_url,
       public_path: post.public_path, public_url: post.public_url, preview_url: post.preview_url, post }
@@ -1127,7 +1119,7 @@ export async function updatePlatformBlogPost(
   }
 }
 
-export async function deletePlatformBlogPost(db: D1Database, postIdOrSlug: string, siteId: string | null = null) {
+export async function deleteBlogPost(db: D1Database, postIdOrSlug: string, siteId: string | null = null) {
   const postId = await resolvePlatformContentId(db, 'article', postIdOrSlug, 'Post not found', siteId ?? PLATFORM_SITE_ID)
   const document = await getContentDocumentById(db, postId)
   if (!document) notFound('Document not found')
@@ -1136,7 +1128,7 @@ export async function deletePlatformBlogPost(db: D1Database, postIdOrSlug: strin
   return { success: true }
 }
 
-export async function reorderPlatformBlogPosts(
+export async function reorderBlogPosts(
   db: D1Database,
   items: Array<{
     post_id: string
@@ -1164,7 +1156,7 @@ export async function reorderPlatformBlogPosts(
     queries.push(...prepareContentDocumentUpdate(document, { expected_updated_at: document.updated_at, changes: { metadata } }).queries)
   }
   await executeBatch(db, queries)
-  return { success: true, posts: await listPlatformBlogPosts(db, null, siteId, env) }
+  return { success: true, posts: await listBlogPosts(db, null, siteId, env) }
 }
 
 export async function listPlatformDocs(db: DbClient, _status?: string | null) {

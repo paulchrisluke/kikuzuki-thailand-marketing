@@ -1,3 +1,4 @@
+import { CONTENT_BLOCK_TYPES, describeContentBlockTextFields } from '~/shared/content-registries'
 import type { McpToolDefinition } from './shared'
 import { bookingPolicyObject, bookingPolicyWriteSchema, pageInfoObject, paginationInputSchema, renderedBookingPolicySummaryObject, siteTool } from './shared'
 
@@ -22,7 +23,7 @@ const TENANT_PAGE_BLOCKS_SCHEMA = {
       id: { type: 'string' },
       type: { type: 'string' },
       position: { type: 'number' },
-      data: { type: 'object' },
+      data: { type: 'object', description: describeContentBlockTextFields(CONTENT_BLOCK_TYPES) },
       media: {
         type: 'array',
         items: {

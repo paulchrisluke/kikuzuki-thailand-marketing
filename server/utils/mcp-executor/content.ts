@@ -8,7 +8,7 @@ import {
   getTenantPageById,
   listTenantPages,
   updateTenantPage,
-} from '~/server/utils/tenant-pages'
+} from '~/server/utils/content/pages'
 import { getProfessionalServiceContent, upsertProfessionalServiceContent } from '~/server/utils/professional-services-editor'
 import { renderStructuredResponse } from '~/server/utils/mcp-render'
 import { paginateMcpCollection } from '~/server/utils/mcp-pagination'

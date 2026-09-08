@@ -10,7 +10,7 @@ import { ensureLocationTeam } from "~/server/utils/member-access";
 import type { CloudflareEnv } from "~/server/utils/auth";
 import { refreshSocialCard } from '~/server/utils/social-card'
 import { resourceLocalizationDeletionQueries } from '~/server/utils/localization'
-import { prepareContentDocumentDeletion } from '~/server/utils/content-documents'
+import { prepareContentDocumentDeletion } from '~/server/utils/content/documents'
 
 export function normalizeLocationNotificationPhone(raw: string | null | undefined): string | null {
   if (raw === undefined || raw === null || !raw.trim()) return null;

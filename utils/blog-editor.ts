@@ -1,5 +1,5 @@
 import { instantDate, isValidInstant, localDateTimeToInstant } from './timezone'
-import { PUBLICATION_CONTENT_BLOCK_LOCALIZED_FIELDS, type PublicationContentBlockType } from '~/shared/content-registries'
+import { PUBLICATION_CONTENT_BLOCK_LOCALIZED_FIELDS, expandContentFieldPath, readContentFieldValue, type PublicationContentBlockType } from '~/shared/content-registries'
 
 export type BlogVisibility = 'public' | 'unlisted'
 
@@ -38,41 +38,16 @@ function localizedTextField(data: Record<string, unknown>, path: BlogLocalizedFi
   }]
 }
 
-function expandLocalizedFieldPath(
-  data: Record<string, unknown>,
-  pattern: readonly (string | '*')[],
-  path: BlogLocalizedFieldPath = [],
-): BlogLocalizedFieldPath[] {
-  const [segment, ...remaining] = pattern
-  if (segment === undefined) return [path]
-  if (segment !== '*') return expandLocalizedFieldPath(data, remaining, [...path, segment])
-  const collection = readBlogLocalizedValue(data, path)
-  if (!Array.isArray(collection)) return []
-  return collection.flatMap((_, index) => expandLocalizedFieldPath(data, remaining, [...path, index]))
-}
 
 export function blogLocalizedTextFields(block: Pick<EditorContentBlock, 'type' | 'data'>): BlogLocalizedTextField[] {
   if (!(block.type in PUBLICATION_CONTENT_BLOCK_LOCALIZED_FIELDS)) return []
   const patterns = PUBLICATION_CONTENT_BLOCK_LOCALIZED_FIELDS[block.type as PublicationContentBlockType]
-  return patterns.flatMap(pattern => expandLocalizedFieldPath(block.data, pattern).flatMap(path => localizedTextField(block.data, path)))
+  return patterns.flatMap(pattern => expandContentFieldPath(block.data, pattern).flatMap(path => localizedTextField(block.data, path)))
 }
 
-function readBlogLocalizedValue(data: Record<string, unknown>, path: BlogLocalizedFieldPath): unknown {
-  let value: unknown = data
-  for (const segment of path) {
-    if (typeof segment === 'number') {
-      if (!Array.isArray(value)) return undefined
-      value = value[segment]
-    } else {
-      if (!objectRecord(value)) return undefined
-      value = value[segment]
-    }
-  }
-  return value
-}
 
 export function readBlogLocalizedText(data: Record<string, unknown>, path: BlogLocalizedFieldPath): string | undefined {
-  const value = readBlogLocalizedValue(data, path)
+  const value = readContentFieldValue(data, path)
   return typeof value === 'string' ? value : undefined
 }
 

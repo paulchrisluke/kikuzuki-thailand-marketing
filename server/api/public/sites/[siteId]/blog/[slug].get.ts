@@ -1,6 +1,6 @@
 // GET /api/public/sites/[siteId]/blog/[slug] - Get a single published tenant blog post
 import { cloudflareEnv, jsonResponse } from '~/server/utils/api-response'
-import { getPublishedLocalizedSiteBlogPost } from '~/server/utils/platform-content'
+import { getPublishedLocalizedSiteBlogPost } from '~/server/utils/content/publishing'
 import { assertExactCanonicalLocale } from '~/server/utils/localization'
 import { getQuery } from 'nitro/h3'
 

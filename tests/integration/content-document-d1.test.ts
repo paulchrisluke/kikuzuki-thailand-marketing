@@ -9,7 +9,7 @@ import {
   appendContentBlock, replaceContentBlock, deleteContentBlock,
   createContentDocumentWithBlocks, getContentDocumentById, listBlocksForDocument,
   prepareContentDocumentUpdate, prepareContentDocumentDeletion, updateContentDocument,
-} from '../../server/utils/content-documents.ts'
+} from '../../server/utils/content/documents.ts'
 
 test('document scopes, translations, block ownership and concurrent edits persist through real D1', async () => {
   const miniflare = new Miniflare({ workers: [{ config: {

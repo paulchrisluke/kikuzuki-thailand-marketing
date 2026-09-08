@@ -26,22 +26,22 @@ import {
   CONTENT_BLOCK_TYPES,
   type ContentBlockType,
   type ContentBlockInput,
-} from '~/server/utils/content-documents'
+} from '~/server/utils/content/documents'
 import {
-  createPlatformBlogPost,
+  createBlogPost,
   createPlatformDoc,
-  deletePlatformBlogPost,
+  deleteBlogPost,
   deletePlatformDoc,
-  getPlatformBlogPost,
+  getBlogPost,
   getPlatformDoc,
-  listPlatformBlogPosts,
+  listBlogPosts,
   listPlatformDocs,
-  reorderPlatformBlogPosts,
+  reorderBlogPosts,
   reorderPlatformDocs,
-  updatePlatformBlogLifecycle,
-  updatePlatformBlogPost,
+  updateBlogLifecycle,
+  updateBlogPost,
   updatePlatformDoc,
-} from '~/server/utils/platform-content'
+} from '~/server/utils/content/publishing'
 
 function requiredString(args: Record<string, unknown>, key: string) {
   const value = args[key]
@@ -737,7 +737,7 @@ export async function executePlatformMcpToolCall(
         cloudflare_image_id: uploaded.imageId,
         public_url: uploaded.publicUrl,
         thumbnail_url: uploaded.thumbnailUrl,
-        alt_text: optionalString(rawArguments, 'alt_text') ?? fileReference?.file_name ?? null,
+        alt_text: optionalString(rawArguments, 'alt_text') ?? null,
         mime_type: upload.contentType,
         file_name: upload.filename,
         status: 'active',
@@ -811,12 +811,12 @@ export async function executePlatformMcpToolCall(
     case 'list_platform_blog_posts': {
       const status = optionalString(rawArguments, 'status')
       const siteId = optionalString(rawArguments, 'site_id')
-      const posts = await listPlatformBlogPosts(user.db, status, siteId, user.env)
+      const posts = await listBlogPosts(user.db, status, siteId, user.env)
       const page = paginateMcpCollection(posts, rawArguments, { resource: `platform-blog-posts:${siteId ?? ''}:${status ?? ''}` })
       return { posts: page.items, page_info: page.page_info }
     }
     case 'get_platform_blog_post':
-      return { post: projectPlatformBlogPostForMcp(await getPlatformBlogPost(user.db, requiredString(rawArguments, 'post_id'), optionalString(rawArguments, 'site_id'), user.env)) }
+      return { post: projectPlatformBlogPostForMcp(await getBlogPost(user.db, requiredString(rawArguments, 'post_id'), optionalString(rawArguments, 'site_id'), user.env)) }
     case 'create_platform_blog_post': {
       const siteId = optionalString(rawArguments, 'site_id')
       let blogScope = undefined
@@ -829,7 +829,7 @@ export async function executePlatformMcpToolCall(
         if (!site) throw mcpProtocolError(MCP_ERROR.invalidParams, 'Site not found.')
         blogScope = { site_id: siteId, organization_id: site.organization_id }
       }
-      const result = await createPlatformBlogPost(user.db, user.userId, {
+      const result = await createBlogPost(user.db, user.userId, {
         title: requiredString(rawArguments, 'title'),
         content_blocks: contentBlocks(rawArguments),
         excerpt: optionalString(rawArguments, 'excerpt') ?? null,
@@ -851,7 +851,7 @@ export async function executePlatformMcpToolCall(
       if (!metadataFields.some(field => rawArguments[field] !== undefined)) {
         throw mcpProtocolError(MCP_ERROR.invalidParams, 'At least one metadata field is required.')
       }
-      const result = await updatePlatformBlogPost(user.db, requiredString(rawArguments, 'post_id'), {
+      const result = await updateBlogPost(user.db, requiredString(rawArguments, 'post_id'), {
         expected_updated_at: requiredString(rawArguments, 'expected_updated_at'),
         title: optionalString(rawArguments, 'title'),
         excerpt: optionalString(rawArguments, 'excerpt'),
@@ -872,7 +872,7 @@ export async function executePlatformMcpToolCall(
     }
     case 'replace_platform_blog_content': {
       const siteId = optionalString(rawArguments, 'site_id')
-      const result = await updatePlatformBlogPost(user.db, requiredString(rawArguments, 'post_id'), {
+      const result = await updateBlogPost(user.db, requiredString(rawArguments, 'post_id'), {
         content_blocks: contentBlocks(rawArguments),
         expected_updated_at: requiredString(rawArguments, 'expected_updated_at'),
       }, siteId, user.env)
@@ -880,13 +880,13 @@ export async function executePlatformMcpToolCall(
     }
     case 'publish_platform_blog_post': {
       const call = platformBlogLifecycleCall(rawArguments, 'publish')
-      await updatePlatformBlogLifecycle(user.db, call.postId, call.input, call.siteId)
-      return { post: projectPlatformBlogPostForMcp(await getPlatformBlogPost(user.db, call.postId, call.siteId, user.env)) }
+      await updateBlogLifecycle(user.db, call.postId, call.input, call.siteId)
+      return { post: projectPlatformBlogPostForMcp(await getBlogPost(user.db, call.postId, call.siteId, user.env)) }
     }
     case 'reorder_platform_blog_posts':
-      return await reorderPlatformBlogPosts(user.db, reorderItems(rawArguments, 'post_id') as Array<{ post_id: string; nav_section?: string | null; nav_title?: string | null; nav_order: number; nav_section_order?: number | null; hide_from_nav?: boolean | null }>, optionalString(rawArguments, 'site_id'), user.env)
+      return await reorderBlogPosts(user.db, reorderItems(rawArguments, 'post_id') as Array<{ post_id: string; nav_section?: string | null; nav_title?: string | null; nav_order: number; nav_section_order?: number | null; hide_from_nav?: boolean | null }>, optionalString(rawArguments, 'site_id'), user.env)
     case 'delete_platform_blog_post':
-      return await deletePlatformBlogPost(user.db, requiredString(rawArguments, 'post_id'), optionalString(rawArguments, 'site_id'))
+      return await deleteBlogPost(user.db, requiredString(rawArguments, 'post_id'), optionalString(rawArguments, 'site_id'))
     case 'list_platform_docs': {
       const docs = await listPlatformDocs(user.db)
       const page = paginateMcpCollection(docs, rawArguments, { resource: 'platform-docs' })

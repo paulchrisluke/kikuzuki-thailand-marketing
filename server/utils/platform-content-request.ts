@@ -1,4 +1,4 @@
-import type { PlatformBlogCreateInput } from '~/server/utils/platform-content'
+import type { PlatformBlogCreateInput } from '~/server/utils/content/publishing'
 import type { PlatformBlogPostRequestBody, PlatformContentNavRequestBody } from '~/server/types/platform-content'
 
 export function platformContentNavInput(

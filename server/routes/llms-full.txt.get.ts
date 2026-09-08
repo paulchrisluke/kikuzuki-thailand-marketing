@@ -2,7 +2,7 @@ import { HTTPError, defineHandler  } from 'nitro';
 
 import { cloudflareEnv, textResponse } from '~/server/utils/api-response'
 import {
-  buildLlmsFullTxt, getPublishedTenantBlogPostBySlug, listPublishedTenantBlogPostsForLlm, getPublishedPlatformBlogPostBySlug, getPublishedPlatformDocBySlug, listPublishedPlatformBlogPostsForLlm, listPublishedPlatformDocsForLlm, renderTenantBlogMarkdown, resolvePublicOrigin, } from '~/server/utils/platform-llm'
+  buildLlmsFullTxt, getPublishedTenantBlogPostBySlug, listPublishedTenantBlogPostsForLlm, getPublishedBlogPostBySlug, getPublishedPlatformDocBySlug, listPublishedPlatformBlogPostsForLlm, listPublishedPlatformDocsForLlm, renderTenantBlogMarkdown, resolvePublicOrigin, } from '~/server/utils/platform-llm'
 import { blogCategoryToSlug } from '~/utils/blog-categories'
 import { categoryToSlug } from '~/utils/docs-categories'
 
@@ -40,7 +40,7 @@ export default defineHandler(async (event) => {
     (postSummaries ?? []).flatMap((post) => {
       const categorySlug = blogCategoryToSlug(post.category)
       if (!categorySlug) return []
-      return [getPublishedPlatformBlogPostBySlug(db, categorySlug, post.slug)]
+      return [getPublishedBlogPostBySlug(db, categorySlug, post.slug)]
     }), )).filter((post): post is NonNullable<typeof post> => Boolean(post))
 
   return textResponse(buildLlmsFullTxt(origin, docs, posts))

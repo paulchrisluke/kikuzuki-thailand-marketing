@@ -47,10 +47,12 @@
                 accept="image"
                 @change="changeImage(index, $event)"
               />
-              <div class="mt-2 grid gap-2 sm:grid-cols-2">
-                <UInput :model-value="String(block.data.alt || '')" placeholder="Alt text" @update:model-value="value => setBlockData(index, 'alt', value)" />
-                <UInput :model-value="String(block.data.caption || '')" placeholder="Caption" @update:model-value="value => setBlockData(index, 'caption', value)" />
-              </div>
+              <!--
+                Alt text is not asked for here. It describes the picture, so it
+                belongs to the media asset and is edited once in the media
+                library — not re-entered at every place the asset is used.
+              -->
+              <UInput class="mt-2 w-full" :model-value="String(block.data.caption || '')" placeholder="Caption" @update:model-value="value => setBlockData(index, 'caption', value)" />
             </template>
           </BlogArticleView>
         </div>
@@ -124,10 +126,16 @@
           </UFormField>
 
           <!--
-            Publishing is a leaf like any other, so the lifecycle controls live
-            in its commit bar rather than floating over the canvas. Publishing
-            is the one action here that changes what the public sees, which is
-            exactly why it belongs behind a deliberate step.
+            Publishing is a leaf like any other, so it commits through the pane's
+            own Cancel/Save bar. It used to carry its own "Publish now" button in
+            the body as well, which put two commit mechanisms on one screen: the
+            selects saved with the bar, the lifecycle went through a separate
+            endpoint the moment you pressed it. That is the whole reason the CMS
+            felt inconsistent about how you save — a tenant had to learn a second
+            place to look, on exactly one screen.
+
+            Save now carries the lifecycle change too. What the fields say when
+            you press Save is what the post becomes.
           -->
           <div v-else-if="section === 'publishing'" class="space-y-5">
             <UFormField label="Status">
@@ -142,15 +150,6 @@
             <UFormField label="Visibility">
               <USelect v-model="form.visibility" :items="['public', 'unlisted']" class="w-full" />
             </UFormField>
-            <UButton
-              v-if="post?.status !== 'published'"
-              :loading="publishing"
-              :disabled="!interactive || publishing || loadPending || saveState === 'conflict'"
-              block
-              @click="publish"
-            >
-              {{ publishTiming === 'Scheduled' ? (post ? 'Reschedule' : 'Schedule') : 'Publish now' }}
-            </UButton>
           </div>
 
           <div v-else-if="section === 'search'" class="space-y-5">
@@ -590,6 +589,14 @@ async function saveSection() {
     markContentDirty()
     saveQueue.mark(buildSaveSnapshot())
     await flushSave()
+    // The publishing leaf's Save is what commits the lifecycle. A post that is
+    // already live has nothing left to schedule, so only an unpublished one
+    // goes through the lifecycle endpoint.
+    if (section.value === 'publishing' && post.value.status !== 'published') {
+      await publish()
+      // Stay on the leaf when it failed, so the reason is still on screen.
+      if (actionError.value) return
+    }
     await navigateTo(postPath.value)
   } catch (error: unknown) {
     actionError.value = getErrorMessage(error, 'Failed to save.')
@@ -656,7 +663,7 @@ function handleInsertBlock(index: number, _cursorPosition: number) {
 // every freshly inserted image block unsavable. `changeImage` writes the chosen
 // asset to `media`; only alt and caption belong here.
 function structuralBlockData(type: string) {
-  return type === 'faq' ? { items: [{ question: '', answer: '' }] } : type === 'how_to' ? { steps: [{ text: '' }] } : type === 'image' ? { alt: '', caption: '' } : type === 'cta' ? { title: '', description: null, label: null, url: null } : {}
+  return type === 'faq' ? { items: [{ question: '', answer: '' }] } : type === 'how_to' ? { steps: [{ text: '' }] } : type === 'image' ? { caption: '' } : type === 'cta' ? { title: '', description: null, label: null, url: null } : {}
 }
 // A non-text block (image/FAQ/how-to/divider/etc.) left as the last block in
 // the post is a dead end — there's no textarea or rich editor to click into

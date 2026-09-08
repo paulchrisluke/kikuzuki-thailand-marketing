@@ -3,7 +3,7 @@ import { defineHandler } from 'nitro';
 import { cloudflareEnv, jsonResponse, readRequiredBody } from '~/server/utils/api-response'
 import { getAuthSession } from '~/server/utils/auth'
 import { platformPermissionJsonResponse } from '~/server/utils/platform-admin-users'
-import { createPlatformDoc } from '~/server/utils/platform-content'
+import { createPlatformDoc } from '~/server/utils/content/publishing'
 import { platformContentNavInput } from '~/server/utils/platform-content-request'
 import { schedulePlatformKnowledgeIndexRebuild } from '~/server/utils/platform-search-rebuild'
 

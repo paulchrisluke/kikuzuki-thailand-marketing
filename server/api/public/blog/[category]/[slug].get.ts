@@ -1,6 +1,6 @@
 // GET /api/public/blog/[category]/[slug] - Get single published blog post, scoped to its category
 import { cloudflareEnv, jsonResponse } from '~/server/utils/api-response'
-import { getPublishedPlatformBlogPost } from '~/server/utils/platform-content'
+import { getPublishedBlogPost } from '~/server/utils/content/publishing'
 import { slugToBlogCategory } from '~/utils/blog-categories'
 
 export default defineHandler(async (event) => {
@@ -15,7 +15,7 @@ export default defineHandler(async (event) => {
   const db = env.db
   if (!db) return jsonResponse({ error: 'Database not available' }, { status: 500 })
 
-  const post = await getPublishedPlatformBlogPost(db, category, slug, env)
+  const post = await getPublishedBlogPost(db, category, slug, env)
   if (!post) return jsonResponse({ error: 'Post not found' }, { status: 404 })
 
   return jsonResponse({ post })

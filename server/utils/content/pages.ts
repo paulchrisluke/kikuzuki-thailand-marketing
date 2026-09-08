@@ -11,7 +11,7 @@ import {
   updateContentDocument,
   type ContentBlockInput,
   type ContentDocumentInput,
-} from '~/server/utils/content-documents'
+} from '~/server/utils/content/documents'
 import {
   normalizeTenantPageBlocks,
   normalizeTenantPagePath,

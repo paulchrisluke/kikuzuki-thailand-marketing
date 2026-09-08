@@ -1,10 +1,10 @@
 import type { McpExecutorContext } from './shared'
-import { createPlatformBlogPost, deletePlatformBlogPost, getPlatformBlogPost, listPlatformBlogPosts, reorderPlatformBlogPosts, updatePlatformBlogLifecycle, updatePlatformBlogPost } from '~/server/utils/platform-content'
+import { createBlogPost, deleteBlogPost, getBlogPost, listBlogPosts, reorderBlogPosts, updateBlogLifecycle, updateBlogPost } from '~/server/utils/content/publishing'
 import { renderStructuredResponse } from '~/server/utils/mcp-render'
 import { mcpProtocolError, MCP_ERROR } from '~/server/utils/mcp-protocol'
 import { paginateMcpCollection } from '~/server/utils/mcp-pagination'
 import { attachViewUrlToRecord, NOT_HANDLED, objectArray, omit, optionalString, requiredString } from './shared'
-import { CONTENT_BLOCK_TYPES } from '~/server/utils/content-documents'
+import { CONTENT_BLOCK_TYPES } from '~/server/utils/content/documents'
 
 const UPDATE_BLOG_MUTATION_FIELDS = [
   'title',
@@ -196,7 +196,7 @@ export async function handleBlogTools(ctx: McpExecutorContext): Promise<unknown>
   switch (toolName) {
     case "list_blog_posts":
       {
-        const posts = (await listPlatformBlogPosts(
+        const posts = (await listBlogPosts(
           site.db,
           optionalString(args, "status"),
           site.siteId,
@@ -207,7 +207,7 @@ export async function handleBlogTools(ctx: McpExecutorContext): Promise<unknown>
       }
     case "get_blog_post":
       {
-        const post = await getPlatformBlogPost(
+        const post = await getBlogPost(
           site.db,
           requiredString(args, "post_id"),
           site.siteId,
@@ -218,7 +218,7 @@ export async function handleBlogTools(ctx: McpExecutorContext): Promise<unknown>
         };
       }
     case "create_blog_post": {
-      const result = await createPlatformBlogPost(
+      const result = await createBlogPost(
         site.db,
         site.userId,
         args as never,
@@ -233,7 +233,7 @@ export async function handleBlogTools(ctx: McpExecutorContext): Promise<unknown>
     }
     case "update_blog_post": {
       requireAtLeastOneField(args, UPDATE_BLOG_MUTATION_FIELDS, "At least one blog mutation field is required.")
-      const result = await updatePlatformBlogPost(
+      const result = await updateBlogPost(
         site.db,
         requiredString(args, "post_id"),
         omit(args, ["post_id", "site_id"]) as never,
@@ -248,7 +248,7 @@ export async function handleBlogTools(ctx: McpExecutorContext): Promise<unknown>
     }
     case "update_blog_metadata": {
       requireAtLeastOneField(args, BLOG_METADATA_FIELDS, "At least one blog metadata field is required.")
-      const result = await updatePlatformBlogPost(
+      const result = await updateBlogPost(
         site.db,
         requiredString(args, "post_id"),
         omit(args, ["post_id", "site_id"]) as never,
@@ -262,7 +262,7 @@ export async function handleBlogTools(ctx: McpExecutorContext): Promise<unknown>
       )
     }
     case "replace_blog_content": {
-      const result = await updatePlatformBlogPost(
+      const result = await updateBlogPost(
         site.db,
         requiredString(args, "post_id"),
         {
@@ -287,13 +287,13 @@ export async function handleBlogTools(ctx: McpExecutorContext): Promise<unknown>
         throw mcpProtocolError(MCP_ERROR.invalidParams, 'Invalid scheduled_for')
       }
       const normalizedScheduledFor = typeof scheduledFor === 'string' ? scheduledFor.trim() : scheduledFor
-      await updatePlatformBlogLifecycle(site.db, postId, {
+      await updateBlogLifecycle(site.db, postId, {
         expected_updated_at: requiredString(args, 'expected_updated_at'),
         ...(Object.prototype.hasOwnProperty.call(args, 'scheduled_for')
           ? { scheduled_for: normalizedScheduledFor as string | null }
           : {}),
       }, site.siteId)
-      const result = await getPlatformBlogPost(site.db, postId, site.siteId, site.env)
+      const result = await getBlogPost(site.db, postId, site.siteId, site.env)
       const post = attachViewUrlToRecord(result, site, {})
       return renderStructuredResponse(
         { post: projectBlogPostForMcp(post) },
@@ -340,7 +340,7 @@ export async function handleBlogTools(ctx: McpExecutorContext): Promise<unknown>
         }
         return result as { post_id: string; nav_section?: string | null; nav_title?: string | null; nav_order: number; nav_section_order?: number | null; hide_from_nav?: boolean | null }
       })
-      const result = await reorderPlatformBlogPosts(site.db, items, site.siteId, site.env)
+      const result = await reorderBlogPosts(site.db, items, site.siteId, site.env)
       return {
         success: result.success,
         posts: result.posts.map((post) => toBlogPostSummary(attachViewUrlToRecord(post, site, {}))),
@@ -348,7 +348,7 @@ export async function handleBlogTools(ctx: McpExecutorContext): Promise<unknown>
     }
     case "delete_blog_post": {
       const postId = requiredString(args, "post_id");
-      await deletePlatformBlogPost(site.db, postId, site.siteId);
+      await deleteBlogPost(site.db, postId, site.siteId);
       return { post_id: postId, deleted: true };
     }
     default:
