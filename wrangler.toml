@@ -110,6 +110,9 @@ remote = false
 binding = "AI"
 remote = true
 
+[images]
+binding = "IMAGES"
+
 [[ai_search_namespaces]]
 binding = "AI_SEARCH"
 namespace = "default"
@@ -196,6 +199,9 @@ remote = false
 binding = "AI"
 remote = true
 
+[env.preview.images]
+binding = "IMAGES"
+
 [[env.preview.ai_search_namespaces]]
 binding = "AI_SEARCH"
 namespace = "default"
@@ -280,6 +286,9 @@ remote = false
 [env.staging.ai]
 binding = "AI"
 remote = true
+
+[env.staging.images]
+binding = "IMAGES"
 
 [[env.staging.ai_search_namespaces]]
 binding = "AI_SEARCH"

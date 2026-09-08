@@ -24,7 +24,7 @@ const placedAsset = (
   source: slot === 'social_card' ? 'generated' : 'uploaded',
 })
 
-test('social card source selection prefers owner media over site fallback media', () => {
+test('social card source selection uses only media placed on the page owner', () => {
   const selected = selectSocialCardPlacements([
     placedAsset('site', 'site-1', 'social_card', 'site-card'),
     placedAsset('business_location', 'location-1', 'social_card', 'owner-card'),
@@ -33,6 +33,13 @@ test('social card source selection prefers owner media over site fallback media'
   ], { owner_type: 'business_location', owner_id: 'location-1' }, 'site-1')
   assert.equal(selected.current?.asset_id, 'owner-card')
   assert.equal(selected.source?.asset_id, 'owner-hero')
+  assert.equal(selectSocialCardPlacements([
+    placedAsset('site', 'site-1', 'logo', 'site-logo'),
+    placedAsset('site', 'site-1', 'social_share', 'site-share'),
+  ], { owner_type: 'site', owner_id: 'site-1' }, 'site-1').source?.asset_id, 'site-share')
+  assert.equal(selectSocialCardPlacements([
+    placedAsset('site', 'site-1', 'logo', 'site-logo'),
+  ], { owner_type: 'site', owner_id: 'site-1' }, 'site-1').source, null)
   const video = { ...placedAsset('content_document', 'post-1', 'cover', 'video-1'), kind: 'video' as const, thumbnail_url: 'https://img.example/poster.png' }
   assert.equal(selectSocialCardPlacements([video], { owner_type: 'content_document', owner_id: 'post-1' }, 'site-1').source?.thumbnail_url, video.thumbnail_url)
   assert.equal(selectSocialCardPlacements([{ ...video, thumbnail_url: null }], { owner_type: 'content_document', owner_id: 'post-1' }, 'site-1').source, null)
