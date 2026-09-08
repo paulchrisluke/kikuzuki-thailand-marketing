@@ -1443,29 +1443,6 @@ CREATE TABLE `usage_events` (
 CREATE INDEX `usage_events_organization_resource_created_idx` ON `usage_events` (`organization_id`,`resource`,`created_at`);--> statement-breakpoint
 CREATE INDEX `usage_events_site_created_idx` ON `usage_events` (`site_id`,`created_at`);--> statement-breakpoint
 CREATE UNIQUE INDEX `usage_events_organization_id_idempotency_key_unique` ON `usage_events` (`organization_id`,`idempotency_key`);--> statement-breakpoint
-CREATE TABLE `usage_quota_grants` (
-	`id` text PRIMARY KEY NOT NULL,
-	`organization_id` text NOT NULL,
-	`resource` text NOT NULL,
-	`quantity` integer NOT NULL,
-	`unit` text NOT NULL,
-	`period_key` text NOT NULL,
-	`period_start` text NOT NULL,
-	`period_end` text NOT NULL,
-	`grant_type` text NOT NULL,
-	`reason` text NOT NULL,
-	`created_by` text,
-	`idempotency_key` text NOT NULL,
-	`applied_at` text,
-	`created_at` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
-	FOREIGN KEY (`organization_id`) REFERENCES `organization`(`id`) ON UPDATE no action ON DELETE cascade,
-	FOREIGN KEY (`created_by`) REFERENCES `user`(`id`) ON UPDATE no action ON DELETE set null,
-	CONSTRAINT "usage_quota_grants_instants_check" CHECK((applied_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', applied_at, '+0 days') IS applied_at) AND (created_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', created_at, '+0 days') IS created_at) AND (period_start IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', period_start, '+0 days') IS period_start) AND (period_end IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', period_end, '+0 days') IS period_end)),
-	CONSTRAINT "usage_quota_grants_grant_type_check" CHECK(grant_type IN ('plan', 'reset', 'manual'))
-);
---> statement-breakpoint
-CREATE INDEX `usage_quota_grants_active_idx` ON `usage_quota_grants` (`organization_id`,`resource`,`period_start`,`period_end`);--> statement-breakpoint
-CREATE UNIQUE INDEX `usage_quota_grants_organization_id_idempotency_key_unique` ON `usage_quota_grants` (`organization_id`,`idempotency_key`);--> statement-breakpoint
 CREATE TABLE `user` (
 	`id` text PRIMARY KEY NOT NULL,
 	`name` text NOT NULL,

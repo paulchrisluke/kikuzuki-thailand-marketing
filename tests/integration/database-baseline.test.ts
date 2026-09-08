@@ -18,7 +18,7 @@ test('epoch-6 baseline creates the complete schema from zero', () => {
       FROM sqlite_schema
       WHERE type = 'table' AND name NOT LIKE 'sqlite_%'
     `).get() as { count: number }
-    assert.equal(tableCount.count, 53)
+    assert.equal(tableCount.count, 52)
     const ledgerCount = database.prepare("SELECT count(*) count FROM sqlite_schema WHERE name = 'd1_migrations'").get() as { count: number }
     assert.equal(ledgerCount.count, 0)
     const splitAvailabilityTables = database.prepare("SELECT count(*) count FROM sqlite_schema WHERE type = 'table' AND name IN ('experience_slot_overrides', 'reservation_slot_overrides')").get() as { count: number }

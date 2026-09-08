@@ -40,7 +40,6 @@ const EXISTING_DEBT_ALLOWLIST = {
 // return.
 const MIGRATED_ORGANIZATION_ROUTES = [
   'server/utils/site-creation.ts',
-  'server/utils/quota-adjustment.ts',
   'server/api/sites.post.ts',
   'server/api/site-transfer/[token]/accept.post.ts',
   'server/api/admin/clients.get.ts',

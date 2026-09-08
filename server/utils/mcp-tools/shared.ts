@@ -977,7 +977,6 @@ const D = Object.freeze(openWorldDestructiveAnnotations())
 
 /** Submission-review contract. Every real public tool is listed explicitly. */
 export const EXPECTED_TOOL_ANNOTATIONS = {
-  analyze_document: W,
   attach_media: W,
   batch_create_products: W,
   change_tenant_page_path: D,
@@ -1020,8 +1019,7 @@ export const EXPECTED_TOOL_ANNOTATIONS = {
   get_site_settings: R,
   get_tenant_page: R,
   get_workspace_context: R,
-  import_from_maps: W,
-  import_products_from_media: W,
+  import_from_maps: { readOnlyHint: true, openWorldHint: true, destructiveHint: false },
   list_all_experience_bookings: R,
   list_blog_posts: R,
   list_experience_bookings: R,

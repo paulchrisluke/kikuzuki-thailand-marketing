@@ -251,7 +251,6 @@ export const publicTemplateMarketing: Record<PublicTemplateSlug, TemplateMarketi
       'Dark mode support',
       'Multi-location support (Growth plan)',
       'Custom domain (Growth plan)',
-      '500 shared organization AI credits per UTC week on Starter',
     ],
     specs: [
       { label: 'Price', value: 'Free' },

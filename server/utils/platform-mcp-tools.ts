@@ -616,7 +616,7 @@ export const PLATFORM_PUBLIC_MCP_TOOLS: PlatformMcpToolDefinition[] = [
   }),
   writeTool({
     name: 'upload_platform_image',
-    description: 'Upload a user-supplied image attachment into the platform media library for krabiclaw.com blog/docs use. Prefer the top-level file argument from a ChatGPT attachment.',
+    description: 'Upload a user-supplied image attachment into the platform media library for krabiclaw.com blog/docs use. Use the top-level file argument from a ChatGPT attachment.',
     openWorld: true,
     fileParams: ['file'],
     inputSchema: {
@@ -626,9 +626,9 @@ export const PLATFORM_PUBLIC_MCP_TOOLS: PlatformMcpToolDefinition[] = [
           ...CHATGPT_FILE_INPUT_SCHEMA,
           description: 'Authorized file reference supplied by ChatGPT after rewriting the declared top-level file argument.',
         },
-        file_id: { type: 'string', description: 'Resolved uploaded file identifier when the host can supply it directly.' },
         alt_text: { type: 'string', description: 'Optional alt text or image description.' },
       },
+      required: ['file'],
       additionalProperties: false,
     },
     outputSchema: {

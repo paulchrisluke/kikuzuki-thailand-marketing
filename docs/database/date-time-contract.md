@@ -77,3 +77,10 @@ verified a fresh Epoch 6 target: 53 tables, 42,211 rows, exact retained values,
 foreign keys and domain invariants. Production was unchanged. The final cutover
 still requires a fresh export after the documented write freeze and completed
 runtime qualification; the rehearsal is not a production deployment.
+
+The owner subsequently authorized complete credit retirement in
+[PR #864](https://github.com/paulchrisluke/krabiclaw/pull/864#issuecomment-5572050864).
+The current generated Epoch 6 baseline has 52 tables. The existing transfer records
+the retired `usage_quota_grants` count and complete row hash, rejects unknown grant
+uses, and retains every `usage_events` row. The earlier 53-table rehearsal must be
+repeated against this baseline before cutover.

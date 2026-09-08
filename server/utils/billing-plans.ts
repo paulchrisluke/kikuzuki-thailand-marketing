@@ -23,7 +23,6 @@ export interface PlanPrice {
 }
 
 export interface PlanLimits {
-  aiCredits: number | 'unlimited'
   customDomain: boolean
   googlePlaces: boolean
   support: string
@@ -74,7 +73,6 @@ const STARTER_PLAN: Plan = {
     'Free KrabiClaw ChatGPT app — build & edit your site by chatting',
     'Bookings, ticketed experiences & consultation requests',
     'Email notifications for reservations & bookings',
-    '500 shared organization AI credits per UTC week',
     'Structured SEO schema for restaurants, experiences & legal practices',
   ],
   limits: publicPlanLimits(STARTER_PLAN_ID),
@@ -91,12 +89,7 @@ const PLAN_CTA: Record<string, { label: string; href: string }> = {
 
 function publicPlanLimits(planId: string): PlanLimits {
   const entitlements = getPlanEntitlements(planId)
-  const aiCredits = entitlements.ai_credits
-  if (aiCredits !== 'unlimited' && typeof aiCredits !== 'number') {
-    throw new Error(`Missing canonical AI-credit entitlement for plan ${planId}`)
-  }
   return {
-    aiCredits,
     customDomain: entitlements.custom_domains === true,
     googlePlaces: entitlements.google_places === true,
     support: planId === NEW_SALE_PLAN_ID ? 'Priority' : 'Community',
@@ -136,18 +129,11 @@ function isPlanPrice(value: unknown): value is PlanPrice {
 
 function isPlanLimits(value: unknown, planId: string): value is PlanLimits {
   if (!isRecord(value)) return false
-  const validAiCredits = value.aiCredits === 'unlimited'
-    || (typeof value.aiCredits === 'number'
-      && Number.isFinite(value.aiCredits)
-      && Number.isInteger(value.aiCredits)
-      && value.aiCredits >= 0)
   const expected = publicPlanLimits(planId)
   return (
-    validAiCredits
-    && typeof value.customDomain === 'boolean'
+    typeof value.customDomain === 'boolean'
     && typeof value.googlePlaces === 'boolean'
     && typeof value.support === 'string'
-    && value.aiCredits === expected.aiCredits
     && value.customDomain === expected.customDomain
     && value.googlePlaces === expected.googlePlaces
     && value.support === expected.support
@@ -381,7 +367,7 @@ const PLANS_CACHE_TTL_SECONDS = 3600
 // The customer-facing catalog has one sales model. A versioned key prevents
 // stale flag-specific snapshots from the retired toggle from being served.
 function plansCacheKey(_env: EnvWithSiteCache): string {
-  return 'stripe-plans:v4'
+  return 'stripe-plans:v5'
 }
 
 // Single-instance in-flight guard — prevents a cache stampede where multiple

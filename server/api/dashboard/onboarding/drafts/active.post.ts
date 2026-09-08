@@ -3,7 +3,6 @@ import { cloudflareEnv, jsonResponse } from '~/server/utils/api-response'
 import { getAuthSession } from '~/server/utils/auth'
 import { getDashboardContext } from '~/server/utils/dashboard-context'
 import { getPlaceDetails, PlaceDetailsError } from '~/server/utils/google-places'
-import { chargeFlatCredits } from '~/server/utils/ai-credits'
 import { queryFirst } from '~/server/db'
 import {
   buildOnboardingDraftPayload, getDraftMedia, parseOnboardingDraftPayload, upsertActiveOnboardingDraft, type DraftBrandInput, type DraftDetailsInput, type DraftUploadedImage, type OnboardingDraftPayload, type PlaceDetailsSnapshot, } from '~/server/utils/onboarding-drafts'
@@ -100,7 +99,6 @@ export default defineHandler(async (event) => {
   const vertical = rawVertical as SiteVertical
 
   let place: Awaited<ReturnType<typeof getPlaceDetails>> | PlaceDetailsSnapshot | null = null
-  let fetchedPlaceDetails = false
   const placeId = typeof body?.placeId === 'string' ? body.placeId.trim() : ''
   if (sourceType === 'google_places') {
     const existingPlace = existingPayload?.source.place ?? null
@@ -112,7 +110,6 @@ export default defineHandler(async (event) => {
         if (!apiKey) return jsonResponse({ error: 'Google Places API key not configured' }, { status: 503 })
         try {
           place = await getPlaceDetails(apiKey, placeId)
-          fetchedPlaceDetails = true
         } catch (error) {
           const status = error instanceof PlaceDetailsError ? error.statusCode : 502
           return jsonResponse({
@@ -131,9 +128,6 @@ export default defineHandler(async (event) => {
     dashboard = await getDashboardContext(event, { requireSite: false })
   } catch {
     dashboard = null
-  }
-  if (sourceType === 'google_places' && fetchedPlaceDetails && dashboard?.organization?.id) {
-    await chargeFlatCredits(db, dashboard.organization.id, { action: 'google_places_details' })
   }
 
   const rawDetails = body.details && typeof body.details === 'object' ? body.details : null

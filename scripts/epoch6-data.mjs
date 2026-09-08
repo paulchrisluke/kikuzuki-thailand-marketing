@@ -57,6 +57,9 @@ const tableNames = db => db.prepare("SELECT name FROM sqlite_schema WHERE type='
 const columns = (db, table) => db.prepare(`PRAGMA table_info(${qi(table)})`).all().map(row => row.name)
 const digest = (rows, names) => hash(rows.map(row => JSON.stringify(names.map(name => row[name]))).sort().join('\n'))
 const removed = { customers: ['last_booking_at', 'last_review_at'] }
+const retired = {
+  usage_quota_grants: ['id', 'organization_id', 'resource', 'quantity', 'unit', 'period_key', 'period_start', 'period_end', 'grant_type', 'reason', 'created_by', 'idempotency_key', 'applied_at', 'created_at'],
+}
 const extraInstants = new Set(['paid_through', 'past_due_since', 'period_start', 'period_end', 'valid_from', 'valid_until'])
 const source = openDatabase(resolve(sourcePath))
 const baseline = readFileSync('migrations/0000_epoch_6_baseline.sql', 'utf8')
@@ -71,8 +74,15 @@ try {
   assert(JSON.stringify(schemaObjects(target)) === JSON.stringify(schemaObjects(expectedSchema)), 'Target schema differs from the generated baseline')
   expectedSchema.close()
   const names = tableNames(target)
-  assert(JSON.stringify(tableNames(source)) === JSON.stringify(names), 'Source/target table inventory differs')
-  const manifest = { epoch: 6, baseline_sha256: hash(baseline), source_sha256: hash(readFileSync(sourcePath)), removed_columns: removed, tables: [], invariants: [] }
+  assert(JSON.stringify(tableNames(source)) === JSON.stringify([...names, ...Object.keys(retired)].sort()), 'Source/target table inventory differs')
+  const manifest = { epoch: 6, baseline_sha256: hash(baseline), source_sha256: hash(readFileSync(sourcePath)), removed_columns: removed, retired_tables: [], tables: [], invariants: [] }
+  for (const [table, expectedColumns] of Object.entries(retired)) {
+    assert(JSON.stringify(columns(source, table).sort()) === JSON.stringify([...expectedColumns].sort()), `${table}: undeclared column change`)
+    const records = source.prepare(`SELECT * FROM ${qi(table)}`).all()
+    assert(records.every(row => row.resource === 'ai_inference' && row.unit === 'credit'
+      && ['plan', 'reset', 'manual'].includes(row.grant_type)), `${table}: unrecognized grant use requires an explicit mapping`)
+    manifest.retired_tables.push({ table, rows: records.length, source_sha256: digest(records, expectedColumns) })
+  }
   const normalize = source.prepare("SELECT strftime('%Y-%m-%dT%H:%M:%fZ', ?, '+0 days') AS value")
   const transfer = () => {
     for (const table of names) {

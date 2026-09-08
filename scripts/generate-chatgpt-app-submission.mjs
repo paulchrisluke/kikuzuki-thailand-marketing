@@ -13,7 +13,6 @@ const OUTPUT_PATH = 'chatgpt-app-submission.json'
 // Reviewed effects are authored here; annotation values still come from the registry.
 // A newly exposed tool must receive an explicit review before regeneration succeeds.
 const effects = {
-  analyze_document: 'Analyzes an uploaded document through Anthropic via Cloudflare AI Gateway and charges tenant AI credits.',
   attach_media: 'Adds an existing asset to a public content collection without replacing its existing placements.',
   batch_create_products: 'Creates new products in the selected location and records product events.',
   change_tenant_page_path: 'Changes a tenant page URL and its routing records.',
@@ -54,8 +53,7 @@ const effects = {
   get_site_settings: 'Reads the selected site settings.',
   get_tenant_page: 'Reads the selected tenant page and its existing content document.',
   get_workspace_context: 'Reads the authenticated user workspace selection and available context.',
-  import_from_maps: 'Queries Google Places and charges tenant credits without creating or updating a site or location.',
-  import_products_from_media: 'Sends a stored image or PDF to Anthropic through Cloudflare AI Gateway, charges credits, and creates extracted products.',
+  import_from_maps: 'Queries Google Places without creating or updating a site or location.',
   list_all_experience_bookings: 'Lists authorized bookings across the selected site, including guest names and contact details.',
   list_blog_posts: 'Lists the selected site blog articles.',
   list_experience_bookings: 'Lists authorized bookings for the selected experience, including guest names and contact details.',
@@ -114,9 +112,7 @@ const effects = {
 }
 
 const externalProcessing = {
-  analyze_document: 'Document contents and the question are sent to Anthropic through Cloudflare AI Gateway.',
   import_from_maps: 'The requested business lookup is sent to Google Places.',
-  import_products_from_media: 'The image or PDF is sent to Anthropic through Cloudflare AI Gateway, and extracted products can appear on the public website.',
   upload_user_media: 'The attachment is stored in Cloudflare storage at a public media URL.',
   save_generated_image: 'The supplied image bytes are stored in Cloudflare storage at a public media URL.',
   save_generated_image_file: 'The supplied image attachment is stored in Cloudflare storage at a public media URL.',
@@ -127,9 +123,7 @@ function justifications(tool) {
   if (!effect) throw new Error(`Tool requires an implementation review: ${tool.name}`)
   const annotations = tool.annotations
   return {
-    read_only_justification: annotations.readOnlyHint
-      ? `${effect} It does not mutate application content or consume AI credits.`
-      : `${effect} This changes persisted state or consumes credits.`,
+    read_only_justification: effect,
     open_world_justification: externalProcessing[tool.name] ?? (annotations.openWorldHint
       ? `${effect} Its effects can change content or behavior on the public website.`
       : `${effect} It does not publish content or write to an external service.`),
@@ -155,7 +149,7 @@ const submission = {
   app_info: {
     display_name: 'KrabiClaw',
     subtitle: 'Manage your business website',
-    description: 'Manage your KrabiClaw business website from ChatGPT. Choose a site and location, edit products and experiences, publish announcements and blog articles, update page content and translations, and upload or assign media. Review customer inquiries and experience bookings from your connected workspace. Publishing and content changes can appear on your public website. Some imports and document analysis use AI credits. A KrabiClaw account with access to the selected business is required. Site and location setup and deletion are managed in the KrabiClaw CMS.',
+    description: 'Manage your KrabiClaw business website from ChatGPT. Choose a site and location, edit products and experiences, publish announcements and blog articles, update page content and translations, and upload or assign media. Review customer inquiries and experience bookings from your connected workspace. Publishing and content changes can appear on your public website. A KrabiClaw account with access to the selected business is required. Site and location setup and deletion are managed in the KrabiClaw CMS.',
     category: 'BUSINESS',
   },
   tools,

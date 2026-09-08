@@ -19,7 +19,7 @@ import {
   renderCompiledDemoResourceLocalizationsBlock,
   renderDemoExperienceSeedBlock,
 } from '../seed-definitions/demo.ts'
-import { renderCanonicalBillingSql } from '../seed-definitions/billing-sql.ts'
+import { renderOrganizationBillingSql } from '../seed-definitions/billing-sql.ts'
 import { renderTenantPagesSeedSql } from '../seed-definitions/tenant-pages.ts'
 import { spawnYarn } from './utils/spawn-yarn.mjs'
 
@@ -42,10 +42,6 @@ function renderMcpFixtureOrg(orgId: string, userId: string, name: string, slug: 
   const siteId = `site-${orgId.replace(/^org-/, '')}`
   const locationId = `loc-${orgId.replace(/^org-/, '')}`
   const status = plan === 'free' ? 'free' : 'active'
-  const aiCredits = {
-    balance: plan === 'growth' ? 2000 : 500,
-    lifetimeUsed: 0,
-  }
   const tenantPages = renderTenantPagesSeedSql({
     siteId,
     organizationId: orgId,
@@ -129,7 +125,7 @@ INSERT OR REPLACE INTO media_placements
 VALUES
   (${sqlValue(`placement-${siteId}-fixture-gallery`)}, ${sqlValue(orgId)}, ${sqlValue(siteId)}, 'business_location', ${sqlValue(locationId)}, 'gallery', ${sqlValue(`media-${siteId}-fixture-image`)}, 0, 'active');
 
-${renderCanonicalBillingSql(siteId, orgId, { status, plan }, sqlValue, aiCredits)}
+${renderOrganizationBillingSql(orgId, { status, plan }, sqlValue)}
 
 ${tenantPages}
 ${selectionSite}`

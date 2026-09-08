@@ -6,7 +6,6 @@ import { cloudflareEnv, jsonResponse } from '~/server/utils/api-response'
 import { getAuthSession } from '~/server/utils/auth'
 import { getDashboardContext } from '~/server/utils/dashboard-context'
 import { getPlaceDetailsByUrl, getPlaceDetails, searchPlaces, googleReviewUpserts } from '~/server/utils/google-places'
-import { chargeFlatCredits } from '~/server/utils/ai-credits'
 import { createLocation } from '~/server/utils/location-management'
 import { purgePublicResourceCacheSafe } from '~/server/utils/public-resource-cache'
 import { executeBatch, queryFirst, type DbClient } from '~/server/db'
@@ -107,15 +106,7 @@ export default defineHandler(async (event) => {
   const apiKey = env.GOOGLE_PLACES_API_KEY as string | undefined
   if (!apiKey) return jsonResponse({ error: 'Google Places API key not configured' }, { status: 503 })
 
-  // Charging happens once per intended lookup/import operation, not once per
-  // HTTP call to this endpoint. The wizard calls this same endpoint twice for
-  // one add-location operation — once with previewOnly:true for the confirm
-  // card, once without it to actually create the location — so the charge
-  // must be deferred until the previewOnly check below confirms this is the
-  // real (non-preview) call. Charging unconditionally here previously
-  // double-charged every add-location-by-search/place flow.
   let place
-  let chargeSearch = false
   try {
     if (placeId) {
       place = await getPlaceDetails(apiKey, placeId)
@@ -123,7 +114,6 @@ export default defineHandler(async (event) => {
       place = await getPlaceDetailsByUrl(apiKey, mapsUrl)
     } else {
       const results = await searchPlaces(apiKey, query)
-      chargeSearch = true
       const top = results[0]
       if (!top?.placeId) {
         return jsonResponse({ error: `No results found for "${query}". Try a more specific name.` }, { status: 404 })
@@ -145,11 +135,6 @@ export default defineHandler(async (event) => {
   if (!notificationPhone.ok) {
     return jsonResponse({ error: notificationPhone.error }, { status: 400 })
   }
-
-  if (chargeSearch) {
-    await chargeFlatCredits(db, organizationId, { siteId, action: 'google_places_search' })
-  }
-  await chargeFlatCredits(db, organizationId, { siteId, action: 'google_places_details' })
 
   const baseSlug = slugify(place.name).slice(0, 50)
   const slug = await uniqueLocationSlug(db, siteId, baseSlug)

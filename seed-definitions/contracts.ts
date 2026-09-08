@@ -51,10 +51,6 @@ export interface CuratedSiteDefinition extends CuratedSiteIdentity {
   qaTranslations?: CuratedQaTranslationDefinition[]
   postTranslations?: CuratedPostTranslationDefinition[]
   publicRoutes: SeedPublicRouteExpectation[]
-  aiCredits?: {
-    balance: number
-    lifetimeUsed?: number
-  }
   organizationBilling?: {
     status: string
     plan: 'free' | 'growth'
@@ -481,10 +477,6 @@ export interface CompiledCuratedSiteBundle {
   routeManifest: {
     locations: string[]
     experiences: string[]
-  }
-  aiCredits?: {
-    balance: number
-    lifetimeUsed: number
   }
   organizationBilling?: {
     status: string

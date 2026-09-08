@@ -354,9 +354,6 @@ export function compileCuratedSiteFixture(
       locations: fixture.locations.map((l) => `/locations/${l.slug}`),
       experiences: fixture.experiences.map((e) => `/experiences/${e.slug}`),
     },
-    aiCredits: fixture.aiCredits
-      ? { balance: fixture.aiCredits.balance, lifetimeUsed: fixture.aiCredits.lifetimeUsed ?? 0 }
-      : undefined,
     organizationBilling: fixture.organizationBilling,
   }
 }

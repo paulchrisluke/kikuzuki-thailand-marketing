@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict'
+import { createHash } from 'node:crypto'
 import { mkdtempSync, readFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
@@ -16,6 +17,10 @@ test('epoch transfer preserves retained records, removes duplicate dates and rej
   source.prepare("INSERT INTO sites (id,organization_id,slug,subdomain) VALUES ('site','org','proof','proof')").run()
   source.prepare("INSERT INTO site_locales (id,organization_id,site_id,locale,is_source,status) VALUES ('locale','org','site','en',1,'published')").run()
   source.prepare("INSERT INTO customers (id,organization_id,site_id,name,source,last_booking_at,last_review_at,created_at) VALUES ('customer','org','site','Retained name','manual','2026-07-25T12:30:00','2026-07-01T01:00:00.000Z','2026-07-01 00:00:00')").run()
+  for (const kind of ['plan', 'reset', 'manual']) source.prepare("INSERT INTO usage_quota_grants (id,organization_id,resource,quantity,unit,period_key,period_start,period_end,grant_type,reason,idempotency_key) VALUES (?,'org','ai_inference',500,'credit','week:2026-07-20','2026-07-20 00:00:00','2026-07-27 00:00:00',?,'Proof',?)").run(kind, kind, kind)
+  source.prepare("INSERT INTO usage_events (id,organization_id,site_id,resource,source,quantity,unit,idempotency_key,created_at) VALUES ('history','org','site','ai_inference','seed',25,'credit','history','2026-07-01 00:00:00')").run()
+  const grantColumns = source.pragma('table_info(usage_quota_grants)').map(column => column.name)
+  const grantHash = createHash('sha256').update(source.prepare('SELECT * FROM usage_quota_grants').all().map(row => JSON.stringify(grantColumns.map(name => row[name]))).sort().join('\n')).digest('hex')
   source.close()
   const run = (command, output = targetPath) => spawnSync(process.execPath, ['scripts/epoch6-data.mjs', command, sourcePath, output], { cwd: resolve('.'), encoding: 'utf8' })
   const transformed = run('transform')
@@ -23,6 +28,9 @@ test('epoch transfer preserves retained records, removes duplicate dates and rej
   const target = new Database(targetPath)
   assert.deepEqual(target.prepare('SELECT name,created_at FROM customers').get(), { name: 'Retained name', created_at: '2026-07-01T00:00:00.000Z' })
   assert.equal(target.pragma('table_info(customers)').some(column => ['last_booking_at','last_review_at'].includes(column.name)), false)
+  assert.equal(target.pragma('table_info(usage_quota_grants)').length, 0)
+  assert.deepEqual(target.prepare('SELECT id,quantity,unit,created_at FROM usage_events').get(), { id: 'history', quantity: 25, unit: 'credit', created_at: '2026-07-01T00:00:00.000Z' })
+  assert.deepEqual(JSON.parse(readFileSync(`${targetPath}.transform.json`, 'utf8')).retired_tables, [{ table: 'usage_quota_grants', rows: 3, source_sha256: grantHash }])
   assert.equal(run('verify').status, 0)
   assert.notEqual(run('transform').status, 0)
   target.prepare("UPDATE customers SET name='Tampered'").run()
@@ -34,4 +42,27 @@ test('epoch transfer preserves retained records, removes duplicate dates and rej
   const rejected = run('transform', join(directory, 'invalid.sqlite'))
   assert.notEqual(rejected.status, 0)
   assert.match(rejected.stderr, /timestamp has no declared source zone/)
+})
+
+for (const [name, sql, error] of [
+  ['unknown resource', "UPDATE usage_quota_grants SET resource='storage'", /unrecognized grant use/],
+  ['unknown unit', "UPDATE usage_quota_grants SET unit='byte'", /unrecognized grant use/],
+  ['unknown grant type', "PRAGMA ignore_check_constraints=ON; UPDATE usage_quota_grants SET grant_type='purchase'", /unrecognized grant use/],
+  ['unexpected retired column', 'ALTER TABLE usage_quota_grants ADD COLUMN external_obligation TEXT', /undeclared column change/],
+  ['unexpected retained column', 'ALTER TABLE usage_events ADD COLUMN external_obligation TEXT', /undeclared column change/],
+  ['unexpected table', 'CREATE TABLE external_obligations (id TEXT)', /table inventory differs/],
+  ['missing retired table', 'DROP TABLE usage_quota_grants', /table inventory differs/],
+]) test(`epoch transfer rejects ${name}`, t => {
+  const directory = mkdtempSync(join(tmpdir(), 'krabiclaw-epoch6-retirement-'))
+  t.after(() => rmSync(directory, { recursive: true, force: true }))
+  const sourcePath = join(directory, 'source.sqlite')
+  const source = new Database(sourcePath)
+  source.exec(readFileSync('migrations-archive/epoch-5/0000_epoch_5_baseline.sql', 'utf8'))
+  source.prepare("INSERT INTO organization (id,name,slug) VALUES ('org','Proof','proof')").run()
+  source.prepare("INSERT INTO usage_quota_grants (id,organization_id,resource,quantity,unit,period_key,period_start,period_end,grant_type,reason,idempotency_key) VALUES ('grant','org','ai_inference',500,'credit','week:2026-07-20','2026-07-20 00:00:00','2026-07-27 00:00:00','plan','Proof','grant')").run()
+  source.exec(sql)
+  source.close()
+  const result = spawnSync(process.execPath, ['scripts/epoch6-data.mjs', 'transform', sourcePath, join(directory, 'target.sqlite')], { cwd: resolve('.'), encoding: 'utf8' })
+  assert.notEqual(result.status, 0)
+  assert.match(result.stderr, error)
 })

@@ -1216,19 +1216,6 @@ export const stripe_ga4_subscription_intents = sqliteTable("stripe_ga4_subscript
 	check("stripe_ga4_subscription_intents_timing_check", sql`${table.effective_timing} IN ('immediate', 'period_end')`),
 ]);
 
-// Better Auth's organization subscription is the control-plane billing authority.
-// `organization_billing` is slim sessionless access evidence, never an independent
-// authority. usage_events (append-only ledger) and
-// usage_quota_grants (plan/reset/manual grants, also append-only) are the only
-// writers of consumption and allowance history — no one-time credit purchase,
-// service-addon, or auto-top-up writer exists; that product model was removed
-// after a production census found no customer purchase/fulfillment history for it.
-// Starter = 500 shared usage credits/UTC week, Growth = 2,000/UTC week (Monday
-// 00:00:00 UTC boundary); a `plan` grant is the exact base allowance for that week,
-// not additive, and never carries over. `manual` grants are additive within their
-// declared week only; a `reset` grant sets the exact remaining balance for its week
-// without rewriting earlier grants/usage. See server/utils/quota-adjustment.ts for
-// the dry-run/approved-apply operator path (never hand-edit these tables directly).
 export const usage_events = sqliteTable("usage_events", {
 	id: text().primaryKey(),
 	organization_id: text().notNull().references(() => organization.id, { onDelete: "cascade" } ),
@@ -1249,28 +1236,6 @@ export const usage_events = sqliteTable("usage_events", {
 	unique("usage_events_organization_id_idempotency_key_unique").on(table.organization_id, table.idempotency_key),
 	index("usage_events_organization_resource_created_idx").on(table.organization_id, table.resource, table.created_at),
 	index("usage_events_site_created_idx").on(table.site_id, table.created_at),
-]);
-
-export const usage_quota_grants = sqliteTable("usage_quota_grants", {
-	id: text().primaryKey(),
-	organization_id: text().notNull().references(() => organization.id, { onDelete: "cascade" } ),
-	resource: text().notNull(),
-	quantity: integer().notNull(),
-	unit: text().notNull(),
-	period_key: text().notNull(),
-	period_start: text().notNull(),
-	period_end: text().notNull(),
-	grant_type: text().notNull(),
-	reason: text().notNull(),
-	created_by: text().references(() => user.id, { onDelete: "set null" } ),
-	idempotency_key: text().notNull(),
-	applied_at: text(),
-	created_at: text().default(sql`(strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))`).notNull(),
-}, (table) => [
-	check("usage_quota_grants_instants_check", sql`(applied_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', applied_at, '+0 days') IS applied_at) AND (created_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', created_at, '+0 days') IS created_at) AND (period_start IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', period_start, '+0 days') IS period_start) AND (period_end IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', period_end, '+0 days') IS period_end)`),
-	check("usage_quota_grants_grant_type_check", sql`grant_type IN ('plan', 'reset', 'manual')`),
-	unique("usage_quota_grants_organization_id_idempotency_key_unique").on(table.organization_id, table.idempotency_key),
-	index("usage_quota_grants_active_idx").on(table.organization_id, table.resource, table.period_start, table.period_end),
 ]);
 
 export const user = sqliteTable("user", {

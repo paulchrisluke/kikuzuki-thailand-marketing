@@ -83,7 +83,6 @@ const comparisonRows: ComparisonRow[] = [
   { feature: 'Site language', free: 'English only', growth: 'English + 1 more' },
   { feature: 'WhatsApp content updates', free: false, growth: true },
   { feature: 'Bookings & experiences', free: true, growth: true },
-  { feature: 'Shared organization usage credits', free: '500 / UTC week', growth: '2,000 / UTC week' },
   { feature: 'Custom domain', free: false, growth: true },
   { feature: 'Facebook auto-sync', free: false, growth: true },
   { feature: 'Google Places imports', free: false, growth: true },

@@ -45,15 +45,6 @@ interface ReplayRepair {
   periodEnd: string
 }
 
-interface ReplayQuotaSnapshot {
-  totalGrants: number
-  planGrants: number
-  appliedPlanGrants: number
-  balance: number | null
-  lifetimeUsed: number | null
-  balancePeriodKey: string | null
-}
-
 interface StripeWebhookEventRow {
   id: string
   stripe_event_id: string
@@ -107,7 +98,6 @@ interface ReplayEvidence {
   retained: RetainedInvoicePaidEvent
   invoice: StripeInvoicePaymentRow
   organization: OrganizationBillingReplayRow
-  quota: ReplayQuotaSnapshot
   payloadSha256: string
   repair: ReplayRepair
 }
@@ -142,7 +132,6 @@ export interface StripeProcessedInvoiceReplayPlan {
     paidThrough: string | null
     lastPaidInvoiceId: string | null
   }
-  quotaBefore: ReplayQuotaSnapshot
   repair: ReplayRepair
   payloadSha256: string
   expectedStateSha256: string
@@ -275,13 +264,6 @@ function safeCount(value: unknown, field: string): number {
   return parsed
 }
 
-function nullableSafeInteger(value: unknown, field: string): number | null {
-  if (value === null || value === undefined) return null
-  const parsed = Number(value)
-  if (!Number.isSafeInteger(parsed) || parsed < 0) fail('state_invalid', 500, `${field} is malformed.`)
-  return parsed
-}
-
 function parseRetainedInvoicePaidEvent(row: StripeWebhookEventRow, now: Date): RetainedInvoicePaidEvent {
   const createdAt = Date.parse(row.created_at)
   if (!Number.isFinite(createdAt) || createdAt < now.getTime() - RETAINED_PAYLOAD_WINDOW_MS) {
@@ -361,33 +343,6 @@ async function readOrganizationRow(db: DbClient, organizationId: string): Promis
   `, [organizationId])
   if (!row) fail('organization_billing_missing', 409, 'Organization billing projection was not found.')
   return row
-}
-
-async function readQuotaSnapshot(db: DbClient, organizationId: string): Promise<ReplayQuotaSnapshot> {
-  const grants = await queryFirst<{
-    total_grants: unknown
-    plan_grants: unknown
-    applied_plan_grants: unknown
-  }>(db, `
-    SELECT COUNT(*) AS total_grants,
-           SUM(CASE WHEN grant_type = 'plan' THEN 1 ELSE 0 END) AS plan_grants,
-           SUM(CASE WHEN grant_type = 'plan' AND applied_at IS NOT NULL THEN 1 ELSE 0 END) AS applied_plan_grants
-      FROM usage_quota_grants
-     WHERE organization_id = ? AND resource = 'ai_inference'
-  `, [organizationId])
-  const usage = await queryFirst<{ lifetime_used: unknown }>(db, `
-    SELECT COALESCE(SUM(quantity), 0) AS lifetime_used
-      FROM usage_events
-     WHERE organization_id = ? AND unit = 'credit'
-  `, [organizationId])
-  return {
-    totalGrants: safeCount(grants?.total_grants ?? 0, 'quota grant count'),
-    planGrants: safeCount(grants?.plan_grants ?? 0, 'plan grant count'),
-    appliedPlanGrants: safeCount(grants?.applied_plan_grants ?? 0, 'applied plan grant count'),
-    balance: null,
-    lifetimeUsed: nullableSafeInteger(usage?.lifetime_used, 'AI credit lifetime usage'),
-    balancePeriodKey: null,
-  }
 }
 
 function exactIso(value: string | null, field: string): string {
@@ -495,10 +450,9 @@ async function readReplayEvidence(
   if (retained.livemode !== (input.providerMode === 'live')) {
     fail('provider_mode_mismatch', 409, 'Retained event livemode does not match the requested provider mode.')
   }
-  const [invoice, organization, quota] = await Promise.all([
+  const [invoice, organization] = await Promise.all([
     readInvoiceRow(db, retained.invoiceId),
     readOrganizationRow(db, input.organizationId),
-    readQuotaSnapshot(db, input.organizationId),
   ])
   if (
     invoice.organization_id !== input.organizationId
@@ -538,7 +492,6 @@ async function readReplayEvidence(
     retained,
     invoice,
     organization,
-    quota,
     payloadSha256: await sha256Text(eventRow.payload ?? ''),
     repair,
   }
@@ -597,7 +550,6 @@ async function replayStateDigest(
     },
     invoice: evidence.invoice,
     organization: evidence.organization,
-    quota: evidence.quota,
     repair: evidence.repair,
   })
 }
@@ -694,7 +646,6 @@ export async function previewStripeProcessedInvoiceReplay(
       paidThrough: evidence.organization.paid_through,
       lastPaidInvoiceId: evidence.organization.last_paid_invoice_id,
     },
-    quotaBefore: evidence.quota,
     repair: evidence.repair,
     payloadSha256: evidence.payloadSha256,
     expectedStateSha256,

@@ -61,7 +61,6 @@ const { plans } = usePlans()
 const faqs = [
   { q: 'Do I need a credit card to start?', a: 'No. The Starter plan is free forever — no credit card required. You only need a card when you upgrade to a paid plan.' },
   { q: 'What types of businesses does KrabiClaw support?', a: 'KrabiClaw natively powers three core verticals: restaurants & dining, experiences & tours, and legal & professional service practices (via Blawby). Each vertical includes purpose-built workflows, schema, and booking/intake engines.' },
-  { q: 'How do AI credits work?', a: 'Starter accounts receive 500 shared AI credits per UTC week to build, edit, and query their site through the ChatGPT app. Growth plans include elevated AI quota for continuous voice/chat website management and marketing generation.' },
   { q: 'Can I connect my own custom domain?', a: 'Yes! On the Growth plan, you can connect your existing domain (e.g., yourrestaurant.com or yourfirm.com) with automatic zero-configuration SSL managed via Cloudflare.' },
   { q: 'How does Google Places synchronization work?', a: 'On the Growth plan, KrabiClaw can import and sync your business name, address, hours, ratings, and location details directly from your Google Business Profile.' },
   { q: 'Do you offer refunds?', a: 'You can cancel your plan at any time through the dashboard. We use Stripe for secure billing and follow their standard cancellation policies.' },

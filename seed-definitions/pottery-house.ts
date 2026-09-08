@@ -1,7 +1,7 @@
 import { compileCuratedSiteFixture } from './compile.ts'
 import type { CuratedSiteDefinition } from './contracts.ts'
 import { buildSeedExperienceCategories } from './contracts.ts'
-import { renderCanonicalBillingSql } from './billing-sql.ts'
+import { renderOrganizationBillingSql } from './billing-sql.ts'
 import { renderTenantPagesSeedSql } from './tenant-pages.ts'
 
 function escapeSql(value: string): string {
@@ -811,10 +811,6 @@ export const potteryHouseFixture: CuratedSiteDefinition = {
       reviewedAt: '2026-05-28T00:00:00.000Z',
     },
   ],
-  aiCredits: {
-    balance: 2000,
-    lifetimeUsed: 0,
-  },
   organizationBilling: {
     status: 'active',
     plan: 'growth',
@@ -1246,15 +1242,11 @@ export function renderCompiledPotteryHouseContentBlock(): string {
 }
 
 export function renderCompiledPotteryHouseBillingBlock(): string {
-  const { identity, aiCredits, organizationBilling } = compiledPotteryHouseSeed
+  const { identity, organizationBilling } = compiledPotteryHouseSeed
   const parts: string[] = []
 
-  if (aiCredits) {
-    if (organizationBilling) {
-      parts.push(renderCanonicalBillingSql(identity.siteId, identity.organizationId, organizationBilling, sqlValue, aiCredits))
-    }
-  } else if (organizationBilling) {
-    parts.push(renderCanonicalBillingSql(identity.siteId, identity.organizationId, organizationBilling, sqlValue))
+  if (organizationBilling) {
+    parts.push(renderOrganizationBillingSql(identity.organizationId, organizationBilling, sqlValue))
   }
 
   return `-- BEGIN GENERATED: pottery_billing

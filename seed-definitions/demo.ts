@@ -2,7 +2,7 @@ import { postPublicPath } from '../utils/post-slugs.ts'
 import { compileCuratedSiteFixture } from './compile.ts'
 import type { CuratedProductDefinition, CuratedSiteDefinition } from './contracts.ts'
 import { buildSeedExperienceCategories, buildSeedProductCategories } from './contracts.ts'
-import { renderCanonicalBillingSql } from './billing-sql.ts'
+import { renderOrganizationBillingSql } from './billing-sql.ts'
 import { renderTenantPagesSeedSql } from './tenant-pages.ts'
 
 const DEMO_TIMEZONE = 'America/New_York'
@@ -1618,10 +1618,6 @@ export const demoFixture: CuratedSiteDefinition = {
       valuesJson: { name: 'ค่ำคืนพิซซ่าครอบครัว', experience: { tagline: 'มื้ออาหารโต๊ะยาว เวลาผ่อนคลาย และพิซซ่าสำหรับทุกวัย' } },
     },
   ],
-  aiCredits: {
-    balance: 2000,
-    lifetimeUsed: 127,
-  },
   organizationBilling: {
     status: 'active',
     plan: 'growth',
@@ -2581,15 +2577,11 @@ export function renderCompiledDemoTenantPagesBlock(): string {
 }
 
 export function renderCompiledDemoBillingBlock(): string {
-  const { identity, aiCredits, organizationBilling } = compiledDemoSeed
+  const { identity, organizationBilling } = compiledDemoSeed
   const parts: string[] = []
 
-  if (aiCredits) {
-    if (organizationBilling) {
-      parts.push(renderCanonicalBillingSql(identity.siteId, identity.organizationId, organizationBilling, sqlValue, aiCredits))
-    }
-  } else if (organizationBilling) {
-    parts.push(renderCanonicalBillingSql(identity.siteId, identity.organizationId, organizationBilling, sqlValue))
+  if (organizationBilling) {
+    parts.push(renderOrganizationBillingSql(identity.organizationId, organizationBilling, sqlValue))
   }
 
   return `-- BEGIN GENERATED: demo_billing

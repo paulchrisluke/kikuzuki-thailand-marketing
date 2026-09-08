@@ -378,7 +378,7 @@ async function sendWhatsAppThreadNotification(
 
   let result: Awaited<ReturnType<typeof sendWhatsAppNotification>>
   try {
-    result = await sendWhatsAppNotification(env, db, opts)
+    result = await sendWhatsAppNotification(env, opts)
   } catch (error) {
     await recordDeliveryOutcome(db, {
       claim,
@@ -396,14 +396,6 @@ async function sendWhatsAppThreadNotification(
     error: result.success ? null : result.error,
   })
   await publishGuestInboxThreadEvent(env, db, { threadId: opts.delivery.threadId, type: 'delivery.changed' })
-  if (!result.success && result.status === 'sent') {
-    console.error('whatsapp_delivery_accounting_failed', {
-      organizationId: opts.organizationId,
-      siteId: opts.siteId,
-      error: result.error,
-    })
-    throw new Error(result.error)
-  }
   return result.success
 }
 
@@ -568,15 +560,7 @@ async function notifyOwner(
       if (delivery) {
         await sendWhatsAppThreadNotification(env, db, { ...sendOptions, delivery })
       } else {
-        const result = await sendWhatsAppNotification(env, db, sendOptions)
-        if (!result.success && result.status === 'sent') {
-          console.error('whatsapp_delivery_accounting_failed', {
-            organizationId: opts.organizationId,
-            siteId: opts.siteId,
-            error: result.error,
-          })
-          throw new Error(result.error)
-        }
+        await sendWhatsAppNotification(env, sendOptions)
       }
     }))
   }

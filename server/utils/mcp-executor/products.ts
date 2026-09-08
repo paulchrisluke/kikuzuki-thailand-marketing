@@ -1,7 +1,6 @@
 import { queryFirst } from '~/server/db'
 import type { CreateProductInput, Product, SyncProductInput, UpdateProductInput } from '~/server/types/products'
 import { createProduct, createProductCategory, createProductsBatch, deleteProduct, deleteProductCategory, getProduct, listLocationProducts, listProductCategories, moveProductsToCategory, renameProductCategory, reorderProductCategories, reorderProducts, syncProducts, updateProduct } from '~/server/utils/product-management'
-import { extractProductsFromMediaAsset } from '~/server/utils/chowbot-media'
 import { assertResourceAccess } from '~/server/utils/member-access'
 import { paginateMcpCollection } from '~/server/utils/mcp-pagination'
 import { MCP_ERROR, mcpProtocolError } from '~/server/utils/mcp-protocol'
@@ -137,11 +136,6 @@ export async function handleProductsTools(ctx: McpExecutorContext): Promise<unkn
       const locationId = requiredString(args, 'location_id')
       await authorizeLocation(ctx, locationId)
       return { products: await syncProducts(site.db, site.organizationId, site.siteId, locationId, objectArray(args.products, 'products') as unknown as SyncProductInput[], { actorId: site.userId }, args.set_missing_unavailable === true) }
-    }
-    case 'import_products_from_media': {
-      const locationId = requiredString(args, 'location_id')
-      await authorizeLocation(ctx, locationId)
-      return extractProductsFromMediaAsset(site.db, site.env, { organizationId: site.organizationId, siteId: site.siteId, userId: site.userId, assetId: requiredString(args, 'asset_id'), locationId, sessionId: site.sessionId })
     }
     default: return NOT_HANDLED
   }
