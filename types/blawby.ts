@@ -99,6 +99,7 @@ export interface PublicBlogSummary {
     public_url: string
     thumbnail_url: string | null
     kind: string | null
+    alt_text: string | null
     width: number | null
     height: number | null
   }>

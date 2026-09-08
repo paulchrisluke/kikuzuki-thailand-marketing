@@ -481,6 +481,7 @@ export function attachFeaturedMedia(record: ApiRecord) {
     media_public_url: publicUrl,
     media_thumbnail_url: thumbnailUrl,
     media_kind: kind,
+    media_alt_text: altText,
     media_width: width,
     media_height: height,
     ...rest
@@ -488,19 +489,19 @@ export function attachFeaturedMedia(record: ApiRecord) {
 
   return {
     ...normalizeNavVisibility(rest),
-    media: assetId ? [{ asset_id: assetId, slot: 'featured', public_url: publicUrl ?? null, thumbnail_url: thumbnailUrl ?? null, kind: kind ?? null, width: width ?? null, height: height ?? null }] : [],
+    media: assetId ? [{ asset_id: assetId, slot: 'featured', public_url: publicUrl ?? null, thumbnail_url: thumbnailUrl ?? null, kind: kind ?? null, alt_text: altText ?? null, width: width ?? null, height: height ?? null }] : [],
   }
 }
 
 export function attachFeaturedMediaFromBareJoin(record: ApiRecord) {
   const {
-    public_url: publicUrl, thumbnail_url: thumbnailUrl, kind, width, height, asset_id: assetId,
+    public_url: publicUrl, thumbnail_url: thumbnailUrl, kind, alt_text: altText, width, height, asset_id: assetId,
     ...rest
   } = record
 
   return {
     ...normalizeNavVisibility(rest),
-    media: assetId ? [{ asset_id: assetId, slot: 'featured', public_url: publicUrl ?? null, thumbnail_url: thumbnailUrl ?? null, kind: kind ?? null, width: width ?? null, height: height ?? null }] : [],
+    media: assetId ? [{ asset_id: assetId, slot: 'featured', public_url: publicUrl ?? null, thumbnail_url: thumbnailUrl ?? null, kind: kind ?? null, alt_text: altText ?? null, width: width ?? null, height: height ?? null }] : [],
   }
 }
 
@@ -597,6 +598,7 @@ export async function getPublishedBlogPost(db: DbClient, category: string, slug:
       ma.public_url,
       ma.thumbnail_url,
       ma.kind,
+      ma.alt_text,
       ma.width,
       ma.height
     FROM content_documents p
@@ -635,7 +637,7 @@ export async function getPublishedPlatformDoc(db: DbClient, category: string, sl
        (p.metadata_json ->> '$.nav_section') AS nav_section, (p.metadata_json ->> '$.nav_title') AS nav_title, (p.metadata_json ->> '$.nav_order') AS nav_order, (p.metadata_json ->> '$.nav_section_order') AS nav_section_order, (p.metadata_json ->> '$.nav_group') AS nav_group, (p.metadata_json ->> '$.nav_group_order') AS nav_group_order, (p.metadata_json ->> '$.hide_from_nav') AS hide_from_nav, (p.metadata_json ->> '$.featured_order') AS featured_order,
        p.author_id,
        mp.asset_id AS asset_id, p.updated_at,
-       ma.public_url, ma.thumbnail_url, ma.kind, ma.width, ma.height
+       ma.public_url, ma.thumbnail_url, ma.kind, ma.alt_text, ma.width, ma.height
      FROM content_documents p
      LEFT JOIN media_placements mp ON mp.owner_type = 'content_document' AND mp.owner_id = p.id AND mp.slot = 'featured' AND mp.sort_order = 0
      LEFT JOIN media_assets ma ON ma.id = mp.asset_id AND ma.status = 'active'
@@ -749,7 +751,7 @@ export async function listBlogPosts(db: DbClient, status?: string | null, siteId
       p.id, p.title, p.slug, p.summary AS excerpt, (p.metadata_json ->> '$.category') AS category, json_extract(p.metadata_json, '$.tags') AS tags_json, p.status, p.visibility, p.scheduled_for,
       p.seo_title, p.seo_description, p.seo_keywords, p.canonical_url, p.robots,
       (p.metadata_json ->> '$.nav_section') AS nav_section, (p.metadata_json ->> '$.nav_title') AS nav_title, (p.metadata_json ->> '$.nav_order') AS nav_order, (p.metadata_json ->> '$.nav_section_order') AS nav_section_order, (p.metadata_json ->> '$.hide_from_nav') AS hide_from_nav, (p.metadata_json ->> '$.featured_order') AS featured_order,
-      mp.asset_id AS asset_id, ma.public_url AS media_public_url, ma.thumbnail_url AS media_thumbnail_url, ma.kind AS media_kind,
+      mp.asset_id AS asset_id, ma.public_url AS media_public_url, ma.thumbnail_url AS media_thumbnail_url, ma.kind AS media_kind, ma.alt_text AS media_alt_text,
       ma.width AS media_width, ma.height AS media_height,
       p.published_at, p.created_at, p.updated_at
     FROM content_documents p
@@ -783,7 +785,7 @@ export async function getBlogPost(db: DbClient, postIdOrSlug: string, siteId: st
        p.first_published_at, (p.metadata_json ->> '$.slug_manually_overridden') AS slug_manually_overridden,
        p.seo_title, p.seo_description, p.seo_keywords, p.canonical_url, p.robots,
        (p.metadata_json ->> '$.nav_section') AS nav_section, (p.metadata_json ->> '$.nav_title') AS nav_title, (p.metadata_json ->> '$.nav_order') AS nav_order, (p.metadata_json ->> '$.nav_section_order') AS nav_section_order, (p.metadata_json ->> '$.hide_from_nav') AS hide_from_nav, (p.metadata_json ->> '$.featured_order') AS featured_order,
-       mp.asset_id AS asset_id, ma.public_url AS media_public_url, ma.thumbnail_url AS media_thumbnail_url, ma.kind AS media_kind,
+       mp.asset_id AS asset_id, ma.public_url AS media_public_url, ma.thumbnail_url AS media_thumbnail_url, ma.kind AS media_kind, ma.alt_text AS media_alt_text,
        ma.width AS media_width, ma.height AS media_height,
        p.published_at, p.created_at, p.updated_at
      FROM content_documents p
@@ -835,6 +837,7 @@ export async function getPublishedSiteBlogPost(db: DbClient, siteId: string, slu
       ma.public_url,
       ma.thumbnail_url,
       ma.kind,
+      ma.alt_text,
       ma.width,
       ma.height
     FROM content_documents p
@@ -1163,7 +1166,7 @@ export async function listPlatformDocs(db: DbClient, _status?: string | null) {
   const sql = `SELECT
       d.id, d.title, d.slug, d.summary AS excerpt, (d.metadata_json ->> '$.category') AS category, d.seo_description, d.seo_keywords, d.canonical_url, d.robots,
       (d.metadata_json ->> '$.nav_section') AS nav_section, (d.metadata_json ->> '$.nav_title') AS nav_title, (d.metadata_json ->> '$.nav_order') AS nav_order, (d.metadata_json ->> '$.nav_section_order') AS nav_section_order, (d.metadata_json ->> '$.nav_group') AS nav_group, (d.metadata_json ->> '$.nav_group_order') AS nav_group_order, (d.metadata_json ->> '$.hide_from_nav') AS hide_from_nav, (d.metadata_json ->> '$.featured_order') AS featured_order,
-      mp.asset_id AS asset_id, ma.public_url AS media_public_url, ma.thumbnail_url AS media_thumbnail_url, ma.kind AS media_kind,
+      mp.asset_id AS asset_id, ma.public_url AS media_public_url, ma.thumbnail_url AS media_thumbnail_url, ma.kind AS media_kind, ma.alt_text AS media_alt_text,
       ma.width AS media_width, ma.height AS media_height,
       (d.metadata_json ->> '$.difficulty_level') AS difficulty_level, d.sort_order, d.created_at, d.updated_at
     FROM content_documents d
@@ -1182,7 +1185,7 @@ export async function getPlatformDoc(db: DbClient, docIdOrSlug: string) {
        d.id, d.title, d.slug, d.summary AS excerpt, (d.metadata_json ->> '$.category') AS category, d.seo_description, d.seo_keywords, d.canonical_url, d.robots,
        (d.metadata_json ->> '$.nav_section') AS nav_section, (d.metadata_json ->> '$.nav_title') AS nav_title, (d.metadata_json ->> '$.nav_order') AS nav_order, (d.metadata_json ->> '$.nav_section_order') AS nav_section_order, (d.metadata_json ->> '$.nav_group') AS nav_group, (d.metadata_json ->> '$.nav_group_order') AS nav_group_order, (d.metadata_json ->> '$.hide_from_nav') AS hide_from_nav, (d.metadata_json ->> '$.featured_order') AS featured_order,
        (d.metadata_json ->> '$.difficulty_level') AS difficulty_level, d.sort_order,
-       mp.asset_id AS asset_id, ma.public_url AS media_public_url, ma.thumbnail_url AS media_thumbnail_url, ma.kind AS media_kind,
+       mp.asset_id AS asset_id, ma.public_url AS media_public_url, ma.thumbnail_url AS media_thumbnail_url, ma.kind AS media_kind, ma.alt_text AS media_alt_text,
        ma.width AS media_width, ma.height AS media_height,
        d.created_at, d.updated_at
      FROM content_documents d

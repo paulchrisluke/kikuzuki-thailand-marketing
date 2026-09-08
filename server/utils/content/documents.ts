@@ -139,6 +139,13 @@ function mediaFreeBlockData(type: ContentBlockType, value: unknown, field: strin
     badRequest(error instanceof Error ? error.message : `${field} contains embedded media`)
   }
   if (type === 'image' && 'url' in data) badRequest(`${field}.url must use a media placement`)
+  // A heading's text is `text`, and its level is the `level` column. Importers
+  // also wrote a `markdown` key holding `'#'.repeat(level) + ' ' + text` — a
+  // second copy of both, which no reader consumes and which the CMS leaves
+  // behind when it edits `text`, so the row ends up asserting two different
+  // headlines. Drop it on write: the block is exactly what the registry says
+  // it is.
+  if (type === 'heading') delete data.markdown
   // The markdown contract lives here, on the one batch builder every content
   // document write passes through, because `content_blocks` is one table and a
   // block cannot mean different things depending on which caller wrote it.

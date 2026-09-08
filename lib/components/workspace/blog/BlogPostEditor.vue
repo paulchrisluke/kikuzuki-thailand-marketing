@@ -26,6 +26,7 @@
             :author-name="resolvedSiteName"
             :site-name="resolvedSiteName"
             :media-url="resolvedPrimaryMediaUrl"
+            :media-alt="featuredMedia?.alt_text ?? null"
             :media-kind="resolvedMediaKind"
             :read-minutes="readMinutes"
             :blocks="blocks"

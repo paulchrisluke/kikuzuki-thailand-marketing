@@ -193,7 +193,7 @@ export async function listPublicBlogSummaries(db: DbClient, siteId: string, limi
     SELECT root.id, p.id AS representation_id, p.title, p.slug, p.summary AS excerpt, p.metadata_json ->> '$.category' AS category,
            p.metadata_json ->> '$.tags' AS tags_json, root.published_at, p.canonical_url, p.path,
            root.metadata_json ->> '$.featured_order' AS featured_order,
-           featured.asset_id AS asset_id, media.public_url, media.thumbnail_url, media.kind, media.width, media.height
+           featured.asset_id AS asset_id, media.public_url, media.thumbnail_url, media.kind, media.alt_text, media.width, media.height
       FROM content_documents root JOIN content_documents p ON COALESCE(p.root_id,p.id) = root.id AND p.locale = ?
       LEFT JOIN media_placements featured ON featured.owner_type = 'content_document' AND featured.owner_id = p.id AND featured.slot = 'featured' AND featured.sort_order = 0 AND featured.status = 'active'
       LEFT JOIN media_assets media ON media.id = featured.asset_id AND media.status = 'active'
@@ -219,6 +219,7 @@ export async function listPublicBlogSummaries(db: DbClient, siteId: string, limi
           public_url: row.public_url,
           thumbnail_url: typeof row.thumbnail_url === 'string' ? row.thumbnail_url : null,
           kind: typeof row.kind === 'string' ? row.kind : null,
+          alt_text: typeof row.alt_text === 'string' ? row.alt_text : null,
           width: Number.isFinite(Number(row.width)) ? Number(row.width) : null,
           height: Number.isFinite(Number(row.height)) ? Number(row.height) : null,
         }]
@@ -636,6 +637,7 @@ function mapPublicBlogPost(row: ApiRecord | null): PublicBlogPost | null {
       public_url: requiredText(item.public_url, `article ${row.id}.media.public_url`),
       thumbnail_url: typeof item.thumbnail_url === 'string' ? item.thumbnail_url : null,
       kind: typeof item.kind === 'string' ? item.kind : null,
+      alt_text: typeof item.alt_text === 'string' ? item.alt_text : null,
       width: Number.isFinite(Number(item.width)) ? Number(item.width) : null,
       height: Number.isFinite(Number(item.height)) ? Number(item.height) : null,
     })),

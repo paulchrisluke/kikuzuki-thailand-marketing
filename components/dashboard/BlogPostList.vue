@@ -31,7 +31,7 @@
             the list does not reflow between rows that have one and rows that do not.
           -->
           <span class="size-12 shrink-0 overflow-hidden rounded-lg bg-muted">
-            <img v-if="coverUrl(item.row)" :src="coverUrl(item.row)!" :alt="item.title" class="h-full w-full object-cover">
+            <img v-if="coverUrl(item.row)" :src="coverUrl(item.row)!" :alt="coverAlt(item.row)" class="h-full w-full object-cover">
             <span v-else class="flex h-full w-full items-center justify-center">
               <UIcon name="i-lucide-newspaper" class="size-4 text-muted" />
             </span>
@@ -167,6 +167,11 @@ function coverUrl(post: BlogPost): string | null {
   // The thumbnail is a scaled-down duplicate of the same asset, so it is the
   // right source for a row; the full image is only fetched where it shows big.
   return featured.thumbnail_url ?? featured.public_url ?? null
+}
+
+/** The cover's description belongs to the asset; the headline is already beside it. */
+function coverAlt(post: BlogPost): string {
+  return post.media?.find(entry => entry.slot === 'featured')?.alt_text ?? ''
 }
 
 function formatDate(iso: string) {

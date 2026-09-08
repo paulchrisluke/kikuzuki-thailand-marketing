@@ -15,7 +15,7 @@
 
     <article class="min-w-0">
     <div class="mx-auto max-w-4xl">
-    <BlogArticleView :title="post.title" :excerpt="post.excerpt" :category="post.category" :published-at="post.published_at" :updated-at="wasUpdated ? post.updated_at : null" :author-name="authorName" :author-image="authorImage" :site-name="siteName" :media-url="postMedia.url" :media-kind="postMedia.isVideo ? 'video' : 'image'" :read-minutes="readTime" :blocks="post.content_blocks" template="saya" />
+    <BlogArticleView :title="post.title" :excerpt="post.excerpt" :category="post.category" :published-at="post.published_at" :updated-at="wasUpdated ? post.updated_at : null" :author-name="authorName" :author-image="authorImage" :site-name="siteName" :media-url="postMedia.url" :media-alt="postMedia.alt" :media-kind="postMedia.isVideo ? 'video' : 'image'" :read-minutes="readTime" :blocks="post.content_blocks" template="saya" />
 
     <div class="mt-16 flex items-center justify-between gap-6 border-t border-default pt-8">
       <div>

@@ -3,10 +3,11 @@
  * Follows the media_assets source of truth.
  */
 export const useMedia = () => {
-  const resolveMedia = (asset?: { 
-    public_url?: string | null; 
-    thumbnail_url?: string | null; 
+  const resolveMedia = (asset?: {
+    public_url?: string | null;
+    thumbnail_url?: string | null;
     kind?: string | null;
+    alt_text?: string | null;
   } | null) => {
     const url = asset?.public_url ?? null
     const kind = asset?.kind ?? 'image'
@@ -20,6 +21,9 @@ export const useMedia = () => {
       url,
       kind,
       thumb,
+      // The asset's own alt text, empty when it has none. A caller that wants a
+      // description the asset does not carry has to fix the asset.
+      alt: asset?.alt_text ?? '',
       isImage: kind === 'image',
       isVideo: kind === 'video'
     }

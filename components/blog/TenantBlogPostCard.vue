@@ -36,7 +36,7 @@
           playsinline
           class="h-full w-full object-cover"
         />
-        <img v-else :src="featuredMedia.public_url" :alt="post.title" loading="lazy" class="h-full w-full object-cover">
+        <img v-else :src="featuredMedia.public_url" :alt="featuredMedia.alt_text ?? ''" loading="lazy" class="h-full w-full object-cover">
       </div>
     </div>
 
@@ -56,7 +56,7 @@
           playsinline
           class="h-full w-full object-cover"
         />
-        <img v-else :src="featuredMedia.public_url" :alt="post.title" loading="lazy" class="h-full w-full object-cover">
+        <img v-else :src="featuredMedia.public_url" :alt="featuredMedia.alt_text ?? ''" loading="lazy" class="h-full w-full object-cover">
       </div>
       <div class="p-6">
         <div class="mb-3 flex flex-wrap items-center gap-3 text-sm" :class="metaTextClass">
@@ -80,7 +80,7 @@ export interface TenantBlogCardPost {
   category?: string | null
   canonical_url?: string | null
   published_at?: string | null
-  media?: Array<{ asset_id: string; slot: string; public_url: string | null; thumbnail_url?: string | null; kind?: string | null; width?: number | null; height?: number | null }>
+  media?: Array<{ asset_id: string; slot: string; public_url: string | null; thumbnail_url?: string | null; kind?: string | null; alt_text?: string | null; width?: number | null; height?: number | null }>
 }
 
 const props = withDefaults(defineProps<{

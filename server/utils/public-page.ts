@@ -607,7 +607,7 @@ async function loadPublicPageSource(
       `SELECT p.id, root.id AS root_id, root.slug AS source_slug, p.title, p.slug, p.summary AS excerpt, (p.metadata_json ->> '$.category') AS category, (p.metadata_json ->> '$.nav_title') AS nav_title, p.seo_description, p.seo_keywords,
               p.canonical_url, p.robots, root.published_at, p.updated_at, (root.metadata_json ->> '$.featured_order') AS featured_order,
               mp.asset_id AS asset_id,
-              ma.public_url, ma.thumbnail_url, ma.kind, ma.width, ma.height,
+              ma.public_url, ma.thumbnail_url, ma.kind, ma.alt_text, ma.width, ma.height,
               CAST(MAX(1, ROUND((COALESCE((
                 SELECT SUM(LENGTH(COALESCE(json_extract(cb.data_json, '$.markdown'), json_extract(cb.data_json, '$.text'), '')))
                 FROM content_documents cd
@@ -628,7 +628,7 @@ async function loadPublicPageSource(
       `SELECT p.id, root.id AS root_id, root.slug AS source_slug, p.title, p.slug, p.summary AS excerpt, (p.metadata_json ->> '$.category') AS category, (p.metadata_json ->> '$.nav_title') AS nav_title, p.seo_description, p.seo_keywords,
               p.canonical_url, p.robots, root.published_at, p.created_at, p.updated_at,
               mp.asset_id AS asset_id,
-              ma.public_url, ma.thumbnail_url, ma.kind, ma.width, ma.height
+              ma.public_url, ma.thumbnail_url, ma.kind, ma.alt_text, ma.width, ma.height
        FROM content_documents root JOIN content_documents p ON COALESCE(p.root_id,p.id) = root.id AND p.locale = ?
        LEFT JOIN media_placements mp ON mp.owner_type = 'content_document' AND mp.owner_id = p.id AND mp.slot = 'featured' AND mp.sort_order = 0 AND mp.status = 'active'
        LEFT JOIN media_assets ma ON ma.id = mp.asset_id AND ma.status = 'active'

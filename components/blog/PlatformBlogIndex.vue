@@ -38,7 +38,7 @@
             <img
               v-else
               :src="featuredMedia.url ?? undefined"
-              :alt="featuredPost.title"
+              :alt="featuredMedia.alt"
               class="h-full w-full object-cover"
             />
           </div>
@@ -93,7 +93,7 @@
                 <img
                   v-else
                   :src="post.media.url ?? undefined"
-                  :alt="post.title"
+                  :alt="post.media.alt"
                   loading="lazy"
                   class="h-full w-full object-cover"
                 />
