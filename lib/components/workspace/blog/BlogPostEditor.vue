@@ -66,7 +66,6 @@
 
       <EditorNavigationList :groups="settingsGroups" />
 
-      <UButton v-if="post" color="error" variant="ghost" block @click="remove">Delete post</UButton>
     </template>
   </div>
 
@@ -315,7 +314,7 @@ const settingsGroups = computed<EditorNavigationGroup[]>(() => {
       id: 'publishing',
       label: 'Publishing',
       items: [
-        { id: 'publishing', to: `${postPath.value}/publishing`, label: 'Publishing', summary: publishingSummary.value },
+        { id: 'publishing', to: `${postPath.value}/publishing`, label: 'When it goes live', summary: publishingSummary.value },
         row('url', 'URL', form.slug || generatedSlug.value, 'Generated from the headline'),
       ],
     },
@@ -396,23 +395,17 @@ const saveQueue = new SerializedSnapshotQueue<SaveSnapshot, BlogPost>(
   },
 )
 
-watch([
-  () => ({
-    title: form.title,
-    category: form.category,
-    excerpt: form.excerpt,
-    seo_title: form.seo_title,
-    seo_description: form.seo_description,
-    slug: form.slug,
-    canonical_url: form.canonical_url,
-    robots: form.robots,
-    visibility: form.visibility,
-    redirect_old_slug: form.redirect_old_slug,
-  }),
-  blocks,
-  tagsText,
-  slugResetRequested,
-], () => {
+/**
+ * Autosave watches the canvas and only the canvas — the headline and the body,
+ * the two things typed into the article itself.
+ *
+ * It used to watch every settings field as well, which quietly made each leaf's
+ * Cancel button a lie: the value was already persisted by the time it was
+ * pressed. A canvas autosaves because you cannot cancel an hour of writing; a
+ * field describing the post commits on Save and reverts on Cancel, the way it
+ * does in every other editor.
+ */
+watch([() => form.title, blocks], () => {
   if (applyingServerSnapshot) return
   markContentDirty()
   if (post.value && !loadPending.value && saveState.value !== 'conflict') {
@@ -522,20 +515,24 @@ function recordLifecycleError(error: unknown) {
   saveState.value = status === 409 ? 'conflict' : 'failed'
   actionError.value = getErrorMessage(error, 'Failed to change publishing status.')
 }
-function cancelSection() { return navigateTo(postPath.value) }
-async function saveSection() {
-  if (!post.value) return
-  await saveLiveChanges()
-  if (!actionError.value) await navigateTo(postPath.value)
+/** Dismissing a leaf discards its draft, matching every other editor. */
+async function cancelSection() {
+  if (post.value) applyLoadedPost(post.value)
+  await navigateTo(postPath.value)
 }
-async function saveLiveChanges() {
-  if (!post.value || !contentDirty.value) return
+async function saveSection() {
+  if (!post.value || !persistedPostId.value) return
   actionError.value = ''
   savingExplicitly.value = true
   try {
+    // A settings leaf is not watched by autosave, so nothing has marked the
+    // draft dirty. Saying so here is what lets `flushSave` write it.
+    markContentDirty()
+    saveQueue.mark(buildSaveSnapshot())
     await flushSave()
+    await navigateTo(postPath.value)
   } catch (error: unknown) {
-    actionError.value = getErrorMessage(error, 'Failed to save live changes.')
+    actionError.value = getErrorMessage(error, 'Failed to save.')
   } finally {
     savingExplicitly.value = false
   }
@@ -677,7 +674,6 @@ function changeImage(index: number, value: unknown) {
 }
 
 function beforeUnload(event: BeforeUnloadEvent) { if (dirtyState.value) event.preventDefault() }
-async function remove() { if (!post.value || !persistedPostId.value || !confirm('Delete this post permanently?')) return; await props.repository.delete(persistedPostId.value); await navigateTo(props.backUrl) }
 function windowOrigin() { return import.meta.client ? window.location.origin : 'https://krabiclaw.com' }
 function toLocalDatetime(value?: string | null) { if (!value) return ''; return instantDate(value).toISOString().slice(0, -1) }
 function resetSlugOverride() { slugResetRequested.value = true; form.slug = generatedSlug.value }
