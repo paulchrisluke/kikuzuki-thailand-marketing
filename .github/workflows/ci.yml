@@ -394,6 +394,8 @@ jobs:
       BETTER_AUTH_URL: https://krabiclaw.com
       PLAYWRIGHT_PREVIEW_URL: https://krabiclaw.com
       PLAYWRIGHT_WORKERS: "1"
+      # Production carries no E2E seed, so the demo-fixture cases do not apply here.
+      E2E_DEMO_FIXTURES: "false"
       EXPECTED_NUXT_BUILD_ID: ${{ needs.deploy-production.outputs.nuxt_build_id }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
