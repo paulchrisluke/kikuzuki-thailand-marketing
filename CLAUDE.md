@@ -12,7 +12,21 @@ Custom database migrations are prohibited. If an LLM proposes, generates, or edi
 
 - Fix the canonical API, schema, or domain source of truth. Do not add frontend fallbacks, guards, shadow models, compatibility branches, or silent empty success states unless nullable behavior is intentional and documented.
 - Do not hand-mutate staging or production data or schema to mask application failures.
-- Do not broaden the task to adjacent defects. Report them unless they directly block the requested change; if they block it, fix them through the same canonical path rather than creating another mechanism.
+- Do not broaden the task to adjacent defects, but scope is not a place to leave one standing. If the defect blocks the requested change, or sits in code the change already edits, fix it through the same canonical path rather than creating another mechanism. Otherwise file it, with the query or reproduction that found it. "Pre-existing", "not mine", and "future work" are not dispositions: a defect is fixed or filed.
+
+## Evidence
+
+A claim about data comes from a query. A claim about a surface comes from loading
+it. A claim about behavior comes from running it. Say how you know in the same
+breath as the claim, so the reader can re-run it.
+
+Count rows before describing a shape. `SELECT DISTINCT` and `group_concat(DISTINCT
+...)` describe the union across rows, never any single row; reading one as a census
+turns five stale rows into a fictional migration.
+
+`typecheck`, `lint`, and `build` prove the code compiles. They are not evidence
+that it does the thing, and never stand in for loading the surface or reading the
+rows.
 
 ## No fallbacks
 
@@ -63,7 +77,9 @@ Do not add a helper, wrapper, service, repository, composable, endpoint, schema 
 
 A refactor must remove the implementation it replaces in the same change. Do not leave dual reads, dual writes, aliases, temporary fallbacks, or "migration" compatibility code behind.
 
-Do not implement adjacent cleanup, TODOs, "future work," roadmap ideas, or reviewer suggestions unless they are required to complete the requested task.
+One concept, one name. If two files, functions, types, or tools describe the same thing, they are the same thing: pick the name and delete the other. A caller's identity does not belong in the name — `platform-content` alongside `tenant-pages` over one content model is what produced three hand-written schemas for a single executor. Rename in the change that finds the duplication.
+
+Do not implement adjacent cleanup, TODOs, "future work," roadmap ideas, or reviewer suggestions unless they are required to complete the requested task. Repairing something the change already had to touch is not adjacent cleanup.
 
 For cleanup/refactor work, net handwritten production code should decrease.
 
