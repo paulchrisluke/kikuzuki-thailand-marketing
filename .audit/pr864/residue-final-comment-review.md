@@ -35,3 +35,9 @@ Reviewed the final `layouts/dashboard.vue` change to derive only realtime organi
 The installed Nuxt router plugin uses memory history on the server, pushes the initial request URL, and awaits router readiness before rendering. Reading its current route here does not access browser-only state, and the invalidation provider still opens sockets only on the client. Nuxt's injected page route can retain the outgoing page while the router has already completed navigation. The current router ref therefore supplies the relevant completed navigation identity for this connection lifecycle. After successful navigation to `/admin/users`, clearing `stoppingImpersonation` cannot restore the outgoing tenant slug through that delayed page route. If navigation remains on the dashboard, clearing the flag resumes the existing connection path for the actual current route.
 
 The normal and rapid impersonation-exit browser cases remain the final runtime gate; this verdict is a scoped source and installed-framework inspection.
+
+## OAuth initialize verification addition
+
+Reviewed only the later 14-line addition to `tests/e2e/oauth-discovery.spec.ts`. It sends initialize using the existing refreshed bearer and empty Cookie, then requires 200 and negotiated protocol 2025-06-18 before the existing tools/list request. That protocol matches `scripts/test-mcp-oauth.mjs`. No added narration comments, suppressions, fallback branches, helper abstractions or concrete correctness findings. The reviewer changed no application source. Comment deletions and MUST KILL flags are zero.
+
+This adds the explicitly missing initialize request to the existing public CIMD flow. It does not claim full ChatGPT UI authorization or the complete notification lifecycle. No additional test expansion is needed for this bounded gap. Root owns actual runtime qualification; this review ran no browser or build.

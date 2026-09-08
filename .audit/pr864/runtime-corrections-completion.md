@@ -24,3 +24,11 @@ The preview NCLS video played in Chrome with readyState 4, decoded dimensions 64
 ## Remaining release evidence
 
 This batch is ready for one push. The new SHA still requires its normal checks and exact-preview qualification. The old CI missing-heading cause is not claimed proven or dismissed as slow. Credentialed deployed CMS, OAuth/MCP and real billing/provider checks still require authorized access. The preview sign-in tab remains pending. Staging initialization and production freeze, fresh export, verified transfer and cutover remain governed by the canonical release contracts. Production remains on Epoch 5 and issue 829 stays open.
+
+## Deployed verification and OAuth coverage correction
+
+The application batch was pushed as f5c90696. Its exact preview passed all 22 affected public-route cases without retries or skips, and manual Chrome booking/scheduling checks passed across the three tenant aliases. Those results remain tied to preview build 3de85670-3a3e-47d5-8b2b-a30f2c8f889f.
+
+A direct audit of the release contracts corrected the earlier broad manual-login gate. Existing CI credentialed tests provide auth, PKCE, token exchange and tenant MCP evidence. They omitted the explicitly required bearer initialize call. The existing OAuth test now makes that call using its refreshed bearer and empty Cookie header before tools/list. The full OAuth file passed eight cases locally with one HTTPS-only skip on the unchanged final application build. Lint and independent scoped review passed. An initial audit config discovered no tests due to its relative test directory; the corrected config and separate passing report preserve that setup failure.
+
+This final test-only addition needs its normal deployed CI result. It does not change application code or the data transfer. Human sign-in is not a prerequisite for crediting actual credentialed CI coverage. Staging and production qualification remain governed by their scoped canonical requirements, not the earlier overbroad audit wording.
