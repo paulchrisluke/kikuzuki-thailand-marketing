@@ -28,7 +28,7 @@ test('public discovery resolves translations through current publication owners'
       await createContentDocumentWithBlocks(db, { id, organizationId: site, siteId: site, kind, rowRole: 'root', locale: 'en',
         title: id, slug: id, summary: id + ' summary', metadata: { category: 'Getting Started', tags: ['shared'] },
         ...(kind === 'article' ? { status: 'published', visibility: 'public' } : {}),
-      }, [{ id: id + '-body', type: 'markdown', data: { markdown: id + ' exact body' } }])
+      }, [{ id: id + '-body', type: 'markdown', data: { markdown: id + ' exact body', editor_mode: 'rich' } }])
     }
     for (const [id, path] of [['home', '/'], ['about', '/about']]) await createContentDocumentWithBlocks(db, {
       id, organizationId: 'tenant', siteId: 'tenant', kind: 'page', rowRole: 'root', locale: 'en', title: id, path,
