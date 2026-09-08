@@ -132,14 +132,22 @@ export async function ensurePlatformMediaScope(env: CloudflareEnv, db: DbClient)
   }
 
   const now = new Date().toISOString()
-  await execute(db, `
+  await executeBatch(db, [{ query: `
     INSERT INTO sites (id, organization_id, theme_id, slug, brand_name, status, onboarding_status, created_at, updated_at)
     VALUES (?, ?, 'saya-theme-v1', ?, 'KrabiClaw', 'active', 'active', ?, ?)
     ON CONFLICT(id) DO UPDATE SET
       brand_name = excluded.brand_name,
       updated_at = excluded.updated_at
     WHERE sites.brand_name IS NULL OR trim(sites.brand_name) <> excluded.brand_name
-  `, [PLATFORM_SITE_ID, PLATFORM_ORGANIZATION_ID, PLATFORM_SITE_ID, now, now])
+  `, params: [PLATFORM_SITE_ID, PLATFORM_ORGANIZATION_ID, PLATFORM_SITE_ID, now, now] }, {
+    query: `
+      INSERT INTO site_locales
+        (id, organization_id, site_id, locale, label, is_source, status, created_at, updated_at)
+      VALUES (?, ?, ?, 'en', 'English', 1, 'published', ?, ?)
+      ON CONFLICT(organization_id, site_id, locale) DO NOTHING
+    `,
+    params: [`locale::${PLATFORM_ORGANIZATION_ID}::${PLATFORM_SITE_ID}::en`, PLATFORM_ORGANIZATION_ID, PLATFORM_SITE_ID, now, now],
+  }])
   await ensurePlatformLogoPlacement(env, db, now)
 }
 

@@ -1,7 +1,7 @@
 import { HTTPError } from 'nitro';
 import { markdownRequiresSourceMode } from '~/shared/markdown-editor-mode'
 
-import { execute, executeBatch, queryAll, queryFirst, type BatchQuery, type DbClient } from '~/server/db'
+import { executeBatch, queryAll, queryFirst, type BatchQuery, type DbClient } from '~/server/db'
 import {
   createContentDocumentWithBlocks,
   prepareContentDocumentDeletion,
@@ -38,6 +38,8 @@ import { findAuthUsersByIds, type CloudflareEnv } from '~/server/utils/auth'
 import { findOrganizationById } from '~/server/utils/member-access'
 import { refreshSocialCard } from '~/server/utils/social-card'
 import { loadPublicSocialMedia } from '~/server/utils/public-social-image'
+import { createScopedPreviewToken, verifyScopedPreviewToken } from '~/server/utils/preview-token'
+import { publicResourceCacheInvalidationQuery } from '~/server/utils/public-resource-cache'
 
 const BLOG_TITLE_MAX = 200
 const BLOG_EXCERPT_MAX = 500
@@ -156,6 +158,7 @@ export interface PlatformDocNavGroupInput {
 }
 
 export interface PlatformBlogCreateInput extends PlatformContentNavInput {
+  status?: PlatformBlogLifecycleState['status']
   title: string
   slug?: string | null
   content_blocks: Array<ContentBlockInput & { id?: string }>
@@ -198,7 +201,7 @@ export interface PlatformBlogLifecycleInput {
 
 export interface PlatformBlogLifecycleState {
   id: string
-  status: 'published' | 'scheduled'
+  status: 'draft' | 'published' | 'scheduled'
   published_at: string | null
   scheduled_for: string | null
   updated_at: string
@@ -516,12 +519,13 @@ export type ContentReviewContext =
   | { scope: 'platform' }
   | { scope: 'tenant'; orgSlug: string; siteSlug: string }
 
-function contentReviewUrls(
+async function contentReviewUrls(
   record: ApiRecord,
   kind: 'blog' | 'doc',
   siteId: string | null = null,
   tenantBlogPath: string | null = null,
   context?: ContentReviewContext,
+  env?: CloudflareEnv,
 ) {
   const id = String(record.id ?? '')
   const adminEditUrl = (() => {
@@ -544,18 +548,25 @@ function contentReviewUrls(
     return categorySlug ? `/docs/${categorySlug}/${slug}` : null
   })()
 
+  let previewUrl: string | null = null
+  if (kind === 'blog' && !isPublished && publicPath) {
+    if (!env?.PREVIEW_SECRET) throw new HTTPError({ statusCode: 500, statusMessage: 'Article preview signing is not configured' })
+    const token = await createScopedPreviewToken(env.PREVIEW_SECRET, 'article', id, Date.now() + 60 * 60 * 1000)
+    previewUrl = `${publicPath}?token=${encodeURIComponent(token)}`
+  }
+
   return {
     ...record,
     admin_edit_url: adminEditUrl,
     edit_url: adminEditUrl,
     public_path: publicPath,
     public_url: isPublished ? publicPath : null,
-    preview_url: null,
+    preview_url: previewUrl,
   }
 }
 
-function platformDocReviewUrls(record: ApiRecord) {
-  const projected = contentReviewUrls({ ...record, status: 'published' }, 'doc')
+async function platformDocReviewUrls(record: ApiRecord) {
+  const projected = await contentReviewUrls({ ...record, status: 'published' }, 'doc')
   const { status: _status, published_at: _publishedAt, preview_url: _previewUrl, ...doc } = projected
   return doc
 }
@@ -593,7 +604,7 @@ async function resolveTenantContext(db: DbClient, siteId: string | null, env?: C
  * request, which was causing the page to 404 on posts the API itself
  * served fine.
  */
-export async function getPublishedPlatformBlogPost(db: DbClient, category: string, slug: string, env: CloudflareEnv) {
+export async function getPublicPlatformBlogPost(db: DbClient, category: string, slug: string, env: CloudflareEnv, token?: string) {
   const post = await queryFirst<ApiRecord>(db, `
     SELECT
       p.id, p.title, p.slug, p.summary AS excerpt, (p.metadata_json ->> '$.category') AS category, json_extract(p.metadata_json, '$.tags') AS tags_json, p.seo_title, p.seo_description, p.seo_keywords,
@@ -610,10 +621,12 @@ export async function getPublishedPlatformBlogPost(db: DbClient, category: strin
     FROM content_documents p
     LEFT JOIN media_placements mp ON mp.owner_type = 'content_document' AND mp.owner_id = p.id AND mp.slot = 'featured' AND mp.sort_order = 0
     LEFT JOIN media_assets ma ON ma.id = mp.asset_id AND ma.status = 'active'
-    WHERE p.kind = 'article' AND p.row_role = 'root' AND p.slug = ? AND (p.metadata_json ->> '$.category') = ? AND p.status = 'published' AND p.site_id = ?
+    WHERE p.kind = 'article' AND p.row_role = 'root' AND p.slug = ? AND (p.metadata_json ->> '$.category') = ? AND p.site_id = ?
+      ${token === undefined ? "AND p.status = 'published'" : "AND p.status IN ('draft', 'scheduled', 'published')"}
   `, [slug, category, PLATFORM_SITE_ID])
 
   if (!post) return null
+  if (token !== undefined && (!env.PREVIEW_SECRET || !(await verifyScopedPreviewToken(env.PREVIEW_SECRET, 'article', String(post.id), token)))) return null
 
   const contentBlocks = await getContentBlocksForDocument(db, String(post.id))
   if (!contentBlocks) throw new HTTPError({ statusCode: 500, statusMessage: 'Blog content document is missing' })
@@ -631,7 +644,7 @@ export async function getPublishedPlatformBlogPost(db: DbClient, category: strin
 
 /**
  * Shared by the public docs API route and the docs page's SSR data fetch.
- * See getPublishedPlatformBlogPost above for why the page must call this
+ * See getPublicPlatformBlogPost above for why the page must call this
  * directly rather than doing a nested self-fetch back to the API route.
  */
 export async function getPublishedPlatformDoc(db: DbClient, category: string, slug: string, env: CloudflareEnv) {
@@ -711,7 +724,7 @@ function hasOwnField<T extends object>(input: T, key: PropertyKey) {
 // for KrabiClaw's own marketing blog — a tenant restaurant's blog category is free text.
 function validateBlogCommon(input: Partial<PlatformBlogCreateInput>, isTenant: boolean, operation: 'create' | 'update') {
   const writable = new Set<string>([...BLOG_UPDATE_MUTATION_FIELDS, operation === 'create' ? 'scheduled_for' : 'expected_updated_at'])
-  if (operation === 'create') { writable.delete('redirect_old_slug'); writable.delete('reset_slug_override') }
+  if (operation === 'create') { writable.add('status'); writable.delete('redirect_old_slug'); writable.delete('reset_slug_override') }
   const unknown = Object.keys(input).find(field => !writable.has(field))
   if (unknown) badRequest(unknown + ' is not writable through article ' + operation)
   normalizeBlankToNull(input)
@@ -768,17 +781,18 @@ export async function listPlatformBlogPosts(db: DbClient, status?: string | null
   const params: ApiValue[] = [resolvedSiteId]
   if (status === 'published') sql += " AND p.status = 'published'"
   else if (status === 'scheduled') sql += " AND p.status = 'scheduled'"
+  else if (status === 'draft') sql += " AND p.status = 'draft'"
   sql += ' ORDER BY COALESCE(featured_order, 999999), COALESCE(nav_section_order, 999999), COALESCE(nav_section, category), COALESCE(nav_order, 999999), p.created_at DESC'
   const results = await queryAll<ApiRecord>(db, sql, params)
   const context = isPlatformSite(resolvedSiteId) ? undefined : await resolveTenantContext(db, resolvedSiteId, env)
   const site = !isPlatformSite(resolvedSiteId)
     ? await queryFirst<{ theme_id: string | null }>(db, 'SELECT theme_id FROM sites WHERE id = ? LIMIT 1', [siteId])
     : null
-  return (results ?? []).map((record) => {
+  return Promise.all((results ?? []).map((record) => {
     const slug = typeof record.slug === 'string' ? record.slug : ''
     const publicPath = !isPlatformSite(resolvedSiteId) && slug ? tenantBlogPostPath({ themeId: site?.theme_id }, slug) : null
-    return contentReviewUrls(attachFeaturedMedia(attachPublished(record, Boolean(record.published_at))), 'blog', resolvedSiteId, publicPath, context)
-  })
+    return contentReviewUrls(attachFeaturedMedia(attachPublished(record, Boolean(record.published_at))), 'blog', resolvedSiteId, publicPath, context, env)
+  }))
 }
 
 export async function getPlatformBlogPost(db: DbClient, postIdOrSlug: string, siteId: string | null = null, env?: CloudflareEnv) {
@@ -821,7 +835,7 @@ export async function getPlatformBlogPost(db: DbClient, postIdOrSlug: string, si
   `, ['$.theme_by_template.' + editorTemplate.slug, resolvedSiteId, '$.theme_by_template.' + editorTemplate.slug]) : null
   const editorThemeTokens = parseBlogEditorThemeTokens(editorThemeTokenRow?.tokens_json)
   return {
-    ...contentReviewUrls(attachFeaturedMedia(attachPublished(post, Boolean(post.published_at))), 'blog', siteId, publicPath, context),
+    ...await contentReviewUrls(attachFeaturedMedia(attachPublished(post, Boolean(post.published_at))), 'blog', siteId, publicPath, context, env),
     tags: parseStringArray(post.tags_json),
     body: renderContentBlocksToMarkdown(rawBlocks),
     content_document: contentDocument,
@@ -832,7 +846,7 @@ export async function getPlatformBlogPost(db: DbClient, postIdOrSlug: string, si
   }
 }
 
-export async function getPublishedSiteBlogPost(db: DbClient, siteId: string, slug: string, env: CloudflareEnv) {
+export async function getPublicSiteBlogPost(db: DbClient, siteId: string, slug: string, env: CloudflareEnv, token?: string) {
   const post = await queryFirst<ApiRecord>(db, `
     SELECT
       p.id, p.title, p.slug, p.summary AS excerpt, (p.metadata_json ->> '$.category') AS category, json_extract(p.metadata_json, '$.tags') AS tags_json, p.seo_title, p.seo_description, p.seo_keywords,
@@ -848,12 +862,13 @@ export async function getPublishedSiteBlogPost(db: DbClient, siteId: string, slu
     FROM content_documents p
     LEFT JOIN media_placements mp ON mp.owner_type = 'content_document' AND mp.owner_id = p.id AND mp.slot = 'featured' AND mp.sort_order = 0
     LEFT JOIN media_assets ma ON ma.id = mp.asset_id AND ma.status = 'active'
-    WHERE p.kind = 'article' AND p.row_role = 'root' AND p.slug = ? AND p.site_id = ? AND p.status = 'published'
-      AND (p.scheduled_for IS NULL OR p.scheduled_for <= strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+    WHERE p.kind = 'article' AND p.row_role = 'root' AND p.slug = ? AND p.site_id = ?
+      ${token === undefined ? "AND p.status = 'published' AND (p.scheduled_for IS NULL OR p.scheduled_for <= strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))" : "AND p.status IN ('draft', 'scheduled', 'published')"}
     LIMIT 1
   `, [slug, siteId])
 
   if (!post) return null
+  if (token !== undefined && (!env.PREVIEW_SECRET || !(await verifyScopedPreviewToken(env.PREVIEW_SECRET, 'article', String(post.id), token)))) return null
 
   const contentDocument = await getContentDocumentById(db, String(post.id))
   if (!contentDocument) throw new HTTPError({ statusCode: 500, statusMessage: 'Blog content document is missing' })
@@ -873,12 +888,13 @@ export async function getPublishedSiteBlogPost(db: DbClient, siteId: string, slu
   }
 }
 
-export async function getPublishedLocalizedSiteBlogPost(
+export async function getPublicLocalizedSiteBlogPost(
   db: DbClient,
   siteId: string,
   slug: string,
   locale: string,
   env: CloudflareEnv,
+  token?: string,
 ) {
   const site = await queryFirst<{ organization_id: string; vertical: string }>(db, `
     SELECT organization_id, vertical FROM sites WHERE id = ? AND status = 'active' LIMIT 1
@@ -886,7 +902,7 @@ export async function getPublishedLocalizedSiteBlogPost(
   if (!site) return null
   const prefix = normalizeVertical(site.vertical) === 'service' ? 'article' : 'blog'
   if (locale === 'en') {
-    const post = await getPublishedSiteBlogPost(db, siteId, slug, env)
+    const post = await getPublicSiteBlogPost(db, siteId, slug, env, token)
     if (!post || typeof post.id !== 'string') return post
     return {
       ...post,
@@ -907,10 +923,11 @@ export async function getPublishedLocalizedSiteBlogPost(
            d.updated_at, root.slug AS source_slug
       FROM content_documents d JOIN content_documents root ON root.id = d.root_id
      WHERE d.site_id = ? AND d.locale = ? AND d.path = ? AND d.row_role = 'representation'
-       AND root.kind = 'article' AND root.row_role = 'root' AND root.status = 'published' LIMIT 1
+       AND root.kind = 'article' AND root.row_role = 'root'
+       ${token === undefined ? "AND root.status = 'published'" : ''} LIMIT 1
   `, [siteId, locale, '/' + prefix + '/' + slug])
   if (!row) return null
-  const canonical = await getPublishedSiteBlogPost(db, siteId, row.source_slug, env)
+  const canonical = await getPublicSiteBlogPost(db, siteId, row.source_slug, env, token)
   if (!canonical) return null
   const metadata = JSON.parse(row.metadata_json) as Record<string, unknown>
   const [contentBlocks, rawBlocks, social] = await Promise.all([
@@ -964,8 +981,12 @@ export async function createPlatformBlogPost(
   let scheduledFor: string | null = null
   try { scheduledFor = parseScheduledFor(input.scheduled_for) } catch (error) { badRequest((error as Error).message) }
   if (scheduledFor && new Date(scheduledFor).getTime() <= Date.now()) badRequest('scheduled_for must be in the future')
-  const status = scheduledFor ? 'scheduled' : 'published'
-  const publishedAt = scheduledFor ? null : now
+  const status = input.status ?? (scheduledFor ? 'scheduled' : 'draft')
+  if (!['draft', 'scheduled', 'published'].includes(status)) badRequest('status must be draft, scheduled or published')
+  if (status === 'scheduled' && !scheduledFor) badRequest('scheduled articles require scheduled_for')
+  if (status !== 'scheduled' && scheduledFor) badRequest('scheduled_for is only valid for scheduled articles')
+  if (status !== 'published' && !env?.PREVIEW_SECRET) throw new HTTPError({ statusCode: 500, statusMessage: 'Article preview signing is not configured' })
+  const publishedAt = status === 'published' ? now : null
   if (input.visibility && !['public', 'unlisted'].includes(input.visibility)) badRequest('visibility must be public or unlisted')
   const canonicalBlocks = await normalizeCanonicalBlogBlocks(db, input, placementScope)
   const canonicalBody = renderCanonicalBlogBody(canonicalBlocks)
@@ -1034,17 +1055,18 @@ export async function updatePlatformBlogLifecycle(
   const source = await queryFirst<{ id: string; status: string; updated_at: string }>(db,
     "SELECT id, status, updated_at FROM content_documents WHERE id = ? AND row_role = 'root' AND kind = 'article'", [sourceId])
   if (!source) notFound('Post not found')
-  if (source.status !== 'scheduled') badRequest('Only a scheduled article can be published or rescheduled')
+  if (source.status !== 'draft' && source.status !== 'scheduled') badRequest('Only a draft or scheduled article can be published or scheduled')
   if (source.updated_at !== input.expected_updated_at) {
     throw new HTTPError({ statusCode: 409, statusMessage: 'Article was updated by another writer' })
   }
   const committedAt = new Date(Math.max(Date.now(), Date.parse(source.updated_at) + 1)).toISOString()
-  const result = await execute(db, `UPDATE content_documents SET scheduled_for = ?,
+  const [result] = await executeBatch(db, [{ query: `UPDATE content_documents SET scheduled_for = ?,
     published_at = ?, first_published_at = CASE WHEN ? IS NULL THEN COALESCE(first_published_at, ?) ELSE first_published_at END,
-    status = ?, updated_at = ? WHERE id = ? AND kind = 'article' AND row_role = 'root' AND updated_at = ? AND status = 'scheduled'`,
-  [scheduledFor, scheduledFor ? null : committedAt, scheduledFor, committedAt,
-    scheduledFor ? 'scheduled' : 'published', committedAt, source.id, input.expected_updated_at])
-  if (Number(result.meta.changes ?? 0) !== 1) {
+    status = ?, updated_at = ? WHERE id = ? AND kind = 'article' AND row_role = 'root' AND updated_at = ? AND status IN ('draft', 'scheduled')`,
+  params: [scheduledFor, scheduledFor ? null : committedAt, scheduledFor, committedAt,
+    scheduledFor ? 'scheduled' : 'published', committedAt, source.id, input.expected_updated_at] },
+  publicResourceCacheInvalidationQuery(resolvedSiteId, 'article-publication')])
+  if (Number(result?.meta.changes ?? 0) !== 1) {
     throw new HTTPError({ statusCode: 409, statusMessage: 'Article was updated by another writer' })
   }
   return { id: source.id, status: scheduledFor ? 'scheduled' as const : 'published' as const,
@@ -1112,7 +1134,8 @@ export async function updatePlatformBlogPost(
   try {
     await updateContentDocument(db, postId, {
       expected_updated_at: input.expected_updated_at ?? current.updated_at, blocks: normalizedBlocks, changes,
-      additionalQueriesAfter: [...mediaQueries, ...(normalizedBlocks ? await contentBlockPlacementQueries(db, normalizedBlocks, placementScope, now) : [])],
+      additionalQueriesAfter: [...mediaQueries, ...(normalizedBlocks ? await contentBlockPlacementQueries(db, normalizedBlocks, placementScope, now) : []),
+        ...(input.visibility === undefined ? [] : [publicResourceCacheInvalidationQuery(resolvedSiteId, 'article-visibility')])],
     })
     if (requestedSlug && requestedSlug !== current.slug && current.first_published_at && input.redirect_old_slug !== false) {
       await createBlogRedirect(db, postId, siteId, current.slug)
@@ -1179,7 +1202,7 @@ export async function listPlatformDocs(db: DbClient, _status?: string | null) {
     LEFT JOIN media_assets ma ON ma.id = mp.asset_id AND ma.status = 'active'
     WHERE d.kind = 'platform_doc' AND d.row_role = 'root' AND d.site_id = 'platform' ORDER BY COALESCE((d.metadata_json ->> '$.featured_order'), 999999), COALESCE((d.metadata_json ->> '$.nav_section_order'), 999999), COALESCE((d.metadata_json ->> '$.nav_section'), (d.metadata_json ->> '$.category')), COALESCE((d.metadata_json ->> '$.nav_group_order'), 999999), COALESCE((d.metadata_json ->> '$.nav_group'), ''), COALESCE((d.metadata_json ->> '$.nav_order'), d.sort_order, 999999), d.created_at DESC`
   const results = await queryAll<ApiRecord>(db, sql)
-  return (results ?? []).map(record => platformDocReviewUrls(attachFeaturedMedia(attachPublished(record, true))))
+  return Promise.all((results ?? []).map(record => platformDocReviewUrls(attachFeaturedMedia(attachPublished(record, true)))))
 }
 
 export async function getPlatformDoc(db: DbClient, docIdOrSlug: string) {
@@ -1203,7 +1226,7 @@ export async function getPlatformDoc(db: DbClient, docIdOrSlug: string) {
   const contentDocument = await getContentEditorSnapshot(db, docId)
   if (!contentDocument) throw new HTTPError({ statusCode: 500, statusMessage: 'Documentation content document is missing' })
   return {
-    ...platformDocReviewUrls(attachFeaturedMedia(attachPublished(doc, true))),
+    ...await platformDocReviewUrls(attachFeaturedMedia(attachPublished(doc, true))),
     content_blocks: contentDocument.blocks,
     updated_at: contentDocument.document.updated_at,
   }

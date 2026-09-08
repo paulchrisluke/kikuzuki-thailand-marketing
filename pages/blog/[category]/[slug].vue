@@ -87,7 +87,8 @@ interface BlogPost {
 
 const route = useRoute()
 const requestEvent = useRequestEvent()
-const postEndpoint = computed(() => `/api/public/blog/${String(route.params.category)}/${String(route.params.slug)}`)
+const previewToken = computed(() => typeof route.query.token === 'string' ? route.query.token : undefined)
+const postEndpoint = computed(() => `/api/public/blog/${String(route.params.category)}/${String(route.params.slug)}${previewToken.value === undefined ? '' : '?token=' + encodeURIComponent(previewToken.value)}`)
 
 const { data, pending, error } = await useAsyncData(
   () => `blog-post-${postEndpoint.value}`,
@@ -105,7 +106,7 @@ const { data, pending, error } = await useAsyncData(
 
       if (!requestEvent) throw createError({ statusCode: 404, statusMessage: 'Article not found' })
 
-      const [{ cloudflareEnv }, { getPublishedPlatformBlogPost }] = await Promise.all([
+      const [{ cloudflareEnv }, { getPublicPlatformBlogPost }] = await Promise.all([
         import('~/server/utils/api-response'),
         import('~/server/utils/platform-content'),
       ])
@@ -113,7 +114,7 @@ const { data, pending, error } = await useAsyncData(
       const db = env.db
       if (!db) throw createError({ statusCode: 500, statusMessage: 'Database not available' })
 
-      post = await getPublishedPlatformBlogPost(db, category, String(route.params.slug), env) as BlogPost | null
+      post = await getPublicPlatformBlogPost(db, category, String(route.params.slug), env, previewToken.value) as BlogPost | null
     } else {
       let payload: { post?: BlogPost }
       try {

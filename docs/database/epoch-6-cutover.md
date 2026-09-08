@@ -19,7 +19,8 @@ in `migrations-archive/epoch-5`; its live production database remains rollback s
 | `krabiclaw-db-staging-epoch6` | `e93edb59-fe24-4da4-99df-0957be6e6660` | Retained pre-consolidation candidate; superseded |
 | `krabiclaw-db-staging-epoch6-combined` | `bc837e8a-b103-42e8-aecb-2c715a156e8f` | Retained 53-table candidate; superseded by credit retirement |
 | `krabiclaw-db-staging-epoch6-retirement` | `880e144d-30c8-42a9-b11c-412df4d5ad00` | Retained retirement-only fixtures; superseded by editor-mode correction |
-| `krabiclaw-db-staging-epoch6-editor-mode` | `aa9db76b-b698-4c92-8cf3-c140321a064c` | Verified corrected 52-table fixtures; Worker qualification pending |
+| `krabiclaw-db-staging-epoch6-editor-mode` | `aa9db76b-b698-4c92-8cf3-c140321a064c` | Retained editor-mode candidate; superseded by publication-state schema |
+| `krabiclaw-db-staging-epoch6-publication` | `a19e76f9-44d2-45aa-9e94-eccbcfb1452e` | Qualified publication-state staging candidate; not deployed |
 | Existing configured preview | `d2f7a4a0-d6b8-493b-b484-8c0ead1ff83b` | Reset in place through the existing preview command |
 
 The generated baseline retains 52 tables. It removes the customer
@@ -46,16 +47,35 @@ other JSON byte, including whitespace, escaping and other keys. Its manifest
 records the source census and reclassified count; `verify` compares the target
 with the exact source-derived projection and rejects any other content change.
 
-A fresh September 8 live-export census found 268 source-mode Markdown blocks.
-Four require source mode and 264 qualify for reclassification. The export SHA-256
-is `03ca012a59b10cde0c812670d286536cab04ff8b58bb8922187a90d0305ac8e0`.
-These are rehearsal counts. Remeasure the fresh frozen export during cutover
-and require its eligible count to match the transfer manifest. The earlier
-retirement-only staging fixtures and data hashes do not qualify this addition.
-The offline rehearsal passed `transform` and `verify` for 42,429 retained rows
-across 52 tables, including all 264 reclassifications, exact projected values,
-foreign keys, integrity and all nine domain invariants. No production write
-freeze or data mutation occurred.
+The owner authorized the article and social-post publication model in
+[the September 8 publication scope](https://github.com/paulchrisluke/krabiclaw/pull/864#issuecomment-5578745078).
+Article and social-post roots use `draft`, `scheduled`, and `published` lifecycle
+states and independent `public` or `unlisted` visibility. Q&A remains published
+only. Published roots cannot return to draft. Article previews use a signed,
+article-scoped URL with a one-hour expiry; public reads continue to exclude draft
+and scheduled articles without a valid preview token. Existing root social posts
+have `NULL` visibility in Epoch 5. The offline transfer projects every such value
+to `public`, records the source and projected counts, and rejects any unexpected
+non-null legacy value instead of inferring a mapping.
+
+A fresh September 8 Epoch 5 export has SHA-256
+`03ca012a59b10cde0c812670d286536cab04ff8b58bb8922187a90d0305ac8e0`.
+The publication-state rehearsal verified 53 source tables and 42,442 rows, then
+passed `transform` and `verify` against baseline SHA-256
+`f19f1e02f818f65ced0d7769ee5665bdfd188b83542423ed36ff5c2a19195bc0`.
+The target retains 52 tables and 42,429 rows after retiring 13 quota-grant rows.
+It projects all 15 root social-post visibility values from `NULL` to `public`.
+The export contains 268 source-mode Markdown blocks: four require source mode
+and 264 qualify for reclassification. The manifest's `content_documents`
+projected SHA-256 is
+`06094d6a964d7cfe521a28af0e9182ada6b8527125ee0a6b0e5bad5b852fcd0c`;
+its retained-value SHA-256 is
+`b57c27cbce66d7a429b7bcd4d79c7dfabc3e6df1d5bd157f00e34eedcac52357`.
+Exact projections, foreign keys, integrity, and all nine domain invariants pass.
+These are rehearsal counts. Remeasure the fresh frozen export during cutover and
+require its counts and hashes to match the transfer manifest. The prior staging
+candidates and data hashes do not qualify the publication-state schema. No
+production write freeze, remote export, binding change, or data mutation occurred.
 
 `scripts/epoch6-data.mjs` is an offline, one-time transfer, never a runtime reader.
 It replaces the retired Epoch 5 transfer tool and its obsolete conversion tests. The released implementation remains in Git history. It refuses an existing output file, undeclared table/column changes, invalid or
@@ -152,5 +172,22 @@ keys, integrity and all nine ownership invariants. Three source-mode blocks
 remain, all required by the shared predicate; none is misclassified. Remote
 export SHA-256 is
 `d3533d8b64ac0cfe369e3a1463c1932a0fdae188d56e921fa717d2d0c5d6cad6`.
-Only the staging binding changes. Prior resources remain retained, and this
-candidate has no Worker deployment or post-start card initialization yet.
+Only the staging binding changed. Prior resources remain retained. This
+candidate is superseded by the publication-state schema and must not be promoted.
+
+The replacement publication-state candidate is prepared in
+`krabiclaw-db-staging-epoch6-publication`,
+`a19e76f9-44d2-45aa-9e94-eccbcfb1452e`. The isolated checkout captured
+`64d5ab164455b40fb52529d8673f32ce5d7e7afd` plus tracked working-tree patch
+SHA-256
+`20309896ecfe57692659f1f6e22785dde17949db8530f9a0739e9c906d2c1a7d`.
+Pinned Node 24.18.1 immutable installation, canonical `e2e:local:prepare`, and
+`fixtures:verify:local` passed before export. The generated baseline created 52
+empty tables with only `0000_epoch_6_baseline.sql` in the migration ledger. The
+data-only replay and the imported candidate re-export match the 2,816 fixture
+rows exactly across schema, column storage, row counts and logical hashes.
+Foreign-key and integrity checks pass, and all nine domain invariants have zero
+violations. The remote re-export SHA-256 is
+`51501babc5ab68fd3ef4c2f8d7833f5fa8f4b70d1cdabe13ff7eb1762c49b73c`.
+Prior staging resources remain retained. No staging Worker deployment or
+post-start initialization has occurred for this candidate.

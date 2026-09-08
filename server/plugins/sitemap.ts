@@ -157,7 +157,7 @@ export default definePlugin((nitroApp) => {
            WHERE d.site_id = ? AND d.locale = ? AND d.row_role = 'representation' AND d.path IS NOT NULL
              AND (root.robots IS NULL OR root.robots NOT LIKE '%noindex%')
              AND (root.kind = 'page' OR (root.kind = 'article' AND root.status = 'published' AND root.visibility = 'public')
-               OR (root.kind = 'social_post' AND root.status = 'published'))
+               OR (root.kind = 'social_post' AND root.status = 'published' AND root.visibility = 'public'))
            ORDER BY d.path
         `, [siteId, candidate.locale]),
       ])

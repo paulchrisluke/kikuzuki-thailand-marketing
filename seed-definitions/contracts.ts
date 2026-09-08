@@ -222,8 +222,8 @@ export type CuratedPostDefinition = Pick<PostMutation, 'post_type' | 'event' | '
   title: string | null
   body: string
   media: CuratedMediaPlacement<'cover' | 'gallery'>[]
-  status: 'published' | 'scheduled'
-  publishedAt: string
+  status: 'draft' | 'published' | 'scheduled'
+  publishedAt: string | null
   createdBy: string
 }
 
@@ -414,7 +414,7 @@ export type CompiledSeedPost = PostTopic & {
   body: string
   media: CuratedMediaPlacement<'cover' | 'gallery'>[]
   status: CuratedPostDefinition['status']
-  publishedAt: string
+  publishedAt: string | null
   createdBy: string
 }
 

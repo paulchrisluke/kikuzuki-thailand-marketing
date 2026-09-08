@@ -3,7 +3,7 @@ import { createPlatformBlogPost, deletePlatformBlogPost, getPlatformBlogPost, li
 import { renderStructuredResponse } from '~/server/utils/mcp-render'
 import { mcpProtocolError, MCP_ERROR } from '~/server/utils/mcp-protocol'
 import { paginateMcpCollection } from '~/server/utils/mcp-pagination'
-import { attachViewUrlToRecord, NOT_HANDLED, objectArray, omit, optionalString, requiredString } from './shared'
+import { absolutizeSiteUrl, NOT_HANDLED, objectArray, omit, optionalString, requiredString } from './shared'
 import { CONTENT_BLOCK_TYPES } from '~/server/utils/content-documents'
 
 const UPDATE_BLOG_MUTATION_FIELDS = [
@@ -47,7 +47,7 @@ const BLOG_METADATA_FIELDS = [
 
 const BLOG_CONTENT_BLOCK_TYPES = new Set<string>(CONTENT_BLOCK_TYPES)
 
-const BLOG_POST_STATUSES = new Set(['published', 'scheduled'])
+const BLOG_POST_STATUSES = new Set(['draft', 'published', 'scheduled'])
 const BLOG_VISIBILITIES = new Set(['public', 'unlisted'])
 
 function hasAnyField(args: Record<string, unknown>, fields: readonly string[]) {
@@ -138,7 +138,8 @@ function toContentBlockProjection(value: unknown, index: number) {
   }
 }
 
-function toBlogPostSummary(post: Record<string, unknown>) {
+function toBlogPostSummary(post: Record<string, unknown>, site: McpExecutorContext['site']) {
+  const publicUrl = absolutizeSiteUrl(site, responseNullableString(post.public_url, 'post.public_url'))
   return {
     id: responseString(post.id, 'post.id'),
     title: responseString(post.title, 'post.title'),
@@ -168,25 +169,24 @@ function toBlogPostSummary(post: Record<string, unknown>) {
     admin_edit_url: responseNullableString(post.admin_edit_url, 'post.admin_edit_url'),
     edit_url: responseNullableString(post.edit_url, 'post.edit_url'),
     public_path: responseNullableString(post.public_path, 'post.public_path'),
-    public_url: responseNullableString(post.public_url, 'post.public_url'),
-    preview_url: responseNullableString(post.preview_url, 'post.preview_url'),
-    view_url: responseNullableString(post.view_url, 'post.view_url'),
+    public_url: publicUrl,
+    preview_url: absolutizeSiteUrl(site, responseNullableString(post.preview_url, 'post.preview_url')),
+    view_url: publicUrl,
   }
 }
 
-export function projectBlogPostForMcp(post: Record<string, unknown>) {
+export function projectBlogPostForMcp(post: Record<string, unknown>, site: McpExecutorContext['site']) {
   const contentDocument = responseRecord(post.content_document, 'post.content_document')
   if (!Array.isArray(contentDocument.blocks)) invalidBlogResponse('post.content_document.blocks', 'an array')
   return {
-    ...toBlogPostSummary(post),
+    ...toBlogPostSummary(post, site),
     content_blocks: contentDocument.blocks.map((block, index) => toContentBlockProjection(block, index)),
   }
 }
 
 function blogPostResponse(post: Record<string, unknown>, site: McpExecutorContext['site'], message: string) {
-  const hydrated = attachViewUrlToRecord(post, site, {})
   return renderStructuredResponse(
-    { post: projectBlogPostForMcp(hydrated) },
+    { post: projectBlogPostForMcp(post, site) },
     message,
   )
 }
@@ -201,7 +201,7 @@ export async function handleBlogTools(ctx: McpExecutorContext): Promise<unknown>
           optionalString(args, "status"),
           site.siteId,
           site.env,
-        )).map((post) => toBlogPostSummary(attachViewUrlToRecord(post, site, {})));
+        )).map((post) => toBlogPostSummary(post, site));
         const { items, page_info } = paginateMcpCollection(posts, args, { resource: `blog-posts:${site.siteId}` });
         return { posts: items, page_info };
       }
@@ -214,7 +214,7 @@ export async function handleBlogTools(ctx: McpExecutorContext): Promise<unknown>
           site.env,
         );
         return {
-          post: projectBlogPostForMcp(attachViewUrlToRecord(post, site, {})),
+          post: projectBlogPostForMcp(post, site),
         };
       }
     case "create_blog_post": {
@@ -225,10 +225,9 @@ export async function handleBlogTools(ctx: McpExecutorContext): Promise<unknown>
         { site_id: site.siteId, organization_id: site.organizationId },
         site.env,
       );
-      const hydratedBlogPost = attachViewUrlToRecord(result.post, site, {});
       return renderStructuredResponse(
-        { post: projectBlogPostForMcp(hydratedBlogPost) },
-        `${result.post.status === 'scheduled' ? 'Scheduled' : 'Published'} blog article "${result.post.title ?? result.post.id}".`,
+        { post: projectBlogPostForMcp(result.post, site) },
+        `Created ${result.post.status} blog article "${result.post.title ?? result.post.id}".`,
       );
     }
     case "update_blog_post": {
@@ -240,9 +239,8 @@ export async function handleBlogTools(ctx: McpExecutorContext): Promise<unknown>
         site.siteId,
         site.env,
       );
-      const hydratedUpdatedBlogPost = attachViewUrlToRecord(result.post, site, {});
       return renderStructuredResponse(
-        { post: projectBlogPostForMcp(hydratedUpdatedBlogPost) },
+        { post: projectBlogPostForMcp(result.post, site) },
         `Saved changes to blog article "${result.post.title ?? result.post.id}".`,
       );
     }
@@ -275,7 +273,7 @@ export async function handleBlogTools(ctx: McpExecutorContext): Promise<unknown>
       return blogPostResponse(
         result.post,
         site,
-        `Saved live content changes for blog article "${result.post.title ?? result.post.id}".`,
+        `Saved content changes for blog article "${result.post.title ?? result.post.id}".`,
       )
     }
     case "publish_blog_post": {
@@ -294,9 +292,8 @@ export async function handleBlogTools(ctx: McpExecutorContext): Promise<unknown>
           : {}),
       }, site.siteId)
       const result = await getPlatformBlogPost(site.db, postId, site.siteId, site.env)
-      const post = attachViewUrlToRecord(result, site, {})
       return renderStructuredResponse(
-        { post: projectBlogPostForMcp(post) },
+        { post: projectBlogPostForMcp(result, site) },
         `${result.status === 'scheduled' ? 'Rescheduled' : 'Published'} blog article "${result.title}".`,
       )
     }
@@ -343,7 +340,7 @@ export async function handleBlogTools(ctx: McpExecutorContext): Promise<unknown>
       const result = await reorderPlatformBlogPosts(site.db, items, site.siteId, site.env)
       return {
         success: result.success,
-        posts: result.posts.map((post) => toBlogPostSummary(attachViewUrlToRecord(post, site, {}))),
+        posts: result.posts.map((post) => toBlogPostSummary(post, site)),
       }
     }
     case "delete_blog_post": {

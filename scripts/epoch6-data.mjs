@@ -102,7 +102,10 @@ try {
     return editorModeFor(data.markdown) === 'source'
   }).length
   const markdownEditorModes = { source_blocks: sourceMarkdown.length, requires_source: requiresSource, reclassified_blocks: sourceMarkdown.length - requiresSource }
-  const manifest = { epoch: 6, baseline_sha256: hash(baseline), source_sha256: hash(readFileSync(sourcePath)), removed_columns: removed, retired_tables: [], markdown_editor_modes: markdownEditorModes, tables: [], invariants: [] }
+  const sourceSocialPostVisibility = source.prepare("SELECT visibility FROM content_documents WHERE kind = 'social_post' AND row_role = 'root'").all()
+  assert(sourceSocialPostVisibility.every(row => row.visibility === null), 'content_documents.visibility: social post source value requires an explicit mapping')
+  const socialPostVisibility = { source_nulls: sourceSocialPostVisibility.length, projected_public: sourceSocialPostVisibility.length }
+  const manifest = { epoch: 6, baseline_sha256: hash(baseline), source_sha256: hash(readFileSync(sourcePath)), removed_columns: removed, retired_tables: [], markdown_editor_modes: markdownEditorModes, social_post_visibility: socialPostVisibility, tables: [], invariants: [] }
   for (const [table, expectedColumns] of Object.entries(retired)) {
     assert(JSON.stringify(columns(source, table).sort()) === JSON.stringify([...expectedColumns].sort()), `${table}: undeclared column change`)
     const records = source.prepare(`SELECT * FROM ${qi(table)}`).all()
@@ -120,6 +123,12 @@ try {
       const changed = new Set(), changes = {}
       const projected = records.map(record => Object.fromEntries(targetColumns.map(name => {
         let value = record[name]
+        if (table === 'content_documents' && name === 'visibility' && record.kind === 'social_post' && record.row_role === 'root') {
+          assert(value === null, 'content_documents.visibility: social post source value requires an explicit mapping')
+          value = 'public'
+          changed.add(name)
+          changes[name] = (changes[name] ?? 0) + 1
+        }
         if (typeof value === 'string' && (name.endsWith('_at') || name === 'scheduled_for' || extraInstants.has(name))) {
           // Legacy SQL CURRENT_TIMESTAMP writers are UTC. Explicit-offset inputs
           // identify their instant. Offsetless local ISO timestamps are rejected.
@@ -138,6 +147,7 @@ try {
         return [name, value]
       })))
       if (table === 'content_blocks') assert((changes.data_json ?? 0) === markdownEditorModes.reclassified_blocks, 'Markdown reclassification count differs from source census')
+      if (table === 'content_documents') assert((changes.visibility ?? 0) === socialPostVisibility.projected_public, 'Social post visibility projection differs from source census')
       if (command === 'transform') {
         const insert = target.prepare(`INSERT INTO ${qi(table)} (${targetColumns.map(qi).join(',')}) VALUES (${targetColumns.map(() => '?').join(',')})`)
         for (const record of projected) insert.run(...targetColumns.map(name => record[name]))

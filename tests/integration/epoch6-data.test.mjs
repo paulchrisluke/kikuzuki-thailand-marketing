@@ -22,6 +22,7 @@ test('epoch transfer preserves retained records, removes duplicate dates and rej
   const grantColumns = source.pragma('table_info(usage_quota_grants)').map(column => column.name)
   const grantHash = createHash('sha256').update(source.prepare('SELECT * FROM usage_quota_grants').all().map(row => JSON.stringify(grantColumns.map(name => row[name]))).sort().join('\n')).digest('hex')
   source.prepare("INSERT INTO content_documents (id,organization_id,site_id,kind,row_role,locale,status,visibility,title,slug) VALUES ('document','org','site','article','root','en','published','public','Proof','proof')").run()
+  source.prepare("INSERT INTO content_documents (id,organization_id,site_id,kind,row_role,locale,summary,status,published_at,source,metadata_json) VALUES ('social','org','site','social_post','root','en','Proof post','published','2026-07-01T00:00:00.000Z','manual',?)").run(JSON.stringify({ post_type: 'standard', channels: {} }))
   const prose = String.raw`{ "nested": {"editor_mode":"source"}, "markdown": "**Prose** with \"quotes\" and Unicode ☃", "editor_mode" : "source", "extra": [1e3, {"keep":true}] }`
   const blocks = [
     ['prose', 'markdown', prose, prose.replace('"editor_mode" : "source"', '"editor_mode" : "rich"')],
@@ -45,10 +46,14 @@ test('epoch transfer preserves retained records, removes duplicate dates and rej
   assert.deepEqual(JSON.parse(readFileSync(`${targetPath}.transform.json`, 'utf8')).retired_tables, [{ table: 'usage_quota_grants', rows: 3, source_sha256: grantHash }])
   const manifest = JSON.parse(readFileSync(`${targetPath}.transform.json`, 'utf8'))
   assert.deepEqual(manifest.markdown_editor_modes, { source_blocks: 5, requires_source: 2, reclassified_blocks: 3 })
+  assert.deepEqual(manifest.social_post_visibility, { source_nulls: 1, projected_public: 1 })
   assert.equal(manifest.tables.find(table => table.table === 'content_blocks').changed_columns.data_json, 3)
+  assert.equal(manifest.tables.find(table => table.table === 'content_documents').changed_columns.visibility, 1)
+  assert.equal(target.prepare("SELECT visibility FROM content_documents WHERE id = 'social'").get().visibility, 'public')
   for (const [id, , original, projected = original] of blocks) assert.equal(target.prepare('SELECT data_json FROM content_blocks WHERE id = ?').get(id).data_json, projected)
   assert.equal(run('verify').status, 0)
   assert.deepEqual(JSON.parse(readFileSync(`${targetPath}.verify.json`, 'utf8')).markdown_editor_modes, manifest.markdown_editor_modes)
+  assert.deepEqual(JSON.parse(readFileSync(`${targetPath}.verify.json`, 'utf8')).social_post_visibility, manifest.social_post_visibility)
   const originalProse = target.prepare("SELECT data_json FROM content_blocks WHERE id = 'prose'").get().data_json
   for (const corrupted of [
     originalProse.replace('**Prose**', '**Changed**'),

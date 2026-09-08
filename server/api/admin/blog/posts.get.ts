@@ -14,7 +14,7 @@ export default defineHandler(async (event) => {
   const query = getQuery(event)
   const status = query.status as string | undefined
 
-  return jsonResponse({ posts: await listPlatformBlogPosts(db, status) })
+  return jsonResponse({ posts: await listPlatformBlogPosts(db, status, null, env) })
 })
 import { defineHandler } from 'nitro';
 import { getQuery } from 'nitro/h3';

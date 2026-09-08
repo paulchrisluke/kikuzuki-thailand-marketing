@@ -98,7 +98,8 @@ const blogSection = route.path.includes('/article/') ? 'article' : 'blog'
 const sourceBlogBasePath = `/${blogSection}`
 const blogBasePath = locale === 'en' ? sourceBlogBasePath : `/${locale}${sourceBlogBasePath}`
 const requestEvent = useRequestEvent()
-const postEndpoint = computed(() => `/api/public/sites/${siteId}/blog/${String(route.params.slug)}?locale=${encodeURIComponent(locale)}`)
+const previewToken = computed(() => typeof route.query.token === 'string' ? route.query.token : undefined)
+const postEndpoint = computed(() => `/api/public/sites/${siteId}/blog/${String(route.params.slug)}?locale=${encodeURIComponent(locale)}${previewToken.value === undefined ? '' : '&token=' + encodeURIComponent(previewToken.value)}`)
 
 interface PublicBlogResponse {
   post: TenantBlogPost | null
@@ -115,14 +116,14 @@ const isPublicBlogResponse = (value: unknown): value is PublicBlogResponse =>
   ))
 
 const { data, pending, error } = await useAsyncData(
-  () => `tenant-blog-post-${siteId}-${locale}-${String(route.params.slug)}`,
+  () => `tenant-blog-post-${siteId}-${locale}-${String(route.params.slug)}-${previewToken.value ?? ""}`,
   async () => {
     let post: TenantBlogPost | null | undefined
 
     if (import.meta.server) {
       if (!requestEvent) throw createError({ statusCode: 404, statusMessage: 'Post not found' })
 
-      const [{ cloudflareEnv }, { getPublishedLocalizedSiteBlogPost }] = await Promise.all([
+      const [{ cloudflareEnv }, { getPublicLocalizedSiteBlogPost }] = await Promise.all([
         import('~/server/utils/api-response'),
         import('~/server/utils/platform-content'),
       ])
@@ -130,7 +131,7 @@ const { data, pending, error } = await useAsyncData(
       const db = env.db
       if (!db) throw createError({ statusCode: 500, statusMessage: 'Database not available' })
 
-      post = await getPublishedLocalizedSiteBlogPost(db, siteId, String(route.params.slug), locale, env) as TenantBlogPost | null
+      post = await getPublicLocalizedSiteBlogPost(db, siteId, String(route.params.slug), locale, env, previewToken.value) as TenantBlogPost | null
     } else {
       let payload: PublicBlogResponse
       try {

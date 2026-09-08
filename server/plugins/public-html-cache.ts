@@ -1,6 +1,6 @@
 import type { HTTPEvent } from 'nitro/h3'
 import { definePlugin } from 'nitro'
-import { isNonIndexableHost, isPrivateSeoPath } from '~/server/utils/seo-policy'
+import { isNonIndexableHost, isPrivateSeoPath, isTechnicalAssetSeoPath } from '~/server/utils/seo-policy'
 import { hostnameOf, isPreviewContext } from '~/server/utils/tenant-hosts'
 
 const PRODUCTION_CACHE_CONTROL = 'public, s-maxage=60, stale-while-revalidate=300, max-age=0'
@@ -8,12 +8,19 @@ const NON_PRODUCTION_CACHE_CONTROL = 'private, no-store, max-age=0'
 
 export default definePlugin((nitroApp) => {
   nitroApp.hooks.hook('response', (response, event: HTTPEvent) => {
+    const request = event.req
+    const url = new URL(request.url)
+    const pathname = url.pathname
+    const privatePath = isPrivateSeoPath(pathname) || url.searchParams.has('token')
+    if (isNonIndexableHost(url.hostname) || privatePath || isTechnicalAssetSeoPath(pathname)) {
+      response.headers.set('x-robots-tag', 'noindex, nofollow, noarchive')
+    }
+    if (privatePath) response.headers.set('cache-control', NON_PRODUCTION_CACHE_CONTROL)
+    if (url.searchParams.has('token')) response.headers.set('referrer-policy', 'no-referrer')
+
     const contentType = response.headers.get('content-type') || ''
     if (!contentType.includes('text/html')) return
-
-    const request = event.req
-    const pathname = new URL(request.url).pathname
-    if (isPrivateSeoPath(pathname)) return
+    if (privatePath) return
 
     const hostname = hostnameOf(request.headers.get('host') || '')
     const nonProduction = isPreviewContext(hostname) || isNonIndexableHost(hostname)

@@ -114,7 +114,7 @@ function platformMediaInput(args: Record<string, unknown>) {
   })
 }
 
-const PLATFORM_BLOG_POST_STATUSES = new Set(['published', 'scheduled'])
+const PLATFORM_BLOG_POST_STATUSES = new Set(['draft', 'published', 'scheduled'])
 const PLATFORM_BLOG_VISIBILITIES = new Set(['public', 'unlisted'])
 const PLATFORM_BLOG_ROBOTS = new Set(['index,follow', 'noindex,follow', 'index,nofollow', 'noindex,nofollow'])
 
@@ -829,7 +829,17 @@ export async function executePlatformMcpToolCall(
         if (!site) throw mcpProtocolError(MCP_ERROR.invalidParams, 'Site not found.')
         blogScope = { site_id: siteId, organization_id: site.organization_id }
       }
+      const status = optionalString(rawArguments, 'status')
+      if (status !== undefined && status !== 'draft' && status !== 'scheduled' && status !== 'published') {
+        throw mcpProtocolError(MCP_ERROR.invalidParams, 'status must be draft, scheduled or published')
+      }
+      const visibility = optionalString(rawArguments, 'visibility')
+      if (visibility !== undefined && visibility !== 'public' && visibility !== 'unlisted') {
+        throw mcpProtocolError(MCP_ERROR.invalidParams, 'visibility must be public or unlisted')
+      }
       const result = await createPlatformBlogPost(user.db, user.userId, {
+        status,
+        visibility,
         title: requiredString(rawArguments, 'title'),
         content_blocks: contentBlocks(rawArguments),
         excerpt: optionalString(rawArguments, 'excerpt') ?? null,
