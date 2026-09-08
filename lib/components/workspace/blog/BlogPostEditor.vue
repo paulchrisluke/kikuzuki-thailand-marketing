@@ -391,7 +391,7 @@ const saveLabel = computed(() => {
   if (saveState.value === 'conflict') return 'Conflict — reload to reconcile'
   return dirtyState.value ? 'Unsaved changes' : 'Saved'
 })
-type InserterBlockType = 'image' | 'faq' | 'how_to' | 'divider'
+type InserterBlockType = 'image' | 'faq' | 'how_to' | 'cta' | 'divider'
 
 type SaveSnapshot = { postId: string; payload: BlogPostUpdateInput }
 const saveQueue = new SerializedSnapshotQueue<SaveSnapshot, BlogPost>(
@@ -430,6 +430,7 @@ watch([() => form.title, blocks], () => {
   markContentDirty()
   if (post.value && !loadPending.value && saveState.value !== 'conflict') {
     saveQueue.mark(buildSaveSnapshot())
+    scheduleAutosave()
   }
 }, { deep: true, flush: 'sync' })
 watch([() => form.scheduled_for, publishTiming], () => {
@@ -441,7 +442,7 @@ onMounted(async () => {
   window.addEventListener('beforeunload', beforeUnload)
   if (!props.initialPost && !props.deferLoad) await load()
 })
-onBeforeUnmount(() => { if (import.meta.client) { window.removeEventListener('beforeunload', beforeUnload) } })
+onBeforeUnmount(() => { cancelScheduledAutosave(); if (import.meta.client) { window.removeEventListener('beforeunload', beforeUnload) } })
 
 async function load() {
   if (!postId.value || !props.isEdit) { loadPending.value = false; return }
@@ -486,6 +487,28 @@ function markContentDirty() {
 function markLifecycleDirty() {
   if (loadPending.value || saveState.value === 'conflict') return
   lifecycleDirty.value = true
+}
+/**
+ * Marking the queue is not saving it. The header's "Save live changes" button
+ * used to be the only thing that flushed a body edit, and removing that button
+ * left the canvas marking itself dirty forever — it is supposed to autosave,
+ * so it does it here rather than waiting for a control that no longer exists.
+ *
+ * The write is debounced so a burst of typing is one request, and its failure
+ * is already reported by `saveState`, which is why the rejection is swallowed.
+ */
+let autosaveTimer: ReturnType<typeof setTimeout> | null = null
+function scheduleAutosave() {
+  if (!import.meta.client) return
+  if (autosaveTimer) clearTimeout(autosaveTimer)
+  autosaveTimer = setTimeout(() => {
+    autosaveTimer = null
+    void flushSave().catch(() => {})
+  }, 1200)
+}
+function cancelScheduledAutosave() {
+  if (autosaveTimer) clearTimeout(autosaveTimer)
+  autosaveTimer = null
 }
 async function flushSave() {
   if (!contentDirty.value) return post.value
@@ -633,7 +656,7 @@ function handleInsertBlock(index: number, _cursorPosition: number) {
 // every freshly inserted image block unsavable. `changeImage` writes the chosen
 // asset to `media`; only alt and caption belong here.
 function structuralBlockData(type: string) {
-  return type === 'faq' ? { items: [{ question: '', answer: '' }] } : type === 'how_to' ? { steps: [{ text: '' }] } : type === 'image' ? { alt: '', caption: '' } : {}
+  return type === 'faq' ? { items: [{ question: '', answer: '' }] } : type === 'how_to' ? { steps: [{ text: '' }] } : type === 'image' ? { alt: '', caption: '' } : type === 'cta' ? { title: '', description: null, label: null, url: null } : {}
 }
 // A non-text block (image/FAQ/how-to/divider/etc.) left as the last block in
 // the post is a dead end — there's no textarea or rich editor to click into

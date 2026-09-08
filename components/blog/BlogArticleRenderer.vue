@@ -109,6 +109,14 @@
           <!-- eslint-disable-next-line vue/no-v-html -->
           <div class="prose max-w-none" v-html="renderMarkdown(String(block.data.markdown || block.data.text || ''))" />
         </aside>
+        <div v-else-if="block.type === 'cta' && editable" class="space-y-2 rounded-xl border border-dashed border-current/25 p-4">
+          <UInput :model-value="String(block.data.title || '')" placeholder="What do you want the reader to do?" class="w-full" @update:model-value="value => updateBlockData(index, 'title', String(value))" />
+          <UTextarea :model-value="String(block.data.description || '')" :rows="2" placeholder="Supporting line (optional)" class="w-full" @update:model-value="value => updateBlockData(index, 'description', String(value))" />
+          <div class="grid gap-2 sm:grid-cols-2">
+            <UInput :model-value="String(block.data.label || '')" placeholder="Button text" class="w-full" @update:model-value="value => updateBlockData(index, 'label', String(value))" />
+            <UInput :model-value="String(block.data.url || '')" placeholder="https://" class="w-full" @update:model-value="value => updateBlockData(index, 'url', String(value))" />
+          </div>
+        </div>
         <div v-else-if="block.type === 'cta'" class="rounded-xl border border-current/15 p-6 text-center">
           <a v-if="blockMedia(block)[0]?.public_url && safeUrl(block.data.url)" :href="safeUrl(block.data.url)!" class="mb-4 block">
             <img :src="blockMedia(block)[0]!.public_url || ''" :alt="String(blockMedia(block)[0]!.alt_text || block.data.label || '')" class="mx-auto max-h-[28rem] w-full object-contain">
@@ -145,6 +153,7 @@ const inserterItems = [
   { type: 'image', label: 'Image', icon: 'i-lucide-image' },
   { type: 'faq', label: 'FAQ', icon: 'i-lucide-circle-help' },
   { type: 'how_to', label: 'How-To', icon: 'i-lucide-list-ordered' },
+  { type: 'cta', label: 'Call to action', icon: 'i-lucide-megaphone' },
   { type: 'divider', label: 'Divider', icon: 'i-lucide-minus' },
 ] as const
 function isBlockEmpty(block: BlogEditorBlock) {
@@ -185,6 +194,12 @@ function handleDelete(index: number, event: KeyboardEvent) {
 }
 function faqItems(block: BlogEditorBlock) { return Array.isArray(block.data.items) ? block.data.items as Array<{ question?: string; answer?: string }> : [] }
 function howToSteps(block: BlogEditorBlock) { return Array.isArray(block.data.steps) ? block.data.steps as Array<{ name?: string; text?: string }> : [] }
+/** One key of a block's data payload, for blocks edited field-by-field. */
+function updateBlockData(index: number, key: string, value: string) {
+  const block = props.blocks[index]
+  if (!block) return
+  emit('update:block', index, { ...block, data: { ...block.data, [key]: value || null } })
+}
 function updateFaqItem(index: number, itemIndex: number, key: 'question' | 'answer', value: string) {
   const block = props.blocks[index]
   if (!block) return
