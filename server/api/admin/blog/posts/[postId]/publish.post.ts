@@ -1,3 +1,4 @@
+import { PLATFORM_SITE_ID } from '~/shared/platform-scope'
 import { cloudflareEnv, jsonResponse } from '~/server/utils/api-response'
 import { getAuthSession } from '~/server/utils/auth'
 import { platformPermissionJsonResponse } from '~/server/utils/platform-admin-users'
@@ -18,7 +19,7 @@ export default defineHandler(async (event) => {
 
   try {
     const input = parseBlogLifecycleInput(await readBody(event) as unknown, 'publish')
-    const lifecycle = await updateBlogLifecycle(db, postId, input)
+    const lifecycle = await updateBlogLifecycle(db, postId, input, PLATFORM_SITE_ID)
     schedulePlatformKnowledgeIndexRebuild(event, env, 'blog post publish')
     return jsonResponse({ success: true, lifecycle })
   } catch (error) {

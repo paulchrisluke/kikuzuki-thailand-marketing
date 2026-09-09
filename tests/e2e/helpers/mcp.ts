@@ -3,12 +3,11 @@ import { expect, type APIRequestContext } from '@playwright/test'
 import { loginAs } from './auth'
 
 export const MCP_VERSION = '2025-06-18'
-// Fixed fixture sites seeded by generate-demo-seed.ts with the matching plan already
+// Fixed fixture sites retained in the production snapshot with the matching plan already
 // active. Entitlement checks are site-scoped (hasSiteEntitlement), so a plan-gated tool
 // call needs the org's actual paid site, not a brand-new site from ensureSite() (which
 // always starts on `free` per the second-site billing rule).
 export const MCP_GROWTH_SITE_ID = 'site-mcp-growth'
-export const MCP_GROWTH_SERVICE_SITE_ID = 'site-mcp-growth-service'
 
 export async function mcpRequest(
   request: APIRequestContext,

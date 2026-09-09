@@ -2,7 +2,7 @@ import { expect, test } from '@playwright/test'
 import Ajv from 'ajv'
 import { loginAs } from './helpers/auth'
 import { MCP_FREE_USER_ID, MCP_GROWTH_SERVICE_USER_ID } from './helpers/plan-fixtures'
-import { MCP_VERSION, MCP_GROWTH_SERVICE_SITE_ID, mcpRequest, mcpData } from './helpers/mcp'
+import { MCP_VERSION, mcpRequest, mcpData, ensureSite } from './helpers/mcp'
 
 // Split out of mcp.spec.ts (content/publishing tool tests) — see
 // helpers/mcp.ts for why. This group covers post publishing, tenant blog
@@ -20,7 +20,7 @@ test.describe('stateless MCP server', () => {
 
   test('invalid event and offer posts are rejected with validation errors', async ({ request, baseURL }) => {
     await loginAs(request, baseURL!, MCP_GROWTH_SERVICE_USER_ID)
-    const siteId = MCP_GROWTH_SERVICE_SITE_ID
+    const siteId = await ensureSite(request, baseURL!)
 
     const invalidEvent = await mcpRequest(request, baseURL!, {
       method: 'tools/call', toolName: 'create_post',
@@ -44,19 +44,23 @@ test.describe('stateless MCP server', () => {
   test('a draft publishes explicitly, stays idempotent on repeat, and matches the public API', async ({ request, baseURL }) => {
     test.setTimeout(90_000)
     await loginAs(request, baseURL!, MCP_GROWTH_SERVICE_USER_ID)
-    const siteId = MCP_GROWTH_SERVICE_SITE_ID
+    const siteId = await ensureSite(request, baseURL!)
     let createdPostId: string | undefined
 
     try {
-      const mediaResponse = await mcpRequest(request, baseURL!, {
-        method: 'tools/call', toolName: 'get_site_media_assets', args: { site_id: siteId, kind: 'image' },
+      const upload = await mcpRequest(request, baseURL!, {
+        method: 'tools/call', toolName: 'upload_user_media',
+        args: {
+          site_id: siteId,
+          category: 'other',
+          file: {
+            download_url: 'https://imagedelivery.net/Frxyb2_d_vGyiaXhS5xqCg/0762ea49-0bd2-4cc8-1044-d6c9b1f00100/public',
+            file_id: 'sediment://file_publication_cover',
+          },
+        },
       })
-      expect(mediaResponse.status()).toBe(200)
-      const mediaAssets = mcpData<{ assets: Array<{ asset_id: string, status: string }> }>(await mediaResponse.json()).assets
-      const imageAsset = mediaAssets.find(asset => asset.status === 'active')
-      expect(imageAsset).toBeTruthy()
-      const imageAssetId = imageAsset!.asset_id
-      expect(imageAssetId).toEqual(expect.any(String))
+      expect(upload.status()).toBe(200)
+      const imageAssetId = mcpData<{ asset_id: string }>(await upload.json()).asset_id
 
       const now = Date.now()
       const create = await mcpRequest(request, baseURL!, {
@@ -145,7 +149,7 @@ test.describe('stateless MCP server', () => {
   test('event and offer post types store their type-specific fields', async ({ request, baseURL }) => {
     test.setTimeout(60_000)
     await loginAs(request, baseURL!, MCP_GROWTH_SERVICE_USER_ID)
-    const siteId = MCP_GROWTH_SERVICE_SITE_ID
+    const siteId = await ensureSite(request, baseURL!)
     const now = Date.now()
     const createdPostIds: string[] = []
 
@@ -185,7 +189,7 @@ test.describe('stateless MCP server', () => {
   test('tenant blog tools preserve the canonical block document', async ({ request, baseURL }) => {
     test.setTimeout(120_000)
     await loginAs(request, baseURL!, MCP_FREE_USER_ID)
-    const siteId = 'site-mcp-free'
+    const siteId = await ensureSite(request, baseURL!)
     const discovery = await mcpRequest(request, baseURL!, { method: 'tools/list' })
     expect(discovery.status()).toBe(200)
     const catalog = await discovery.json() as { result: { tools: Array<{ name: string; outputSchema: object }> } }

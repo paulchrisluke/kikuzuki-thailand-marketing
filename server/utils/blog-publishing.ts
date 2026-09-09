@@ -24,26 +24,24 @@ export async function publishDueBlogPosts(db: D1Database, now = new Date()) {
 }
 
 export async function resolveBlogRedirect(db: DbClient, siteId: string | null, slug: string) {
-  const resolvedSiteId = siteId ?? PLATFORM_SITE_ID
   const row = await queryFirst<{ to_path: string | null } | null>(db, `
     SELECT to_path FROM site_redirects
      WHERE site_id = ? AND locale = 'en'
        AND from_path IN (?, ?, ?) AND behavior = 'redirect'
      LIMIT 1
-  `, [resolvedSiteId, `/blog/${slug}`, `/article/${slug}`, `/${slug}`])
+  `, [siteId, `/blog/${slug}`, `/article/${slug}`, `/${slug}`])
   return row?.to_path ?? null
 }
 
 export async function createBlogRedirect(db: D1Database, postId: string, siteId: string | null, oldSlug: string) {
   const now = new Date().toISOString()
-  const resolvedSiteId = siteId ?? PLATFORM_SITE_ID
   const post = await queryFirst<{ id: string; organization_id: string; slug: string; category: string | null; theme_id: string | null }>(db, `
     SELECT p.id, p.organization_id, p.slug, (p.metadata_json ->> '$.category') AS category, s.theme_id
       FROM content_documents p JOIN sites s ON s.id = p.site_id
      WHERE p.kind = 'article' AND p.row_role = 'root' AND p.id = ? AND p.site_id = ? LIMIT 1
-  `, [postId, resolvedSiteId])
+  `, [postId, siteId])
   if (!post) throw new HTTPError({ statusCode: 400, statusMessage: 'Blog redirect scope must match its post' })
-  const platform = resolvedSiteId === PLATFORM_SITE_ID
+  const platform = siteId === PLATFORM_SITE_ID
   const oldPath = platform ? resolveBlogPublicPath({ scope: 'platform', slug: oldSlug, category: post.category }) : tenantBlogPostPath({ themeId: post.theme_id }, oldSlug)
   const newPath = platform ? resolveBlogPublicPath({ scope: 'platform', slug: post.slug, category: post.category }) : tenantBlogPostPath({ themeId: post.theme_id }, post.slug)
   const result = await execute(db, `INSERT INTO site_redirects
@@ -51,7 +49,7 @@ export async function createBlogRedirect(db: D1Database, postId: string, siteId:
     VALUES (?, ?, ?, 'en', ?, ?, ?, ?, 301, 'redirect', ?, ?, ?, ?)
     ON CONFLICT(site_id, locale, from_path) DO UPDATE SET owner_type = excluded.owner_type, owner_id = excluded.owner_id,
       to_path = excluded.to_path, status_code = 301, behavior = 'redirect', reason = excluded.reason, source = excluded.source, updated_at = excluded.updated_at`,
-  [crypto.randomUUID(), post.organization_id, resolvedSiteId, 'content_document', postId, oldPath, newPath, platform ? 'platform_blog_slug_change' : 'tenant_blog_slug_change', platform ? 'platform-blog' : 'tenant-blog', now, now])
+  [crypto.randomUUID(), post.organization_id, siteId, 'content_document', postId, oldPath, newPath, platform ? 'platform_blog_slug_change' : 'tenant_blog_slug_change', platform ? 'platform-blog' : 'tenant-blog', now, now])
   if (Number(result.meta.changes ?? 0) === 0) {
     throw new HTTPError({ statusCode: 400, statusMessage: 'Blog redirect scope must match its post' })
   }

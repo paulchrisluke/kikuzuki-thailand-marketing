@@ -112,9 +112,9 @@ App at `http://localhost:3000`.
 
 `yarn dev` is the normal application-development loop. Nitro reads the bindings
 declared in `wrangler.toml`, emulates local D1/KV/R2 resources, and preserves
-Nuxt hot module replacement. It never seeds or resets D1. Run
-`corepack yarn local:setup` when you want to restore the deterministic local
-fixture baseline.
+Nuxt hot module replacement. It never resets D1. Run
+`corepack yarn local:setup` when you want to restore local D1 from a production
+snapshot.
 
 Open tenant dashboards from the dashboard UI instead of guessing their URLs.
 When a route must be constructed manually, the segment named `siteSlug` is the
@@ -140,8 +140,8 @@ After a successful build, `yarn dev:worker:start` restarts that same `.output`
 without rebuilding. Source edits are not compiled into `.output` automatically;
 use `yarn dev` for the normal HMR editing loop.
 
-Playwright applies the local D1 schema, clears disposable E2E artifacts, seeds
-the curated sites and verified synthetic Better Auth accounts, builds the
+Playwright applies the local D1 schema, clears disposable E2E artifacts, restores
+a production snapshot, provisions verified synthetic Better Auth accounts, builds the
 Cloudflare Worker, and starts it under local workerd. Authenticated tests sign
 in through Better Auth with a random password generated inside the Playwright
 process; no email inbox or authentication bypass route is involved. Those test
