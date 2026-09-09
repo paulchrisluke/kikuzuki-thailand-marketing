@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "ed29d7ae-832e-416d-8229-626a07e5da87",
+  "id": "d852d46b-bfb2-4a16-96fe-57635dde828a",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "tables": {
     "account": {
@@ -466,21 +466,9 @@
           "name": "activity_entries_instants_check",
           "value": "(occurred_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', occurred_at, '+0 days') IS occurred_at) AND (created_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', created_at, '+0 days') IS created_at)"
         },
-        "activity_entries_kind_check": {
-          "name": "activity_entries_kind_check",
-          "value": "kind IN ('submission', 'message', 'operation', 'assignment', 'resolution', 'notification', 'acknowledgement', 'audit')"
-        },
         "activity_entries_scope_check": {
           "name": "activity_entries_scope_check",
-          "value": "(scope_kind = 'request' AND request_id IS NOT NULL AND organization_id IS NULL AND site_id IS NULL AND context_site_id IS NULL AND location_id IS NULL) OR (scope_kind = 'site' AND kind = 'audit' AND site_id IS NOT NULL AND context_site_id IS NULL AND organization_id IS NULL AND request_id IS NULL) OR (scope_kind = 'organization' AND organization_id IS NOT NULL AND site_id IS NULL AND request_id IS NULL) OR (scope_kind = 'platform' AND organization_id IS NULL AND site_id IS NULL AND context_site_id IS NULL AND request_id IS NULL)"
-        },
-        "activity_entries_actor_check": {
-          "name": "activity_entries_actor_check",
-          "value": "actor_kind IN ('guest', 'member', 'system', 'cloudflare')"
-        },
-        "activity_entries_channel_check": {
-          "name": "activity_entries_channel_check",
-          "value": "channel IS NULL OR channel IN ('web', 'email', 'whatsapp', 'system')"
+          "value": "(scope_kind = 'request' AND request_id IS NOT NULL AND organization_id IS NULL AND site_id IS NULL AND context_site_id IS NULL AND location_id IS NULL) OR (scope_kind = 'site' AND kind = 'audit' AND site_id IS NOT NULL AND context_site_id IS NULL AND organization_id IS NULL AND request_id IS NULL) OR (scope_kind = 'organization' AND organization_id IS NOT NULL AND site_id IS NULL AND request_id IS NULL) OR (scope_kind = 'global' AND organization_id IS NULL AND site_id IS NULL AND context_site_id IS NULL AND request_id IS NULL)"
         },
         "activity_entries_payload_check": {
           "name": "activity_entries_payload_check",
@@ -696,10 +684,6 @@
           "name": "analytics_events_instants_check",
           "value": "(created_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', created_at, '+0 days') IS created_at)"
         },
-        "analytics_events_kind_check": {
-          "name": "analytics_events_kind_check",
-          "value": "kind IN ('pageview', 'conversion')"
-        },
         "analytics_events_payload_check": {
           "name": "analytics_events_payload_check",
           "value": "json_valid(payload_json) AND json_type(payload_json) IS 'object'"
@@ -868,10 +852,6 @@
         "analytics_summaries_instants_check": {
           "name": "analytics_summaries_instants_check",
           "value": "(created_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', created_at, '+0 days') IS created_at) AND (updated_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', updated_at, '+0 days') IS updated_at)"
-        },
-        "analytics_summaries_kind_check": {
-          "name": "analytics_summaries_kind_check",
-          "value": "kind IN ('session', 'site_day', 'page_day', 'dimension_day')"
         },
         "analytics_summaries_payload_check": {
           "name": "analytics_summaries_payload_check",
@@ -1313,10 +1293,6 @@
           "name": "business_locations_feature_overrides_check",
           "value": "feature_overrides IS NULL OR (json_valid(feature_overrides) AND json_type(feature_overrides) IS 'object')"
         },
-        "business_locations_status_check": {
-          "name": "business_locations_status_check",
-          "value": "status IN ('active', 'inactive', 'sync_error')"
-        },
         "business_locations_opening_hours_check": {
           "name": "business_locations_opening_hours_check",
           "value": "opening_hours IS NULL OR (json_valid(opening_hours) AND json_type(opening_hours) IS 'object' AND json_type(opening_hours, '$.periods') IS 'array')"
@@ -1492,25 +1468,21 @@
           "name": "content_blocks_source_check",
           "value": "source_block_id IS NULL OR source_block_id <> id"
         },
-        "content_blocks_type_check": {
-          "name": "content_blocks_type_check",
-          "value": "\"content_blocks\".\"type\" IN ('heading', 'markdown', 'image', 'gallery', 'faq', 'how_to', 'divider', 'ai_assistance', 'cta', 'callout', 'hero', 'button_group', 'feature_grid', 'testimonial_grid', 'contact_cta', 'booking_cta', 'donation_choices', 'offering_grid', 'location_grid')"
-        },
         "content_blocks_data_json_check": {
           "name": "content_blocks_data_json_check",
-          "value": "json_valid(\"content_blocks\".\"data_json\") AND json_type(\"content_blocks\".\"data_json\") IS 'object'"
+          "value": "json_valid(data_json) AND json_type(data_json) IS 'object'"
         },
         "content_blocks_parent_check": {
           "name": "content_blocks_parent_check",
-          "value": "\"content_blocks\".\"parent_block_id\" IS NULL OR \"content_blocks\".\"parent_block_id\" <> \"content_blocks\".\"id\""
+          "value": "parent_block_id IS NULL OR parent_block_id <> id"
         },
         "content_blocks_position_check": {
           "name": "content_blocks_position_check",
-          "value": "\"content_blocks\".\"position\" >= 0"
+          "value": "position >= 0"
         },
         "content_blocks_level_check": {
           "name": "content_blocks_level_check",
-          "value": "\"content_blocks\".\"level\" IS NULL OR \"content_blocks\".\"level\" BETWEEN 1 AND 6"
+          "value": "level IS NULL OR level BETWEEN 1 AND 6"
         }
       }
     },
@@ -1978,10 +1950,6 @@
           "name": "content_documents_instants_check",
           "value": "(published_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', published_at, '+0 days') IS published_at) AND (first_published_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', first_published_at, '+0 days') IS first_published_at) AND (scheduled_for IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', scheduled_for, '+0 days') IS scheduled_for) AND (created_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', created_at, '+0 days') IS created_at) AND (updated_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', updated_at, '+0 days') IS updated_at)"
         },
-        "content_documents_kind_check": {
-          "name": "content_documents_kind_check",
-          "value": "\"content_documents\".\"kind\" IN ('page', 'article', 'platform_doc', 'social_post', 'qa')"
-        },
         "content_documents_metadata_check": {
           "name": "content_documents_metadata_check",
           "value": "json_valid(metadata_json) AND json_type(metadata_json) IS 'object'"
@@ -1993,10 +1961,6 @@
         "content_documents_path_check": {
           "name": "content_documents_path_check",
           "value": "path IS NULL OR (path LIKE '/%' AND path NOT LIKE '//%')"
-        },
-        "content_documents_platform_doc_scope_check": {
-          "name": "content_documents_platform_doc_scope_check",
-          "value": "kind <> 'platform_doc' OR (organization_id = 'platform' AND site_id = 'platform')"
         },
         "content_documents_page_copy_check": {
           "name": "content_documents_page_copy_check",
@@ -2036,7 +2000,7 @@
         },
         "content_documents_copy_required_check": {
           "name": "content_documents_copy_required_check",
-          "value": "row_role <> 'root' OR ((kind NOT IN ('page','article','platform_doc','qa') OR title IS NOT NULL) AND (kind NOT IN ('article','platform_doc') OR slug IS NOT NULL) AND (kind <> 'social_post' OR summary IS NOT NULL))"
+          "value": "row_role <> 'root' OR ((kind NOT IN ('page','article','qa') OR title IS NOT NULL) AND (kind <> 'article' OR slug IS NOT NULL) AND (kind <> 'social_post' OR summary IS NOT NULL))"
         },
         "content_documents_article_tags_check": {
           "name": "content_documents_article_tags_check",
@@ -2306,14 +2270,6 @@
         "customers_instants_check": {
           "name": "customers_instants_check",
           "value": "(review_request_opted_out_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', review_request_opted_out_at, '+0 days') IS review_request_opted_out_at) AND (created_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', created_at, '+0 days') IS created_at) AND (updated_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', updated_at, '+0 days') IS updated_at)"
-        },
-        "customers_source_check": {
-          "name": "customers_source_check",
-          "value": "source IN ('reservation', 'experience_booking', 'review_request', 'manual', 'stripe', 'import')"
-        },
-        "customers_status_check": {
-          "name": "customers_status_check",
-          "value": "status IN ('active', 'merged', 'suppressed', 'deleted')"
         }
       }
     },
@@ -2435,21 +2391,9 @@
           "name": "guest_thread_deliveries_instants_check",
           "value": "(created_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', created_at, '+0 days') IS created_at) AND (updated_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', updated_at, '+0 days') IS updated_at)"
         },
-        "guest_thread_deliveries_channel_check": {
-          "name": "guest_thread_deliveries_channel_check",
-          "value": "channel IN ('email', 'whatsapp')"
-        },
         "guest_thread_deliveries_provider_check": {
           "name": "guest_thread_deliveries_provider_check",
           "value": "(channel = 'email' AND provider IN ('resend', 'log_only')) OR (channel = 'whatsapp' AND provider IN ('meta', 'log_only'))"
-        },
-        "guest_thread_deliveries_purpose_check": {
-          "name": "guest_thread_deliveries_purpose_check",
-          "value": "purpose IN ('owner_alert', 'guest_acknowledgement', 'member_reply', 'status_update')"
-        },
-        "guest_thread_deliveries_status_check": {
-          "name": "guest_thread_deliveries_status_check",
-          "value": "status IN ('pending', 'accepted', 'sent', 'delivered', 'read', 'failed', 'unknown')"
         }
       }
     },
@@ -2980,18 +2924,6 @@
           "name": "mcp_tool_call_events_result_summary_json_check",
           "value": "result_summary_json IS NULL OR (json_valid(result_summary_json))"
         },
-        "mcp_tool_call_events_status_check": {
-          "name": "mcp_tool_call_events_status_check",
-          "value": "status IN ('success', 'error', 'auth_required', 'blocked')"
-        },
-        "mcp_tool_call_events_surface_check": {
-          "name": "mcp_tool_call_events_surface_check",
-          "value": "mcp_surface IN ('client', 'platform', 'public_help')"
-        },
-        "mcp_tool_call_events_mutating_check": {
-          "name": "mcp_tool_call_events_mutating_check",
-          "value": "is_mutating IN (0, 1)"
-        },
         "mcp_tool_call_events_duration_check": {
           "name": "mcp_tool_call_events_duration_check",
           "value": "duration_ms >= 0"
@@ -3240,29 +3172,9 @@
           "name": "media_assets_instants_check",
           "value": "(created_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', created_at, '+0 days') IS created_at) AND (updated_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', updated_at, '+0 days') IS updated_at)"
         },
-        "media_assets_kind_check": {
-          "name": "media_assets_kind_check",
-          "value": "\"media_assets\".\"kind\" IN ('image', 'video', 'file')"
-        },
-        "media_assets_category_check": {
-          "name": "media_assets_category_check",
-          "value": "category IS NULL OR category IN ('exterior', 'interior', 'food', 'menu', 'team', 'other', 'logo', 'blog')"
-        },
         "media_assets_video_thumbnail_check": {
           "name": "media_assets_video_thumbnail_check",
           "value": "kind <> 'video' OR (thumbnail_url IS NOT NULL AND length(trim(thumbnail_url)) > 0)"
-        },
-        "media_assets_status_check": {
-          "name": "media_assets_status_check",
-          "value": "status IN ('pending', 'active', 'deleted', 'failed')"
-        },
-        "media_assets_provider_check": {
-          "name": "media_assets_provider_check",
-          "value": "provider IN ('cloudflare_images', 'cloudflare_r2')"
-        },
-        "media_assets_source_check": {
-          "name": "media_assets_source_check",
-          "value": "source IN ('uploaded', 'generated', 'external')"
         }
       }
     },
@@ -3436,17 +3348,9 @@
           "name": "media_placements_instants_check",
           "value": "(created_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', created_at, '+0 days') IS created_at) AND (updated_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', updated_at, '+0 days') IS updated_at)"
         },
-        "media_placements_owner_type_check": {
-          "name": "media_placements_owner_type_check",
-          "value": "\"media_placements\".\"owner_type\" IN ('site', 'business_location', 'product', 'content_document', 'offering', 'content_block', 'review', 'review_request')"
-        },
         "media_placements_sort_order_check": {
           "name": "media_placements_sort_order_check",
-          "value": "\"media_placements\".\"sort_order\" >= 0"
-        },
-        "media_placements_status_check": {
-          "name": "media_placements_status_check",
-          "value": "\"media_placements\".\"status\" IN ('pending', 'active', 'rejected')"
+          "value": "sort_order >= 0"
         }
       }
     },
@@ -4823,17 +4727,9 @@
           "name": "onboarding_drafts_instants_check",
           "value": "(committed_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', committed_at, '+0 days') IS committed_at) AND (created_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', created_at, '+0 days') IS created_at) AND (updated_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', updated_at, '+0 days') IS updated_at)"
         },
-        "onboarding_drafts_source_type_check": {
-          "name": "onboarding_drafts_source_type_check",
-          "value": "source_type IN ('google_places', 'manual')"
-        },
         "onboarding_drafts_payload_json_check": {
           "name": "onboarding_drafts_payload_json_check",
           "value": "payload_json IS NULL OR (json_valid(payload_json) AND json_type(payload_json) IS 'object')"
-        },
-        "onboarding_drafts_status_check": {
-          "name": "onboarding_drafts_status_check",
-          "value": "status IN ('active', 'committing', 'committed', 'failed')"
         }
       }
     },
@@ -4913,7 +4809,7 @@
       "checkConstraints": {
         "organization_slug_required_check": {
           "name": "organization_slug_required_check",
-          "value": "trim(\"organization\".\"slug\") <> ''"
+          "value": "trim(slug) <> ''"
         }
       }
     },
@@ -5016,14 +4912,6 @@
         "organization_billing_instants_check": {
           "name": "organization_billing_instants_check",
           "value": "(access_expires_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', access_expires_at, '+0 days') IS access_expires_at) AND (updated_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', updated_at, '+0 days') IS updated_at) AND (paid_through IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', paid_through, '+0 days') IS paid_through) AND (past_due_since IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', past_due_since, '+0 days') IS past_due_since)"
-        },
-        "organization_billing_payment_status_check": {
-          "name": "organization_billing_payment_status_check",
-          "value": "payment_status IN ('unknown', 'paid', 'processing', 'failed', 'pending', 'trialing', 'past_due')"
-        },
-        "organization_billing_access_plan_check": {
-          "name": "organization_billing_access_plan_check",
-          "value": "\"organization_billing\".\"access_plan\" IN ('free', 'growth')"
         }
       }
     },
@@ -5244,27 +5132,15 @@
         },
         "prices_amount_check": {
           "name": "prices_amount_check",
-          "value": "\"prices\".\"amount_minor\" >= 0"
+          "value": "amount_minor >= 0"
         },
         "prices_compare_at_check": {
           "name": "prices_compare_at_check",
-          "value": "\"prices\".\"compare_at_amount_minor\" IS NULL OR \"prices\".\"compare_at_amount_minor\" > \"prices\".\"amount_minor\""
-        },
-        "prices_currency_check": {
-          "name": "prices_currency_check",
-          "value": "\"prices\".\"currency\" IN ('THB','USD','EUR','GBP','JPY','AUD','CAD','SGD','HKD','MYR','IDR','PHP','VND','INR')"
-        },
-        "prices_unit_check": {
-          "name": "prices_unit_check",
-          "value": "\"prices\".\"unit\" IN ('item', 'person', 'table')"
-        },
-        "prices_tax_behavior_check": {
-          "name": "prices_tax_behavior_check",
-          "value": "\"prices\".\"tax_behavior\" IN ('unspecified', 'inclusive', 'exclusive')"
+          "value": "compare_at_amount_minor IS NULL OR compare_at_amount_minor > amount_minor"
         },
         "prices_validity_check": {
           "name": "prices_validity_check",
-          "value": "\"prices\".\"valid_until\" IS NULL OR \"prices\".\"valid_until\" > \"prices\".\"valid_from\""
+          "value": "valid_until IS NULL OR valid_until > valid_from"
         }
       }
     },
@@ -5469,19 +5345,15 @@
         },
         "product_categories_name_not_blank_check": {
           "name": "product_categories_name_not_blank_check",
-          "value": "trim(\"product_categories\".\"name\") <> ''"
+          "value": "trim(name) <> ''"
         },
         "product_categories_slug_check": {
           "name": "product_categories_slug_check",
-          "value": "\"product_categories\".\"slug\" <> '' AND \"product_categories\".\"slug\" = lower(\"product_categories\".\"slug\") AND \"product_categories\".\"slug\" NOT GLOB '*[^a-z0-9-]*' AND \"product_categories\".\"slug\" NOT LIKE '-%' AND \"product_categories\".\"slug\" NOT LIKE '%-' AND \"product_categories\".\"slug\" NOT LIKE '%--%'"
+          "value": "slug <> '' AND slug = lower(slug) AND slug NOT GLOB '*[^a-z0-9-]*' AND slug NOT LIKE '-%' AND slug NOT LIKE '%-' AND slug NOT LIKE '%--%'"
         },
         "product_categories_sort_order_check": {
           "name": "product_categories_sort_order_check",
-          "value": "\"product_categories\".\"sort_order\" >= 0"
-        },
-        "product_categories_type_check": {
-          "name": "product_categories_type_check",
-          "value": "\"product_categories\".\"product_type\" IN ('standard', 'experience')"
+          "value": "sort_order >= 0"
         }
       }
     },
@@ -5845,23 +5717,23 @@
         },
         "products_name_not_blank_check": {
           "name": "products_name_not_blank_check",
-          "value": "trim(\"products\".\"name\") <> ''"
+          "value": "trim(name) <> ''"
         },
         "products_slug_check": {
           "name": "products_slug_check",
-          "value": "\"products\".\"slug\" <> '' AND \"products\".\"slug\" = lower(\"products\".\"slug\") AND \"products\".\"slug\" NOT GLOB '*[^a-z0-9-]*' AND \"products\".\"slug\" NOT LIKE '-%' AND \"products\".\"slug\" NOT LIKE '%-' AND \"products\".\"slug\" NOT LIKE '%--%'"
+          "value": "slug <> '' AND slug = lower(slug) AND slug NOT GLOB '*[^a-z0-9-]*' AND slug NOT LIKE '-%' AND slug NOT LIKE '%-' AND slug NOT LIKE '%--%'"
         },
         "products_sort_order_check": {
           "name": "products_sort_order_check",
-          "value": "\"products\".\"sort_order\" >= 0"
+          "value": "sort_order >= 0"
         },
         "products_featured_sort_order_check": {
           "name": "products_featured_sort_order_check",
-          "value": "\"products\".\"featured_sort_order\" >= 0"
+          "value": "featured_sort_order >= 0"
         },
         "products_boolean_check": {
           "name": "products_boolean_check",
-          "value": "\"products\".\"is_visible\" IN (0, 1) AND \"products\".\"available\" IN (0, 1) AND \"products\".\"featured\" IN (0, 1)"
+          "value": "is_visible IN (0, 1) AND available IN (0, 1) AND featured IN (0, 1)"
         },
         "products_experience_check": {
           "name": "products_experience_check",
@@ -5871,29 +5743,17 @@
           "name": "products_experience_fields_check",
           "value": "experience_json IS NULL OR ((json_type(experience_json, '$.recurring_slots') IS NULL OR json_type(experience_json, '$.recurring_slots') IN ('null', 'object')) AND (json_type(experience_json, '$.included_items') IS NULL OR json_type(experience_json, '$.included_items') IN ('null', 'array')) AND (json_type(experience_json, '$.what_to_bring') IS NULL OR json_type(experience_json, '$.what_to_bring') IN ('null', 'array')))"
         },
-        "products_type_check": {
-          "name": "products_type_check",
-          "value": "\"products\".\"product_type\" IN ('standard', 'experience')"
-        },
         "products_tags_json_check": {
           "name": "products_tags_json_check",
-          "value": "json_valid(\"products\".\"tags_json\") AND json_type(\"products\".\"tags_json\") = 'array'"
+          "value": "json_valid(tags_json) AND json_type(tags_json) = 'array'"
         },
         "products_details_json_check": {
           "name": "products_details_json_check",
-          "value": "json_valid(\"products\".\"details_json\") AND json_type(\"products\".\"details_json\") = 'array'"
-        },
-        "products_source_check": {
-          "name": "products_source_check",
-          "value": "\"products\".\"source\" IN ('manual', 'template', 'ai', 'import', 'copy')"
+          "value": "json_valid(details_json) AND json_type(details_json) = 'array'"
         },
         "products_order_url_check": {
           "name": "products_order_url_check",
-          "value": "\"products\".\"order_url\" IS NULL OR (\"products\".\"order_url\" LIKE 'https://_%' AND instr(\"products\".\"order_url\", '@') = 0 AND instr(\"products\".\"order_url\", char(10)) = 0 AND instr(\"products\".\"order_url\", char(13)) = 0)"
-        },
-        "products_robots_check": {
-          "name": "products_robots_check",
-          "value": "\"products\".\"robots\" IS NULL OR \"products\".\"robots\" IN ('index,follow', 'noindex,follow', 'index,nofollow', 'noindex,nofollow')"
+          "value": "order_url IS NULL OR (order_url LIKE 'https://_%' AND instr(order_url, '@') = 0 AND instr(order_url, char(10)) = 0 AND instr(order_url, char(13)) = 0)"
         }
       }
     },
@@ -6006,10 +5866,6 @@
         "public_resource_cache_invalidations_instants_check": {
           "name": "public_resource_cache_invalidations_instants_check",
           "value": "(claimed_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', claimed_at, '+0 days') IS claimed_at) AND (processed_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', processed_at, '+0 days') IS processed_at) AND (created_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', created_at, '+0 days') IS created_at)"
-        },
-        "public_resource_cache_invalidations_status_check": {
-          "name": "public_resource_cache_invalidations_status_check",
-          "value": "status IN ('pending', 'processing', 'processed', 'failed')"
         },
         "public_resource_cache_invalidations_attempt_count_check": {
           "name": "public_resource_cache_invalidations_attempt_count_check",
@@ -6445,10 +6301,6 @@
           "name": "requests_instants_check",
           "value": "(resolved_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', resolved_at, '+0 days') IS resolved_at) AND (created_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', created_at, '+0 days') IS created_at) AND (updated_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', updated_at, '+0 days') IS updated_at)"
         },
-        "requests_kind_check": {
-          "name": "requests_kind_check",
-          "value": "kind IN ('contact', 'reservation', 'experience_booking', 'platform_contact', 'work')"
-        },
         "requests_payload_check": {
           "name": "requests_payload_check",
           "value": "json_valid(payload_json) AND json_type(payload_json) = 'object'"
@@ -6467,11 +6319,11 @@
         },
         "requests_message_payload_check": {
           "name": "requests_message_payload_check",
-          "value": "kind NOT IN ('contact', 'platform_contact') OR json_type(payload_json, '$.message') IS 'text'"
+          "value": "kind <> 'contact' OR json_type(payload_json, '$.message') IS 'text'"
         },
         "requests_scope_check": {
           "name": "requests_scope_check",
-          "value": "(kind = 'platform_contact' AND organization_id IS NULL AND site_id IS NULL AND location_id IS NULL AND product_id IS NULL AND customer_id IS NULL) OR (kind = 'work' AND organization_id IS NOT NULL AND location_id IS NULL AND product_id IS NULL AND customer_id IS NULL) OR (kind IN ('contact', 'reservation', 'experience_booking') AND organization_id IS NOT NULL AND site_id IS NOT NULL)"
+          "value": "(kind = 'work' AND organization_id IS NOT NULL AND location_id IS NULL AND product_id IS NULL AND customer_id IS NULL) OR (kind IN ('contact', 'reservation', 'experience_booking') AND organization_id IS NOT NULL AND site_id IS NOT NULL)"
         },
         "requests_booking_check": {
           "name": "requests_booking_check",
@@ -6479,7 +6331,7 @@
         },
         "requests_state_check": {
           "name": "requests_state_check",
-          "value": "(kind = 'work' AND status IS NOT NULL AND status IN ('pending', 'in_progress', 'done', 'cancelled') AND priority IS NOT NULL AND priority IN ('low', 'normal', 'high', 'urgent') AND conversation_state IS NULL) OR (kind IN ('contact', 'reservation', 'experience_booking') AND conversation_state IS NOT NULL AND conversation_state IN ('needs_attention', 'waiting_on_guest', 'resolved') AND priority IS NULL AND assigned_to IS NULL AND (kind != 'contact' OR status IS NULL)) OR (kind = 'platform_contact' AND status IS NULL AND priority IS NULL AND conversation_state IS NULL AND assigned_to IS NULL)"
+          "value": "(kind = 'work' AND status IS NOT NULL AND status IN ('pending', 'in_progress', 'done', 'cancelled') AND priority IS NOT NULL AND priority IN ('low', 'normal', 'high', 'urgent') AND conversation_state IS NULL) OR (kind IN ('contact', 'reservation', 'experience_booking') AND conversation_state IS NOT NULL AND conversation_state IN ('needs_attention', 'waiting_on_guest', 'resolved') AND priority IS NULL AND assigned_to IS NULL AND (kind != 'contact' OR status IS NULL))"
         }
       }
     },
@@ -6639,21 +6491,17 @@
           "name": "resource_localizations_instants_check",
           "value": "(created_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', created_at, '+0 days') IS created_at) AND (updated_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', updated_at, '+0 days') IS updated_at)"
         },
-        "resource_localizations_resource_type_check": {
-          "name": "resource_localizations_resource_type_check",
-          "value": "\"resource_localizations\".\"resource_type\" IN ('site', 'business_location', 'product', 'product_category', 'offering', 'media_asset')"
-        },
         "resource_localizations_values_json_check": {
           "name": "resource_localizations_values_json_check",
-          "value": "json_valid(\"resource_localizations\".\"values_json\") AND json_type(\"resource_localizations\".\"values_json\") = 'object'"
+          "value": "json_valid(values_json) AND json_type(values_json) = 'object'"
         },
         "resource_localizations_non_english_check": {
           "name": "resource_localizations_non_english_check",
-          "value": "\"resource_localizations\".\"locale\" <> 'en'"
+          "value": "locale <> 'en'"
         },
         "resource_localizations_route_path_check": {
           "name": "resource_localizations_route_path_check",
-          "value": "\"resource_localizations\".\"route_path\" IS NULL OR (\"resource_localizations\".\"route_path\" LIKE '/' || \"resource_localizations\".\"locale\" || '/%' AND \"resource_localizations\".\"route_path\" NOT LIKE '%?%' AND \"resource_localizations\".\"route_path\" NOT LIKE '%#%' AND \"resource_localizations\".\"route_path\" NOT LIKE '%//%')"
+          "value": "route_path IS NULL OR (route_path LIKE '/' || locale || '/%' AND route_path NOT LIKE '%?%' AND route_path NOT LIKE '%#%' AND route_path NOT LIKE '%//%')"
         }
       }
     },
@@ -6961,10 +6809,6 @@
         "review_requests_instants_check": {
           "name": "review_requests_instants_check",
           "value": "(expires_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', expires_at, '+0 days') IS expires_at) AND (first_sent_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', first_sent_at, '+0 days') IS first_sent_at) AND (reminder_sent_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', reminder_sent_at, '+0 days') IS reminder_sent_at) AND (submitted_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', submitted_at, '+0 days') IS submitted_at) AND (clicked_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', clicked_at, '+0 days') IS clicked_at) AND (revoked_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', revoked_at, '+0 days') IS revoked_at) AND (created_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', created_at, '+0 days') IS created_at) AND (updated_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', updated_at, '+0 days') IS updated_at)"
-        },
-        "review_requests_booking_type_check": {
-          "name": "review_requests_booking_type_check",
-          "value": "booking_type IN ('reservation', 'experience_booking')"
         }
       }
     },
@@ -7383,29 +7227,13 @@
           "name": "reviews_instants_check",
           "value": "(owner_reply_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', owner_reply_at, '+0 days') IS owner_reply_at) AND (created_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', created_at, '+0 days') IS created_at) AND (updated_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', updated_at, '+0 days') IS updated_at)"
         },
-        "reviews_status_check": {
-          "name": "reviews_status_check",
-          "value": "status IN ('pending', 'approved', 'rejected')"
-        },
         "reviews_google_review_metadata_check": {
           "name": "reviews_google_review_metadata_check",
           "value": "google_review_metadata IS NULL OR (json_valid(google_review_metadata) AND json_type(google_review_metadata) IS 'object')"
         },
-        "reviews_booking_type_check": {
-          "name": "reviews_booking_type_check",
-          "value": "booking_type IS NULL OR booking_type IN ('reservation', 'experience_booking')"
-        },
         "reviews_rating_check": {
           "name": "reviews_rating_check",
           "value": "rating BETWEEN 1 AND 5"
-        },
-        "reviews_publication_authorized_check": {
-          "name": "reviews_publication_authorized_check",
-          "value": "publication_authorized IN (0, 1)"
-        },
-        "reviews_collection_method_check": {
-          "name": "reviews_collection_method_check",
-          "value": "collection_method IS NULL OR collection_method IN ('in_person', 'email', 'phone', 'migration', 'other')"
         },
         "reviews_product_scope_check": {
           "name": "reviews_product_scope_check",
@@ -7975,26 +7803,6 @@
         "site_domains_metadata_check": {
           "name": "site_domains_metadata_check",
           "value": "metadata IS NULL OR (json_valid(metadata))"
-        },
-        "site_domains_type_check": {
-          "name": "site_domains_type_check",
-          "value": "type IN ('subdomain', 'custom')"
-        },
-        "site_domains_role_check": {
-          "name": "site_domains_role_check",
-          "value": "role IN ('canonical', 'secondary')"
-        },
-        "site_domains_status_check": {
-          "name": "site_domains_status_check",
-          "value": "status IN ('pending', 'verifying', 'active', 'blocked', 'failed', 'disabled', 'deleted', 'retired')"
-        },
-        "site_domains_validation_strategy_check": {
-          "name": "site_domains_validation_strategy_check",
-          "value": "validation_strategy IN ('http_auto', 'txt_manual', 'delegated_dcv')"
-        },
-        "site_domains_dns_status_check": {
-          "name": "site_domains_dns_status_check",
-          "value": "dns_status IN ('pending', 'valid', 'invalid', 'unknown')"
         }
       }
     },
@@ -8161,10 +7969,6 @@
         "site_locales_instants_check": {
           "name": "site_locales_instants_check",
           "value": "(activated_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', activated_at, '+0 days') IS activated_at) AND (disabled_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', disabled_at, '+0 days') IS disabled_at) AND (created_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', created_at, '+0 days') IS created_at) AND (updated_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', updated_at, '+0 days') IS updated_at)"
-        },
-        "site_locales_source_boolean_check": {
-          "name": "site_locales_source_boolean_check",
-          "value": "is_source IN (0, 1)"
         },
         "site_locales_status_check": {
           "name": "site_locales_status_check",
@@ -8362,10 +8166,6 @@
         "site_redirects_from_path_check": {
           "name": "site_redirects_from_path_check",
           "value": "from_path LIKE '/%'"
-        },
-        "site_redirects_behavior_check": {
-          "name": "site_redirects_behavior_check",
-          "value": "behavior IN ('redirect', 'gone', 'noindex')"
         },
         "site_redirects_redirect_to_path_check": {
           "name": "site_redirects_redirect_to_path_check",
@@ -8634,18 +8434,6 @@
         "site_transfer_requests_instants_check": {
           "name": "site_transfer_requests_instants_check",
           "value": "(payment_completed_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', payment_completed_at, '+0 days') IS payment_completed_at) AND (created_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', created_at, '+0 days') IS created_at) AND (completed_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', completed_at, '+0 days') IS completed_at) AND (last_reminder_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', last_reminder_at, '+0 days') IS last_reminder_at)"
-        },
-        "site_transfer_requests_status_check": {
-          "name": "site_transfer_requests_status_check",
-          "value": "status IN ('pending', 'accepted', 'cancelled')"
-        },
-        "site_transfer_requests_invited_plan_check": {
-          "name": "site_transfer_requests_invited_plan_check",
-          "value": "invited_plan IN ('growth')"
-        },
-        "site_transfer_requests_invited_interval_check": {
-          "name": "site_transfer_requests_invited_interval_check",
-          "value": "invited_interval IN ('month', 'year')"
         }
       }
     },
@@ -9050,30 +8838,6 @@
         "sites_feature_overrides_check": {
           "name": "sites_feature_overrides_check",
           "value": "feature_overrides IS NULL OR (json_valid(feature_overrides) AND json_type(feature_overrides) IS 'object')"
-        },
-        "sites_theme_id_check": {
-          "name": "sites_theme_id_check",
-          "value": "\"sites\".\"theme_id\" IN ('saya-theme-v1', 'blawby-theme-v1')"
-        },
-        "sites_status_check": {
-          "name": "sites_status_check",
-          "value": "\"sites\".\"status\" IN ('active', 'inactive', 'suspended')"
-        },
-        "sites_onboarding_status_check": {
-          "name": "sites_onboarding_status_check",
-          "value": "\"sites\".\"onboarding_status\" IN ('pending', 'active', 'failed')"
-        },
-        "sites_url_structure_check": {
-          "name": "sites_url_structure_check",
-          "value": "\"sites\".\"url_structure\" IN ('location_subdirectories', 'brand_pages')"
-        },
-        "sites_vertical_check": {
-          "name": "sites_vertical_check",
-          "value": "\"sites\".\"vertical\" IN ('restaurant', 'experience', 'retail', 'wellness', 'service')"
-        },
-        "sites_default_currency_check": {
-          "name": "sites_default_currency_check",
-          "value": "\"sites\".\"default_currency\" IN ('THB','USD','EUR','GBP','JPY','AUD','CAD','SGD','HKD','MYR','IDR','PHP','VND','INR')"
         }
       }
     },
@@ -9301,18 +9065,6 @@
         "stripe_ga4_subscription_intents_instants_check": {
           "name": "stripe_ga4_subscription_intents_instants_check",
           "value": "(lifecycle_sent_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', lifecycle_sent_at, '+0 days') IS lifecycle_sent_at) AND (consumed_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', consumed_at, '+0 days') IS consumed_at) AND (expires_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', expires_at, '+0 days') IS expires_at) AND (created_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', created_at, '+0 days') IS created_at) AND (updated_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', updated_at, '+0 days') IS updated_at)"
-        },
-        "stripe_ga4_subscription_intents_action_check": {
-          "name": "stripe_ga4_subscription_intents_action_check",
-          "value": "\"stripe_ga4_subscription_intents\".\"action\" IN ('initial_subscription', 'upgrade', 'downgrade')"
-        },
-        "stripe_ga4_subscription_intents_status_check": {
-          "name": "stripe_ga4_subscription_intents_status_check",
-          "value": "\"stripe_ga4_subscription_intents\".\"status\" IN ('pending', 'consumed', 'expired')"
-        },
-        "stripe_ga4_subscription_intents_timing_check": {
-          "name": "stripe_ga4_subscription_intents_timing_check",
-          "value": "\"stripe_ga4_subscription_intents\".\"effective_timing\" IN ('immediate', 'period_end')"
         }
       }
     },
@@ -9481,14 +9233,6 @@
         "stripe_invoice_payments_instants_check": {
           "name": "stripe_invoice_payments_instants_check",
           "value": "(ga4_purchase_claimed_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', ga4_purchase_claimed_at, '+0 days') IS ga4_purchase_claimed_at) AND (ga4_purchase_sent_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', ga4_purchase_sent_at, '+0 days') IS ga4_purchase_sent_at) AND (updated_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', updated_at, '+0 days') IS updated_at) AND (period_start IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', period_start, '+0 days') IS period_start) AND (period_end IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', period_end, '+0 days') IS period_end) AND (past_due_since IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', past_due_since, '+0 days') IS past_due_since)"
-        },
-        "stripe_invoice_payments_status_check": {
-          "name": "stripe_invoice_payments_status_check",
-          "value": "status IN ('paid', 'processing', 'failed')"
-        },
-        "stripe_invoice_payments_ga4_purchase_status_check": {
-          "name": "stripe_invoice_payments_ga4_purchase_status_check",
-          "value": "ga4_purchase_status IN ('pending', 'sending', 'sent', 'failed')"
         }
       }
     },
@@ -9658,10 +9402,6 @@
         "stripe_webhook_events_instants_check": {
           "name": "stripe_webhook_events_instants_check",
           "value": "(claimed_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', claimed_at, '+0 days') IS claimed_at) AND (lease_expires_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', lease_expires_at, '+0 days') IS lease_expires_at) AND (next_attempt_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', next_attempt_at, '+0 days') IS next_attempt_at) AND (dead_lettered_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', dead_lettered_at, '+0 days') IS dead_lettered_at) AND (created_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', created_at, '+0 days') IS created_at)"
-        },
-        "stripe_webhook_events_status_check": {
-          "name": "stripe_webhook_events_status_check",
-          "value": "status IN ('pending', 'processed', 'failed', 'dead_letter')"
         },
         "stripe_webhook_events_payload_check": {
           "name": "stripe_webhook_events_payload_check",

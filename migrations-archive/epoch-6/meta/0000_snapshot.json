@@ -1,8 +1,8 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "9042359e-f65b-449d-8ae9-ca3083c749d7",
-  "prevId": "ed29d7ae-832e-416d-8229-626a07e5da87",
+  "id": "ed29d7ae-832e-416d-8229-626a07e5da87",
+  "prevId": "00000000-0000-0000-0000-000000000000",
   "tables": {
     "account": {
       "name": "account",
@@ -472,7 +472,7 @@
         },
         "activity_entries_scope_check": {
           "name": "activity_entries_scope_check",
-          "value": "(scope_kind = 'request' AND request_id IS NOT NULL AND organization_id IS NULL AND site_id IS NULL AND context_site_id IS NULL AND location_id IS NULL) OR (scope_kind = 'site' AND kind = 'audit' AND site_id IS NOT NULL AND context_site_id IS NULL AND organization_id IS NULL AND request_id IS NULL) OR (scope_kind = 'organization' AND organization_id IS NOT NULL AND site_id IS NULL AND request_id IS NULL) OR (scope_kind = 'global' AND organization_id IS NULL AND site_id IS NULL AND context_site_id IS NULL AND request_id IS NULL)"
+          "value": "(scope_kind = 'request' AND request_id IS NOT NULL AND organization_id IS NULL AND site_id IS NULL AND context_site_id IS NULL AND location_id IS NULL) OR (scope_kind = 'site' AND kind = 'audit' AND site_id IS NOT NULL AND context_site_id IS NULL AND organization_id IS NULL AND request_id IS NULL) OR (scope_kind = 'organization' AND organization_id IS NOT NULL AND site_id IS NULL AND request_id IS NULL) OR (scope_kind = 'platform' AND organization_id IS NULL AND site_id IS NULL AND context_site_id IS NULL AND request_id IS NULL)"
         },
         "activity_entries_actor_check": {
           "name": "activity_entries_actor_check",
@@ -1494,23 +1494,23 @@
         },
         "content_blocks_type_check": {
           "name": "content_blocks_type_check",
-          "value": "type IN ('heading', 'markdown', 'image', 'gallery', 'faq', 'how_to', 'divider', 'ai_assistance', 'cta', 'callout', 'hero', 'button_group', 'feature_grid', 'testimonial_grid', 'contact_cta', 'booking_cta', 'donation_choices', 'offering_grid', 'location_grid')"
+          "value": "\"content_blocks\".\"type\" IN ('heading', 'markdown', 'image', 'gallery', 'faq', 'how_to', 'divider', 'ai_assistance', 'cta', 'callout', 'hero', 'button_group', 'feature_grid', 'testimonial_grid', 'contact_cta', 'booking_cta', 'donation_choices', 'offering_grid', 'location_grid')"
         },
         "content_blocks_data_json_check": {
           "name": "content_blocks_data_json_check",
-          "value": "json_valid(data_json) AND json_type(data_json) IS 'object'"
+          "value": "json_valid(\"content_blocks\".\"data_json\") AND json_type(\"content_blocks\".\"data_json\") IS 'object'"
         },
         "content_blocks_parent_check": {
           "name": "content_blocks_parent_check",
-          "value": "parent_block_id IS NULL OR parent_block_id <> id"
+          "value": "\"content_blocks\".\"parent_block_id\" IS NULL OR \"content_blocks\".\"parent_block_id\" <> \"content_blocks\".\"id\""
         },
         "content_blocks_position_check": {
           "name": "content_blocks_position_check",
-          "value": "position >= 0"
+          "value": "\"content_blocks\".\"position\" >= 0"
         },
         "content_blocks_level_check": {
           "name": "content_blocks_level_check",
-          "value": "level IS NULL OR level BETWEEN 1 AND 6"
+          "value": "\"content_blocks\".\"level\" IS NULL OR \"content_blocks\".\"level\" BETWEEN 1 AND 6"
         }
       }
     },
@@ -1980,7 +1980,7 @@
         },
         "content_documents_kind_check": {
           "name": "content_documents_kind_check",
-          "value": "kind IN ('page', 'article', 'social_post', 'qa')"
+          "value": "\"content_documents\".\"kind\" IN ('page', 'article', 'platform_doc', 'social_post', 'qa')"
         },
         "content_documents_metadata_check": {
           "name": "content_documents_metadata_check",
@@ -1993,6 +1993,10 @@
         "content_documents_path_check": {
           "name": "content_documents_path_check",
           "value": "path IS NULL OR (path LIKE '/%' AND path NOT LIKE '//%')"
+        },
+        "content_documents_platform_doc_scope_check": {
+          "name": "content_documents_platform_doc_scope_check",
+          "value": "kind <> 'platform_doc' OR (organization_id = 'platform' AND site_id = 'platform')"
         },
         "content_documents_page_copy_check": {
           "name": "content_documents_page_copy_check",
@@ -2032,7 +2036,7 @@
         },
         "content_documents_copy_required_check": {
           "name": "content_documents_copy_required_check",
-          "value": "row_role <> 'root' OR ((kind NOT IN ('page','article','qa') OR title IS NOT NULL) AND (kind <> 'article' OR slug IS NOT NULL) AND (kind <> 'social_post' OR summary IS NOT NULL))"
+          "value": "row_role <> 'root' OR ((kind NOT IN ('page','article','platform_doc','qa') OR title IS NOT NULL) AND (kind NOT IN ('article','platform_doc') OR slug IS NOT NULL) AND (kind <> 'social_post' OR summary IS NOT NULL))"
         },
         "content_documents_article_tags_check": {
           "name": "content_documents_article_tags_check",
@@ -2982,7 +2986,7 @@
         },
         "mcp_tool_call_events_surface_check": {
           "name": "mcp_tool_call_events_surface_check",
-          "value": "mcp_surface IN ('client', 'public_help')"
+          "value": "mcp_surface IN ('client', 'platform', 'public_help')"
         },
         "mcp_tool_call_events_mutating_check": {
           "name": "mcp_tool_call_events_mutating_check",
@@ -6443,7 +6447,7 @@
         },
         "requests_kind_check": {
           "name": "requests_kind_check",
-          "value": "kind IN ('contact', 'reservation', 'experience_booking', 'work')"
+          "value": "kind IN ('contact', 'reservation', 'experience_booking', 'platform_contact', 'work')"
         },
         "requests_payload_check": {
           "name": "requests_payload_check",
@@ -6463,11 +6467,11 @@
         },
         "requests_message_payload_check": {
           "name": "requests_message_payload_check",
-          "value": "kind <> 'contact' OR json_type(payload_json, '$.message') IS 'text'"
+          "value": "kind NOT IN ('contact', 'platform_contact') OR json_type(payload_json, '$.message') IS 'text'"
         },
         "requests_scope_check": {
           "name": "requests_scope_check",
-          "value": "(kind = 'work' AND organization_id IS NOT NULL AND location_id IS NULL AND product_id IS NULL AND customer_id IS NULL) OR (kind IN ('contact', 'reservation', 'experience_booking') AND organization_id IS NOT NULL AND site_id IS NOT NULL)"
+          "value": "(kind = 'platform_contact' AND organization_id IS NULL AND site_id IS NULL AND location_id IS NULL AND product_id IS NULL AND customer_id IS NULL) OR (kind = 'work' AND organization_id IS NOT NULL AND location_id IS NULL AND product_id IS NULL AND customer_id IS NULL) OR (kind IN ('contact', 'reservation', 'experience_booking') AND organization_id IS NOT NULL AND site_id IS NOT NULL)"
         },
         "requests_booking_check": {
           "name": "requests_booking_check",
@@ -6475,7 +6479,7 @@
         },
         "requests_state_check": {
           "name": "requests_state_check",
-          "value": "(kind = 'work' AND status IS NOT NULL AND status IN ('pending', 'in_progress', 'done', 'cancelled') AND priority IS NOT NULL AND priority IN ('low', 'normal', 'high', 'urgent') AND conversation_state IS NULL) OR (kind IN ('contact', 'reservation', 'experience_booking') AND conversation_state IS NOT NULL AND conversation_state IN ('needs_attention', 'waiting_on_guest', 'resolved') AND priority IS NULL AND assigned_to IS NULL AND (kind != 'contact' OR status IS NULL))"
+          "value": "(kind = 'work' AND status IS NOT NULL AND status IN ('pending', 'in_progress', 'done', 'cancelled') AND priority IS NOT NULL AND priority IN ('low', 'normal', 'high', 'urgent') AND conversation_state IS NULL) OR (kind IN ('contact', 'reservation', 'experience_booking') AND conversation_state IS NOT NULL AND conversation_state IN ('needs_attention', 'waiting_on_guest', 'resolved') AND priority IS NULL AND assigned_to IS NULL AND (kind != 'contact' OR status IS NULL)) OR (kind = 'platform_contact' AND status IS NULL AND priority IS NULL AND conversation_state IS NULL AND assigned_to IS NULL)"
         }
       }
     },

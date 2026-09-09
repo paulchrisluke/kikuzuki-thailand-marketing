@@ -1,4 +1,5 @@
 import { instantDate } from '~/utils/timezone'
+import { useRuntimeConfig } from 'nitro/runtime-config'
 import { HTTPError } from 'nitro';
 import type { H3Event } from 'nitro';
 import {  getRequestHost } from 'nitro/h3';
@@ -7,7 +8,7 @@ import { getContentBlocksForDocument } from './content/documents.ts'
 import { findAuthUsersByIds, type CloudflareEnv } from './auth.ts'
 import { blogCategoryToSlug, slugToBlogCategory } from '../../utils/blog-categories.ts'
 import { slugToCategory } from '../../utils/docs-categories.ts'
-import { PLATFORM_SITE_ID } from '../../shared/platform-scope.ts'
+import { getPlatformSite } from './platform-site.ts'
 
 /** A documentation page: an ordinary site page whose path starts with /docs. */
 interface PlatformLlmDocSummary {
@@ -269,13 +270,14 @@ export async function listPublishedPlatformDocsForLlm(db: DbClient) {
     db,
     `SELECT id, title, path, summary AS excerpt, canonical_url, seo_description, updated_at
      FROM content_documents
-     WHERE kind = 'page' AND row_role = 'root' AND site_id = '${PLATFORM_SITE_ID}' AND path LIKE '/docs/%'
+     WHERE kind = 'page' AND row_role = 'root' AND site_id = ? AND path LIKE '/docs/%'
      ORDER BY path, sort_order, updated_at DESC`,
+    [(await getPlatformSite(db)).id],
   )
 }
 
 export async function listPublishedPlatformBlogPostsForLlm(db: DbClient, env: CloudflareEnv) {
-  return listPublishedTenantBlogPostsForLlm(db, PLATFORM_SITE_ID, env)
+  return listPublishedTenantBlogPostsForLlm(db, (await getPlatformSite(db)).id, env)
 }
 
 export async function listPublishedTenantBlogPostsForLlm(db: DbClient, siteId: string, env: CloudflareEnv) {
@@ -305,8 +307,8 @@ export async function getPublishedPlatformDocByPath(db: DbClient, path: string) 
     db,
     `SELECT id, title, path, summary AS excerpt, canonical_url, seo_description, updated_at
      FROM content_documents
-     WHERE kind = 'page' AND row_role = 'root' AND site_id = '${PLATFORM_SITE_ID}' AND path = ?`,
-    [path],
+     WHERE kind = 'page' AND row_role = 'root' AND site_id = ? AND path = ?`,
+    [(await getPlatformSite(db)).id, path],
   )
   if (!detail) return null
   const contentBlocks = await getContentBlocksForDocument(db, detail.id)
@@ -317,7 +319,7 @@ export async function getPublishedPlatformDocByPath(db: DbClient, path: string) 
 export async function getPublishedBlogPostBySlug(db: DbClient, categorySlug: string, slug: string) {
   const category = slugToBlogCategory(categorySlug)
   if (!category) return null
-  const detail = await getPublishedTenantBlogPostBySlug(db, PLATFORM_SITE_ID, slug)
+  const detail = await getPublishedTenantBlogPostBySlug(db, (await getPlatformSite(db)).id, slug)
   return detail?.category === category ? detail : null
 }
 

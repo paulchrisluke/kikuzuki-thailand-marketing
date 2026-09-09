@@ -41,10 +41,10 @@ function toDocsPage(row: PageRow): DocsPage | null {
   }
 }
 
-export function useDocsPages() {
+export async function useDocsPages() {
   const { siteId } = useTenantSite()
   const requestEvent = useRequestEvent()
-  const { data, pending, error } = useAsyncData<{ pages: PageRow[] }>('docs-pages', async () => {
+  const asyncData = useAsyncData<{ pages: PageRow[] }>('docs-pages', async () => {
     if (!siteId) throw createError({ statusCode: 500, statusMessage: 'Documentation requires the current site' })
     if (import.meta.server) {
       if (!requestEvent) throw createError({ statusCode: 500, statusMessage: 'Request context unavailable' })
@@ -61,6 +61,9 @@ export function useDocsPages() {
     })
     return { pages: response.pages.filter(page => page.path.startsWith('/docs')) }
   })
+  // Callers decide routing from the list, so the list must be loaded before they continue.
+  await asyncData
+  const { data, pending, error } = asyncData
 
   const categoryOrder = Object.values(CATEGORY_SLUGS)
   const pages = computed<DocsPage[]>(() => (data.value?.pages ?? [])

@@ -7,7 +7,6 @@ import {
 } from '~/server/utils/media-asset-manager'
 import { uploadResolvedMediaToAssetStore, type UploadResolvedMediaInput } from '~/server/utils/media-upload'
 import { renderOgImagePng } from '~/server/utils/og-image/render'
-import { PLATFORM_SITE_ID } from '~/shared/platform-scope'
 import {
   hashSocialCardGenerationInput,
   OG_IMAGE_HEIGHT,
@@ -235,7 +234,6 @@ export function buildSocialCardGenerationKey(input: {
 }
 
 function socialTemplate(site: SiteRecord): SocialTemplate {
-  if (site.id === PLATFORM_SITE_ID) return 'platform'
   return resolvePublicTemplate({ themeId: site.theme_id, vertical: site.vertical }).slug
 }
 
@@ -262,7 +260,7 @@ export async function refreshSocialCard(input: {
     const site = await loadSite(db, ownerRecord.site_id)
     if (!site) return await clearSocialCard(input, 'owner_not_found')
     const title = ownerRecord.title?.trim()
-    const siteName = site.brand_name?.trim() || (site.id === PLATFORM_SITE_ID ? 'KrabiClaw' : null)
+    const siteName = site.brand_name?.trim() || null
     if (!title || !siteName) return await clearSocialCard(input, 'missing_content')
 
     const coverBlockId = await loadCoverBlockId(db, owner)
@@ -295,7 +293,7 @@ export async function refreshSocialCard(input: {
     await executeBatch(db, [{ query: "UPDATE media_placements SET status = 'pending' WHERE owner_type = ? AND owner_id = ? AND slot = 'social_card'", params: [owner.owner_type, owner.owner_id] }])
 
     if (!env.IMAGES) throw new Error('Cloudflare Images binding is required to render social cards')
-    const png = await renderOgImagePng(payload, { images: env.IMAGES, platformDomain: env.NUXT_PUBLIC_PLATFORM_DOMAIN })
+    const png = await renderOgImagePng(payload, { images: env.IMAGES })
     const uploaded = await uploadResolvedMediaToAssetStore({
       db,
       env,

@@ -3,11 +3,11 @@
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { PLATFORM_ORGANIZATION_ID } from '../shared/platform-scope.ts'
 import { spawnYarn } from './utils/spawn-yarn.mjs'
 
+// 'platform' is KrabiClaw's own organization in the fixture snapshot.
 const FIXTURE_ORG_IDS = [
-  PLATFORM_ORGANIZATION_ID,
+  'platform',
   'org-demo',
   'org-mcp-free',
   'org-mcp-growth',

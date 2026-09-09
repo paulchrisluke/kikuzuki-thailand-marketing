@@ -1,5 +1,5 @@
 import { queryAll, queryFirst, type DbClient } from '~/server/db'
-import { PLATFORM_SITE_ID } from '~/shared/platform-scope'
+import { getPlatformSite } from '~/server/utils/platform-site'
 
 const n = (value: unknown) => Number(value || 0)
 
@@ -13,6 +13,7 @@ export const PLATFORM_SIGNUP_LEDGER_START_DATE = '2026-07-26'
 
 export async function getPlatformAnalyticsSummary(db: DbClient, startDate: string, endDate: string) {
   const { start, end } = utcBounds(startDate, endDate)
+  const PLATFORM_SITE_ID = (await getPlatformSite(db)).id
   const [daily, totals, topPages, signups, dailySignups] = await Promise.all([
     queryAll<Record<string, unknown>>(db, `SELECT substr(created_at, 1, 10) date, COUNT(*) page_views,
       COUNT(DISTINCT session_id) unique_sessions FROM analytics_events

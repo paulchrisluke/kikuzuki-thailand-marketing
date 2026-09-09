@@ -270,17 +270,6 @@ export function structuredComponentsFromBlocks(blocks: EditorContentBlock[]): Ar
   return components
 }
 
-export function resolveBlogPublicPath(input: {
-  scope: 'platform' | 'tenant'
-  slug: string
-  category?: string | null
-  template?: 'saya' | 'blawby' | 'platform' | string | null
-}) {
-  const slug = encodeURIComponent(input.slug)
-  if (input.scope === 'tenant') return input.template === 'blawby' ? `/article/${slug}` : `/blog/${slug}`
-  return `/blog/${normalizeBlogSlug(input.category || 'uncategorized', 'uncategorized')}/${slug}`
-}
-
 export function resolveSlugMutation(input: {
   requestedSlug: string | null | undefined
   title: string

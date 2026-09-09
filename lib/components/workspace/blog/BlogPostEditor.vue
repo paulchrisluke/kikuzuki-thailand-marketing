@@ -45,7 +45,7 @@
             </template>
             <template #image-editor="{ block, index }">
               <component
-                :is="mediaPickerComponent || PlatformMediaPicker"
+                :is="mediaPickerComponent"
                 :site-id="siteId"
                 :model-value="block.media?.find(item => item.slot === 'media')?.asset_id || ''"
                 accept="image"
@@ -106,7 +106,9 @@
 
         <template #detail>
           <UFormField v-if="section === 'category'" label="Category">
-            <UInput v-model="form.category" autofocus class="w-full" />
+            <!-- KrabiClaw's own blog files posts under a fixed category set that shapes the URL. -->
+            <USelect v-if="isPlatformTemplate" v-model="form.category" :items="BLOG_CATEGORY_LABELS" class="w-full" />
+            <UInput v-else v-model="form.category" autofocus class="w-full" />
           </UFormField>
 
           <UFormField v-else-if="section === 'tags'" label="Tags" help="Comma separated">
@@ -191,14 +193,16 @@ import type { Component } from 'vue'
 import BlogArticleView from '~/components/blog/BlogArticleView.vue'
 import EditorNavigationList, { type EditorNavigationGroup } from '~/components/dashboard/EditorNavigationList.vue'
 import EditorPaneShell from '~/components/dashboard/EditorPaneShell.vue'
-import PlatformMediaPicker from '~/lib/components/workspace/media/PlatformMediaPicker.vue'
+import { BLOG_CATEGORY_LABELS } from '~/utils/blog-categories'
+import { tenantBlogPostPath } from '~/utils/tenant-blog-route'
+import { publicTemplateRegistry } from '~/utils/template-registry'
 import type { BlogLifecycleState, BlogPostRepository, BlogPost, BlogEditorBlock, BlogPostUpdateInput } from './types'
-import { cloneEditorBlocks, generatedExcerpt, initialBlogEditorBlocks, normalizeBlogSlug, resolveBlogPublicPath, resolveBlogSeo, scheduledLifecycleValue, SerializedSnapshotQueue } from '~/utils/blog-editor'
+import { cloneEditorBlocks, generatedExcerpt, initialBlogEditorBlocks, normalizeBlogSlug, resolveBlogSeo, scheduledLifecycleValue, SerializedSnapshotQueue } from '~/utils/blog-editor'
 import { getErrorMessage } from '~/utils/errors'
 import { resolveSocialImageUrl } from '~/utils/social-metadata'
 
-const props = withDefaults(defineProps<{ repository: BlogPostRepository; initialPost?: BlogPost | null; deferLoad?: boolean; postId?: string; siteId?: string; isEdit?: boolean; backUrl?: string; backLabel?: string; panelId?: string; mediaPickerComponent?: Component; freeTextCategory?: boolean }>(), {
-  initialPost: null, deferLoad: false, postId: undefined, siteId: '', isEdit: false, backUrl: '/admin', backLabel: 'Posts', panelId: 'blog-post-editor', mediaPickerComponent: undefined, freeTextCategory: false,
+const props = withDefaults(defineProps<{ repository: BlogPostRepository; initialPost?: BlogPost | null; deferLoad?: boolean; postId?: string; siteId?: string; isEdit?: boolean; backUrl?: string; backLabel?: string; panelId?: string; mediaPickerComponent: Component }>(), {
+  initialPost: null, deferLoad: false, postId: undefined, siteId: '', isEdit: false, backUrl: '/dashboard', backLabel: 'Posts', panelId: 'blog-post-editor',
 })
 const route = useRoute()
 const postId = computed(() => props.postId || String(route.params.postId || ''))
@@ -236,7 +240,8 @@ const section = computed<SettingsSection | null>(() => {
 const form = reactive({ title: '', category: '', excerpt: '', seo_title: '', seo_description: '', slug: '', canonical_url: '', robots: '', visibility: 'public' as 'public' | 'unlisted', scheduled_for: '', redirect_old_slug: true })
 const tagsText = ref('')
 const publishTiming = ref<'Now' | 'Scheduled'>('Now')
-const templateName = computed(() => post.value?.editor_template || (route.path.includes('/admin/') ? 'platform' : 'saya'))
+const templateName = computed(() => post.value?.editor_template || 'saya')
+const isPlatformTemplate = computed(() => templateName.value === 'platform')
 const editorCanvasStyle = computed(() => {
   const tokens = post.value?.editor_theme_tokens ?? {}
   if (templateName.value === 'saya') {
@@ -274,9 +279,9 @@ const statusLabel = computed(() => {
 const lifecycleLabel = computed(() => publishing.value ? 'Publishing…' : statusLabel.value)
 const generatedSlug = computed(() => normalizeBlogSlug(form.title))
 const resolvedExcerpt = computed(() => generatedExcerpt(blocks.value))
-const resolvedSiteName = computed(() => post.value?.editor_site_name || (props.siteId ? '' : 'KrabiClaw'))
+const resolvedSiteName = computed(() => post.value?.editor_site_name || '')
 const readMinutes = computed(() => Math.max(1, Math.ceil(serializeBody().trim().split(/\s+/).filter(Boolean).length / 200)))
-const publicPath = computed(() => resolveBlogPublicPath({ scope: props.siteId ? 'tenant' : 'platform', template: templateName.value, slug: slugResetRequested.value ? generatedSlug.value : form.slug || generatedSlug.value, category: form.category }))
+const publicPath = computed(() => tenantBlogPostPath({ themeId: publicTemplateRegistry[templateName.value].themeId }, slugResetRequested.value ? generatedSlug.value : form.slug || generatedSlug.value, form.category))
 const resolvedSeo = computed(() => resolveBlogSeo({ title: form.title, seoTitle: form.seo_title, excerpt: form.excerpt || resolvedExcerpt.value, seoDescription: form.seo_description, slug: form.slug || generatedSlug.value, canonicalUrl: form.canonical_url, baseUrl: windowOrigin(), publicPath: publicPath.value, siteName: resolvedSiteName.value, robots: form.robots }))
 /**
  * The post's cover is its leading image block and nothing else. The post's
@@ -620,7 +625,7 @@ async function publish() {
     publishing.value = false
   }
 }
-function isArticleValid() { return Boolean(form.title.trim() && serializeBody().trim() && (props.freeTextCategory || form.category.trim())) }
+function isArticleValid() { return Boolean(form.title.trim() && serializeBody().trim() && (!isPlatformTemplate.value || form.category.trim())) }
 function serializeBody() { return blocks.value.map(block => block.type === 'heading' ? `${'#'.repeat(Math.max(2, Math.min(6, block.level || 2)))} ${String(block.data.text || '')}` : block.type === 'markdown' ? String(block.data.markdown || '') : block.type === 'divider' ? '---' : `{{component type="${block.type}"}}`).filter(Boolean).join('\n\n') }
 function updateBlock(index: number, block: BlogEditorBlock) { blocks.value[index] = block }
 function setBlockData(index: number, key: string, value: unknown) { blocks.value[index] = { ...blocks.value[index]!, data: { ...blocks.value[index]!.data, [key]: value } } }

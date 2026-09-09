@@ -1,4 +1,4 @@
-export type PublicTemplateSlug = 'saya' | 'blawby'
+export type PublicTemplateSlug = 'saya' | 'blawby' | 'platform'
 
 export interface PublicTemplateDefinition {
   slug: PublicTemplateSlug
@@ -10,6 +10,8 @@ export interface PublicTemplateDefinition {
     offeringDetailPrefix: string | null
     articleIndex: string | null
     articleDetailPrefix: string
+    /** Whether an article's public path carries its category between the prefix and the slug. */
+    articlePathHasCategory: boolean
   }
   sitemap: {
     exactPaths: string[]
@@ -29,6 +31,7 @@ export const publicTemplateRegistry: Record<PublicTemplateSlug, PublicTemplateDe
       offeringDetailPrefix: null,
       articleIndex: '/blog',
       articleDetailPrefix: '/blog',
+      articlePathHasCategory: false,
     },
     sitemap: {
       exactPaths: ['/', '/menu', '/contact', '/blog', '/experiences', '/locations', '/reservations', '/posts', '/photos', '/qa', '/reviews'],
@@ -46,6 +49,7 @@ export const publicTemplateRegistry: Record<PublicTemplateSlug, PublicTemplateDe
       offeringDetailPrefix: '/services',
       articleIndex: '/blog',
       articleDetailPrefix: '/article',
+      articlePathHasCategory: false,
     },
     sitemap: {
       exactPaths: ['/', '/about', '/services', '/pricing', '/donate', '/schedule', '/contact', '/blog', '/policies/privacy', '/policies/terms', '/third-party-notices'],
@@ -53,10 +57,37 @@ export const publicTemplateRegistry: Record<PublicTemplateSlug, PublicTemplateDe
     },
     nonIndexableExactPaths: ['/contact/confirmed'],
   },
+  // KrabiClaw's own site: the marketing pages, documentation and blog. It is an
+  // ordinary site row rendered by the platform layout; the platform host resolves
+  // to whichever site owns the apex domain (see server/middleware/tenant-resolution.ts).
+  platform: {
+    slug: 'platform',
+    themeId: 'krabiclaw-theme-v1',
+    layout: 'platform',
+    verticals: ['service'],
+    serviceRoutes: {
+      offeringsIndex: null,
+      offeringDetailPrefix: null,
+      articleIndex: '/blog',
+      articleDetailPrefix: '/blog',
+      articlePathHasCategory: true,
+    },
+    sitemap: {
+      exactPaths: ['/', '/about', '/blog', '/docs', '/features', '/help', '/plugin', '/pricing', '/privacy', '/templates', '/templates/blawby', '/templates/saya', '/terms'],
+      dynamicPrefixes: ['/blog/', '/docs/'],
+    },
+    nonIndexableExactPaths: [],
+  },
+}
+
+export const PLATFORM_TEMPLATE = publicTemplateRegistry.platform
+
+export function isPlatformTemplate(input: { themeId?: string | null; vertical?: string | null }): boolean {
+  return resolvePublicTemplate(input).slug === 'platform'
 }
 
 export const TENANT_NON_INDEXABLE_EXACT_PATHS = new Set(
-  Object.values(publicTemplateRegistry).flatMap(template => template.nonIndexableExactPaths),
+  Object.values(publicTemplateRegistry).filter(template => template.slug !== 'platform').flatMap(template => template.nonIndexableExactPaths),
 )
 
 export function resolvePublicTemplate(input: {
@@ -70,7 +101,9 @@ export function resolvePublicTemplate(input: {
     throw new Error('resolvePublicTemplate() requires a themeId or vertical selector.')
   }
 
-  const definitions = Object.values(publicTemplateRegistry)
+  // KrabiClaw's own template is only ever selected by its theme id; a vertical
+  // alone always names a customer template.
+  const definitions = Object.values(publicTemplateRegistry).filter(definition => themeId || definition.slug !== 'platform')
   const match = definitions.find((definition) =>
     (!themeId || definition.themeId.toLowerCase() === themeId) &&
     (!vertical || definition.verticals.includes(vertical)),
@@ -131,8 +164,10 @@ export interface TemplateMarketingSeo {
   description: string
 }
 
+export type MarketedTemplateSlug = Exclude<PublicTemplateSlug, 'platform'>
+
 export interface TemplateMarketingMetadata {
-  slug: PublicTemplateSlug
+  slug: MarketedTemplateSlug
   displayName: string
   tagline: string
   /** Short positioning copy for the /templates index card. */
@@ -197,7 +232,7 @@ export interface TemplateMarketingMetadata {
   seo: TemplateMarketingSeo
 }
 
-export const publicTemplateMarketing: Record<PublicTemplateSlug, TemplateMarketingMetadata> = {
+export const publicTemplateMarketing: Record<MarketedTemplateSlug, TemplateMarketingMetadata> = {
   saya: {
     slug: 'saya',
     displayName: 'Saya',

@@ -11,7 +11,7 @@ test('preview reset drops populated bookings and review cycles, then replays the
       type: 'esm', contents: 'export default { fetch() { return new Response("ok") } }',
     } } }, env: { DB: { type: 'd1' } },
   } }] })
-  const baseline = readFileSync('migrations/0000_epoch_6_baseline.sql', 'utf8')
+  const baseline = readFileSync('migrations/0000_baseline.sql', 'utf8')
   try {
     const database = await runtime.getD1Database('DB')
     const baselineStatements = baseline.split('--> statement-breakpoint').map(sql => sql.trim()).filter(Boolean)

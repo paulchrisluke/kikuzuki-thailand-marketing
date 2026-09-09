@@ -9,7 +9,6 @@ import { TENANT_TYPES } from '~/utils/tenant-routing'
 import { resolvePublicTemplate } from '~/utils/template-registry'
 import { resolveProductPresentation } from '~/utils/product-presentation'
 import { assertSiteLanguageEntitlement } from '~/server/utils/localization'
-import { PLATFORM_SITE_ID } from '~/shared/platform-scope'
 
 interface SitemapEntry {
   loc: string
@@ -61,6 +60,7 @@ export default definePlugin((nitroApp) => {
     const entries: SitemapEntry[] = []
 
     if (event.context.tenantType === TENANT_TYPES.PLATFORM) {
+      const platformSiteId = event.context.siteId as string
       entries.push(...PLATFORM_SITEMAP_ROUTES.map(loc => ({ loc })))
 
       const [docs, posts] = await Promise.all([
@@ -68,17 +68,19 @@ export default definePlugin((nitroApp) => {
           db,
           `SELECT path, updated_at
            FROM content_documents
-           WHERE kind = 'page' AND row_role = 'root' AND site_id = '${PLATFORM_SITE_ID}' AND path LIKE '/docs/%'
+           WHERE kind = 'page' AND row_role = 'root' AND site_id = ? AND path LIKE '/docs/%'
              AND (robots IS NULL OR robots NOT LIKE '%noindex%')`,
+          [platformSiteId],
         ),
         queryAll<ApiRecord>(
           db,
           `SELECT slug, (metadata_json ->> '$.category') AS category, updated_at
            FROM content_documents
            WHERE kind = 'article' AND row_role = 'root' AND status = 'published'
-             AND site_id = '${PLATFORM_SITE_ID}'
+             AND site_id = ?
              AND visibility = 'public'
              AND (robots IS NULL OR robots NOT LIKE '%noindex%')`,
+          [platformSiteId],
         ),
       ])
 
