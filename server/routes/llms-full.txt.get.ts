@@ -23,7 +23,7 @@ export default defineHandler(async (event) => {
       (postSummaries ?? []).map((post) => getPublishedTenantBlogPostBySlug(db, siteId, post.slug)), )).filter((post): post is NonNullable<typeof post> => Boolean(post))
 
     return textResponse(buildLlmsFullTxt(origin, [], posts, {
-      title: `${siteName} Blog Full LLM Context`, intro: `Full machine-readable export of ${siteName}'s published blog.`, includeDocs: false, renderBlog: renderTenantBlogMarkdown, }))
+      title: `${siteName} Blog Full LLM Context`, intro: `Full machine-readable export of ${siteName}'s published blog.`, includeDocs: false, renderBlog: (post, origin) => renderTenantBlogMarkdown(post, origin, { themeId: String(event.context.themeId ?? '') }), }))
   }
 
   const [docSummaries, postSummaries] = await Promise.all([

@@ -8,6 +8,7 @@ import { getContentBlocksForDocument } from './content/documents.ts'
 import { findAuthUsersByIds, type CloudflareEnv } from './auth.ts'
 import { blogCategoryToSlug, slugToBlogCategory } from '../../utils/blog-categories.ts'
 import { articleCategoryFromSlug, collectionArticlePath } from '../../utils/article-collections.ts'
+import { tenantBlogPostPath } from '../../utils/tenant-blog-route.ts'
 import { getPlatformSite } from './platform-site.ts'
 
 /** A documentation page: an ordinary site page whose path starts with /docs. */
@@ -261,8 +262,9 @@ export function renderPlatformBlogMarkdown(post: PlatformLlmBlogDetail, origin: 
   return renderBlogMarkdown(post, origin, { path, markdownPath })
 }
 
-export function renderTenantBlogMarkdown(post: TenantLlmBlogDetail, origin: string) {
-  const path = `/blog/${post.slug}`
+/** A tenant's template decides its article prefix (/blog or /article); the markdown mirror is always /blog-md. */
+export function renderTenantBlogMarkdown(post: TenantLlmBlogDetail, origin: string, template: { themeId?: string | null; vertical?: string | null }) {
+  const path = tenantBlogPostPath(template, post.slug, post.category)
   const markdownPath = `/blog-md/${post.slug}.md`
   return renderBlogMarkdown(post, origin, { path, markdownPath })
 }
@@ -380,14 +382,14 @@ export function buildPlatformBlogLinkEntries(posts: PlatformLlmBlogSummary[], or
   })
 }
 
-export function buildTenantBlogLinkEntries(posts: TenantLlmBlogSummary[], origin: string): PlatformLlmLinkEntry[] {
+export function buildTenantBlogLinkEntries(posts: TenantLlmBlogSummary[], origin: string, template: { themeId?: string | null; vertical?: string | null }): PlatformLlmLinkEntry[] {
   const sortedPosts = [...posts].sort((a, b) => {
     const aDate = a.published_at ? new Date(a.published_at).getTime() : 0
     const bDate = b.published_at ? new Date(b.published_at).getTime() : 0
     return bDate - aDate
   })
   return sortedPosts.map((post) => {
-    const path = `/blog/${post.slug}`
+    const path = tenantBlogPostPath(template, post.slug, post.category)
     return {
       title: post.title,
       path,
