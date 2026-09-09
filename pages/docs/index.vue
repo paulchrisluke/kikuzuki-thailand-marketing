@@ -62,7 +62,6 @@
             <div class="space-y-3">
               <div class="flex items-center justify-between gap-3">
                 <h3 class="text-lg font-semibold text-default">{{ doc.title }}</h3>
-                <span v-if="doc.difficulty_level" class="text-xs font-medium text-muted">{{ doc.difficulty_level }}</span>
               </div>
               <p v-if="doc.excerpt" class="text-sm leading-6 text-muted">{{ doc.excerpt }}</p>
             </div>
@@ -91,7 +90,6 @@
             <div class="space-y-3">
               <div class="flex items-center justify-between gap-3">
                 <h3 class="text-lg font-semibold text-default">{{ doc.title }}</h3>
-                <span v-if="doc.difficulty_level" class="text-xs font-medium text-muted">{{ doc.difficulty_level }}</span>
               </div>
               <p v-if="doc.excerpt" class="text-sm leading-6 text-muted">{{ doc.excerpt }}</p>
             </div>
@@ -120,7 +118,6 @@
             <div class="space-y-3">
               <div class="flex items-center justify-between gap-3">
                 <h3 class="text-lg font-semibold text-default">{{ doc.title }}</h3>
-                <span v-if="doc.difficulty_level" class="text-xs font-medium text-muted">{{ doc.difficulty_level }}</span>
               </div>
               <p v-if="doc.excerpt" class="text-sm leading-6 text-muted">{{ doc.excerpt }}</p>
             </div>
@@ -149,7 +146,6 @@
                   <p class="text-xs font-semibold uppercase tracking-[0.14em] text-muted">{{ doc.category }}</p>
                   <h3 class="text-lg font-semibold text-default">{{ doc.title }}</h3>
                 </div>
-                <span v-if="doc.difficulty_level" class="text-xs font-medium text-muted">{{ doc.difficulty_level }}</span>
               </div>
               <p v-if="doc.excerpt" class="text-sm leading-6 text-muted">{{ doc.excerpt }}</p>
             </div>
@@ -184,74 +180,46 @@
 </template>
 
 <script setup lang="ts">
-import { categoryToSlug } from '~/utils/docs-categories'
-
 definePageMeta({ layout: 'docs' })
 
-interface PublicDoc {
-  id?: string
-  title: string
-  slug: string
-  excerpt?: string | null
-  category?: string | null
-  nav_title?: string | null
-  nav_order?: number | null
-  hide_from_nav?: boolean | number | null
-  difficulty_level?: string | null
-}
-
-const { data, pending, error: docsError } = await useDocsNav()
+const { pages, pending, error: docsError } = await useDocsPages()
 
 if (docsError.value) {
   throw createError({ statusCode: 500, statusMessage: 'Failed to load documentation' })
 }
 
-const docs = computed<PublicDoc[]>(() => data.value?.docs ?? [])
-const docsWithCategorySlug = computed(() =>
-  docs.value
-    .map((doc) => {
-      if (doc.hide_from_nav) return null
-      const categorySlug = categoryToSlug(doc.category)
-      if (!categorySlug) return null
-      return {
-        ...doc,
-        categorySlug,
-        path: `/docs/${categorySlug}/${doc.slug}`,
-      }
-    })
-    .filter((doc): doc is PublicDoc & { categorySlug: string; path: string } => Boolean(doc)),
-)
+// The index cards read from the same page list as the sidebar; each card is the
+// page's title, summary and category.
+const docsWithCategorySlug = computed(() => pages.value.map(page => ({
+  ...page,
+  slug: page.path.split('/').at(-1) ?? '',
+  excerpt: page.summary,
+})))
 
 const startSetupDocs = computed(() =>
-  docsWithCategorySlug.value.filter(doc =>
-    ['getting-started-with-krabiclaw', 'mcp-setup'].includes(doc.slug) || doc.category === 'Getting Started',
-  ).slice(0, 4),
+  docsWithCategorySlug.value.filter(doc => doc.categorySlug === 'getting-started' || doc.path === '/docs/integrations/mcp-setup').slice(0, 4),
 )
 
 const editDocs = computed(() =>
-  docsWithCategorySlug.value.filter(doc =>
-    ['Menu Management', 'Theme Customization'].includes(doc.category || ''),
-  ).slice(0, 4),
+  docsWithCategorySlug.value.filter(doc => ['menu-management', 'theme-customization'].includes(doc.categorySlug)).slice(0, 4),
 )
 
 const operationsDocs = computed(() =>
-  docsWithCategorySlug.value.filter(doc =>
-    ['Integrations', 'Advanced'].includes(doc.category || ''),
-  ).slice(0, 4),
+  docsWithCategorySlug.value.filter(doc => ['integrations', 'advanced'].includes(doc.categorySlug)).slice(0, 4),
 )
 
-function findDocPathBySlug(slug: string) {
-  return docsWithCategorySlug.value.find(doc => doc.slug === slug)?.path ?? null
+function findDocPath(path: string) {
+  return docsWithCategorySlug.value.find(doc => doc.path === path)?.path ?? null
 }
 
-function findFirstDocPathForCategories(categories: string[]) {
-  return docsWithCategorySlug.value.find(doc => categories.includes(doc.category || ''))?.path ?? null
+function findFirstDocPathForCategories(categorySlugs: string[]) {
+  return docsWithCategorySlug.value.find(doc => categorySlugs.includes(doc.categorySlug))?.path ?? null
 }
 
 const quickLinks = computed(() => [
-  { label: 'Start your site', to: findDocPathBySlug('getting-started-with-krabiclaw'), icon: 'zap' },
-  { label: 'Edit and publish', to: findFirstDocPathForCategories(['Menu Management', 'Theme Customization']), icon: 'pencil' },
-  { label: 'Manage operations', to: findFirstDocPathForCategories(['Integrations', 'Advanced']), icon: 'settings' },
+  { label: 'Start your site', to: findDocPath('/docs/getting-started'), icon: 'zap' },
+  { label: 'Edit and publish', to: findFirstDocPathForCategories(['menu-management', 'theme-customization']), icon: 'pencil' },
+  { label: 'Manage operations', to: findFirstDocPathForCategories(['integrations', 'advanced']), icon: 'settings' },
   { label: 'Explore guides', to: '/docs', icon: 'book' },
 ].filter((item): item is { label: string; to: string; icon: string } => Boolean(item.to)))
 
@@ -268,7 +236,7 @@ const relatedResources = computed(() => [
   },
   {
     title: 'ChatGPT app setup',
-    to: findDocPathBySlug('mcp-setup'),
+    to: findDocPath('/docs/integrations/mcp-setup'),
     description: 'Connect KrabiClaw in ChatGPT and start editing through conversation.',
   },
 ].filter((resource): resource is { title: string; to: string; description: string } => Boolean(resource.to)))

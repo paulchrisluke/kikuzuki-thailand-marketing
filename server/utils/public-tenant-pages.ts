@@ -30,6 +30,7 @@ export interface PublicTenantPage {
   robots: string | null
   page_type: string
   recipe: string | null
+  sort_order: number
   locale: string
   blocks: TenantPageBlock[]
   media: MediaPlacementItem[]
@@ -143,7 +144,7 @@ async function hydrateBlocks(
         FROM content_documents root JOIN content_documents p ON COALESCE(p.root_id,p.id) = root.id AND p.locale = ?
         ${coverJoinSql('p')}
        WHERE root.kind = 'article' AND root.row_role = 'root' AND p.site_id = ? AND root.status = 'published' AND root.visibility = 'public'
-       ORDER BY COALESCE((root.metadata_json ->> '$.featured_order'), 999999), root.published_at IS NULL, root.published_at DESC, p.id DESC
+       ORDER BY root.published_at IS NULL, root.published_at DESC, p.id DESC
     `, [locale, siteId]) : Promise.resolve([]),
   ])
   const qaRows = sourceQaRows
@@ -253,6 +254,7 @@ function mapPage(
     robots: page.robots,
     page_type: page.page_type,
     recipe: page.recipe,
+    sort_order: page.sort_order,
     locale: page.locale,
     blocks,
     ...socialMedia,

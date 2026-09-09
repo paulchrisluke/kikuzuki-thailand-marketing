@@ -24,7 +24,7 @@ const SOCIAL_CARD_OWNERS = {
   product: { table: 'products', site: 'o.site_id', filter: 'o.is_visible = 1', slots: ['image', 'gallery'] },
   // Articles and docs keep their picture in the leading image block, read
   // through `loadCoverBlockId`; `cover` is the social post's own slot.
-  content_document: { table: 'content_documents', site: 'o.site_id', filter: "o.kind IN ('page','article','platform_doc','social_post') AND EXISTS (SELECT 1 FROM content_documents root WHERE root.id = COALESCE(o.root_id, o.id) AND (root.kind IN ('page','platform_doc') OR root.status = 'published')) AND (o.kind != 'page' OR o.path != '/')", slots: ['cover', 'gallery'] },
+  content_document: { table: 'content_documents', site: 'o.site_id', filter: "o.kind IN ('page','article','social_post') AND EXISTS (SELECT 1 FROM content_documents root WHERE root.id = COALESCE(o.root_id, o.id) AND (root.kind = 'page' OR root.status = 'published')) AND (o.kind != 'page' OR o.path != '/')", slots: ['cover', 'gallery'] },
   offering: { table: 'offerings', site: 'o.site_id', filter: '1 = 1', slots: ['hero', 'thumbnail', 'gallery'] },
   review: { table: 'reviews', site: 'o.site_id', filter: "o.status = 'approved' AND o.site_id IS NOT NULL", slots: ['portrait', 'gallery'] },
 } satisfies Record<string, { table: string; site: string; filter: string; slots: string[] }>
@@ -89,7 +89,7 @@ export async function socialCardRefreshOwnersForPlacement(db: DbClient, placemen
         SELECT d.id, d.site_id, d.kind, d.path
           FROM content_blocks cb
           JOIN content_documents d ON d.id = cb.document_id
-         WHERE cb.id = ? AND d.kind IN ('page','article','platform_doc','social_post')
+         WHERE cb.id = ? AND d.kind IN ('page','article','social_post')
          LIMIT 1
       `, [placement.owner_id])
       if (!document) return []
@@ -142,11 +142,11 @@ async function loadOwner(db: DbClient, owner: SocialCardOwner): Promise<OwnerRec
       return await queryFirst<OwnerRecord>(db, `SELECT d.organization_id, d.site_id,
         COALESCE(NULLIF(trim(d.seo_title), ''), NULLIF(trim(d.title), ''), NULLIF(trim(substr(d.summary, 1, 80)), '')) AS title,
         COALESCE(NULLIF(trim(d.seo_description), ''), NULLIF(trim(d.summary), '')) AS description,
-        CASE d.kind WHEN 'article' THEN 'Article' WHEN 'platform_doc' THEN 'Documentation' WHEN 'social_post' THEN 'Update' END AS label,
+        CASE d.kind WHEN 'article' THEN 'Article' WHEN 'social_post' THEN 'Update' END AS label,
         bl.title AS location
         FROM content_documents d JOIN content_documents root ON root.id = COALESCE(d.root_id, d.id)
         LEFT JOIN business_locations bl ON bl.id = root.location_id
-        WHERE d.id = ? AND d.kind IN ('page','article','platform_doc','social_post') LIMIT 1`, [owner.owner_id]) ?? null
+        WHERE d.id = ? AND d.kind IN ('page','article','social_post') LIMIT 1`, [owner.owner_id]) ?? null
     case 'offering':
       return await queryFirst<OwnerRecord>(db, `SELECT o.organization_id, o.site_id,
         COALESCE(NULLIF(trim(o.seo_title), ''), o.name) AS title,

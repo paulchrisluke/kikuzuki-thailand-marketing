@@ -5,7 +5,6 @@ import { queryAll, queryFirst, type DbClient } from '~/server/db'
 import { cloudflareEnv } from '~/server/utils/api-response'
 import { isNonIndexableHost, PLATFORM_SITEMAP_ROUTES } from '~/server/utils/seo-policy'
 import { blogCategoryToSlug } from '~/utils/blog-categories'
-import { categoryToSlug } from '~/utils/docs-categories'
 import { TENANT_TYPES } from '~/utils/tenant-routing'
 import { resolvePublicTemplate } from '~/utils/template-registry'
 import { resolveProductPresentation } from '~/utils/product-presentation'
@@ -67,9 +66,9 @@ export default definePlugin((nitroApp) => {
       const [docs, posts] = await Promise.all([
         queryAll<ApiRecord>(
           db,
-          `SELECT slug, (metadata_json ->> '$.category') AS category, updated_at
+          `SELECT path, updated_at
            FROM content_documents
-           WHERE kind = 'platform_doc' AND row_role = 'root' AND site_id = '${PLATFORM_SITE_ID}'
+           WHERE kind = 'page' AND row_role = 'root' AND site_id = '${PLATFORM_SITE_ID}' AND path LIKE '/docs/%'
              AND (robots IS NULL OR robots NOT LIKE '%noindex%')`,
         ),
         queryAll<ApiRecord>(
@@ -84,13 +83,8 @@ export default definePlugin((nitroApp) => {
       ])
 
       for (const doc of docs ?? []) {
-        const categorySlug = categoryToSlug(doc.category as string | null)
-        const slug = typeof doc.slug === 'string' ? doc.slug : ''
-        if (!categorySlug || !slug) continue
-        entries.push({
-          loc: slug === categorySlug ? `/docs/${categorySlug}` : `/docs/${categorySlug}/${slug}`,
-          lastmod: doc.updated_at as string | undefined,
-        })
+        if (typeof doc.path !== 'string') continue
+        entries.push({ loc: doc.path, lastmod: doc.updated_at as string | undefined })
       }
 
       for (const post of posts ?? []) {

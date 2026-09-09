@@ -90,7 +90,6 @@ export interface PublicBlogSummary {
   excerpt: string | null
   category: string | null
   tags: string[]
-  featured_order: number | null
   published_at: string | null
   canonical_url: string
   /** The leading image block of the article, or null when the article opens with text. */

@@ -600,7 +600,7 @@ export interface AuthUserIdentity {
   image: string | null
 }
 
-// Content tables (blog_posts, platform_docs) store author_id as a plain
+// content_documents stores author_id as a plain
 // reference — that's fine, it's just a foreign-looking string, not a query.
 // The name/image shown next to an author is Better Auth's data, so it must be
 // read through Better Auth's own adapter (findMany, batched by id) rather than

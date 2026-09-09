@@ -56,17 +56,6 @@ export const pageInfoObject = {
 
 export const ROBOTS_DIRECTIVE_ENUM = ['index,follow', 'noindex,follow', 'index,nofollow', 'noindex,nofollow']
 
-// Blog nav vocabulary (
-// NAV_FIELDS_SCHEMA), but blog posts never get nav_group subgrouping — only docs do.
-export const BLOG_NAV_FIELDS_SCHEMA = {
-  nav_section: { type: ['string', 'null'], description: 'Top-level sidebar section label for this site\'s blog. Falls back to category if unset. Does not affect the public URL.' },
-  nav_title: { type: ['string', 'null'], description: 'Sidebar label override. Falls back to the post title if unset. Does not affect the public URL.' },
-  nav_order: { type: ['number', 'null'], description: 'Sort position within its section. Lower sorts first.' },
-  nav_section_order: { type: ['number', 'null'], description: 'Sort position of the section itself among all sections.' },
-  hide_from_nav: { type: ['boolean', 'null'], description: 'Excludes this post from nav rendering only. Does NOT deindex it or remove it from the sitemap — use robots="noindex,..." for that.' },
-  featured_order: { type: ['number', 'null'], description: 'Sort position in featured/homepage placements, independent of nav ordering.' },
-}
-
 /** SEO override fields shared across location/Product/experience/site tools. */
 export function seoOverrideFieldsSchema() {
   return {
@@ -156,16 +145,6 @@ export const locationMutationSummaryObject = {
   required: ['ok', 'entity', 'id'],
 }
 
-const faqItemSchema = {
-  type: 'object',
-  properties: {
-    question: { type: 'string' },
-    answer: { type: 'string' },
-    position: { type: 'number' },
-  },
-  required: ['question', 'answer'],
-}
-
 const howToStepSchema = {
   type: 'object',
   properties: {
@@ -201,8 +180,9 @@ export const blogComponentInputSchema = {
         properties: {
           data: {
             type: 'object',
-            properties: { items: { type: 'array', items: faqItemSchema } },
-            required: ['items'],
+            // The block lists the article's published Q&A records; it stores no questions.
+            properties: { title: { type: ['string', 'null'] }, source: { type: 'string', const: 'page_qa' } },
+            required: ['source'],
           },
         },
       },
@@ -280,7 +260,6 @@ export const blogPostObject = {
     excerpt: { type: ['string', 'null'] },
     category: { type: ['string', 'null'] },
     tags: { type: 'array', items: { type: 'string' } },
-    ...BLOG_NAV_FIELDS_SCHEMA,
     seo_title: { type: ['string', 'null'] },
     seo_description: { type: ['string', 'null'] },
     seo_keywords: { type: ['string', 'null'] },
@@ -304,7 +283,6 @@ export const blogPostObject = {
   },
   required: [
     'id', 'title', 'slug', 'excerpt', 'category', 'tags',
-    'nav_section', 'nav_title', 'nav_order', 'nav_section_order', 'hide_from_nav', 'featured_order',
     'seo_title', 'seo_description', 'seo_keywords', 'canonical_url', 'robots',
     'published', 'published_at', 'status', 'visibility', 'scheduled_for',
     'created_at', 'updated_at', 'cover', 'admin_edit_url', 'edit_url',
@@ -323,7 +301,6 @@ export const blogPostSummaryObject = {
     excerpt: { type: ['string', 'null'] },
     category: { type: ['string', 'null'] },
     tags: { type: 'array', items: { type: 'string' } },
-    ...BLOG_NAV_FIELDS_SCHEMA,
     seo_title: { type: ['string', 'null'] },
     seo_description: { type: ['string', 'null'] },
     seo_keywords: { type: ['string', 'null'] },
@@ -346,7 +323,6 @@ export const blogPostSummaryObject = {
   },
   required: [
     'id', 'title', 'slug', 'excerpt', 'category', 'tags',
-    'nav_section', 'nav_title', 'nav_order', 'nav_section_order', 'hide_from_nav', 'featured_order',
     'seo_title', 'seo_description', 'seo_keywords', 'canonical_url', 'robots',
     'published', 'published_at', 'status', 'visibility', 'scheduled_for',
     'created_at', 'updated_at', 'cover', 'admin_edit_url', 'edit_url',
@@ -1058,7 +1034,6 @@ export const EXPECTED_TOOL_ANNOTATIONS = {
   put_resource_localization: D,
   remove_media: D,
   rename_product_category: D,
-  reorder_blog_posts: D,
   reorder_location_qa: D,
   reorder_media: D,
   reorder_site_qa: D,

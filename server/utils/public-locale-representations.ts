@@ -58,7 +58,6 @@ export async function resolvePublicDocumentSourcePath(db: DbClient, siteId: stri
   if (row?.kind === 'social_post') return postPublicPath(row.slug ?? row.id)
   if (row?.kind === 'article' && row.slug && siteId === PLATFORM_SITE_ID) return resolveBlogPublicPath({ scope: 'platform', slug: row.slug, category: row.category })
   if (row?.kind === 'article' && row.slug) return tenantBlogPostPath({ themeId: row.theme_id, vertical: row.vertical }, row.slug)
-  if (row?.kind === 'platform_doc' && row.slug && row.category) return '/docs/' + row.category + '/' + row.slug
   throw new HTTPError({ statusCode: 500, statusMessage: 'Document source route is missing', data: { document_id: documentId } })
 }
 

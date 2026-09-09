@@ -1,3 +1,4 @@
+import { slugToCategory } from '~/utils/docs-categories'
 import { sha256 } from '@noble/hashes/sha2.js'
 import { bytesToHex } from '@noble/hashes/utils.js'
 import { queryAll, type DbClient } from '~/server/db'
@@ -8,7 +9,6 @@ import {
   PLATFORM_KNOWLEDGE_FAQ_ENTRIES,
   PLATFORM_KNOWLEDGE_PAGE_ENTRIES,
   PLATFORM_KNOWLEDGE_ROUTE_ENTRIES,
-  getDocPath,
   getPlatformBlogPath,
   resolveDashboardPath,
   type DashboardRouteContext,
@@ -53,9 +53,8 @@ interface SearchOptions {
 interface PlatformDocSearchRow {
   id: string
   title: string
-  slug: string
+  path: string
   excerpt: string | null
-  category: string | null
   seo_description: string | null
   seo_keywords: string | null
 }
@@ -104,8 +103,8 @@ async function loadContentBodies(db: DbClient, platform: boolean) {
     SELECT cd.id, cb.type, cb.position, cb.level, cb.data_json
     FROM content_documents cd
     JOIN content_blocks cb ON cb.document_id = cd.id
-    WHERE cd.row_role = 'root' AND cd.kind IN ('article','platform_doc')
-      AND (cd.kind = 'platform_doc' OR (cd.status = 'published' AND cd.visibility = 'public'))
+    WHERE cd.row_role = 'root'
+      AND ((cd.kind = 'article' AND cd.status = 'published' AND cd.visibility = 'public') OR (cd.kind = 'page' AND cd.path LIKE '/docs%'))
       AND (cd.site_id = ?) = ?
     ORDER BY cd.id, cb.position
   `, [PLATFORM_SITE_ID, platform ? 1 : 0])
@@ -465,9 +464,9 @@ export async function buildTenantBlogDocuments(db: DbClient): Promise<PlatformKn
 export async function buildPlatformKnowledgeDocuments(db: DbClient): Promise<PlatformKnowledgeDocument[]> {
   const [docs, posts, tenantBlogRecords, contentBodies] = await Promise.all([
     queryAll<PlatformDocSearchRow>(db, `
-      SELECT id, title, slug, summary AS excerpt, metadata_json ->> '$.category' AS category, seo_description, seo_keywords
-      FROM content_documents WHERE kind = 'platform_doc' AND row_role = 'root' AND site_id = '${PLATFORM_SITE_ID}'
-      ORDER BY category, sort_order, updated_at DESC
+      SELECT id, title, path, summary AS excerpt, seo_description, seo_keywords
+      FROM content_documents WHERE kind = 'page' AND row_role = 'root' AND site_id = '${PLATFORM_SITE_ID}' AND path LIKE '/docs%'
+      ORDER BY path, sort_order, updated_at DESC
     `),
     queryAll<PlatformBlogSearchRow>(db, `
       SELECT id, title, slug, summary AS excerpt, metadata_json ->> '$.category' AS category, seo_description, seo_keywords
@@ -480,13 +479,11 @@ export async function buildPlatformKnowledgeDocuments(db: DbClient): Promise<Pla
   ])
 
   const docRecords: PlatformKnowledgeDocument[] = (docs ?? []).flatMap((doc) => {
-    const path = getDocPath(doc.category, doc.slug)
-    if (!path) return []
+    const path = doc.path
     const canonicalBody = contentBodies.get(doc.id) ?? ''
     const snippet = truncateSnippet(doc.excerpt || doc.seo_description || canonicalBody || doc.title)
     const body = [
       doc.title,
-      doc.category ?? '',
       doc.seo_keywords ?? '',
       doc.excerpt ?? '',
       stripMarkdown(canonicalBody),
@@ -500,7 +497,7 @@ export async function buildPlatformKnowledgeDocuments(db: DbClient): Promise<Pla
       title: doc.title,
       path,
       snippet,
-      section: doc.category ?? 'Docs',
+      section: slugToCategory(path.split('/')[2] ?? null) ?? 'Docs',
       icon: 'book',
       body,
       surfaces: ['public', 'docs', 'blog', 'help', 'chowbot', 'dashboard'],

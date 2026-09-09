@@ -606,7 +606,7 @@ async function loadPublicPageSource(
   if (requestedDatasets.has("blog"))
     idxBlogList = push(
       `SELECT p.id, root.id AS root_id, root.slug AS source_slug, p.title, p.slug, p.summary AS excerpt, (p.metadata_json ->> '$.category') AS category, (p.metadata_json ->> '$.nav_title') AS nav_title, p.seo_description, p.seo_keywords,
-              p.canonical_url, p.robots, root.published_at, p.updated_at, (root.metadata_json ->> '$.featured_order') AS featured_order,
+              p.canonical_url, p.robots, root.published_at, p.updated_at,
               ${COVER_SELECT},
               CAST(MAX(1, ROUND((COALESCE((
                 SELECT SUM(LENGTH(COALESCE(json_extract(cb.data_json, '$.markdown'), json_extract(cb.data_json, '$.text'), '')))
@@ -617,7 +617,7 @@ async function loadPublicPageSource(
        FROM content_documents root JOIN content_documents p ON COALESCE(p.root_id,p.id) = root.id AND p.locale = ?
        ${coverJoinSql('p')}
        WHERE root.row_role = 'root' AND root.kind = 'article' AND root.status = 'published' AND p.site_id = ? AND root.visibility = 'public'
-       ORDER BY COALESCE((root.metadata_json ->> '$.featured_order'), 999999), root.published_at IS NULL, root.published_at DESC, p.id DESC
+       ORDER BY root.published_at IS NULL, root.published_at DESC, p.id DESC
        LIMIT ?`,
       [localizedLocale ?? "en", siteId, page === "home" ? 3 : 50],
     );
@@ -1031,7 +1031,10 @@ async function loadPublicPageSource(
       }
       sourceBlogPostIdentity = { id: String(postRow.root_id), slug: String(postRow.source_slug) }
       options.signal?.throwIfAborted();
-      const contentBlocks = await getContentBlocksForDocument(db, postRow.id);
+      const loadedBlocks = await getContentBlocksForDocument(db, postRow.id);
+      const contentBlocks = loadedBlocks
+        ? await attachPageQa(db, siteId, tenantBlogPostPath({ themeId: site.theme_id, vertical: site.vertical }, String(postRow.source_slug)), loadedBlocks, localizedLocale ?? 'en')
+        : loadedBlocks
       blogPost = attachCover({ ...postRow, content_blocks: contentBlocks });
     }
   }

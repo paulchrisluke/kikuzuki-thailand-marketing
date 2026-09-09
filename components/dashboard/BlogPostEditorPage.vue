@@ -118,7 +118,6 @@ const blogLocalizationFields = computed(() => {
     { key: 'summary', label: 'Excerpt', source: post?.excerpt, multiline: true, rows: 4 },
     { key: 'metadata.category', label: 'Category', source: post?.category },
     { key: 'metadata.tags', label: 'Tags', source: post?.tags, kind: 'string-list' },
-    { key: 'metadata.nav_title', label: 'Navigation title', source: post?.nav_title },
     { key: 'seo_keywords', label: 'Search keywords', source: post?.seo_keywords },
   ]
   sourceBlogBlocks.value.forEach((block, blockIndex) => {
@@ -150,7 +149,7 @@ async function loadBlogLocalization(locale: string): Promise<Record<string, unkn
       { validate: isBlogTranslationResponse },
     )
     values = { ...response.localization, 'metadata.category': response.localization.metadata.category,
-      'metadata.tags': response.localization.metadata.tags, 'metadata.nav_title': response.localization.metadata.nav_title }
+      'metadata.tags': response.localization.metadata.tags }
     blocks = structuredClone(response.localization.content_blocks)
     documentUpdatedAt = response.localization.updated_at
   } catch (cause) {
@@ -183,7 +182,7 @@ async function saveBlogLocalization(locale: string, submitted: Record<string, un
     })
   })
   const values: Record<string, unknown> = { metadata: { category: submitted['metadata.category'],
-    tags: submitted['metadata.tags'], nav_title: submitted['metadata.nav_title'] } }
+    tags: submitted['metadata.tags'] } }
   for (const key of ['title', 'summary', 'seo_keywords']) {
     if (Object.hasOwn(submitted, key)) values[key] = submitted[key]
   }

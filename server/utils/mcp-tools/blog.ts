@@ -1,6 +1,6 @@
 import { instantSchema } from '~/utils/timezone'
 import type { McpToolDefinition } from './shared'
-import { BLOG_NAV_FIELDS_SCHEMA, ROBOTS_DIRECTIVE_ENUM, blogPostMutationResultObject, blogPostObject, blogPostSummaryObject, pageInfoObject, paginationInputSchema, siteTool } from './shared'
+import { ROBOTS_DIRECTIVE_ENUM, blogPostMutationResultObject, blogPostObject, blogPostSummaryObject, pageInfoObject, paginationInputSchema, siteTool } from './shared'
 import { PUBLICATION_CONTENT_BLOCK_TYPES, describeContentBlockTextFields } from '~/shared/content-registries'
 
 const blogContentBlockSchema = {
@@ -121,7 +121,6 @@ export const BLOG_TOOLS: McpToolDefinition[] = [
         excerpt: { type: 'string' },
         category: { type: 'string' },
         tags: { type: 'array', items: { type: 'string' }, description: 'Searchable topical tags. Use a short, deduplicated list; category remains the primary public grouping.' },
-        ...BLOG_NAV_FIELDS_SCHEMA,
         seo_title: { type: ['string', 'null'], description: 'Optional SEO/browser-tab title override. Falls back to the post title if unset.' },
         seo_description: { type: ['string', 'null'] },
         seo_keywords: { type: ['string', 'null'], description: 'Comma-separated SEO keyword phrases when useful.' },
@@ -160,37 +159,6 @@ export const BLOG_TOOLS: McpToolDefinition[] = [
       },
       required: ['post_id', 'expected_updated_at'],
       outputSchema: blogPostMutationResultObject,
-    }),
-  siteTool({
-      name: 'reorder_blog_posts',
-      description: 'Set editorial navigation (section, title, order, visibility) for this site\'s blog posts without changing their taxonomy category or public URL. Blog posts do not support nav_group subgrouping (docs-only feature) — only nav_section.',
-      domain: 'blog',
-      minimumRole: 'editor',
-      confirmRequired: false,
-      inputSchema: {
-        items: {
-          type: 'array',
-          items: {
-            type: 'object',
-            properties: {
-              post_id: { type: 'string', description: 'Post id or slug.' },
-              nav_section: BLOG_NAV_FIELDS_SCHEMA.nav_section,
-              nav_title: BLOG_NAV_FIELDS_SCHEMA.nav_title,
-              nav_order: { type: 'number' },
-              nav_section_order: BLOG_NAV_FIELDS_SCHEMA.nav_section_order,
-              hide_from_nav: BLOG_NAV_FIELDS_SCHEMA.hide_from_nav,
-            },
-            required: ['post_id', 'nav_order'],
-          },
-        },
-      },
-      required: ['items'],
-      outputSchema: {
-        type: 'object',
-        properties: { success: { type: 'boolean' }, posts: { type: 'array', items: blogPostSummaryObject } },
-        required: ['success', 'posts'],
-        additionalProperties: false,
-      },
     }),
   siteTool({
       name: 'delete_blog_post',

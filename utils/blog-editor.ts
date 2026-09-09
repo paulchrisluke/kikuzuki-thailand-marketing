@@ -252,7 +252,10 @@ export function structuredComponentsFromBlocks(blocks: EditorContentBlock[]): Ar
   const components: ReturnType<typeof structuredComponentsFromBlocks> = []
   blocks.forEach((block, position) => {
     if (block.type === 'faq') {
-      const items = Array.isArray(block.data.items) ? block.data.items.filter(item => item && typeof item === 'object') : []
+      const items = Array.isArray(block.data.items)
+        ? block.data.items.filter((item): item is Record<string, unknown> => Boolean(item && typeof item === 'object'))
+          .map(item => ({ question: item.title ?? item.question, answer: item.description ?? item.answer }))
+        : []
       components.push({ type: 'faq', position, status: block.data.status === 'inactive' ? 'inactive' : 'active', render_enabled: block.data.render_enabled !== false, schema_enabled: block.data.schema_enabled !== false, data: { items } })
     }
     if (block.type === 'how_to') {

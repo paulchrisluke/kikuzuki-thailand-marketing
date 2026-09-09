@@ -4,12 +4,6 @@ export interface BlogPost {
   slug?: string | null
   excerpt?: string | null
   category?: string | null
-  nav_section?: string | null
-  nav_title?: string | null
-  nav_order?: number | null
-  nav_section_order?: number | null
-  hide_from_nav?: boolean | number | null
-  featured_order?: number | null
   seo_description?: string | null
   seo_keywords?: string | null
   canonical_url?: string | null
@@ -61,12 +55,6 @@ export interface BlogPostCreateInput {
   seo_keywords?: string | null
   canonical_url?: string | null
   robots?: string | null
-  nav_section?: string | null
-  nav_title?: string | null
-  nav_order?: number | null
-  nav_section_order?: number | null
-  hide_from_nav?: boolean | number | null
-  featured_order?: number | null
   visibility?: 'public' | 'unlisted'
   scheduled_for?: string | null
 }
@@ -81,12 +69,6 @@ export interface BlogPostUpdateInput {
   seo_keywords?: string | null
   canonical_url?: string | null
   robots?: string | null
-  nav_section?: string | null
-  nav_title?: string | null
-  nav_order?: number | null
-  nav_section_order?: number | null
-  hide_from_nav?: boolean | number | null
-  featured_order?: number | null
   visibility?: 'public' | 'unlisted'
   slug?: string | null
   redirect_old_slug?: boolean

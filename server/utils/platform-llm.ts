@@ -6,16 +6,15 @@ import { queryAll, queryFirst, type DbClient } from '../db/index.ts'
 import { getContentBlocksForDocument } from './content/documents.ts'
 import { findAuthUsersByIds, type CloudflareEnv } from './auth.ts'
 import { blogCategoryToSlug, slugToBlogCategory } from '../../utils/blog-categories.ts'
-import { categoryToSlug, slugToCategory } from '../../utils/docs-categories.ts'
+import { slugToCategory } from '../../utils/docs-categories.ts'
 import { PLATFORM_SITE_ID } from '../../shared/platform-scope.ts'
 
+/** A documentation page: an ordinary site page whose path starts with /docs. */
 interface PlatformLlmDocSummary {
   id: string
   title: string
-  slug: string
+  path: string
   excerpt?: string | null
-  category?: string | null
-  difficulty_level?: string | null
   canonical_url?: string | null
   seo_description?: string | null
   updated_at?: string | null
@@ -64,7 +63,6 @@ export interface PlatformLlmLinkEntry {
   publishedAt?: string | null
   updatedAt?: string | null
   authorName?: string | null
-  difficultyLevel?: string | null
 }
 
 function normalizeWhitespace(value: string | null | undefined) {
@@ -192,19 +190,24 @@ function buildFrontMatter(lines: Array<string | null>) {
   return `---\n${lines.filter(Boolean).join('\n')}\n---`
 }
 
+function docCategory(path: string) {
+  return slugToCategory(path.split('/')[2] ?? null)
+}
+
+function docMarkdownPath(path: string) {
+  return `/docs-md${path.slice('/docs'.length)}.md`
+}
+
 export function renderPlatformDocMarkdown(doc: PlatformLlmDocDetail, origin: string) {
-  const categorySlug = categoryToSlug(doc.category)
-  if (!categorySlug) throw new HTTPError({ statusCode: 404, statusMessage: 'Documentation not found' })
-  const path = `/docs/${categorySlug}/${doc.slug}`
-  const markdownPath = `/docs-md/${categorySlug}/${doc.slug}.md`
+  const path = doc.path
+  const markdownPath = docMarkdownPath(path)
   const canonicalUrl = doc.canonical_url?.trim() || absoluteUrl(origin, path)
   const body = renderContentBlocksForLlm(doc.content_blocks)
 
   return [
     buildFrontMatter([
       optionalFrontMatterLine('title', doc.title),
-      optionalFrontMatterLine('category', doc.category),
-      optionalFrontMatterLine('difficulty', doc.difficulty_level),
+      optionalFrontMatterLine('category', docCategory(path)),
       optionalFrontMatterLine('url', path),
       optionalFrontMatterLine('markdown_url', markdownPath),
       optionalFrontMatterLine('canonical_url', canonicalUrl),
@@ -264,11 +267,10 @@ export function renderTenantBlogMarkdown(post: TenantLlmBlogDetail, origin: stri
 export async function listPublishedPlatformDocsForLlm(db: DbClient) {
   return await queryAll<PlatformLlmDocSummary>(
     db,
-    `SELECT
-      id, title, slug, summary AS excerpt, (metadata_json ->> '$.category') AS category, (metadata_json ->> '$.difficulty_level') AS difficulty_level, canonical_url, seo_description, updated_at
+    `SELECT id, title, path, summary AS excerpt, canonical_url, seo_description, updated_at
      FROM content_documents
-     WHERE kind = 'platform_doc' AND row_role = 'root' AND site_id = '${PLATFORM_SITE_ID}'
-     ORDER BY category, sort_order, updated_at DESC`,
+     WHERE kind = 'page' AND row_role = 'root' AND site_id = '${PLATFORM_SITE_ID}' AND path LIKE '/docs/%'
+     ORDER BY path, sort_order, updated_at DESC`,
   )
 }
 
@@ -294,16 +296,17 @@ export async function listPublishedTenantBlogPostsForLlm(db: DbClient, siteId: s
 }
 
 export async function getPublishedPlatformDocBySlug(db: DbClient, categorySlug: string, slug: string) {
-  const category = slugToCategory(categorySlug)
-  if (!category) return null
+  if (!slugToCategory(categorySlug)) return null
+  return getPublishedPlatformDocByPath(db, slug === categorySlug ? `/docs/${categorySlug}` : `/docs/${categorySlug}/${slug}`)
+}
+
+export async function getPublishedPlatformDocByPath(db: DbClient, path: string) {
   const detail = await queryFirst<Omit<PlatformLlmDocDetail, 'content_blocks'>>(
     db,
-    `SELECT
-      id, title, slug, summary AS excerpt, (metadata_json ->> '$.category') AS category, (metadata_json ->> '$.difficulty_level') AS difficulty_level, canonical_url, seo_description, updated_at
+    `SELECT id, title, path, summary AS excerpt, canonical_url, seo_description, updated_at
      FROM content_documents
-     WHERE kind = 'platform_doc' AND row_role = 'root' AND site_id = '${PLATFORM_SITE_ID}'
-       AND slug = ? AND (metadata_json ->> '$.category') = ?`,
-    [slug, category],
+     WHERE kind = 'page' AND row_role = 'root' AND site_id = '${PLATFORM_SITE_ID}' AND path = ?`,
+    [path],
   )
   if (!detail) return null
   const contentBlocks = await getContentBlocksForDocument(db, detail.id)
@@ -334,21 +337,15 @@ export async function getPublishedTenantBlogPostBySlug(db: DbClient, siteId: str
 }
 
 export function buildPlatformDocLinkEntries(docs: PlatformLlmDocSummary[], origin: string): PlatformLlmLinkEntry[] {
-  return docs.flatMap((doc) => {
-    const categorySlug = categoryToSlug(doc.category)
-    if (!categorySlug) return []
-    const path = `/docs/${categorySlug}/${doc.slug}`
-    return [{
+  return docs.map(doc => ({
       title: doc.title,
-      path,
-      markdownPath: `/docs-md/${categorySlug}/${doc.slug}.md`,
-      canonicalUrl: doc.canonical_url?.trim() || absoluteUrl(origin, path),
+      path: doc.path,
+      markdownPath: docMarkdownPath(doc.path),
+      canonicalUrl: doc.canonical_url?.trim() || absoluteUrl(origin, doc.path),
       summary: safeSummary(doc.seo_description || doc.excerpt, 'KrabiClaw documentation.'),
-      category: doc.category,
+      category: docCategory(doc.path),
       updatedAt: doc.updated_at,
-      difficultyLevel: doc.difficulty_level,
-    }]
-  })
+    }))
 }
 
 export function buildPlatformBlogLinkEntries(posts: PlatformLlmBlogSummary[], origin: string): PlatformLlmLinkEntry[] {
@@ -491,7 +488,6 @@ export function buildDocsIndexJson(docs: PlatformLlmLinkEntry[]) {
     docs: docs.map(doc => ({
       title: doc.title,
       category: doc.category ?? null,
-      difficulty_level: doc.difficultyLevel ?? null,
       url: doc.path,
       markdown_url: doc.markdownPath,
       canonical_url: doc.canonicalUrl,

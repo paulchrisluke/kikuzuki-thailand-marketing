@@ -81,22 +81,11 @@
           <figcaption v-if="block.data.caption" class="text-center text-sm opacity-70">{{ block.data.caption }}</figcaption>
           <slot v-if="editable" name="image-editor" :block="block" :index="index" />
         </figure>
-        <div v-else-if="block.type === 'faq' && editable" class="space-y-3">
-          <div v-for="(item, itemIndex) in faqItems(block)" :key="itemIndex" class="space-y-2 rounded-lg border border-default p-3">
-            <div class="flex items-start gap-2">
-              <div class="flex-1 space-y-2">
-                <UInput :model-value="item.question || ''" placeholder="Question" class="w-full" @update:model-value="value => updateFaqItem(index, itemIndex, 'question', String(value))" />
-                <UTextarea :model-value="item.answer || ''" :rows="2" placeholder="Answer" class="w-full" @update:model-value="value => updateFaqItem(index, itemIndex, 'answer', String(value))" />
-              </div>
-              <UButton icon="i-lucide-x" color="neutral" variant="ghost" size="xs" aria-label="Remove question" @click="removeFaqItem(index, itemIndex)" />
-            </div>
-          </div>
-          <UButton icon="i-lucide-plus" color="neutral" variant="soft" size="sm" @click="addFaqItem(index)">Add question</UButton>
-        </div>
-        <dl v-else-if="block.type === 'faq' && isRenderable(block)" class="space-y-5">
+        <UAlert v-else-if="block.type === 'faq' && editable" color="neutral" variant="soft" title="Questions come from Q&amp;A" description="This block lists the published Q&amp;A records for this article. Add or edit questions in the site's Q&amp;A manager." />
+        <dl v-else-if="block.type === 'faq' && isRenderable(block) && faqItems(block).length" class="space-y-5">
           <div v-for="(item, itemIndex) in faqItems(block)" :key="itemIndex">
-            <dt class="font-semibold">Q: {{ item.question }}</dt>
-            <dd class="mt-1 opacity-80">A: {{ item.answer }}</dd>
+            <dt class="font-semibold">Q: {{ item.title }}</dt>
+            <dd class="mt-1 opacity-80">A: {{ item.description }}</dd>
           </div>
         </dl>
         <div v-else-if="block.type === 'how_to' && editable" class="space-y-2">
@@ -289,30 +278,14 @@ function handleStructuralKey(index: number, block: BlogEditorBlock, event: Keybo
   emit('merge-block', index, direction)
   event.preventDefault()
 }
-function faqItems(block: BlogEditorBlock) { return Array.isArray(block.data.items) ? block.data.items as Array<{ question?: string; answer?: string }> : [] }
+// Q&A records are attached to the block by the server for the article's path; the editor never holds them.
+function faqItems(block: BlogEditorBlock) { return Array.isArray(block.data.items) ? block.data.items as Array<{ title?: string; description?: string }> : [] }
 function howToSteps(block: BlogEditorBlock) { return Array.isArray(block.data.steps) ? block.data.steps as Array<{ name?: string; text?: string }> : [] }
 /** One key of a block's data payload, for blocks edited field-by-field. */
 function updateBlockData(index: number, key: string, value: string) {
   const block = props.blocks[index]
   if (!block) return
   emit('update:block', index, { ...block, data: { ...block.data, [key]: value || null } })
-}
-function updateFaqItem(index: number, itemIndex: number, key: 'question' | 'answer', value: string) {
-  const block = props.blocks[index]
-  if (!block) return
-  const items = faqItems(block).map((item, i) => i === itemIndex ? { ...item, [key]: value } : item)
-  emit('update:block', index, { ...block, data: { ...block.data, items } })
-}
-function addFaqItem(index: number) {
-  const block = props.blocks[index]
-  if (!block) return
-  emit('update:block', index, { ...block, data: { ...block.data, items: [...faqItems(block), { question: '', answer: '' }] } })
-}
-function removeFaqItem(index: number, itemIndex: number) {
-  const block = props.blocks[index]
-  if (!block) return
-  const items = faqItems(block).filter((_, i) => i !== itemIndex)
-  emit('update:block', index, { ...block, data: { ...block.data, items: items.length ? items : [{ question: '', answer: '' }] } })
 }
 function updateHowToStep(index: number, stepIndex: number, value: string) {
   const block = props.blocks[index]

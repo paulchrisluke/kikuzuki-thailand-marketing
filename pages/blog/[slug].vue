@@ -81,7 +81,6 @@ interface TenantBlogPost {
   visibility?: 'public' | 'unlisted'
   published_at?: string | null
   updated_at?: string | null
-  featured_order?: number | null
   author?: { id: string; name: string | null; image: string | null } | null
   cover?: { asset_id: string; public_url: string | null; thumbnail_url: string | null; kind: string | null; alt_text: string | null; width: number | null; height: number | null } | null
   social_image?: import('~/utils/social-metadata').SocialImageSource | null

@@ -193,12 +193,11 @@ export async function listPublicBlogSummaries(db: DbClient, siteId: string, limi
   const rows = await queryAll<ApiRecord>(db, `
     SELECT root.id, p.id AS representation_id, p.title, p.slug, p.summary AS excerpt, p.metadata_json ->> '$.category' AS category,
            p.metadata_json ->> '$.tags' AS tags_json, root.published_at, p.canonical_url, p.path,
-           root.metadata_json ->> '$.featured_order' AS featured_order,
            ${COVER_SELECT}
       FROM content_documents root JOIN content_documents p ON COALESCE(p.root_id,p.id) = root.id AND p.locale = ?
       ${coverJoinSql('p')}
      WHERE root.site_id = ? AND root.kind = 'article' AND root.row_role = 'root' AND root.status = 'published' AND root.visibility = 'public'
-     ORDER BY COALESCE(root.metadata_json ->> '$.featured_order', 999999), root.published_at IS NULL, root.published_at DESC, root.id DESC
+     ORDER BY root.published_at IS NULL, root.published_at DESC, root.id DESC
      LIMIT ?
   `, [locale, siteId, Math.max(1, Math.min(50, Math.trunc(limit)))])
   const socialMedia = await loadPublicSocialMedia(db, siteId, 'content_document', rows.map(row => String(row.representation_id)))
@@ -209,7 +208,6 @@ export async function listPublicBlogSummaries(db: DbClient, siteId: string, limi
     excerpt: typeof row.excerpt === 'string' ? row.excerpt : null,
     category: typeof row.category === 'string' ? row.category : null,
     tags: row.tags_json ? JSON.parse(row.tags_json) as string[] : [],
-    featured_order: Number.isFinite(Number(row.featured_order)) ? Number(row.featured_order) : null,
     published_at: typeof row.published_at === 'string' ? row.published_at : null,
     canonical_url: locale === 'en' ? resolvePublicArticleCanonicalUrl(row.canonical_url, row.slug) : `/${locale}${requiredText(row.path, 'localized article path')}`,
     cover: attachCoverMedia(row).cover,
@@ -240,6 +238,7 @@ export async function listPublicTenantPages(db: DbClient, siteId: string): Promi
     title: page.title,
     page_type: page.page_type,
     recipe: page.recipe,
+    sort_order: page.sort_order,
     locale: page.locale,
     summary: page.summary,
     seo_title: page.seo_title,
@@ -272,6 +271,7 @@ export async function getPublicTenantPageByPath(
     title: page.title,
     page_type: page.page_type,
     recipe: page.recipe,
+    sort_order: page.sort_order,
     locale: page.locale,
     summary: page.summary,
     seo_title: page.seo_title,
@@ -609,7 +609,6 @@ function mapPublicBlogPost(row: ApiRecord | null): PublicBlogPost | null {
     excerpt: typeof row.excerpt === 'string' ? row.excerpt : null,
     category: typeof row.category === 'string' ? row.category : null,
     tags: Array.isArray(row.tags) ? row.tags.map(String) : (row.tags_json ? JSON.parse(row.tags_json) as string[] : []),
-    featured_order: Number.isFinite(Number(row.featured_order)) ? Number(row.featured_order) : null,
     published_at: typeof row.published_at === 'string' ? row.published_at : null,
     canonical_url: resolvePublicArticleCanonicalUrl(row.canonical_url, row.slug),
     seo_title: typeof row.seo_title === 'string' ? row.seo_title : null,

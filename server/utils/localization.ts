@@ -438,7 +438,7 @@ function remapNewLocalizedBlockIds(blocks: ContentBlockInput[]): ContentBlockInp
 }
 
 const DOCUMENT_LOCALIZED_METADATA: Record<ContentDocumentKind, readonly string[]> = {
-  page: [], article: ['category', 'tags', 'nav_title'], platform_doc: ['category', 'nav_title'],
+  page: [], article: ['category', 'tags'],
   social_post: ['event', 'offer'], qa: [],
 }
 
@@ -485,7 +485,7 @@ export async function putLocalizationForAuthoring(db: D1Database,
   const existing = await getContentRepresentation(db, { rootId: root.id, locale })
   const blocks = input.contentBlocks
   if (blocks !== undefined && !Array.isArray(blocks)) localizationError(422, 'LOCALIZATION_VALIDATION_FAILED', 'content_blocks must be an array')
-  if ((root.kind === 'article' || root.kind === 'platform_doc' || root.kind === 'page') && !existing && (!Array.isArray(blocks) || !blocks.length)) localizationError(422, 'LOCALIZATION_VALIDATION_FAILED', 'Translated content blocks are required')
+  if ((root.kind === 'article' || root.kind === 'page') && !existing && (!Array.isArray(blocks) || !blocks.length)) localizationError(422, 'LOCALIZATION_VALIDATION_FAILED', 'Translated content blocks are required')
   const requested = blocks === undefined ? undefined : existing ? blocks as ContentBlockInput[] : remapNewLocalizedBlockIds(blocks as ContentBlockInput[])
   const { prepareTenantBlogContentBlocks } = await import('~/server/utils/content/publishing')
   const prepared = requested ? await prepareTenantBlogContentBlocks(db, requested, input.siteId, input.organizationId, new Date().toISOString()) : null

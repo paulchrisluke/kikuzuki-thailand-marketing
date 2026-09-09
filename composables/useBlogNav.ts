@@ -1,5 +1,4 @@
-import { BLOG_CATEGORY_SLUGS, blogCategoryToSlug } from '~/utils/blog-categories'
-import { groupItemsByNavSection } from '~/utils/platform-content-nav'
+import { BLOG_CATEGORY_SLUGS } from '~/utils/blog-categories'
 import { publicApiRequest } from '~/utils/api-clients'
 import { validateApiShape } from '~/utils/api-validation'
 
@@ -8,12 +7,6 @@ interface PublicBlogPost {
   slug: string
   title: string
   category?: string | null
-  nav_section?: string | null
-  nav_title?: string | null
-  nav_order?: number | null
-  nav_section_order?: number | null
-  hide_from_nav?: boolean | number | null
-  featured_order?: number | null
   excerpt?: string | null
   published_at?: string | null
   cover?: {
@@ -53,23 +46,11 @@ export function useBlogNav() {
 
   const posts = computed<PublicBlogPost[]>(() => data.value?.posts ?? [])
 
-  const categories = computed<BlogNavCategory[]>(() => {
-    const eligible = posts.value
-      .filter(post => post.category && blogCategoryToSlug(post.category) && !post.hide_from_nav)
-    .map(post => ({ ...post, _categorySlug: blogCategoryToSlug(post.category!)! }))
-
-    const groups = groupItemsByNavSection<typeof eligible[number]>(
-      eligible,
-      (post) => post.nav_section?.trim() || post.category!,
-      Object.keys(BLOG_CATEGORY_SLUGS),
-    )
-
-    return groups.map(group => ({
-      category: group.category,
-      categorySlug: group.items[0]?._categorySlug ?? '',
-      posts: group.items,
-    }))
-  })
+  // Grouped by category in the taxonomy's own order; posts keep the list's date order.
+  const categories = computed<BlogNavCategory[]>(() => Object.entries(BLOG_CATEGORY_SLUGS).flatMap(([category, categorySlug]) => {
+    const group = posts.value.filter(post => post.category === category).map(post => ({ ...post, label: post.title }))
+    return group.length ? [{ category, categorySlug, posts: group }] : []
+  }))
 
   return { posts, categories, pending, error }
 }

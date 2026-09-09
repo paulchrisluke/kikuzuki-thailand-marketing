@@ -635,7 +635,7 @@ function handleInsertBlock(index: number, _cursorPosition: number) {
 // every freshly inserted image block unsavable. `changeImage` writes the chosen
 // asset to `media`; only alt and caption belong here.
 function structuralBlockData(type: string) {
-  return type === 'faq' ? { items: [{ question: '', answer: '' }] } : type === 'how_to' ? { steps: [{ text: '' }] } : type === 'image' ? { caption: '' } : type === 'cta' ? { title: '', description: null, label: null, url: null } : {}
+  return type === 'faq' ? { source: 'page_qa' } : type === 'how_to' ? { steps: [{ text: '' }] } : type === 'image' ? { caption: '' } : type === 'cta' ? { title: '', description: null, label: null, url: null } : {}
 }
 // A non-text block (image/FAQ/how-to/divider/etc.) left as the last block in
 // the post is a dead end — there's no textarea or rich editor to click into
