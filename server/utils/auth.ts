@@ -275,11 +275,8 @@ export function createAuth(env: CloudflareEnv) {
             // Persist the canonical event before the auth hook completes. Delivery failures
             // are recorded by the dispatcher and must never fail account creation.
             //
-            // This is also the sole source for the platform `new_signups` analytics metric
-            // (server/utils/analytics.ts). The catch here is intentional and must stay this
-            // way: a signup can never be allowed to fail because this write failed. That
-            // means the metric is a best-effort lower bound, not an exact count — see
-            // PLATFORM_SIGNUP_LEDGER_START_DATE for the known-gap cutover this implies.
+            // The catch here is intentional and must stay this way: a signup can never
+            // be allowed to fail because this notification write failed.
             await notifyNewUserSignup(db, {
               id: user.id,
               email: user.email,

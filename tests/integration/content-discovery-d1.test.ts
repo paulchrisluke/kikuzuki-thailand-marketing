@@ -25,13 +25,14 @@ test('public discovery resolves translations through current publication owners'
       for (const locale of ['en', 'th']) await db.prepare('INSERT INTO site_locales (id,organization_id,site_id,locale,is_source,status) VALUES (?,?,?,?,?,?)')
         .bind(id + locale, id, id, locale, Number(locale === 'en'), 'published').run()
     }
-    // Documentation is the platform site's ordinary pages under /docs.
-    await createContentDocumentWithBlocks(db, { id: 'guide', organizationId: 'platform', siteId: 'platform', kind: 'page', rowRole: 'root', locale: 'en',
-      title: 'guide', path: '/docs/getting-started/guide', summary: 'guide summary', metadata: { page_type: 'system' },
+    // Documentation is the platform site's docs article collection.
+    await createContentDocumentWithBlocks(db, { id: 'guide', organizationId: 'platform', siteId: 'platform', kind: 'article', rowRole: 'root', locale: 'en',
+      title: 'guide', slug: 'guide', summary: 'guide summary', status: 'published', visibility: 'public',
+      metadata: { collection: 'docs', category: 'Getting Started', tags: [] },
     }, [{ id: 'guide-body', type: 'markdown', data: { markdown: 'guide exact body', editor_mode: 'rich' } }])
     for (const [id, site] of [['news', 'platform'], ['tenant-story', 'tenant'], ['other-story', 'other']] as const) {
       await createContentDocumentWithBlocks(db, { id, organizationId: site, siteId: site, kind: 'article', rowRole: 'root', locale: 'en',
-        title: id, slug: id, summary: id + ' summary', metadata: { category: 'Getting Started', tags: ['shared'] }, status: 'published', visibility: 'public',
+        title: id, slug: id, summary: id + ' summary', metadata: { collection: 'blog', category: 'Marketing', tags: ['shared'] }, status: 'published', visibility: 'public',
       }, [{ id: id + '-body', type: 'markdown', data: { markdown: id + ' exact body', editor_mode: 'rich' } }])
     }
     for (const [id, path] of [['home', '/'], ['about', '/about']]) await createContentDocumentWithBlocks(db, {

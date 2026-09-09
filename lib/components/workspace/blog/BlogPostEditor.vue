@@ -105,7 +105,7 @@
         </template>
 
         <template #detail>
-          <template v-else-if="section === 'category'">
+          <template v-if="section === 'category'">
             <!-- KrabiClaw's own site publishes two collections; each files articles under a fixed category set that shapes the URL. -->
             <UFormField v-if="isPlatformTemplate" label="Collection" class="mb-4">
               <USelect v-model="form.collection" :items="collectionOptions" value-key="value" class="w-full" @update:model-value="form.category = ''" />

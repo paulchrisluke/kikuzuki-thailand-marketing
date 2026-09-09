@@ -37,6 +37,18 @@ const RETIRED_FILES = [
   'shared/creditBundles.ts',
 ]
 export const FORBIDDEN_ACTIVE_PATTERNS = [
+  // The platform split (#870): one site model, one MCP surface, one contact path, no /admin.
+  /\bplatform_doc\b/,
+  /\bplatform_contact\b/,
+  /\/api\/mcp\/platform\b/,
+  /\bPLATFORM_(?:SITE|ORGANIZATION)_ID\b/,
+  /\bensurePlatformMediaScope\b/,
+  /\bisPlatformSite\b/,
+  /\/api\/admin\//,
+  /\bpages\/admin\b/,
+  /\breorder_blog_posts\b/,
+  /\bmanagedServiceEnabled\b/,
+  /\bsite_transfer_requests\b/,
   /\/api\/billing\/credits\/(?:add|charge)/,
   /\/api\/billing\/checkout/,
   /\/api\/billing\/auto-topup/,
@@ -100,7 +112,8 @@ function walk(directory) {
 }
 
 export function findProductModelViolations(relativePath, source) {
-  if (['scripts/check-product-model-guard.mjs', 'scripts/report-publication-cleanup.mjs'].includes(relativePath.replaceAll('\\', '/'))) return []
+  // The transfer script names retired values because it is what removes them.
+  if (['scripts/check-product-model-guard.mjs', 'scripts/report-publication-cleanup.mjs', 'scripts/rebaseline-data.mjs'].includes(relativePath.replaceAll('\\', '/'))) return []
   const normalizedPath = relativePath.replaceAll('\\', '/')
   if (normalizedPath === 'server/db/schema.ts') return []
   const checksPublicationModel = !normalizedPath.includes('onboarding')

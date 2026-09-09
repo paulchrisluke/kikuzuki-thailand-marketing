@@ -6,37 +6,48 @@
 
 ---
 
-## MCP Surfaces
+## MCP
 
-KrabiClaw now ships two separate MCP apps.
-
-### Client MCP
-
-Customer-facing ChatGPT app for tenant site management.
+KrabiClaw ships one MCP app, the ChatGPT app for site management. Every site is
+managed through it, KrabiClaw's own included.
 
 - OAuth2 authorization at `/api/auth/oauth2/` — ChatGPT handles auth before any tool call
 - MCP endpoint at `/api/mcp` (`server/api/mcp.post.ts`)
 - Scope: `tenant`
-- MCP capabilities cover site setup, locations, menus, experiences, posts, media, locale management, Google Places, Facebook, and analytics. Priority-support work requests (Growth plan) are a dashboard-only feature, not exposed on the free ChatGPT-facing MCP surface. The generated catalog is authoritative.
-- Every public tool rejects unknown top-level arguments and declares explicit `readOnlyHint`, `openWorldHint`, and `destructiveHint` values. `server/utils/mcp-tools/shared.ts` contains the reviewed per-tool table.
+- MCP capabilities cover site setup, locations, menus, experiences, posts, articles, media, locale management, Google Places, Facebook, and analytics.
+- Every public tool rejects unknown top-level arguments and declares explicit `readOnlyHint`, `openWorldHint`, and `destructiveHint` values. `server/utils/mcp-tools/shared.ts` contains the registry.
 - Location-scoped mutations require an explicit `location_id`. Product-by-ID mutations resolve the Product's stored owning location.
-- `chatgpt-app-submission.json` contains the review import data. Run `node --experimental-strip-types scripts/generate-chatgpt-app-submission.mjs` after changing the public tool catalog.
-- Widget system is legacy/deprecated for client uploads; Client MCP should ask users to attach files directly in ChatGPT and then call `upload_user_media` once with the resolved native file argument. `list_sites`, `import_from_maps`, `show_generated_images`, and onboarding return plain text.
+- `chatgpt-app-submission.json` contains the review import data. Run `yarn chatgpt:submission:write` after changing the public tool catalog.
+- Widget system is legacy/deprecated for client uploads; the app asks users to attach files directly in ChatGPT and then calls `upload_user_media` once with the resolved native file.
 - Image generation via ChatGPT's native `image_generation` Responses API tool (`gpt-image-1` / `gpt-image-2`) — not DALL-E
 - Plugin landing page at `/plugin`
 
-### Platform Admin MCP
+The dashboard is the home for billing, org settings, unified inbox (contact, reservations, bookings, reviews), and analytics. MCP and dashboard operate on the same D1 backend.
 
-Internal ChatGPT app for KrabiClaw operators only.
+See `docs/mcp.md` for the auth model and catalog contract.
 
-- MCP endpoint at `/api/mcp/platform` (`server/api/mcp/platform.post.ts`)
-- Scope: `platform_admin`
-- Auth requires the Better Auth Admin plugin platform-admin permission path
-- Tools limited to platform blog/docs operations for `krabiclaw.com/blog` and `krabiclaw.com/docs`, plus read-only categorized release data from merged GitHub pull requests
+---
 
-The dashboard is still the home for billing, org settings, unified inbox (contact, reservations, bookings, reviews), and analytics. MCP and dashboard operate on the same D1 backend with no forked business logic.
+## KrabiClaw's own site
 
-See `docs/mcp-surface-split.md` for the canonical split rules.
+KrabiClaw's marketing site (`krabiclaw.com`) is an ordinary site row in the
+`platform` organization running the **platform template** (`krabiclaw-theme-v1`
+in `utils/template-registry.ts`). The platform host resolves it through the same
+middleware as every tenant, and its owner works in the same dashboard:
+
+- The blog and the documentation are two **article collections** on that site
+  (`blog` and `docs` in `utils/article-collections.ts`). Each collection has a
+  fixed category list that shapes its URL (`/blog/{category}/{slug}`,
+  `/docs/{category}/{slug}`; a docs article whose slug equals its category
+  segment is that category's landing page). Feeds, markdown mirrors, search
+  indexing and llms.txt read the collections.
+- The `/help` form is that site's contact form and files into its inbox.
+- The one platform-only tool is the People page on that site: a Better Auth
+  admin lists accounts and impersonates one. Everything about a customer
+  (domains, billing, members, inbox) is then that customer's own dashboard.
+
+There is no `/admin`, no second MCP surface, no separate documentation model and
+no reserved sentinel identity in code.
 
 ---
 
@@ -67,7 +78,7 @@ billing surfaces load the canonical plan details from `GET /api/billing/plans`.
 | Tier | Price | Key Features |
 |------|-------|-------------|
 | Free (Starter) | $0 | Subdomain, Saya theme, manual editor, 1 locale |
-| Growth | $49/mo or $588/year | Custom domain + SSL, Google Places imports, post-booking review requests, manual locale editing, Priority Support |
+| Growth | $49/mo or $588/year | Custom domain + SSL, Google Places imports, post-booking review requests, manual locale editing, Facebook and Instagram publishing |
 
 One Better Auth organization subscription covers every site in the organization.
 One-time credit purchases, service add-ons,
@@ -84,11 +95,11 @@ subscribed to. They are provider-retirement records only and must be archived;
 they are not runtime plan identities, historical entitlements, or fulfillment
 obligations.
 
-Growth includes priority-support work requests and Facebook integration. The
-internal `managed_service` entitlement is the capability key used by those
-Growth features; it is not a plan identity. `MANAGED_SERVICE_ENABLED` controls
-whether Growth support intake is open and must never expose another plan in a
-checkout, transfer, upsell, or catalog surface.
+Growth includes Facebook and Instagram publishing. The internal `managed_service`
+entitlement is the capability key that gates those Growth features; it is not a
+plan identity and must never appear as one in a checkout, upsell, or catalog
+surface. Support for every plan is the `/help` form, which files into KrabiClaw's
+own inbox like any tenant contact form.
 
 Pending site handoffs do not pause or delete the source owner's custom domains.
 Reminders are informational; payment gates ownership acceptance, not the
@@ -180,8 +191,7 @@ Both Saya and Blawby support a blog: Saya's is the shared `posts` primitive rend
 | Google Places API sync | ✅ Live — hours, address, rating, reviews (up to 5) |
 | Google Places API | ✅ Live — location autocomplete + `import_from_maps` MCP tool |
 | Cloudflare R2 media host | ✅ Built — video upload/playback |
-| ChatGPT Client MCP | ✅ Live — primary customer creation surface |
-| ChatGPT Platform Admin MCP | ✅ Live — internal platform operations only |
+| ChatGPT MCP app | ✅ Live — primary customer creation surface |
 | ChatGPT image generation | ✅ Live — `gpt-image-1`/`gpt-image-2` via Responses API |
 
 ---
@@ -215,7 +225,6 @@ Both Saya and Blawby support a blog: Saya's is the shared `posts` primitive rend
   - `/dashboard/{orgSlug}/settings/billing` — the organization's subscription, invoices, and plan management
   - `/dashboard/account/settings` — personal account settings
 - App-facing dashboard APIs use `/api/dashboard/*`; the active org/site are resolved server-side from explicit `org`/`site` query params (attached by `dashboardFetch` in `composables/dashboardFetch.ts` based on the route's `orgSlug`/`siteSlug`), not by guessing the org's oldest site.
-- **Site transfers move only the site and its tenant data.** Neither organization's subscription nor billing customer moves. After acceptance, the recipient organization's effective plan immediately governs the transferred site; the transfer does not rebuild billing projections.
 - Dashboard is home for: billing, org settings, unified inbox (contact inquiries, reservations, bookings, reviews), analytics.
 
 ## Language
@@ -300,9 +309,13 @@ _Avoid_: site billing, site entitlement, mutable capability projection, direct r
 An auditable organization-owned action stored in `organization_events`. `organization_id` is required; `site_id` and `location_id` are nullable so membership, invitations, and organization-only work can be represented without assigning an arbitrary primary site. Site dashboards show their scoped activity, while the organization feed includes both organization-only and site events.
 _Avoid_: site event for organization-only work, arbitrary primary-site resolution, conversion click duplicated into activity
 
-**Platform scope**:
-The reserved organization and site identified by `PLATFORM_ORGANIZATION_ID` and `PLATFORM_SITE_ID`. Platform blog, redirect, and analytics data use these ordinary non-null scopes and the same canonical writers and query paths as tenant data; platform behavior is selected by the reserved site ID rather than a null owner.
-_Avoid_: null platform scope, media-only platform constants, parallel platform analytics table
+**KrabiClaw's own site**:
+The site row running the platform template, owned by the `platform` organization and resolved for the platform host through the ordinary site lookup. Its blog, documentation, redirects and analytics use the same site-scoped tables and code paths as every tenant.
+_Avoid_: sentinel site ids, a null platform scope, a parallel admin content model, a second MCP surface
+
+**Article collection**:
+The group an article belongs to on a site: `blog` everywhere, plus `docs` on KrabiClaw's own site. The collection decides the URL prefix and the fixed category list; the article model, editor, feeds and markdown routes are shared.
+_Avoid_: a documentation document kind, pages standing in for documentation, per-collection editors
 
 **Order round**:
 One immutable guest submission from the current Cart. Multiple Order rounds may accumulate on one open Invoice/check; each round is independently delivered to the merchant handoff and independently idempotent.
@@ -375,3 +388,15 @@ _Avoid_: smoke test, visual approval, soft launch
 **Structured data**:
 Machine-readable schema.org metadata generated from KrabiClaw's tenant, location, offering, article, compliance, and template models. Professional-service structured data may render legal-service concepts, but it is generated from platform data rather than copied as raw tenant JSON-LD. `utils/professional-service-schema.ts` is the single canonical graph builder for professional-service tenants (see ADR 0016): every route emits a linked `@graph` with stable, canonical-origin `Organization`/`WebSite` `@id`s, `nonprofit_status` is normalized to schema.org's enum (e.g. `https://schema.org/Nonprofit501c3`) at the write layer rather than stored as free text, and a `PostalAddress` is only included when `tenant_compliance.address_visibility` explicitly allows it — resolved from the offering's explicit `business_locations` owner. The shared Organization node has no postal address.
 _Avoid_: pasted JSON-LD blob, restaurant schema fallback, template-only metadata, free-text nonprofit status, a second address field on `tenant_compliance`
+
+---
+
+## Retained architecture decisions
+
+### Linked professional-service structured data graph
+
+Professional-service tenants get a schema.org graph generated from canonical data, never from pasted JSON-LD. `utils/professional-service-schema.ts` (`buildProfessionalServiceGraph`) is the single builder used by the public pages, dashboard, ChowBot, MCP and import, so every route is independently valid and checkable. `nonprofit_status` is normalized to schema.org's canonical enum. `tenant_compliance.address_visibility` gates whether a resolved street address appears at all; organizations have no postal address, and an offering linked to a location may publish that location's `PostalAddress` on its service node. Rejected: a layout-level Organization block referenced by `@id` (couples every route's validity to the layout) and duplicate address columns on `tenant_compliance` (two sources of truth).
+
+### Restaurant ordering stops at the merchant handoff
+
+Native ordering follows the Uber Eats restaurant integration model (issue #248). KrabiClaw owns the guest QR experience, the published Product/Price catalog, the ordering menu, cart, order rounds, invoice/check, payment records and inventory/availability. Each location has one active, Better Auth-authorized integration destination; if it cannot receive orders, checkout fails closed. The handoff flow is notification → authoritative order retrieval → accept/deny → ready-time update → ready → cancel/complete, delivered as verified, idempotent, version-aware push events (no polling). Native KDS, station routing, printers, kitchen tickets, POS replacement, automatic failover and retail-style substitutions are outside the boundary. Sellable amounts come only from immutable, scoped `prices` rows in integer minor units; experiences are one-to-one Product extensions sharing the stable ID.

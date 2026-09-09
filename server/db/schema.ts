@@ -2,7 +2,7 @@ import type { SiteSettings, SiteIntegrations } from '../../shared/site-settings'
 import { sql } from "drizzle-orm"
 import { sqliteTable, integer, text, real, unique, uniqueIndex, index, check, foreignKey } from "drizzle-orm/sqlite-core"
 import type { AnySQLiteColumn } from "drizzle-orm/sqlite-core"
-import { CONTENT_DOCUMENT_KINDS } from "../../shared/content-registries"
+import type { CONTENT_DOCUMENT_KINDS } from "../../shared/content-registries"
 import { NONPROFIT_STATUS_CANONICAL } from "../../utils/professional-service-schema"
 
 export const account = sqliteTable("account", {
@@ -591,7 +591,7 @@ export const organization = sqliteTable("organization", {
 	// Better Auth Stripe plugin organization customer field.
 	stripeCustomerId: text().unique(),
 	createdAt: integer({ mode: "timestamp" }).default(sql`(unixepoch())`).notNull(),
-}, (table) => [
+}, () => [
 	check("organization_slug_required_check", sql`trim(slug) <> ''`),
 ]);
 
@@ -629,7 +629,7 @@ export const organization_billing = sqliteTable("organization_billing", {
 	access_plan: text().default("free").notNull(),
 	access_expires_at: text(),
 	updated_at: text().default(sql`(strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))`).notNull(),
-}, (table) => [
+}, () => [
 	check("organization_billing_instants_check", sql`(access_expires_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', access_expires_at, '+0 days') IS access_expires_at) AND (updated_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', updated_at, '+0 days') IS updated_at) AND (paid_through IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', paid_through, '+0 days') IS paid_through) AND (past_due_since IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', past_due_since, '+0 days') IS past_due_since)`),
 ]);
 

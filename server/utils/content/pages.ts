@@ -104,7 +104,7 @@ const RESERVED_EXACT_PATHS = new Set([
 ])
 
 const RESERVED_PREFIXES = [
-  '/api/', '/_nuxt/', '/admin/', '/dashboard/', '/login/', '/signup/',
+  '/api/', '/_nuxt/', '/dashboard/', '/login/', '/signup/',
   '/oauth/', '/account/', '/auth/', '/docs/', '/dev/', '/preview/',
   '/templates/', '/features/', '/blog/', '/menu/', '/order/', '/experiences/',
   '/reservations/', '/locations/', '/services/', '/article/',

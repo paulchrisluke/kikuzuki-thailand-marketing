@@ -107,9 +107,10 @@ The representative client order is:
    reservations.
 2. Kikuzuki: home, menu and items, locations, and reservations.
 3. NCLS: home, services and details, pricing, articles, contact, and schedule.
+4. KrabiClaw's own site: home, documentation, blog, and the help form. It is an
+   ordinary site on the platform template, so it is qualified like a tenant.
 
-Platform marketing, dashboard, CMS, ChowBot, billing, site administration, and
-platform MCP are outside the release-qualified scope.
+Dashboard, CMS, ChowBot, and billing are outside the release-qualified scope.
 
 For a shared renderer, routing, theme, content-model, or destructive
 content-migration change, expand that representative set to every published
@@ -121,9 +122,9 @@ unverified, but unrelated route families do not block a narrowly scoped change.
 
 For the canonical migration workflow, see [docs/database/migrations.md](../database/migrations.md).
 
-Never rewrite migration history for a production or rollback D1 database resource. Rebaselining production schema history requires a database epoch: provision a new production resource, apply one generated baseline, transfer and verify data explicitly, cut bindings over under the documented write freeze, and retain the old production resource for rollback. During an unreleased epoch, the standalone staging qualification database may instead be reset or reprovisioned from the corrected baseline; an earlier staging apply does not justify advancing the epoch.
+Never rewrite migration history for a production database resource in place. Rebaselining production schema history is the documented database rebaseline in [docs/database/migrations.md](../database/migrations.md): a fresh generated baseline, an offline transfer of a frozen export, verification, then a reset of the same database resource during a write freeze.
 
-The database-epoch write freeze is the only exception to the normal one-deploy release path. Deploy the exact release candidate once with the old production D1 binding and `DB_WRITE_FROZEN = "true"`. That flag returns HTTP 503 before Nitro routes or middleware can reach D1, fails inbound email handling before it can read or write D1, defers queue batches with an explicit retry, and skips scheduled work. Wait at least 60 seconds for requests already running on the prior Worker version to drain before taking the final export. After the import and invariant checks pass, the ordinary `main` deployment must bind the new D1 resource and omit the flag, which restores HTTP, email, queue, and cron processing. If cutover cannot finish promptly, restore the prior Worker version instead of allowing queued messages to exhaust their retry limit.
+The rebaseline write freeze is the only exception to the normal one-deploy release path. Deploy the exact release candidate once with `DB_WRITE_FROZEN = "true"`, export, transfer and verify, reset the database from the new baseline and the verified payload, then promote normally.
 
 Before dropping or retiring a legacy table or writer:
 

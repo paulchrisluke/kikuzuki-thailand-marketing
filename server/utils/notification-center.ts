@@ -99,6 +99,6 @@ export async function notifyNewUserSignup(
     severity: 'info',
     title: 'New user signup',
     message: 'A new KrabiClaw account was created.',
-    deepLink: '/admin/users',
+    deepLink: '/dashboard',
   })
 }

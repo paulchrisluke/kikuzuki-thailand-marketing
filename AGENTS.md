@@ -110,7 +110,7 @@ Use the approved client onboarding and import pipeline. Never manually seed or p
 
 ## Agent documentation
 
-- Product, domain language and ADRs: root `PRODUCT.md` and `docs/adr/`
+- Product and domain language: root `PRODUCT.md`
 - Local setup and signing in: [docs/local-development.md](docs/local-development.md)
 - CMS navigation and editing patterns: root `PRD.md`
 

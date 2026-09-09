@@ -64,7 +64,7 @@ const FORBIDDEN_PATTERNS = [
   {
     id: 'admin_impersonation_proxy',
     description: 'custom admin impersonation proxy route',
-    regex: /(?:\/api\/admin\/impersonation\/(?:start|stop)|server\/api\/admin\/impersonation\/(?:start|stop)\.post\.ts)/g,
+    regex: /\bimpersonation\/(?:start|stop)(?:\.post\.ts)?\b/g,
   },
   {
     id: 'isPlatformAdmin',
@@ -119,20 +119,6 @@ async function checkForbiddenPatterns() {
   const violations = []
   const files = gitFiles()
 
-  for (const forbiddenFile of [
-    'server/api/admin/impersonation/start.post.ts',
-    'server/api/admin/impersonation/stop.post.ts',
-  ]) {
-    if (files.includes(forbiddenFile)) {
-      violations.push({
-        file: forbiddenFile,
-        line: 1,
-        pattern: 'admin_impersonation_proxy',
-        description: 'custom admin impersonation proxy route',
-        match: forbiddenFile,
-      })
-    }
-  }
 
   for (const file of files) {
     if (isAlwaysAllowed(file)) continue
@@ -234,14 +220,14 @@ async function checkMigratedTeamProvisioning() {
   return failures
 }
 
-const [forbiddenViolations, mcpBoundaryFailures, migratedAdminFailures, migratedOrganizationFailures, migratedTeamFailures] = await Promise.all([
+const [forbiddenViolations, mcpBoundaryFailures, migratedOrganizationFailures, migratedTeamFailures] = await Promise.all([
   checkForbiddenPatterns(),
   checkMcpResourceBoundary(),
   checkMigratedOrganizationRoutes(),
   checkMigratedTeamProvisioning(),
 ])
 
-if (forbiddenViolations.length || mcpBoundaryFailures.length || migratedAdminFailures.length || migratedOrganizationFailures.length || migratedTeamFailures.length) {
+if (forbiddenViolations.length || mcpBoundaryFailures.length || migratedOrganizationFailures.length || migratedTeamFailures.length) {
   console.error('Better Auth boundary check failed.')
 
   for (const violation of forbiddenViolations) {
@@ -252,9 +238,6 @@ if (forbiddenViolations.length || mcpBoundaryFailures.length || migratedAdminFai
     console.error(`  ${failure}`)
   }
 
-  for (const failure of migratedAdminFailures) {
-    console.error(`  ${failure}`)
-  }
 
   for (const failure of migratedOrganizationFailures) {
     console.error(`  ${failure}`)
