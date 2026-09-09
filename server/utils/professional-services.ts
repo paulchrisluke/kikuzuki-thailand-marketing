@@ -6,6 +6,7 @@ import { parseSocialImageSource } from '~/utils/social-metadata'
 import { listPageQa } from '~/server/utils/location-qa'
 import { listSiteReviews } from '~/server/utils/site-reviews'
 import { getPublishedLocalizedSiteBlogPost } from '~/server/utils/content/publishing'
+import { COVER_SELECT, attachCoverMedia, coverJoinSql } from '~/server/utils/content/cover'
 import {
   loadExactPublicLocalizations,
   projectExactLocalizedCollection,
@@ -192,13 +193,11 @@ export async function listPublicBlogSummaries(db: DbClient, siteId: string, limi
   const rows = await queryAll<ApiRecord>(db, `
     SELECT root.id, p.id AS representation_id, p.title, p.slug, p.summary AS excerpt, p.metadata_json ->> '$.category' AS category,
            p.metadata_json ->> '$.tags' AS tags_json, root.published_at, p.canonical_url, p.path,
-           root.metadata_json ->> '$.featured_order' AS featured_order,
-           featured.asset_id AS asset_id, media.public_url, media.thumbnail_url, media.kind, media.alt_text, media.width, media.height
+           ${COVER_SELECT}
       FROM content_documents root JOIN content_documents p ON COALESCE(p.root_id,p.id) = root.id AND p.locale = ?
-      LEFT JOIN media_placements featured ON featured.owner_type = 'content_document' AND featured.owner_id = p.id AND featured.slot = 'featured' AND featured.sort_order = 0 AND featured.status = 'active'
-      LEFT JOIN media_assets media ON media.id = featured.asset_id AND media.status = 'active'
+      ${coverJoinSql('p')}
      WHERE root.site_id = ? AND root.kind = 'article' AND root.row_role = 'root' AND root.status = 'published' AND root.visibility = 'public'
-     ORDER BY COALESCE(root.metadata_json ->> '$.featured_order', 999999), root.published_at IS NULL, root.published_at DESC, root.id DESC
+     ORDER BY root.published_at IS NULL, root.published_at DESC, root.id DESC
      LIMIT ?
   `, [locale, siteId, Math.max(1, Math.min(50, Math.trunc(limit)))])
   const socialMedia = await loadPublicSocialMedia(db, siteId, 'content_document', rows.map(row => String(row.representation_id)))
@@ -209,21 +208,9 @@ export async function listPublicBlogSummaries(db: DbClient, siteId: string, limi
     excerpt: typeof row.excerpt === 'string' ? row.excerpt : null,
     category: typeof row.category === 'string' ? row.category : null,
     tags: row.tags_json ? JSON.parse(row.tags_json) as string[] : [],
-    featured_order: Number.isFinite(Number(row.featured_order)) ? Number(row.featured_order) : null,
     published_at: typeof row.published_at === 'string' ? row.published_at : null,
     canonical_url: locale === 'en' ? resolvePublicArticleCanonicalUrl(row.canonical_url, row.slug) : `/${locale}${requiredText(row.path, 'localized article path')}`,
-    media: typeof row.public_url === 'string' && row.public_url
-      ? [{
-          asset_id: String(row.asset_id),
-          slot: 'featured',
-          public_url: row.public_url,
-          thumbnail_url: typeof row.thumbnail_url === 'string' ? row.thumbnail_url : null,
-          kind: typeof row.kind === 'string' ? row.kind : null,
-          alt_text: typeof row.alt_text === 'string' ? row.alt_text : null,
-          width: Number.isFinite(Number(row.width)) ? Number(row.width) : null,
-          height: Number.isFinite(Number(row.height)) ? Number(row.height) : null,
-        }]
-      : [],
+    cover: attachCoverMedia(row).cover,
     social_image: socialMedia.get(String(row.representation_id))?.social_image ?? null,
   }))
 }
@@ -251,6 +238,7 @@ export async function listPublicTenantPages(db: DbClient, siteId: string): Promi
     title: page.title,
     page_type: page.page_type,
     recipe: page.recipe,
+    sort_order: page.sort_order,
     locale: page.locale,
     summary: page.summary,
     seo_title: page.seo_title,
@@ -283,6 +271,7 @@ export async function getPublicTenantPageByPath(
     title: page.title,
     page_type: page.page_type,
     recipe: page.recipe,
+    sort_order: page.sort_order,
     locale: page.locale,
     summary: page.summary,
     seo_title: page.seo_title,
@@ -605,7 +594,6 @@ function mapPublicReviews(rows: SiteReviewRow[]): PublicSiteReview[] {
 
 function mapPublicBlogPost(row: ApiRecord | null): PublicBlogPost | null {
   if (!row) return null
-  const media = Array.isArray(row.media) ? row.media as ApiRecord[] : []
   return {
     id: String(row.id),
     title: String(row.title),
@@ -621,7 +609,6 @@ function mapPublicBlogPost(row: ApiRecord | null): PublicBlogPost | null {
     excerpt: typeof row.excerpt === 'string' ? row.excerpt : null,
     category: typeof row.category === 'string' ? row.category : null,
     tags: Array.isArray(row.tags) ? row.tags.map(String) : (row.tags_json ? JSON.parse(row.tags_json) as string[] : []),
-    featured_order: Number.isFinite(Number(row.featured_order)) ? Number(row.featured_order) : null,
     published_at: typeof row.published_at === 'string' ? row.published_at : null,
     canonical_url: resolvePublicArticleCanonicalUrl(row.canonical_url, row.slug),
     seo_title: typeof row.seo_title === 'string' ? row.seo_title : null,
@@ -631,16 +618,17 @@ function mapPublicBlogPost(row: ApiRecord | null): PublicBlogPost | null {
     created_at: typeof row.created_at === 'string' ? row.created_at : null,
     updated_at: typeof row.updated_at === 'string' ? row.updated_at : null,
     content_blocks: Array.isArray(row.content_blocks) ? row.content_blocks as import('~/lib/components/workspace/blog/types').BlogEditorBlock[] : [],
-    media: media.map(item => ({
-      asset_id: String(item.asset_id),
-      slot: String(item.slot),
-      public_url: requiredText(item.public_url, `article ${row.id}.media.public_url`),
-      thumbnail_url: typeof item.thumbnail_url === 'string' ? item.thumbnail_url : null,
-      kind: typeof item.kind === 'string' ? item.kind : null,
-      alt_text: typeof item.alt_text === 'string' ? item.alt_text : null,
-      width: Number.isFinite(Number(item.width)) ? Number(item.width) : null,
-      height: Number.isFinite(Number(item.height)) ? Number(item.height) : null,
-    })),
+    cover: row.cover && typeof row.cover === 'object' && !Array.isArray(row.cover)
+      ? {
+          asset_id: String((row.cover as ApiRecord).asset_id),
+          public_url: typeof (row.cover as ApiRecord).public_url === 'string' ? String((row.cover as ApiRecord).public_url) : null,
+          thumbnail_url: typeof (row.cover as ApiRecord).thumbnail_url === 'string' ? String((row.cover as ApiRecord).thumbnail_url) : null,
+          kind: typeof (row.cover as ApiRecord).kind === 'string' ? String((row.cover as ApiRecord).kind) : null,
+          alt_text: typeof (row.cover as ApiRecord).alt_text === 'string' ? String((row.cover as ApiRecord).alt_text) : null,
+          width: typeof (row.cover as ApiRecord).width === 'number' && Number.isFinite((row.cover as ApiRecord).width) ? Number((row.cover as ApiRecord).width) : null,
+          height: typeof (row.cover as ApiRecord).height === 'number' && Number.isFinite((row.cover as ApiRecord).height) ? Number((row.cover as ApiRecord).height) : null,
+        }
+      : null,
     social_image: parseSocialImageSource(row.social_image),
   }
 }

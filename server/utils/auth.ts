@@ -50,12 +50,6 @@ export function oauthSigningConfig(authBaseUrl: string) {
         allowedScopes: ['openid', 'email', 'offline_access', 'tenant'],
         signingAlgorithm: OAUTH_SIGNING_POLICY.algorithm,
       },
-      {
-        identifier: `${authBaseUrl}/api/mcp/platform`,
-        name: 'KrabiClaw platform MCP',
-        allowedScopes: ['openid', 'email', 'offline_access', 'platform_admin'],
-        signingAlgorithm: OAUTH_SIGNING_POLICY.algorithm,
-      },
     ],
   }
 }
@@ -135,7 +129,6 @@ export interface CloudflareEnv {
   WHATSAPP_BUSINESS_ACCOUNT_ID?: string
   E2E_ALLOW_DEV_ROUTES?: string
   E2E_DEV_ROUTE_SECRET?: string
-  DB_WRITE_FROZEN?: string
   FACEBOOK_APP_ID?: string
   FACEBOOK_APP_SECRET?: string
   FACEBOOK_REDIRECT_URI?: string
@@ -281,11 +274,8 @@ export function createAuth(env: CloudflareEnv) {
             // Persist the canonical event before the auth hook completes. Delivery failures
             // are recorded by the dispatcher and must never fail account creation.
             //
-            // This is also the sole source for the platform `new_signups` analytics metric
-            // (server/utils/analytics.ts). The catch here is intentional and must stay this
-            // way: a signup can never be allowed to fail because this write failed. That
-            // means the metric is a best-effort lower bound, not an exact count — see
-            // PLATFORM_SIGNUP_LEDGER_START_DATE for the known-gap cutover this implies.
+            // The catch here is intentional and must stay this way: a signup can never
+            // be allowed to fail because this notification write failed.
             await notifyNewUserSignup(db, {
               id: user.id,
               email: user.email,
@@ -455,7 +445,7 @@ export function createAuth(env: CloudflareEnv) {
         allowDynamicClientRegistration: false,
         allowUnauthenticatedClientRegistration: false,
         enforcePerClientResources: false,
-        scopes: ['openid', 'email', 'offline_access', 'tenant', 'platform_admin'],
+        scopes: ['openid', 'email', 'offline_access', 'tenant'],
         ...oauthSigningConfig(authBaseUrl),
         // Well-known metadata is served at /api/auth/.well-known/* by the plugin's
         // onRequest hook. Root-level /.well-known/* are covered by Nitro routes.
@@ -606,7 +596,7 @@ export interface AuthUserIdentity {
   image: string | null
 }
 
-// Content tables (blog_posts, platform_docs) store author_id as a plain
+// content_documents stores author_id as a plain
 // reference — that's fine, it's just a foreign-looking string, not a query.
 // The name/image shown next to an author is Better Auth's data, so it must be
 // read through Better Auth's own adapter (findMany, batched by id) rather than

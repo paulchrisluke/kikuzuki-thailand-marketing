@@ -19,7 +19,7 @@ export default defineHandler(async (event) => {
     const posts = await listPublishedTenantBlogPostsForLlm(db, siteId, env)
     return textResponse(
       buildLlmsTxt(
-        origin, [], buildTenantBlogLinkEntries(posts ?? [], origin), {
+        origin, [], buildTenantBlogLinkEntries(posts ?? [], origin, { themeId: String(event.context.themeId ?? '') }), {
           title: `${siteName} Blog`, intro: `${siteName} publishes blog content available as HTML and Markdown mirrors.`, includeDocsOptionalLinks: false, blogIndexDescription: 'Machine-readable manifest of published tenant blog posts.', blogRssDescription: 'Chronological feed for published tenant blog posts.', blogJsonFeedDescription: 'JSON Feed export for published tenant blog posts.', fullContextDescription: 'Aggregated export of published tenant blog posts.', }, ), )
   }
 

@@ -1,55 +1,50 @@
 # MCP
 
-KrabiClaw ships two separate MCP surfaces with strict security boundaries.
+KrabiClaw ships one MCP surface. Every site, KrabiClaw's own included, is managed
+through it with the same tools.
 
-## Surfaces
+## Surface
 
-### Client MCP
-
-- Purpose: customer-facing site and workspace management
 - Endpoint: `/api/mcp`
 - Protected resource: `/.well-known/oauth-protected-resource`
 - Server entrypoint: `server/api/mcp.post.ts`
 - Scope: `tenant`
-- Exposes by default: existing-site content management, menus, experiences, posts, media, reviews, submissions, notifications, content, QA, analytics
-- Site creation and location creation, copying, and deletion are CMS-only. MCP retains daily content operations, including media asset and experience deletion.
-- Feature-flagged conversational groups: social/OAuth publishing, domains, managed-service work requests. Manual locale management remains available as ordinary content editing.
+- Exposes: existing-site content management, menus, experiences, posts, articles
+  (blog and, on KrabiClaw's own site, documentation), media, reviews,
+  submissions, notifications, Q&A, analytics
+- Site creation and location creation, copying, and deletion are CMS-only. MCP
+  retains daily content operations, including media asset and experience deletion.
+- Feature-flagged conversational groups: social/OAuth publishing and domains.
+  Manual locale management remains available as ordinary content editing.
 
-### Platform Admin MCP
-
-- Purpose: internal KrabiClaw platform operations
-- Endpoint: `/api/mcp/platform`
-- Protected resource: `/.well-known/oauth-protected-resource/platform-mcp`
-- Server entrypoint: `server/api/mcp/platform.post.ts`
-- Scope: `platform_admin`
-- Exposes: platform blog and docs operations for `krabiclaw.com/blog` and `krabiclaw.com/docs`, plus read-only categorized release data from merged GitHub pull requests
-
-## Separation Rules
-
-- Never expose client and platform tools from the same MCP endpoint.
-- Never rely on tool filtering alone to separate internal and external capabilities.
-- Do not rely on scope presence alone to separate these surfaces. Dynamic client registration currently gives registered MCP clients both custom scopes by default.
-- The real runtime boundary is the token `aud` claim bound to the MCP resource URL, plus the server-side DB checks for site membership or platform-admin role.
-- Platform blog/docs content must stay on `platform_blog_posts` and `platform_docs`; do not route it through tenant site content tables.
+KrabiClaw's marketing site is an ordinary site row running the platform
+template. Its blog and documentation are article collections on that site and
+are edited with the same tools as any tenant's articles, using its `site_id`.
 
 ## Auth Model
 
-- AGENTS.md's "Platform and authorization boundaries" is the canonical statement of Better Auth authorization scope.
-- Platform MCP requires documented Better Auth Admin plugin platform permissions.
-- Tenant MCP requires Better Auth Organization permissions and, for scoped editors, the matching Better Auth Team membership.
-- Org member roles (`owner`, `admin`, `editor`, optional read-only `member`) remain tenant-scoped only and do not grant platform access.
-- Platform admins do not receive tenant MCP access from global role status alone. Tenant access requires real organization/team membership or a Better Auth impersonation session for a tenant member.
+- AGENTS.md's "Platform and authorization boundaries" is the canonical statement
+  of Better Auth authorization scope.
+- MCP requires Better Auth Organization permissions and, for scoped editors, the
+  matching Better Auth Team membership.
+- Org member roles (`owner`, `admin`, `editor`, optional read-only `member`) are
+  tenant-scoped only.
+- A Better Auth admin (impersonation rights) does not receive MCP access to a
+  site from that role alone. Access requires real organization/team membership or
+  a Better Auth impersonation session for a member of that organization.
+- The real runtime boundary is the token `aud` claim bound to the MCP resource
+  URL, plus the server-side membership checks. Never rely on scope presence or
+  tool filtering alone.
 
-## User-Facing URLs
+## User-Facing URL
 
-- Client MCP app URL: `https://krabiclaw.com/api/mcp`
-- Platform Admin MCP app URL: `https://krabiclaw.com/api/mcp/platform`
-
-Only internal KrabiClaw operators should connect the Platform Admin MCP app.
+- MCP app URL: `https://krabiclaw.com/api/mcp`
 
 ## Tool catalog
 
-KrabiClaw exposes one canonical tool contract for each MCP surface. Every tool name, input schema, output schema, and executor must agree. Unknown tool names return JSON-RPC `-32601` over HTTP 200. Unknown arguments return an invalid-params response and are never translated into another field.
+KrabiClaw exposes one canonical tool contract. Every tool name, input schema,
+output schema, and executor must agree. Unknown tool names return JSON-RPC
+`-32601` over HTTP 200.
 
 ### Release sequence
 
@@ -57,22 +52,29 @@ KrabiClaw exposes one canonical tool contract for each MCP surface. Every tool n
 2. Update the owning invariant test.
 3. Run `yarn mcp:catalog:write` and review the catalog snapshot diff.
 4. Run `yarn mcp:catalog` and the affected MCP integration tests.
-5. Deploy the preview Worker and verify `tools/list`, the changed tool call, and `_meta["krabiclaw/catalogFingerprint"]` through the real client.
-6. Refresh and publish the ChatGPT app action catalog when its schema changed.
+5. Deploy the preview Worker and verify `tools/list`, the changed tool call, and
+   `_meta["krabiclaw/catalogFingerprint"]` through the real client.
+6. Refresh and publish the ChatGPT app action catalog when its schema changed
+   (`yarn chatgpt:submission:write`).
 7. Verify the deployed staging MCP app before promoting to production.
 
-Do not use `serverInfo.version` as a catalog boundary. The endpoint, live `tools/list` response, and reviewed snapshot define the contract.
+Do not use `serverInfo.version` as a catalog boundary. The endpoint, live
+`tools/list` response, and reviewed snapshot define the contract.
 
 ### Catalog enforcement
 
-Public catalogs are snapshotted in `server/utils/mcp-catalog-snapshots/`. `yarn mcp:catalog` requires every public tool to be dispatchable and rejects snapshot drift.
+The public catalog is snapshotted in `server/utils/mcp-catalog-snapshots/`.
+`yarn mcp:catalog` requires every public tool to be dispatchable and rejects
+snapshot drift.
 
 ### Incident queries
 
 Use `mcp_tool_call_events` to find unknown tools and repeated failures:
 
-- group unknown tools by `mcp_surface`, `unknown_tool_name`, `oauth_client_id_hash`, and `catalog_fingerprint`
+- group unknown tools by `unknown_tool_name`, `oauth_client_id_hash`, and `catalog_fingerprint`
 - group repeated failures by `session_id_hash`, `method`, `tool_name`, and `jsonrpc_error_code`
 - verify protocol errors use HTTP 200 unless authentication or authorization requires an HTTP error
 
-Telemetry stores hashed session and client identifiers. Never log raw session ids, OAuth client ids, bearer tokens, authorization headers, full arguments, article bodies, or upload URLs.
+Telemetry stores hashed session and client identifiers. Never log raw session
+ids, OAuth client ids, bearer tokens, authorization headers, full arguments,
+article bodies, or upload URLs.

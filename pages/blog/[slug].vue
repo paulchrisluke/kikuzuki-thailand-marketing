@@ -15,7 +15,7 @@
 
     <article class="min-w-0">
     <div class="mx-auto max-w-4xl">
-    <BlogArticleView :title="post.title" :excerpt="post.excerpt" :category="post.category" :published-at="post.published_at" :updated-at="wasUpdated ? post.updated_at : null" :author-name="authorName" :author-image="authorImage" :site-name="siteName" :media-url="postMedia.url" :media-alt="postMedia.alt" :media-kind="postMedia.isVideo ? 'video' : 'image'" :read-minutes="readTime" :blocks="post.content_blocks" template="saya" />
+    <BlogArticleView :title="post.title" :excerpt="post.excerpt" :category="post.category" :published-at="post.published_at" :updated-at="wasUpdated ? post.updated_at : null" :author-name="authorName" :author-image="authorImage" :site-name="siteName" :read-minutes="readTime" :blocks="post.content_blocks" template="saya" />
 
     <div class="mt-16 flex items-center justify-between gap-6 border-t border-default pt-8">
       <div>
@@ -64,7 +64,6 @@ if (!isTenant || !siteId) throw createError({ statusCode: 404 })
 
 definePageMeta({ layout: 'saya', middleware: 'tenant-blog-canonical' })
 
-const { resolveMedia } = useMedia()
 const { localePath, t } = useI18n()
 
 interface TenantBlogPost {
@@ -82,9 +81,8 @@ interface TenantBlogPost {
   visibility?: 'public' | 'unlisted'
   published_at?: string | null
   updated_at?: string | null
-  featured_order?: number | null
   author?: { id: string; name: string | null; image: string | null } | null
-  media?: Array<{ asset_id: string; slot: string; public_url: string | null; thumbnail_url: string | null; kind: string | null; width: number | null; height: number | null }>
+  cover?: { asset_id: string; public_url: string | null; thumbnail_url: string | null; kind: string | null; alt_text: string | null; width: number | null; height: number | null } | null
   social_image?: import('~/utils/social-metadata').SocialImageSource | null
   components?: ContentComponent[]
   content_blocks?: import('~/lib/components/workspace/blog/types').BlogEditorBlock[] | null
@@ -206,10 +204,7 @@ const renderableComponents = computed(() =>
   structuredComponentsFromBlocks(post.value?.content_blocks ?? []),
 )
 
-const selectedPostImage = computed(() => {
-  return post.value?.media?.find(item => item.slot === 'featured') ?? null
-})
-const postMedia = computed(() => resolveMedia(selectedPostImage.value))
+const selectedPostImage = computed(() => post.value?.cover ?? null)
 const postImageUrl = computed(() => resolveSocialImageUrl(selectedPostImage.value))
 
 const postPath = computed(() => `${blogBasePath}/${post.value?.slug ?? ''}`)

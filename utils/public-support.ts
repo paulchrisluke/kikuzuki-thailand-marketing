@@ -1,7 +1,6 @@
 import {
   PLATFORM_KNOWLEDGE_FAQ_ENTRIES,
   PLATFORM_KNOWLEDGE_ROUTE_ENTRIES,
-  getDocPath,
   getPlatformBlogPath,
   type PlatformKnowledgeFaqEntry,
   type PlatformKnowledgeResultType as PublicSearchType,
@@ -50,4 +49,4 @@ export const PUBLIC_SUPPORT_ROUTE_METADATA = PLATFORM_KNOWLEDGE_ROUTE_ENTRIES
     keywords: route.keywords,
   }))
 
-export { getDocPath, getPlatformBlogPath }
+export { getPlatformBlogPath }

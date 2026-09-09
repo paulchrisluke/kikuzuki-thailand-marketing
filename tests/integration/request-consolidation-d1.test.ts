@@ -53,9 +53,6 @@ test('canonical requests claim one seat and update independent owner slots atomi
     for (const field of ['party_size', 'status', 'conversation_state']) {
       await assert.rejects(() => db.prepare(`UPDATE requests SET ${field}=NULL WHERE id=?`).bind(winner).run(), /CHECK constraint/)
     }
-    await db.prepare(`INSERT INTO requests (id,kind,organization_id,status,priority,assigned_to,payload_json)
-      VALUES ('work-proof','work','org-proof','pending','normal','user-proof','{"type":"technical","title":"Task","source":"dashboard"}')`).run()
-    assert.equal(await db.prepare("SELECT assigned_to FROM requests WHERE id='work-proof'").first('assigned_to'), 'user-proof')
     await assert.rejects(() => db.prepare("UPDATE requests SET payload_json='{}' WHERE id=?").bind(winner).run(), /CHECK constraint/)
     await db.prepare("UPDATE requests SET payload_json=json_set(payload_json,'$.cancellation.token_hash','hash','$.cancellation.expires_at','2099-01-01T00:00:00.000Z') WHERE id=?").bind(winner).run()
     const cancellations = await Promise.all([1, 2].map(() => cancelBookingRequest(db, { id: winner!, siteId: 'site-proof', kind: 'reservation', tokenHash: 'hash', now: '2098-01-01T00:00:00.000Z' })))

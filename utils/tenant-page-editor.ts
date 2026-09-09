@@ -18,7 +18,9 @@ export function createTenantPageEditorData(type: TenantPageBlockType): EditorDat
     case 'gallery':
       return {}
     case 'faq':
-      return { title: '', items: [{ title: '', description: '' }] }
+      return { title: '', source: 'page_qa' }
+    case 'how_to':
+      return { title: '', steps: [{ name: '', text: '' }] }
     case 'divider':
       return {}
     case 'cta':

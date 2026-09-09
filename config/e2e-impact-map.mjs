@@ -23,10 +23,13 @@ export const CORE_ONLY_PATTERNS = [
 
 export const IMPACT_GROUPS = [
   {
-    id: 'platform-blog',
+    id: 'platform-site',
     patterns: [
-      'composables/useBlogNav.ts', 'components/blog/**',
-      'server/api/public/blog.get.ts', 'server/utils/platform-content.ts',
+      'composables/useBlogNav.ts', 'composables/useDocsArticles.ts', 'components/blog/**', 'components/docs/**',
+      'pages/blog/**', 'pages/docs/**', 'server/api/public/blog.get.ts', 'server/api/public/blog/**',
+      'server/utils/content/publishing.ts', 'server/utils/platform-llm.ts', 'server/utils/platform-site.ts',
+      'server/routes/blog/**', 'server/routes/blog-md/**', 'server/routes/docs/**', 'server/routes/docs-md/**',
+      'utils/article-collections.ts', 'utils/blog-categories.ts', 'utils/docs-categories.ts', 'utils/tenant-blog-route.ts',
     ],
     specs: ['tests/e2e/platform-blog-ssr.spec.ts'],
   },

@@ -254,7 +254,7 @@ test.describe('stateless MCP server', () => {
           content_blocks: [
             { type: 'heading', level: 2, data: { text: 'Edited through MCP' } },
             { type: 'markdown', data: { markdown: 'Still one shared **document**.', editor_mode: 'rich' } },
-            { type: 'faq', data: { items: [{ question: 'Shared?', answer: 'Yes.' }] } },
+            { type: 'faq', data: { source: 'page_qa' } },
           ],
         },
       })

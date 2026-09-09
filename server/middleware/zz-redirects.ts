@@ -3,7 +3,6 @@ import {    redirect, setResponseHeader } from 'nitro/h3';
 import { queryFirst } from '~/server/db'
 import { cloudflareEnv } from '~/server/utils/api-response'
 import { TENANT_TYPES } from '~/utils/tenant-routing'
-import { PLATFORM_SITE_ID } from '~/shared/platform-scope'
 import { resolveLocalizedRedirect } from '~/server/utils/localization'
 
 const redirects: Record<string, string> = {
@@ -148,14 +147,15 @@ export default defineHandler(async (event) => {
   }
 
   if (event.req.method === 'GET') {
-    if (event.context.tenantType === TENANT_TYPES.PLATFORM) {
+    const platformSiteId = event.context.tenantType === TENANT_TYPES.PLATFORM ? event.context.siteId as string | null : null
+    if (platformSiteId) {
       const db = cloudflareEnv(event).db
       if (db) {
         try {
           const redirected = await queryFirst<{ to_path: string } | null>(db, `
             SELECT to_path FROM site_redirects
              WHERE site_id = ? AND locale = 'en' AND from_path = ? AND behavior = 'redirect' LIMIT 1
-          `, [PLATFORM_SITE_ID, normalizedPathname])
+          `, [platformSiteId, normalizedPathname])
           if (redirected) return redirect(`${redirected.to_path}${url.search}${url.hash}`, 301)
         } catch (error) {
           console.error('Platform blog redirect lookup failed', error)

@@ -17,7 +17,7 @@ function providerOptions(signingPolicy?: typeof OAUTH_SIGNING_POLICY) {
   return {
     loginPage: '/login',
     consentPage: '/consent',
-    scopes: ['openid', 'offline_access', 'tenant', 'platform_admin'] as const,
+    scopes: ['openid', 'offline_access', 'tenant'] as const,
     ...(signingPolicy
       ? oauthSigningConfig(BASE_URL)
       : {

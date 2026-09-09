@@ -13,6 +13,7 @@ interface DashboardSite {
   id: string
   organization_id: string
   brand_name: string | null
+  theme_id: string
   vertical: 'restaurant' | 'experience' | 'service' | null
   subdomain: string | null
   custom_domain: string | null
@@ -55,7 +56,6 @@ interface DashboardContextResponse {
   site: DashboardSite | null
   sites: DashboardSiteSummary[]
   locations: DashboardLocation[]
-  managedServiceEnabled: boolean
   siteAccess: 'organization' | 'site' | 'location' | null
 }
 
@@ -123,7 +123,6 @@ const isDashboardContextResponse = (value: unknown): value is DashboardContextRe
     ))
   && Array.isArray(value.locations)
   && value.locations.every(isDashboardLocation)
-  && typeof value.managedServiceEnabled === 'boolean'
   && (
     value.siteAccess === null
     || value.siteAccess === 'organization'
@@ -228,7 +227,6 @@ export function useDashboardSite() {
   const siteId = computed(() => site.value?.id ?? null)
   const sites = computed(() => state.value?.sites ?? [])
   const locations = computed(() => state.value?.locations ?? [])
-  const managedServiceEnabled = computed(() => state.value?.managedServiceEnabled ?? false)
   const siteAccess = computed(() => state.value?.siteAccess ?? null)
 
   return {
@@ -241,7 +239,6 @@ export function useDashboardSite() {
     siteId,
     sites,
     locations,
-    managedServiceEnabled,
     siteAccess,
     refresh
   }

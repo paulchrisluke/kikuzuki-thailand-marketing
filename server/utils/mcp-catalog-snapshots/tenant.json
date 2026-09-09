@@ -1,6 +1,6 @@
 {
   "surface": "tenant",
-  "fingerprint": "sha256:f5dc1a818617dd008a9c8383e08417f4d57adec56bb97e73023c2062986c6831",
+  "fingerprint": "sha256:df8fae023d5590a08d15b185736644b53b744e52b1fa247cd5d6b66b592d913b",
   "tools": [
     {
       "name": "attach_media",
@@ -840,12 +840,20 @@
           "category": {
             "type": "string"
           },
+          "collection": {
+            "description": "KrabiClaw's own site only: which collection the article belongs to. Every other site has one blog.",
+            "enum": [
+              "blog",
+              "docs"
+            ],
+            "type": "string"
+          },
           "content_blocks": {
             "description": "Canonical ordered article blocks. This is the source of truth for FAQ, How-To, media, and other structured content.",
             "items": {
               "properties": {
                 "data": {
-                  "description": "Typed block payload. Plain-text fields are rendered literally, so markdown syntax written into one reaches the reader as raw characters — a heading of \"**Title**\" publishes with the asterisks showing. Only the fields listed as markdown are parsed. A markdown field also requires editor_mode alongside it: \"rich\" for prose the visual editor can handle, \"source\" for tables or raw HTML. Asset IDs and delivery URLs belong in the block media array, never in data. Fields by block type — heading block: literal — text. markdown block: parsed as markdown — markdown. image block: literal — caption. gallery block: literal — caption. faq block: literal — label, items.*.question, items.*.answer. how_to block: literal — label, estimated_time, tool_items.*, supply_items.*, steps.*.name, steps.*.text. divider block: no text fields. ai_assistance block: literal — label, intro, prompts.*.title, prompts.*.prompt, prompts.*.description, prompts.*.copy_label. cta block: literal — title, description, label. callout block: literal — title, body.",
+                  "description": "Typed block payload. Plain-text fields are rendered literally, so markdown syntax written into one reaches the reader as raw characters — a heading of \"**Title**\" publishes with the asterisks showing. Only the fields listed as markdown are parsed. A markdown field also requires editor_mode alongside it: \"rich\" for prose the visual editor can handle, \"source\" for tables or raw HTML. Asset IDs and delivery URLs belong in the block media array, never in data. Fields by block type — heading block: literal — text. markdown block: parsed as markdown — markdown. image block: literal — caption. gallery block: literal — caption. faq block: literal — title. how_to block: literal — label, estimated_time, tool_items.*, supply_items.*, steps.*.name, steps.*.text. divider block: no text fields. ai_assistance block: literal — label, intro, prompts.*.title, prompts.*.prompt, prompts.*.description, prompts.*.copy_label. cta block: literal — title, description, label. callout block: literal — title, body.",
                   "type": "object"
                 },
                 "id": {
@@ -1017,6 +1025,13 @@
                   "null"
                 ]
               },
+              "collection": {
+                "enum": [
+                  "blog",
+                  "docs"
+                ],
+                "type": "string"
+              },
               "content_blocks": {
                 "items": {
                   "additionalProperties": false,
@@ -1110,6 +1125,63 @@
                 },
                 "type": "array"
               },
+              "cover": {
+                "additionalProperties": false,
+                "properties": {
+                  "alt_text": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "asset_id": {
+                    "type": "string"
+                  },
+                  "height": {
+                    "type": [
+                      "number",
+                      "null"
+                    ]
+                  },
+                  "kind": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "public_url": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "thumbnail_url": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "width": {
+                    "type": [
+                      "number",
+                      "null"
+                    ]
+                  }
+                },
+                "required": [
+                  "asset_id",
+                  "public_url",
+                  "thumbnail_url",
+                  "kind",
+                  "alt_text",
+                  "width",
+                  "height"
+                ],
+                "type": [
+                  "object",
+                  "null"
+                ]
+              },
               "created_at": {
                 "type": "string"
               },
@@ -1125,89 +1197,8 @@
                   "null"
                 ]
               },
-              "featured_order": {
-                "description": "Sort position in featured/homepage placements, independent of nav ordering.",
-                "type": [
-                  "number",
-                  "null"
-                ]
-              },
-              "hide_from_nav": {
-                "description": "Excludes this post from nav rendering only. Does NOT deindex it or remove it from the sitemap — use robots=\"noindex,...\" for that.",
-                "type": [
-                  "boolean",
-                  "null"
-                ]
-              },
               "id": {
                 "type": "string"
-              },
-              "media": {
-                "items": {
-                  "additionalProperties": false,
-                  "properties": {
-                    "asset_id": {
-                      "type": "string"
-                    },
-                    "height": {
-                      "type": [
-                        "number",
-                        "null"
-                      ]
-                    },
-                    "kind": {
-                      "type": [
-                        "string",
-                        "null"
-                      ]
-                    },
-                    "public_url": {
-                      "type": [
-                        "string",
-                        "null"
-                      ]
-                    },
-                    "slot": {
-                      "type": "string"
-                    },
-                    "width": {
-                      "type": [
-                        "number",
-                        "null"
-                      ]
-                    }
-                  },
-                  "type": "object"
-                },
-                "type": "array"
-              },
-              "nav_order": {
-                "description": "Sort position within its section. Lower sorts first.",
-                "type": [
-                  "number",
-                  "null"
-                ]
-              },
-              "nav_section": {
-                "description": "Top-level sidebar section label for this site's blog. Falls back to category if unset. Does not affect the public URL.",
-                "type": [
-                  "string",
-                  "null"
-                ]
-              },
-              "nav_section_order": {
-                "description": "Sort position of the section itself among all sections.",
-                "type": [
-                  "number",
-                  "null"
-                ]
-              },
-              "nav_title": {
-                "description": "Sidebar label override. Falls back to the post title if unset. Does not affect the public URL.",
-                "type": [
-                  "string",
-                  "null"
-                ]
               },
               "preview_url": {
                 "type": [
@@ -1311,14 +1302,9 @@
               "title",
               "slug",
               "excerpt",
+              "collection",
               "category",
               "tags",
-              "nav_section",
-              "nav_title",
-              "nav_order",
-              "nav_section_order",
-              "hide_from_nav",
-              "featured_order",
               "seo_title",
               "seo_description",
               "seo_keywords",
@@ -1331,7 +1317,7 @@
               "scheduled_for",
               "created_at",
               "updated_at",
-              "media",
+              "cover",
               "admin_edit_url",
               "edit_url",
               "public_path",
@@ -3050,7 +3036,7 @@
               "additionalProperties": false,
               "properties": {
                 "data": {
-                  "description": "Typed block payload. Plain-text fields are rendered literally, so markdown syntax written into one reaches the reader as raw characters — a heading of \"**Title**\" publishes with the asterisks showing. Only the fields listed as markdown are parsed. A markdown field also requires editor_mode alongside it: \"rich\" for prose the visual editor can handle, \"source\" for tables or raw HTML. Asset IDs and delivery URLs belong in the block media array, never in data. Fields by block type — heading block: literal — text. markdown block: parsed as markdown — markdown. image block: literal — caption. gallery block: literal — caption. faq block: literal — label, items.*.question, items.*.answer. how_to block: literal — label, estimated_time, tool_items.*, supply_items.*, steps.*.name, steps.*.text. divider block: no text fields. ai_assistance block: literal — label, intro, prompts.*.title, prompts.*.prompt, prompts.*.description, prompts.*.copy_label. cta block: literal — title, description, label. callout block: literal — title, body. hero block: literal — eyebrow, title, subtitle, description, cta_label. button_group block: literal — buttons.*.label. feature_grid block: literal — title, description, items.*.title, items.*.description. testimonial_grid block: literal — title, description, items.*.title, items.*.description. contact_cta block: literal — title, description, label. booking_cta block: literal — title, description, label. donation_choices block: literal — tiers.*.label. offering_grid block: literal — title, description. location_grid block: literal — title, description.",
+                  "description": "Typed block payload. Plain-text fields are rendered literally, so markdown syntax written into one reaches the reader as raw characters — a heading of \"**Title**\" publishes with the asterisks showing. Only the fields listed as markdown are parsed. A markdown field also requires editor_mode alongside it: \"rich\" for prose the visual editor can handle, \"source\" for tables or raw HTML. Asset IDs and delivery URLs belong in the block media array, never in data. Fields by block type — heading block: literal — text. markdown block: parsed as markdown — markdown. image block: literal — caption. gallery block: literal — caption. faq block: literal — title. how_to block: literal — label, estimated_time, tool_items.*, supply_items.*, steps.*.name, steps.*.text. divider block: no text fields. ai_assistance block: literal — label, intro, prompts.*.title, prompts.*.prompt, prompts.*.description, prompts.*.copy_label. cta block: literal — title, description, label. callout block: literal — title, body. hero block: literal — eyebrow, title, subtitle, description, cta_label. button_group block: literal — buttons.*.label. feature_grid block: literal — title, description, items.*.title, items.*.description. testimonial_grid block: literal — title, description, items.*.title, items.*.description. contact_cta block: literal — title, description, label. booking_cta block: literal — title, description, label. donation_choices block: literal — tiers.*.label. offering_grid block: literal — title, description. location_grid block: literal — title, description.",
                   "type": "object"
                 },
                 "id": {
@@ -3603,6 +3589,13 @@
                   "null"
                 ]
               },
+              "collection": {
+                "enum": [
+                  "blog",
+                  "docs"
+                ],
+                "type": "string"
+              },
               "content_blocks": {
                 "items": {
                   "additionalProperties": false,
@@ -3696,6 +3689,63 @@
                 },
                 "type": "array"
               },
+              "cover": {
+                "additionalProperties": false,
+                "properties": {
+                  "alt_text": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "asset_id": {
+                    "type": "string"
+                  },
+                  "height": {
+                    "type": [
+                      "number",
+                      "null"
+                    ]
+                  },
+                  "kind": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "public_url": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "thumbnail_url": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "width": {
+                    "type": [
+                      "number",
+                      "null"
+                    ]
+                  }
+                },
+                "required": [
+                  "asset_id",
+                  "public_url",
+                  "thumbnail_url",
+                  "kind",
+                  "alt_text",
+                  "width",
+                  "height"
+                ],
+                "type": [
+                  "object",
+                  "null"
+                ]
+              },
               "created_at": {
                 "type": "string"
               },
@@ -3711,89 +3761,8 @@
                   "null"
                 ]
               },
-              "featured_order": {
-                "description": "Sort position in featured/homepage placements, independent of nav ordering.",
-                "type": [
-                  "number",
-                  "null"
-                ]
-              },
-              "hide_from_nav": {
-                "description": "Excludes this post from nav rendering only. Does NOT deindex it or remove it from the sitemap — use robots=\"noindex,...\" for that.",
-                "type": [
-                  "boolean",
-                  "null"
-                ]
-              },
               "id": {
                 "type": "string"
-              },
-              "media": {
-                "items": {
-                  "additionalProperties": false,
-                  "properties": {
-                    "asset_id": {
-                      "type": "string"
-                    },
-                    "height": {
-                      "type": [
-                        "number",
-                        "null"
-                      ]
-                    },
-                    "kind": {
-                      "type": [
-                        "string",
-                        "null"
-                      ]
-                    },
-                    "public_url": {
-                      "type": [
-                        "string",
-                        "null"
-                      ]
-                    },
-                    "slot": {
-                      "type": "string"
-                    },
-                    "width": {
-                      "type": [
-                        "number",
-                        "null"
-                      ]
-                    }
-                  },
-                  "type": "object"
-                },
-                "type": "array"
-              },
-              "nav_order": {
-                "description": "Sort position within its section. Lower sorts first.",
-                "type": [
-                  "number",
-                  "null"
-                ]
-              },
-              "nav_section": {
-                "description": "Top-level sidebar section label for this site's blog. Falls back to category if unset. Does not affect the public URL.",
-                "type": [
-                  "string",
-                  "null"
-                ]
-              },
-              "nav_section_order": {
-                "description": "Sort position of the section itself among all sections.",
-                "type": [
-                  "number",
-                  "null"
-                ]
-              },
-              "nav_title": {
-                "description": "Sidebar label override. Falls back to the post title if unset. Does not affect the public URL.",
-                "type": [
-                  "string",
-                  "null"
-                ]
               },
               "preview_url": {
                 "type": [
@@ -3897,14 +3866,9 @@
               "title",
               "slug",
               "excerpt",
+              "collection",
               "category",
               "tags",
-              "nav_section",
-              "nav_title",
-              "nav_order",
-              "nav_section_order",
-              "hide_from_nav",
-              "featured_order",
               "seo_title",
               "seo_description",
               "seo_keywords",
@@ -3917,7 +3881,7 @@
               "scheduled_for",
               "created_at",
               "updated_at",
-              "media",
+              "cover",
               "admin_edit_url",
               "edit_url",
               "public_path",
@@ -6110,7 +6074,6 @@
                     "enum": [
                       "page",
                       "article",
-                      "platform_doc",
                       "social_post",
                       "qa"
                     ],
@@ -7581,6 +7544,70 @@
                     "null"
                   ]
                 },
+                "collection": {
+                  "enum": [
+                    "blog",
+                    "docs"
+                  ],
+                  "type": "string"
+                },
+                "cover": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "alt_text": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "asset_id": {
+                      "type": "string"
+                    },
+                    "height": {
+                      "type": [
+                        "number",
+                        "null"
+                      ]
+                    },
+                    "kind": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "public_url": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "thumbnail_url": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "width": {
+                      "type": [
+                        "number",
+                        "null"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "asset_id",
+                    "public_url",
+                    "thumbnail_url",
+                    "kind",
+                    "alt_text",
+                    "width",
+                    "height"
+                  ],
+                  "type": [
+                    "object",
+                    "null"
+                  ]
+                },
                 "created_at": {
                   "type": "string"
                 },
@@ -7596,89 +7623,8 @@
                     "null"
                   ]
                 },
-                "featured_order": {
-                  "description": "Sort position in featured/homepage placements, independent of nav ordering.",
-                  "type": [
-                    "number",
-                    "null"
-                  ]
-                },
-                "hide_from_nav": {
-                  "description": "Excludes this post from nav rendering only. Does NOT deindex it or remove it from the sitemap — use robots=\"noindex,...\" for that.",
-                  "type": [
-                    "boolean",
-                    "null"
-                  ]
-                },
                 "id": {
                   "type": "string"
-                },
-                "media": {
-                  "items": {
-                    "additionalProperties": false,
-                    "properties": {
-                      "asset_id": {
-                        "type": "string"
-                      },
-                      "height": {
-                        "type": [
-                          "number",
-                          "null"
-                        ]
-                      },
-                      "kind": {
-                        "type": [
-                          "string",
-                          "null"
-                        ]
-                      },
-                      "public_url": {
-                        "type": [
-                          "string",
-                          "null"
-                        ]
-                      },
-                      "slot": {
-                        "type": "string"
-                      },
-                      "width": {
-                        "type": [
-                          "number",
-                          "null"
-                        ]
-                      }
-                    },
-                    "type": "object"
-                  },
-                  "type": "array"
-                },
-                "nav_order": {
-                  "description": "Sort position within its section. Lower sorts first.",
-                  "type": [
-                    "number",
-                    "null"
-                  ]
-                },
-                "nav_section": {
-                  "description": "Top-level sidebar section label for this site's blog. Falls back to category if unset. Does not affect the public URL.",
-                  "type": [
-                    "string",
-                    "null"
-                  ]
-                },
-                "nav_section_order": {
-                  "description": "Sort position of the section itself among all sections.",
-                  "type": [
-                    "number",
-                    "null"
-                  ]
-                },
-                "nav_title": {
-                  "description": "Sidebar label override. Falls back to the post title if unset. Does not affect the public URL.",
-                  "type": [
-                    "string",
-                    "null"
-                  ]
                 },
                 "preview_url": {
                   "type": [
@@ -7782,14 +7728,9 @@
                 "title",
                 "slug",
                 "excerpt",
+                "collection",
                 "category",
                 "tags",
-                "nav_section",
-                "nav_title",
-                "nav_order",
-                "nav_section_order",
-                "hide_from_nav",
-                "featured_order",
                 "seo_title",
                 "seo_description",
                 "seo_keywords",
@@ -7802,7 +7743,7 @@
                 "scheduled_for",
                 "created_at",
                 "updated_at",
-                "media",
+                "cover",
                 "admin_edit_url",
                 "edit_url",
                 "public_path",
@@ -10350,6 +10291,13 @@
                   "null"
                 ]
               },
+              "collection": {
+                "enum": [
+                  "blog",
+                  "docs"
+                ],
+                "type": "string"
+              },
               "content_blocks": {
                 "items": {
                   "additionalProperties": false,
@@ -10443,6 +10391,63 @@
                 },
                 "type": "array"
               },
+              "cover": {
+                "additionalProperties": false,
+                "properties": {
+                  "alt_text": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "asset_id": {
+                    "type": "string"
+                  },
+                  "height": {
+                    "type": [
+                      "number",
+                      "null"
+                    ]
+                  },
+                  "kind": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "public_url": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "thumbnail_url": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "width": {
+                    "type": [
+                      "number",
+                      "null"
+                    ]
+                  }
+                },
+                "required": [
+                  "asset_id",
+                  "public_url",
+                  "thumbnail_url",
+                  "kind",
+                  "alt_text",
+                  "width",
+                  "height"
+                ],
+                "type": [
+                  "object",
+                  "null"
+                ]
+              },
               "created_at": {
                 "type": "string"
               },
@@ -10458,89 +10463,8 @@
                   "null"
                 ]
               },
-              "featured_order": {
-                "description": "Sort position in featured/homepage placements, independent of nav ordering.",
-                "type": [
-                  "number",
-                  "null"
-                ]
-              },
-              "hide_from_nav": {
-                "description": "Excludes this post from nav rendering only. Does NOT deindex it or remove it from the sitemap — use robots=\"noindex,...\" for that.",
-                "type": [
-                  "boolean",
-                  "null"
-                ]
-              },
               "id": {
                 "type": "string"
-              },
-              "media": {
-                "items": {
-                  "additionalProperties": false,
-                  "properties": {
-                    "asset_id": {
-                      "type": "string"
-                    },
-                    "height": {
-                      "type": [
-                        "number",
-                        "null"
-                      ]
-                    },
-                    "kind": {
-                      "type": [
-                        "string",
-                        "null"
-                      ]
-                    },
-                    "public_url": {
-                      "type": [
-                        "string",
-                        "null"
-                      ]
-                    },
-                    "slot": {
-                      "type": "string"
-                    },
-                    "width": {
-                      "type": [
-                        "number",
-                        "null"
-                      ]
-                    }
-                  },
-                  "type": "object"
-                },
-                "type": "array"
-              },
-              "nav_order": {
-                "description": "Sort position within its section. Lower sorts first.",
-                "type": [
-                  "number",
-                  "null"
-                ]
-              },
-              "nav_section": {
-                "description": "Top-level sidebar section label for this site's blog. Falls back to category if unset. Does not affect the public URL.",
-                "type": [
-                  "string",
-                  "null"
-                ]
-              },
-              "nav_section_order": {
-                "description": "Sort position of the section itself among all sections.",
-                "type": [
-                  "number",
-                  "null"
-                ]
-              },
-              "nav_title": {
-                "description": "Sidebar label override. Falls back to the post title if unset. Does not affect the public URL.",
-                "type": [
-                  "string",
-                  "null"
-                ]
               },
               "preview_url": {
                 "type": [
@@ -10644,14 +10568,9 @@
               "title",
               "slug",
               "excerpt",
+              "collection",
               "category",
               "tags",
-              "nav_section",
-              "nav_title",
-              "nav_order",
-              "nav_section_order",
-              "hide_from_nav",
-              "featured_order",
               "seo_title",
               "seo_description",
               "seo_keywords",
@@ -10664,7 +10583,7 @@
               "scheduled_for",
               "created_at",
               "updated_at",
-              "media",
+              "cover",
               "admin_edit_url",
               "edit_url",
               "public_path",
@@ -10939,7 +10858,6 @@
                     "enum": [
                       "page",
                       "article",
-                      "platform_doc",
                       "social_post",
                       "qa"
                     ],
@@ -11304,337 +11222,6 @@
         },
         "required": [
           "category"
-        ],
-        "type": "object"
-      }
-    },
-    {
-      "name": "reorder_blog_posts",
-      "inputSchema": {
-        "additionalProperties": false,
-        "properties": {
-          "items": {
-            "items": {
-              "properties": {
-                "hide_from_nav": {
-                  "description": "Excludes this post from nav rendering only. Does NOT deindex it or remove it from the sitemap — use robots=\"noindex,...\" for that.",
-                  "type": [
-                    "boolean",
-                    "null"
-                  ]
-                },
-                "nav_order": {
-                  "type": "number"
-                },
-                "nav_section": {
-                  "description": "Top-level sidebar section label for this site's blog. Falls back to category if unset. Does not affect the public URL.",
-                  "type": [
-                    "string",
-                    "null"
-                  ]
-                },
-                "nav_section_order": {
-                  "description": "Sort position of the section itself among all sections.",
-                  "type": [
-                    "number",
-                    "null"
-                  ]
-                },
-                "nav_title": {
-                  "description": "Sidebar label override. Falls back to the post title if unset. Does not affect the public URL.",
-                  "type": [
-                    "string",
-                    "null"
-                  ]
-                },
-                "post_id": {
-                  "description": "Post id or slug.",
-                  "type": "string"
-                }
-              },
-              "required": [
-                "post_id",
-                "nav_order"
-              ],
-              "type": "object"
-            },
-            "type": "array"
-          },
-          "site_id": {
-            "description": "Internal KrabiClaw site ID from get_workspace_context or list_sites, e.g. site-pottery-house. Do not pass a public URL, hostname, subdomain, custom domain, slug, or site name here.",
-            "type": "string"
-          }
-        },
-        "required": [
-          "items"
-        ],
-        "type": "object"
-      },
-      "outputSchema": {
-        "additionalProperties": false,
-        "properties": {
-          "posts": {
-            "items": {
-              "additionalProperties": false,
-              "properties": {
-                "admin_edit_url": {
-                  "type": [
-                    "string",
-                    "null"
-                  ]
-                },
-                "canonical_url": {
-                  "type": [
-                    "string",
-                    "null"
-                  ]
-                },
-                "category": {
-                  "type": [
-                    "string",
-                    "null"
-                  ]
-                },
-                "created_at": {
-                  "type": "string"
-                },
-                "edit_url": {
-                  "type": [
-                    "string",
-                    "null"
-                  ]
-                },
-                "excerpt": {
-                  "type": [
-                    "string",
-                    "null"
-                  ]
-                },
-                "featured_order": {
-                  "description": "Sort position in featured/homepage placements, independent of nav ordering.",
-                  "type": [
-                    "number",
-                    "null"
-                  ]
-                },
-                "hide_from_nav": {
-                  "description": "Excludes this post from nav rendering only. Does NOT deindex it or remove it from the sitemap — use robots=\"noindex,...\" for that.",
-                  "type": [
-                    "boolean",
-                    "null"
-                  ]
-                },
-                "id": {
-                  "type": "string"
-                },
-                "media": {
-                  "items": {
-                    "additionalProperties": false,
-                    "properties": {
-                      "asset_id": {
-                        "type": "string"
-                      },
-                      "height": {
-                        "type": [
-                          "number",
-                          "null"
-                        ]
-                      },
-                      "kind": {
-                        "type": [
-                          "string",
-                          "null"
-                        ]
-                      },
-                      "public_url": {
-                        "type": [
-                          "string",
-                          "null"
-                        ]
-                      },
-                      "slot": {
-                        "type": "string"
-                      },
-                      "width": {
-                        "type": [
-                          "number",
-                          "null"
-                        ]
-                      }
-                    },
-                    "type": "object"
-                  },
-                  "type": "array"
-                },
-                "nav_order": {
-                  "description": "Sort position within its section. Lower sorts first.",
-                  "type": [
-                    "number",
-                    "null"
-                  ]
-                },
-                "nav_section": {
-                  "description": "Top-level sidebar section label for this site's blog. Falls back to category if unset. Does not affect the public URL.",
-                  "type": [
-                    "string",
-                    "null"
-                  ]
-                },
-                "nav_section_order": {
-                  "description": "Sort position of the section itself among all sections.",
-                  "type": [
-                    "number",
-                    "null"
-                  ]
-                },
-                "nav_title": {
-                  "description": "Sidebar label override. Falls back to the post title if unset. Does not affect the public URL.",
-                  "type": [
-                    "string",
-                    "null"
-                  ]
-                },
-                "preview_url": {
-                  "type": [
-                    "string",
-                    "null"
-                  ]
-                },
-                "public_path": {
-                  "type": [
-                    "string",
-                    "null"
-                  ]
-                },
-                "public_url": {
-                  "type": [
-                    "string",
-                    "null"
-                  ]
-                },
-                "published": {
-                  "type": "boolean"
-                },
-                "published_at": {
-                  "type": [
-                    "string",
-                    "null"
-                  ]
-                },
-                "robots": {
-                  "type": [
-                    "string",
-                    "null"
-                  ]
-                },
-                "scheduled_for": {
-                  "description": "RFC 3339 instant with an explicit Z or numeric UTC offset. Offsetless timestamps are invalid.",
-                  "format": "date-time",
-                  "pattern": "^\\d{4}-\\d{2}-\\d{2}T(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d{1,9})?(?:Z|[+-](?:[01]\\d|2[0-3]):[0-5]\\d)$",
-                  "type": [
-                    "string",
-                    "null"
-                  ]
-                },
-                "seo_description": {
-                  "type": [
-                    "string",
-                    "null"
-                  ]
-                },
-                "seo_keywords": {
-                  "type": [
-                    "string",
-                    "null"
-                  ]
-                },
-                "seo_title": {
-                  "type": [
-                    "string",
-                    "null"
-                  ]
-                },
-                "slug": {
-                  "type": "string"
-                },
-                "status": {
-                  "enum": [
-                    "draft",
-                    "published",
-                    "scheduled"
-                  ],
-                  "type": "string"
-                },
-                "tags": {
-                  "items": {
-                    "type": "string"
-                  },
-                  "type": "array"
-                },
-                "title": {
-                  "type": "string"
-                },
-                "updated_at": {
-                  "type": "string"
-                },
-                "view_url": {
-                  "type": [
-                    "string",
-                    "null"
-                  ]
-                },
-                "visibility": {
-                  "enum": [
-                    "public",
-                    "unlisted"
-                  ],
-                  "type": "string"
-                }
-              },
-              "required": [
-                "id",
-                "title",
-                "slug",
-                "excerpt",
-                "category",
-                "tags",
-                "nav_section",
-                "nav_title",
-                "nav_order",
-                "nav_section_order",
-                "hide_from_nav",
-                "featured_order",
-                "seo_title",
-                "seo_description",
-                "seo_keywords",
-                "canonical_url",
-                "robots",
-                "published",
-                "published_at",
-                "status",
-                "visibility",
-                "scheduled_for",
-                "created_at",
-                "updated_at",
-                "media",
-                "admin_edit_url",
-                "edit_url",
-                "public_path",
-                "public_url",
-                "preview_url",
-                "view_url"
-              ],
-              "type": "object"
-            },
-            "type": "array"
-          },
-          "success": {
-            "type": "boolean"
-          }
-        },
-        "required": [
-          "success",
-          "posts"
         ],
         "type": "object"
       }
@@ -12049,7 +11636,7 @@
             "items": {
               "properties": {
                 "data": {
-                  "description": "Typed block payload. Plain-text fields are rendered literally, so markdown syntax written into one reaches the reader as raw characters — a heading of \"**Title**\" publishes with the asterisks showing. Only the fields listed as markdown are parsed. A markdown field also requires editor_mode alongside it: \"rich\" for prose the visual editor can handle, \"source\" for tables or raw HTML. Asset IDs and delivery URLs belong in the block media array, never in data. Fields by block type — heading block: literal — text. markdown block: parsed as markdown — markdown. image block: literal — caption. gallery block: literal — caption. faq block: literal — label, items.*.question, items.*.answer. how_to block: literal — label, estimated_time, tool_items.*, supply_items.*, steps.*.name, steps.*.text. divider block: no text fields. ai_assistance block: literal — label, intro, prompts.*.title, prompts.*.prompt, prompts.*.description, prompts.*.copy_label. cta block: literal — title, description, label. callout block: literal — title, body.",
+                  "description": "Typed block payload. Plain-text fields are rendered literally, so markdown syntax written into one reaches the reader as raw characters — a heading of \"**Title**\" publishes with the asterisks showing. Only the fields listed as markdown are parsed. A markdown field also requires editor_mode alongside it: \"rich\" for prose the visual editor can handle, \"source\" for tables or raw HTML. Asset IDs and delivery URLs belong in the block media array, never in data. Fields by block type — heading block: literal — text. markdown block: parsed as markdown — markdown. image block: literal — caption. gallery block: literal — caption. faq block: literal — title. how_to block: literal — label, estimated_time, tool_items.*, supply_items.*, steps.*.name, steps.*.text. divider block: no text fields. ai_assistance block: literal — label, intro, prompts.*.title, prompts.*.prompt, prompts.*.description, prompts.*.copy_label. cta block: literal — title, description, label. callout block: literal — title, body.",
                   "type": "object"
                 },
                 "id": {
@@ -12161,6 +11748,13 @@
                   "null"
                 ]
               },
+              "collection": {
+                "enum": [
+                  "blog",
+                  "docs"
+                ],
+                "type": "string"
+              },
               "content_blocks": {
                 "items": {
                   "additionalProperties": false,
@@ -12254,6 +11848,63 @@
                 },
                 "type": "array"
               },
+              "cover": {
+                "additionalProperties": false,
+                "properties": {
+                  "alt_text": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "asset_id": {
+                    "type": "string"
+                  },
+                  "height": {
+                    "type": [
+                      "number",
+                      "null"
+                    ]
+                  },
+                  "kind": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "public_url": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "thumbnail_url": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "width": {
+                    "type": [
+                      "number",
+                      "null"
+                    ]
+                  }
+                },
+                "required": [
+                  "asset_id",
+                  "public_url",
+                  "thumbnail_url",
+                  "kind",
+                  "alt_text",
+                  "width",
+                  "height"
+                ],
+                "type": [
+                  "object",
+                  "null"
+                ]
+              },
               "created_at": {
                 "type": "string"
               },
@@ -12269,89 +11920,8 @@
                   "null"
                 ]
               },
-              "featured_order": {
-                "description": "Sort position in featured/homepage placements, independent of nav ordering.",
-                "type": [
-                  "number",
-                  "null"
-                ]
-              },
-              "hide_from_nav": {
-                "description": "Excludes this post from nav rendering only. Does NOT deindex it or remove it from the sitemap — use robots=\"noindex,...\" for that.",
-                "type": [
-                  "boolean",
-                  "null"
-                ]
-              },
               "id": {
                 "type": "string"
-              },
-              "media": {
-                "items": {
-                  "additionalProperties": false,
-                  "properties": {
-                    "asset_id": {
-                      "type": "string"
-                    },
-                    "height": {
-                      "type": [
-                        "number",
-                        "null"
-                      ]
-                    },
-                    "kind": {
-                      "type": [
-                        "string",
-                        "null"
-                      ]
-                    },
-                    "public_url": {
-                      "type": [
-                        "string",
-                        "null"
-                      ]
-                    },
-                    "slot": {
-                      "type": "string"
-                    },
-                    "width": {
-                      "type": [
-                        "number",
-                        "null"
-                      ]
-                    }
-                  },
-                  "type": "object"
-                },
-                "type": "array"
-              },
-              "nav_order": {
-                "description": "Sort position within its section. Lower sorts first.",
-                "type": [
-                  "number",
-                  "null"
-                ]
-              },
-              "nav_section": {
-                "description": "Top-level sidebar section label for this site's blog. Falls back to category if unset. Does not affect the public URL.",
-                "type": [
-                  "string",
-                  "null"
-                ]
-              },
-              "nav_section_order": {
-                "description": "Sort position of the section itself among all sections.",
-                "type": [
-                  "number",
-                  "null"
-                ]
-              },
-              "nav_title": {
-                "description": "Sidebar label override. Falls back to the post title if unset. Does not affect the public URL.",
-                "type": [
-                  "string",
-                  "null"
-                ]
               },
               "preview_url": {
                 "type": [
@@ -12455,14 +12025,9 @@
               "title",
               "slug",
               "excerpt",
+              "collection",
               "category",
               "tags",
-              "nav_section",
-              "nav_title",
-              "nav_order",
-              "nav_section_order",
-              "hide_from_nav",
-              "featured_order",
               "seo_title",
               "seo_description",
               "seo_keywords",
@@ -12475,7 +12040,7 @@
               "scheduled_for",
               "created_at",
               "updated_at",
-              "media",
+              "cover",
               "admin_edit_url",
               "edit_url",
               "public_path",
@@ -14018,54 +13583,20 @@
           "category": {
             "type": "string"
           },
+          "collection": {
+            "description": "KrabiClaw's own site only: which collection the article belongs to. Every other site has one blog.",
+            "enum": [
+              "blog",
+              "docs"
+            ],
+            "type": "string"
+          },
           "excerpt": {
             "type": "string"
           },
           "expected_updated_at": {
             "description": "Optional metadata concurrency token from the post updated_at field.",
             "type": "string"
-          },
-          "featured_order": {
-            "description": "Sort position in featured/homepage placements, independent of nav ordering.",
-            "type": [
-              "number",
-              "null"
-            ]
-          },
-          "hide_from_nav": {
-            "description": "Excludes this post from nav rendering only. Does NOT deindex it or remove it from the sitemap — use robots=\"noindex,...\" for that.",
-            "type": [
-              "boolean",
-              "null"
-            ]
-          },
-          "nav_order": {
-            "description": "Sort position within its section. Lower sorts first.",
-            "type": [
-              "number",
-              "null"
-            ]
-          },
-          "nav_section": {
-            "description": "Top-level sidebar section label for this site's blog. Falls back to category if unset. Does not affect the public URL.",
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "nav_section_order": {
-            "description": "Sort position of the section itself among all sections.",
-            "type": [
-              "number",
-              "null"
-            ]
-          },
-          "nav_title": {
-            "description": "Sidebar label override. Falls back to the post title if unset. Does not affect the public URL.",
-            "type": [
-              "string",
-              "null"
-            ]
           },
           "post_id": {
             "description": "Post id or slug.",
@@ -14169,6 +13700,13 @@
                   "null"
                 ]
               },
+              "collection": {
+                "enum": [
+                  "blog",
+                  "docs"
+                ],
+                "type": "string"
+              },
               "content_blocks": {
                 "items": {
                   "additionalProperties": false,
@@ -14262,6 +13800,63 @@
                 },
                 "type": "array"
               },
+              "cover": {
+                "additionalProperties": false,
+                "properties": {
+                  "alt_text": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "asset_id": {
+                    "type": "string"
+                  },
+                  "height": {
+                    "type": [
+                      "number",
+                      "null"
+                    ]
+                  },
+                  "kind": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "public_url": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "thumbnail_url": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "width": {
+                    "type": [
+                      "number",
+                      "null"
+                    ]
+                  }
+                },
+                "required": [
+                  "asset_id",
+                  "public_url",
+                  "thumbnail_url",
+                  "kind",
+                  "alt_text",
+                  "width",
+                  "height"
+                ],
+                "type": [
+                  "object",
+                  "null"
+                ]
+              },
               "created_at": {
                 "type": "string"
               },
@@ -14277,89 +13872,8 @@
                   "null"
                 ]
               },
-              "featured_order": {
-                "description": "Sort position in featured/homepage placements, independent of nav ordering.",
-                "type": [
-                  "number",
-                  "null"
-                ]
-              },
-              "hide_from_nav": {
-                "description": "Excludes this post from nav rendering only. Does NOT deindex it or remove it from the sitemap — use robots=\"noindex,...\" for that.",
-                "type": [
-                  "boolean",
-                  "null"
-                ]
-              },
               "id": {
                 "type": "string"
-              },
-              "media": {
-                "items": {
-                  "additionalProperties": false,
-                  "properties": {
-                    "asset_id": {
-                      "type": "string"
-                    },
-                    "height": {
-                      "type": [
-                        "number",
-                        "null"
-                      ]
-                    },
-                    "kind": {
-                      "type": [
-                        "string",
-                        "null"
-                      ]
-                    },
-                    "public_url": {
-                      "type": [
-                        "string",
-                        "null"
-                      ]
-                    },
-                    "slot": {
-                      "type": "string"
-                    },
-                    "width": {
-                      "type": [
-                        "number",
-                        "null"
-                      ]
-                    }
-                  },
-                  "type": "object"
-                },
-                "type": "array"
-              },
-              "nav_order": {
-                "description": "Sort position within its section. Lower sorts first.",
-                "type": [
-                  "number",
-                  "null"
-                ]
-              },
-              "nav_section": {
-                "description": "Top-level sidebar section label for this site's blog. Falls back to category if unset. Does not affect the public URL.",
-                "type": [
-                  "string",
-                  "null"
-                ]
-              },
-              "nav_section_order": {
-                "description": "Sort position of the section itself among all sections.",
-                "type": [
-                  "number",
-                  "null"
-                ]
-              },
-              "nav_title": {
-                "description": "Sidebar label override. Falls back to the post title if unset. Does not affect the public URL.",
-                "type": [
-                  "string",
-                  "null"
-                ]
               },
               "preview_url": {
                 "type": [
@@ -14463,14 +13977,9 @@
               "title",
               "slug",
               "excerpt",
+              "collection",
               "category",
               "tags",
-              "nav_section",
-              "nav_title",
-              "nav_order",
-              "nav_section_order",
-              "hide_from_nav",
-              "featured_order",
               "seo_title",
               "seo_description",
               "seo_keywords",
@@ -14483,7 +13992,7 @@
               "scheduled_for",
               "created_at",
               "updated_at",
-              "media",
+              "cover",
               "admin_edit_url",
               "edit_url",
               "public_path",
@@ -14512,12 +14021,20 @@
           "category": {
             "type": "string"
           },
+          "collection": {
+            "description": "KrabiClaw's own site only: which collection the article belongs to. Every other site has one blog.",
+            "enum": [
+              "blog",
+              "docs"
+            ],
+            "type": "string"
+          },
           "content_blocks": {
             "description": "Canonical ordered article blocks. Sending this replaces the complete block snapshot.",
             "items": {
               "properties": {
                 "data": {
-                  "description": "Typed block payload. Plain-text fields are rendered literally, so markdown syntax written into one reaches the reader as raw characters — a heading of \"**Title**\" publishes with the asterisks showing. Only the fields listed as markdown are parsed. A markdown field also requires editor_mode alongside it: \"rich\" for prose the visual editor can handle, \"source\" for tables or raw HTML. Asset IDs and delivery URLs belong in the block media array, never in data. Fields by block type — heading block: literal — text. markdown block: parsed as markdown — markdown. image block: literal — caption. gallery block: literal — caption. faq block: literal — label, items.*.question, items.*.answer. how_to block: literal — label, estimated_time, tool_items.*, supply_items.*, steps.*.name, steps.*.text. divider block: no text fields. ai_assistance block: literal — label, intro, prompts.*.title, prompts.*.prompt, prompts.*.description, prompts.*.copy_label. cta block: literal — title, description, label. callout block: literal — title, body.",
+                  "description": "Typed block payload. Plain-text fields are rendered literally, so markdown syntax written into one reaches the reader as raw characters — a heading of \"**Title**\" publishes with the asterisks showing. Only the fields listed as markdown are parsed. A markdown field also requires editor_mode alongside it: \"rich\" for prose the visual editor can handle, \"source\" for tables or raw HTML. Asset IDs and delivery URLs belong in the block media array, never in data. Fields by block type — heading block: literal — text. markdown block: parsed as markdown — markdown. image block: literal — caption. gallery block: literal — caption. faq block: literal — title. how_to block: literal — label, estimated_time, tool_items.*, supply_items.*, steps.*.name, steps.*.text. divider block: no text fields. ai_assistance block: literal — label, intro, prompts.*.title, prompts.*.prompt, prompts.*.description, prompts.*.copy_label. cta block: literal — title, description, label. callout block: literal — title, body.",
                   "type": "object"
                 },
                 "id": {
@@ -14691,6 +14208,13 @@
                   "null"
                 ]
               },
+              "collection": {
+                "enum": [
+                  "blog",
+                  "docs"
+                ],
+                "type": "string"
+              },
               "content_blocks": {
                 "items": {
                   "additionalProperties": false,
@@ -14784,6 +14308,63 @@
                 },
                 "type": "array"
               },
+              "cover": {
+                "additionalProperties": false,
+                "properties": {
+                  "alt_text": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "asset_id": {
+                    "type": "string"
+                  },
+                  "height": {
+                    "type": [
+                      "number",
+                      "null"
+                    ]
+                  },
+                  "kind": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "public_url": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "thumbnail_url": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "width": {
+                    "type": [
+                      "number",
+                      "null"
+                    ]
+                  }
+                },
+                "required": [
+                  "asset_id",
+                  "public_url",
+                  "thumbnail_url",
+                  "kind",
+                  "alt_text",
+                  "width",
+                  "height"
+                ],
+                "type": [
+                  "object",
+                  "null"
+                ]
+              },
               "created_at": {
                 "type": "string"
               },
@@ -14799,89 +14380,8 @@
                   "null"
                 ]
               },
-              "featured_order": {
-                "description": "Sort position in featured/homepage placements, independent of nav ordering.",
-                "type": [
-                  "number",
-                  "null"
-                ]
-              },
-              "hide_from_nav": {
-                "description": "Excludes this post from nav rendering only. Does NOT deindex it or remove it from the sitemap — use robots=\"noindex,...\" for that.",
-                "type": [
-                  "boolean",
-                  "null"
-                ]
-              },
               "id": {
                 "type": "string"
-              },
-              "media": {
-                "items": {
-                  "additionalProperties": false,
-                  "properties": {
-                    "asset_id": {
-                      "type": "string"
-                    },
-                    "height": {
-                      "type": [
-                        "number",
-                        "null"
-                      ]
-                    },
-                    "kind": {
-                      "type": [
-                        "string",
-                        "null"
-                      ]
-                    },
-                    "public_url": {
-                      "type": [
-                        "string",
-                        "null"
-                      ]
-                    },
-                    "slot": {
-                      "type": "string"
-                    },
-                    "width": {
-                      "type": [
-                        "number",
-                        "null"
-                      ]
-                    }
-                  },
-                  "type": "object"
-                },
-                "type": "array"
-              },
-              "nav_order": {
-                "description": "Sort position within its section. Lower sorts first.",
-                "type": [
-                  "number",
-                  "null"
-                ]
-              },
-              "nav_section": {
-                "description": "Top-level sidebar section label for this site's blog. Falls back to category if unset. Does not affect the public URL.",
-                "type": [
-                  "string",
-                  "null"
-                ]
-              },
-              "nav_section_order": {
-                "description": "Sort position of the section itself among all sections.",
-                "type": [
-                  "number",
-                  "null"
-                ]
-              },
-              "nav_title": {
-                "description": "Sidebar label override. Falls back to the post title if unset. Does not affect the public URL.",
-                "type": [
-                  "string",
-                  "null"
-                ]
               },
               "preview_url": {
                 "type": [
@@ -14985,14 +14485,9 @@
               "title",
               "slug",
               "excerpt",
+              "collection",
               "category",
               "tags",
-              "nav_section",
-              "nav_title",
-              "nav_order",
-              "nav_section_order",
-              "hide_from_nav",
-              "featured_order",
               "seo_title",
               "seo_description",
               "seo_keywords",
@@ -15005,7 +14500,7 @@
               "scheduled_for",
               "created_at",
               "updated_at",
-              "media",
+              "cover",
               "admin_edit_url",
               "edit_url",
               "public_path",
@@ -17696,7 +17191,7 @@
               "additionalProperties": false,
               "properties": {
                 "data": {
-                  "description": "Typed block payload. Plain-text fields are rendered literally, so markdown syntax written into one reaches the reader as raw characters — a heading of \"**Title**\" publishes with the asterisks showing. Only the fields listed as markdown are parsed. A markdown field also requires editor_mode alongside it: \"rich\" for prose the visual editor can handle, \"source\" for tables or raw HTML. Asset IDs and delivery URLs belong in the block media array, never in data. Fields by block type — heading block: literal — text. markdown block: parsed as markdown — markdown. image block: literal — caption. gallery block: literal — caption. faq block: literal — label, items.*.question, items.*.answer. how_to block: literal — label, estimated_time, tool_items.*, supply_items.*, steps.*.name, steps.*.text. divider block: no text fields. ai_assistance block: literal — label, intro, prompts.*.title, prompts.*.prompt, prompts.*.description, prompts.*.copy_label. cta block: literal — title, description, label. callout block: literal — title, body. hero block: literal — eyebrow, title, subtitle, description, cta_label. button_group block: literal — buttons.*.label. feature_grid block: literal — title, description, items.*.title, items.*.description. testimonial_grid block: literal — title, description, items.*.title, items.*.description. contact_cta block: literal — title, description, label. booking_cta block: literal — title, description, label. donation_choices block: literal — tiers.*.label. offering_grid block: literal — title, description. location_grid block: literal — title, description.",
+                  "description": "Typed block payload. Plain-text fields are rendered literally, so markdown syntax written into one reaches the reader as raw characters — a heading of \"**Title**\" publishes with the asterisks showing. Only the fields listed as markdown are parsed. A markdown field also requires editor_mode alongside it: \"rich\" for prose the visual editor can handle, \"source\" for tables or raw HTML. Asset IDs and delivery URLs belong in the block media array, never in data. Fields by block type — heading block: literal — text. markdown block: parsed as markdown — markdown. image block: literal — caption. gallery block: literal — caption. faq block: literal — title. how_to block: literal — label, estimated_time, tool_items.*, supply_items.*, steps.*.name, steps.*.text. divider block: no text fields. ai_assistance block: literal — label, intro, prompts.*.title, prompts.*.prompt, prompts.*.description, prompts.*.copy_label. cta block: literal — title, description, label. callout block: literal — title, body. hero block: literal — eyebrow, title, subtitle, description, cta_label. button_group block: literal — buttons.*.label. feature_grid block: literal — title, description, items.*.title, items.*.description. testimonial_grid block: literal — title, description, items.*.title, items.*.description. contact_cta block: literal — title, description, label. booking_cta block: literal — title, description, label. donation_choices block: literal — tiers.*.label. offering_grid block: literal — title, description. location_grid block: literal — title, description.",
                   "type": "object"
                 },
                 "id": {

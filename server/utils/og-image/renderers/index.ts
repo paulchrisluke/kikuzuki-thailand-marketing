@@ -8,9 +8,8 @@ import { renderBlawbyCard } from './blawby.ts'
 export type OgImageRenderer = (_payload: RenderInputs) => SatoriNode
 
 /**
- * Template registry for OG image rendering — mirrors the spirit of
- * docs/adr/0010-template-registry-for-tenant-public-rendering.md: the render pipeline
- * dispatches on `template`, never on scattered per-page checks.
+ * Template registry for OG image rendering — like utils/template-registry.ts, the
+ * render pipeline dispatches on `template`, never on scattered per-page checks.
  */
 export const ogImageRenderers: Record<SocialTemplate, OgImageRenderer> = {
   platform: renderPlatformCard,

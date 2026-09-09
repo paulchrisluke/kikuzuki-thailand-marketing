@@ -752,18 +752,6 @@
         "destructive_justification": "Overwrites the selected product category name. Existing state is deleted, replaced or overwritten rather than only appended."
       }
     },
-    "reorder_blog_posts": {
-      "annotations": {
-        "readOnlyHint": false,
-        "openWorldHint": true,
-        "destructiveHint": true
-      },
-      "justifications": {
-        "read_only_justification": "Overwrites the presentation order of selected blog articles.",
-        "open_world_justification": "Overwrites the presentation order of selected blog articles. Its effects can change content or behavior on the public website.",
-        "destructive_justification": "Overwrites the presentation order of selected blog articles. Existing state is deleted, replaced or overwritten rather than only appended."
-      }
-    },
     "reorder_location_qa": {
       "annotations": {
         "readOnlyHint": false,

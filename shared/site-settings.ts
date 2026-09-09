@@ -1,6 +1,5 @@
 export interface IntegrationVersion {
   revision: string | null
-  transfer_generation: string | null
 }
 
 export interface IntegrationOAuthState extends IntegrationVersion {
@@ -70,7 +69,6 @@ export interface SiteSettings {
     default_timezone?: string
     whatsapp_phone?: string
     owner_notification_channels?: Array<'email' | 'whatsapp'>
-    resource_team_generation?: import('./site-transfer-policy').ResourceTeamGeneration
   }
   theme_by_template?: Partial<Record<import('../utils/template-registry').PublicTemplateSlug, {
     tokens: Record<string, string>

@@ -15,7 +15,7 @@ if (!password) throw new Error('E2E_TEST_PASSWORD or --password is required. Use
 const { cookie } = await credentialSession(baseURL, { email: args.email, password })
 const headers = { cookie, origin: new URL(baseURL).origin, 'content-type': 'application/json' }
 const sites = []
-if (args.platform) sites.push({ id: 'platform', endpoint: '/api/admin/platform/social-cards/regenerate' })
+if (args.platform) sites.push({ id: 'platform', endpoint: '/api/editor/sites/platform/social-cards/regenerate' })
 if (args['site-id']) sites.push({ id: args['site-id'], endpoint: `/api/editor/sites/${encodeURIComponent(args['site-id'])}/social-cards/regenerate` })
 if (!args.platform && !args['site-id']) {
   const list = await fetch(new URL('/api/auth/organization/list', baseURL), { headers })

@@ -13,7 +13,7 @@ test('social drafts, unlisted publication and scheduled posts preserve lifecycle
   } }] })
   try {
     const db = await runtime.getD1Database('DB')
-    for (const statement of readFileSync('migrations/0000_epoch_6_baseline.sql', 'utf8').split('--> statement-breakpoint').map(sql => sql.trim()).filter(Boolean)) {
+    for (const statement of readFileSync('migrations/0000_baseline.sql', 'utf8').split('--> statement-breakpoint').map(sql => sql.trim()).filter(Boolean)) {
       await db.prepare(statement).run()
     }
     for (const statement of [

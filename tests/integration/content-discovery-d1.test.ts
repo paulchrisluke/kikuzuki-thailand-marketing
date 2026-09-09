@@ -20,14 +20,19 @@ test('public discovery resolves translations through current publication owners'
     await db.batch(statements.map(statement => db.prepare(statement)))
     for (const id of ['platform', 'tenant', 'other']) {
       await db.prepare('INSERT INTO organization (id,name,slug) VALUES (?,?,?)').bind(id, id, id).run()
-      await db.prepare('INSERT INTO sites (id,organization_id,slug) VALUES (?,?,?)').bind(id, id, id).run()
+      // KrabiClaw's own site is the one running the platform template.
+      await db.prepare('INSERT INTO sites (id,organization_id,slug,theme_id,vertical) VALUES (?,?,?,?,?)').bind(id, id, id, id === 'platform' ? 'krabiclaw-theme-v1' : 'saya-theme-v1', id === 'platform' ? 'service' : 'restaurant').run()
       for (const locale of ['en', 'th']) await db.prepare('INSERT INTO site_locales (id,organization_id,site_id,locale,is_source,status) VALUES (?,?,?,?,?,?)')
         .bind(id + locale, id, id, locale, Number(locale === 'en'), 'published').run()
     }
-    for (const [id, kind, site] of [['guide', 'platform_doc', 'platform'], ['news', 'article', 'platform'], ['tenant-story', 'article', 'tenant'], ['other-story', 'article', 'other']] as const) {
-      await createContentDocumentWithBlocks(db, { id, organizationId: site, siteId: site, kind, rowRole: 'root', locale: 'en',
-        title: id, slug: id, summary: id + ' summary', metadata: { category: 'Getting Started', tags: ['shared'] },
-        ...(kind === 'article' ? { status: 'published', visibility: 'public' } : {}),
+    // Documentation is the platform site's docs article collection.
+    await createContentDocumentWithBlocks(db, { id: 'guide', organizationId: 'platform', siteId: 'platform', kind: 'article', rowRole: 'root', locale: 'en',
+      title: 'guide', slug: 'guide', summary: 'guide summary', status: 'published', visibility: 'public',
+      metadata: { collection: 'docs', category: 'Getting Started', tags: [] },
+    }, [{ id: 'guide-body', type: 'markdown', data: { markdown: 'guide exact body', editor_mode: 'rich' } }])
+    for (const [id, site] of [['news', 'platform'], ['tenant-story', 'tenant'], ['other-story', 'other']] as const) {
+      await createContentDocumentWithBlocks(db, { id, organizationId: site, siteId: site, kind: 'article', rowRole: 'root', locale: 'en',
+        title: id, slug: id, summary: id + ' summary', metadata: { collection: 'blog', category: 'Marketing', tags: ['shared'] }, status: 'published', visibility: 'public',
       }, [{ id: id + '-body', type: 'markdown', data: { markdown: id + ' exact body', editor_mode: 'rich' } }])
     }
     for (const [id, path] of [['home', '/'], ['about', '/about']]) await createContentDocumentWithBlocks(db, {

@@ -76,7 +76,6 @@ const effects = {
   put_resource_localization: 'Creates or overwrites translated resource values and supplied translated content.',
   remove_media: 'Removes an asset placement from public content while retaining the underlying media asset.',
   rename_product_category: 'Overwrites the selected product category name.',
-  reorder_blog_posts: 'Overwrites the presentation order of selected blog articles.',
   reorder_location_qa: 'Overwrites question-and-answer order for the selected location.',
   reorder_media: 'Overwrites media placement ordering for the selected public content collection.',
   reorder_product_categories: 'Overwrites category order in the selected location.',

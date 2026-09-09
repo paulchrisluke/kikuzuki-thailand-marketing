@@ -14,7 +14,7 @@ export default defineHandler(async (event) => {
     ? await listPublishedTenantBlogPostsForLlm(db, siteId, env)
     : await listPublishedPlatformBlogPostsForLlm(db, env)
   const entries = isTenant && siteId
-    ? buildTenantBlogLinkEntries(posts ?? [], origin)
+    ? buildTenantBlogLinkEntries(posts ?? [], origin, { themeId: String(event.context.themeId ?? '') })
     : buildPlatformBlogLinkEntries(posts ?? [], origin)
   return jsonResponse(buildBlogIndexJson(entries))
 })

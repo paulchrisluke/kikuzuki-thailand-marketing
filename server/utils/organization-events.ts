@@ -8,7 +8,6 @@ export type OrganizationEventType =
   | 'review.received' | 'review.replied'
   | 'location.created' | 'location.updated'
   | 'experience.created'
-  | 'work_request.created' | 'work_request.status_changed'
   | 'domain.connected' | 'domain.verified' | 'domain.failed'
   | 'canonical_domain_changed' | 'cloudflare_create_failed' | 'cloudflare_delete_failed'
   | 'domain_added' | 'domain_deleted' | 'domain_state_changed'

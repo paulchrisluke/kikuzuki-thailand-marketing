@@ -117,5 +117,4 @@ The screenshots use the populated Ember & Slice local fixture and direct owner a
 - Product model and pricing: `PRODUCT.md`
 - Domain language: `PRODUCT.md`
 - MCP endpoint and boundaries: `docs/mcp.md`
-- Directory campaign status: `docs/marketing/directory-submission-log.md`
 - Start date evidence: commit `ec82d46a` on 2026-05-03, “Upgrade to Nuxt 4 and rename project”

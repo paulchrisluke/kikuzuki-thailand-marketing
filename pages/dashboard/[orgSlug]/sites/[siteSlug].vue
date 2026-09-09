@@ -82,6 +82,7 @@ import EditorNavigationList from '~/components/dashboard/EditorNavigationList.vu
 import EditorPaneShell from '~/components/dashboard/EditorPaneShell.vue'
 import { parseCmsFeatureOverrideDelta, resolveCmsCapabilities } from '~/config/cms-registry'
 import { resolvePublicTemplate } from '~/utils/template-registry'
+import { hasPlatformAdminPermission } from '~/utils/platform-admin-access'
 import { normalizeVertical, type SiteVertical } from '~/utils/vertical-copy'
 import type { DashboardHomeData } from '~/server/utils/dashboard-home'
 
@@ -125,7 +126,8 @@ const canManageSite = computed(() => dashboard.siteAccess.value !== 'location')
 const siteDomain = computed(() => dashboard.site.value?.custom_domain ?? null)
 const publicSiteUrl = computed(() => dashboard.site.value?.public_url || '')
 
-const template = computed(() => resolvePublicTemplate({ vertical: dashboard.site.value?.vertical }).slug)
+const { user: currentUser } = useAuth()
+const template = computed(() => resolvePublicTemplate({ themeId: dashboard.site.value?.theme_id, vertical: dashboard.site.value?.vertical }).slug)
 const vertical = computed(() => {
   const raw = dashboard.site.value?.vertical
   if (!raw) throw createError({ statusCode: 500, statusMessage: 'Site vertical is not configured' })
@@ -221,9 +223,15 @@ const sectionGroups = computed(() => {
     { id: 'brand', label: 'Brand', summary: siteName.value, to: `${sitePath.value}/brand` },
   ]
 
+  // KrabiClaw's own site adds the one platform-only tool: acting as a customer.
+  const platform = template.value === 'platform' && hasPlatformAdminPermission(currentUser.value?.role)
+    ? [{ id: 'people', label: 'People', summary: 'Every account; impersonate to see their dashboard', to: `${sitePath.value}/people` }]
+    : []
+
   return [
     { id: 'place', items: place },
     { id: 'content', label: 'Content', items: content },
+    { id: 'platform', label: 'KrabiClaw', items: platform },
   ].filter(group => group.items.length > 0)
 })
 
