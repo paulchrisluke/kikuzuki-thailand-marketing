@@ -37,7 +37,7 @@
               <div v-else class="space-y-2">
                 <div v-for="event in selectedEvents" :key="event.id" class="rounded-xl bg-elevated px-4 py-3">
                   <p class="text-sm font-medium text-highlighted">{{ event.event_type }}</p>
-                  <p class="mt-1 text-sm text-muted">{{ event.message }}</p>
+                  <p v-if="event.message" class="mt-1 text-sm text-muted">{{ event.message }}</p>
                   <p class="mt-2 text-xs text-dimmed">{{ formatDate(event.created_at) }}</p>
                 </div>
               </div>
@@ -63,7 +63,7 @@ interface Domain {
   site_name: string | null; organization_name: string | null
   cloudflare_hostname_id: string | null; error_message: string | null
 }
-interface DomainEvent { id: string; domain: string | null; event_type: string; message: string; created_at: string }
+interface DomainEvent { id: string; domain: string | null; event_type: string; message: string | null; created_at: string }
 
 const isDomain = (value: unknown): value is Domain => isRecord(value)
   && typeof value.id === 'string'
@@ -78,7 +78,7 @@ const isDomainEvent = (value: unknown): value is DomainEvent => isRecord(value)
   && typeof value.id === 'string'
   && (value.domain === null || typeof value.domain === 'string')
   && typeof value.event_type === 'string'
-  && typeof value.message === 'string'
+  && (value.message === null || typeof value.message === 'string')
   && typeof value.created_at === 'string'
 const isDomainsResponse = (value: unknown): value is { domains: Domain[]; events: DomainEvent[] } =>
   isRecord(value) && Array.isArray(value.domains) && value.domains.every(isDomain)
