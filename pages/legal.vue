@@ -19,12 +19,10 @@
           </span>
         </h1>
         <p class="text-lg sm:text-xl text-muted leading-relaxed m-0 text-balance">
-          Dedicated practice area URLs, consultation booking flows, regulatory compliance pages, and canonical LegalService structured data — without $10,000 agency retainers.
+          Dedicated practice area URLs, consultation booking flows, regulatory compliance pages, and canonical LegalService structured data — without the agency retainer.
         </p>
         <div class="flex flex-wrap items-center justify-center gap-4 mt-2">
-          <PlatformButton to="/signup" size="lg" class="shadow-sm transition-transform hover:-translate-y-0.5">
-            Get Started with Blawby
-          </PlatformButton>
+          <PlatformAccountCta label="Get Started with Blawby" size="lg" class="shadow-sm transition-transform hover:-translate-y-0.5" />
           <PlatformButton to="/templates/blawby" variant="outline" size="lg" class="transition-transform hover:-translate-y-0.5">
             Explore Template
           </PlatformButton>
@@ -44,7 +42,7 @@
             <ul class="space-y-4 p-0 list-none text-sm text-muted">
               <li class="flex items-start gap-3">
                 <span class="size-5 rounded-full bg-red-500/10 text-red-500 flex items-center justify-center shrink-0 mt-0.5 font-bold text-xs">✕</span>
-                <span><strong>High Ongoing Costs:</strong> Boutique agencies charge $5,000–$15,000 upfront plus monthly maintenance retainers for static pages.</span>
+                <span><strong>High Ongoing Costs:</strong> Boutique agencies charge a large upfront build fee plus a monthly maintenance retainer, for static pages.</span>
               </li>
               <li class="flex items-start gap-3">
                 <span class="size-5 rounded-full bg-red-500/10 text-red-500 flex items-center justify-center shrink-0 mt-0.5 font-bold text-xs">✕</span>
@@ -260,9 +258,7 @@
           Launch a high-authority legal site powered by the Blawby template and manage updates seamlessly in ChatGPT.
         </p>
         <div class="flex flex-wrap gap-4">
-          <PlatformButton to="/signup" size="lg" class="shadow-sm">
-            Get Started
-          </PlatformButton>
+          <PlatformAccountCta label="Get Started" size="lg" class="shadow-sm" />
           <PlatformButton to="/pricing" variant="outline" size="lg">
             View Pricing
           </PlatformButton>
@@ -315,7 +311,7 @@ const legalFeatures = [
 const faqs = [
   {
     q: 'Which KrabiClaw plan includes the Blawby template?',
-    a: 'Blawby is included on the Growth plan ($49/mo or $588/yr). Growth includes your custom domain, SSL, and full access to professional-service features.'
+    a: 'Blawby is included on the Growth plan, alongside your custom domain, SSL, and full access to professional-service features. See the pricing page for current rates.'
   },
   {
     q: 'Can I connect my practice management software like Clio?',

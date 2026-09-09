@@ -1,8 +1,7 @@
-import { createAuthMiddleware } from 'better-auth/api'
-import { loginMethodForPath, REMEMBERED_PROFILE_COOKIE, REMEMBERED_PROFILE_MAX_AGE } from '~/shared/auth/remembered-profile'
 import { APIError, betterAuth } from 'better-auth'
 import { drizzleAdapter } from 'better-auth/adapters/drizzle'
 import { hashPassword } from 'better-auth/crypto'
+import { loginMethodForPath } from '~/shared/auth/login-method'
 import { admin, anonymous, getOrgAdapter, hasPermission, jwt, lastLoginMethod, organization, phoneNumber } from 'better-auth/plugins'
 import { stripe as betterAuthStripe } from '@better-auth/stripe'
 import { oauthProvider } from '@better-auth/oauth-provider'
@@ -377,20 +376,6 @@ export function createAuth(env: CloudflareEnv) {
         })
       },
     },
-    hooks: {
-      after: createAuthMiddleware(async (ctx) => {
-        const method = loginMethodForPath(ctx.path)
-        const session = ctx.context.newSession
-        if (!method || !session) return
-        const identifier = method === 'whatsapp' ? session.user.phoneNumber : session.user.email
-        if (typeof identifier !== 'string' || !identifier) return
-        ctx.setCookie(REMEMBERED_PROFILE_COOKIE, identifier, {
-          ...ctx.context.authCookies.sessionToken.attributes,
-          httpOnly: false,
-          maxAge: REMEMBERED_PROFILE_MAX_AGE,
-        })
-      }),
-    },
     plugins: [
       lastLoginMethod({ customResolveMethod: ctx => loginMethodForPath(ctx.path) }),
       jwt({
@@ -553,10 +538,6 @@ export function createAuth(env: CloudflareEnv) {
         clientSecret: env.GOOGLE_CLIENT_SECRET,
         prompt: 'select_account',
       }
-    },
-    session: {
-      expiresIn: 60 * 60 * 24 * 7,
-      updateAge: 60 * 60 * 24
     },
     account: {
       accountLinking: {

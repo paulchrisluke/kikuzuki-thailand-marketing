@@ -36,10 +36,7 @@
               </div>
             </div>
             <div class="ml-auto">
-              <PlatformAccountCta
-                :to="template.ctaTo"
-                class="inline-flex min-h-10 items-center justify-center gap-2 whitespace-nowrap rounded-full bg-white px-4 text-[13px] font-semibold text-zinc-950 no-underline transition hover:bg-zinc-100 sm:px-5 sm:text-sm"
-               :label="template.ctaLabel" />
+              <PlatformAccountCta :to="template.ctaTo" :label="template.ctaLabel" variant="gradient" size="md" />
             </div>
           </div>
         </div>
@@ -104,19 +101,11 @@
             </div>
 
             <div class="flex items-center gap-3">
-              <button
-                type="button"
-                class="inline-flex min-h-9 items-center justify-center gap-2 whitespace-nowrap rounded-full border border-default px-4 text-sm font-medium text-default no-underline transition hover:bg-elevated"
-                @click="openDemoPreview"
-              >
+              <PlatformButton variant="outline" size="md" @click="openDemoPreview">
                 <PlatformIcon name="arrow-up-right" class="size-4" />
                 {{ isNclsShowcase ? 'Open customer site' : 'Open demo' }}
-              </button>
-              <PlatformAccountCta
-                :to="template.ctaTo"
-                class="inline-flex min-h-9 items-center justify-center gap-2 whitespace-nowrap rounded-full px-4 text-sm font-semibold text-white no-underline transition hover:opacity-90"
-                style="background: linear-gradient(135deg, var(--kc-coral) 0%, #e0524c 100%); box-shadow: 0 3px 12px rgba(251,116,97,0.3);"
-               :label="template.ctaLabel" />
+              </PlatformButton>
+              <PlatformAccountCta :to="template.ctaTo" :label="template.ctaLabel" variant="gradient" size="md" />
             </div>
           </div>
           <p v-if="isNclsShowcase" class="mt-3 text-xs text-muted">
@@ -200,19 +189,11 @@
               <p class="mt-1 text-sm text-muted">{{ template.tagline }}</p>
 
               <div class="mt-6 space-y-3">
-                <PlatformAccountCta
-                  :to="template.ctaTo"
-                  class="flex w-full items-center justify-center gap-2 rounded-full px-5 py-3 text-sm font-semibold text-white no-underline transition hover:opacity-90"
-                  style="background: linear-gradient(135deg, var(--kc-coral) 0%, #e0524c 100%); box-shadow: 0 4px 16px rgba(251,116,97,0.2);"
-                 :label="template.ctaLabel" />
-                <button
-                  type="button"
-                  class="flex w-full items-center justify-center gap-2 rounded-full border border-default px-5 py-3 text-sm font-medium text-default no-underline transition hover:bg-elevated"
-                  @click="openDemoPreview"
-                >
+                <PlatformAccountCta :to="template.ctaTo" :label="template.ctaLabel" variant="gradient" size="lg" block />
+                <PlatformButton variant="outline" size="lg" block @click="openDemoPreview">
                   <PlatformIcon name="arrow-up-right" class="size-4" />
                   {{ template.demoLabel }}
-                </button>
+                </PlatformButton>
               </div>
 
               <div class="mt-6 border-t border-default pt-6 space-y-2">

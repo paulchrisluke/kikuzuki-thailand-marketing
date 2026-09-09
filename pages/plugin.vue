@@ -10,7 +10,7 @@
               <p class="mt-2 text-lg text-muted">Manage your website through an authenticated custom MCP app in ChatGPT.</p>
             </div>
           </div>
-          <PlatformAccountCta label="Create a KrabiClaw account" class="inline-flex justify-center rounded-full bg-(--kc-navy) px-8 py-3.5 font-bold text-white no-underline" />
+          <PlatformAccountCta label="Create a KrabiClaw account" size="xl" />
         </div>
 
         <div class="mt-16 grid gap-6 md:grid-cols-3">

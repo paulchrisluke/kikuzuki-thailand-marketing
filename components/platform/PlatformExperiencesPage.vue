@@ -12,7 +12,7 @@
           Experiences & Activities
         </span>
         <h1 class="text-4xl sm:text-6xl font-extrabold tracking-tight leading-[1.05] text-default m-0 text-balance">
-          Stop losing 20% to marketplaces. <br class="hidden sm:inline" />
+          Stop losing every booking to marketplaces. <br class="hidden sm:inline" />
           <span class="bg-gradient-to-r from-(--kc-teal) via-(--kc-coral) to-primary bg-clip-text text-transparent">
             Direct bookings & ticketing, managed in ChatGPT.
           </span>
@@ -21,9 +21,7 @@
           High-converting booking pages for pottery workshops, tours, cooking classes, and studios. Time-slot scheduling, capacity control, and zero booking commissions.
         </p>
         <div class="flex flex-wrap items-center justify-center gap-4 mt-2">
-          <PlatformButton to="/signup" size="lg" class="shadow-sm transition-transform hover:-translate-y-0.5">
-            Start Free for Experiences
-          </PlatformButton>
+          <PlatformAccountCta label="Start Free for Experiences" size="lg" class="shadow-sm transition-transform hover:-translate-y-0.5" />
           <PlatformButton to="/pricing" variant="outline" size="lg" class="transition-transform hover:-translate-y-0.5">
             View Pricing
           </PlatformButton>
@@ -43,7 +41,7 @@
             <ul class="space-y-4 p-0 list-none text-sm text-muted">
               <li class="flex items-start gap-3">
                 <span class="size-5 rounded-full bg-red-500/10 text-red-500 flex items-center justify-center shrink-0 mt-0.5 font-bold text-xs">✕</span>
-                <span><strong>20–25% Commission Cuts:</strong> Viator, GetYourGuide, and Airbnb Experiences siphon off a quarter of your class revenue.</span>
+                <span><strong>Commission Cuts:</strong> Viator, GetYourGuide, and Airbnb Experiences take a share of every booking they send you.</span>
               </li>
               <li class="flex items-start gap-3">
                 <span class="size-5 rounded-full bg-red-500/10 text-red-500 flex items-center justify-center shrink-0 mt-0.5 font-bold text-xs">✕</span>
@@ -259,9 +257,7 @@
           Create your experience site in minutes, connect with ChatGPT, and accept commission-free bookings today.
         </p>
         <div class="flex flex-wrap gap-4">
-          <PlatformButton to="/signup" size="lg" class="shadow-sm">
-            Start Free
-          </PlatformButton>
+          <PlatformAccountCta label="Start Free" size="lg" class="shadow-sm" />
           <PlatformButton to="/pricing" variant="outline" size="lg">
             View All Plans
           </PlatformButton>
@@ -308,7 +304,7 @@ const experienceFeatures = [
 const faqs = [
   {
     q: 'Do you charge booking or ticket commissions?',
-    a: 'Zero commissions. You keep 100% of your ticket price. KrabiClaw is flat-rate ($0 on Starter, $49/mo on Growth).'
+    a: 'Zero commissions. You keep 100% of your ticket price. KrabiClaw is flat-rate: Starter is free, Growth is a fixed monthly fee. See the pricing page for current rates.'
   },
   {
     q: 'Can I set maximum group sizes per class?',

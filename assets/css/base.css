@@ -103,6 +103,11 @@
   --kc-coral-400:   var(--color-coral-400);
   --kc-coral-200:   var(--color-coral-200);
   --kc-coral-50:    var(--color-coral-50);
+  /* The one platform CTA gradient. Five call sites hand-rolled this inline,
+     with three different shadow values, before it had a name. */
+  --kc-cta-gradient: linear-gradient(135deg, var(--kc-coral) 0%, #E0524C 100%);
+  --kc-cta-shadow:   0 4px 20px color-mix(in srgb, var(--kc-coral) 35%, transparent);
+
   --kc-teal:        var(--color-teal-500);
   --kc-teal-600:    var(--color-teal-600);
   --kc-teal-400:    var(--color-teal-400);

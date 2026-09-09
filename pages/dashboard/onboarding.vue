@@ -1,5 +1,5 @@
 <template>
-  <div class="flex h-screen flex-col overflow-hidden bg-muted text-highlighted">
+  <div class="flex size-full min-h-0 flex-col overflow-hidden bg-muted text-highlighted">
 
     <div
       v-if="contextLoaded && !contextError"
@@ -86,8 +86,10 @@ import { normalizeVertical, type SiteVertical } from '~/utils/vertical-copy'
 // Manages its own workspace context via /api/dashboard/onboarding-context —
 // this route has no orgSlug segment (a brand-new user may have zero
 // organizations), so it never calls useDashboardSite and must not be gated
-// on that context ever loading. See layouts/editor.vue.
-definePageMeta({ layout: 'editor', skipDashboardContext: true })
+// on that context ever loading. layouts/dashboard.vue honours the same flag,
+// so this page gets the shared header — wordmark and account menu — without the
+// org-scoped nav links, which do not exist until an organization does.
+definePageMeta({ layout: 'dashboard', skipDashboardContext: true })
 
 const route = useRoute()
 const config = useRuntimeConfig()

@@ -110,9 +110,22 @@ Use the approved client onboarding and import pipeline. Never manually seed or p
 
 ## Agent documentation
 
-- Product and domain language: root `PRODUCT.md`
-- Local setup and signing in: [docs/local-development.md](docs/local-development.md)
-- CMS navigation and editing patterns: root `PRD.md`
+Each root document owns one thing, and nothing duplicates another's contents.
+`CLAUDE.md` is a symlink to this file, so both names resolve to the same
+development instructions.
+
+- **[PRODUCT.md](PRODUCT.md)** — what the product is, and its domain language.
+  Also see `docs/adr/`.
+- **[DESIGN.md](DESIGN.md)** — how the CMS behaves: hub and leaf, leaf size, the
+  editor frame and its columns, creating, committing, naming.
+- **AGENTS.md** (this file, and `CLAUDE.md`) — development instructions.
+- **[README.md](README.md)** — setup and navigation.
+
+`PRD.md` is reserved for product requirements and does not exist yet. DESIGN.md
+was briefly filed there; requirements and design contracts are different things,
+and naming a composable or a breakpoint is the tell that a document is design.
+
+Local setup and signing in: [docs/local-development.md](docs/local-development.md)
 
 ## Local development contract
 
