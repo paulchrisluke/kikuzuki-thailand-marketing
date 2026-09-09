@@ -64,19 +64,18 @@ When a change needs a parent-table rebuild (a constraint change on `sites`,
    rehearsal against a private production export.
 4. Preview and local are rebuilt by `yarn db:pull:local` / `yarn db:pull:preview`,
    which already run the transfer script.
-5. Production and staging keep their database names and IDs. Only after CI is
-   green on the exact candidate: deploy it with `DB_WRITE_FROZEN="true"` (reads
-   keep serving, every mutation is refused), export, run the transfer, then deploy
-   with `DB_MAINTENANCE="true"` (everything 503s), run
-   `node scripts/reset-d1.mjs --env <env> --apply --confirm <id> --frozen`, load
-   the payload, verify with `node scripts/verify-d1-payload.mjs <target.sqlite>
-   --env <env>` (in-database counts and fingerprints, no re-export), and end the
-   outage with a normal `wrangler deploy` of the same candidate before the merge
-   and CI catch up. The frozen export is the rollback data of record.
+5. The live database is not frozen for this. Prepare the new database ahead of
+   time (create it, `wrangler d1 migrations apply`, rehearse a load). At cutover:
+   export live, run the transfer, `node scripts/reset-d1.mjs --config <binding>
+   --apply --confirm <id>`, load the payload, verify with
+   `node scripts/verify-d1-payload.mjs <target.sqlite> --config <binding>`, deploy
+   the candidate on the new binding, then check the old database for rows created
+   after the export timestamp and copy them. Total: minutes, no downtime. CI must
+   be green on the candidate before the export starts. A write freeze is for high
+   write volume only; see the release contract.
 
-Squashing is not a routine operation: it needs the freeze and the verified
-transfer above. The read-only window is the export; the full outage is only
-the reset and load. Never rewrite the migration ledger of a live database
+Squashing is not a routine operation: it needs the prepared database and the
+verified transfer above. Never rewrite the migration ledger of a live database
 by hand.
 
 ## Generator and guard maintenance
