@@ -198,8 +198,8 @@ export async function handleBlogTools(ctx: McpExecutorContext): Promise<unknown>
       {
         const posts = (await listBlogPosts(
           site.db,
-          optionalString(args, "status"),
           site.siteId,
+          optionalString(args, "status"),
           site.env,
         )).map((post) => toBlogPostSummary(post, site));
         const { items, page_info } = paginateMcpCollection(posts, args, { resource: `blog-posts:${site.siteId}` });

@@ -108,11 +108,9 @@ baseline SHA-256 is `7c76a4988b3ef7e05c39783092c16cac89c79356c34a6b6b1e8861901c3
 Private exports and manifests remain outside Git. No production freeze or binding
 change occurred. A fresh frozen-source export remains mandatory for cutover.
 
-Staging uses the existing epoch fixture preparation and bulk-import procedure
-in [Epoch 5](epoch-5-cutover.md#staging-preparation), substituting the Epoch 6
-resource and generated baseline. Prepare fixtures through `e2e:local:prepare`;
-export before any mutating tests, import only to the empty staging candidate,
-and verify schema, rows and foreign keys. Production data is never staging seed.
+Staging, preview and local are restored from a production snapshot with
+`yarn db:pull:preview` or `yarn db:pull:local`. The generated client fixtures they
+used to be built from are deleted.
 
 September 7 combined staging preparation completed: the remote re-export matches all 53
 application and Better Auth tables and 2,863 untouched fixture rows by exact hashes, matches the

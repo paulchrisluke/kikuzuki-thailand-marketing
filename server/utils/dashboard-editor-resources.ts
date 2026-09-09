@@ -344,7 +344,7 @@ export async function loadDashboardBlogPosts(
   status?: string,
 ) {
   const { env, db } = await requireBlogAccess(event, siteId)
-  return { posts: await listBlogPosts(db, status, siteId, env) }
+  return { posts: await listBlogPosts(db, siteId, status, env) }
 }
 
 export async function loadDashboardBlogPost(

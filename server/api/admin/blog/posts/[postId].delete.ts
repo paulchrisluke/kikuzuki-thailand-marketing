@@ -1,4 +1,5 @@
 // DELETE /api/admin/blog/posts/[postId] - Delete platform blog post
+import { PLATFORM_SITE_ID } from '~/shared/platform-scope'
 import { cloudflareEnv, jsonResponse } from '~/server/utils/api-response'
 import { getAuthSession } from '~/server/utils/auth'
 import { platformPermissionJsonResponse } from '~/server/utils/platform-admin-users'
@@ -20,7 +21,7 @@ export default defineHandler(async (event) => {
   if (permissionDenied) return permissionDenied
 
   try {
-    const result = await deleteBlogPost(db, postId)
+    const result = await deleteBlogPost(db, postId, PLATFORM_SITE_ID)
     schedulePlatformKnowledgeIndexRebuild(event, env, 'blog post delete')
     return jsonResponse(result)
   } catch (err) {

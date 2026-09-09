@@ -1,4 +1,5 @@
 // PATCH /api/admin/blog/posts/[postId] - Update platform blog post
+import { PLATFORM_SITE_ID } from '~/shared/platform-scope'
 import { cloudflareEnv, jsonResponse, readRequiredBody } from '~/server/utils/api-response'
 import { getAuthSession } from '~/server/utils/auth'
 import { platformPermissionJsonResponse } from '~/server/utils/platform-admin-users'
@@ -27,7 +28,7 @@ export default defineHandler(async (event) => {
   }
 
   try {
-    const result = await updateBlogPost(db, postId, body, null, env)
+    const result = await updateBlogPost(db, postId, body, PLATFORM_SITE_ID, env)
     schedulePlatformKnowledgeIndexRebuild(event, env, 'blog post update')
     return jsonResponse(result)
   } catch (err) {

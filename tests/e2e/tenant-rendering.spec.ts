@@ -2,9 +2,8 @@ import { expect, test, type Page } from '@playwright/test'
 import {
   blawbyBaseURL, blawbyExtraHeaders, collectPageErrors,
   openTenantPage, potteryHouseBaseURL, potteryHouseExtraHeaders,
-  tenantBaseURL, tenantExtraHeaders,
 } from './helpers'
-import { demoFixturesSeeded, kikuzukiTestBaseUrl, kikuzukiTestExtraHeaders } from './test-env'
+import { kikuzukiTestBaseUrl, kikuzukiTestExtraHeaders } from './test-env'
 
 type Tenant = {
   name: string
@@ -43,28 +42,6 @@ const tenants: Tenant[] = [
     detailContent: /Family Law|child custody|divorce/i, forbidden: [/Ember & Slice/i, /No services/i],
   },
 ]
-
-for (const [path, translatedText] of [
-  ['/blog/72-hour-sourdough-crust-secret', 'ความลับของแป้งซาวโดว์ 72 ชั่วโมงของเรา'],
-  ['/blog/natural-wine-pizza-pairing-guide', 'ทำไมเราจึงจับคู่ไวน์ธรรมชาติกับพิซซ่าเตาฟืนไม้เท่านั้น'],
-  ['/blog/ember-and-slice-brooklyn-story', 'จากป๊อปอัพสู่สัญลักษณ์ของบรูคลิน'],
-  ['/experiences/pizza-making-class', 'คลาสทำพิซซ่า'],
-  ['/experiences/natural-wine-and-pizza-night', 'ค่ำคืนไวน์ธรรมชาติและพิซซ่า'],
-  ['/experiences/family-pizza-night', 'ค่ำคืนพิซซ่าครอบครัว'],
-  ['/posts/post-demo-1', 'อาหารกลางวันวันหยุดเริ่มตั้งแต่ 11 โมง'],
-  ['/posts/post-demo-2', 'ฟันจี บิองโกของเรากลับมาแล้ว'],
-  ['/posts/post-demo-3', 'มาร์เกอริต้าวันจันทร์'],
-  ['/posts/post-demo-4', 'มื้ออาหารโต๊ะยาวเก็บเกี่ยว'],
-]) {
-  test(`Ember & Slice publishes its Thai representation at /th${path}`, async ({ page }) => {
-    test.skip(!demoFixturesSeeded(), 'Thai demo representations come from the E2E seed; production is never seeded.')
-    const response = await openTenantPage(page, `${tenantBaseURL}/th${path}`, tenantExtraHeaders)
-    expect(response?.status()).toBe(200)
-    await expect(page.locator('html')).toHaveAttribute('lang', 'th')
-    await expect(page.locator('main[data-route-shell]')).toContainText(translatedText)
-    await expect(page.locator('link[rel="canonical"]')).toHaveAttribute('href', `${tenantBaseURL}/th${path}`)
-  })
-}
 
 function collectFirstPartyFailures(page: Page, baseURL: string) {
   const failures = collectPageErrors(page, { failOnAllWarnings: true })

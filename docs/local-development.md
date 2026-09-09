@@ -42,9 +42,10 @@ authorized account (`--email` selects it). Remote targets also require an explic
 Only production runs the `social-card-backfill` task: preview and staging set
 `crons = []`, and it is bounded to a small number of owners per night.
 
-Use **Ember & Slice** (`ember-slice-demo`) for general review. It is the fixture
-that carries rolling analytics, today's reservations and upcoming bookings, so
-Today, Calendar and Insights all have something to show.
+Local and preview use production snapshots. Existing bookings retain their
+original dates; setup does not manufacture current activity. For date-sensitive
+Today or Calendar checks, create bookings through the guest flow in the local
+or preview environment.
 
 ## Signing in
 
@@ -105,7 +106,7 @@ resolves that segment against `sites.subdomain`.
 
 ```sh
 corepack yarn quality && corepack yarn test:unit && corepack yarn test:d1 && corepack yarn test:migrations && corepack yarn test:mcp
-corepack yarn chatgpt:submission:check && corepack yarn lint:migrations && corepack yarn lint:schema-drift && corepack yarn lint:seeds
+corepack yarn chatgpt:submission:check && corepack yarn lint:migrations && corepack yarn lint:schema-drift
 ```
 
 That is every CI check that runs without a deployed environment. `test:unit`
