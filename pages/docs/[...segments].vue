@@ -115,12 +115,13 @@ if (articlesError.value) throw createError({ statusCode: 500, statusMessage: 'Fa
 
 const current = computed(() => articles.value.find(item => item.path === path.value) ?? null)
 
-// A category with no landing article opens on its first article.
-if (!current.value && segments.value.length === 1) {
-  const first = articles.value.find(item => item.categorySlug === categorySlug.value)
-  if (!first) throw createError({ statusCode: 404, statusMessage: 'Documentation category not found' })
-  await navigateTo(first.path, { replace: true, redirectCode: 302 })
-}
+// A category with no landing article opens on its first article; nothing is
+// fetched for the path being left.
+const redirectTo = !current.value && segments.value.length === 1
+  ? articles.value.find(item => item.categorySlug === categorySlug.value)?.path ?? null
+  : null
+if (!current.value && segments.value.length === 1 && !redirectTo) throw createError({ statusCode: 404, statusMessage: 'Documentation category not found' })
+if (redirectTo) await navigateTo(redirectTo, { replace: true, redirectCode: 302 })
 
 // The landing article's slug is its category segment.
 const slug = computed(() => segments.value[1] ?? categorySlug.value)
@@ -149,7 +150,7 @@ const { data: article, pending, error } = await useAsyncData(`docs-article-${pat
   }
   if (!loaded) throw createError({ statusCode: 404, statusMessage: 'Documentation not found' })
   return loaded
-})
+}, { immediate: !redirectTo })
 
 if (error.value) throw error.value
 

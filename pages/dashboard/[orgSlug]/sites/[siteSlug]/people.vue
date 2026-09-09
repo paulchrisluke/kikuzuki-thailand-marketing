@@ -57,7 +57,10 @@ const loading = ref(true)
 const loadError = ref<string | null>(null)
 const impersonatingUserId = ref<string | null>(null)
 
+// Only the latest search may write the list; a slow earlier response is ignored.
+let requestSequence = 0
 async function loadUsers() {
+  const requestId = ++requestSequence
   loading.value = true
   loadError.value = null
   try {
@@ -71,12 +74,14 @@ async function loadUsers() {
       },
     })
     if (result.error) throw new Error(result.error.message)
+    if (requestId !== requestSequence) return
     users.value = result.data.users.map(user => ({ id: user.id, name: user.name ?? null, email: user.email, role: user.role ?? null, banned: user.banned ?? null }))
     total.value = result.data.total
   } catch (error) {
+    if (requestId !== requestSequence) return
     loadError.value = error instanceof Error ? error.message : 'Failed to load accounts.'
   } finally {
-    loading.value = false
+    if (requestId === requestSequence) loading.value = false
   }
 }
 
