@@ -105,7 +105,7 @@ resolves that segment against `sites.subdomain`.
 
 ```sh
 corepack yarn quality && corepack yarn test:unit && corepack yarn test:d1 && corepack yarn test:migrations && corepack yarn test:mcp
-corepack yarn chatgpt:submission:check && corepack yarn lint:migrations && corepack yarn lint:schema-drift && corepack yarn lint:seeds
+corepack yarn chatgpt:submission:check && corepack yarn lint:migrations && corepack yarn lint:schema-drift
 ```
 
 That is every CI check that runs without a deployed environment. `test:unit`
