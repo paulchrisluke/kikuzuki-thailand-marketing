@@ -2,6 +2,8 @@ export const HIGH_IMPACT_PATTERNS = [
   'app.vue', 'build/**', 'error.vue', 'nuxt.config.ts', 'patch.cjs',
   'playwright.config.ts', 'wrangler.toml', 'yarn.lock', 'migrations/**',
   'server/db/schema.ts', 'server/middleware/**',
+  'scripts/pull-production-snapshot.ts', 'scripts/provision-development-auth.ts',
+  'config/development-auth-fixtures.ts',
   'server/plugins/**', 'tests/e2e/helpers.ts', 'tests/e2e/helpers/**',
   'tests/e2e/test-env.ts', 'workers/**',
 ]

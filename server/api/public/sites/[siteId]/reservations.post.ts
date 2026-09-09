@@ -48,7 +48,7 @@ export default defineHandler(async (event) => {
   const time       = cleanString(body.time, 5)
   const guests     = cleanString(body.guests, 3)
   const requests   = cleanString(body.requests, 1000)
-  const locationId: string | null = cleanString(body.location_id, 36) || null
+  const locationId = typeof body.location_id === 'string' ? body.location_id.trim() : null
 
   if (!name) return jsonResponse({ error: 'Please enter your name.' }, { status: 400 })
   if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))

@@ -3,7 +3,7 @@
  * production instead of hand-maintained seed definitions, so what they test
  * against is what customers actually have rather than a fork of it that drifts.
  *
- * Auth identities are not part of the snapshot. `jwks` is left entirely alone —
+ * Auth rows are copied with the snapshot. `jwks` is left entirely alone —
  * production's signing keys are encrypted under production's BETTER_AUTH_SECRET
  * and the target cannot read them, so the target keeps and mints its own. E2E
  * credentials come from provision-development-auth.ts afterwards, as before.
@@ -17,8 +17,6 @@ import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { parseArgs } from 'node:util'
 
-const SOURCE = 'krabiclaw-db-epoch6-production'
-
 const { values } = parseArgs({
   options: { local: { type: 'boolean', default: false }, preview: { type: 'boolean', default: false } },
   strict: true,
@@ -31,7 +29,7 @@ const run = (args: string[]) => execFileSync(process.execPath, [wrangler, ...arg
 const directory = mkdtempSync(join(tmpdir(), 'krabiclaw-snapshot-'))
 try {
   const dumpPath = join(directory, 'production.sql')
-  run(['d1', 'export', SOURCE, '--remote', '--output', dumpPath])
+  run(['d1', 'export', 'DB', '--remote', '--output', dumpPath])
 
   // Materialize so the payload is built from real rows rather than by editing SQL text.
   const dbPath = join(directory, 'production.sqlite')
@@ -42,6 +40,22 @@ try {
     .split('\n')
     .map(line => line.trim())
     .filter(Boolean)
+
+  // Local Wrangler cannot disable foreign-key actions inside its transaction.
+  // Delete children first so SET NULL actions cannot violate a retained parent's
+  // CHECK constraints while replacing an existing snapshot.
+  const foreignKeys = JSON.parse(sqlite(`SELECT json_group_array(json_object('child', m.name, 'parent', f."table"))
+    FROM sqlite_master m, pragma_foreign_key_list(m.name) f WHERE m.type = 'table'`)) as Array<{ child: string; parent: string }>
+  // requests -> reviews -> review_requests -> requests is the schema's cycle.
+  // Removing requests first cascades their review requests; review links may be
+  // null, whereas a booking's customer/product/location CHECKs may not be.
+  const pending = new Set(tables.filter(table => table !== 'requests'))
+  const deleteOrder: string[] = ['requests']
+  while (pending.size) {
+    const children = [...pending].filter(table => !foreignKeys.some(key => key.parent === table && key.child !== table && pending.has(key.child)))
+    if (!children.length) throw new Error(`Snapshot tables have cyclic foreign keys: ${[...pending].join(', ')}`)
+    for (const table of children) { deleteOrder.push(table); pending.delete(table) }
+  }
 
   const dataPath = join(directory, 'data.sql')
   sqlite(`.output ${dataPath}`, '.dump --data-only --nosys --newlines', '.output stdout')
@@ -59,14 +73,14 @@ try {
   writeFileSync(payloadPath, [
     'PRAGMA foreign_keys = OFF;',
     'PRAGMA defer_foreign_keys = ON;',
-    ...tables.map(table => `DELETE FROM "${table}";`),
+    ...deleteOrder.map(table => `DELETE FROM "${table}";`),
     inserts,
     'PRAGMA foreign_keys = ON;',
   ].join('\n'), { encoding: 'utf8', mode: 0o600 })
 
   const target = values.preview ? ['--env', 'preview', '--remote'] : ['--local']
   run(['d1', 'execute', 'DB', ...target, '--file', payloadPath])
-  console.log(`Restored ${tables.length} tables from ${SOURCE} into ${values.preview ? 'preview' : 'local'} D1.`)
+  console.log(`Restored ${tables.length} tables from the production DB binding into ${values.preview ? 'preview' : 'local'} D1.`)
 } finally {
   rmSync(directory, { recursive: true, force: true })
 }

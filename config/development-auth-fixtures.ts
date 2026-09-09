@@ -32,7 +32,7 @@ export const E2E_AUTH_FIXTURES: readonly E2eAuthFixture[] = [
     id: 'user-e2e-pottery-editor',
     name: 'E2E Pottery Editor',
     email: 'pottery-editor@playwright.example',
-    memberships: [{ organizationId: 'org-pottery-house', role: 'editor' }],
+    memberships: [{ organizationId: 'org-user-pottery-house', role: 'editor' }],
     siteIds: ['site-pottery-house'],
   },
   {
@@ -40,21 +40,21 @@ export const E2E_AUTH_FIXTURES: readonly E2eAuthFixture[] = [
     name: 'E2E Pottery Owner',
     email: 'pottery-owner@playwright.example',
     phoneNumber: '+447700900001',
-    memberships: [{ organizationId: 'org-pottery-house', role: 'owner' }],
+    memberships: [{ organizationId: 'org-user-pottery-house', role: 'owner' }],
   },
   {
     id: 'user-e2e-pottery-location-owner',
     name: 'E2E Pottery Location Owner',
     email: 'pottery-location-owner@playwright.example',
     phoneNumber: '+447700900002',
-    memberships: [{ organizationId: 'org-pottery-house', role: 'owner' }],
+    memberships: [{ organizationId: 'org-user-pottery-house', role: 'owner' }],
   },
   {
     id: 'user-e2e-kikuzuki-owner',
     name: 'E2E Kikuzuki Owner',
     email: 'kikuzuki-owner@playwright.example',
     phoneNumber: '+447700900003',
-    memberships: [{ organizationId: 'org-kikuzuki', role: 'owner' }],
+    memberships: [{ organizationId: 'org-bVY8SxxUuG6Ctk2CQnfCk8T2cPsj4jJX', role: 'owner' }],
   },
   {
     id: 'user-e2e-ncls-owner',
@@ -72,7 +72,6 @@ export const E2E_AUTH_FIXTURES: readonly E2eAuthFixture[] = [
     id: 'user-e2e-growth-service-owner',
     name: 'E2E Growth Service Owner',
     email: 'growth-service-owner@playwright.example',
-    memberships: [{ organizationId: 'org-mcp-growth-service', role: 'owner' }],
   },
   {
     id: 'user-e2e-free-owner',
@@ -107,8 +106,8 @@ export const LOCAL_DEVELOPER_AUTH_FIXTURE: E2eAuthFixture = {
   platformRole: 'admin',
   memberships: [
     { organizationId: 'org-demo', role: 'owner' },
-    { organizationId: 'org-pottery-house', role: 'owner' },
-    { organizationId: 'org-kikuzuki', role: 'owner' },
+    { organizationId: 'org-user-pottery-house', role: 'owner' },
+    { organizationId: 'org-bVY8SxxUuG6Ctk2CQnfCk8T2cPsj4jJX', role: 'owner' },
     { organizationId: 'org-ncls-blawby', role: 'owner' },
   ],
 }

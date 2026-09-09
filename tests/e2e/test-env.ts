@@ -7,17 +7,6 @@ export const POTTERY_HOUSE_CANONICAL_URL = 'https://www.potteryhousekrabi.com'
 export const KIKUZUKI_CANONICAL_URL = 'https://www.kikuzuki-thailand.com'
 export const NCLS_CANONICAL_URL = 'https://www.northcarolinalegalservices.org'
 
-/**
- * The Thai Ember & Slice representations are demo fixtures created by the E2E
- * seed. Production is never seeded (see docs/operations/release-flow.md), so
- * the environment that has no fixtures says so rather than the test guessing
- * from a hostname. Defaulting to true keeps local and staging coverage and
- * fails loudly in any new environment that forgets to declare itself.
- */
-export function demoFixturesSeeded(): boolean {
-  return process.env.E2E_DEMO_FIXTURES !== 'false'
-}
-
 export function testBaseUrl() {
   const previewUrl = process.env.PLAYWRIGHT_PREVIEW_URL
   if (previewUrl) return previewUrl

@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test'
 import { loginAs } from './helpers/auth'
 import { MCP_GROWTH_USER_ID, MCP_GROWTH_SERVICE_USER_ID } from './helpers/plan-fixtures'
-import { MCP_GROWTH_SITE_ID, MCP_GROWTH_SERVICE_SITE_ID, mcpRequest, mcpData, createScratchLocation } from './helpers/mcp'
+import { MCP_GROWTH_SITE_ID, mcpRequest, mcpData, createScratchLocation, ensureSite, ensureLocation } from './helpers/mcp'
 
 // Split out of mcp.spec.ts (owner tool-coverage tests) — see helpers/mcp.ts
 // for why. This group covers the bulk of an owner's MCP tool surface: site
@@ -12,7 +12,7 @@ test.describe('stateless MCP server', () => {
   test('owner can use site content and settings tools', async ({ request, baseURL }) => {
     test.setTimeout(120_000)
     await loginAs(request, baseURL!, MCP_GROWTH_USER_ID)
-    const siteId = MCP_GROWTH_SITE_ID
+    const siteId = await ensureSite(request, baseURL!)
 
     const sitesList = await mcpRequest(request, baseURL!, {
       method: 'tools/call',
@@ -111,7 +111,19 @@ test.describe('stateless MCP server', () => {
   test('owner can use submission inquiry tools', async ({ request, baseURL }) => {
     test.setTimeout(60_000)
     await loginAs(request, baseURL!, MCP_GROWTH_USER_ID)
-    const siteId = MCP_GROWTH_SITE_ID
+    const siteId = await ensureSite(request, baseURL!)
+
+    const locationId = await ensureLocation(request, baseURL!, siteId)
+    const locationSetup = await mcpRequest(request, baseURL!, {
+      method: 'tools/call', toolName: 'update_location',
+      args: {
+        site_id: siteId, location_id: locationId, timezone: 'Asia/Bangkok',
+        opening_hours: { periods: Array.from({ length: 7 }, (_, day) => ({
+          open: { day, hour: 12, minute: 0 }, close: { day, hour: 22, minute: 0 },
+        })) },
+      },
+    })
+    expect(mcpData<{ ok: boolean }>(await locationSetup.json()).ok).toBe(true)
 
     const publicContact = await request.post(`${baseURL}/api/public/sites/${siteId}/contact`, {
       data: { name: 'MCP Contact', email: `mcp-contact-${Date.now()}@example.test`, message: 'hello from MCP e2e' },
@@ -125,10 +137,10 @@ test.describe('stateless MCP server', () => {
         date: '2030-01-15',
         time: '19:00',
         guests: '2',
-        location_id: 'loc-mcp-growth',
+        location_id: locationId,
       },
     })
-    expect(publicReservation.status()).toBe(201)
+    expect(publicReservation.status(), await publicReservation.text()).toBe(201)
 
     const listContacts = await mcpRequest(request, baseURL!, {
       method: 'tools/call',
@@ -362,23 +374,10 @@ test.describe('stateless MCP server', () => {
     }
   })
 
-  // The single 31-round-trip "Products, posts, media, and experiences" test below
-  // was split into 4 independent tests, one per domain (location, Product, post,
-  // media/experience) — each domain's calls are self-contained (no shared
-  // state crosses the split points) and each gets its own timeout budget
-  // sized to its own call count, instead of every domain sharing one budget
-  // and one failure. A real bug surfaced through this test on staging (see
-  // issue #386/#408 verification): a genuine 500 from get_post, unrelated to
-  // any of tonight's PR diffs, is exactly the kind of single-step failure
-  // that's easy to misdiagnose as "the environment is flaky" when it's
-  // buried inside a 31-step test — splitting makes the actual failing step
-  // and its response immediately visible instead of one failure among 31.
-  // Both tests mutate the shared Growth service fixture, so they run serially
-  // to avoid concurrent state mutations.
-  test.describe.serial('owner management workflows', () => {
+  test.describe('owner management workflows', () => {
     test('CMS manages locations while MCP rejects business setup tools', async ({ request, baseURL }) => {
       await loginAs(request, baseURL!, MCP_GROWTH_SERVICE_USER_ID)
-      const siteId = MCP_GROWTH_SERVICE_SITE_ID
+      const siteId = await ensureSite(request, baseURL!)
       const locationId = await createScratchLocation(request, baseURL!, siteId)
 
       const deleteLocationRes = await request.delete(`${baseURL}/api/sites/${siteId}/locations/${locationId}`)
@@ -400,13 +399,14 @@ test.describe('stateless MCP server', () => {
     test('owner can manage media and experience tools including public booking', async ({ request, baseURL }) => {
       test.setTimeout(120_000)
       await loginAs(request, baseURL!, MCP_GROWTH_SERVICE_USER_ID)
-      const siteId = MCP_GROWTH_SERVICE_SITE_ID
-      const locationList = await mcpRequest(request, baseURL!, {
-        method: 'tools/call',
-        toolName: 'list_locations',
-        args: { site_id: siteId },
+      const siteId = await ensureSite(request, baseURL!)
+      const locationId = await ensureLocation(request, baseURL!, siteId)
+
+      const locationSetup = await mcpRequest(request, baseURL!, {
+        method: 'tools/call', toolName: 'update_location',
+        args: { site_id: siteId, location_id: locationId, timezone: 'Asia/Bangkok' },
       })
-      const locationId = mcpData<{ locations: Array<{ id: string }> }>(await locationList.json()).locations[0]!.id
+      expect(mcpData<{ ok: boolean }>(await locationSetup.json()).ok).toBe(true)
 
       const mediaList = await mcpRequest(request, baseURL!, {
         method: 'tools/call',
@@ -472,7 +472,7 @@ test.describe('stateless MCP server', () => {
           notes: 'Created via public booking flow for MCP coverage',
         },
       })
-      expect(booking.status()).toBe(201)
+      expect(booking.status(), await booking.text()).toBe(201)
       const bookingBody = await booking.json() as { booking_id: string }
       const bookingId = bookingBody.booking_id
       expect(bookingId).toEqual(expect.any(String))
