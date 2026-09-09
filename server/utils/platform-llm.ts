@@ -7,13 +7,15 @@ import { queryAll, queryFirst, type DbClient } from '../db/index.ts'
 import { getContentBlocksForDocument } from './content/documents.ts'
 import { findAuthUsersByIds, type CloudflareEnv } from './auth.ts'
 import { blogCategoryToSlug, slugToBlogCategory } from '../../utils/blog-categories.ts'
-import { slugToCategory } from '../../utils/docs-categories.ts'
+import { articleCategoryFromSlug, collectionArticlePath } from '../../utils/article-collections.ts'
 import { getPlatformSite } from './platform-site.ts'
 
 /** A documentation page: an ordinary site page whose path starts with /docs. */
 interface PlatformLlmDocSummary {
   id: string
   title: string
+  slug: string
+  category: string | null
   path: string
   excerpt?: string | null
   canonical_url?: string | null
@@ -192,7 +194,7 @@ function buildFrontMatter(lines: Array<string | null>) {
 }
 
 function docCategory(path: string) {
-  return slugToCategory(path.split('/')[2] ?? null)
+  return articleCategoryFromSlug('docs', path.split('/')[2] ?? null)
 }
 
 function docMarkdownPath(path: string) {
@@ -265,30 +267,38 @@ export function renderTenantBlogMarkdown(post: TenantLlmBlogDetail, origin: stri
   return renderBlogMarkdown(post, origin, { path, markdownPath })
 }
 
-export async function listPublishedPlatformDocsForLlm(db: DbClient) {
-  return await queryAll<PlatformLlmDocSummary>(
-    db,
-    `SELECT id, title, path, summary AS excerpt, canonical_url, seo_description, updated_at
+const DOC_SUMMARY_SELECT = `SELECT id, title, slug, (metadata_json ->> '$.category') AS category, summary AS excerpt, canonical_url, seo_description, updated_at
      FROM content_documents
-     WHERE kind = 'page' AND row_role = 'root' AND site_id = ? AND path LIKE '/docs/%'
-     ORDER BY path, sort_order, updated_at DESC`,
-    [(await getPlatformSite(db)).id],
+     WHERE kind = 'article' AND row_role = 'root' AND status = 'published' AND visibility = 'public'
+       AND (metadata_json ->> '$.collection') = 'docs' AND site_id = ?`
+
+function withDocPath<T extends { slug: string; category: string | null }>(row: T): T & { path: string } {
+  return { ...row, path: collectionArticlePath('docs', row.category, row.slug) }
+}
+
+/** Documentation is KrabiClaw's `docs` article collection, in editorial order. */
+export async function listPublishedPlatformDocsForLlm(db: DbClient): Promise<PlatformLlmDocSummary[]> {
+  const rows = await queryAll<Omit<PlatformLlmDocSummary, 'path'>>(
+    db, `${DOC_SUMMARY_SELECT} ORDER BY sort_order, title`, [(await getPlatformSite(db)).id],
   )
+  return rows.map(withDocPath)
 }
 
+/** KrabiClaw's blog collection only; documentation has its own readers above. */
 export async function listPublishedPlatformBlogPostsForLlm(db: DbClient, env: CloudflareEnv) {
-  return listPublishedTenantBlogPostsForLlm(db, (await getPlatformSite(db)).id, env)
+  return listPublishedTenantBlogPostsForLlm(db, (await getPlatformSite(db)).id, env, 'blog')
 }
 
-export async function listPublishedTenantBlogPostsForLlm(db: DbClient, siteId: string, env: CloudflareEnv) {
+export async function listPublishedTenantBlogPostsForLlm(db: DbClient, siteId: string, env: CloudflareEnv, collection?: 'blog' | 'docs') {
   const posts = await queryAll<TenantLlmBlogSummary & { author_id: string | null }>(
     db,
     `SELECT
       p.id, p.title, p.slug, p.summary AS excerpt, (p.metadata_json ->> '$.category') AS category, p.canonical_url, p.seo_description, p.published_at, p.updated_at, p.author_id
      FROM content_documents p
      WHERE p.kind = 'article' AND p.row_role = 'root' AND p.status = 'published' AND p.site_id = ? AND p.visibility = 'public'
+       ${collection ? "AND (p.metadata_json ->> '$.collection') = ?" : ''}
      ORDER BY p.published_at DESC, p.updated_at DESC`,
-    [siteId],
+    collection ? [siteId, collection] : [siteId],
   )
   const authors = await findAuthUsersByIds(env, posts.map(post => post.author_id))
   return posts.map(({ author_id: authorId, ...post }) => ({
@@ -297,20 +307,14 @@ export async function listPublishedTenantBlogPostsForLlm(db: DbClient, siteId: s
   }))
 }
 
-export async function getPublishedPlatformDocBySlug(db: DbClient, categorySlug: string, slug: string) {
-  if (!slugToCategory(categorySlug)) return null
-  return getPublishedPlatformDocByPath(db, slug === categorySlug ? `/docs/${categorySlug}` : `/docs/${categorySlug}/${slug}`)
-}
-
-export async function getPublishedPlatformDocByPath(db: DbClient, path: string) {
-  const detail = await queryFirst<Omit<PlatformLlmDocDetail, 'content_blocks'>>(
-    db,
-    `SELECT id, title, path, summary AS excerpt, canonical_url, seo_description, updated_at
-     FROM content_documents
-     WHERE kind = 'page' AND row_role = 'root' AND site_id = ? AND path = ?`,
-    [(await getPlatformSite(db)).id, path],
+export async function getPublishedPlatformDocBySlug(db: DbClient, categorySlug: string, slug: string): Promise<PlatformLlmDocDetail | null> {
+  const category = articleCategoryFromSlug('docs', categorySlug)
+  if (!category) return null
+  const row = await queryFirst<Omit<PlatformLlmDocSummary, 'path'>>(
+    db, `${DOC_SUMMARY_SELECT} AND slug = ? AND (metadata_json ->> '$.category') = ?`, [(await getPlatformSite(db)).id, slug, category],
   )
-  if (!detail) return null
+  if (!row) return null
+  const detail = withDocPath(row)
   const contentBlocks = await getContentBlocksForDocument(db, detail.id)
   if (!contentBlocks) throw new HTTPError({ statusCode: 500, statusMessage: 'Documentation content document is missing' })
   return { ...detail, content_blocks: contentBlocks }
@@ -319,18 +323,19 @@ export async function getPublishedPlatformDocByPath(db: DbClient, path: string) 
 export async function getPublishedBlogPostBySlug(db: DbClient, categorySlug: string, slug: string) {
   const category = slugToBlogCategory(categorySlug)
   if (!category) return null
-  const detail = await getPublishedTenantBlogPostBySlug(db, (await getPlatformSite(db)).id, slug)
+  const detail = await getPublishedTenantBlogPostBySlug(db, (await getPlatformSite(db)).id, slug, 'blog')
   return detail?.category === category ? detail : null
 }
 
-export async function getPublishedTenantBlogPostBySlug(db: DbClient, siteId: string, slug: string) {
+export async function getPublishedTenantBlogPostBySlug(db: DbClient, siteId: string, slug: string, collection?: 'blog' | 'docs') {
   const detail = await queryFirst<Omit<TenantLlmBlogDetail, 'content_blocks'>>(
     db,
     `SELECT
       p.id, p.title, p.slug, p.summary AS excerpt, (p.metadata_json ->> '$.category') AS category, p.canonical_url, p.seo_description, p.published_at, p.updated_at
      FROM content_documents p
-     WHERE p.kind = 'article' AND p.row_role = 'root' AND p.slug = ? AND p.status = 'published' AND p.site_id = ? AND p.visibility = 'public'`,
-    [slug, siteId],
+     WHERE p.kind = 'article' AND p.row_role = 'root' AND p.slug = ? AND p.status = 'published' AND p.site_id = ? AND p.visibility = 'public'
+       ${collection ? "AND (p.metadata_json ->> '$.collection') = ?" : ''}`,
+    collection ? [slug, siteId, collection] : [slug, siteId],
   )
   if (!detail) return null
   const contentBlocks = await getContentBlocksForDocument(db, detail.id)

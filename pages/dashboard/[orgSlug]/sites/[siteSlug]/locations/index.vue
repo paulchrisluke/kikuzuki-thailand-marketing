@@ -77,7 +77,7 @@ const capabilities = computed(() => {
   // rendered as a site with nothing in it.
   return resolveCmsCapabilities(
     normalizeVertical(rawVertical) as SiteVertical,
-    resolvePublicTemplate({ vertical: rawVertical }).slug,
+    resolvePublicTemplate({ themeId: dashboard.site.value?.theme_id, vertical: rawVertical }).slug,
     { site: parseCmsFeatureOverrideDelta(dashboard.site.value?.feature_overrides) },
   )
 })

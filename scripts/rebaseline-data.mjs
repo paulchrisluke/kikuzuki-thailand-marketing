@@ -33,11 +33,12 @@ const tableNames = db => db.prepare("SELECT name FROM sqlite_schema WHERE type =
 const columns = (db, table) => db.prepare(`PRAGMA table_info(${qi(table)})`).all().map(row => row.name)
 const digest = (rows, names) => hash(rows.map(row => JSON.stringify(names.map(name => row[name]))).sort().join('\n'))
 
-// Documentation category labels become the /docs path segment.
-const DOC_CATEGORY_SLUG = `CASE (metadata_json ->> '$.category')
-  WHEN 'Getting Started' THEN 'getting-started' WHEN 'Menu Management' THEN 'menu-management'
-  WHEN 'Theme Customization' THEN 'theme-customization' WHEN 'SEO & Marketing' THEN 'seo-marketing'
-  WHEN 'Integrations' THEN 'integrations' WHEN 'Advanced' THEN 'advanced' END`
+// Category labels of KrabiClaw's collections become their URL segment (utils/article-collections.ts).
+const ARTICLE_CATEGORY_SLUG = `CASE (d.metadata_json ->> '$.category')
+  WHEN 'Marketing' THEN 'marketing' WHEN 'Technology' THEN 'technology' WHEN 'Design' THEN 'design' WHEN 'Business' THEN 'business'
+  WHEN 'SEO' THEN 'seo' WHEN 'Social Media' THEN 'social-media'
+  WHEN 'Getting Started' THEN 'getting-started' WHEN 'Menu Management' THEN 'menu-management' WHEN 'Theme Customization' THEN 'theme-customization'
+  WHEN 'SEO & Marketing' THEN 'seo-marketing' WHEN 'Integrations' THEN 'integrations' WHEN 'Advanced' THEN 'advanced' ELSE 'uncategorized' END`
 const ARTICLE_NAV_KEYS = "'$.nav_section', '$.nav_title', '$.nav_order', '$.nav_section_order', '$.nav_group', '$.nav_group_order', '$.hide_from_nav', '$.featured_order'"
 const FEATURED = "mp.owner_type = 'content_document' AND mp.slot = 'featured'"
 const LEADS_ALREADY = `EXISTS (
@@ -47,18 +48,31 @@ const LEADS_ALREADY = `EXISTS (
 
 /** Ordered data transforms. Each is idempotent on its own result. */
 export const TRANSFORMS = [
+  // --- KrabiClaw's own site runs the platform template and owns the apex domain
+  { name: 'platform_site_template', sql: `UPDATE sites SET theme_id = 'krabiclaw-theme-v1', vertical = 'service', updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+    WHERE id = 'platform' AND theme_id <> 'krabiclaw-theme-v1'` },
+  { name: 'platform_subdomain_demoted', sql: `UPDATE site_domains SET role = 'secondary', updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+    WHERE site_id = 'platform' AND role = 'canonical' AND domain <> 'krabiclaw.com'` },
+  { name: 'platform_apex_domain', sql: `INSERT INTO site_domains (id, organization_id, site_id, domain, type, role, status, desired_state, dns_status)
+    SELECT 'domain-platform-apex', organization_id, id, 'krabiclaw.com', 'custom', 'canonical', 'active', 'active', 'valid'
+      FROM sites WHERE id = 'platform' ON CONFLICT(domain) DO NOTHING` },
   // --- the platform split (#870): one site model, one contact model, one telemetry surface
   { name: 'platform_contact_requests_removed', sql: "DELETE FROM requests WHERE kind = 'platform_contact'" },
   { name: 'platform_activity_scope_is_global', sql: "UPDATE activity_entries SET scope_kind = 'global' WHERE scope_kind = 'platform'" },
   { name: 'platform_notification_scope_is_global', sql: "UPDATE activity_entries SET scope_kind = 'global' WHERE kind = 'notification' AND scope_kind = 'platform'" },
   { name: 'platform_mcp_telemetry_removed', sql: "DELETE FROM mcp_tool_call_events WHERE mcp_surface = 'platform'" },
   { name: 'work_requests_removed', sql: "DELETE FROM requests WHERE kind = 'work'" },
-  { name: 'documentation_becomes_pages', sql: `UPDATE content_documents SET
-      path = '/docs/' || (${DOC_CATEGORY_SLUG}) || CASE WHEN slug = (${DOC_CATEGORY_SLUG}) THEN '' ELSE '/' || slug END,
-      slug = NULL,
-      metadata_json = json_object('page_type', 'system'),
-      kind = 'page'
+  // Documentation is KrabiClaw's second article collection; every article names its collection.
+  { name: 'documentation_becomes_articles', sql: `UPDATE content_documents SET
+      kind = 'article',
+      status = COALESCE(status, 'published'),
+      visibility = 'public',
+      published_at = COALESCE(published_at, created_at),
+      first_published_at = COALESCE(first_published_at, published_at, created_at),
+      metadata_json = json_object('collection', 'docs', 'category', metadata_json ->> '$.category', 'tags', json('[]'), 'slug_manually_overridden', 1)
     WHERE kind = 'platform_doc'` },
+  { name: 'articles_carry_collection', sql: `UPDATE content_documents SET metadata_json = json_set(metadata_json, '$.collection', 'blog')
+    WHERE kind = 'article' AND row_role = 'root' AND json_type(metadata_json, '$.collection') IS NULL` },
   { name: 'article_nav_model_removed', sql: `UPDATE content_documents SET metadata_json = json_remove(metadata_json, ${ARTICLE_NAV_KEYS})
     WHERE kind = 'article' AND (${ARTICLE_NAV_KEYS.split(', ').map(key => `json_type(metadata_json, ${key}) IS NOT NULL`).join(' OR ')})` },
   // --- the featured placement becomes the leading image block (#873)
@@ -74,7 +88,9 @@ export const TRANSFORMS = [
   // --- FAQ items become Q&A records; every FAQ block lists the page's Q&A
   { name: 'faq_items_become_qa', sql: `INSERT INTO content_documents (id, organization_id, site_id, kind, row_role, locale, scope_path, title, summary, status, source, sort_order, metadata_json)
     SELECT 'qa-' || cb.id || '-' || j.key, d.organization_id, d.site_id, 'qa', 'root', 'en',
-           CASE WHEN d.kind = 'page' THEN d.path WHEN s.vertical = 'service' THEN '/article/' || d.slug ELSE '/blog/' || d.slug END,
+           CASE WHEN d.kind = 'page' THEN d.path
+                WHEN s.theme_id = 'krabiclaw-theme-v1' THEN '/' || COALESCE(d.metadata_json ->> '$.collection', 'blog') || '/' || (${ARTICLE_CATEGORY_SLUG}) || '/' || d.slug
+                WHEN s.vertical = 'service' THEN '/article/' || d.slug ELSE '/blog/' || d.slug END,
            j.value ->> '$.question', j.value ->> '$.answer', 'published', 'manual', j.key,
            json_object('is_owner_answer', 1, 'upvote_count', 0)
       FROM content_blocks cb
@@ -82,20 +98,14 @@ export const TRANSFORMS = [
       JOIN sites s ON s.id = d.site_id, json_each(cb.data_json, '$.items') j
      WHERE cb.type = 'faq' AND json_type(j.value, '$.question') = 'text' AND trim(j.value ->> '$.question') <> ''
        AND NOT EXISTS (SELECT 1 FROM content_documents q WHERE q.kind = 'qa' AND q.row_role = 'root' AND q.site_id = d.site_id
-                         AND q.scope_path IS (CASE WHEN d.kind = 'page' THEN d.path WHEN s.vertical = 'service' THEN '/article/' || d.slug ELSE '/blog/' || d.slug END)
+                         AND q.scope_path IS (CASE WHEN d.kind = 'page' THEN d.path
+                                                   WHEN s.theme_id = 'krabiclaw-theme-v1' THEN '/' || COALESCE(d.metadata_json ->> '$.collection', 'blog') || '/' || (${ARTICLE_CATEGORY_SLUG}) || '/' || d.slug
+                                                   WHEN s.vertical = 'service' THEN '/article/' || d.slug ELSE '/blog/' || d.slug END)
                          AND q.title = j.value ->> '$.question')` },
   { name: 'faq_blocks_read_page_qa', sql: `UPDATE content_blocks SET data_json = CASE
       WHEN json_type(data_json, '$.title') = 'text' AND trim(data_json ->> '$.title') <> '' THEN json_object('title', data_json ->> '$.title', 'source', 'page_qa')
       ELSE json_object('source', 'page_qa') END
     WHERE type = 'faq' AND (json_type(data_json, '$.items') IS NOT NULL OR COALESCE(data_json ->> '$.source', '') <> 'page_qa')` },
-  // --- KrabiClaw's own site runs the platform template and owns the apex domain
-  { name: 'platform_site_template', sql: `UPDATE sites SET theme_id = 'krabiclaw-theme-v1', vertical = 'service', updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
-    WHERE id = 'platform' AND theme_id <> 'krabiclaw-theme-v1'` },
-  { name: 'platform_subdomain_demoted', sql: `UPDATE site_domains SET role = 'secondary', updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
-    WHERE site_id = 'platform' AND role = 'canonical' AND domain <> 'krabiclaw.com'` },
-  { name: 'platform_apex_domain', sql: `INSERT INTO site_domains (id, organization_id, site_id, domain, type, role, status, desired_state, dns_status)
-    SELECT 'domain-platform-apex', organization_id, id, 'krabiclaw.com', 'custom', 'canonical', 'active', 'active', 'valid'
-      FROM sites WHERE id = 'platform' ON CONFLICT(domain) DO NOTHING` },
 ]
 
 const LOCALIZED_OWNER_TABLES = {
@@ -124,7 +134,8 @@ export const TARGET_INVARIANT_QUERIES = {
   no_platform_mcp_surface: "SELECT id FROM mcp_tool_call_events WHERE mcp_surface = 'platform'",
   no_document_featured_placements: "SELECT id FROM media_placements WHERE owner_type = 'content_document' AND slot = 'featured'",
   no_faq_items: "SELECT id FROM content_blocks WHERE type = 'faq' AND json_type(data_json, '$.items') IS NOT NULL",
-  docs_are_pages: "SELECT id FROM content_documents WHERE kind = 'page' AND path LIKE '/docs/%' AND (slug IS NOT NULL OR metadata_json ->> '$.page_type' <> 'system')",
+  no_docs_pages: "SELECT id FROM content_documents WHERE kind = 'page' AND path LIKE '/docs/%'",
+  articles_carry_collection: "SELECT id FROM content_documents WHERE kind = 'article' AND row_role = 'root' AND (metadata_json ->> '$.collection') NOT IN ('blog', 'docs')",
   one_platform_site: "SELECT count(*) AS n FROM sites WHERE theme_id = 'krabiclaw-theme-v1' HAVING n <> 1",
   platform_apex_canonical: "SELECT s.id FROM sites s WHERE s.theme_id = 'krabiclaw-theme-v1' AND NOT EXISTS (SELECT 1 FROM site_domains d WHERE d.site_id = s.id AND d.domain = 'krabiclaw.com' AND d.role = 'canonical' AND d.status = 'active')",
 }

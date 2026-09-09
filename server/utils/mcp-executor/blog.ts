@@ -6,9 +6,12 @@ import { paginateMcpCollection } from '~/server/utils/mcp-pagination'
 import { absolutizeSiteUrl, NOT_HANDLED, omit, optionalString, requiredString } from './shared'
 import { CONTENT_BLOCK_TYPES } from '~/server/utils/content/documents'
 
+const ARTICLE_COLLECTIONS_SET = new Set(['blog', 'docs'])
+
 const UPDATE_BLOG_MUTATION_FIELDS = [
   'title',
   'excerpt',
+  'collection',
   'category',
   'tags',
   'content_blocks',
@@ -26,6 +29,7 @@ const UPDATE_BLOG_MUTATION_FIELDS = [
 const BLOG_METADATA_FIELDS = [
   'title',
   'excerpt',
+  'collection',
   'category',
   'tags',
   'seo_title',
@@ -153,6 +157,7 @@ function toBlogPostSummary(post: Record<string, unknown>, site: McpExecutorConte
     title: responseString(post.title, 'post.title'),
     slug: responseString(post.slug, 'post.slug'),
     excerpt: responseNullableString(post.excerpt, 'post.excerpt'),
+    collection: responseEnumString(post.collection ?? 'blog', 'post.collection', ARTICLE_COLLECTIONS_SET),
     category: responseNullableString(post.category, 'post.category'),
     tags: responseStringArray(post.tags, 'post.tags'),
     seo_title: responseNullableString(post.seo_title, 'post.seo_title'),

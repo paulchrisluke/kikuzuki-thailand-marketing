@@ -2,8 +2,9 @@ import { HTTPError, defineHandler  } from 'nitro';
 
 import { cloudflareEnv, textResponse } from '~/server/utils/api-response'
 import {
-  buildLlmsFullTxt, getPublishedTenantBlogPostBySlug, listPublishedTenantBlogPostsForLlm, getPublishedBlogPostBySlug, getPublishedPlatformDocByPath, listPublishedPlatformBlogPostsForLlm, listPublishedPlatformDocsForLlm, renderTenantBlogMarkdown, resolvePublicOrigin, } from '~/server/utils/platform-llm'
+  buildLlmsFullTxt, getPublishedTenantBlogPostBySlug, listPublishedTenantBlogPostsForLlm, getPublishedBlogPostBySlug, getPublishedPlatformDocBySlug, listPublishedPlatformBlogPostsForLlm, listPublishedPlatformDocsForLlm, renderTenantBlogMarkdown, resolvePublicOrigin, } from '~/server/utils/platform-llm'
 import { blogCategoryToSlug } from '~/utils/blog-categories'
+import { articleCategoryToSlug } from '~/utils/article-collections'
 
 export default defineHandler(async (event) => {
   const env = cloudflareEnv(event)
@@ -28,7 +29,7 @@ export default defineHandler(async (event) => {
   const [docSummaries, postSummaries] = await Promise.all([
     listPublishedPlatformDocsForLlm(db), listPublishedPlatformBlogPostsForLlm(db, env), ])
 
-  const docs = (await Promise.all((docSummaries ?? []).map(doc => getPublishedPlatformDocByPath(db, doc.path))))
+  const docs = (await Promise.all((docSummaries ?? []).map(doc => getPublishedPlatformDocBySlug(db, articleCategoryToSlug('docs', doc.category) ?? '', doc.slug))))
     .filter((doc): doc is NonNullable<typeof doc> => Boolean(doc))
 
   const posts = (await Promise.all(

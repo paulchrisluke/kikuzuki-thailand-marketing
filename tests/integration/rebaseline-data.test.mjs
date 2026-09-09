@@ -69,11 +69,13 @@ test('rebaseline transfers an epoch-6 export into the baseline and applies every
 
   const db = new Database(targetPath, { readonly: true })
   try {
-    assert.deepEqual(db.prepare("SELECT id, kind, path, slug, metadata_json FROM content_documents WHERE id LIKE 'doc-%' ORDER BY id").all(), [
-      { id: 'doc-index', kind: 'page', path: '/docs/getting-started', slug: null, metadata_json: '{"page_type":"system"}' },
-      { id: 'doc-leaf', kind: 'page', path: '/docs/advanced/connect-a-domain', slug: null, metadata_json: '{"page_type":"system"}' },
+    // Documentation joins the article model as the docs collection; every article names its collection.
+    assert.deepEqual(db.prepare("SELECT id, kind, status, visibility, slug, metadata_json FROM content_documents WHERE id LIKE 'doc-%' ORDER BY id").all(), [
+      { id: 'doc-index', kind: 'article', status: 'published', visibility: 'public', slug: 'getting-started', metadata_json: '{"collection":"docs","category":"Getting Started","tags":[],"slug_manually_overridden":1}' },
+      { id: 'doc-leaf', kind: 'article', status: 'published', visibility: 'public', slug: 'connect-a-domain', metadata_json: '{"collection":"docs","category":"Advanced","tags":[],"slug_manually_overridden":1}' },
     ])
-    assert.equal(db.prepare("SELECT metadata_json FROM content_documents WHERE id = 'post'").get().metadata_json, '{"category":"News","tags":["a"]}')
+    assert.equal(db.prepare("SELECT metadata_json FROM content_documents WHERE id = 'post'").get().metadata_json, '{"category":"News","tags":["a"],"collection":"blog"}')
+    assert.equal(db.prepare("SELECT count(*) AS n FROM content_documents WHERE kind = 'page' AND path LIKE '/docs/%'").get().n, 0)
     // Featured placement -> leading image block; a post that already leads with the image only loses the placement.
     assert.deepEqual(db.prepare("SELECT id, type, position FROM content_blocks WHERE document_id = 'post' ORDER BY position").all(),
       [{ id: 'cover-post', type: 'image', position: 0 }, { id: 'b0', type: 'markdown', position: 1 }, { id: 'faq', type: 'faq', position: 2 }])

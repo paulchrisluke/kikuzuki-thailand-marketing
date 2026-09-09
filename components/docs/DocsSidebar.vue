@@ -7,7 +7,7 @@
       class="mb-3"
     />
 
-    <!-- Inside a category the sidebar scopes to that category's pages plus a
+    <!-- Inside a category the sidebar scopes to that category's articles plus a
          back link, the same drill-down the dashboard uses. -->
     <NuxtLink
       v-if="drilledCategory"
@@ -22,14 +22,14 @@
     <div v-for="section in sections" :key="section.categorySlug" class="mb-4 last:mb-0">
       <p class="mb-1.5 px-2.5 text-xs font-semibold uppercase tracking-wide text-dimmed">{{ section.category }}</p>
       <ul class="flex flex-col gap-0.5">
-        <li v-for="page in section.pages" :key="page.path">
+        <li v-for="article in section.articles" :key="article.path">
           <NuxtLink
-            :to="page.path"
+            :to="article.path"
             class="block truncate rounded-md px-2.5 py-1.5 text-sm no-underline transition-colors"
-            :class="route.path === page.path ? 'bg-elevated text-primary font-medium' : 'text-muted hover:text-default hover:bg-muted'"
+            :class="route.path === article.path ? 'bg-elevated text-primary font-medium' : 'text-muted hover:text-default hover:bg-muted'"
             @click="emit('navigate')"
           >
-            {{ page.title }}
+            {{ article.title }}
           </NuxtLink>
         </li>
       </ul>
@@ -43,7 +43,7 @@ import PlatformCommandSearchTrigger from '~/components/platform/search/PlatformC
 const emit = defineEmits<{ navigate: [] }>()
 
 const route = useRoute()
-const { categories } = await useDocsPages()
+const { categories } = await useDocsArticles()
 
 const drilledCategory = computed(() => {
   const [, root, categorySlug] = route.path.split('/')

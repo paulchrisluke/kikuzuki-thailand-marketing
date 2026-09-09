@@ -258,6 +258,7 @@ export const blogPostObject = {
     title: { type: 'string' },
     slug: { type: 'string' },
     excerpt: { type: ['string', 'null'] },
+    collection: { type: 'string', enum: ['blog', 'docs'] },
     category: { type: ['string', 'null'] },
     tags: { type: 'array', items: { type: 'string' } },
     seo_title: { type: ['string', 'null'] },
@@ -282,7 +283,7 @@ export const blogPostObject = {
     content_blocks: { type: 'array', items: blogContentBlockObject },
   },
   required: [
-    'id', 'title', 'slug', 'excerpt', 'category', 'tags',
+    'id', 'title', 'slug', 'excerpt', 'collection', 'category', 'tags',
     'seo_title', 'seo_description', 'seo_keywords', 'canonical_url', 'robots',
     'published', 'published_at', 'status', 'visibility', 'scheduled_for',
     'created_at', 'updated_at', 'cover', 'admin_edit_url', 'edit_url',
@@ -299,6 +300,7 @@ export const blogPostSummaryObject = {
     title: { type: 'string' },
     slug: { type: 'string' },
     excerpt: { type: ['string', 'null'] },
+    collection: { type: 'string', enum: ['blog', 'docs'] },
     category: { type: ['string', 'null'] },
     tags: { type: 'array', items: { type: 'string' } },
     seo_title: { type: ['string', 'null'] },
@@ -322,7 +324,7 @@ export const blogPostSummaryObject = {
     view_url: { type: ['string', 'null'] },
   },
   required: [
-    'id', 'title', 'slug', 'excerpt', 'category', 'tags',
+    'id', 'title', 'slug', 'excerpt', 'collection', 'category', 'tags',
     'seo_title', 'seo_description', 'seo_keywords', 'canonical_url', 'robots',
     'published', 'published_at', 'status', 'visibility', 'scheduled_for',
     'created_at', 'updated_at', 'cover', 'admin_edit_url', 'edit_url',

@@ -66,6 +66,7 @@ export const BLOG_TOOLS: McpToolDefinition[] = [
       inputSchema: {
         title: { type: 'string' },
         excerpt: { type: 'string' },
+        collection: { type: 'string', enum: ['blog', 'docs'], description: "KrabiClaw's own site only: which collection the article belongs to. Every other site has one blog." },
         category: { type: 'string' },
         tags: { type: 'array', items: { type: 'string' }, description: 'Searchable topical tags. Use a short, deduplicated list; category remains the primary public grouping.' },
         content_blocks: { type: 'array', minItems: 1, description: 'Canonical ordered article blocks. This is the source of truth for FAQ, How-To, media, and other structured content.', items: blogContentBlockSchema },
@@ -91,6 +92,7 @@ export const BLOG_TOOLS: McpToolDefinition[] = [
         post_id: { type: 'string', description: 'Post id or slug.' },
         title: { type: 'string' },
         excerpt: { type: 'string' },
+        collection: { type: 'string', enum: ['blog', 'docs'], description: "KrabiClaw's own site only: which collection the article belongs to. Every other site has one blog." },
         category: { type: 'string' },
         tags: { type: 'array', items: { type: 'string' }, description: 'Searchable topical tags. Use a short, deduplicated list; category remains the primary public grouping.' },
         content_blocks: { type: 'array', minItems: 1, description: 'Canonical ordered article blocks. Sending this replaces the complete block snapshot.', items: blogContentBlockSchema },
@@ -119,6 +121,7 @@ export const BLOG_TOOLS: McpToolDefinition[] = [
         expected_updated_at: { type: 'string', description: 'Optional metadata concurrency token from the post updated_at field.' },
         title: { type: 'string' },
         excerpt: { type: 'string' },
+        collection: { type: 'string', enum: ['blog', 'docs'], description: "KrabiClaw's own site only: which collection the article belongs to. Every other site has one blog." },
         category: { type: 'string' },
         tags: { type: 'array', items: { type: 'string' }, description: 'Searchable topical tags. Use a short, deduplicated list; category remains the primary public grouping.' },
         seo_title: { type: ['string', 'null'], description: 'Optional SEO/browser-tab title override. Falls back to the post title if unset.' },

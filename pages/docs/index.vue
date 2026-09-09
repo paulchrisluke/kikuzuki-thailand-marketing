@@ -182,19 +182,15 @@
 <script setup lang="ts">
 definePageMeta({ layout: 'docs' })
 
-const { pages, pending, error: docsError } = await useDocsPages()
+const { articles, pending, error: docsError } = await useDocsArticles()
 
 if (docsError.value) {
   throw createError({ statusCode: 500, statusMessage: 'Failed to load documentation' })
 }
 
-// The index cards read from the same page list as the sidebar; each card is the
-// page's title, summary and category.
-const docsWithCategorySlug = computed(() => pages.value.map(page => ({
-  ...page,
-  slug: page.path.split('/').at(-1) ?? '',
-  excerpt: page.summary,
-})))
+// The index cards read from the same article list as the sidebar; each card is the
+// article's title, excerpt and category.
+const docsWithCategorySlug = computed(() => articles.value)
 
 const startSetupDocs = computed(() =>
   docsWithCategorySlug.value.filter(doc => doc.categorySlug === 'getting-started' || doc.path === '/docs/integrations/mcp-setup').slice(0, 4),

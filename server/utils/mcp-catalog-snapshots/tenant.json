@@ -1,6 +1,6 @@
 {
   "surface": "tenant",
-  "fingerprint": "sha256:368b0de1f8b3661657f30e02bc470e159f1aa915e96a3f3ca6f4c94f0e129f68",
+  "fingerprint": "sha256:df8fae023d5590a08d15b185736644b53b744e52b1fa247cd5d6b66b592d913b",
   "tools": [
     {
       "name": "attach_media",
@@ -840,6 +840,14 @@
           "category": {
             "type": "string"
           },
+          "collection": {
+            "description": "KrabiClaw's own site only: which collection the article belongs to. Every other site has one blog.",
+            "enum": [
+              "blog",
+              "docs"
+            ],
+            "type": "string"
+          },
           "content_blocks": {
             "description": "Canonical ordered article blocks. This is the source of truth for FAQ, How-To, media, and other structured content.",
             "items": {
@@ -1016,6 +1024,13 @@
                   "string",
                   "null"
                 ]
+              },
+              "collection": {
+                "enum": [
+                  "blog",
+                  "docs"
+                ],
+                "type": "string"
               },
               "content_blocks": {
                 "items": {
@@ -1287,6 +1302,7 @@
               "title",
               "slug",
               "excerpt",
+              "collection",
               "category",
               "tags",
               "seo_title",
@@ -3573,6 +3589,13 @@
                   "null"
                 ]
               },
+              "collection": {
+                "enum": [
+                  "blog",
+                  "docs"
+                ],
+                "type": "string"
+              },
               "content_blocks": {
                 "items": {
                   "additionalProperties": false,
@@ -3843,6 +3866,7 @@
               "title",
               "slug",
               "excerpt",
+              "collection",
               "category",
               "tags",
               "seo_title",
@@ -7520,6 +7544,13 @@
                     "null"
                   ]
                 },
+                "collection": {
+                  "enum": [
+                    "blog",
+                    "docs"
+                  ],
+                  "type": "string"
+                },
                 "cover": {
                   "additionalProperties": false,
                   "properties": {
@@ -7697,6 +7728,7 @@
                 "title",
                 "slug",
                 "excerpt",
+                "collection",
                 "category",
                 "tags",
                 "seo_title",
@@ -10259,6 +10291,13 @@
                   "null"
                 ]
               },
+              "collection": {
+                "enum": [
+                  "blog",
+                  "docs"
+                ],
+                "type": "string"
+              },
               "content_blocks": {
                 "items": {
                   "additionalProperties": false,
@@ -10529,6 +10568,7 @@
               "title",
               "slug",
               "excerpt",
+              "collection",
               "category",
               "tags",
               "seo_title",
@@ -11708,6 +11748,13 @@
                   "null"
                 ]
               },
+              "collection": {
+                "enum": [
+                  "blog",
+                  "docs"
+                ],
+                "type": "string"
+              },
               "content_blocks": {
                 "items": {
                   "additionalProperties": false,
@@ -11978,6 +12025,7 @@
               "title",
               "slug",
               "excerpt",
+              "collection",
               "category",
               "tags",
               "seo_title",
@@ -13535,6 +13583,14 @@
           "category": {
             "type": "string"
           },
+          "collection": {
+            "description": "KrabiClaw's own site only: which collection the article belongs to. Every other site has one blog.",
+            "enum": [
+              "blog",
+              "docs"
+            ],
+            "type": "string"
+          },
           "excerpt": {
             "type": "string"
           },
@@ -13643,6 +13699,13 @@
                   "string",
                   "null"
                 ]
+              },
+              "collection": {
+                "enum": [
+                  "blog",
+                  "docs"
+                ],
+                "type": "string"
               },
               "content_blocks": {
                 "items": {
@@ -13914,6 +13977,7 @@
               "title",
               "slug",
               "excerpt",
+              "collection",
               "category",
               "tags",
               "seo_title",
@@ -13955,6 +14019,14 @@
             "type": "string"
           },
           "category": {
+            "type": "string"
+          },
+          "collection": {
+            "description": "KrabiClaw's own site only: which collection the article belongs to. Every other site has one blog.",
+            "enum": [
+              "blog",
+              "docs"
+            ],
             "type": "string"
           },
           "content_blocks": {
@@ -14136,6 +14208,13 @@
                   "null"
                 ]
               },
+              "collection": {
+                "enum": [
+                  "blog",
+                  "docs"
+                ],
+                "type": "string"
+              },
               "content_blocks": {
                 "items": {
                   "additionalProperties": false,
@@ -14406,6 +14485,7 @@
               "title",
               "slug",
               "excerpt",
+              "collection",
               "category",
               "tags",
               "seo_title",

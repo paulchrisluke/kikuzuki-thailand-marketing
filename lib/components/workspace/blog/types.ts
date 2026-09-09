@@ -1,8 +1,12 @@
+import type { ArticleCollection } from '~/utils/article-collections'
+
 export interface BlogPost {
   id: string
   title: string
   slug?: string | null
   excerpt?: string | null
+  /** Which of the site's collections the article belongs to; customer templates only have the blog. */
+  collection?: ArticleCollection | null
   category?: string | null
   seo_description?: string | null
   seo_keywords?: string | null
@@ -48,6 +52,7 @@ export interface BlogPostCreateInput {
   slug?: string | null
   content_blocks: BlogEditorBlock[]
   excerpt?: string | null
+  collection?: ArticleCollection | null
   category?: string | null
   tags?: string[] | null
   seo_title?: string | null
@@ -62,6 +67,7 @@ export interface BlogPostCreateInput {
 export interface BlogPostUpdateInput {
   title?: string
   excerpt?: string | null
+  collection?: ArticleCollection | null
   category?: string | null
   tags?: string[] | null
   seo_title?: string | null

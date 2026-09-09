@@ -105,11 +105,16 @@
         </template>
 
         <template #detail>
-          <UFormField v-if="section === 'category'" label="Category">
-            <!-- KrabiClaw's own blog files posts under a fixed category set that shapes the URL. -->
-            <USelect v-if="isPlatformTemplate" v-model="form.category" :items="BLOG_CATEGORY_LABELS" class="w-full" />
-            <UInput v-else v-model="form.category" autofocus class="w-full" />
-          </UFormField>
+          <template v-else-if="section === 'category'">
+            <!-- KrabiClaw's own site publishes two collections; each files articles under a fixed category set that shapes the URL. -->
+            <UFormField v-if="isPlatformTemplate" label="Collection" class="mb-4">
+              <USelect v-model="form.collection" :items="collectionOptions" value-key="value" class="w-full" @update:model-value="form.category = ''" />
+            </UFormField>
+            <UFormField label="Category">
+              <USelect v-if="isPlatformTemplate" v-model="form.category" :items="collectionCategories" class="w-full" />
+              <UInput v-else v-model="form.category" autofocus class="w-full" />
+            </UFormField>
+          </template>
 
           <UFormField v-else-if="section === 'tags'" label="Tags" help="Comma separated">
             <UInput v-model="tagsText" autofocus class="w-full" />
@@ -193,7 +198,7 @@ import type { Component } from 'vue'
 import BlogArticleView from '~/components/blog/BlogArticleView.vue'
 import EditorNavigationList, { type EditorNavigationGroup } from '~/components/dashboard/EditorNavigationList.vue'
 import EditorPaneShell from '~/components/dashboard/EditorPaneShell.vue'
-import { BLOG_CATEGORY_LABELS } from '~/utils/blog-categories'
+import { ARTICLE_COLLECTIONS, ARTICLE_COLLECTION_SLUGS, articleCollectionCategories, type ArticleCollection } from '~/utils/article-collections'
 import { tenantBlogPostPath } from '~/utils/tenant-blog-route'
 import { publicTemplateRegistry } from '~/utils/template-registry'
 import type { BlogLifecycleState, BlogPostRepository, BlogPost, BlogEditorBlock, BlogPostUpdateInput } from './types'
@@ -237,11 +242,13 @@ const section = computed<SettingsSection | null>(() => {
   return segment && (SETTINGS_SECTIONS as string[]).includes(segment) ? segment as SettingsSection : null
 })
 
-const form = reactive({ title: '', category: '', excerpt: '', seo_title: '', seo_description: '', slug: '', canonical_url: '', robots: '', visibility: 'public' as 'public' | 'unlisted', scheduled_for: '', redirect_old_slug: true })
+const form = reactive({ title: '', collection: 'blog' as ArticleCollection, category: '', excerpt: '', seo_title: '', seo_description: '', slug: '', canonical_url: '', robots: '', visibility: 'public' as 'public' | 'unlisted', scheduled_for: '', redirect_old_slug: true })
 const tagsText = ref('')
 const publishTiming = ref<'Now' | 'Scheduled'>('Now')
 const templateName = computed(() => post.value?.editor_template || 'saya')
 const isPlatformTemplate = computed(() => templateName.value === 'platform')
+const collectionOptions = ARTICLE_COLLECTION_SLUGS.map(slug => ({ label: ARTICLE_COLLECTIONS[slug].label, value: slug }))
+const collectionCategories = computed(() => articleCollectionCategories(form.collection))
 const editorCanvasStyle = computed(() => {
   const tokens = post.value?.editor_theme_tokens ?? {}
   if (templateName.value === 'saya') {
@@ -281,7 +288,7 @@ const generatedSlug = computed(() => normalizeBlogSlug(form.title))
 const resolvedExcerpt = computed(() => generatedExcerpt(blocks.value))
 const resolvedSiteName = computed(() => post.value?.editor_site_name || '')
 const readMinutes = computed(() => Math.max(1, Math.ceil(serializeBody().trim().split(/\s+/).filter(Boolean).length / 200)))
-const publicPath = computed(() => tenantBlogPostPath({ themeId: publicTemplateRegistry[templateName.value].themeId }, slugResetRequested.value ? generatedSlug.value : form.slug || generatedSlug.value, form.category))
+const publicPath = computed(() => tenantBlogPostPath({ themeId: publicTemplateRegistry[templateName.value].themeId }, slugResetRequested.value ? generatedSlug.value : form.slug || generatedSlug.value, form.category, form.collection))
 const resolvedSeo = computed(() => resolveBlogSeo({ title: form.title, seoTitle: form.seo_title, excerpt: form.excerpt || resolvedExcerpt.value, seoDescription: form.seo_description, slug: form.slug || generatedSlug.value, canonicalUrl: form.canonical_url, baseUrl: windowOrigin(), publicPath: publicPath.value, siteName: resolvedSiteName.value, robots: form.robots }))
 /**
  * The post's cover is its leading image block and nothing else. The post's
@@ -316,7 +323,7 @@ const settingsGroups = computed<EditorNavigationGroup[]>(() => {
       id: 'about',
       label: 'About this post',
       items: [
-        row('category', 'Category', form.category),
+        row('category', isPlatformTemplate.value ? `${ARTICLE_COLLECTIONS[form.collection].label} · Category` : 'Category', form.category),
         row('tags', 'Tags', tagsText.value, 'None'),
         {
           id: 'excerpt',
@@ -446,7 +453,7 @@ function applyLoadedPost(loaded: BlogPost) {
   try {
     syncServerVersion(loaded)
     post.value = loaded
-    Object.assign(form, { title: loaded.title, category: loaded.category || '', excerpt: loaded.excerpt || '', seo_title: loaded.seo_title || '', seo_description: loaded.seo_description || '', slug: loaded.slug || '', canonical_url: loaded.canonical_url || '', robots: loaded.robots || '', visibility: loaded.visibility || 'public', scheduled_for: toLocalDatetime(loaded.scheduled_for), redirect_old_slug: true })
+    Object.assign(form, { title: loaded.title, collection: loaded.collection ?? 'blog', category: loaded.category || '', excerpt: loaded.excerpt || '', seo_title: loaded.seo_title || '', seo_description: loaded.seo_description || '', slug: loaded.slug || '', canonical_url: loaded.canonical_url || '', robots: loaded.robots || '', visibility: loaded.visibility || 'public', scheduled_for: toLocalDatetime(loaded.scheduled_for), redirect_old_slug: true })
     slugResetRequested.value = false
     tagsText.value = loaded.tags?.join(', ') || ''
     publishTiming.value = loaded.scheduled_for ? 'Scheduled' : 'Now'
@@ -518,7 +525,7 @@ function addCover() {
   blocks.value.unshift({ type: 'image', data: { caption: '' }, media: [] })
 }
 function buildSaveSnapshot(id = persistedPostId.value): SaveSnapshot {
-  return { postId: id, payload: { title: form.title, category: form.category || null, tags: tagsText.value.split(',').map(v => v.trim()).filter(Boolean), excerpt: form.excerpt || null, seo_title: form.seo_title || null, seo_description: form.seo_description || null, slug: slugResetRequested.value ? null : form.slug !== post.value?.slug ? form.slug : undefined, reset_slug_override: slugResetRequested.value || undefined, redirect_old_slug: form.redirect_old_slug, canonical_url: form.canonical_url || null, robots: form.robots || null, visibility: form.visibility, content_blocks: cloneEditorBlocks(toRaw(blocks.value)) } }
+  return { postId: id, payload: { title: form.title, collection: form.collection, category: form.category || null, tags: tagsText.value.split(',').map(v => v.trim()).filter(Boolean), excerpt: form.excerpt || null, seo_title: form.seo_title || null, seo_description: form.seo_description || null, slug: slugResetRequested.value ? null : form.slug !== post.value?.slug ? form.slug : undefined, reset_slug_override: slugResetRequested.value || undefined, redirect_old_slug: form.redirect_old_slug, canonical_url: form.canonical_url || null, robots: form.robots || null, visibility: form.visibility, content_blocks: cloneEditorBlocks(toRaw(blocks.value)) } }
 }
 function lifecycleVersionInput() {
   if (!serverPostUpdatedAt) throw new Error('Blog lifecycle version is unavailable. Reload the editor.')
@@ -592,6 +599,7 @@ async function publish() {
         title: form.title,
         slug: form.slug || undefined,
         content_blocks: cloneEditorBlocks(toRaw(blocks.value)),
+        collection: form.collection,
         category: form.category || null,
         tags: tagsText.value.split(',').map(v => v.trim()).filter(Boolean),
         excerpt: form.excerpt || null,

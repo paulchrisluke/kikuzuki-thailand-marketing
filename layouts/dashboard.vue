@@ -296,7 +296,7 @@ const vertical = computed(() => {
   if (!raw) return null
   return normalizeVertical(raw) as SiteVertical
 })
-const templateSlug = computed(() => vertical.value ? resolvePublicTemplate({ vertical: vertical.value }).slug : null)
+const templateSlug = computed(() => vertical.value ? resolvePublicTemplate({ themeId: site.value?.theme_id, vertical: vertical.value }).slug : null)
 // The composable already resolves the route's slug to its record; this was the
 // same find written out a second time.
 const currentLocationRow = dashboardLocation.currentLocation

@@ -4,7 +4,7 @@ import { definePlugin, HTTPError } from 'nitro'
 import { queryAll, queryFirst, type DbClient } from '~/server/db'
 import { cloudflareEnv } from '~/server/utils/api-response'
 import { isNonIndexableHost, PLATFORM_SITEMAP_ROUTES } from '~/server/utils/seo-policy'
-import { blogCategoryToSlug } from '~/utils/blog-categories'
+import { articleCategoryToSlug, collectionArticlePath, isArticleCollection } from '~/utils/article-collections'
 import { TENANT_TYPES } from '~/utils/tenant-routing'
 import { resolvePublicTemplate } from '~/utils/template-registry'
 import { resolveProductPresentation } from '~/utils/product-presentation'
@@ -63,39 +63,24 @@ export default definePlugin((nitroApp) => {
       const platformSiteId = event.context.siteId as string
       entries.push(...PLATFORM_SITEMAP_ROUTES.map(loc => ({ loc })))
 
-      const [docs, posts] = await Promise.all([
-        queryAll<ApiRecord>(
-          db,
-          `SELECT path, updated_at
-           FROM content_documents
-           WHERE kind = 'page' AND row_role = 'root' AND site_id = ? AND path LIKE '/docs/%'
-             AND (robots IS NULL OR robots NOT LIKE '%noindex%')`,
-          [platformSiteId],
-        ),
-        queryAll<ApiRecord>(
-          db,
-          `SELECT slug, (metadata_json ->> '$.category') AS category, updated_at
-           FROM content_documents
-           WHERE kind = 'article' AND row_role = 'root' AND status = 'published'
-             AND site_id = ?
-             AND visibility = 'public'
-             AND (robots IS NULL OR robots NOT LIKE '%noindex%')`,
-          [platformSiteId],
-        ),
-      ])
+      const articles = await queryAll<ApiRecord>(
+        db,
+        `SELECT slug, (metadata_json ->> '$.collection') AS collection, (metadata_json ->> '$.category') AS category, updated_at
+         FROM content_documents
+         WHERE kind = 'article' AND row_role = 'root' AND status = 'published'
+           AND site_id = ?
+           AND visibility = 'public'
+           AND (robots IS NULL OR robots NOT LIKE '%noindex%')`,
+        [platformSiteId],
+      )
 
-      for (const doc of docs ?? []) {
-        if (typeof doc.path !== 'string') continue
-        entries.push({ loc: doc.path, lastmod: doc.updated_at as string | undefined })
-      }
-
-      for (const post of posts ?? []) {
-        const categorySlug = blogCategoryToSlug(post.category as string | null)
-        const slug = typeof post.slug === 'string' ? post.slug : ''
-        if (!categorySlug || !slug) continue
+      // Blog posts and documentation are both article collections; each shapes its own URL.
+      for (const article of articles ?? []) {
+        const slug = typeof article.slug === 'string' ? article.slug : ''
+        if (!slug || !isArticleCollection(article.collection) || !articleCategoryToSlug(article.collection, article.category as string | null)) continue
         entries.push({
-          loc: `/blog/${categorySlug}/${slug}`,
-          lastmod: post.updated_at as string | undefined,
+          loc: collectionArticlePath(article.collection, article.category as string | null, slug),
+          lastmod: article.updated_at as string | undefined,
         })
       }
 
