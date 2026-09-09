@@ -29,7 +29,10 @@ export default defineHandler(async (event) => {
   const [docSummaries, postSummaries] = await Promise.all([
     listPublishedPlatformDocsForLlm(db), listPublishedPlatformBlogPostsForLlm(db, env), ])
 
-  const docs = (await Promise.all((docSummaries ?? []).map(doc => getPublishedPlatformDocBySlug(db, articleCategoryToSlug('docs', doc.category) ?? '', doc.slug))))
+  const docs = (await Promise.all((docSummaries ?? []).flatMap((doc) => {
+    const categorySlug = articleCategoryToSlug('docs', doc.category)
+    return categorySlug ? [getPublishedPlatformDocBySlug(db, categorySlug, doc.slug)] : []
+  })))
     .filter((doc): doc is NonNullable<typeof doc> => Boolean(doc))
 
   const posts = (await Promise.all(

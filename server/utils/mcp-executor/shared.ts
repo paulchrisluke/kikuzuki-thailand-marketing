@@ -1286,6 +1286,19 @@ function isPrivateIpv4(hostname: string): boolean {
 
 function isPrivateIpv6(hostname: string): boolean {
   const normalized = hostname.toLowerCase()
+  // IPv4-mapped literals (::ffff:10.0.0.1 or ::ffff:a00:1) must fail the IPv4 rules too.
+  const mapped = /^::ffff:(.+)$/.exec(normalized)?.[1]
+  if (mapped) {
+    if (mapped.includes('.')) return isPrivateIpv4(mapped)
+    const groups = mapped.split(':')
+    if (groups.length === 2) {
+      const high = Number.parseInt(groups[0]!, 16)
+      const low = Number.parseInt(groups[1]!, 16)
+      if (Number.isInteger(high) && Number.isInteger(low)) {
+        return isPrivateIpv4([high >> 8, high & 0xff, low >> 8, low & 0xff].join('.'))
+      }
+    }
+  }
   return normalized === '::1' || normalized === '::' || normalized.startsWith('fe80:') || normalized.startsWith('fc') || normalized.startsWith('fd')
 }
 

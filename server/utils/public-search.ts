@@ -1,4 +1,5 @@
 import { collectionArticlePath, articleCategoryFromSlug } from '~/utils/article-collections'
+import { tenantBlogPostPath } from '~/utils/tenant-blog-route'
 import { sha256 } from '@noble/hashes/sha2.js'
 import { bytesToHex } from '@noble/hashes/utils.js'
 import { queryAll, type DbClient } from '~/server/db'
@@ -88,6 +89,8 @@ interface PlatformKnowledgeDocument {
 }
 
 interface TenantBlogDocRow {
+  theme_id: string | null
+  vertical: string | null
   id: string
   site_id: string
   title: string
@@ -425,11 +428,11 @@ async function waitForIndexing(env: CloudflareEnv, timeoutMs = 10 * 60 * 1000) {
 export async function buildTenantBlogDocuments(db: DbClient, platformSiteId?: string): Promise<PlatformKnowledgeDocument[]> {
   const platformId = platformSiteId ?? (await getPlatformSite(db)).id
   const [posts, contentBodies] = await Promise.all([queryAll<TenantBlogDocRow>(db, `
-    SELECT id, site_id, title, slug, summary AS excerpt, metadata_json ->> '$.category' AS category,
-      metadata_json ->> '$.tags' AS tags_json, seo_description, seo_keywords
-    FROM content_documents
-    WHERE kind = 'article' AND row_role = 'root' AND status = 'published' AND site_id <> ? AND visibility = 'public'
-    ORDER BY site_id, published_at DESC, updated_at DESC
+    SELECT d.id, d.site_id, d.title, d.slug, d.summary AS excerpt, d.metadata_json ->> '$.category' AS category,
+      d.metadata_json ->> '$.tags' AS tags_json, d.seo_description, d.seo_keywords, s.theme_id, s.vertical
+    FROM content_documents d JOIN sites s ON s.id = d.site_id
+    WHERE d.kind = 'article' AND d.row_role = 'root' AND d.status = 'published' AND d.site_id <> ? AND d.visibility = 'public'
+    ORDER BY d.site_id, d.published_at DESC, d.updated_at DESC
   `, [platformId]), loadContentBodies(db, platformId, false)])
 
   return (posts ?? []).map((post) => {
@@ -452,7 +455,8 @@ export async function buildTenantBlogDocuments(db: DbClient, platformSiteId?: st
       key: `tenant-blog/${post.id}.md`,
       type: 'blog' as const,
       title: post.title,
-      path: `/blog/${post.slug}`,
+      // Each template decides its article prefix (/blog or /article).
+      path: tenantBlogPostPath({ themeId: post.theme_id, vertical: post.vertical }, post.slug, post.category),
       snippet,
       section: post.category || 'Blog',
       icon: 'newspaper',
