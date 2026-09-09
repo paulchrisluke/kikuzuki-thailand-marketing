@@ -97,13 +97,10 @@
               Stop letting food aggregators capture your organic search traffic and sell it back to you with hefty fees. With our new <strong>Google Search Console</strong> and <strong>Google Analytics 4</strong> integration, your customized, blazing-fast site gets discovered directly by diners.
             </p>
             <div class="flex flex-wrap gap-4 pt-2">
-              <NuxtLink
-                to="/blog"
-                class="inline-flex items-center gap-1.5 bg-white text-(--kc-navy) text-[14px] font-bold px-5 py-3 rounded-[9px] hover:bg-white/90 transition-colors no-underline"
-              >
+              <PlatformButton to="/blog" size="lg">
                 Read our Blog
                 <PlatformIcon name="book" class="size-4" />
-              </NuxtLink>
+              </PlatformButton>
               <NuxtLink
                 to="/help"
                 class="inline-flex items-center gap-1 text-[14px] font-semibold text-white/90 hover:text-white hover:underline transition-colors no-underline"
@@ -197,7 +194,7 @@ const faqItems = [
   },
   {
     q: 'Is there a contract or setup fee?',
-    a: 'No contracts, no setup fees. Start free, upgrade to Growth ($49/mo) month-to-month. Cancel anytime.'
+    a: 'No contracts, no setup fees. Start free, upgrade to Growth month-to-month. Cancel anytime — see the pricing page for current rates.'
   }
 ]
 

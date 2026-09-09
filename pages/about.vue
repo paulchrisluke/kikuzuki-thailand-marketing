@@ -22,7 +22,7 @@
         <div class="rounded-3xl border border-default bg-elevated/40 p-8 sm:p-12 space-y-6 backdrop-blur-md">
           <h2 class="text-2xl sm:text-3xl font-bold text-default m-0">The local business dilemma</h2>
           <p class="text-base text-muted leading-relaxed m-0">
-            Local business owners face a bad choice: pay thousands to agencies for static websites that grow outdated within weeks, or surrender their customers to aggregators and booking platforms that take 15–30% of every transaction.
+            Local business owners face a bad choice: pay an agency for a static website that grows outdated within weeks, or surrender their customers to aggregators and booking platforms that take a cut of every transaction.
           </p>
           <p class="text-base text-muted leading-relaxed m-0">
             When an owner needs to update holiday hours, rotate a seasonal menu, or post a new workshop slot, they shouldn’t have to battle an intimidating CMS dashboard or wait for an agency invoice. That’s why we built KrabiClaw around a simple premise: <strong>your website should be managed through conversation.</strong>
@@ -76,7 +76,7 @@
             Start completely free on a subdomain, connect the KrabiClaw app in ChatGPT, and experience website management through conversation.
           </p>
           <div class="flex justify-center gap-4">
-            <PlatformButton to="/signup" size="lg">Start Free</PlatformButton>
+            <PlatformAccountCta label="Start Free" size="lg" />
             <PlatformButton to="/features" variant="outline" size="lg">Explore Features</PlatformButton>
           </div>
         </div>

@@ -1,11 +1,16 @@
 <template>
+  <!-- A legal-bar link, styled like the Privacy and Terms links it sits between.
+       It carries no colour of its own so it inherits each footer's legal bar;
+       the previous hardcoded white was invisible on a light footer. When Zaraz
+       has not published its consent API there is nothing to open, so the link
+       is not rendered at all rather than shown as a dead control. -->
   <button
+    v-if="consentReady"
     type="button"
-    class="inline-flex min-h-9 items-center rounded-full border border-white/40 bg-white/10 px-3 py-2 text-xs font-semibold text-white shadow-sm transition-colors hover:border-white/70 hover:bg-white/20 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
-    :disabled="!consentReady"
+    class="cursor-pointer bg-transparent p-0 underline-offset-2 transition hover:underline focus-visible:outline-2 focus-visible:outline-offset-2"
     @click="showConsentModal"
   >
-    {{ t(consentReady ? 'legal.cookie_preferences' : 'legal.cookie_preferences_unavailable') }}
+    {{ t('legal.cookie_preferences') }}
   </button>
 </template>
 
@@ -18,10 +23,7 @@ function updateConsentReady() {
 }
 
 function showConsentModal() {
-  updateConsentReady()
-  if (consentReady.value && window.zaraz?.consent) {
-    window.zaraz.consent.modal = true
-  }
+  if (window.zaraz?.consent) window.zaraz.consent.modal = true
 }
 
 onMounted(() => {

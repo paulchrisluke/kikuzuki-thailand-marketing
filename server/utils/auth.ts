@@ -1,5 +1,5 @@
 import { createAuthMiddleware } from 'better-auth/api'
-import { loginMethodForPath, REMEMBERED_PROFILE_COOKIE, REMEMBERED_PROFILE_MAX_AGE } from '~/shared/auth/remembered-profile'
+import { loginMethodForPath, REMEMBERED_PROFILE_COOKIE, REMEMBERED_PROFILE_MAX_AGE, serializeRememberedProfile } from '~/shared/auth/remembered-profile'
 import { APIError, betterAuth } from 'better-auth'
 import { drizzleAdapter } from 'better-auth/adapters/drizzle'
 import { hashPassword } from 'better-auth/crypto'
@@ -394,7 +394,12 @@ export function createAuth(env: CloudflareEnv) {
         if (!method || !session) return
         const identifier = method === 'whatsapp' ? session.user.phoneNumber : session.user.email
         if (typeof identifier !== 'string' || !identifier) return
-        ctx.setCookie(REMEMBERED_PROFILE_COOKIE, identifier, {
+        const profile = serializeRememberedProfile({
+          identifier,
+          name: session.user.name,
+          image: session.user.image,
+        })
+        ctx.setCookie(REMEMBERED_PROFILE_COOKIE, profile, {
           ...ctx.context.authCookies.sessionToken.attributes,
           httpOnly: false,
           maxAge: REMEMBERED_PROFILE_MAX_AGE,

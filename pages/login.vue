@@ -7,9 +7,13 @@
 
     <div v-if="rememberedProfile && showRememberedProfile" class="mt-8 space-y-5">
       <PlatformButton variant="outline" size="xl" block :loading="googleLoading" :disabled="!interactive" class="min-h-20 text-left" @click="continueRememberedProfile">
-        <PlatformGoogleIcon v-if="rememberedProfile.method === 'google'" class="size-6 shrink-0" />
+        <UAvatar v-if="rememberedProfile.image" :src="rememberedProfile.image" :alt="rememberedProfile.name ?? ''" size="lg" class="shrink-0" />
+        <PlatformGoogleIcon v-else-if="rememberedProfile.method === 'google'" class="size-6 shrink-0" />
         <UIcon v-else :name="rememberedProfile.method === 'email' ? 'i-lucide-mail' : 'i-lucide-message-circle'" class="size-6 shrink-0" />
-        <span class="min-w-0 flex-1 truncate">{{ rememberedProfile.identifier }}</span>
+        <span class="min-w-0 flex-1">
+          <span v-if="rememberedProfile.name" class="block truncate font-semibold">{{ rememberedProfile.name }}</span>
+          <span class="block truncate" :class="rememberedProfile.name ? 'text-xs font-normal text-muted' : ''">{{ rememberedProfile.identifier }}</span>
+        </span>
         <UBadge color="primary" variant="soft" class="shrink-0">Last used</UBadge>
         <UIcon name="i-lucide-arrow-right" class="size-5 shrink-0" />
       </PlatformButton>

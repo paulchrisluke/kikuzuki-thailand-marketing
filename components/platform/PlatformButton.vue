@@ -8,7 +8,7 @@
     :aria-disabled="disabled || loading ? 'true' : undefined"
     :tabindex="to && (disabled || loading) ? -1 : undefined"
     :class="[
-      'inline-flex items-center justify-center gap-1.5 rounded-[9px] font-semibold no-underline transition-colors disabled:pointer-events-none disabled:opacity-60',
+      'inline-flex items-center justify-center gap-1.5 rounded-lg font-semibold no-underline transition disabled:pointer-events-none disabled:opacity-60',
       { 'pointer-events-none opacity-60': disabled || loading },
       sizeClass,
       variantClass,
@@ -28,7 +28,7 @@
 const props = withDefaults(defineProps<{
   external?: boolean
   to?: string
-  variant?: 'solid' | 'outline' | 'ghost'
+  variant?: 'solid' | 'gradient' | 'outline' | 'ghost'
   size?: 'sm' | 'md' | 'lg' | 'xl'
   block?: boolean
   loading?: boolean
@@ -62,7 +62,11 @@ const sizeClass = computed(() => ({
 }[props.size]))
 
 const variantClass = computed(() => ({
-  solid: 'bg-primary text-inverted hover:bg-primary/90',
+  // Coral does not flip with the theme, so the label must not either.
+  // `text-inverted` is navy in dark mode; `on-primary` is the token the
+  // dashboard's Nuxt UI buttons already use.
+  solid: 'bg-primary text-on-primary hover:bg-primary/90',
+  gradient: 'bg-(image:--kc-cta-gradient) text-on-primary shadow-(shadow:--kc-cta-shadow) hover:opacity-90',
   outline: 'border border-default text-default hover:bg-muted',
   ghost: 'text-default hover:bg-muted',
 }[props.variant]))
