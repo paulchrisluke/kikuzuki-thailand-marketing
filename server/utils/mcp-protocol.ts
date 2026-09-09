@@ -125,7 +125,7 @@ export function mcpProtocolError(code: number, message: string, data?: unknown, 
 // a `tools/call` params object.
 const MCP_CALL_PROTOCOL_PARAM_KEYS = new Set(['name', '_meta', 'task'])
 
-// Shared by both MCP surfaces (server/api/mcp.post.ts, server/api/mcp/platform.post.ts)
+// Shared by the MCP route (server/api/mcp.post.ts)
 // so `tools/call` argument parsing stays one canonical contract.
 export function parseMcpToolCallArguments(params: Record<string, unknown> | undefined): Record<string, unknown> {
   const callParams = params ?? {}

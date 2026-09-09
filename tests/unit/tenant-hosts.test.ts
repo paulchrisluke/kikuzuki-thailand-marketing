@@ -38,7 +38,7 @@ test('normalizeHost strips protocol, trailing slash and port', () => {
   assert.equal(normalizeHost('https://krabiclaw.com'), 'krabiclaw.com')
   assert.equal(normalizeHost('http://localhost:3000'), 'localhost')
   assert.equal(normalizeHost('http://localhost:3000/'), 'localhost')
-  assert.equal(normalizeHost('https://krabiclaw.com/api/mcp/platform'), 'krabiclaw.com')
+  assert.equal(normalizeHost('https://krabiclaw.com/api/mcp'), 'krabiclaw.com')
   assert.equal(normalizeHost('krabiclaw.com'), 'krabiclaw.com')
   assert.equal(normalizeHost(''), '')
   assert.equal(normalizeHost(undefined), '')
@@ -69,7 +69,7 @@ test('getPlatformHosts folds the configured domains in without duplicates', () =
 })
 
 test('getPlatformHtmlCacheHosts covers all platform host cache prefixes', () => {
-  assert.deepEqual(getPlatformHtmlCacheHosts(prodEnv, ['https://krabiclaw.com/api/mcp/platform']), [
+  assert.deepEqual(getPlatformHtmlCacheHosts(prodEnv, ['https://krabiclaw.com/api/mcp']), [
     'krabiclaw.com',
     'localhost',
     '127.0.0.1',

@@ -50,12 +50,6 @@ export function oauthSigningConfig(authBaseUrl: string) {
         allowedScopes: ['openid', 'email', 'offline_access', 'tenant'],
         signingAlgorithm: OAUTH_SIGNING_POLICY.algorithm,
       },
-      {
-        identifier: `${authBaseUrl}/api/mcp/platform`,
-        name: 'KrabiClaw platform MCP',
-        allowedScopes: ['openid', 'email', 'offline_access', 'platform_admin'],
-        signingAlgorithm: OAUTH_SIGNING_POLICY.algorithm,
-      },
     ],
   }
 }
@@ -455,7 +449,7 @@ export function createAuth(env: CloudflareEnv) {
         allowDynamicClientRegistration: false,
         allowUnauthenticatedClientRegistration: false,
         enforcePerClientResources: false,
-        scopes: ['openid', 'email', 'offline_access', 'tenant', 'platform_admin'],
+        scopes: ['openid', 'email', 'offline_access', 'tenant'],
         ...oauthSigningConfig(authBaseUrl),
         // Well-known metadata is served at /api/auth/.well-known/* by the plugin's
         // onRequest hook. Root-level /.well-known/* are covered by Nitro routes.

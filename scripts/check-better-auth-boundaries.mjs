@@ -182,17 +182,10 @@ async function checkMcpResourceBoundary() {
   for (const [file, expected, label] of [
     ['server/api/mcp.post.ts', "audiences: [`${baseUrl}/api/mcp`]", 'tenant MCP audience'],
     ['server/api/mcp.post.ts', 'requiredScopes: ["tenant"]', 'tenant MCP scope'],
-    ['server/api/mcp/platform.post.ts', "audiences: [`${baseUrl}/api/mcp/platform`]", 'platform MCP audience'],
-    ['server/api/mcp/platform.post.ts', "requiredScopes: ['platform_admin']", 'platform MCP scope'],
-    ['server/api/mcp/platform.post.ts', 'requirePlatformAdmin: true', 'platform MCP admin gate'],
     ['server/routes/.well-known/oauth-protected-resource.get.ts', 'resource: `${baseUrl}/api/mcp`', 'tenant protected resource metadata'],
     ['server/routes/.well-known/oauth-protected-resource.get.ts', "scopes_supported: ['offline_access', 'tenant']", 'tenant protected resource scopes'],
-    ['server/routes/.well-known/oauth-protected-resource/platform-mcp.get.ts', 'resource: `${baseUrl}/api/mcp/platform`', 'platform protected resource metadata'],
-    ['server/routes/.well-known/oauth-protected-resource/platform-mcp.get.ts', "scopes_supported: ['offline_access', 'platform_admin']", 'platform protected resource scopes'],
     ['server/utils/auth.ts', "identifier: `${authBaseUrl}/api/mcp`", 'tenant OAuth resource registration'],
     ['server/utils/auth.ts', "allowedScopes: ['openid', 'email', 'offline_access', 'tenant']", 'tenant OAuth resource scopes'],
-    ['server/utils/auth.ts', "identifier: `${authBaseUrl}/api/mcp/platform`", 'platform OAuth resource registration'],
-    ['server/utils/auth.ts', "allowedScopes: ['openid', 'email', 'offline_access', 'platform_admin']", 'platform OAuth resource scopes'],
   ]) {
     const failure = await assertContains(file, expected, label)
     if (failure) failures.push(failure)

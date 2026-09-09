@@ -56,7 +56,7 @@ export const pageInfoObject = {
 
 export const ROBOTS_DIRECTIVE_ENUM = ['index,follow', 'noindex,follow', 'index,nofollow', 'noindex,nofollow']
 
-// Tenant blog shares the nav vocabulary with platform docs/blog (server/utils/platform-mcp-tools.ts
+// Blog nav vocabulary (
 // NAV_FIELDS_SCHEMA), but blog posts never get nav_group subgrouping — only docs do.
 export const BLOG_NAV_FIELDS_SCHEMA = {
   nav_section: { type: ['string', 'null'], description: 'Top-level sidebar section label for this site\'s blog. Falls back to category if unset. Does not affect the public URL.' },
