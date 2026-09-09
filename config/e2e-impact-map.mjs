@@ -88,10 +88,25 @@ export const IMPACT_GROUPS = [
     ],
     specs: [
       'tests/e2e/mcp-authorization.spec.ts',
+      'tests/e2e/mcp-product-large-batch.spec.ts',
+      'tests/e2e/mcp-product-nullable-price.spec.ts',
       'tests/e2e/mcp-content.spec.ts',
       'tests/e2e/mcp-media.spec.ts',
       'tests/e2e/mcp-owner-tools.spec.ts',
       'tests/e2e/oauth-discovery.spec.ts',
     ],
   },
+  {
+    id: 'billing-and-session',
+    patterns: [
+      'server/api/webhooks/**', 'server/utils/stripe*.ts', 'server/utils/billing*.ts',
+      'server/utils/auth.ts', 'composables/useAuth*.ts', 'layouts/default.vue',
+      'components/layout/**',
+    ],
+    specs: [
+      'tests/e2e/provider-ingress.spec.ts',
+      'tests/e2e/post-login.spec.ts',
+    ],
+  },
+
 ]
