@@ -3,7 +3,7 @@ import { isRequestFrozen, type DatabaseWriteFreezeEnv } from '~/server/utils/dat
 
 export default defineHandler((event) => {
   const env = event.req.runtime?.cloudflare?.env as DatabaseWriteFreezeEnv | undefined
-  if (!isRequestFrozen(env, event.req.method)) return
+  if (!isRequestFrozen(env, event.req.method ?? 'GET')) return
 
   return new Response(
     JSON.stringify({

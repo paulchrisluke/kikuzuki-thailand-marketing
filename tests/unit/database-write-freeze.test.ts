@@ -25,19 +25,20 @@ test('frozen queue batches are retried with a delay instead of being processed',
   assert.deepEqual(calls, [{ delaySeconds: 300 }])
 })
 
-test('HTTP requests receive a non-cacheable maintenance response while frozen', async () => {
-  const event = {
-    req: {
-      runtime: {
-        cloudflare: {
-          env: { DB_WRITE_FROZEN: 'true' },
-        },
-      },
-    },
-  }
+const frozenEvent = (env: Record<string, string>, method: string) => ({ req: { method, runtime: { cloudflare: { env } } } })
 
-  const response = await databaseWriteFreezeMiddleware(event as never) as Response
+test('a write freeze refuses mutations with a non-cacheable maintenance response and keeps reads serving', async () => {
+  const response = await databaseWriteFreezeMiddleware(frozenEvent({ DB_WRITE_FROZEN: 'true' }, 'POST') as never) as Response
   assert.equal(response.status, 503)
+  assert.equal(await databaseWriteFreezeMiddleware(frozenEvent({ DB_WRITE_FROZEN: 'true' }, 'GET') as never), undefined)
+  assert.equal(await databaseWriteFreezeMiddleware(frozenEvent({ DB_WRITE_FROZEN: 'true' }, 'HEAD') as never), undefined)
+  assert.equal(((await databaseWriteFreezeMiddleware(frozenEvent({ DB_WRITE_FROZEN: 'true' }, 'PATCH') as never)) as Response).status, 503)
+})
+
+test('maintenance refuses every request, reads included', async () => {
+  const response = await databaseWriteFreezeMiddleware(frozenEvent({ DB_MAINTENANCE: 'true' }, 'GET') as never) as Response
+  assert.equal(response.status, 503)
+  assert.equal(isDatabaseWriteFrozen({ DB_MAINTENANCE: 'true' }), true)
   assert.equal(response.headers.get('cache-control'), 'no-store')
   assert.equal(response.headers.get('retry-after'), '300')
   assert.deepEqual(await response.json(), {
