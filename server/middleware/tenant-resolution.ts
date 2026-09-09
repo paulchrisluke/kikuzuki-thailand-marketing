@@ -1,5 +1,6 @@
-// Tenant resolution middleware for KrabiClaw SaaS
-// Determines if request is for platform or tenant site
+// Tenant resolution middleware: every host, KrabiClaw's own included, resolves
+// to a site row. The site's template decides whether it renders as the
+// platform (marketing, docs, blog) or as a customer site.
 
 import { HTTPError, defineHandler  } from 'nitro';
 import type { H3Event } from 'nitro';
@@ -16,10 +17,8 @@ import {
 import { verifyScopedPreviewToken } from "../utils/preview-token";
 import { isPlatformPath } from "~/utils/platform-routes";
 import { getDraftMedia, parseOnboardingDraftPayload } from "~/server/utils/onboarding-drafts";
-import { resolvePublicTemplate } from "~/utils/template-registry";
-import { PLATFORM_SITE_ID } from '~/shared/platform-scope'
+import { PLATFORM_TEMPLATE, resolvePublicTemplate } from "~/utils/template-registry";
 import { publicSocialMediaFromJson } from '~/server/utils/public-social-image'
-import { ensurePlatformMediaScope } from '~/server/utils/platform-media'
 
 interface TenantSiteRow {
   id: string;
@@ -43,25 +42,24 @@ const SITE_MEDIA_SELECT_SQL = `(SELECT COALESCE(json_group_array(json_object(
   ORDER BY mp.slot, mp.sort_order, mp.id
 ) ordered)`
 
-type PlatformSiteRow = Pick<TenantSiteRow, 'brand_name' | 'media_json' | 'vertical'> & { has_logo: number; has_source_locale: number }
-
-async function loadPlatformSite(db: DbClient): Promise<PlatformSiteRow | null> {
-  return await queryFirst<PlatformSiteRow>(db, `
-    SELECT s.brand_name, ${SITE_MEDIA_SELECT_SQL} AS media_json, s.vertical,
-      EXISTS (
-        SELECT 1 FROM media_placements mp
-        JOIN media_assets ma ON ma.id = mp.asset_id
-        WHERE mp.organization_id = s.organization_id AND mp.site_id = s.id
-          AND mp.owner_type = 'site' AND mp.owner_id = s.id AND mp.slot = 'logo'
-          AND mp.status = 'active' AND ma.status = 'active' AND ma.generation_key IS NULL
-      ) AS has_logo,
-      EXISTS (
-        SELECT 1 FROM site_locales sl
-        WHERE sl.organization_id = s.organization_id AND sl.site_id = s.id
-          AND sl.locale = 'en' AND sl.is_source = 1 AND sl.status = 'published'
-      ) AS has_source_locale
-    FROM sites s WHERE s.id = ? AND s.status = 'active' LIMIT 1
-  `, [PLATFORM_SITE_ID])
+// KrabiClaw's own site is the one active site running the platform template.
+// Platform hosts differ per environment (localhost, preview, staging, the apex),
+// so the host itself is not the key; the template is.
+async function resolvePlatformSite(db: DbClient): Promise<TenantSiteRow | null> {
+  return await queryFirst<TenantSiteRow>(
+    db,
+    `
+      SELECT s.id, s.organization_id, s.theme_id, s.subdomain, s.onboarding_status,
+             canonical.domain AS canonical_domain,
+             s.brand_name, ${SITE_MEDIA_SELECT_SQL} AS media_json, s.vertical
+      FROM sites s
+      LEFT JOIN site_domains canonical
+        ON canonical.site_id = s.id AND canonical.role = 'canonical' AND canonical.status = 'active'
+      WHERE s.theme_id = ? AND s.status = 'active' AND s.onboarding_status = 'active'
+      LIMIT 1
+    `,
+    [PLATFORM_TEMPLATE.themeId],
+  )
 }
 
 function publicTenantSiteMedia(site: Pick<TenantSiteRow, 'media_json'>) {
@@ -139,7 +137,7 @@ function setResolvedTenantContext(
   event.context.organizationId = site.organization_id
   event.context.themeId = metadata.themeId
   event.context.onboardingStatus = site.onboarding_status
-  setTenantType(event, TENANT_TYPES.TENANT)
+  setTenantType(event, resolvePublicTemplate({ themeId: metadata.themeId }).slug === 'platform' ? TENANT_TYPES.PLATFORM : TENANT_TYPES.TENANT)
   event.context.tenantHost = hostnameOf(host)
   event.context.canonicalDomain = canonicalDomain
   event.context.site = {
@@ -311,31 +309,14 @@ export default defineHandler(async (event) => {
     }
   }
 
-  const isPlatform = isPlatformHost(host, env);
-
-  // Normal requests resolve platform-vs-tenant by host. Tenant sites own their
-  // public route families; isPlatformPath() is only a preview-route guard on a
-  // confirmed platform host.
-  if (isPlatform) {
-    setTenantType(event, TENANT_TYPES.PLATFORM);
-    event.context.siteId = null;
-    let platformSite = env.db ? await loadPlatformSite(env.db) : null
-    if (env.db && (
-      platformSite?.brand_name?.trim() !== 'KrabiClaw'
-      || platformSite.has_logo !== 1
-      || platformSite.has_source_locale !== 1
-    )) {
-      await ensurePlatformMediaScope(env, env.db)
-      platformSite = await loadPlatformSite(env.db)
+  // A platform host serves KrabiClaw's own site. Tenant hosts own their public
+  // route families; isPlatformPath() is only a preview-route guard above.
+  if (isPlatformHost(host, env)) {
+    const site = env.db ? await resolvePlatformSite(env.db) : null
+    if (!site) {
+      throw new HTTPError({ statusCode: 500, statusMessage: 'No active site runs the platform template', data: { code: 'PLATFORM_SITE_MISSING' } })
     }
-    if (!platformSite || platformSite.brand_name?.trim() !== 'KrabiClaw' || platformSite.has_logo !== 1 || platformSite.has_source_locale !== 1) {
-      throw new HTTPError({ statusCode: 500, statusMessage: 'Platform scope is missing canonical identity, logo media, or source locale' })
-    }
-    event.context.site = {
-      brand_name: platformSite.brand_name.trim(),
-      ...publicTenantSiteMedia(platformSite),
-      vertical: platformSite.vertical ?? null,
-    }
+    setResolvedTenantContext(event, site, host, site.canonical_domain)
     return;
   }
 

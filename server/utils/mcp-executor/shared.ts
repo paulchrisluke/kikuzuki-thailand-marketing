@@ -3,7 +3,7 @@ import { errorChainForTelemetry } from "~/server/utils/error-telemetry";
 import { HTTPError } from 'nitro';
 import type { H3Event } from 'nitro';
 import { queryFirst } from "~/server/db";
-import { assertSafeDownloadUrl } from "~/server/utils/platform-mcp-executor";
+import { isIP } from "node:net";
 import { getMediaAsset } from "~/server/utils/media-asset-manager";
 import { generateSlots } from "~/server/utils/experiences";
 import type { getMcpTool } from "~/server/utils/mcp-tools";
@@ -1273,4 +1273,75 @@ export interface McpExecutorContext {
   siteId?: string
   site: McpSiteContext
   args: Record<string, unknown>
+}
+
+// Download targets supplied by a client (ChatGPT attachments, generated files)
+// must never reach loopback or private address space from the Worker.
+function isPrivateIpv4(hostname: string): boolean {
+  const parts = hostname.split('.').map(part => Number.parseInt(part, 10))
+  if (parts.length !== 4 || parts.some(part => !Number.isInteger(part) || part < 0 || part > 255)) return false
+  const [a, b = -1] = parts
+  return a === 0 || a === 10 || a === 127 || (a === 169 && b === 254) || (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168)
+}
+
+function isPrivateIpv6(hostname: string): boolean {
+  const normalized = hostname.toLowerCase()
+  // IPv4-mapped literals (::ffff:10.0.0.1 or ::ffff:a00:1) must fail the IPv4 rules too.
+  const mapped = /^::ffff:(.+)$/.exec(normalized)?.[1]
+  if (mapped) {
+    if (mapped.includes('.')) return isPrivateIpv4(mapped)
+    const groups = mapped.split(':')
+    if (groups.length === 2) {
+      const high = Number.parseInt(groups[0]!, 16)
+      const low = Number.parseInt(groups[1]!, 16)
+      if (Number.isInteger(high) && Number.isInteger(low)) {
+        return isPrivateIpv4([high >> 8, high & 0xff, low >> 8, low & 0xff].join('.'))
+      }
+    }
+  }
+  return normalized === '::1' || normalized === '::' || normalized.startsWith('fe80:') || normalized.startsWith('fc') || normalized.startsWith('fd')
+}
+
+function normalizeHostnameForIpChecks(hostname: string): string {
+  if (hostname.startsWith('[') && hostname.endsWith(']')) {
+    return hostname.slice(1, -1)
+  }
+  return hostname
+}
+
+export function assertSafeDownloadUrl(rawUrl: string, label: string): URL {
+  let parsed: URL
+  try {
+    parsed = new URL(rawUrl)
+  } catch {
+    throw mcpProtocolError(MCP_ERROR.invalidParams, `${label} download URL is invalid.`)
+  }
+
+  const hostname = parsed.hostname.trim().toLowerCase()
+  const normalizedHostname = normalizeHostnameForIpChecks(hostname)
+  if (!hostname) {
+    throw mcpProtocolError(MCP_ERROR.invalidParams, `${label} download URL must include a hostname.`)
+  }
+  const isDevLoopback = import.meta.dev && parsed.protocol === 'http:' && (
+    hostname === 'localhost' ||
+    hostname.endsWith('.localhost') ||
+    normalizedHostname === '127.0.0.1' ||
+    normalizedHostname === '::1'
+  )
+  if (parsed.protocol !== 'https:' && !isDevLoopback) {
+    throw mcpProtocolError(MCP_ERROR.invalidParams, `${label} download URL must use https.`)
+  }
+  if (isDevLoopback) return parsed
+
+  if (hostname === 'localhost' || hostname.endsWith('.localhost')) {
+    throw mcpProtocolError(MCP_ERROR.invalidParams, `${label} download URL cannot target localhost.`)
+  }
+  if (isIP(normalizedHostname) === 4 && isPrivateIpv4(normalizedHostname)) {
+    throw mcpProtocolError(MCP_ERROR.invalidParams, `${label} download URL cannot target a private IPv4 address.`)
+  }
+  if (isIP(normalizedHostname) === 6 && isPrivateIpv6(normalizedHostname)) {
+    throw mcpProtocolError(MCP_ERROR.invalidParams, `${label} download URL cannot target a private IPv6 address.`)
+  }
+
+  return parsed
 }

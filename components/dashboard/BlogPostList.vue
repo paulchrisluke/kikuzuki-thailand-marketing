@@ -80,6 +80,7 @@
 
 <script setup lang="ts">
 import DashboardListEditor from '~/components/dashboard/DashboardListEditor.vue'
+import { ARTICLE_COLLECTIONS } from '~/utils/article-collections'
 import DashboardListItemDialog from '~/components/dashboard/DashboardListItemDialog.vue'
 import { tenantBlogRepository } from '~/lib/components/workspace/blog/tenantBlogRepository'
 import type { BlogPost } from '~/lib/components/workspace/blog/types'
@@ -157,6 +158,8 @@ function postSummary(post: BlogPost): string {
   // Read from the status rather than treating anything unscheduled as live: a
   // draft was announcing itself as published on the row and in the hub.
   const parts: string[] = [post.status ? STATUS_LABELS[post.status] ?? post.status : 'Live']
+  // KrabiClaw's own site publishes two collections; the blog is implied everywhere else.
+  if (post.collection && post.collection !== 'blog') parts.push(ARTICLE_COLLECTIONS[post.collection].label)
   if (post.category) parts.push(post.category)
   parts.push(postWhen(post))
   return parts.filter(Boolean).join(' · ')
@@ -169,16 +172,15 @@ function postWhen(post: BlogPost): string {
 }
 
 function coverUrl(post: BlogPost): string | null {
-  const featured = post.media?.find(entry => entry.slot === 'featured')
-  if (!featured) return null
+  if (!post.cover) return null
   // The thumbnail is a scaled-down duplicate of the same asset, so it is the
   // right source for a row; the full image is only fetched where it shows big.
-  return featured.thumbnail_url ?? featured.public_url ?? null
+  return post.cover.thumbnail_url ?? post.cover.public_url ?? null
 }
 
 /** The cover's description belongs to the asset; the headline is already beside it. */
 function coverAlt(post: BlogPost): string {
-  return post.media?.find(entry => entry.slot === 'featured')?.alt_text ?? ''
+  return post.cover?.alt_text ?? ''
 }
 
 function formatDate(iso: string) {

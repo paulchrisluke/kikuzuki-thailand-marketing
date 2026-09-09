@@ -161,8 +161,7 @@ export const storeGoogleAnalyticsConnection = async (
         '$.created_at', COALESCE(json_extract(integrations_json, '$.google.created_at'), ?)))
     WHERE id = ? AND organization_id = ?
       AND json_extract(integrations_json, '$.google.revision') IS ?
-      AND json_extract(settings_json, '$.config.resource_team_generation') IS ?
-  `, [connection.provider_account_email, payload, now, siteId, organizationId, expected.revision, expected.transfer_generation])
+  `, [connection.provider_account_email, payload, now, siteId, organizationId, expected.revision])
   if (result.meta?.changes !== 1) throw new Error('Site ownership or google connection changed during authorization')
 
   return connectionId
@@ -182,7 +181,6 @@ export const getGoogleAnalyticsConnection = async (
     SELECT id AS site_id, organization_id,
            json_extract(integrations_json, '$.google.id') AS id,
            json_extract(integrations_json, '$.google.revision') AS revision,
-           json_extract(settings_json, '$.config.resource_team_generation') AS transfer_generation,
            json_extract(integrations_json, '$.google.connected_by_user_id') AS connected_by_user_id,
            json_extract(integrations_json, '$.google.provider_account_email') AS provider_account_email,
            json_extract(integrations_json, '$.google.encrypted_access_token') AS encrypted_access_token,

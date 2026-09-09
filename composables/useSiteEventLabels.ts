@@ -22,8 +22,6 @@ const SITE_EVENT_LABELS: Record<string, string> = {
   'location.updated': 'Updated a location',
   'experience.created': 'Created an experience',
   'experience.booking_received': 'New experience booking',
-  'work_request.created': 'Submitted a work request',
-  'work_request.status_changed': 'Updated a work request',
   'domain.connected': 'Connected a domain',
   'domain.verified': 'Domain verified',
   'domain.failed': 'Domain verification failed',

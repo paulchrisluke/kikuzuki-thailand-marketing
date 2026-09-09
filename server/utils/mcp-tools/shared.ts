@@ -56,17 +56,6 @@ export const pageInfoObject = {
 
 export const ROBOTS_DIRECTIVE_ENUM = ['index,follow', 'noindex,follow', 'index,nofollow', 'noindex,nofollow']
 
-// Tenant blog shares the nav vocabulary with platform docs/blog (server/utils/platform-mcp-tools.ts
-// NAV_FIELDS_SCHEMA), but blog posts never get nav_group subgrouping — only docs do.
-export const BLOG_NAV_FIELDS_SCHEMA = {
-  nav_section: { type: ['string', 'null'], description: 'Top-level sidebar section label for this site\'s blog. Falls back to category if unset. Does not affect the public URL.' },
-  nav_title: { type: ['string', 'null'], description: 'Sidebar label override. Falls back to the post title if unset. Does not affect the public URL.' },
-  nav_order: { type: ['number', 'null'], description: 'Sort position within its section. Lower sorts first.' },
-  nav_section_order: { type: ['number', 'null'], description: 'Sort position of the section itself among all sections.' },
-  hide_from_nav: { type: ['boolean', 'null'], description: 'Excludes this post from nav rendering only. Does NOT deindex it or remove it from the sitemap — use robots="noindex,..." for that.' },
-  featured_order: { type: ['number', 'null'], description: 'Sort position in featured/homepage placements, independent of nav ordering.' },
-}
-
 /** SEO override fields shared across location/Product/experience/site tools. */
 export function seoOverrideFieldsSchema() {
   return {
@@ -156,16 +145,6 @@ export const locationMutationSummaryObject = {
   required: ['ok', 'entity', 'id'],
 }
 
-const faqItemSchema = {
-  type: 'object',
-  properties: {
-    question: { type: 'string' },
-    answer: { type: 'string' },
-    position: { type: 'number' },
-  },
-  required: ['question', 'answer'],
-}
-
 const howToStepSchema = {
   type: 'object',
   properties: {
@@ -201,8 +180,9 @@ export const blogComponentInputSchema = {
         properties: {
           data: {
             type: 'object',
-            properties: { items: { type: 'array', items: faqItemSchema } },
-            required: ['items'],
+            // The block lists the article's published Q&A records; it stores no questions.
+            properties: { title: { type: ['string', 'null'] }, source: { type: 'string', const: 'page_qa' } },
+            required: ['source'],
           },
         },
       },
@@ -240,6 +220,22 @@ const mediaPlacementObject = {
   additionalProperties: false,
 }
 
+/** The article's leading image block, or null when it opens with text. */
+const blogCoverObject = {
+  type: ['object', 'null'],
+  properties: {
+    asset_id: { type: 'string' },
+    public_url: { type: ['string', 'null'] },
+    thumbnail_url: { type: ['string', 'null'] },
+    kind: { type: ['string', 'null'] },
+    alt_text: { type: ['string', 'null'] },
+    width: { type: ['number', 'null'] },
+    height: { type: ['number', 'null'] },
+  },
+  required: ['asset_id', 'public_url', 'thumbnail_url', 'kind', 'alt_text', 'width', 'height'],
+  additionalProperties: false,
+}
+
 const blogContentBlockObject = {
   type: 'object',
   properties: {
@@ -262,9 +258,9 @@ export const blogPostObject = {
     title: { type: 'string' },
     slug: { type: 'string' },
     excerpt: { type: ['string', 'null'] },
+    collection: { type: 'string', enum: ['blog', 'docs'] },
     category: { type: ['string', 'null'] },
     tags: { type: 'array', items: { type: 'string' } },
-    ...BLOG_NAV_FIELDS_SCHEMA,
     seo_title: { type: ['string', 'null'] },
     seo_description: { type: ['string', 'null'] },
     seo_keywords: { type: ['string', 'null'] },
@@ -277,7 +273,7 @@ export const blogPostObject = {
     scheduled_for: { ...instantSchema, type: ['string', 'null'] },
     created_at: { type: 'string' },
     updated_at: { type: 'string' },
-    media: { type: 'array', items: mediaPlacementObject },
+    cover: blogCoverObject,
     admin_edit_url: { type: ['string', 'null'] },
     edit_url: { type: ['string', 'null'] },
     public_path: { type: ['string', 'null'] },
@@ -287,11 +283,10 @@ export const blogPostObject = {
     content_blocks: { type: 'array', items: blogContentBlockObject },
   },
   required: [
-    'id', 'title', 'slug', 'excerpt', 'category', 'tags',
-    'nav_section', 'nav_title', 'nav_order', 'nav_section_order', 'hide_from_nav', 'featured_order',
+    'id', 'title', 'slug', 'excerpt', 'collection', 'category', 'tags',
     'seo_title', 'seo_description', 'seo_keywords', 'canonical_url', 'robots',
     'published', 'published_at', 'status', 'visibility', 'scheduled_for',
-    'created_at', 'updated_at', 'media', 'admin_edit_url', 'edit_url',
+    'created_at', 'updated_at', 'cover', 'admin_edit_url', 'edit_url',
     'public_path', 'public_url', 'preview_url', 'view_url',
     'content_blocks',
   ],
@@ -305,9 +300,9 @@ export const blogPostSummaryObject = {
     title: { type: 'string' },
     slug: { type: 'string' },
     excerpt: { type: ['string', 'null'] },
+    collection: { type: 'string', enum: ['blog', 'docs'] },
     category: { type: ['string', 'null'] },
     tags: { type: 'array', items: { type: 'string' } },
-    ...BLOG_NAV_FIELDS_SCHEMA,
     seo_title: { type: ['string', 'null'] },
     seo_description: { type: ['string', 'null'] },
     seo_keywords: { type: ['string', 'null'] },
@@ -320,7 +315,7 @@ export const blogPostSummaryObject = {
     scheduled_for: { ...instantSchema, type: ['string', 'null'] },
     created_at: { type: 'string' },
     updated_at: { type: 'string' },
-    media: { type: 'array', items: mediaPlacementObject },
+    cover: blogCoverObject,
     admin_edit_url: { type: ['string', 'null'] },
     edit_url: { type: ['string', 'null'] },
     public_path: { type: ['string', 'null'] },
@@ -329,11 +324,10 @@ export const blogPostSummaryObject = {
     view_url: { type: ['string', 'null'] },
   },
   required: [
-    'id', 'title', 'slug', 'excerpt', 'category', 'tags',
-    'nav_section', 'nav_title', 'nav_order', 'nav_section_order', 'hide_from_nav', 'featured_order',
+    'id', 'title', 'slug', 'excerpt', 'collection', 'category', 'tags',
     'seo_title', 'seo_description', 'seo_keywords', 'canonical_url', 'robots',
     'published', 'published_at', 'status', 'visibility', 'scheduled_for',
-    'created_at', 'updated_at', 'media', 'admin_edit_url', 'edit_url',
+    'created_at', 'updated_at', 'cover', 'admin_edit_url', 'edit_url',
     'public_path', 'public_url', 'preview_url', 'view_url',
   ],
   additionalProperties: false,
@@ -792,21 +786,6 @@ export const reservationSubmissionObject = {
   },
 }
 
-export const workRequestObject = {
-  type: 'object',
-  properties: {
-    id: { type: 'string' },
-    type: { type: 'string' },
-    title: { type: 'string' },
-    description: { type: ['string', 'null'] },
-    status: { type: 'string', enum: ['open', 'in_progress', 'done', 'cancelled'] },
-    priority: { type: 'string', enum: ['low', 'normal', 'high'] },
-    notes: { type: ['string', 'null'] },
-    created_at: { type: 'string' },
-    updated_at: { type: 'string' },
-  },
-}
-
 export const siteListItem = {
   type: 'object',
   properties: {
@@ -1042,7 +1021,6 @@ export const EXPECTED_TOOL_ANNOTATIONS = {
   put_resource_localization: D,
   remove_media: D,
   rename_product_category: D,
-  reorder_blog_posts: D,
   reorder_location_qa: D,
   reorder_media: D,
   reorder_site_qa: D,

@@ -34,17 +34,13 @@ const EXISTING_DEBT_ALLOWLIST = {
   ]),
 }
 
-// These site-creation/transfer/admin billing paths are migrated to
-// the Better Auth Organization/session adapter. Keep their SQL surface limited
+// These site-creation paths are migrated to the Better Auth Organization/session
+// adapter. Keep their SQL surface limited
 // to app-owned tables so a direct Better Auth table mutation cannot quietly
 // return.
 const MIGRATED_ORGANIZATION_ROUTES = [
   'server/utils/site-creation.ts',
   'server/api/sites.post.ts',
-  'server/api/site-transfer/[token]/accept.post.ts',
-  'server/api/admin/clients.get.ts',
-  'server/api/admin/sites/[siteId]/transfer.post.ts',
-  'server/api/admin/sites/[siteId]/transfer.delete.ts',
 ]
 
 // Team rows are Better Auth-owned too. These are the resource-provisioning
@@ -68,7 +64,7 @@ const FORBIDDEN_PATTERNS = [
   {
     id: 'admin_impersonation_proxy',
     description: 'custom admin impersonation proxy route',
-    regex: /(?:\/api\/admin\/impersonation\/(?:start|stop)|server\/api\/admin\/impersonation\/(?:start|stop)\.post\.ts)/g,
+    regex: /\bimpersonation\/(?:start|stop)(?:\.post\.ts)?\b/g,
   },
   {
     id: 'isPlatformAdmin',
@@ -123,20 +119,6 @@ async function checkForbiddenPatterns() {
   const violations = []
   const files = gitFiles()
 
-  for (const forbiddenFile of [
-    'server/api/admin/impersonation/start.post.ts',
-    'server/api/admin/impersonation/stop.post.ts',
-  ]) {
-    if (files.includes(forbiddenFile)) {
-      violations.push({
-        file: forbiddenFile,
-        line: 1,
-        pattern: 'admin_impersonation_proxy',
-        description: 'custom admin impersonation proxy route',
-        match: forbiddenFile,
-      })
-    }
-  }
 
   for (const file of files) {
     if (isAlwaysAllowed(file)) continue
@@ -182,39 +164,13 @@ async function checkMcpResourceBoundary() {
   for (const [file, expected, label] of [
     ['server/api/mcp.post.ts', "audiences: [`${baseUrl}/api/mcp`]", 'tenant MCP audience'],
     ['server/api/mcp.post.ts', 'requiredScopes: ["tenant"]', 'tenant MCP scope'],
-    ['server/api/mcp/platform.post.ts', "audiences: [`${baseUrl}/api/mcp/platform`]", 'platform MCP audience'],
-    ['server/api/mcp/platform.post.ts', "requiredScopes: ['platform_admin']", 'platform MCP scope'],
-    ['server/api/mcp/platform.post.ts', 'requirePlatformAdmin: true', 'platform MCP admin gate'],
     ['server/routes/.well-known/oauth-protected-resource.get.ts', 'resource: `${baseUrl}/api/mcp`', 'tenant protected resource metadata'],
     ['server/routes/.well-known/oauth-protected-resource.get.ts', "scopes_supported: ['offline_access', 'tenant']", 'tenant protected resource scopes'],
-    ['server/routes/.well-known/oauth-protected-resource/platform-mcp.get.ts', 'resource: `${baseUrl}/api/mcp/platform`', 'platform protected resource metadata'],
-    ['server/routes/.well-known/oauth-protected-resource/platform-mcp.get.ts', "scopes_supported: ['offline_access', 'platform_admin']", 'platform protected resource scopes'],
     ['server/utils/auth.ts', "identifier: `${authBaseUrl}/api/mcp`", 'tenant OAuth resource registration'],
     ['server/utils/auth.ts', "allowedScopes: ['openid', 'email', 'offline_access', 'tenant']", 'tenant OAuth resource scopes'],
-    ['server/utils/auth.ts', "identifier: `${authBaseUrl}/api/mcp/platform`", 'platform OAuth resource registration'],
-    ['server/utils/auth.ts', "allowedScopes: ['openid', 'email', 'offline_access', 'platform_admin']", 'platform OAuth resource scopes'],
   ]) {
     const failure = await assertContains(file, expected, label)
     if (failure) failures.push(failure)
-  }
-
-  return failures
-}
-
-async function checkMigratedAdminUserSessionRoutes() {
-  const failures = []
-
-  for (const file of [
-    'server/api/admin/analytics.get.ts',
-    'server/api/admin/invite/team.post.ts',
-    'server/api/admin/members.get.ts',
-    'server/api/admin/users.get.ts',
-  ]) {
-    const content = await readFile(file, 'utf8')
-    const forbidden = /\b(?:FROM|JOIN|UPDATE|INSERT\s+INTO|DELETE\s+FROM)\s+(?:user|session)\b/i
-    if (forbidden.test(content)) {
-      failures.push(`${file}: migrated admin user/session route still queries Better Auth user/session tables directly`)
-    }
   }
 
   return failures
@@ -228,9 +184,6 @@ async function checkMigratedOrganizationRoutes() {
     const content = await readFile(file, 'utf8')
     if (forbidden.test(content)) {
       failures.push(`${file}: migrated organization route still queries Better Auth user/organization/member/session tables directly`)
-    }
-    if (file === 'server/api/site-transfer/[token]/accept.post.ts' && /\bhasPlatformEventPermission\b/.test(content)) {
-      failures.push(`${file}: platform control-plane permission must not bypass exact tenant transfer acceptance`)
     }
   }
 
@@ -267,15 +220,14 @@ async function checkMigratedTeamProvisioning() {
   return failures
 }
 
-const [forbiddenViolations, mcpBoundaryFailures, migratedAdminFailures, migratedOrganizationFailures, migratedTeamFailures] = await Promise.all([
+const [forbiddenViolations, mcpBoundaryFailures, migratedOrganizationFailures, migratedTeamFailures] = await Promise.all([
   checkForbiddenPatterns(),
   checkMcpResourceBoundary(),
-  checkMigratedAdminUserSessionRoutes(),
   checkMigratedOrganizationRoutes(),
   checkMigratedTeamProvisioning(),
 ])
 
-if (forbiddenViolations.length || mcpBoundaryFailures.length || migratedAdminFailures.length || migratedOrganizationFailures.length || migratedTeamFailures.length) {
+if (forbiddenViolations.length || mcpBoundaryFailures.length || migratedOrganizationFailures.length || migratedTeamFailures.length) {
   console.error('Better Auth boundary check failed.')
 
   for (const violation of forbiddenViolations) {
@@ -286,9 +238,6 @@ if (forbiddenViolations.length || mcpBoundaryFailures.length || migratedAdminFai
     console.error(`  ${failure}`)
   }
 
-  for (const failure of migratedAdminFailures) {
-    console.error(`  ${failure}`)
-  }
 
   for (const failure of migratedOrganizationFailures) {
     console.error(`  ${failure}`)

@@ -19,7 +19,6 @@ export const PLATFORM_SITEMAP_ROUTES = [
 ] as const
 
 export const PRIVATE_ROUTE_PREFIXES = [
-  '/admin',
   '/api',
   '/auth',
   '/dashboard',

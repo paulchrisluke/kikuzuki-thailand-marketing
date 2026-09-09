@@ -91,6 +91,21 @@ export async function listPageQa(db: DbClient, siteId: string, pagePath: string,
   return scoped.length ? scoped : listQa(db, siteId, null, publishedOnly, undefined, locale)
 }
 
+/**
+ * FAQ blocks hold no questions of their own: they list the published Q&A records
+ * scoped to the page (or article) they sit on. Public readers attach those
+ * records here so every surface renders the same items.
+ */
+export async function attachPageQa<T extends { type: string; data: Record<string, unknown> }>(
+  db: DbClient, siteId: string, pagePath: string, blocks: T[], locale = 'en',
+): Promise<T[]> {
+  const sourced = (block: T) => block.type === 'faq' && block.data.source === 'page_qa'
+  if (!blocks.some(sourced)) return blocks
+  const items = (await listPageQa(db, siteId, pagePath, true, locale))
+    .map(row => ({ id: String(row.id), title: String(row.question), description: typeof row.answer === 'string' ? row.answer : undefined }))
+  return blocks.map(block => sourced(block) ? { ...block, data: { ...block.data, items } } : block)
+}
+
 export async function createQa(db: DbClient, scope: QaScope, input: CreateQaInput) {
   const question = input.question.trim()
   if (!question) return { status: 400, data: { error: 'question required' } }

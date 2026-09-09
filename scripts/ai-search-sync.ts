@@ -22,7 +22,7 @@ if (changedSince) {
     'server/utils/public-search.ts',
     'server/utils/platform-llm.ts',
     'server/utils/content/documents.ts',
-    'shared/platform-scope.ts',
+    'server/utils/platform-site.ts',
     'utils/blog-categories.ts',
     'utils/docs-categories.ts',
   ])

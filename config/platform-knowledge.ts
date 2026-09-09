@@ -1,5 +1,4 @@
 import { getBlogPostPath } from '~/utils/blog-categories'
-import { categoryToSlug } from '~/utils/docs-categories'
 
 export type PlatformKnowledgeResultType =
   | 'doc'
@@ -510,12 +509,6 @@ export const PLATFORM_DASHBOARD_ROUTE_ENTRIES: PlatformDashboardRouteEntry[] = [
     surfaces: ['dashboard'],
   },
 ]
-
-export function getDocPath(category: string | null | undefined, slug: string | null | undefined): string | null {
-  const categorySlug = categoryToSlug(category)
-  if (!categorySlug || !slug) return null
-  return `/docs/${categorySlug}/${slug}`
-}
 
 export function getPlatformBlogPath(category: string | null | undefined, slug: string | null | undefined): string | null {
   return getBlogPostPath(category, slug)

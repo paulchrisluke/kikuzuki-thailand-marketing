@@ -7,7 +7,7 @@
 // On a miss: falls through to SSR; server/plugins/edge-cache.ts populates KV.
 //
 // NEVER cached:
-//   - /api/**, /dashboard/**, /admin/**, /auth/** — auth-gated
+//   - /api/**, /dashboard/**, /auth/** — auth-gated
 //   - Requests with session cookie — personalised
 //   - Paths with query strings
 //   - Non-GET requests
@@ -21,7 +21,7 @@ import { isPreviewContext } from '~/server/utils/tenant-hosts'
 const CACHE_TTL_SECONDS = 60
 
 const SKIP_PREFIXES = [
-  '/api/', '/dashboard', '/admin', '/auth/',
+  '/api/', '/dashboard', '/auth/',
   '/signup', '/login', '/links', '/_nuxt/', '/assets/', '/_ipx/',
 ]
 

@@ -166,7 +166,7 @@ const capabilities = computed(() => {
   // Deliberately unguarded: swallowing a capability error left the hub with an
   // empty feature set, which removes every content and reservation row and
   // leaves a location that looks like it holds nothing.
-  return resolveCmsCapabilities(normalizeVertical(vertical) as SiteVertical, resolvePublicTemplate({ vertical }).slug, {
+  return resolveCmsCapabilities(normalizeVertical(vertical) as SiteVertical, resolvePublicTemplate({ themeId: dashboard.site.value?.theme_id, vertical }).slug, {
     site: parseCmsFeatureOverrideDelta(dashboard.site.value?.feature_overrides),
     location: parseCmsFeatureOverrideDelta(dashboardLocationRow.value?.feature_overrides),
   })

@@ -6,31 +6,9 @@ import { getOgImageFonts } from './fonts.ts'
 import { resolveOgImageRenderer } from './renderers/index.ts'
 import { fetchTransformedImageAsDataUri } from './fetch-image.ts'
 import { ensureResvgInitialized, loadLocalWasmModule } from '~/server/utils/resvg-runtime'
-import platformLogoBase64 from '~/server/assets/platform-logo'
-
-// A same-zone self-fetch (this Worker requesting its own krabiclaw.com/krabi-claw-logo.png)
-// was found to silently fail in production while third-party image URLs fetch fine — see
-// server/assets/platform-logo.ts. Resolve the platform's own logo from the bundled asset
-// instead of going through the Images binding whenever the URL points at that file, so the
-// brand mark on platform-template cards never depends on that self-fetch succeeding.
-function resolveLogoDataUri(
-  images: ImagesBinding,
-  logoUrl: string | null | undefined,
-  platformDomain?: string,
-): Promise<string | null> {
-  if (logoUrl) {
-    try {
-      const url = new URL(logoUrl)
-      if (platformDomain) {
-        const platformOrigin = platformDomain.startsWith('http') ? platformDomain : `https://${platformDomain}`
-        if (url.pathname === '/krabi-claw-logo.png' && url.origin === new URL(platformOrigin).origin) {
-          return Promise.resolve(`data:image/png;base64,${platformLogoBase64}`)
-        }
-      }
-    } catch {
-      // The fetch helper rejects invalid and non-public URLs.
-    }
-  }
+// The brand mark comes from the site's own logo placement (a media asset URL),
+// KrabiClaw's site included.
+function resolveLogoDataUri(images: ImagesBinding, logoUrl: string | null | undefined): Promise<string | null> {
   return fetchTransformedImageAsDataUri(images, logoUrl, { width: 160, height: 160, fit: 'contain' }, { format: 'image/png' }, { timeoutMs: 4000 })
 }
 
@@ -64,7 +42,6 @@ export interface RenderOgImageDeps {
    */
   wasmModule?: InitInput
   yogaModule?: InitInput
-  platformDomain?: string
 }
 
 /** Renders one OG image payload to real, decodable 1200×630 PNG bytes. */
@@ -89,7 +66,7 @@ export async function renderOgImagePng(
       timeoutMs: 4000,
       acceptedContentTypes: ['image/png', 'image/jpeg', 'image/webp'],
     }),
-    resolveLogoDataUri(deps.images, payload.logoUrl, deps.platformDomain),
+    resolveLogoDataUri(deps.images, payload.logoUrl),
   ])
   if (!backgroundImageDataUri) {
     throw new Error(`OG page media could not be loaded: ${payload.backgroundImageUrl}`)

@@ -1,15 +1,13 @@
+import type { ArticleCollection } from '~/utils/article-collections'
+
 export interface BlogPost {
   id: string
   title: string
   slug?: string | null
   excerpt?: string | null
+  /** Which of the site's collections the article belongs to; customer templates only have the blog. */
+  collection?: ArticleCollection | null
   category?: string | null
-  nav_section?: string | null
-  nav_title?: string | null
-  nav_order?: number | null
-  nav_section_order?: number | null
-  hide_from_nav?: boolean | number | null
-  featured_order?: number | null
   seo_description?: string | null
   seo_keywords?: string | null
   canonical_url?: string | null
@@ -23,7 +21,8 @@ export interface BlogPost {
   visibility?: 'public' | 'unlisted'
   tags?: string[]
   seo_title?: string | null
-  media?: Array<{ asset_id: string; slot: string; public_url?: string | null; thumbnail_url?: string | null; kind?: string | null; alt_text?: string | null }>
+  /** The leading image block's asset, or null when the article opens with text. */
+  cover?: { asset_id: string; public_url?: string | null; thumbnail_url?: string | null; kind?: string | null; alt_text?: string | null; width?: number | null; height?: number | null } | null
   edit_url?: string | null
   content_document?: {
     document: { id: string; updated_at: string }
@@ -53,6 +52,7 @@ export interface BlogPostCreateInput {
   slug?: string | null
   content_blocks: BlogEditorBlock[]
   excerpt?: string | null
+  collection?: ArticleCollection | null
   category?: string | null
   tags?: string[] | null
   seo_title?: string | null
@@ -60,13 +60,6 @@ export interface BlogPostCreateInput {
   seo_keywords?: string | null
   canonical_url?: string | null
   robots?: string | null
-  media?: Array<{ asset_id: string; slot: 'featured' }>
-  nav_section?: string | null
-  nav_title?: string | null
-  nav_order?: number | null
-  nav_section_order?: number | null
-  hide_from_nav?: boolean | number | null
-  featured_order?: number | null
   visibility?: 'public' | 'unlisted'
   scheduled_for?: string | null
 }
@@ -74,6 +67,7 @@ export interface BlogPostCreateInput {
 export interface BlogPostUpdateInput {
   title?: string
   excerpt?: string | null
+  collection?: ArticleCollection | null
   category?: string | null
   tags?: string[] | null
   seo_title?: string | null
@@ -81,13 +75,6 @@ export interface BlogPostUpdateInput {
   seo_keywords?: string | null
   canonical_url?: string | null
   robots?: string | null
-  media?: Array<{ asset_id: string; slot: 'featured' }>
-  nav_section?: string | null
-  nav_title?: string | null
-  nav_order?: number | null
-  nav_section_order?: number | null
-  hide_from_nav?: boolean | number | null
-  featured_order?: number | null
   visibility?: 'public' | 'unlisted'
   slug?: string | null
   redirect_old_slug?: boolean

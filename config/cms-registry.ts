@@ -150,9 +150,28 @@ const blawbyTemplateCatalog: CmsTemplateCatalog = {
   locationVocabularyDefault: 'office/service area',
 }
 
+// KrabiClaw's own site. Its documentation is ordinary page documents under /docs,
+// so the pages index lists them without a catalog entry per page. The platform
+// owner's operations (organizations, every domain, platform analytics, staff) are
+// dashboard pages gated on this template, not content managers.
+const platformTemplateCatalog: CmsTemplateCatalog = {
+  pages: [
+    { id: 'home', feature: 'contact', label: 'Home', route: '/', scope: 'site', editor: 'tenant_pages' },
+    { id: 'contact', feature: 'contact', label: 'Help', route: '/help', scope: 'site', editor: 'tenant_pages' },
+  ],
+  managers: [
+    { key: 'site.blog', id: 'blog', label: 'Blog posts', section: 'collections', route: 'blog', scope: 'site' },
+    { key: 'site.qa', id: 'qa', label: 'Q&A', section: 'collections', route: 'qa', scope: 'site' },
+    { key: 'site.media', id: 'media', label: 'Media library', section: 'media', route: 'media', scope: 'site' },
+    { key: 'site.settings', id: 'settings', label: 'Brand', section: 'site', route: 'settings', scope: 'site' },
+  ],
+  locationVocabularyDefault: 'office/service area',
+}
+
 export const templateCapabilityCatalog: Record<PublicTemplateSlug, CmsTemplateCatalog> = {
   saya: sayaTemplateCatalog,
   blawby: blawbyTemplateCatalog,
+  platform: platformTemplateCatalog,
 }
 
 /** Where a business module can be toggled. Deliberately explicit rather than inferred from
@@ -177,6 +196,7 @@ const blawbyModules: readonly ProductModuleDefinition[] = [
 const templateModules: Record<PublicTemplateSlug, readonly ProductModuleDefinition[]> = {
   saya: sayaModules,
   blawby: blawbyModules,
+  platform: [],
 }
 
 /** The real, customer-facing business modules a template offers, filtered to where they can
@@ -193,7 +213,7 @@ export function toggleableModulesForScope(template: PublicTemplateSlug, scope: '
 const supportedCombinations: Record<SiteVertical, readonly PublicTemplateSlug[]> = {
   restaurant: ['saya'],
   experience: ['saya'],
-  service: ['blawby'],
+  service: ['blawby', 'platform'],
 }
 
 // Always-on features: 'contact'/'locations'/'settings' are infra; 'blog'/'qa'/

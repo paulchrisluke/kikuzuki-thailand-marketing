@@ -6,7 +6,6 @@ import { resolvePublishedTenantPageIdentity as resolveCanonicalTenantPageIdentit
 import { resolveAttributionTouch, type AttributionParams } from '~/utils/analytics-attribution'
 import { publicTemplateRegistry, resolvePublicTemplate } from '~/utils/template-registry'
 import type { PublicTemplateDefinition } from '~/utils/template-registry'
-import { PLATFORM_SITE_ID } from '~/shared/platform-scope'
 export { isTrackablePath, PAGEVIEW_SKIP_PREFIXES } from '~/utils/pageview-path'
 
 export const VISITOR_COOKIE = 'kc_visitor_id'
@@ -168,22 +167,22 @@ export async function updateTenantPageviewDuration(db: AppDb, input: {
 }
 
 export async function recordPlatformPageview(db: AppDb, input: {
-  eventId: string; pagePath: string; referrerHost: string | null; userAgent: string; ipHash: string;
+  eventId: string; siteId: string; pagePath: string; referrerHost: string | null; userAgent: string; ipHash: string;
   sessionId: string; visitorId: string; country: string | null; region: string | null; city: string | null; now: string
 }): Promise<void> {
   await execute(db, `INSERT OR IGNORE INTO analytics_events (
     id, kind, site_id, page_path, session_id, visitor_id, payload_json, created_at
   ) VALUES (?, 'pageview', ?, ?, ?, ?, ?, ?)`, [
-    input.eventId, PLATFORM_SITE_ID, input.pagePath, input.sessionId, input.visitorId,
+    input.eventId, input.siteId, input.pagePath, input.sessionId, input.visitorId,
     JSON.stringify({ referrer: input.referrerHost, user_agent: input.userAgent, ip_hash: input.ipHash,
       country: input.country, region: input.region, city: input.city }), input.now,
   ])
 }
 
 export async function updatePlatformPageviewDuration(db: AppDb, input: {
-  eventId: string; sessionId: string; durationSeconds: number
+  eventId: string; siteId: string; sessionId: string; durationSeconds: number
 }): Promise<void> {
   await execute(db, `UPDATE analytics_events SET duration_seconds = ? WHERE kind = 'pageview' AND site_id = ? AND id = ? AND session_id = ?`, [
-    input.durationSeconds, PLATFORM_SITE_ID, input.eventId, input.sessionId,
+    input.durationSeconds, input.siteId, input.eventId, input.sessionId,
   ])
 }

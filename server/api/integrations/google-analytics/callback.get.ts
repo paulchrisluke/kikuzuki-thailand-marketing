@@ -27,7 +27,7 @@ export default defineHandler(async (event) => {
     return new Response('Server misconfiguration.', { status: 500 })
   }
   const stateData = await verifyOAuthState<IntegrationOAuthState>(hmacSecret, state)
-  if (!stateData || !(stateData.revision === null || typeof stateData.revision === 'string') || !(stateData.transfer_generation === null || typeof stateData.transfer_generation === 'string')) {
+  if (!stateData || !(stateData.revision === null || typeof stateData.revision === 'string')) {
     return new Response(null, { status: 302, headers: { Location: '/dashboard?ga=error' } })
   }
 

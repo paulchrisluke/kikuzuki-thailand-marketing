@@ -25,9 +25,6 @@
             :updated-at="post?.updated_at || null"
             :author-name="resolvedSiteName"
             :site-name="resolvedSiteName"
-            :media-url="resolvedPrimaryMediaUrl"
-            :media-alt="featuredMedia?.alt_text ?? null"
-            :media-kind="resolvedMediaKind"
             :read-minutes="readMinutes"
             :blocks="blocks"
             :template="templateName"
@@ -40,9 +37,15 @@
             @merge-block="handleMergeBlock"
             @split-insert="handleSplitInsert"
           >
+            <template #cover-empty>
+              <button type="button" class="mb-8 flex aspect-video w-full items-center justify-center gap-2 rounded-2xl border border-dashed border-current/30 text-sm opacity-70 transition hover:border-current/60 hover:opacity-100" @click="addCover">
+                <UIcon name="i-lucide-image-plus" class="size-4" />
+                Add a cover photo
+              </button>
+            </template>
             <template #image-editor="{ block, index }">
               <component
-                :is="mediaPickerComponent || PlatformMediaPicker"
+                :is="mediaPickerComponent"
                 :site-id="siteId"
                 :model-value="block.media?.find(item => item.slot === 'media')?.asset_id || ''"
                 accept="image"
@@ -102,20 +105,16 @@
         </template>
 
         <template #detail>
-          <div v-if="section === 'photo'" class="space-y-4">
-            <p class="text-base text-muted">The picture this post is recognised by — at the top of the article, in the blog list, and on the card people see when it is shared.</p>
-            <component
-              :is="mediaPickerComponent || PlatformMediaPicker"
-              :site-id="siteId"
-              :model-value="featuredMedia?.asset_id || ''"
-              accept="image"
-              @change="setFeaturedMedia"
-            />
-          </div>
-
-          <UFormField v-else-if="section === 'category'" label="Category">
-            <UInput v-model="form.category" autofocus class="w-full" />
-          </UFormField>
+          <template v-if="section === 'category'">
+            <!-- KrabiClaw's own site publishes two collections; each files articles under a fixed category set that shapes the URL. -->
+            <UFormField v-if="isPlatformTemplate" label="Collection" class="mb-4">
+              <USelect v-model="form.collection" :items="collectionOptions" value-key="value" class="w-full" @update:model-value="form.category = ''" />
+            </UFormField>
+            <UFormField label="Category">
+              <USelect v-if="isPlatformTemplate" v-model="form.category" :items="collectionCategories" class="w-full" />
+              <UInput v-else v-model="form.category" autofocus class="w-full" />
+            </UFormField>
+          </template>
 
           <UFormField v-else-if="section === 'tags'" label="Tags" help="Comma separated">
             <UInput v-model="tagsText" autofocus class="w-full" />
@@ -166,7 +165,7 @@
           <UFormField v-else-if="section === 'share'" label="Share preview">
             <img v-if="resolvedPrimaryImageUrl" :src="resolvedPrimaryImageUrl" alt="Resolved share preview" class="aspect-video w-full rounded-lg object-cover">
             <video v-else-if="resolvedPrimaryVideoUrl" :src="resolvedPrimaryVideoUrl" controls muted playsinline class="aspect-video w-full rounded-lg object-cover" />
-            <p v-else class="text-xs text-dimmed">This post has no photo, so its share card cannot be generated. Set one under Photo.</p>
+            <p v-else class="text-xs text-dimmed">This post has no cover photo, so its share card cannot be generated. Add a picture at the top of the article.</p>
           </UFormField>
 
           <div v-else-if="section === 'url'" class="space-y-5">
@@ -199,14 +198,16 @@ import type { Component } from 'vue'
 import BlogArticleView from '~/components/blog/BlogArticleView.vue'
 import EditorNavigationList, { type EditorNavigationGroup } from '~/components/dashboard/EditorNavigationList.vue'
 import EditorPaneShell from '~/components/dashboard/EditorPaneShell.vue'
-import PlatformMediaPicker from '~/lib/components/workspace/media/PlatformMediaPicker.vue'
+import { ARTICLE_COLLECTIONS, ARTICLE_COLLECTION_SLUGS, articleCollectionCategories, type ArticleCollection } from '~/utils/article-collections'
+import { tenantBlogPostPath } from '~/utils/tenant-blog-route'
+import { publicTemplateRegistry } from '~/utils/template-registry'
 import type { BlogLifecycleState, BlogPostRepository, BlogPost, BlogEditorBlock, BlogPostUpdateInput } from './types'
-import { cloneEditorBlocks, generatedExcerpt, initialBlogEditorBlocks, normalizeBlogSlug, resolveBlogPublicPath, resolveBlogSeo, scheduledLifecycleValue, SerializedSnapshotQueue } from '~/utils/blog-editor'
+import { cloneEditorBlocks, generatedExcerpt, initialBlogEditorBlocks, normalizeBlogSlug, resolveBlogSeo, scheduledLifecycleValue, SerializedSnapshotQueue } from '~/utils/blog-editor'
 import { getErrorMessage } from '~/utils/errors'
 import { resolveSocialImageUrl } from '~/utils/social-metadata'
 
-const props = withDefaults(defineProps<{ repository: BlogPostRepository; initialPost?: BlogPost | null; deferLoad?: boolean; postId?: string; siteId?: string; isEdit?: boolean; backUrl?: string; backLabel?: string; panelId?: string; mediaPickerComponent?: Component; freeTextCategory?: boolean }>(), {
-  initialPost: null, deferLoad: false, postId: undefined, siteId: '', isEdit: false, backUrl: '/admin', backLabel: 'Posts', panelId: 'blog-post-editor', mediaPickerComponent: undefined, freeTextCategory: false,
+const props = withDefaults(defineProps<{ repository: BlogPostRepository; initialPost?: BlogPost | null; deferLoad?: boolean; postId?: string; siteId?: string; isEdit?: boolean; backUrl?: string; backLabel?: string; panelId?: string; mediaPickerComponent: Component }>(), {
+  initialPost: null, deferLoad: false, postId: undefined, siteId: '', isEdit: false, backUrl: '/dashboard', backLabel: 'Posts', panelId: 'blog-post-editor',
 })
 const route = useRoute()
 const postId = computed(() => props.postId || String(route.params.postId || ''))
@@ -220,8 +221,8 @@ const saveState = ref<'saved' | 'saving' | 'failed' | 'conflict'>('saved')
 const actionError = ref('')
 const publishing = ref(false)
 const savingExplicitly = ref(false)
-type SettingsSection = 'photo' | 'category' | 'tags' | 'excerpt' | 'publishing' | 'search' | 'share' | 'url' | 'canonical' | 'robots'
-const SETTINGS_SECTIONS: SettingsSection[] = ['photo', 'category', 'tags', 'excerpt', 'publishing', 'search', 'share', 'url', 'canonical', 'robots']
+type SettingsSection = 'category' | 'tags' | 'excerpt' | 'publishing' | 'search' | 'share' | 'url' | 'canonical' | 'robots'
+const SETTINGS_SECTIONS: SettingsSection[] = ['category', 'tags', 'excerpt', 'publishing', 'search', 'share', 'url', 'canonical', 'robots']
 const contentDirty = ref(false)
 const lifecycleDirty = ref(false)
 const dirtyState = computed(() => contentDirty.value || lifecycleDirty.value)
@@ -241,10 +242,13 @@ const section = computed<SettingsSection | null>(() => {
   return segment && (SETTINGS_SECTIONS as string[]).includes(segment) ? segment as SettingsSection : null
 })
 
-const form = reactive({ title: '', category: '', excerpt: '', seo_title: '', seo_description: '', slug: '', canonical_url: '', robots: '', visibility: 'public' as 'public' | 'unlisted', scheduled_for: '', redirect_old_slug: true, media: [] as NonNullable<BlogPost['media']> })
+const form = reactive({ title: '', collection: 'blog' as ArticleCollection, category: '', excerpt: '', seo_title: '', seo_description: '', slug: '', canonical_url: '', robots: '', visibility: 'public' as 'public' | 'unlisted', scheduled_for: '', redirect_old_slug: true })
 const tagsText = ref('')
 const publishTiming = ref<'Now' | 'Scheduled'>('Now')
-const templateName = computed(() => post.value?.editor_template || (route.path.includes('/admin/') ? 'platform' : 'saya'))
+const templateName = computed(() => post.value?.editor_template || 'saya')
+const isPlatformTemplate = computed(() => templateName.value === 'platform')
+const collectionOptions = ARTICLE_COLLECTION_SLUGS.map(slug => ({ label: ARTICLE_COLLECTIONS[slug].label, value: slug }))
+const collectionCategories = computed(() => articleCollectionCategories(form.collection))
 const editorCanvasStyle = computed(() => {
   const tokens = post.value?.editor_theme_tokens ?? {}
   if (templateName.value === 'saya') {
@@ -282,21 +286,21 @@ const statusLabel = computed(() => {
 const lifecycleLabel = computed(() => publishing.value ? 'Publishing…' : statusLabel.value)
 const generatedSlug = computed(() => normalizeBlogSlug(form.title))
 const resolvedExcerpt = computed(() => generatedExcerpt(blocks.value))
-const resolvedSiteName = computed(() => post.value?.editor_site_name || (props.siteId ? '' : 'KrabiClaw'))
+const resolvedSiteName = computed(() => post.value?.editor_site_name || '')
 const readMinutes = computed(() => Math.max(1, Math.ceil(serializeBody().trim().split(/\s+/).filter(Boolean).length / 200)))
-const publicPath = computed(() => resolveBlogPublicPath({ scope: props.siteId ? 'tenant' : 'platform', template: templateName.value, slug: slugResetRequested.value ? generatedSlug.value : form.slug || generatedSlug.value, category: form.category }))
+const publicPath = computed(() => tenantBlogPostPath({ themeId: publicTemplateRegistry[templateName.value].themeId }, slugResetRequested.value ? generatedSlug.value : form.slug || generatedSlug.value, form.category, form.collection))
 const resolvedSeo = computed(() => resolveBlogSeo({ title: form.title, seoTitle: form.seo_title, excerpt: form.excerpt || resolvedExcerpt.value, seoDescription: form.seo_description, slug: form.slug || generatedSlug.value, canonicalUrl: form.canonical_url, baseUrl: windowOrigin(), publicPath: publicPath.value, siteName: resolvedSiteName.value, robots: form.robots }))
 /**
- * The post's photo, from the `featured` slot and nowhere else.
- *
- * This used to prefer the body's first image block and fall back to `featured`,
- * which meant a post with no photo still rendered a hero and still reported its
- * share card as set — the missing card could never surface. A body image is
- * body content; the photo is the post's own.
+ * The post's cover is its leading image block and nothing else. The post's
+ * images are one set; the cover is the lead one; the share card derives from
+ * it. There is no separate "photo" that could hold the same picture twice.
  */
-const featuredMedia = computed(() => form.media.find(item => item.slot === 'featured') ?? null)
+const coverMedia = computed(() => {
+  const lead = blocks.value[0]
+  return lead?.type === 'image' ? lead.media?.find(item => item.slot === 'media') ?? null : null
+})
 const resolvedPrimaryImageUrl = computed<string | null>(() =>
-  featuredMedia.value?.kind === 'video' ? null : resolveSocialImageUrl(featuredMedia.value))
+  coverMedia.value?.kind === 'video' ? null : resolveSocialImageUrl(coverMedia.value))
 /**
  * The settings index. Every row states what it currently holds, so the pane is
  * read by scanning values rather than by opening each leaf to find out — which
@@ -319,28 +323,7 @@ const settingsGroups = computed<EditorNavigationGroup[]>(() => {
       id: 'about',
       label: 'About this post',
       items: [
-        {
-          id: 'photo',
-          label: 'Photo',
-          to: `${postPath.value}/photo`,
-          placeholder: !featuredMedia.value,
-          // The row used to read "Image" and carry `previews`, which the rows
-          // variant never renders — so the picture the post is recognised by
-          // was the one thing on the hub you could not see.
-          //
-          // The image here is the one that actually gets shared, which for a
-          // video cover is its poster frame, not the in-editor hero preview:
-          // that one is deliberately null for video so the canvas can play the
-          // clip instead, and reading it here would have reported "no share
-          // image" for a post that has one.
-          card: {
-            image: resolveSocialImageUrl(featuredMedia.value),
-            title: resolvedSeo.value.title,
-            description: form.excerpt.trim() || resolvedExcerpt.value || null,
-            empty: 'No picture, so links to this post are shared without one',
-          },
-        },
-        row('category', 'Category', form.category),
+        row('category', isPlatformTemplate.value ? `${ARTICLE_COLLECTIONS[form.collection].label} · Category` : 'Category', form.category),
         row('tags', 'Tags', tagsText.value, 'None'),
         {
           id: 'excerpt',
@@ -396,12 +379,8 @@ const sectionLabel = computed(() => {
 })
 
 const resolvedPrimaryVideoUrl = computed<string | null>(() => {
-  const candidate = featuredMedia.value?.kind === 'video' ? featuredMedia.value.public_url : null
+  const candidate = coverMedia.value?.kind === 'video' ? coverMedia.value.public_url : null
   return typeof candidate === 'string' && candidate ? candidate : null
-})
-const resolvedPrimaryMediaUrl = computed(() => resolvedPrimaryImageUrl.value || resolvedPrimaryVideoUrl.value)
-const resolvedMediaKind = computed(() => {
-  return resolvedPrimaryVideoUrl.value ? 'video' : 'image'
 })
 const saveLabel = computed(() => {
   if (saveState.value === 'saving') return 'Saving…'
@@ -474,7 +453,7 @@ function applyLoadedPost(loaded: BlogPost) {
   try {
     syncServerVersion(loaded)
     post.value = loaded
-    Object.assign(form, { title: loaded.title, category: loaded.category || '', excerpt: loaded.excerpt || '', seo_title: loaded.seo_title || '', seo_description: loaded.seo_description || '', slug: loaded.slug || '', canonical_url: loaded.canonical_url || '', robots: loaded.robots || '', visibility: loaded.visibility || 'public', scheduled_for: toLocalDatetime(loaded.scheduled_for), redirect_old_slug: true, media: (loaded.media ?? []).filter(item => item.slot === 'featured') })
+    Object.assign(form, { title: loaded.title, collection: loaded.collection ?? 'blog', category: loaded.category || '', excerpt: loaded.excerpt || '', seo_title: loaded.seo_title || '', seo_description: loaded.seo_description || '', slug: loaded.slug || '', canonical_url: loaded.canonical_url || '', robots: loaded.robots || '', visibility: loaded.visibility || 'public', scheduled_for: toLocalDatetime(loaded.scheduled_for), redirect_old_slug: true })
     slugResetRequested.value = false
     tagsText.value = loaded.tags?.join(', ') || ''
     publishTiming.value = loaded.scheduled_for ? 'Scheduled' : 'Now'
@@ -541,25 +520,12 @@ async function flushSave() {
     throw error
   }
 }
-function featuredMediaInput(): Array<{ asset_id: string, slot: 'featured' }> {
-  const asset = featuredMedia.value
-  return asset?.asset_id ? [{ asset_id: asset.asset_id, slot: 'featured' }] : []
-}
-function setFeaturedMedia(value: unknown) {
-  const asset = isRecord(value) ? value : null
-  const assetId = typeof asset?.asset_id === 'string' ? asset.asset_id : ''
-  form.media = assetId
-    ? [{
-        asset_id: assetId,
-        slot: 'featured',
-        public_url: typeof asset?.public_url === 'string' ? asset.public_url : null,
-        thumbnail_url: typeof asset?.thumbnail_url === 'string' ? asset.thumbnail_url : null,
-        kind: typeof asset?.kind === 'string' ? asset.kind : 'image',
-      }]
-    : []
+/** Opens the article with an empty image block; choosing its picture makes it the cover. */
+function addCover() {
+  blocks.value.unshift({ type: 'image', data: { caption: '' }, media: [] })
 }
 function buildSaveSnapshot(id = persistedPostId.value): SaveSnapshot {
-  return { postId: id, payload: { title: form.title, category: form.category || null, tags: tagsText.value.split(',').map(v => v.trim()).filter(Boolean), excerpt: form.excerpt || null, seo_title: form.seo_title || null, seo_description: form.seo_description || null, slug: slugResetRequested.value ? null : form.slug !== post.value?.slug ? form.slug : undefined, reset_slug_override: slugResetRequested.value || undefined, redirect_old_slug: form.redirect_old_slug, canonical_url: form.canonical_url || null, robots: form.robots || null, visibility: form.visibility, media: featuredMediaInput(), content_blocks: cloneEditorBlocks(toRaw(blocks.value)) } }
+  return { postId: id, payload: { title: form.title, collection: form.collection, category: form.category || null, tags: tagsText.value.split(',').map(v => v.trim()).filter(Boolean), excerpt: form.excerpt || null, seo_title: form.seo_title || null, seo_description: form.seo_description || null, slug: slugResetRequested.value ? null : form.slug !== post.value?.slug ? form.slug : undefined, reset_slug_override: slugResetRequested.value || undefined, redirect_old_slug: form.redirect_old_slug, canonical_url: form.canonical_url || null, robots: form.robots || null, visibility: form.visibility, content_blocks: cloneEditorBlocks(toRaw(blocks.value)) } }
 }
 function lifecycleVersionInput() {
   if (!serverPostUpdatedAt) throw new Error('Blog lifecycle version is unavailable. Reload the editor.')
@@ -633,6 +599,7 @@ async function publish() {
         title: form.title,
         slug: form.slug || undefined,
         content_blocks: cloneEditorBlocks(toRaw(blocks.value)),
+        collection: form.collection,
         category: form.category || null,
         tags: tagsText.value.split(',').map(v => v.trim()).filter(Boolean),
         excerpt: form.excerpt || null,
@@ -641,7 +608,6 @@ async function publish() {
         canonical_url: form.canonical_url || null,
         robots: form.robots || null,
         visibility: form.visibility,
-        media: featuredMediaInput(),
         scheduled_for: scheduledLifecycleValue(publishTiming.value, form.scheduled_for, 'UTC'),
       })
       applyLoadedPost(created)
@@ -667,7 +633,7 @@ async function publish() {
     publishing.value = false
   }
 }
-function isArticleValid() { return Boolean(form.title.trim() && serializeBody().trim() && (props.freeTextCategory || form.category.trim())) }
+function isArticleValid() { return Boolean(form.title.trim() && serializeBody().trim() && (!isPlatformTemplate.value || form.category.trim())) }
 function serializeBody() { return blocks.value.map(block => block.type === 'heading' ? `${'#'.repeat(Math.max(2, Math.min(6, block.level || 2)))} ${String(block.data.text || '')}` : block.type === 'markdown' ? String(block.data.markdown || '') : block.type === 'divider' ? '---' : `{{component type="${block.type}"}}`).filter(Boolean).join('\n\n') }
 function updateBlock(index: number, block: BlogEditorBlock) { blocks.value[index] = block }
 function setBlockData(index: number, key: string, value: unknown) { blocks.value[index] = { ...blocks.value[index]!, data: { ...blocks.value[index]!.data, [key]: value } } }
@@ -682,7 +648,7 @@ function handleInsertBlock(index: number, _cursorPosition: number) {
 // every freshly inserted image block unsavable. `changeImage` writes the chosen
 // asset to `media`; only alt and caption belong here.
 function structuralBlockData(type: string) {
-  return type === 'faq' ? { items: [{ question: '', answer: '' }] } : type === 'how_to' ? { steps: [{ text: '' }] } : type === 'image' ? { caption: '' } : type === 'cta' ? { title: '', description: null, label: null, url: null } : {}
+  return type === 'faq' ? { source: 'page_qa' } : type === 'how_to' ? { steps: [{ text: '' }] } : type === 'image' ? { caption: '' } : type === 'cta' ? { title: '', description: null, label: null, url: null } : {}
 }
 // A non-text block (image/FAQ/how-to/divider/etc.) left as the last block in
 // the post is a dead end — there's no textarea or rich editor to click into

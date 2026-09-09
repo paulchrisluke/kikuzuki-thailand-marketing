@@ -30,7 +30,6 @@ interface TenantBlogPost {
   updated_at?: string | null
   published_at?: string | null
   read_time_minutes?: number | null
-  featured_order?: number | null
   media?: Array<{ asset_id: string; slot: string; public_url: string | null; kind: string | null }>
 }
 

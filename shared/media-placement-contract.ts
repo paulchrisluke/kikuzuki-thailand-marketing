@@ -2,7 +2,7 @@ export const MEDIA_PLACEMENT_SLOTS = {
   site: ['logo', 'logo_dark', 'favicon', 'social_share', 'social_card', 'compliance_document'],
   business_location: ['hero', 'gallery', 'social_card'],
   product: ['image', 'gallery', 'social_card'],
-  content_document: ['cover', 'featured', 'gallery', 'social_card'],
+  content_document: ['cover', 'gallery', 'social_card'],
   offering: ['thumbnail', 'hero', 'gallery', 'social_card'],
   content_block: ['media', 'gallery', 'background', 'featured', 'decoration'],
   review: ['portrait', 'gallery', 'social_card'],

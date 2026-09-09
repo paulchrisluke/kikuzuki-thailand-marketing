@@ -2,10 +2,8 @@ import type { SiteSettings, SiteIntegrations } from '../../shared/site-settings'
 import { sql } from "drizzle-orm"
 import { sqliteTable, integer, text, real, unique, uniqueIndex, index, check, foreignKey } from "drizzle-orm/sqlite-core"
 import type { AnySQLiteColumn } from "drizzle-orm/sqlite-core"
-import { CONTENT_BLOCK_TYPES, CONTENT_DOCUMENT_KINDS, LOCALIZED_RESOURCE_TYPES } from "../../shared/content-registries"
-import { MEDIA_PLACEMENT_SLOTS } from "../../shared/media-placement-contract"
+import type { CONTENT_DOCUMENT_KINDS } from "../../shared/content-registries"
 import { NONPROFIT_STATUS_CANONICAL } from "../../utils/professional-service-schema"
-import { publicTemplateRegistry } from "../../utils/template-registry"
 
 export const account = sqliteTable("account", {
 	id: text().primaryKey(),
@@ -51,8 +49,6 @@ export const customers = sqliteTable("customers", {
 	index("idx_customers_site_id").on(table.site_id),
 	index("idx_customers_org_site_email_hash").on(table.organization_id, table.site_id, table.email_hash),
 	index("idx_customers_user_id").on(table.user_id),
-	check("customers_source_check", sql`source IN ('reservation', 'experience_booking', 'review_request', 'manual', 'stripe', 'import')`),
-	check("customers_status_check", sql`status IN ('active', 'merged', 'suppressed', 'deleted')`),
 ]);
 
 export const business_locations = sqliteTable("business_locations", {
@@ -113,7 +109,6 @@ export const business_locations = sqliteTable("business_locations", {
 	check("business_locations_address_check", sql`address IS NULL OR (json_valid(address) AND json_type(address) IS 'object')`),
 	check("business_locations_categories_check", sql`categories IS NULL OR (json_valid(categories) AND json_type(categories) IS 'array')`),
 	check("business_locations_feature_overrides_check", sql`feature_overrides IS NULL OR (json_valid(feature_overrides) AND json_type(feature_overrides) IS 'object')`),
-	check("business_locations_status_check", sql`status IN ('active', 'inactive', 'sync_error')`),
 	unique("business_locations_organization_id_site_id_slug_unique").on(table.organization_id, table.site_id, table.slug),
 	unique("business_locations_organization_id_site_id_id_unique").on(table.organization_id, table.site_id, table.id),
 	check("business_locations_opening_hours_check", sql`opening_hours IS NULL OR (json_valid(opening_hours) AND json_type(opening_hours) IS 'object' AND json_type(opening_hours, '$.periods') IS 'array')`),
@@ -123,16 +118,14 @@ export const business_locations = sqliteTable("business_locations", {
 
 export const requests = sqliteTable("requests", {
  id: text().primaryKey(),
- kind: text({ enum: ["contact", "reservation", "experience_booking", "platform_contact", "work"] }).notNull(),
+ kind: text({ enum: ["contact", "reservation", "experience_booking", "work"] }).notNull(),
  organization_id: text().references((): AnySQLiteColumn => organization.id, { onDelete: "cascade" }),
  site_id: text().references((): AnySQLiteColumn => sites.id, { onDelete: "cascade" }),
  location_id: text().references((): AnySQLiteColumn => business_locations.id, { onDelete: "set null" }),
  product_id: text().references((): AnySQLiteColumn => products.id, { onDelete: "set null" }),
  customer_id: text().references((): AnySQLiteColumn => customers.id, { onDelete: "set null" }),
- assigned_to: text().references((): AnySQLiteColumn => user.id, { onDelete: "set null" }),
  review_id: text().references((): AnySQLiteColumn => reviews.id, { onDelete: "set null" }),
  status: text(),
- priority: text(),
  booking_date: text(),
  time_slot: text(),
  party_size: integer(),
@@ -147,21 +140,18 @@ export const requests = sqliteTable("requests", {
  foreignKey({ columns: [table.organization_id, table.site_id, table.location_id], foreignColumns: [business_locations.organization_id, business_locations.site_id, business_locations.id], name: "requests_location_scope_fk" }),
  foreignKey({ columns: [table.organization_id, table.site_id, table.product_id], foreignColumns: [products.organization_id, products.site_id, products.id], name: "requests_product_site_scope_fk" }),
  foreignKey({ columns: [table.organization_id, table.site_id, table.location_id, table.product_id], foreignColumns: [products.organization_id, products.site_id, products.location_id, products.id], name: "requests_product_scope_fk" }),
- check("requests_kind_check", sql`kind IN ('contact', 'reservation', 'experience_booking', 'platform_contact', 'work')`),
  check("requests_payload_check", sql`json_valid(payload_json) AND json_type(payload_json) = 'object'`),
- check("requests_guest_payload_check", sql`kind = 'work' OR (json_type(payload_json, '$.guest.name') IS 'text' AND json_type(payload_json, '$.guest.email') IS 'text' AND (json_type(payload_json, '$.guest.phone') IS 'text' OR json_type(payload_json, '$.guest.phone') IS 'null'))`),
+ check("requests_guest_payload_check", sql`(json_type(payload_json, '$.guest.name') IS 'text' AND json_type(payload_json, '$.guest.email') IS 'text' AND (json_type(payload_json, '$.guest.phone') IS 'text' OR json_type(payload_json, '$.guest.phone') IS 'null'))`),
  check("requests_booking_payload_check", sql`kind NOT IN ('reservation', 'experience_booking') OR (json_type(payload_json, '$.party_size_is_minimum') IN ('true', 'false') AND json_type(payload_json, '$.cancellation') IS 'object' AND json_type(payload_json, '$.completion') IS 'object' AND json_type(payload_json, '$.review') IS 'object' AND (kind != 'reservation' OR json_type(payload_json, '$.guest.phone') IS 'text')) IS TRUE`),
- check("requests_work_payload_check", sql`kind != 'work' OR (json_type(payload_json, '$.title') IS 'text' AND (payload_json ->> '$.type') IN ('content_update', 'product_update', 'seo', 'google_places', 'seasonal', 'photo_update', 'social_media', 'technical', 'other') AND (payload_json ->> '$.source') IN ('dashboard', 'whatsapp')) IS TRUE`),
- check("requests_message_payload_check", sql`kind NOT IN ('contact', 'platform_contact') OR json_type(payload_json, '$.message') IS 'text'`),
- check("requests_scope_check", sql`(kind = 'platform_contact' AND organization_id IS NULL AND site_id IS NULL AND location_id IS NULL AND product_id IS NULL AND customer_id IS NULL) OR (kind = 'work' AND organization_id IS NOT NULL AND location_id IS NULL AND product_id IS NULL AND customer_id IS NULL) OR (kind IN ('contact', 'reservation', 'experience_booking') AND organization_id IS NOT NULL AND site_id IS NOT NULL)`),
+ check("requests_message_payload_check", sql`kind <> 'contact' OR json_type(payload_json, '$.message') IS 'text'`),
+ check("requests_scope_check", sql`kind IN ('contact', 'reservation', 'experience_booking') AND organization_id IS NOT NULL AND site_id IS NOT NULL`),
  check("requests_booking_check", sql`(kind IN ('reservation', 'experience_booking') AND location_id IS NOT NULL AND booking_date IS NOT NULL AND date(booking_date, '+0 days') IS booking_date AND time_slot IS NOT NULL AND time_slot GLOB '[0-2][0-9]:[0-5][0-9]' AND time_slot < '24:00' AND party_size IS NOT NULL AND party_size > 0 AND status IS NOT NULL AND status IN ('pending', 'confirmed', 'cancelled', 'completed') AND (kind != 'experience_booking' OR product_id IS NOT NULL) AND (kind != 'reservation' OR product_id IS NULL)) OR (kind NOT IN ('reservation', 'experience_booking') AND booking_date IS NULL AND time_slot IS NULL AND party_size IS NULL)`),
- check("requests_state_check", sql`(kind = 'work' AND status IS NOT NULL AND status IN ('pending', 'in_progress', 'done', 'cancelled') AND priority IS NOT NULL AND priority IN ('low', 'normal', 'high', 'urgent') AND conversation_state IS NULL) OR (kind IN ('contact', 'reservation', 'experience_booking') AND conversation_state IS NOT NULL AND conversation_state IN ('needs_attention', 'waiting_on_guest', 'resolved') AND priority IS NULL AND assigned_to IS NULL AND (kind != 'contact' OR status IS NULL)) OR (kind = 'platform_contact' AND status IS NULL AND priority IS NULL AND conversation_state IS NULL AND assigned_to IS NULL)`),
+ check("requests_state_check", sql`conversation_state IS NOT NULL AND conversation_state IN ('needs_attention', 'waiting_on_guest', 'resolved') AND (kind != 'contact' OR status IS NULL)`),
  uniqueIndex("requests_review_owner_unique").on(table.organization_id, table.site_id, table.id, table.kind),
  uniqueIndex("requests_scope_id_unique").on(table.organization_id, table.site_id, table.id),
  index("requests_site_activity_idx").on(table.site_id, table.conversation_state, table.updated_at),
  index("requests_booking_slot_idx").on(table.site_id, table.kind, table.location_id, table.product_id, table.booking_date, table.time_slot, table.status),
  index("requests_customer_idx").on(table.customer_id),
- index("requests_work_queue_idx").on(table.kind, table.status, table.priority, table.created_at),
  index("requests_org_created_idx").on(table.organization_id, table.created_at)
 ]);
 
@@ -170,7 +160,7 @@ export const requests = sqliteTable("requests", {
 export const activity_entries = sqliteTable("activity_entries", {
  id: text().primaryKey(),
  kind: text({ enum: ["submission", "message", "operation", "assignment", "resolution", "notification", "acknowledgement", "audit"] }).notNull(),
- scope_kind: text({ enum: ["request", "site", "organization", "platform"] }).notNull(),
+ scope_kind: text({ enum: ["request", "site", "organization", "global"] }).notNull(),
  organization_id: text().references((): AnySQLiteColumn => organization.id, { onDelete: "cascade" }),
  site_id: text().references((): AnySQLiteColumn => sites.id, { onDelete: "cascade" }),
  context_site_id: text().references((): AnySQLiteColumn => sites.id, { onDelete: "set null" }),
@@ -190,10 +180,7 @@ export const activity_entries = sqliteTable("activity_entries", {
  created_at: text().default(sql`(strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))`).notNull(),
 }, table => [
 	check("activity_entries_instants_check", sql`(occurred_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', occurred_at, '+0 days') IS occurred_at) AND (created_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', created_at, '+0 days') IS created_at)`),
- check("activity_entries_kind_check", sql`kind IN ('submission', 'message', 'operation', 'assignment', 'resolution', 'notification', 'acknowledgement', 'audit')`),
- check("activity_entries_scope_check", sql`(scope_kind = 'request' AND request_id IS NOT NULL AND organization_id IS NULL AND site_id IS NULL AND context_site_id IS NULL AND location_id IS NULL) OR (scope_kind = 'site' AND kind = 'audit' AND site_id IS NOT NULL AND context_site_id IS NULL AND organization_id IS NULL AND request_id IS NULL) OR (scope_kind = 'organization' AND organization_id IS NOT NULL AND site_id IS NULL AND request_id IS NULL) OR (scope_kind = 'platform' AND organization_id IS NULL AND site_id IS NULL AND context_site_id IS NULL AND request_id IS NULL)`),
- check("activity_entries_actor_check", sql`actor_kind IN ('guest', 'member', 'system', 'cloudflare')`),
- check("activity_entries_channel_check", sql`channel IS NULL OR channel IN ('web', 'email', 'whatsapp', 'system')`),
+ check("activity_entries_scope_check", sql`(scope_kind = 'request' AND request_id IS NOT NULL AND organization_id IS NULL AND site_id IS NULL AND context_site_id IS NULL AND location_id IS NULL) OR (scope_kind = 'site' AND kind = 'audit' AND site_id IS NOT NULL AND context_site_id IS NULL AND organization_id IS NULL AND request_id IS NULL) OR (scope_kind = 'organization' AND organization_id IS NOT NULL AND site_id IS NULL AND request_id IS NULL) OR (scope_kind = 'global' AND organization_id IS NULL AND site_id IS NULL AND context_site_id IS NULL AND request_id IS NULL)`),
  check("activity_entries_payload_check", sql`json_valid(payload_json) AND json_type(payload_json) = 'object'`),
  check("activity_entries_timeline_check", sql`(kind IN ('submission', 'message', 'operation', 'assignment', 'resolution') AND request_id IS NOT NULL AND sequence IS NOT NULL AND sequence > 0 AND scope_kind = 'request') OR (kind NOT IN ('submission', 'message', 'operation', 'assignment', 'resolution') AND sequence IS NULL)`),
  uniqueIndex("activity_entries_request_sequence_unique").on(table.request_id, table.sequence),
@@ -222,10 +209,7 @@ export const guest_thread_deliveries = sqliteTable("guest_thread_deliveries", {
 	check("guest_thread_deliveries_instants_check", sql`(created_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', created_at, '+0 days') IS created_at) AND (updated_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', updated_at, '+0 days') IS updated_at)`),
 	uniqueIndex("guest_thread_deliveries_provider_message_unique").on(table.provider, table.provider_message_id).where(sql`provider_message_id IS NOT NULL`),
 	index("guest_thread_deliveries_entry_status_idx").on(table.entry_id, table.status),
-	check("guest_thread_deliveries_channel_check", sql`channel IN ('email', 'whatsapp')`),
 	check("guest_thread_deliveries_provider_check", sql`(channel = 'email' AND provider IN ('resend', 'log_only')) OR (channel = 'whatsapp' AND provider IN ('meta', 'log_only'))`),
-	check("guest_thread_deliveries_purpose_check", sql`purpose IN ('owner_alert', 'guest_acknowledgement', 'member_reply', 'status_update')`),
-	check("guest_thread_deliveries_status_check", sql`status IN ('pending', 'accepted', 'sent', 'delivered', 'read', 'failed', 'unknown')`),
 ]);
 
 
@@ -286,12 +270,7 @@ export const media_assets = sqliteTable("media_assets", {
 }, (table) => [
 	check("media_assets_instants_check", sql`(created_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', created_at, '+0 days') IS created_at) AND (updated_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', updated_at, '+0 days') IS updated_at)`),
 	foreignKey({ columns: [table.organization_id, table.site_id], foreignColumns: [sites.organization_id, sites.id], name: "media_assets_site_scope_fk" }).onDelete("cascade"),
-	check("media_assets_kind_check", sql`${table.kind} IN ('image', 'video', 'file')`),
-	check("media_assets_category_check", sql`category IS NULL OR category IN ('exterior', 'interior', 'food', 'menu', 'team', 'other', 'logo', 'blog')`),
 	check("media_assets_video_thumbnail_check", sql`kind <> 'video' OR (thumbnail_url IS NOT NULL AND length(trim(thumbnail_url)) > 0)`),
-	check("media_assets_status_check", sql`status IN ('pending', 'active', 'deleted', 'failed')`),
-	check("media_assets_provider_check", sql`provider IN ('cloudflare_images', 'cloudflare_r2')`),
-	check("media_assets_source_check", sql`source IN ('uploaded', 'generated', 'external')`),
 	uniqueIndex("media_assets_org_site_id_unique").on(table.organization_id, table.site_id, table.id),
 ]);
 
@@ -314,9 +293,7 @@ export const media_placements = sqliteTable("media_placements", {
 		foreignColumns: [media_assets.organization_id, media_assets.site_id, media_assets.id],
 		name: "media_placements_asset_scope_fk",
 	}).onDelete("cascade"),
-	check("media_placements_owner_type_check", sql`${table.owner_type} IN (${sql.raw(Object.keys(MEDIA_PLACEMENT_SLOTS).map(type => `'${type}'`).join(", "))})`),
-	check("media_placements_sort_order_check", sql`${table.sort_order} >= 0`),
-	check("media_placements_status_check", sql`${table.status} IN ('pending', 'active', 'rejected')`),
+	check("media_placements_sort_order_check", sql`sort_order >= 0`),
 	unique("media_placements_site_owner_slot_asset_unique").on(table.site_id, table.owner_type, table.owner_id, table.slot, table.asset_id),
 	unique("media_placements_site_owner_slot_order_unique").on(table.site_id, table.owner_type, table.owner_id, table.slot, table.sort_order),
 	index("media_placements_asset_idx").on(table.organization_id, table.site_id, table.asset_id),
@@ -387,10 +364,9 @@ export const product_categories = sqliteTable("product_categories", {
 	unique("product_categories_location_type_slug_unique").on(table.site_id, table.location_id, table.product_type, table.slug),
 	unique("product_categories_location_type_name_unique").on(table.site_id, table.location_id, table.product_type, table.name),
 	index("product_categories_location_type_sort_idx").on(table.site_id, table.location_id, table.product_type, table.sort_order),
-	check("product_categories_name_not_blank_check", sql`trim(${table.name}) <> ''`),
-	check("product_categories_slug_check", sql`${table.slug} <> '' AND ${table.slug} = lower(${table.slug}) AND ${table.slug} NOT GLOB '*[^a-z0-9-]*' AND ${table.slug} NOT LIKE '-%' AND ${table.slug} NOT LIKE '%-' AND ${table.slug} NOT LIKE '%--%'`),
-	check("product_categories_sort_order_check", sql`${table.sort_order} >= 0`),
-	check("product_categories_type_check", sql`${table.product_type} IN ('standard', 'experience')`),
+	check("product_categories_name_not_blank_check", sql`trim(name) <> ''`),
+	check("product_categories_slug_check", sql`slug <> '' AND slug = lower(slug) AND slug NOT GLOB '*[^a-z0-9-]*' AND slug NOT LIKE '-%' AND slug NOT LIKE '%-' AND slug NOT LIKE '%--%'`),
+	check("product_categories_sort_order_check", sql`sort_order >= 0`),
 ]);
 
 export const products = sqliteTable("products", {
@@ -440,19 +416,16 @@ export const products = sqliteTable("products", {
 	index("products_site_location_type_sort_order_idx").on(table.site_id, table.location_id, table.product_type, table.sort_order),
 	index("products_site_location_visible_sort_idx").on(table.site_id, table.location_id, table.is_visible, table.sort_order),
 	index("products_site_location_featured_sort_idx").on(table.site_id, table.location_id, table.featured, table.featured_sort_order),
-	check("products_name_not_blank_check", sql`trim(${table.name}) <> ''`),
-	check("products_slug_check", sql`${table.slug} <> '' AND ${table.slug} = lower(${table.slug}) AND ${table.slug} NOT GLOB '*[^a-z0-9-]*' AND ${table.slug} NOT LIKE '-%' AND ${table.slug} NOT LIKE '%-' AND ${table.slug} NOT LIKE '%--%'`),
-	check("products_sort_order_check", sql`${table.sort_order} >= 0`),
-	check("products_featured_sort_order_check", sql`${table.featured_sort_order} >= 0`),
-	check("products_boolean_check", sql`${table.is_visible} IN (0, 1) AND ${table.available} IN (0, 1) AND ${table.featured} IN (0, 1)`),
+	check("products_name_not_blank_check", sql`trim(name) <> ''`),
+	check("products_slug_check", sql`slug <> '' AND slug = lower(slug) AND slug NOT GLOB '*[^a-z0-9-]*' AND slug NOT LIKE '-%' AND slug NOT LIKE '%-' AND slug NOT LIKE '%--%'`),
+	check("products_sort_order_check", sql`sort_order >= 0`),
+	check("products_featured_sort_order_check", sql`featured_sort_order >= 0`),
+	check("products_boolean_check", sql`is_visible IN (0, 1) AND available IN (0, 1) AND featured IN (0, 1)`),
 	check("products_experience_check", sql`(product_type = 'experience' AND experience_json IS NOT NULL AND json_valid(experience_json) AND json_type(experience_json) = 'object') OR (product_type = 'standard' AND experience_json IS NULL)`),
  check("products_experience_fields_check", sql`experience_json IS NULL OR ((json_type(experience_json, '$.recurring_slots') IS NULL OR json_type(experience_json, '$.recurring_slots') IN ('null', 'object')) AND (json_type(experience_json, '$.included_items') IS NULL OR json_type(experience_json, '$.included_items') IN ('null', 'array')) AND (json_type(experience_json, '$.what_to_bring') IS NULL OR json_type(experience_json, '$.what_to_bring') IN ('null', 'array')))`),
- check("products_type_check", sql`${table.product_type} IN ('standard', 'experience')`),
-	check("products_tags_json_check", sql`json_valid(${table.tags_json}) AND json_type(${table.tags_json}) = 'array'`),
-	check("products_details_json_check", sql`json_valid(${table.details_json}) AND json_type(${table.details_json}) = 'array'`),
-	check("products_source_check", sql`${table.source} IN ('manual', 'template', 'ai', 'import', 'copy')`),
-	check("products_order_url_check", sql`${table.order_url} IS NULL OR (${table.order_url} LIKE 'https://_%' AND instr(${table.order_url}, '@') = 0 AND instr(${table.order_url}, char(10)) = 0 AND instr(${table.order_url}, char(13)) = 0)`),
-	check("products_robots_check", sql`${table.robots} IS NULL OR ${table.robots} IN ('index,follow', 'noindex,follow', 'index,nofollow', 'noindex,nofollow')`),
+	check("products_tags_json_check", sql`json_valid(tags_json) AND json_type(tags_json) = 'array'`),
+	check("products_details_json_check", sql`json_valid(details_json) AND json_type(details_json) = 'array'`),
+	check("products_order_url_check", sql`order_url IS NULL OR (order_url LIKE 'https://_%' AND instr(order_url, '@') = 0 AND instr(order_url, char(10)) = 0 AND instr(order_url, char(13)) = 0)`),
 ]);
 
 export const prices = sqliteTable("prices", {
@@ -480,12 +453,9 @@ export const prices = sqliteTable("prices", {
 	}).onDelete("cascade"),
 	index("prices_product_validity_idx").on(table.organization_id, table.site_id, table.product_id, table.valid_from, table.valid_until),
 	index("prices_site_location_validity_idx").on(table.site_id, table.location_id, table.valid_from, table.valid_until),
-	check("prices_amount_check", sql`${table.amount_minor} >= 0`),
-	check("prices_compare_at_check", sql`${table.compare_at_amount_minor} IS NULL OR ${table.compare_at_amount_minor} > ${table.amount_minor}`),
-	check("prices_currency_check", sql`${table.currency} IN ('THB','USD','EUR','GBP','JPY','AUD','CAD','SGD','HKD','MYR','IDR','PHP','VND','INR')`),
-	check("prices_unit_check", sql`${table.unit} IN ('item', 'person', 'table')`),
-	check("prices_tax_behavior_check", sql`${table.tax_behavior} IN ('unspecified', 'inclusive', 'exclusive')`),
-	check("prices_validity_check", sql`${table.valid_until} IS NULL OR ${table.valid_until} > ${table.valid_from}`),
+	check("prices_amount_check", sql`amount_minor >= 0`),
+	check("prices_compare_at_check", sql`compare_at_amount_minor IS NULL OR compare_at_amount_minor > amount_minor`),
+	check("prices_validity_check", sql`valid_until IS NULL OR valid_until > valid_from`),
 ]);
 
 
@@ -621,8 +591,8 @@ export const organization = sqliteTable("organization", {
 	// Better Auth Stripe plugin organization customer field.
 	stripeCustomerId: text().unique(),
 	createdAt: integer({ mode: "timestamp" }).default(sql`(unixepoch())`).notNull(),
-}, (table) => [
-	check("organization_slug_required_check", sql`trim(${table.slug}) <> ''`),
+}, () => [
+	check("organization_slug_required_check", sql`trim(slug) <> ''`),
 ]);
 
 export const subscription = sqliteTable("subscription", {
@@ -659,10 +629,8 @@ export const organization_billing = sqliteTable("organization_billing", {
 	access_plan: text().default("free").notNull(),
 	access_expires_at: text(),
 	updated_at: text().default(sql`(strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))`).notNull(),
-}, (table) => [
+}, () => [
 	check("organization_billing_instants_check", sql`(access_expires_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', access_expires_at, '+0 days') IS access_expires_at) AND (updated_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', updated_at, '+0 days') IS updated_at) AND (paid_through IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', paid_through, '+0 days') IS paid_through) AND (past_due_since IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', past_due_since, '+0 days') IS past_due_since)`),
-	check("organization_billing_payment_status_check", sql`payment_status IN ('unknown', 'paid', 'processing', 'failed', 'pending', 'trialing', 'past_due')`),
-	check("organization_billing_access_plan_check", sql`${table.access_plan} IN ('free', 'growth')`),
 ]);
 
 export const onboarding_drafts = sqliteTable("onboarding_drafts", {
@@ -681,10 +649,8 @@ export const onboarding_drafts = sqliteTable("onboarding_drafts", {
 	updated_at: text().default(sql`(strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))`).notNull(),
 }, (table) => [
 	check("onboarding_drafts_instants_check", sql`(committed_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', committed_at, '+0 days') IS committed_at) AND (created_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', created_at, '+0 days') IS created_at) AND (updated_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', updated_at, '+0 days') IS updated_at)`),
-	check("onboarding_drafts_source_type_check", sql`source_type IN ('google_places', 'manual')`),
 	check("onboarding_drafts_payload_json_check", sql`payload_json IS NULL OR (json_valid(payload_json) AND json_type(payload_json) IS 'object')`),
 	uniqueIndex("idx_onboarding_drafts_active_user_unique").on(table.user_id).where(sql`status = 'active'`),
-	check("onboarding_drafts_status_check", sql`status IN ('active', 'committing', 'committed', 'failed')`),
 	index("onboarding_drafts_user_id_idx").on(table.user_id),
 ]);
 
@@ -729,7 +695,6 @@ export const review_requests = sqliteTable("review_requests", {
 		.on(table.site_id, table.booking_type, table.booking_id)
 		.where(sql`revoked_at IS NULL AND submitted_at IS NULL`),
 	index("idx_review_requests_send_due").on(table.site_id, table.first_sent_at, table.reminder_sent_at, table.submitted_at, table.expires_at),
-	check("review_requests_booking_type_check", sql`booking_type IN ('reservation', 'experience_booking')`),
 	index("review_requests_organization_id_idx").on(table.organization_id),
 ]);
 
@@ -767,7 +732,6 @@ export const reviews = sqliteTable("reviews", {
 }, (table) => [
 	check("reviews_instants_check", sql`(owner_reply_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', owner_reply_at, '+0 days') IS owner_reply_at) AND (created_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', created_at, '+0 days') IS created_at) AND (updated_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', updated_at, '+0 days') IS updated_at)`),
 	foreignKey({ columns: [table.organization_id, table.site_id], foreignColumns: [sites.organization_id, sites.id], name: "reviews_site_scope_fk" }).onDelete("cascade"),
-	check("reviews_status_check", sql`status IN ('pending', 'approved', 'rejected')`),
 	check("reviews_google_review_metadata_check", sql`google_review_metadata IS NULL OR (json_valid(google_review_metadata) AND json_type(google_review_metadata) IS 'object')`),
 	uniqueIndex("reviews_google_review_scope_unique").on(table.organization_id, table.site_id, table.location_id, table.google_review_id),
 	foreignKey({
@@ -780,10 +744,7 @@ export const reviews = sqliteTable("reviews", {
 	index("idx_reviews_location_status").on(table.location_id, table.status, table.created_at),
 	index("idx_reviews_site_status").on(table.site_id, table.status, table.created_at).where(sql`location_id IS NULL`),
 	index("idx_reviews_product_status_created").on(table.product_id, table.status, table.created_at),
-	check("reviews_booking_type_check", sql`booking_type IS NULL OR booking_type IN ('reservation', 'experience_booking')`),
 	check("reviews_rating_check", sql`rating BETWEEN 1 AND 5`),
-	check("reviews_publication_authorized_check", sql`publication_authorized IN (0, 1)`),
-	check("reviews_collection_method_check", sql`collection_method IS NULL OR collection_method IN ('in_person', 'email', 'phone', 'migration', 'other')`),
 	check("reviews_product_scope_check", sql`product_id IS NULL OR (organization_id IS NOT NULL AND site_id IS NOT NULL AND location_id IS NOT NULL)`),
 	check("reviews_owner_entered_provenance_check", sql`source != 'owner_entered' OR (organization_id IS NOT NULL AND site_id IS NOT NULL AND location_id IS NULL AND entered_by_user_id IS NOT NULL AND collection_method IS NOT NULL AND publication_authorized = 1)`),
 	index("reviews_organization_id_idx").on(table.organization_id),
@@ -861,7 +822,6 @@ export const site_redirects = sqliteTable("site_redirects", {
 	foreignKey({ columns: [table.organization_id, table.site_id], foreignColumns: [sites.organization_id, sites.id], name: "site_redirects_site_scope_fk" }).onDelete("cascade"),
 	unique("site_redirects_site_locale_from_path_unique").on(table.site_id, table.locale, table.from_path),
 	check("site_redirects_from_path_check", sql`from_path LIKE '/%'`),
-	check("site_redirects_behavior_check", sql`behavior IN ('redirect', 'gone', 'noindex')`),
 	check("site_redirects_redirect_to_path_check", sql`behavior != 'redirect' OR to_path IS NOT NULL`),
 	check("site_redirects_owner_check", sql`(owner_type IS NULL AND owner_id IS NULL) OR (owner_type IS NOT NULL AND owner_id IS NOT NULL)`),
 	index("site_redirects_organization_id_idx").on(table.organization_id),
@@ -922,11 +882,6 @@ export const site_domains = sqliteTable("site_domains", {
 	check("site_domains_lease_check", sql`(reconciliation_token IS NULL) = (reconciliation_expires_at IS NULL)`),
 	foreignKey({ columns: [table.organization_id, table.site_id], foreignColumns: [sites.organization_id, sites.id], name: "site_domains_site_scope_fk" }).onDelete("cascade"),
 	check("site_domains_metadata_check", sql`metadata IS NULL OR (json_valid(metadata))`),
-	check("site_domains_type_check", sql`type IN ('subdomain', 'custom')`),
-	check("site_domains_role_check", sql`role IN ('canonical', 'secondary')`),
-	check("site_domains_status_check", sql`status IN ('pending', 'verifying', 'active', 'blocked', 'failed', 'disabled', 'deleted', 'retired')`),
-	check("site_domains_validation_strategy_check", sql`validation_strategy IN ('http_auto', 'txt_manual', 'delegated_dcv')`),
-	check("site_domains_dns_status_check", sql`dns_status IN ('pending', 'valid', 'invalid', 'unknown')`),
 	index("site_domains_org_site_idx").on(table.organization_id, table.site_id),
 	uniqueIndex("idx_site_domains_one_canonical").on(table.site_id).where(sql`role = 'canonical' AND status = 'active'`),
 	uniqueIndex("site_domains_one_active_subdomain").on(table.site_id).where(sql`type = 'subdomain' AND status = 'active'`),
@@ -951,7 +906,6 @@ export const site_locales = sqliteTable("site_locales", {
 	check("site_locales_instants_check", sql`(activated_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', activated_at, '+0 days') IS activated_at) AND (disabled_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', disabled_at, '+0 days') IS disabled_at) AND (created_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', created_at, '+0 days') IS created_at) AND (updated_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', updated_at, '+0 days') IS updated_at)`),
 	uniqueIndex("site_locales_secondary_published_unique").on(table.organization_id, table.site_id).where(sql`is_source = 0 AND status = 'published'`),
 	foreignKey({ columns: [table.organization_id, table.site_id], foreignColumns: [sites.organization_id, sites.id], name: "site_locales_site_scope_fk" }).onDelete("cascade"),
-	check("site_locales_source_boolean_check", sql`is_source IN (0, 1)`),
 	unique("site_locales_organization_id_site_id_locale_unique").on(table.organization_id, table.site_id, table.locale),
 	uniqueIndex("idx_site_locales_one_source_per_site").on(table.organization_id, table.site_id).where(sql`is_source = 1`),
 	check("site_locales_status_check", sql`status IN ('published', 'disabled') AND (is_source = 0 OR status = 'published')`),
@@ -991,9 +945,6 @@ export const mcp_tool_call_events = sqliteTable("mcp_tool_call_events", {
 	check("mcp_tool_call_events_instants_check", sql`(created_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', created_at, '+0 days') IS created_at)`),
 	check("mcp_tool_call_events_arguments_summary_json_check", sql`arguments_summary_json IS NULL OR (json_valid(arguments_summary_json))`),
 	check("mcp_tool_call_events_result_summary_json_check", sql`result_summary_json IS NULL OR (json_valid(result_summary_json))`),
-	check("mcp_tool_call_events_status_check", sql`status IN ('success', 'error', 'auth_required', 'blocked')`),
-	check("mcp_tool_call_events_surface_check", sql`mcp_surface IN ('client', 'platform', 'public_help')`),
-	check("mcp_tool_call_events_mutating_check", sql`is_mutating IN (0, 1)`),
 	check("mcp_tool_call_events_duration_check", sql`duration_ms >= 0`),
 	index("idx_mcp_tool_call_events_created_at").on(table.created_at),
 	index("idx_mcp_tool_call_events_tool_status").on(table.tool_name, table.status),
@@ -1002,40 +953,6 @@ export const mcp_tool_call_events = sqliteTable("mcp_tool_call_events", {
 	index("idx_mcp_tool_call_events_method_created").on(table.method, table.created_at),
 	index("idx_mcp_tool_call_events_session").on(table.session_id_hash, table.created_at),
 	index("idx_mcp_tool_call_events_unknown").on(table.unknown_tool_name, table.created_at),
-]);
-
-export const site_transfer_requests = sqliteTable("site_transfer_requests", {
-	id: text().primaryKey(),
-	site_id: text().notNull().references(() => sites.id, { onDelete: "cascade" } ),
-	from_organization_id: text().notNull(),
-	to_email: text().notNull(),
-	token: text().notNull(),
-	status: text().default("pending").notNull(),
-	initiated_by_user_id: text().notNull().references(() => user.id, { onDelete: "restrict" } ),
-	accepted_by_user_id: text().references(() => user.id, { onDelete: "set null" } ),
-	claiming_user_id: text().references(() => user.id, { onDelete: "set null" } ),
-	claiming_organization_id: text(),
-	message: text(),
-	invited_plan: text(),
-	invited_coupon: text(),
-	invited_domain: text(),
-	requires_payment: integer().default(0).notNull(),
-	stripe_checkout_session_id: text(),
-	payment_completed_at: text(),
-	created_at: text().default(sql`(strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))`).notNull(),
-	completed_at: text(),
-	last_reminder_at: text(),
-	reminder_count: integer().default(0).notNull(),
-	invited_interval: text().default("month").notNull(),
-}, (table) => [
-	check("site_transfer_requests_instants_check", sql`(payment_completed_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', payment_completed_at, '+0 days') IS payment_completed_at) AND (created_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', created_at, '+0 days') IS created_at) AND (completed_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', completed_at, '+0 days') IS completed_at) AND (last_reminder_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', last_reminder_at, '+0 days') IS last_reminder_at)`),
-	check("site_transfer_requests_status_check", sql`status IN ('pending', 'accepted', 'cancelled')`),
-	check("site_transfer_requests_invited_plan_check", sql`invited_plan IN ('growth')`),
-	check("site_transfer_requests_invited_interval_check", sql`invited_interval IN ('month', 'year')`),
-	uniqueIndex("idx_site_transfer_pending").on(table.site_id).where(sql`status = 'pending'`),
-	index("idx_site_transfer_reminders").on(table.status, table.requires_payment, table.created_at),
-	index("idx_site_transfer_site").on(table.site_id, table.status),
-	uniqueIndex("idx_site_transfer_token").on(table.token),
 ]);
 
 export const sites = sqliteTable("sites", {
@@ -1092,7 +1009,6 @@ export const sites = sqliteTable("sites", {
 	check("sites_config_default_timezone_check", sql`json_type(settings_json, '$.config.default_timezone') IS 'text' AND length(json_extract(settings_json, '$.config.default_timezone')) > 0`),
 	check("sites_config_whatsapp_phone_check", sql`json_type(settings_json, '$.config.whatsapp_phone') IS NULL OR json_type(settings_json, '$.config.whatsapp_phone') IS 'text'`),
 	check("sites_config_notifications_check", sql`json_type(settings_json, '$.config.owner_notification_channels') IS NULL OR json_type(settings_json, '$.config.owner_notification_channels') IS 'array'`),
-	check("sites_config_resource_generation_check", sql`json_type(settings_json, '$.config.resource_team_generation') IS NULL OR (json_type(settings_json, '$.config.resource_team_generation') IS 'object' AND json_type(settings_json, '$.config.resource_team_generation.transfer_id') IS 'text' AND json_type(settings_json, '$.config.resource_team_generation.generation') IS 'text')`),
 	check("sites_consultation_metadata_check", sql`json_type(settings_json, '$.consultation.metadata_json') IS NULL OR json_type(settings_json, '$.consultation.metadata_json') IN ('null', 'object')`),
 	check("sites_compliance_metadata_check", sql`json_type(settings_json, '$.compliance.metadata_json') IS NULL OR json_type(settings_json, '$.compliance.metadata_json') IN ('null', 'object')`),
 	check("sites_theme_saya_check", sql`json_type(settings_json, '$.theme_by_template.saya') IS NULL OR (json_type(settings_json, '$.theme_by_template.saya') IS 'object' AND json_type(settings_json, '$.theme_by_template.saya.tokens') IS 'object' AND json_extract(settings_json, '$.theme_by_template.saya.status') IN ('active', 'disabled')) IS TRUE`),
@@ -1109,12 +1025,6 @@ export const sites = sqliteTable("sites", {
 	check("sites_google_credentials_check", sql`json_type(integrations_json, '$.google') IS NULL OR (CASE json_extract(integrations_json, '$.google.kind') WHEN 'oauth' THEN json_type(integrations_json, '$.google.encrypted_access_token') IS 'text' AND json_type(integrations_json, '$.google.encrypted_refresh_token') IS 'text' WHEN 'manual' THEN json_type(integrations_json, '$.google.encrypted_access_token') IS NULL AND json_type(integrations_json, '$.google.encrypted_refresh_token') IS NULL END) IS TRUE`),
 	check("sites_facebook_credentials_check", sql`json_type(integrations_json, '$.facebook') IS NULL OR json_type(integrations_json, '$.facebook.encrypted_user_token') IS 'text'`),
 	check("sites_feature_overrides_check", sql`feature_overrides IS NULL OR (json_valid(feature_overrides) AND json_type(feature_overrides) IS 'object')`),
-	check("sites_theme_id_check", sql`${table.theme_id} IN (${sql.raw(Object.values(publicTemplateRegistry).map(template => `'${template.themeId}'`).join(", "))})`),
-	check("sites_status_check", sql`${table.status} IN ('active', 'inactive', 'suspended')`),
-	check("sites_onboarding_status_check", sql`${table.onboarding_status} IN ('pending', 'active', 'failed')`),
-	check("sites_url_structure_check", sql`${table.url_structure} IN ('location_subdirectories', 'brand_pages')`),
-	check("sites_vertical_check", sql`${table.vertical} IN ('restaurant', 'experience', 'retail', 'wellness', 'service')`),
-	check("sites_default_currency_check", sql`${table.default_currency} IN ('THB','USD','EUR','GBP','JPY','AUD','CAD','SGD','HKD','MYR','IDR','PHP','VND','INR')`),
 	// organization_id is the join/filter column in dozens of call sites across the codebase
 	// (dashboard context resolution, MCP site listing/auth, billing, editor routes). Confirmed
 	// via wrangler d1 insights as driving two of the top four rows-read queries post-cron-fix
@@ -1145,7 +1055,6 @@ export const stripe_webhook_events = sqliteTable("stripe_webhook_events", {
 	created_at: text().default(sql`(strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))`).notNull(),
 }, (table) => [
 	check("stripe_webhook_events_instants_check", sql`(claimed_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', claimed_at, '+0 days') IS claimed_at) AND (lease_expires_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', lease_expires_at, '+0 days') IS lease_expires_at) AND (next_attempt_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', next_attempt_at, '+0 days') IS next_attempt_at) AND (dead_lettered_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', dead_lettered_at, '+0 days') IS dead_lettered_at) AND (created_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', created_at, '+0 days') IS created_at)`),
-	check("stripe_webhook_events_status_check", sql`status IN ('pending', 'processed', 'failed', 'dead_letter')`),
 	check("stripe_webhook_events_payload_check", sql`payload IS NULL OR (json_valid(payload))`),
 	index("stripe_webhook_events_retry_idx").on(table.status, table.next_attempt_at),
 ]);
@@ -1179,8 +1088,6 @@ export const stripe_invoice_payments = sqliteTable("stripe_invoice_payments", {
 	updated_at: text().default(sql`(strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))`).notNull(),
 }, (table) => [
 	check("stripe_invoice_payments_instants_check", sql`(ga4_purchase_claimed_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', ga4_purchase_claimed_at, '+0 days') IS ga4_purchase_claimed_at) AND (ga4_purchase_sent_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', ga4_purchase_sent_at, '+0 days') IS ga4_purchase_sent_at) AND (updated_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', updated_at, '+0 days') IS updated_at) AND (period_start IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', period_start, '+0 days') IS period_start) AND (period_end IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', period_end, '+0 days') IS period_end) AND (past_due_since IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', past_due_since, '+0 days') IS past_due_since)`),
-	check("stripe_invoice_payments_status_check", sql`status IN ('paid', 'processing', 'failed')`),
-	check("stripe_invoice_payments_ga4_purchase_status_check", sql`ga4_purchase_status IN ('pending', 'sending', 'sent', 'failed')`),
 	index("stripe_invoice_payments_organization_idx").on(table.organization_id, table.period_end),
 	index("stripe_invoice_payments_subscription_idx").on(table.stripe_subscription_id, table.period_end),
 ]);
@@ -1211,9 +1118,6 @@ export const stripe_ga4_subscription_intents = sqliteTable("stripe_ga4_subscript
 	index("stripe_ga4_subscription_intents_subscription_idx").on(table.stripe_subscription_id, table.status, table.created_at),
 	index("stripe_ga4_subscription_intents_organization_idx").on(table.organization_id, table.status, table.created_at),
 	index("stripe_ga4_subscription_intents_expiry_idx").on(table.status, table.expires_at),
-	check("stripe_ga4_subscription_intents_action_check", sql`${table.action} IN ('initial_subscription', 'upgrade', 'downgrade')`),
-	check("stripe_ga4_subscription_intents_status_check", sql`${table.status} IN ('pending', 'consumed', 'expired')`),
-	check("stripe_ga4_subscription_intents_timing_check", sql`${table.effective_timing} IN ('immediate', 'period_end')`),
 ]);
 
 export const usage_events = sqliteTable("usage_events", {
@@ -1337,11 +1241,9 @@ export const content_documents = sqliteTable("content_documents", {
 	index("content_documents_schedule_idx").on(table.kind, table.status, table.scheduled_for).where(sql`row_role = 'root' AND status = 'scheduled'`),
 	index("content_documents_facebook_post_idx").on(table.site_id, sql`(metadata_json ->> '$.channels.facebook.provider_post_id')`).where(sql`row_role = 'root' AND kind = 'social_post'`),
 	index("content_documents_instagram_post_idx").on(table.site_id, sql`(metadata_json ->> '$.channels.instagram.provider_post_id')`).where(sql`row_role = 'root' AND kind = 'social_post'`),
-	check("content_documents_kind_check", sql`${table.kind} IN (${sql.raw(CONTENT_DOCUMENT_KINDS.map(kind => `'${kind}'`).join(', '))})`),
 	check("content_documents_metadata_check", sql`json_valid(metadata_json) AND json_type(metadata_json) IS 'object'`),
 	check("content_documents_role_check", sql`(row_role = 'root' AND root_id IS NULL AND root_role IS NULL AND locale = 'en') OR (row_role = 'representation' AND root_id IS NOT NULL AND root_id <> id AND root_role = 'root' AND locale IS NOT NULL AND locale <> 'en' AND location_id IS NULL AND scope_path IS NULL AND status IS NULL AND visibility IS NULL AND source IS NULL AND author_id IS NULL AND published_at IS NULL AND first_published_at IS NULL AND scheduled_for IS NULL)`),
 	check("content_documents_path_check", sql`path IS NULL OR (path LIKE '/%' AND path NOT LIKE '//%')`),
-	check("content_documents_platform_doc_scope_check", sql`kind <> 'platform_doc' OR (organization_id = 'platform' AND site_id = 'platform')`),
 	check("content_documents_page_copy_check", sql`kind <> 'page' OR (path IS NOT NULL AND title IS NOT NULL)`),
 	check("content_documents_page_type_check", sql`kind <> 'page' OR row_role <> 'root' OR ((metadata_json ->> '$.page_type') IN ('custom','recipe','legal','system')) IS 1`),
 	check("content_documents_channel_names_check", sql`kind <> 'social_post' OR row_role <> 'root' OR json_type(metadata_json, '$.channels') IS NULL OR (json_type(metadata_json, '$.channels') IS 'object' AND json_remove(json_extract(metadata_json, '$.channels'), '$.facebook', '$.instagram') = '{}')`),
@@ -1351,7 +1253,7 @@ export const content_documents = sqliteTable("content_documents", {
 	check("content_documents_article_visibility_check", sql`kind NOT IN ('article','social_post') OR row_role <> 'root' OR (visibility IN ('public','unlisted')) IS 1`),
 	check("content_documents_qa_state_check", sql`kind <> 'qa' OR row_role <> 'root' OR ((status IN ('published','hidden')) IS 1 AND (source IN ('manual','import','template')) IS 1)`),
 	check("content_documents_qa_counts_check", sql`kind <> 'qa' OR row_role <> 'root' OR ((json_type(metadata_json, '$.is_owner_answer') = 'integer' AND json_type(metadata_json, '$.upvote_count') = 'integer') IS 1)`),
-	check("content_documents_copy_required_check", sql`row_role <> 'root' OR ((kind NOT IN ('page','article','platform_doc','qa') OR title IS NOT NULL) AND (kind NOT IN ('article','platform_doc') OR slug IS NOT NULL) AND (kind <> 'social_post' OR summary IS NOT NULL))`),
+	check("content_documents_copy_required_check", sql`row_role <> 'root' OR ((kind NOT IN ('page','article','qa') OR title IS NOT NULL) AND (kind <> 'article' OR slug IS NOT NULL) AND (kind <> 'social_post' OR summary IS NOT NULL))`),
 	check("content_documents_article_tags_check", sql`kind <> 'article' OR json_type(metadata_json, '$.tags') IS NULL OR json_type(metadata_json, '$.tags') IN ('array','null')`),
 	check("content_documents_social_source_check", sql`kind <> 'social_post' OR row_role <> 'root' OR (source IN ('manual','template')) IS 1`),
 	check("content_documents_social_post_type_check", sql`(kind <> 'social_post' OR row_role <> 'root' OR ((metadata_json ->> '$.post_type') IN ('standard', 'offer', 'event', 'alert'))) IS 1`),
@@ -1393,10 +1295,9 @@ export const resource_localizations = sqliteTable("resource_localizations", {
 	uniqueIndex("resource_localizations_site_locale_route_unique")
 		.on(table.site_id, table.locale, table.route_path)
 		.where(sql`route_path IS NOT NULL`),
-	check("resource_localizations_resource_type_check", sql`${table.resource_type} IN (${sql.raw(LOCALIZED_RESOURCE_TYPES.map(type => `'${type}'`).join(", "))})`),
-	check("resource_localizations_values_json_check", sql`json_valid(${table.values_json}) AND json_type(${table.values_json}) = 'object'`),
-	check("resource_localizations_non_english_check", sql`${table.locale} <> 'en'`),
-	check("resource_localizations_route_path_check", sql`${table.route_path} IS NULL OR (${table.route_path} LIKE '/' || ${table.locale} || '/%' AND ${table.route_path} NOT LIKE '%?%' AND ${table.route_path} NOT LIKE '%#%' AND ${table.route_path} NOT LIKE '%//%')`),
+	check("resource_localizations_values_json_check", sql`json_valid(values_json) AND json_type(values_json) = 'object'`),
+	check("resource_localizations_non_english_check", sql`locale <> 'en'`),
+	check("resource_localizations_route_path_check", sql`route_path IS NULL OR (route_path LIKE '/' || locale || '/%' AND route_path NOT LIKE '%?%' AND route_path NOT LIKE '%#%' AND route_path NOT LIKE '%//%')`),
 	index("resource_localizations_site_locale_type_idx").on(table.site_id, table.locale, table.resource_type),
 	index("resource_localizations_resource_idx").on(table.resource_type, table.resource_id),
 ]);
@@ -1421,11 +1322,10 @@ export const content_blocks = sqliteTable("content_blocks", {
 	index("content_blocks_parent_idx").on(table.parent_block_id),
 	unique("content_blocks_document_id_unique").on(table.document_id, table.id),
 	foreignKey({ columns: [table.document_id, table.parent_block_id], foreignColumns: [table.document_id, table.id], name: "content_blocks_parent_document_fk" }).onDelete("cascade"),
-	check("content_blocks_type_check", sql`${table.type} IN (${sql.raw(CONTENT_BLOCK_TYPES.map(type => `'${type}'`).join(', '))})`),
-	check("content_blocks_data_json_check", sql`json_valid(${table.data_json}) AND json_type(${table.data_json}) IS 'object'`),
-	check("content_blocks_parent_check", sql`${table.parent_block_id} IS NULL OR ${table.parent_block_id} <> ${table.id}`),
-	check("content_blocks_position_check", sql`${table.position} >= 0`),
-	check("content_blocks_level_check", sql`${table.level} IS NULL OR ${table.level} BETWEEN 1 AND 6`),
+	check("content_blocks_data_json_check", sql`json_valid(data_json) AND json_type(data_json) IS 'object'`),
+	check("content_blocks_parent_check", sql`parent_block_id IS NULL OR parent_block_id <> id`),
+	check("content_blocks_position_check", sql`position >= 0`),
+	check("content_blocks_level_check", sql`level IS NULL OR level BETWEEN 1 AND 6`),
 ]);
 
 export const public_resource_cache_invalidations = sqliteTable("public_resource_cache_invalidations", {
@@ -1442,7 +1342,6 @@ export const public_resource_cache_invalidations = sqliteTable("public_resource_
 	check("public_resource_cache_invalidations_instants_check", sql`(claimed_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', claimed_at, '+0 days') IS claimed_at) AND (processed_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', processed_at, '+0 days') IS processed_at) AND (created_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', created_at, '+0 days') IS created_at)`),
 	index("public_resource_cache_invalidations_status_idx").on(table.status, table.created_at),
 	index("public_resource_cache_invalidations_site_idx").on(table.site_id, table.status),
-	check("public_resource_cache_invalidations_status_check", sql`status IN ('pending', 'processing', 'processed', 'failed')`),
 	check("public_resource_cache_invalidations_attempt_count_check", sql`attempt_count >= 0`),
 ]);
 
@@ -1461,7 +1360,6 @@ export const analytics_events = sqliteTable("analytics_events", {
 }, table => [
 	check("analytics_events_instants_check", sql`(created_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', created_at, '+0 days') IS created_at)`),
   foreignKey({ columns: [table.organization_id, table.site_id], foreignColumns: [sites.organization_id, sites.id], name: "analytics_events_site_scope_fk" }).onDelete("cascade"),
-  check("analytics_events_kind_check", sql`kind IN ('pageview', 'conversion')`),
   check("analytics_events_payload_check", sql`json_valid(payload_json) AND json_type(payload_json) IS 'object'`),
   check("analytics_events_shape_check", sql`(kind = 'pageview' AND page_path IS NOT NULL) OR (kind = 'conversion' AND organization_id IS NOT NULL AND session_id IS NOT NULL AND visitor_id IS NOT NULL AND duration_seconds IS NULL
     AND json_type(payload_json, '$.event_name') IS 'text' AND length(payload_json ->> '$.event_name') BETWEEN 1 AND 64
@@ -1490,7 +1388,6 @@ export const analytics_summaries = sqliteTable("analytics_summaries", {
 }, table => [
 	check("analytics_summaries_instants_check", sql`(created_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', created_at, '+0 days') IS created_at) AND (updated_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', updated_at, '+0 days') IS updated_at)`),
   foreignKey({ columns: [table.organization_id, table.site_id], foreignColumns: [sites.organization_id, sites.id], name: "analytics_summaries_site_scope_fk" }).onDelete("cascade"),
-  check("analytics_summaries_kind_check", sql`kind IN ('session', 'site_day', 'page_day', 'dimension_day')`),
   check("analytics_summaries_payload_check", sql`json_valid(payload_json) AND json_type(payload_json) IS 'object'`),
   check("analytics_summaries_scope_check", sql`(kind = 'session' AND date = ''
     AND json_type(payload_json, '$.visitor_id') IS 'text' AND json_type(payload_json, '$.started_at') IS 'text'

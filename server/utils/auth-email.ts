@@ -77,7 +77,7 @@ export async function sendVerificationEmail(
 
 // Distinct from sendVerificationEmail above: this confirms an explicit request to
 // link an existing tenant's `customers` row to the signed-in account, not mailbox
-// ownership at signup. See docs/adr/0017-guest-account-model-separate-from-tenant-org-membership.md.
+// ownership at signup. Guest accounts are separate from tenant organization membership.
 export async function sendGuestClaimVerificationEmail(
   env: AuthEmailEnv,
   opts: { email: string, verifyUrl: string, siteName: string },

@@ -1,6 +1,6 @@
 # Date and time contract
 
-Status: Epoch 6 authorized; local implementation and qualification in progress.
+Status: Contract (shipped with the canonical-instant baseline, September 2026).
 
 `utils/timezone.ts` owns validation, JSON Schema primitives, civil formatting and
 zone conversion. `server/db/schema.ts` owns persistence constraints. Dashboard,
@@ -52,35 +52,14 @@ Current changes delete the duplicate customer date writers and correct SQL times
 comparisons. They deliberately do not add readers accepting the old formats.
 Existing production values must be corrected before those readers are released.
 
-## Authorized database epoch
+## History
 
-Adding the customer timestamp checks through the pinned Drizzle generator produced
-`DROP TABLE customers`. The existing migration lint rejected the referenced-parent
-rebuild. The generated SQL was neither committed nor applied. A normal migration
-cannot deliver this constraint safely under the repository contract.
-
-The owner authorized Epoch 6 under
-[the release contract](../operations/release-and-outage-prevention.md#migration-and-content-safety):
-retain the released Epoch 5 database and history, generate a fresh schema baseline,
-transfer every retained value into a new resource with one-time UTC normalization, verify
-row identities, constraints and foreign keys, qualify preview and staging, then
-perform the documented production write freeze and binding cutover. No custom
-migration or in-place production patch is permitted. The owner explicitly approved the private production export and subsequently the qualified production freeze, fresh export, verified transfer and binding cutover.
-
-Issue #829 and PR #864 must remain open. The earlier MCP-only validation does not
-qualify this broader date/time change. Remote E2E checks use 30-minute wakeups.
-ChatGPT resubmission waits until the corrected production MCP contract is deployed.
-
-
-The September 7 rehearsal exported production into a private local file and
-verified a fresh Epoch 6 target: 53 tables, 42,211 rows, exact retained values,
-foreign keys and domain invariants. Production was unchanged. The final cutover
-still requires a fresh export after the documented write freeze and completed
-runtime qualification; the rehearsal is not a production deployment.
-
-The owner subsequently authorized complete credit retirement in
-[PR #864](https://github.com/paulchrisluke/krabiclaw/pull/864#issuecomment-5572050864).
-The current generated Epoch 6 baseline has 52 tables. The existing transfer records
-the retired `usage_quota_grants` count and complete row hash, rejects unknown grant
-uses, and retains every `usage_events` row. The earlier 53-table rehearsal must be
-repeated against this baseline before cutover.
+The canonical-instant constraints could not be added through an ordinary
+generated migration (the generator rebuilt referenced parent tables), so they
+shipped as a database rebaseline: a fresh generated baseline and an offline
+transfer of every retained value with one-time UTC normalization, verified for
+row identity, constraints and foreign keys before the production write freeze.
+`customers.last_booking_at` and `customers.last_review_at` were duplicate
+summaries with no UI consumers and were deleted rather than normalized; the
+request and review records remain the source. See
+[migrations.md](migrations.md) for the rebaseline procedure.

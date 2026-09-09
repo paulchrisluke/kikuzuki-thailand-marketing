@@ -63,7 +63,7 @@ Runtime Site Config supplies the canonical platform or tenant origin used to tur
 
 Runtime sitemap caching is disabled because every hostname uses the same `/sitemap.xml` path. This prevents any server-side or shared-cache key from reusing one tenant's URL inventory for another host.
 
-Platform documentation overview records use `/docs/{category}` rather than the duplicate `/docs/{category}/{category}` form.
+Documentation is KrabiClaw's `docs` article collection. A category's landing article (slug equal to the category segment) is published at `/docs/{category}` rather than the duplicate `/docs/{category}/{category}` form.
 
 Non-production requests clear the complete URL list. New routes cannot enter a sitemap merely by adding a Vue file.
 
@@ -97,7 +97,7 @@ Tenant-only routes return an intentional 404 on the platform host through `serve
 
 `/billing` is a legacy duplicate and permanently redirects to `/pricing`. It is intentionally crawlable so search engines can process the redirect, but it is never emitted in a sitemap.
 
-Confirmation, cancellation, invitation, password, OAuth, admin, dashboard, preview, and setup routes are never indexable even when directly accessible.
+Confirmation, cancellation, invitation, password, OAuth, dashboard, preview, and setup routes are never indexable even when directly accessible.
 
 ## Adding a public platform route
 

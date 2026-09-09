@@ -35,7 +35,7 @@ export default defineHandler(async (event) => {
 
   const stateData = await verifyOAuthState<IntegrationOAuthState>(hmacSecret, state)
 
-  if (!stateData || !(stateData.revision === null || typeof stateData.revision === 'string') || !(stateData.transfer_generation === null || typeof stateData.transfer_generation === 'string') || Date.now() - stateData.timestamp > 10 * 60 * 1000) {
+  if (!stateData || !(stateData.revision === null || typeof stateData.revision === 'string') || Date.now() - stateData.timestamp > 10 * 60 * 1000) {
     return new Response(null, { status: 302, headers: { Location: '/dashboard?fb=expired' } })
   }
 

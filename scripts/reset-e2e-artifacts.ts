@@ -3,16 +3,15 @@
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { PLATFORM_ORGANIZATION_ID } from '../shared/platform-scope.ts'
 import { spawnYarn } from './utils/spawn-yarn.mjs'
 
+// 'platform' is KrabiClaw's own organization in the fixture snapshot.
 const FIXTURE_ORG_IDS = [
-  PLATFORM_ORGANIZATION_ID,
+  'platform',
   'org-demo',
   'org-mcp-free',
   'org-mcp-growth',
   'org-mcp-growth-service',
-  'org-transfer-recipient',
   'org-pottery-house',
   'org-kikuzuki',
   'org-ncls-blawby',
@@ -22,9 +21,9 @@ const FIXTURE_ORG_IDS = [
 // indexed site/org columns keeps the email marker queries bounded.
 const GUEST_BOOKING_SITE_IDS = ['site-pottery-house', 'site-kikuzuki', 'site-ncls-blawby']
 
-// Site-transfer E2E creates throwaway `e2e-*` sites in the protected fixture
-// organizations, then moves them between those organizations. They must be
-// swept by site ID rather than by deleting the fixture organizations/users.
+// E2E creates throwaway `e2e-*` sites in the protected fixture organizations.
+// They must be swept by site ID rather than by deleting the fixture
+// organizations/users.
 // Retained/audit tables are explicit because their site foreign keys are often
 // SET NULL (or intentionally polymorphic), so deleting the site alone would
 // leave rows behind in the shared preview database.
@@ -170,7 +169,6 @@ SET site_id = NULL, location_id = NULL, updated_at = strftime('%Y-%m-%dT%H:%M:%f
 WHERE site_id IN (${eligibleSiteIds})
    OR location_id IN (SELECT id FROM business_locations WHERE site_id IN (${eligibleSiteIds}));
 
-DELETE FROM site_transfer_requests WHERE site_id IN (${eligibleSiteIds});
 DELETE FROM sites WHERE id IN (${eligibleE2eFixtureSiteIds});
 DELETE FROM organization WHERE id IN (${eligibleOrgIds});
 
@@ -182,11 +180,6 @@ DELETE FROM requests WHERE id IN (
     AND created_at < '${cutoff}'
   ORDER BY id LIMIT ${batchSize}
 );
--- site_transfer_requests deliberately restrict deletion of their initiating user. E2E transfer
--- specs create both records, so remove the stale request before its stale test user. Requests
--- tied to fixture users are untouched because the same protected-user selection is reused.
-DELETE FROM site_transfer_requests WHERE initiated_by_user_id IN (${eligibleUserIds});
-
 DELETE FROM user WHERE id IN (${eligibleUserIds});
 `
 

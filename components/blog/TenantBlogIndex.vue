@@ -60,9 +60,7 @@
 import TenantBlogPostCard, { type TenantBlogCardPost } from './TenantBlogPostCard.vue'
 import BlogPagination from './BlogPagination.vue'
 
-export interface TenantBlogIndexPost extends TenantBlogCardPost {
-  featured_order?: number | null
-}
+export type TenantBlogIndexPost = TenantBlogCardPost
 
 const props = withDefaults(defineProps<{
   title: string
@@ -82,17 +80,11 @@ const { t } = useI18n()
 const activeCategory = ref<string | null>(null)
 const currentPage = ref(1)
 
-// Featured post: an explicit featured_order wins (lower = more prominent,
-// same COALESCE(featured_order, 999999) convention the platform blog and the
-// backing queries already use), falling back to the most recently published
-// post when nothing is explicitly marked. Category filters show only matching
-// articles, so the featured card is hidden while a filter is active.
+// The featured post is the most recently published one. Category filters show
+// only matching articles, so the featured card is hidden while a filter is active.
 const featuredPost = computed(() => {
   if (activeCategory.value !== null || !props.posts.length) return null
   return [...props.posts].sort((a, b) => {
-    const orderA = a.featured_order ?? 999999
-    const orderB = b.featured_order ?? 999999
-    if (orderA !== orderB) return orderA - orderB
     const dateA = a.published_at ? new Date(a.published_at).getTime() : 0
     const dateB = b.published_at ? new Date(b.published_at).getTime() : 0
     return dateB - dateA

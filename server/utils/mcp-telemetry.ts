@@ -93,7 +93,7 @@ export interface LogMcpToolCallEventInput {
   siteId?: string | null;
   locationId?: string | null;
   userId?: string | null;
-  mcpSurface?: "client" | "platform" | "public_help";
+  mcpSurface?: "client" | "public_help";
   requestId?: string | number | null;
   method: string;
   toolName?: string | null;

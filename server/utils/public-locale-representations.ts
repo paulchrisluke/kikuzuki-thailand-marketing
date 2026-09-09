@@ -1,5 +1,3 @@
-import { PLATFORM_SITE_ID } from '~/shared/platform-scope'
-import { resolveBlogPublicPath } from '~/utils/blog-editor'
 import { HTTPError } from 'nitro'
 import { queryAll, type DbClient } from '~/server/db'
 import { assertSiteLanguageEntitlement, getPersistedSourceLocale } from '~/server/utils/localization'
@@ -56,9 +54,7 @@ export async function resolvePublicDocumentSourcePath(db: DbClient, siteId: stri
      WHERE d.site_id = ? AND d.id = ? AND d.row_role = 'root' LIMIT 1`, [siteId, documentId])
   if (row?.kind === 'page' && row.path) return row.path
   if (row?.kind === 'social_post') return postPublicPath(row.slug ?? row.id)
-  if (row?.kind === 'article' && row.slug && siteId === PLATFORM_SITE_ID) return resolveBlogPublicPath({ scope: 'platform', slug: row.slug, category: row.category })
-  if (row?.kind === 'article' && row.slug) return tenantBlogPostPath({ themeId: row.theme_id, vertical: row.vertical }, row.slug)
-  if (row?.kind === 'platform_doc' && row.slug && row.category) return '/docs/' + row.category + '/' + row.slug
+  if (row?.kind === 'article' && row.slug) return tenantBlogPostPath({ themeId: row.theme_id, vertical: row.vertical }, row.slug, row.category)
   throw new HTTPError({ statusCode: 500, statusMessage: 'Document source route is missing', data: { document_id: documentId } })
 }
 

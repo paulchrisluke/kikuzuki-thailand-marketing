@@ -29,7 +29,7 @@ export default defineHandler(async (event) => {
   try {
     const destination = await resolvePostLoginDestination(env, session.user)
     if (plan) {
-      if (destination === '/admin' || destination === '/dashboard/onboarding') {
+      if (destination === '/dashboard/onboarding') {
         throw new HTTPError({ statusCode: 409, message: 'An organization is required before choosing a billing plan' })
       }
       return redirect(`${destination}/settings/billing?plan=${encodeURIComponent(plan)}`, 302)

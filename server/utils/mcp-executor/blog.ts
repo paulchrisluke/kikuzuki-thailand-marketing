@@ -1,14 +1,17 @@
 import type { McpExecutorContext } from './shared'
-import { createBlogPost, deleteBlogPost, getBlogPost, listBlogPosts, reorderBlogPosts, updateBlogLifecycle, updateBlogPost } from '~/server/utils/content/publishing'
+import { createBlogPost, deleteBlogPost, getBlogPost, listBlogPosts, updateBlogLifecycle, updateBlogPost } from '~/server/utils/content/publishing'
 import { renderStructuredResponse } from '~/server/utils/mcp-render'
 import { mcpProtocolError, MCP_ERROR } from '~/server/utils/mcp-protocol'
 import { paginateMcpCollection } from '~/server/utils/mcp-pagination'
-import { absolutizeSiteUrl, NOT_HANDLED, objectArray, omit, optionalString, requiredString } from './shared'
+import { absolutizeSiteUrl, NOT_HANDLED, omit, optionalString, requiredString } from './shared'
 import { CONTENT_BLOCK_TYPES } from '~/server/utils/content/documents'
+
+const ARTICLE_COLLECTIONS_SET = new Set(['blog', 'docs'])
 
 const UPDATE_BLOG_MUTATION_FIELDS = [
   'title',
   'excerpt',
+  'collection',
   'category',
   'tags',
   'content_blocks',
@@ -26,14 +29,9 @@ const UPDATE_BLOG_MUTATION_FIELDS = [
 const BLOG_METADATA_FIELDS = [
   'title',
   'excerpt',
+  'collection',
   'category',
   'tags',
-  'nav_section',
-  'nav_title',
-  'nav_order',
-  'nav_section_order',
-  'hide_from_nav',
-  'featured_order',
   'seo_title',
   'seo_description',
   'seo_keywords',
@@ -123,6 +121,20 @@ function toMedia(value: unknown) {
   })
 }
 
+function toCover(value: unknown) {
+  if (value === null || value === undefined) return null
+  const cover = responseRecord(value, 'post.cover')
+  return {
+    asset_id: responseString(cover.asset_id, 'post.cover.asset_id'),
+    public_url: responseNullableString(cover.public_url, 'post.cover.public_url'),
+    thumbnail_url: responseNullableString(cover.thumbnail_url, 'post.cover.thumbnail_url'),
+    kind: responseNullableString(cover.kind, 'post.cover.kind'),
+    alt_text: responseNullableString(cover.alt_text, 'post.cover.alt_text'),
+    width: responseNullableNumber(cover.width, 'post.cover.width'),
+    height: responseNullableNumber(cover.height, 'post.cover.height'),
+  }
+}
+
 function toContentBlockProjection(value: unknown, index: number) {
   const path = `post.content_document.blocks[${index}]`
   const block = responseRecord(value, path)
@@ -145,14 +157,9 @@ function toBlogPostSummary(post: Record<string, unknown>, site: McpExecutorConte
     title: responseString(post.title, 'post.title'),
     slug: responseString(post.slug, 'post.slug'),
     excerpt: responseNullableString(post.excerpt, 'post.excerpt'),
+    collection: responseEnumString(post.collection ?? 'blog', 'post.collection', ARTICLE_COLLECTIONS_SET),
     category: responseNullableString(post.category, 'post.category'),
     tags: responseStringArray(post.tags, 'post.tags'),
-    nav_section: responseNullableString(post.nav_section, 'post.nav_section'),
-    nav_title: responseNullableString(post.nav_title, 'post.nav_title'),
-    nav_order: responseNullableNumber(post.nav_order, 'post.nav_order'),
-    nav_section_order: responseNullableNumber(post.nav_section_order, 'post.nav_section_order'),
-    hide_from_nav: responseBoolean(post.hide_from_nav, 'post.hide_from_nav'),
-    featured_order: responseNullableNumber(post.featured_order, 'post.featured_order'),
     seo_title: responseNullableString(post.seo_title, 'post.seo_title'),
     seo_description: responseNullableString(post.seo_description, 'post.seo_description'),
     seo_keywords: responseNullableString(post.seo_keywords, 'post.seo_keywords'),
@@ -165,7 +172,7 @@ function toBlogPostSummary(post: Record<string, unknown>, site: McpExecutorConte
     scheduled_for: responseNullableString(post.scheduled_for, 'post.scheduled_for'),
     created_at: responseString(post.created_at, 'post.created_at'),
     updated_at: responseString(post.updated_at, 'post.updated_at'),
-    media: toMedia(post.media),
+    cover: toCover(post.cover),
     admin_edit_url: responseNullableString(post.admin_edit_url, 'post.admin_edit_url'),
     edit_url: responseNullableString(post.edit_url, 'post.edit_url'),
     public_path: responseNullableString(post.public_path, 'post.public_path'),
@@ -296,52 +303,6 @@ export async function handleBlogTools(ctx: McpExecutorContext): Promise<unknown>
         { post: projectBlogPostForMcp(result, site) },
         `${result.status === 'scheduled' ? 'Rescheduled' : 'Published'} blog article "${result.title}".`,
       )
-    }
-    case "reorder_blog_posts": {
-      const items = objectArray(args.items, "items").map((item) => {
-        const navOrder = item.nav_order
-        if (typeof navOrder !== "number" || !Number.isInteger(navOrder)) {
-          throw mcpProtocolError(MCP_ERROR.invalidParams, "Each item must have an integer nav_order.")
-        }
-        const result: Record<string, string | number | boolean | null> = {
-          post_id: requiredString(item, "post_id"),
-          nav_order: navOrder,
-        }
-        if (Object.prototype.hasOwnProperty.call(item, "nav_section")) {
-          const value = item.nav_section
-          if (value !== null && typeof value !== "string") {
-            throw mcpProtocolError(MCP_ERROR.invalidParams, "nav_section must be a string or null when provided.")
-          }
-          result.nav_section = value ?? null
-        }
-        if (Object.prototype.hasOwnProperty.call(item, "nav_title")) {
-          const value = item.nav_title
-          if (value !== null && typeof value !== "string") {
-            throw mcpProtocolError(MCP_ERROR.invalidParams, "nav_title must be a string or null when provided.")
-          }
-          result.nav_title = value ?? null
-        }
-        if (Object.prototype.hasOwnProperty.call(item, "nav_section_order")) {
-          const value = item.nav_section_order
-          if (value !== null && (typeof value !== "number" || !Number.isInteger(value))) {
-            throw mcpProtocolError(MCP_ERROR.invalidParams, "nav_section_order must be an integer or null when provided.")
-          }
-          result.nav_section_order = value ?? null
-        }
-        if (Object.prototype.hasOwnProperty.call(item, "hide_from_nav")) {
-          const value = item.hide_from_nav
-          if (value !== null && typeof value !== "boolean") {
-            throw mcpProtocolError(MCP_ERROR.invalidParams, "hide_from_nav must be a boolean or null when provided.")
-          }
-          result.hide_from_nav = value === null ? null : Boolean(value)
-        }
-        return result as { post_id: string; nav_section?: string | null; nav_title?: string | null; nav_order: number; nav_section_order?: number | null; hide_from_nav?: boolean | null }
-      })
-      const result = await reorderBlogPosts(site.db, items, site.siteId, site.env)
-      return {
-        success: result.success,
-        posts: result.posts.map((post) => toBlogPostSummary(post, site)),
-      }
     }
     case "delete_blog_post": {
       const postId = requiredString(args, "post_id");
