@@ -79,6 +79,27 @@ if (!credentialFixtures.length) throw new Error(`Unknown development fixture use
 const e2ePasswordHash = await hashPassword(e2ePassword)
 const localDeveloperPasswordHash = isLocalDev ? await hashPassword(localDeveloperPassword) : ''
 
+// The MCP owner-tool tests write freely — creating locations, media and
+// experiences — so they need a tenant of their own. Every other organization the
+// fixtures reference is a real row that arrives with the production snapshot;
+// this one deliberately is not, because those tests must never write to a real
+// customer's site.
+const E2E_TEST_TENANT_SQL = `
+INSERT OR IGNORE INTO organization (id, name, slug, createdAt)
+VALUES ('org-mcp-growth-service', 'E2E Growth Service', 'e2e-growth-service', unixepoch());
+
+INSERT OR IGNORE INTO sites (
+  id, organization_id, slug, subdomain, theme_id, vertical,
+  settings_json, integrations_json, default_currency, status,
+  onboarding_status, url_structure, created_at, updated_at
+)
+VALUES (
+  'site-mcp-growth-service', 'org-mcp-growth-service', 'e2e-growth-service', 'e2e-growth-service',
+  'saya-theme-v1', 'service', '{}', '{}', 'usd', 'active', 'complete', 'flat',
+  strftime('%Y-%m-%dT%H:%M:%fZ','now'), strftime('%Y-%m-%dT%H:%M:%fZ','now')
+);
+`
+
 const fixtureSql = credentialFixtures.map((fixture) => {
   const passwordHash = fixture.id === LOCAL_DEVELOPER_AUTH_FIXTURE.id
     ? localDeveloperPasswordHash
@@ -128,7 +149,7 @@ ${memberships}${teamMemberships}`
 const localDeveloperCleanupSql = isLocalDev
   ? ''
   : `DELETE FROM user WHERE id = ${sqlString(LOCAL_DEVELOPER_AUTH_FIXTURE.id)};\n`
-const sql = `PRAGMA foreign_keys = ON;\n${localDeveloperCleanupSql}${fixtureSql}`
+const sql = `PRAGMA foreign_keys = ON;\n${E2E_TEST_TENANT_SQL}${localDeveloperCleanupSql}${fixtureSql}`
 const directory = mkdtempSync(join(tmpdir(), 'krabiclaw-e2e-auth-'))
 const sqlPath = join(directory, 'e2e-auth.sql')
 

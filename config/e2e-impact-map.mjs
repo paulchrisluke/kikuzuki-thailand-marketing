@@ -1,7 +1,7 @@
 export const HIGH_IMPACT_PATTERNS = [
   'app.vue', 'build/**', 'error.vue', 'nuxt.config.ts', 'patch.cjs',
   'playwright.config.ts', 'wrangler.toml', 'yarn.lock', 'migrations/**',
-  'seed-definitions/**', 'server/db/schema.ts', 'server/middleware/**',
+  'server/db/schema.ts', 'server/middleware/**',
   'server/plugins/**', 'tests/e2e/helpers.ts', 'tests/e2e/helpers/**',
   'tests/e2e/test-env.ts', 'workers/**',
 ]
@@ -42,10 +42,7 @@ export const IMPACT_GROUPS = [
       'pages/schedule.vue', 'pages/services/**',
       'server/middleware/public-resource-provider.ts', 'server/utils/public-*.ts',
       'server/utils/public*.ts', 'server/utils/site-i18n.ts',
-      'server/utils/site-template.ts', 'scripts/generate-kikuzuki-seed.ts',
-      'scripts/generate-pottery-house-seed.ts', 'scripts/generate-ncls-seed.ts',
-      'seed-definitions/kikuzuki.ts', 'seed-definitions/pottery-house.ts',
-      'seed-definitions/ncls.ts', 'utils/blawby-*.ts', 'utils/public-*.ts',
+      'server/utils/site-template.ts', 'utils/blawby-*.ts', 'utils/public-*.ts',
       'utils/tenant-page-blocks.ts', 'utils/vertical-copy.ts',
     ],
     specs: [
