@@ -7,7 +7,6 @@ import {
   listOrganizationSites,
   listDashboardLocations,
 } from '~/server/utils/dashboard-context'
-import { isManagedServiceEnabled } from '~/server/utils/feature-flags'
 import { isOrganizationWideRole, listUserOrganizationTeamIds, resolveDashboardSiteAccess } from '~/server/utils/member-access'
 import { recordRequestPhase } from '~/server/utils/request-metrics'
 
@@ -17,7 +16,6 @@ export async function loadDashboardContext(
 ) {
   const contextStartedAt = performance.now()
   const env = cloudflareEnv(event)
-  const managedServiceEnabled = isManagedServiceEnabled(env)
   const { db, organization, site, userId } = await getDashboardContext(event, {
     requireSite: false,
     requireOrganization: scope?.orgSlug ? true : false,
@@ -47,7 +45,6 @@ export async function loadDashboardContext(
       sites: [],
       locations: [],
       siteAccess: null,
-      managedServiceEnabled,
     }
   }
 
@@ -64,7 +61,6 @@ export async function loadDashboardContext(
       sites,
       locations: [],
       siteAccess: null,
-      managedServiceEnabled,
     }
   }
 
@@ -85,6 +81,5 @@ export async function loadDashboardContext(
     sites,
     locations,
     siteAccess,
-    managedServiceEnabled,
   }
 }

@@ -784,21 +784,6 @@ export const reservationSubmissionObject = {
   },
 }
 
-export const workRequestObject = {
-  type: 'object',
-  properties: {
-    id: { type: 'string' },
-    type: { type: 'string' },
-    title: { type: 'string' },
-    description: { type: ['string', 'null'] },
-    status: { type: 'string', enum: ['open', 'in_progress', 'done', 'cancelled'] },
-    priority: { type: 'string', enum: ['low', 'normal', 'high'] },
-    notes: { type: ['string', 'null'] },
-    created_at: { type: 'string' },
-    updated_at: { type: 'string' },
-  },
-}
-
 export const siteListItem = {
   type: 'object',
   properties: {

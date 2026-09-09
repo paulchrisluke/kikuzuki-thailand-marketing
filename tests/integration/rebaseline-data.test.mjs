@@ -103,15 +103,22 @@ test('rebaseline transfers an epoch-6 export into the baseline and applies every
   assert.ok(payload.includes(`INSERT INTO "site_domains"`))
 })
 
-test('rebaseline refuses a populated target and a source whose tables differ from the baseline', (t) => {
+test('rebaseline refuses a populated target or a source missing baseline tables, and drops retired ones', (t) => {
   const directory = mkdtempSync(join(tmpdir(), 'krabiclaw-rebaseline-'))
   t.after(() => rmSync(directory, { recursive: true, force: true }))
   const sourcePath = sourceFixture(directory)
   const targetPath = join(directory, 'target.sqlite')
   rebaseline(sourcePath, targetPath)
   assert.throws(() => rebaseline(sourcePath, targetPath), /Target already exists/)
+  // A retired table in the source is dropped and named; a missing baseline table is a refusal.
   const odd = new Database(sourcePath)
   odd.exec('CREATE TABLE stray (id TEXT PRIMARY KEY)')
   odd.close()
-  assert.throws(() => rebaseline(sourcePath, join(directory, 'other.sqlite')), /table sets differ/)
+  const withStray = rebaseline(sourcePath, join(directory, 'stray.sqlite'))
+  assert.deepEqual(withStray.retired_tables, ['site_transfer_requests', 'stray'])
+  assert.deepEqual(withStray.retired_columns, { requests: ['assigned_to', 'priority'] })
+  const short = new Database(sourcePath)
+  short.exec('DROP TABLE site_locales')
+  short.close()
+  assert.throws(() => rebaseline(sourcePath, join(directory, 'short.sqlite')), /Source lacks baseline tables: site_locales/)
 })

@@ -240,7 +240,6 @@ export default defineNuxtConfig({
         userAgent: ['*'],
         allow: ['/'],
         disallow: [
-          '/admin',
           '/api',
           '/auth',
           '/dashboard',
@@ -382,7 +381,6 @@ export default defineNuxtConfig({
     // Auth/API/dashboard — never cache
     '/api/**':       { headers: { 'cache-control': 'no-store' } },
     '/dashboard/**': { headers: { 'cache-control': 'no-store' } },
-    '/admin/**':     { headers: { 'cache-control': 'no-store' } },
     '/auth/**':      { headers: { 'cache-control': 'no-store' } },
     '/signup':       { headers: { 'cache-control': 'no-store', 'x-frame-options': 'DENY', 'content-security-policy': "frame-ancestors 'none'" } },
     '/login':        { headers: { 'cache-control': 'no-store', 'x-frame-options': 'DENY', 'content-security-policy': "frame-ancestors 'none'" } },

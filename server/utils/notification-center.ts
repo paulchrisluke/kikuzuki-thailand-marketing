@@ -5,7 +5,7 @@ export const NOTIFICATION_EVENT_TYPES = {
   PLATFORM_USER_SIGNUP: 'platform.user_signup',
 } as const
 
-export type NotificationScope = 'platform' | 'organization' | 'site'
+export type NotificationScope = 'global' | 'organization' | 'site'
 export type NotificationSeverity = 'info' | 'success' | 'warning' | 'error'
 
 export interface CreateNotificationInput {
@@ -48,10 +48,10 @@ export function buildCanonicalNotificationInsert(
   id: string = crypto.randomUUID(),
   now = new Date().toISOString(),
 ): CanonicalNotificationInsert {
-  if (input.scope === 'platform' && (input.organizationId || input.siteId)) {
+  if (input.scope === 'global' && (input.organizationId || input.siteId)) {
     throw new Error('Platform notifications cannot be organization or site scoped')
   }
-  if (input.scope !== 'platform' && !input.organizationId) {
+  if (input.scope !== 'global' && !input.organizationId) {
     throw new Error(`${input.scope} notifications require an organization`)
   }
   if (input.scope === 'site' && !input.siteId) {
@@ -65,7 +65,7 @@ export function buildCanonicalNotificationInsert(
       VALUES (?, 'notification', ?, ?, ?, ?, ?, 'system', ?, ?, ?, ?, ?, ?, ?)
       ON CONFLICT DO NOTHING
     `,
-    params: [id, input.scope === 'platform' ? 'platform' : 'organization', input.organizationId ?? null, input.siteId ?? null,
+    params: [id, input.scope === 'global' ? 'global' : 'organization', input.organizationId ?? null, input.siteId ?? null,
       input.locationId ?? null, input.sourceEntryId ?? null, input.targetUserId ?? null, input.message ?? null, input.template,
       JSON.stringify({ visibility_scope: input.scope, severity: input.severity ?? 'info', title: input.title, deep_link: input.deepLink ?? null }),
       `notification:${input.idempotencyKey ?? id}`, now, now],
@@ -94,7 +94,7 @@ export async function notifyNewUserSignup(
   if (user.email.endsWith('@phone.krabiclaw.local')) return
 
   await createCanonicalNotification(db, {
-    scope: 'platform',
+    scope: 'global',
     template: NOTIFICATION_EVENT_TYPES.PLATFORM_USER_SIGNUP,
     severity: 'info',
     title: 'New user signup',

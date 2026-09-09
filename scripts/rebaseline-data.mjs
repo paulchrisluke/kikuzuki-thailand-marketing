@@ -50,7 +50,9 @@ export const TRANSFORMS = [
   // --- the platform split (#870): one site model, one contact model, one telemetry surface
   { name: 'platform_contact_requests_removed', sql: "DELETE FROM requests WHERE kind = 'platform_contact'" },
   { name: 'platform_activity_scope_is_global', sql: "UPDATE activity_entries SET scope_kind = 'global' WHERE scope_kind = 'platform'" },
+  { name: 'platform_notification_scope_is_global', sql: "UPDATE activity_entries SET scope_kind = 'global' WHERE kind = 'notification' AND scope_kind = 'platform'" },
   { name: 'platform_mcp_telemetry_removed', sql: "DELETE FROM mcp_tool_call_events WHERE mcp_surface = 'platform'" },
+  { name: 'work_requests_removed', sql: "DELETE FROM requests WHERE kind = 'work'" },
   { name: 'documentation_becomes_pages', sql: `UPDATE content_documents SET
       path = '/docs/' || (${DOC_CATEGORY_SLUG}) || CASE WHEN slug = (${DOC_CATEGORY_SLUG}) THEN '' ELSE '/' || slug END,
       slug = NULL,
@@ -117,6 +119,7 @@ export const TARGET_INVARIANT_QUERIES = {
   // The retired model must leave no trace.
   no_platform_doc: "SELECT id FROM content_documents WHERE kind = 'platform_doc'",
   no_platform_contact: "SELECT id FROM requests WHERE kind = 'platform_contact'",
+  no_work_requests: "SELECT id FROM requests WHERE kind = 'work'",
   no_platform_activity_scope: "SELECT id FROM activity_entries WHERE scope_kind = 'platform'",
   no_platform_mcp_surface: "SELECT id FROM mcp_tool_call_events WHERE mcp_surface = 'platform'",
   no_document_featured_placements: "SELECT id FROM media_placements WHERE owner_type = 'content_document' AND slot = 'featured'",
@@ -182,7 +185,7 @@ export function writePayload(target, payloadPath, { withoutJwks = false } = {}) 
 
 /**
  * @typedef {{ table: string, source_rows: number, target_rows: number }} TableTransfer
- * @typedef {{ baseline_sha256: string, tables: TableTransfer[], transforms: Array<{ name: string, changes: number, sql_sha256: string }>,
+ * @typedef {{ baseline_sha256: string, tables: TableTransfer[], retired_tables?: string[], retired_columns?: Record<string, string[]>, transforms: Array<{ name: string, changes: number, sql_sha256: string }>,
  *   invariants: Array<{ name: string, violations: number, sql_sha256: string }>, payload?: { tables: number, statements: number } }} RebaselineManifest
  */
 
@@ -209,12 +212,24 @@ export function rebaseline(sourcePath, targetPath, { payloadPath = null, without
     stage.pragma('ignore_check_constraints = ON')
     stage.pragma('foreign_keys = ON')
     const names = tableNames(stage)
-    assert(JSON.stringify(names) === JSON.stringify(tableNames(source)), 'Source and baseline table sets differ')
+    const sourceTables = tableNames(source)
+    const missing = names.filter(table => !sourceTables.includes(table))
+    assert(missing.length === 0, `Source lacks baseline tables: ${missing.join(', ')}`)
+    // Tables and columns the baseline no longer has are retired features; their
+    // rows and values are dropped and the manifest names them.
+    manifest.retired_tables = sourceTables.filter(table => !names.includes(table))
+    manifest.retired_columns = {}
     const copy = (from, to, verifyColumnsAgainstBaseline) => to.transaction(() => {
       to.pragma('defer_foreign_keys = ON')
       for (const table of names) {
         const targetColumns = columns(to, table)
-        if (verifyColumnsAgainstBaseline) assert(JSON.stringify([...columns(from, table)].sort()) === JSON.stringify([...targetColumns].sort()), `${table}: column set differs from the baseline`)
+        if (verifyColumnsAgainstBaseline) {
+          const sourceColumns = columns(from, table)
+          const absent = targetColumns.filter(name => !sourceColumns.includes(name))
+          assert(absent.length === 0, `${table}: source lacks baseline columns ${absent.join(', ')}`)
+          const retired = sourceColumns.filter(name => !targetColumns.includes(name))
+          if (retired.length) manifest.retired_columns[table] = retired
+        }
         const rows = from.prepare(`SELECT * FROM ${qi(table)}`).all()
         const insert = to.prepare(`INSERT INTO ${qi(table)} (${targetColumns.map(qi).join(',')}) VALUES (${targetColumns.map(() => '?').join(',')})`)
         for (const row of rows) insert.run(...targetColumns.map(name => row[name]))

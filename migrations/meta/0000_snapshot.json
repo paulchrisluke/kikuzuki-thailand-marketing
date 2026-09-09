@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "d852d46b-bfb2-4a16-96fe-57635dde828a",
+  "id": "3f0f892e-aaa9-492c-adf8-409f58ab304d",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "tables": {
     "account": {
@@ -5978,13 +5978,6 @@
           "notNull": false,
           "autoincrement": false
         },
-        "assigned_to": {
-          "name": "assigned_to",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
         "review_id": {
           "name": "review_id",
           "type": "text",
@@ -5994,13 +5987,6 @@
         },
         "status": {
           "name": "status",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "priority": {
-          "name": "priority",
           "type": "text",
           "primaryKey": false,
           "notNull": false,
@@ -6114,16 +6100,6 @@
           ],
           "isUnique": false
         },
-        "requests_work_queue_idx": {
-          "name": "requests_work_queue_idx",
-          "columns": [
-            "kind",
-            "status",
-            "priority",
-            "created_at"
-          ],
-          "isUnique": false
-        },
         "requests_org_created_idx": {
           "name": "requests_org_created_idx",
           "columns": [
@@ -6192,19 +6168,6 @@
           "tableTo": "customers",
           "columnsFrom": [
             "customer_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "set null",
-          "onUpdate": "no action"
-        },
-        "requests_assigned_to_user_id_fk": {
-          "name": "requests_assigned_to_user_id_fk",
-          "tableFrom": "requests",
-          "tableTo": "user",
-          "columnsFrom": [
-            "assigned_to"
           ],
           "columnsTo": [
             "id"
@@ -6307,15 +6270,11 @@
         },
         "requests_guest_payload_check": {
           "name": "requests_guest_payload_check",
-          "value": "kind = 'work' OR (json_type(payload_json, '$.guest.name') IS 'text' AND json_type(payload_json, '$.guest.email') IS 'text' AND (json_type(payload_json, '$.guest.phone') IS 'text' OR json_type(payload_json, '$.guest.phone') IS 'null'))"
+          "value": "(json_type(payload_json, '$.guest.name') IS 'text' AND json_type(payload_json, '$.guest.email') IS 'text' AND (json_type(payload_json, '$.guest.phone') IS 'text' OR json_type(payload_json, '$.guest.phone') IS 'null'))"
         },
         "requests_booking_payload_check": {
           "name": "requests_booking_payload_check",
           "value": "kind NOT IN ('reservation', 'experience_booking') OR (json_type(payload_json, '$.party_size_is_minimum') IN ('true', 'false') AND json_type(payload_json, '$.cancellation') IS 'object' AND json_type(payload_json, '$.completion') IS 'object' AND json_type(payload_json, '$.review') IS 'object' AND (kind != 'reservation' OR json_type(payload_json, '$.guest.phone') IS 'text')) IS TRUE"
-        },
-        "requests_work_payload_check": {
-          "name": "requests_work_payload_check",
-          "value": "kind != 'work' OR (json_type(payload_json, '$.title') IS 'text' AND (payload_json ->> '$.type') IN ('content_update', 'product_update', 'seo', 'google_places', 'seasonal', 'photo_update', 'social_media', 'technical', 'other') AND (payload_json ->> '$.source') IN ('dashboard', 'whatsapp')) IS TRUE"
         },
         "requests_message_payload_check": {
           "name": "requests_message_payload_check",
@@ -6323,7 +6282,7 @@
         },
         "requests_scope_check": {
           "name": "requests_scope_check",
-          "value": "(kind = 'work' AND organization_id IS NOT NULL AND location_id IS NULL AND product_id IS NULL AND customer_id IS NULL) OR (kind IN ('contact', 'reservation', 'experience_booking') AND organization_id IS NOT NULL AND site_id IS NOT NULL)"
+          "value": "kind IN ('contact', 'reservation', 'experience_booking') AND organization_id IS NOT NULL AND site_id IS NOT NULL"
         },
         "requests_booking_check": {
           "name": "requests_booking_check",
@@ -6331,7 +6290,7 @@
         },
         "requests_state_check": {
           "name": "requests_state_check",
-          "value": "(kind = 'work' AND status IS NOT NULL AND status IN ('pending', 'in_progress', 'done', 'cancelled') AND priority IS NOT NULL AND priority IN ('low', 'normal', 'high', 'urgent') AND conversation_state IS NULL) OR (kind IN ('contact', 'reservation', 'experience_booking') AND conversation_state IS NOT NULL AND conversation_state IN ('needs_attention', 'waiting_on_guest', 'resolved') AND priority IS NULL AND assigned_to IS NULL AND (kind != 'contact' OR status IS NULL))"
+          "value": "conversation_state IS NOT NULL AND conversation_state IN ('needs_attention', 'waiting_on_guest', 'resolved') AND (kind != 'contact' OR status IS NULL)"
         }
       }
     },
@@ -8177,266 +8136,6 @@
         }
       }
     },
-    "site_transfer_requests": {
-      "name": "site_transfer_requests",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "site_id": {
-          "name": "site_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "from_organization_id": {
-          "name": "from_organization_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "to_email": {
-          "name": "to_email",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "token": {
-          "name": "token",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "status": {
-          "name": "status",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": "'pending'"
-        },
-        "initiated_by_user_id": {
-          "name": "initiated_by_user_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "accepted_by_user_id": {
-          "name": "accepted_by_user_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "claiming_user_id": {
-          "name": "claiming_user_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "claiming_organization_id": {
-          "name": "claiming_organization_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "message": {
-          "name": "message",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "invited_plan": {
-          "name": "invited_plan",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "invited_coupon": {
-          "name": "invited_coupon",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "invited_domain": {
-          "name": "invited_domain",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "requires_payment": {
-          "name": "requires_payment",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": 0
-        },
-        "stripe_checkout_session_id": {
-          "name": "stripe_checkout_session_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "payment_completed_at": {
-          "name": "payment_completed_at",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": "(strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))"
-        },
-        "completed_at": {
-          "name": "completed_at",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "last_reminder_at": {
-          "name": "last_reminder_at",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "reminder_count": {
-          "name": "reminder_count",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": 0
-        },
-        "invited_interval": {
-          "name": "invited_interval",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": "'month'"
-        }
-      },
-      "indexes": {
-        "idx_site_transfer_pending": {
-          "name": "idx_site_transfer_pending",
-          "columns": [
-            "site_id"
-          ],
-          "isUnique": true,
-          "where": "status = 'pending'"
-        },
-        "idx_site_transfer_reminders": {
-          "name": "idx_site_transfer_reminders",
-          "columns": [
-            "status",
-            "requires_payment",
-            "created_at"
-          ],
-          "isUnique": false
-        },
-        "idx_site_transfer_site": {
-          "name": "idx_site_transfer_site",
-          "columns": [
-            "site_id",
-            "status"
-          ],
-          "isUnique": false
-        },
-        "idx_site_transfer_token": {
-          "name": "idx_site_transfer_token",
-          "columns": [
-            "token"
-          ],
-          "isUnique": true
-        }
-      },
-      "foreignKeys": {
-        "site_transfer_requests_site_id_sites_id_fk": {
-          "name": "site_transfer_requests_site_id_sites_id_fk",
-          "tableFrom": "site_transfer_requests",
-          "tableTo": "sites",
-          "columnsFrom": [
-            "site_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "site_transfer_requests_initiated_by_user_id_user_id_fk": {
-          "name": "site_transfer_requests_initiated_by_user_id_user_id_fk",
-          "tableFrom": "site_transfer_requests",
-          "tableTo": "user",
-          "columnsFrom": [
-            "initiated_by_user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "restrict",
-          "onUpdate": "no action"
-        },
-        "site_transfer_requests_accepted_by_user_id_user_id_fk": {
-          "name": "site_transfer_requests_accepted_by_user_id_user_id_fk",
-          "tableFrom": "site_transfer_requests",
-          "tableTo": "user",
-          "columnsFrom": [
-            "accepted_by_user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "set null",
-          "onUpdate": "no action"
-        },
-        "site_transfer_requests_claiming_user_id_user_id_fk": {
-          "name": "site_transfer_requests_claiming_user_id_user_id_fk",
-          "tableFrom": "site_transfer_requests",
-          "tableTo": "user",
-          "columnsFrom": [
-            "claiming_user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "set null",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "checkConstraints": {
-        "site_transfer_requests_instants_check": {
-          "name": "site_transfer_requests_instants_check",
-          "value": "(payment_completed_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', payment_completed_at, '+0 days') IS payment_completed_at) AND (created_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', created_at, '+0 days') IS created_at) AND (completed_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', completed_at, '+0 days') IS completed_at) AND (last_reminder_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', last_reminder_at, '+0 days') IS last_reminder_at)"
-        }
-      }
-    },
     "sites": {
       "name": "sites",
       "columns": {
@@ -8770,10 +8469,6 @@
         "sites_config_notifications_check": {
           "name": "sites_config_notifications_check",
           "value": "json_type(settings_json, '$.config.owner_notification_channels') IS NULL OR json_type(settings_json, '$.config.owner_notification_channels') IS 'array'"
-        },
-        "sites_config_resource_generation_check": {
-          "name": "sites_config_resource_generation_check",
-          "value": "json_type(settings_json, '$.config.resource_team_generation') IS NULL OR (json_type(settings_json, '$.config.resource_team_generation') IS 'object' AND json_type(settings_json, '$.config.resource_team_generation.transfer_id') IS 'text' AND json_type(settings_json, '$.config.resource_team_generation.generation') IS 'text')"
         },
         "sites_consultation_metadata_check": {
           "name": "sites_consultation_metadata_check",

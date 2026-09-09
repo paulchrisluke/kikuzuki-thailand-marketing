@@ -840,10 +840,8 @@ CREATE TABLE `requests` (
 	`location_id` text,
 	`product_id` text,
 	`customer_id` text,
-	`assigned_to` text,
 	`review_id` text,
 	`status` text,
-	`priority` text,
 	`booking_date` text,
 	`time_slot` text,
 	`party_size` integer,
@@ -857,7 +855,6 @@ CREATE TABLE `requests` (
 	FOREIGN KEY (`location_id`) REFERENCES `business_locations`(`id`) ON UPDATE no action ON DELETE set null,
 	FOREIGN KEY (`product_id`) REFERENCES `products`(`id`) ON UPDATE no action ON DELETE set null,
 	FOREIGN KEY (`customer_id`) REFERENCES `customers`(`id`) ON UPDATE no action ON DELETE set null,
-	FOREIGN KEY (`assigned_to`) REFERENCES `user`(`id`) ON UPDATE no action ON DELETE set null,
 	FOREIGN KEY (`review_id`) REFERENCES `reviews`(`id`) ON UPDATE no action ON DELETE set null,
 	FOREIGN KEY (`organization_id`,`site_id`) REFERENCES `sites`(`organization_id`,`id`) ON UPDATE no action ON DELETE cascade,
 	FOREIGN KEY (`organization_id`,`site_id`,`location_id`) REFERENCES `business_locations`(`organization_id`,`site_id`,`id`) ON UPDATE no action ON DELETE no action,
@@ -865,13 +862,12 @@ CREATE TABLE `requests` (
 	FOREIGN KEY (`organization_id`,`site_id`,`location_id`,`product_id`) REFERENCES `products`(`organization_id`,`site_id`,`location_id`,`id`) ON UPDATE no action ON DELETE no action,
 	CONSTRAINT "requests_instants_check" CHECK((resolved_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', resolved_at, '+0 days') IS resolved_at) AND (created_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', created_at, '+0 days') IS created_at) AND (updated_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', updated_at, '+0 days') IS updated_at)),
 	CONSTRAINT "requests_payload_check" CHECK(json_valid(payload_json) AND json_type(payload_json) = 'object'),
-	CONSTRAINT "requests_guest_payload_check" CHECK(kind = 'work' OR (json_type(payload_json, '$.guest.name') IS 'text' AND json_type(payload_json, '$.guest.email') IS 'text' AND (json_type(payload_json, '$.guest.phone') IS 'text' OR json_type(payload_json, '$.guest.phone') IS 'null'))),
+	CONSTRAINT "requests_guest_payload_check" CHECK((json_type(payload_json, '$.guest.name') IS 'text' AND json_type(payload_json, '$.guest.email') IS 'text' AND (json_type(payload_json, '$.guest.phone') IS 'text' OR json_type(payload_json, '$.guest.phone') IS 'null'))),
 	CONSTRAINT "requests_booking_payload_check" CHECK(kind NOT IN ('reservation', 'experience_booking') OR (json_type(payload_json, '$.party_size_is_minimum') IN ('true', 'false') AND json_type(payload_json, '$.cancellation') IS 'object' AND json_type(payload_json, '$.completion') IS 'object' AND json_type(payload_json, '$.review') IS 'object' AND (kind != 'reservation' OR json_type(payload_json, '$.guest.phone') IS 'text')) IS TRUE),
-	CONSTRAINT "requests_work_payload_check" CHECK(kind != 'work' OR (json_type(payload_json, '$.title') IS 'text' AND (payload_json ->> '$.type') IN ('content_update', 'product_update', 'seo', 'google_places', 'seasonal', 'photo_update', 'social_media', 'technical', 'other') AND (payload_json ->> '$.source') IN ('dashboard', 'whatsapp')) IS TRUE),
 	CONSTRAINT "requests_message_payload_check" CHECK(kind <> 'contact' OR json_type(payload_json, '$.message') IS 'text'),
-	CONSTRAINT "requests_scope_check" CHECK((kind = 'work' AND organization_id IS NOT NULL AND location_id IS NULL AND product_id IS NULL AND customer_id IS NULL) OR (kind IN ('contact', 'reservation', 'experience_booking') AND organization_id IS NOT NULL AND site_id IS NOT NULL)),
+	CONSTRAINT "requests_scope_check" CHECK(kind IN ('contact', 'reservation', 'experience_booking') AND organization_id IS NOT NULL AND site_id IS NOT NULL),
 	CONSTRAINT "requests_booking_check" CHECK((kind IN ('reservation', 'experience_booking') AND location_id IS NOT NULL AND booking_date IS NOT NULL AND date(booking_date, '+0 days') IS booking_date AND time_slot IS NOT NULL AND time_slot GLOB '[0-2][0-9]:[0-5][0-9]' AND time_slot < '24:00' AND party_size IS NOT NULL AND party_size > 0 AND status IS NOT NULL AND status IN ('pending', 'confirmed', 'cancelled', 'completed') AND (kind != 'experience_booking' OR product_id IS NOT NULL) AND (kind != 'reservation' OR product_id IS NULL)) OR (kind NOT IN ('reservation', 'experience_booking') AND booking_date IS NULL AND time_slot IS NULL AND party_size IS NULL)),
-	CONSTRAINT "requests_state_check" CHECK((kind = 'work' AND status IS NOT NULL AND status IN ('pending', 'in_progress', 'done', 'cancelled') AND priority IS NOT NULL AND priority IN ('low', 'normal', 'high', 'urgent') AND conversation_state IS NULL) OR (kind IN ('contact', 'reservation', 'experience_booking') AND conversation_state IS NOT NULL AND conversation_state IN ('needs_attention', 'waiting_on_guest', 'resolved') AND priority IS NULL AND assigned_to IS NULL AND (kind != 'contact' OR status IS NULL)))
+	CONSTRAINT "requests_state_check" CHECK(conversation_state IS NOT NULL AND conversation_state IN ('needs_attention', 'waiting_on_guest', 'resolved') AND (kind != 'contact' OR status IS NULL))
 );
 --> statement-breakpoint
 CREATE UNIQUE INDEX `requests_review_owner_unique` ON `requests` (`organization_id`,`site_id`,`id`,`kind`);--> statement-breakpoint
@@ -879,7 +875,6 @@ CREATE UNIQUE INDEX `requests_scope_id_unique` ON `requests` (`organization_id`,
 CREATE INDEX `requests_site_activity_idx` ON `requests` (`site_id`,`conversation_state`,`updated_at`);--> statement-breakpoint
 CREATE INDEX `requests_booking_slot_idx` ON `requests` (`site_id`,`kind`,`location_id`,`product_id`,`booking_date`,`time_slot`,`status`);--> statement-breakpoint
 CREATE INDEX `requests_customer_idx` ON `requests` (`customer_id`);--> statement-breakpoint
-CREATE INDEX `requests_work_queue_idx` ON `requests` (`kind`,`status`,`priority`,`created_at`);--> statement-breakpoint
 CREATE INDEX `requests_org_created_idx` ON `requests` (`organization_id`,`created_at`);--> statement-breakpoint
 CREATE TABLE `resource_localizations` (
 	`id` text PRIMARY KEY NOT NULL,
@@ -1124,40 +1119,6 @@ CREATE TABLE `site_redirects` (
 CREATE INDEX `site_redirects_organization_id_idx` ON `site_redirects` (`organization_id`);--> statement-breakpoint
 CREATE INDEX `site_redirects_owner_idx` ON `site_redirects` (`owner_type`,`owner_id`);--> statement-breakpoint
 CREATE UNIQUE INDEX `site_redirects_site_locale_from_path_unique` ON `site_redirects` (`site_id`,`locale`,`from_path`);--> statement-breakpoint
-CREATE TABLE `site_transfer_requests` (
-	`id` text PRIMARY KEY NOT NULL,
-	`site_id` text NOT NULL,
-	`from_organization_id` text NOT NULL,
-	`to_email` text NOT NULL,
-	`token` text NOT NULL,
-	`status` text DEFAULT 'pending' NOT NULL,
-	`initiated_by_user_id` text NOT NULL,
-	`accepted_by_user_id` text,
-	`claiming_user_id` text,
-	`claiming_organization_id` text,
-	`message` text,
-	`invited_plan` text,
-	`invited_coupon` text,
-	`invited_domain` text,
-	`requires_payment` integer DEFAULT 0 NOT NULL,
-	`stripe_checkout_session_id` text,
-	`payment_completed_at` text,
-	`created_at` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
-	`completed_at` text,
-	`last_reminder_at` text,
-	`reminder_count` integer DEFAULT 0 NOT NULL,
-	`invited_interval` text DEFAULT 'month' NOT NULL,
-	FOREIGN KEY (`site_id`) REFERENCES `sites`(`id`) ON UPDATE no action ON DELETE cascade,
-	FOREIGN KEY (`initiated_by_user_id`) REFERENCES `user`(`id`) ON UPDATE no action ON DELETE restrict,
-	FOREIGN KEY (`accepted_by_user_id`) REFERENCES `user`(`id`) ON UPDATE no action ON DELETE set null,
-	FOREIGN KEY (`claiming_user_id`) REFERENCES `user`(`id`) ON UPDATE no action ON DELETE set null,
-	CONSTRAINT "site_transfer_requests_instants_check" CHECK((payment_completed_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', payment_completed_at, '+0 days') IS payment_completed_at) AND (created_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', created_at, '+0 days') IS created_at) AND (completed_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', completed_at, '+0 days') IS completed_at) AND (last_reminder_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', last_reminder_at, '+0 days') IS last_reminder_at))
-);
---> statement-breakpoint
-CREATE UNIQUE INDEX `idx_site_transfer_pending` ON `site_transfer_requests` (`site_id`) WHERE status = 'pending';--> statement-breakpoint
-CREATE INDEX `idx_site_transfer_reminders` ON `site_transfer_requests` (`status`,`requires_payment`,`created_at`);--> statement-breakpoint
-CREATE INDEX `idx_site_transfer_site` ON `site_transfer_requests` (`site_id`,`status`);--> statement-breakpoint
-CREATE UNIQUE INDEX `idx_site_transfer_token` ON `site_transfer_requests` (`token`);--> statement-breakpoint
 CREATE TABLE `sites` (
 	`id` text PRIMARY KEY NOT NULL,
 	`settings_json` text DEFAULT '{"config":{"default_timezone":"UTC"}}' NOT NULL,
@@ -1203,7 +1164,6 @@ CREATE TABLE `sites` (
 	CONSTRAINT "sites_config_default_timezone_check" CHECK(json_type(settings_json, '$.config.default_timezone') IS 'text' AND length(json_extract(settings_json, '$.config.default_timezone')) > 0),
 	CONSTRAINT "sites_config_whatsapp_phone_check" CHECK(json_type(settings_json, '$.config.whatsapp_phone') IS NULL OR json_type(settings_json, '$.config.whatsapp_phone') IS 'text'),
 	CONSTRAINT "sites_config_notifications_check" CHECK(json_type(settings_json, '$.config.owner_notification_channels') IS NULL OR json_type(settings_json, '$.config.owner_notification_channels') IS 'array'),
-	CONSTRAINT "sites_config_resource_generation_check" CHECK(json_type(settings_json, '$.config.resource_team_generation') IS NULL OR (json_type(settings_json, '$.config.resource_team_generation') IS 'object' AND json_type(settings_json, '$.config.resource_team_generation.transfer_id') IS 'text' AND json_type(settings_json, '$.config.resource_team_generation.generation') IS 'text')),
 	CONSTRAINT "sites_consultation_metadata_check" CHECK(json_type(settings_json, '$.consultation.metadata_json') IS NULL OR json_type(settings_json, '$.consultation.metadata_json') IN ('null', 'object')),
 	CONSTRAINT "sites_compliance_metadata_check" CHECK(json_type(settings_json, '$.compliance.metadata_json') IS NULL OR json_type(settings_json, '$.compliance.metadata_json') IN ('null', 'object')),
 	CONSTRAINT "sites_theme_saya_check" CHECK(json_type(settings_json, '$.theme_by_template.saya') IS NULL OR (json_type(settings_json, '$.theme_by_template.saya') IS 'object' AND json_type(settings_json, '$.theme_by_template.saya.tokens') IS 'object' AND json_extract(settings_json, '$.theme_by_template.saya.status') IN ('active', 'disabled')) IS TRUE),

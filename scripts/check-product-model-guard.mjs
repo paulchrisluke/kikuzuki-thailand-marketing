@@ -36,7 +36,6 @@ const RETIRED_FILES = [
   'server/utils/auto-topup.ts',
   'shared/creditBundles.ts',
 ]
-const SITE_TRANSFER_POLICY_FILE = 'shared/site-transfer-policy.ts'
 export const FORBIDDEN_ACTIVE_PATTERNS = [
   /\/api\/billing\/credits\/(?:add|charge)/,
   /\/api\/billing\/checkout/,
@@ -100,70 +99,6 @@ function walk(directory) {
   return files
 }
 
-function readScopedSchemaTables(schemaSource) {
-  const tables = new Set()
-  const tablePattern = /export const (\w+)\s*=\s*sqliteTable\("([^"]+)"\s*,\s*\{/g
-  let match
-  while ((match = tablePattern.exec(schemaSource))) {
-    const columnsStart = tablePattern.lastIndex
-    let depth = 1
-    let cursor = columnsStart
-    for (; cursor < schemaSource.length && depth > 0; cursor += 1) {
-      if (schemaSource[cursor] === '{') depth += 1
-      else if (schemaSource[cursor] === '}') depth -= 1
-    }
-    if (depth !== 0) throw new Error(`Unclosed sqliteTable block for ${match[2]}`)
-
-    const block = schemaSource.slice(columnsStart, cursor - 1)
-    const callbackStart = block.search(/\},\s*\(table\)\s*=>\s*\[/)
-    const columns = (callbackStart >= 0 ? block.slice(0, callbackStart) : block)
-      .replace(/\/\*[\s\S]*?\*\//g, '')
-      .replace(/\/\/.*$/gm, '')
-    const properties = new Set()
-    for (const property of columns.matchAll(/^\s*([A-Za-z_]\w*)\s*:/gm)) properties.add(property[1])
-    if (properties.has('organization_id') && properties.has('site_id')) tables.add(match[2])
-  }
-  return tables
-}
-
-function readSiteTransferPolicy(policySource) {
-  const policy = {}
-  const pattern = /export const SITE_TRANSFER_(REPARENT|RETAIN|REVOKE|REBUILD)_TABLES\s*=\s*\[([\s\S]*?)\]\s+as const/g
-  let match
-  while ((match = pattern.exec(policySource))) {
-    const category = match[1].toLowerCase()
-    policy[category] = Array.from(match[2].matchAll(/['"]([^'"]+)['"]/g), item => item[1])
-  }
-  return policy
-}
-
-export function collectSiteTransferPolicyViolations(root = ROOT) {
-  const schemaPath = join(root, 'server', 'db', 'schema.ts')
-  const policyPath = join(root, SITE_TRANSFER_POLICY_FILE)
-  if (!existsSync(schemaPath) && !existsSync(policyPath)) return []
-  if (!existsSync(schemaPath)) return [`${schemaPath}: schema.ts is missing`]
-  if (!existsSync(policyPath)) return [`${policyPath}: site transfer policy is missing`]
-
-  const schemaTables = readScopedSchemaTables(readFileSync(schemaPath, 'utf8'))
-  const policy = readSiteTransferPolicy(readFileSync(policyPath, 'utf8'))
-  const categories = ['reparent', 'retain', 'revoke', 'rebuild']
-  const listed = categories.flatMap(category => policy[category] ?? [])
-  const violations = []
-  const seen = new Set()
-  for (const table of listed) {
-    if (seen.has(table)) violations.push(`site-transfer-policy: duplicate table ${table}`)
-    seen.add(table)
-    if (!schemaTables.has(table)) violations.push(`site-transfer-policy: unknown scoped table ${table}`)
-  }
-  for (const table of schemaTables) {
-    if (!seen.has(table)) violations.push(`site-transfer-policy: missing scoped table ${table}`)
-  }
-  for (const category of categories) {
-    if (!policy[category]) violations.push(`site-transfer-policy: missing category ${category}`)
-  }
-  return violations
-}
-
 export function findProductModelViolations(relativePath, source) {
   if (['scripts/check-product-model-guard.mjs', 'scripts/report-publication-cleanup.mjs'].includes(relativePath.replaceAll('\\', '/'))) return []
   const normalizedPath = relativePath.replaceAll('\\', '/')
@@ -180,7 +115,7 @@ export function findProductModelViolations(relativePath, source) {
 }
 
 export function collectProductModelViolations(root = ROOT) {
-  const violations = [...collectSiteTransferPolicyViolations(root)]
+  const violations = []
   for (const file of RETIRED_FILES) {
     if (existsSync(join(root, file))) violations.push(`${file}: retired file still exists`)
   }

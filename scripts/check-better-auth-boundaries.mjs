@@ -34,17 +34,13 @@ const EXISTING_DEBT_ALLOWLIST = {
   ]),
 }
 
-// These site-creation/transfer/admin billing paths are migrated to
-// the Better Auth Organization/session adapter. Keep their SQL surface limited
+// These site-creation paths are migrated to the Better Auth Organization/session
+// adapter. Keep their SQL surface limited
 // to app-owned tables so a direct Better Auth table mutation cannot quietly
 // return.
 const MIGRATED_ORGANIZATION_ROUTES = [
   'server/utils/site-creation.ts',
   'server/api/sites.post.ts',
-  'server/api/site-transfer/[token]/accept.post.ts',
-  'server/api/admin/clients.get.ts',
-  'server/api/admin/sites/[siteId]/transfer.post.ts',
-  'server/api/admin/sites/[siteId]/transfer.delete.ts',
 ]
 
 // Team rows are Better Auth-owned too. These are the resource-provisioning
@@ -194,25 +190,6 @@ async function checkMcpResourceBoundary() {
   return failures
 }
 
-async function checkMigratedAdminUserSessionRoutes() {
-  const failures = []
-
-  for (const file of [
-    'server/api/admin/analytics.get.ts',
-    'server/api/admin/invite/team.post.ts',
-    'server/api/admin/members.get.ts',
-    'server/api/admin/users.get.ts',
-  ]) {
-    const content = await readFile(file, 'utf8')
-    const forbidden = /\b(?:FROM|JOIN|UPDATE|INSERT\s+INTO|DELETE\s+FROM)\s+(?:user|session)\b/i
-    if (forbidden.test(content)) {
-      failures.push(`${file}: migrated admin user/session route still queries Better Auth user/session tables directly`)
-    }
-  }
-
-  return failures
-}
-
 async function checkMigratedOrganizationRoutes() {
   const failures = []
   const forbidden = /\b(?:FROM|JOIN|UPDATE|INSERT\s+INTO|DELETE\s+FROM)\s+(?:user|organization|member|session)\b/i
@@ -221,9 +198,6 @@ async function checkMigratedOrganizationRoutes() {
     const content = await readFile(file, 'utf8')
     if (forbidden.test(content)) {
       failures.push(`${file}: migrated organization route still queries Better Auth user/organization/member/session tables directly`)
-    }
-    if (file === 'server/api/site-transfer/[token]/accept.post.ts' && /\bhasPlatformEventPermission\b/.test(content)) {
-      failures.push(`${file}: platform control-plane permission must not bypass exact tenant transfer acceptance`)
     }
   }
 
@@ -263,7 +237,6 @@ async function checkMigratedTeamProvisioning() {
 const [forbiddenViolations, mcpBoundaryFailures, migratedAdminFailures, migratedOrganizationFailures, migratedTeamFailures] = await Promise.all([
   checkForbiddenPatterns(),
   checkMcpResourceBoundary(),
-  checkMigratedAdminUserSessionRoutes(),
   checkMigratedOrganizationRoutes(),
   checkMigratedTeamProvisioning(),
 ])

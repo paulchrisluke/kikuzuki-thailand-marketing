@@ -280,23 +280,6 @@ export async function listLocationReviews(
   const { attachReviewMedia } = await import('~/server/utils/site-reviews')
   return await attachReviewMedia(db, siteId, rows)
 }
-
-export async function listWorkRequestsForOrganization(
-  db: D1Database,
-  organizationId: string,
-) {
-  return await queryAll<Record<string, unknown>>(db, `
-    SELECT id, json_extract(payload_json, '$.type') AS type, json_extract(payload_json, '$.title') AS title, json_extract(payload_json, '$.description') AS description, status, priority, json_extract(payload_json, '$.source') AS source, json_extract(payload_json, '$.notes') AS notes, created_at, updated_at, json_extract(payload_json, '$.completed_at') AS completed_at
-    FROM requests
-    WHERE kind = 'work' AND organization_id = ?
-    ORDER BY
-      CASE status WHEN 'pending' THEN 0 WHEN 'in_progress' THEN 1 WHEN 'done' THEN 2 ELSE 3 END,
-      CASE priority WHEN 'urgent' THEN 0 WHEN 'high' THEN 1 WHEN 'normal' THEN 2 ELSE 3 END,
-      created_at DESC
-    LIMIT 100
-  `, [organizationId]);
-}
-
 export function buildTenantPageReplacementConfirmationToken(expectedUpdatedAt: string, removedBlockIds: readonly string[]) {
   return `tenant-page-replacement:${expectedUpdatedAt}:${[...removedBlockIds].sort().join(',')}`
 }
