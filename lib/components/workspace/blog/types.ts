@@ -23,7 +23,8 @@ export interface BlogPost {
   visibility?: 'public' | 'unlisted'
   tags?: string[]
   seo_title?: string | null
-  media?: Array<{ asset_id: string; slot: string; public_url?: string | null; thumbnail_url?: string | null; kind?: string | null; alt_text?: string | null }>
+  /** The leading image block's asset, or null when the article opens with text. */
+  cover?: { asset_id: string; public_url?: string | null; thumbnail_url?: string | null; kind?: string | null; alt_text?: string | null; width?: number | null; height?: number | null } | null
   edit_url?: string | null
   content_document?: {
     document: { id: string; updated_at: string }
@@ -60,7 +61,6 @@ export interface BlogPostCreateInput {
   seo_keywords?: string | null
   canonical_url?: string | null
   robots?: string | null
-  media?: Array<{ asset_id: string; slot: 'featured' }>
   nav_section?: string | null
   nav_title?: string | null
   nav_order?: number | null
@@ -81,7 +81,6 @@ export interface BlogPostUpdateInput {
   seo_keywords?: string | null
   canonical_url?: string | null
   robots?: string | null
-  media?: Array<{ asset_id: string; slot: 'featured' }>
   nav_section?: string | null
   nav_title?: string | null
   nav_order?: number | null

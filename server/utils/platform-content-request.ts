@@ -30,7 +30,6 @@ export function platformBlogCreateInput(body: PlatformBlogPostRequestBody): Plat
     seo_keywords: body.seo_keywords ?? null,
     canonical_url: body.canonical_url ?? null,
     robots: body.robots ?? null,
-    media: body.media,
     visibility: body.visibility ?? 'public',
     scheduled_for: body.scheduled_for ?? null,
   }

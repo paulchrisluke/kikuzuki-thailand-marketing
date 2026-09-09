@@ -52,15 +52,6 @@ const SEO_FIELDS_SCHEMA = {
   seo_keywords: NULLABLE_STRING,
   canonical_url: NULLABLE_STRING,
   robots: { type: ['string', 'null'], enum: [...ROBOTS_ENUM, null] },
-  media: {
-    type: 'array',
-    items: {
-      type: 'object',
-      properties: { asset_id: { type: 'string' }, slot: { type: 'string', const: 'featured' } },
-      required: ['asset_id', 'slot'],
-      additionalProperties: false,
-    },
-  },
 }
 
 const NAV_FIELDS_SCHEMA = {
@@ -77,6 +68,22 @@ const NAV_FIELDS_SCHEMA = {
 const DOC_NAV_GROUP_FIELDS_SCHEMA = {
   nav_group: { type: ['string', 'null'], description: 'Optional collapsible subgroup within nav_section. Omit for a doc that sits directly under its section with no subgroup. Docs support Section → Group → Page.' },
   nav_group_order: { type: ['number', 'null'], description: 'Sort position of this subgroup among other groups in the same nav_section. Only meaningful if nav_group is set.' },
+}
+
+/** The leading image block of an article or doc, or null when it opens with text. */
+const COVER_SCHEMA = {
+  type: ['object', 'null'],
+  properties: {
+    asset_id: { type: 'string' },
+    public_url: NULLABLE_STRING,
+    thumbnail_url: NULLABLE_STRING,
+    kind: NULLABLE_STRING,
+    alt_text: NULLABLE_STRING,
+    width: NULLABLE_NUMBER,
+    height: NULLABLE_NUMBER,
+  },
+  required: ['asset_id', 'public_url', 'thumbnail_url', 'kind', 'alt_text', 'width', 'height'],
+  additionalProperties: false,
 }
 
 const MEDIA_PLACEMENT_SCHEMA = {
@@ -192,8 +199,8 @@ const BLOG_SUMMARY_SCHEMA = {
     updated_at: { type: 'string' },
     seo_title: NULLABLE_STRING,
     ...SEO_FIELDS_SCHEMA,
-    media: { type: 'array', items: MEDIA_PLACEMENT_SCHEMA },
-    admin_edit_url: { type: 'string' },
+    cover: COVER_SCHEMA,
+    admin_edit_url: NULLABLE_STRING,
     public_path: NULLABLE_STRING,
     public_url: NULLABLE_STRING,
     preview_url: NULLABLE_STRING,
@@ -221,7 +228,7 @@ const BLOG_SUMMARY_SCHEMA = {
     'seo_keywords',
     'canonical_url',
     'robots',
-    'media',
+    'cover',
     'admin_edit_url',
     'public_path',
     'public_url',
@@ -253,8 +260,8 @@ const PLATFORM_BLOG_POST_PROJECTION_SCHEMA = {
     updated_at: { type: 'string' },
     seo_title: NULLABLE_STRING,
     ...SEO_FIELDS_SCHEMA,
-    media: { type: 'array', items: MEDIA_PLACEMENT_SCHEMA },
-    admin_edit_url: { type: 'string' },
+    cover: COVER_SCHEMA,
+    admin_edit_url: NULLABLE_STRING,
     public_path: NULLABLE_STRING,
     public_url: NULLABLE_STRING,
     preview_url: NULLABLE_STRING,
@@ -265,7 +272,7 @@ const PLATFORM_BLOG_POST_PROJECTION_SCHEMA = {
     'nav_section', 'nav_title', 'nav_order', 'nav_section_order', 'hide_from_nav', 'featured_order',
     'published_at', 'scheduled_for', 'created_at', 'updated_at',
     'seo_title', 'seo_description', 'seo_keywords', 'canonical_url', 'robots',
-    'media', 'admin_edit_url', 'public_path', 'public_url', 'preview_url',
+    'cover', 'admin_edit_url', 'public_path', 'public_url', 'preview_url',
     'content_blocks',
   ],
   additionalProperties: false,
@@ -295,8 +302,8 @@ const DOC_SUMMARY_SCHEMA = {
     created_at: { type: 'string' },
     updated_at: { type: 'string' },
     ...SEO_FIELDS_SCHEMA,
-    media: { type: 'array', items: MEDIA_PLACEMENT_SCHEMA },
-    admin_edit_url: { type: 'string' },
+    cover: COVER_SCHEMA,
+    admin_edit_url: NULLABLE_STRING,
     public_path: NULLABLE_STRING,
     public_url: NULLABLE_STRING,
   },
@@ -324,7 +331,7 @@ const DOC_SUMMARY_SCHEMA = {
     'seo_keywords',
     'canonical_url',
     'robots',
-    'media',
+    'cover',
     'admin_edit_url',
     'public_path',
     'public_url',
@@ -367,7 +374,7 @@ const DELETE_RESPONSE_SCHEMA = {
 }
 
 const SHARED_TOOL_DESCRIPTION_LINES = [
-  'Set seo_description explicitly for the intended search snippet. Use canonical_url only for deliberate canonical consolidation. Use robots only for non-default index behavior. Set media only when the user has selected or uploaded a real platform media asset; otherwise use an empty array.',
+  'Set seo_description explicitly for the intended search snippet. Use canonical_url only for deliberate canonical consolidation. Use robots only for non-default index behavior. An article\'s cover is its leading image block: put an image block first in content_blocks to give it one.',
   'Compose and review the complete content with the user before writing. Existing published content changes are public immediately.',
   'Once the user has supplied or approved final content and you have computed the SEO fields, call this tool directly with those values.',
 ]
@@ -600,7 +607,7 @@ export const PLATFORM_PUBLIC_MCP_TOOLS: PlatformMcpToolDefinition[] = [
       type: 'object',
       properties: {
         id: { type: 'string', description: 'Optional asset id to fetch a single media item.' },
-        kind: { type: 'string', enum: ['image', 'video', 'file'], description: 'Optional kind filter. Blog/docs featured images should use kind="image".' },
+        kind: { type: 'string', enum: ['image', 'video', 'file'], description: 'Optional kind filter. Cover images should use kind="image".' },
         ...PAGINATION_INPUT_SCHEMA,
       },
       additionalProperties: false,

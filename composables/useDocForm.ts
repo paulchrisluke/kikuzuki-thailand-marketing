@@ -77,7 +77,6 @@ export function useDocForm() {
     markdown_block_id: '',
     faq_block_id: '',
     how_to_block_id: '',
-    media: [] as Array<{ asset_id: string; slot: string }>,
     faq_items: [createEmptyFaqItem()],
     faq_label: '',
     faq_status: 'active' as 'active' | 'inactive',
@@ -92,20 +91,9 @@ export function useDocForm() {
 
   const canSave = computed(() => Boolean(form.title.trim() || form.body.trim()))
   const canPublish = computed(() => Boolean(form.title.trim() && form.body.trim()))
-  const featuredAssetId = computed({
-    get: () => form.media.find(item => item.slot === 'featured')?.asset_id ?? '',
-    set: (assetId: string | null) => {
-      form.media = [
-        ...(assetId ? [{ asset_id: assetId, slot: 'featured' }] : []),
-        ...form.media.filter(item => item.slot !== 'featured'),
-      ]
-    },
-  })
-
   return {
     form,
     canSave,
     canPublish,
-    featuredAssetId,
   }
 }

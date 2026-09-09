@@ -22,7 +22,9 @@ const SOCIAL_CARD_OWNERS = {
   site: { table: 'sites', site: 'o.id', filter: "o.status = 'active'", slots: ['social_share'] },
   business_location: { table: 'business_locations', site: 'o.site_id', filter: "o.status = 'active'", slots: ['hero', 'gallery'] },
   product: { table: 'products', site: 'o.site_id', filter: 'o.is_visible = 1', slots: ['image', 'gallery'] },
-  content_document: { table: 'content_documents', site: 'o.site_id', filter: "o.kind IN ('page','article','platform_doc','social_post') AND EXISTS (SELECT 1 FROM content_documents root WHERE root.id = COALESCE(o.root_id, o.id) AND (root.kind IN ('page','platform_doc') OR root.status = 'published')) AND (o.kind != 'page' OR o.path != '/')", slots: ['cover', 'featured', 'gallery'] },
+  // Articles and docs keep their picture in the leading image block, read
+  // through `loadCoverBlockId`; `cover` is the social post's own slot.
+  content_document: { table: 'content_documents', site: 'o.site_id', filter: "o.kind IN ('page','article','platform_doc','social_post') AND EXISTS (SELECT 1 FROM content_documents root WHERE root.id = COALESCE(o.root_id, o.id) AND (root.kind IN ('page','platform_doc') OR root.status = 'published')) AND (o.kind != 'page' OR o.path != '/')", slots: ['cover', 'gallery'] },
   offering: { table: 'offerings', site: 'o.site_id', filter: '1 = 1', slots: ['hero', 'thumbnail', 'gallery'] },
   review: { table: 'reviews', site: 'o.site_id', filter: "o.status = 'approved' AND o.site_id IS NOT NULL", slots: ['portrait', 'gallery'] },
 } satisfies Record<string, { table: string; site: string; filter: string; slots: string[] }>
@@ -165,13 +167,24 @@ async function loadSite(db: DbClient, siteId: string): Promise<SiteRecord | null
     FROM sites s WHERE s.id = ? LIMIT 1`, [siteId]) ?? null
 }
 
-async function loadPlacedAssets(db: DbClient, siteId: string, owner: SocialCardOwner): Promise<SocialCardPlacedAsset[]> {
+/** The document's leading image block, whose `media` placement is the article's cover. */
+async function loadCoverBlockId(db: DbClient, owner: SocialCardOwner): Promise<string | null> {
+  if (owner.owner_type !== 'content_document') return null
+  const block = await queryFirst<{ id: string }>(db, `SELECT id FROM content_blocks
+    WHERE document_id = ? AND parent_block_id IS NULL AND position = 0 AND type = 'image' LIMIT 1`, [owner.owner_id])
+  return block?.id ?? null
+}
+
+async function loadPlacedAssets(db: DbClient, siteId: string, owner: SocialCardOwner, coverBlockId: string | null): Promise<SocialCardPlacedAsset[]> {
   const ownerAssets = (await readMediaPlacements(db, {
     siteId,
     ownerType: owner.owner_type,
     ownerIds: [owner.owner_id],
     includePendingSocialCard: true,
   })).get(owner.owner_id) ?? []
+  if (coverBlockId) {
+    ownerAssets.push(...(await readMediaPlacements(db, { siteId, ownerType: 'content_block', ownerIds: [coverBlockId] })).get(coverBlockId) ?? [])
+  }
   if (owner.owner_type === 'site') return ownerAssets
   const siteAssets = (await readMediaPlacements(db, {
     siteId,
@@ -199,8 +212,12 @@ export function selectSocialCardPlacements(
   assets: SocialCardPlacedAsset[],
   owner: SocialCardOwner,
   siteId: string,
+  coverBlockId: string | null = null,
 ) {
-  const source = firstAsset(assets, owner, SOCIAL_CARD_OWNERS[owner.owner_type].slots)
+  const cover = coverBlockId
+    ? assets.find(item => item.owner_type === 'content_block' && item.owner_id === coverBlockId && item.slot === 'media' && mediaUrl(item)) ?? null
+    : null
+  const source = cover ?? firstAsset(assets, owner, SOCIAL_CARD_OWNERS[owner.owner_type].slots)
   const logo = siteAsset(assets, siteId, 'logo')
   const current = assets.find(item => item.owner_type === owner.owner_type
     && item.owner_id === owner.owner_id && item.slot === 'social_card') ?? null
@@ -248,8 +265,9 @@ export async function refreshSocialCard(input: {
     const siteName = site.brand_name?.trim() || (site.id === PLATFORM_SITE_ID ? 'KrabiClaw' : null)
     if (!title || !siteName) return await clearSocialCard(input, 'missing_content')
 
-    const assets = await loadPlacedAssets(db, site.id, owner)
-    const { logo, current, source } = selectSocialCardPlacements(assets, owner, site.id)
+    const coverBlockId = await loadCoverBlockId(db, owner)
+    const assets = await loadPlacedAssets(db, site.id, owner, coverBlockId)
+    const { logo, current, source } = selectSocialCardPlacements(assets, owner, site.id, coverBlockId)
     const backgroundImageUrl = mediaUrl(source)
     if (!source || !backgroundImageUrl) return await clearSocialCard(input, 'no_source')
 

@@ -73,9 +73,11 @@
         <component :is="`h${Math.max(2, Math.min(6, block.level || 2))}`" v-else-if="block.type === 'heading'" class="text-2xl font-semibold">
           {{ block.data.text }}
         </component>
-        <figure v-else-if="block.type === 'image'" class="space-y-3">
-          <img v-if="blockMedia(block)[0]?.public_url" :src="String(blockMedia(block)[0]?.public_url)" :alt="String(blockMedia(block)[0]?.alt_text ?? '')" class="max-h-[70vh] w-full object-cover">
-          <div v-else class="flex min-h-48 items-center justify-center bg-black/5 text-sm opacity-70">Choose an image</div>
+        <!-- The leading image block is the article's cover: same footprint as the old hero, and the share card derives from it. -->
+        <figure v-else-if="block.type === 'image'" class="space-y-3" :data-cover="index === 0 ? '' : undefined">
+          <video v-if="blockMedia(block)[0]?.kind === 'video' && blockMedia(block)[0]?.public_url" :src="String(blockMedia(block)[0]?.public_url)" :poster="blockMedia(block)[0]?.thumbnail_url || undefined" autoplay muted loop playsinline :class="index === 0 ? 'aspect-video w-full rounded-2xl object-cover' : 'max-h-[70vh] w-full object-cover'" />
+          <img v-else-if="blockMedia(block)[0]?.public_url" :src="String(blockMedia(block)[0]?.public_url)" :alt="String(blockMedia(block)[0]?.alt_text ?? '')" :class="index === 0 ? 'aspect-video w-full rounded-2xl object-cover' : 'max-h-[70vh] w-full object-cover'">
+          <div v-else class="flex min-h-48 items-center justify-center bg-black/5 text-sm opacity-70">{{ index === 0 ? 'Choose a cover photo' : 'Choose an image' }}</div>
           <figcaption v-if="block.data.caption" class="text-center text-sm opacity-70">{{ block.data.caption }}</figcaption>
           <slot v-if="editable" name="image-editor" :block="block" :index="index" />
         </figure>

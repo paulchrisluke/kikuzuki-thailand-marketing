@@ -16,14 +16,15 @@ interface PublicBlogPost {
   featured_order?: number | null
   excerpt?: string | null
   published_at?: string | null
-  media?: Array<{
+  cover?: {
     asset_id: string
-    slot: string
     public_url: string | null
+    thumbnail_url: string | null
     kind: string | null
+    alt_text: string | null
     width: number | null
     height: number | null
-  }>
+  } | null
 }
 
 interface BlogNavCategory {

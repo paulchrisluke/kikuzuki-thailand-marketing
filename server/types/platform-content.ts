@@ -24,7 +24,6 @@ export interface PlatformBlogPostRequestBody extends PlatformContentNavRequestBo
   seo_keywords?: string
   canonical_url?: string
   robots?: string
-  media?: Array<{ asset_id: string; slot: 'featured' }>
   visibility?: 'public' | 'unlisted'
   scheduled_for?: string | null
 }
@@ -41,5 +40,4 @@ export interface PlatformDocRequestBody extends PlatformContentNavRequestBody {
   robots?: string
   difficulty_level?: string
   sort_order?: number
-  media?: Array<{ asset_id: string; slot: 'featured' }>
 }

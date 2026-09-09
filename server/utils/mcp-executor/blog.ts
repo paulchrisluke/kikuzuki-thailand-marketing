@@ -123,6 +123,20 @@ function toMedia(value: unknown) {
   })
 }
 
+function toCover(value: unknown) {
+  if (value === null || value === undefined) return null
+  const cover = responseRecord(value, 'post.cover')
+  return {
+    asset_id: responseString(cover.asset_id, 'post.cover.asset_id'),
+    public_url: responseNullableString(cover.public_url, 'post.cover.public_url'),
+    thumbnail_url: responseNullableString(cover.thumbnail_url, 'post.cover.thumbnail_url'),
+    kind: responseNullableString(cover.kind, 'post.cover.kind'),
+    alt_text: responseNullableString(cover.alt_text, 'post.cover.alt_text'),
+    width: responseNullableNumber(cover.width, 'post.cover.width'),
+    height: responseNullableNumber(cover.height, 'post.cover.height'),
+  }
+}
+
 function toContentBlockProjection(value: unknown, index: number) {
   const path = `post.content_document.blocks[${index}]`
   const block = responseRecord(value, path)
@@ -165,7 +179,7 @@ function toBlogPostSummary(post: Record<string, unknown>, site: McpExecutorConte
     scheduled_for: responseNullableString(post.scheduled_for, 'post.scheduled_for'),
     created_at: responseString(post.created_at, 'post.created_at'),
     updated_at: responseString(post.updated_at, 'post.updated_at'),
-    media: toMedia(post.media),
+    cover: toCover(post.cover),
     admin_edit_url: responseNullableString(post.admin_edit_url, 'post.admin_edit_url'),
     edit_url: responseNullableString(post.edit_url, 'post.edit_url'),
     public_path: responseNullableString(post.public_path, 'post.public_path'),

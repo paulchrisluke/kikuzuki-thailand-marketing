@@ -16,24 +16,6 @@
       <article>
         <h1 class="mb-6 text-4xl font-bold text-default">{{ doc.title }}</h1>
 
-        <div v-if="docMedia.url" class="mb-10 overflow-hidden rounded-2xl">
-          <video
-            v-if="docMedia.isVideo"
-            :src="docMedia.url"
-            autoplay
-            muted
-            loop
-            playsinline
-            class="max-h-96 w-full object-cover"
-          />
-          <img
-            v-else
-            :src="docMedia.url"
-            :alt="doc.title"
-            class="max-h-96 w-full object-cover"
-          />
-        </div>
-
         <div ref="articleBodyRef">
           <BlogArticleRenderer
             :title="doc.title"
@@ -91,6 +73,7 @@
 </template>
 
 <script setup lang="ts">
+import { resolveSocialImageUrl } from '~/utils/social-metadata'
 import { shallowRef } from 'vue'
 import { renderMarkdownToHtml, sanitizeHtmlForSsr } from '~/utils/markdown'
 import type { BlogEditorBlock } from '~/lib/components/workspace/blog/types'
@@ -103,7 +86,6 @@ import { loadDomPurify } from '~/utils/dom-purify-loader'
 definePageMeta({ layout: 'docs' })
 
 const DOMPurify = import.meta.client ? await loadDomPurify() : { sanitize: sanitizeHtmlForSsr }
-const { resolveMedia } = useMedia()
 
 interface Doc {
   id: string
@@ -119,14 +101,7 @@ interface Doc {
   published_at?: string | null
   updated_at?: string | null
   author?: { id: string; name: string | null; image: string | null } | null
-  media?: Array<{
-    asset_id: string
-    slot: string
-    public_url: string | null
-    kind: string | null
-    width: number | null
-    height: number | null
-  }>
+  cover?: { asset_id: string; public_url: string | null; thumbnail_url: string | null; kind: string | null; alt_text: string | null; width: number | null; height: number | null } | null
   social_image?: import('~/utils/social-metadata').SocialImageSource | null
   content_blocks: BlogEditorBlock[]
 }
@@ -309,8 +284,7 @@ const nextDoc = computed(() =>
     : null,
 )
 
-const featuredMedia = computed(() => doc.value?.media?.find(item => item.slot === 'featured') ?? null)
-const docMedia = computed(() => resolveMedia(featuredMedia.value))
+const coverMedia = computed(() => doc.value?.cover ?? null)
 
 const categorySlug = computed(() => categoryToSlug(doc.value?.category) || categoryParam.value)
 const docPath = computed(() => {
@@ -357,9 +331,9 @@ useContentPageSchema(computed(() => {
     url: canonicalUrl.value,
     title: doc.value.title,
     description: seoDescription.value,
-    imageUrl: docMedia.value.url || undefined,
-    imageWidth: featuredMedia.value?.width ?? undefined,
-    imageHeight: featuredMedia.value?.height ?? undefined,
+    imageUrl: resolveSocialImageUrl(coverMedia.value) || undefined,
+    imageWidth: coverMedia.value?.width ?? undefined,
+    imageHeight: coverMedia.value?.height ?? undefined,
     datePublished: doc.value.published_at,
     dateModified: doc.value.updated_at,
     authorName: doc.value.author?.name || undefined,

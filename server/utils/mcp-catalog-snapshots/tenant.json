@@ -1,6 +1,6 @@
 {
   "surface": "tenant",
-  "fingerprint": "sha256:f5dc1a818617dd008a9c8383e08417f4d57adec56bb97e73023c2062986c6831",
+  "fingerprint": "sha256:fca8d3a460a166edd6db9fd8a0307d4fb614537a3da7d07ba2e932ed506f1c58",
   "tools": [
     {
       "name": "attach_media",
@@ -1110,6 +1110,63 @@
                 },
                 "type": "array"
               },
+              "cover": {
+                "additionalProperties": false,
+                "properties": {
+                  "alt_text": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "asset_id": {
+                    "type": "string"
+                  },
+                  "height": {
+                    "type": [
+                      "number",
+                      "null"
+                    ]
+                  },
+                  "kind": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "public_url": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "thumbnail_url": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "width": {
+                    "type": [
+                      "number",
+                      "null"
+                    ]
+                  }
+                },
+                "required": [
+                  "asset_id",
+                  "public_url",
+                  "thumbnail_url",
+                  "kind",
+                  "alt_text",
+                  "width",
+                  "height"
+                ],
+                "type": [
+                  "object",
+                  "null"
+                ]
+              },
               "created_at": {
                 "type": "string"
               },
@@ -1141,45 +1198,6 @@
               },
               "id": {
                 "type": "string"
-              },
-              "media": {
-                "items": {
-                  "additionalProperties": false,
-                  "properties": {
-                    "asset_id": {
-                      "type": "string"
-                    },
-                    "height": {
-                      "type": [
-                        "number",
-                        "null"
-                      ]
-                    },
-                    "kind": {
-                      "type": [
-                        "string",
-                        "null"
-                      ]
-                    },
-                    "public_url": {
-                      "type": [
-                        "string",
-                        "null"
-                      ]
-                    },
-                    "slot": {
-                      "type": "string"
-                    },
-                    "width": {
-                      "type": [
-                        "number",
-                        "null"
-                      ]
-                    }
-                  },
-                  "type": "object"
-                },
-                "type": "array"
               },
               "nav_order": {
                 "description": "Sort position within its section. Lower sorts first.",
@@ -1331,7 +1349,7 @@
               "scheduled_for",
               "created_at",
               "updated_at",
-              "media",
+              "cover",
               "admin_edit_url",
               "edit_url",
               "public_path",
@@ -3696,6 +3714,63 @@
                 },
                 "type": "array"
               },
+              "cover": {
+                "additionalProperties": false,
+                "properties": {
+                  "alt_text": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "asset_id": {
+                    "type": "string"
+                  },
+                  "height": {
+                    "type": [
+                      "number",
+                      "null"
+                    ]
+                  },
+                  "kind": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "public_url": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "thumbnail_url": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "width": {
+                    "type": [
+                      "number",
+                      "null"
+                    ]
+                  }
+                },
+                "required": [
+                  "asset_id",
+                  "public_url",
+                  "thumbnail_url",
+                  "kind",
+                  "alt_text",
+                  "width",
+                  "height"
+                ],
+                "type": [
+                  "object",
+                  "null"
+                ]
+              },
               "created_at": {
                 "type": "string"
               },
@@ -3727,45 +3802,6 @@
               },
               "id": {
                 "type": "string"
-              },
-              "media": {
-                "items": {
-                  "additionalProperties": false,
-                  "properties": {
-                    "asset_id": {
-                      "type": "string"
-                    },
-                    "height": {
-                      "type": [
-                        "number",
-                        "null"
-                      ]
-                    },
-                    "kind": {
-                      "type": [
-                        "string",
-                        "null"
-                      ]
-                    },
-                    "public_url": {
-                      "type": [
-                        "string",
-                        "null"
-                      ]
-                    },
-                    "slot": {
-                      "type": "string"
-                    },
-                    "width": {
-                      "type": [
-                        "number",
-                        "null"
-                      ]
-                    }
-                  },
-                  "type": "object"
-                },
-                "type": "array"
               },
               "nav_order": {
                 "description": "Sort position within its section. Lower sorts first.",
@@ -3917,7 +3953,7 @@
               "scheduled_for",
               "created_at",
               "updated_at",
-              "media",
+              "cover",
               "admin_edit_url",
               "edit_url",
               "public_path",
@@ -7581,6 +7617,63 @@
                     "null"
                   ]
                 },
+                "cover": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "alt_text": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "asset_id": {
+                      "type": "string"
+                    },
+                    "height": {
+                      "type": [
+                        "number",
+                        "null"
+                      ]
+                    },
+                    "kind": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "public_url": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "thumbnail_url": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "width": {
+                      "type": [
+                        "number",
+                        "null"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "asset_id",
+                    "public_url",
+                    "thumbnail_url",
+                    "kind",
+                    "alt_text",
+                    "width",
+                    "height"
+                  ],
+                  "type": [
+                    "object",
+                    "null"
+                  ]
+                },
                 "created_at": {
                   "type": "string"
                 },
@@ -7612,45 +7705,6 @@
                 },
                 "id": {
                   "type": "string"
-                },
-                "media": {
-                  "items": {
-                    "additionalProperties": false,
-                    "properties": {
-                      "asset_id": {
-                        "type": "string"
-                      },
-                      "height": {
-                        "type": [
-                          "number",
-                          "null"
-                        ]
-                      },
-                      "kind": {
-                        "type": [
-                          "string",
-                          "null"
-                        ]
-                      },
-                      "public_url": {
-                        "type": [
-                          "string",
-                          "null"
-                        ]
-                      },
-                      "slot": {
-                        "type": "string"
-                      },
-                      "width": {
-                        "type": [
-                          "number",
-                          "null"
-                        ]
-                      }
-                    },
-                    "type": "object"
-                  },
-                  "type": "array"
                 },
                 "nav_order": {
                   "description": "Sort position within its section. Lower sorts first.",
@@ -7802,7 +7856,7 @@
                 "scheduled_for",
                 "created_at",
                 "updated_at",
-                "media",
+                "cover",
                 "admin_edit_url",
                 "edit_url",
                 "public_path",
@@ -10443,6 +10497,63 @@
                 },
                 "type": "array"
               },
+              "cover": {
+                "additionalProperties": false,
+                "properties": {
+                  "alt_text": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "asset_id": {
+                    "type": "string"
+                  },
+                  "height": {
+                    "type": [
+                      "number",
+                      "null"
+                    ]
+                  },
+                  "kind": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "public_url": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "thumbnail_url": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "width": {
+                    "type": [
+                      "number",
+                      "null"
+                    ]
+                  }
+                },
+                "required": [
+                  "asset_id",
+                  "public_url",
+                  "thumbnail_url",
+                  "kind",
+                  "alt_text",
+                  "width",
+                  "height"
+                ],
+                "type": [
+                  "object",
+                  "null"
+                ]
+              },
               "created_at": {
                 "type": "string"
               },
@@ -10474,45 +10585,6 @@
               },
               "id": {
                 "type": "string"
-              },
-              "media": {
-                "items": {
-                  "additionalProperties": false,
-                  "properties": {
-                    "asset_id": {
-                      "type": "string"
-                    },
-                    "height": {
-                      "type": [
-                        "number",
-                        "null"
-                      ]
-                    },
-                    "kind": {
-                      "type": [
-                        "string",
-                        "null"
-                      ]
-                    },
-                    "public_url": {
-                      "type": [
-                        "string",
-                        "null"
-                      ]
-                    },
-                    "slot": {
-                      "type": "string"
-                    },
-                    "width": {
-                      "type": [
-                        "number",
-                        "null"
-                      ]
-                    }
-                  },
-                  "type": "object"
-                },
-                "type": "array"
               },
               "nav_order": {
                 "description": "Sort position within its section. Lower sorts first.",
@@ -10664,7 +10736,7 @@
               "scheduled_for",
               "created_at",
               "updated_at",
-              "media",
+              "cover",
               "admin_edit_url",
               "edit_url",
               "public_path",
@@ -11395,6 +11467,63 @@
                     "null"
                   ]
                 },
+                "cover": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "alt_text": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "asset_id": {
+                      "type": "string"
+                    },
+                    "height": {
+                      "type": [
+                        "number",
+                        "null"
+                      ]
+                    },
+                    "kind": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "public_url": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "thumbnail_url": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "width": {
+                      "type": [
+                        "number",
+                        "null"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "asset_id",
+                    "public_url",
+                    "thumbnail_url",
+                    "kind",
+                    "alt_text",
+                    "width",
+                    "height"
+                  ],
+                  "type": [
+                    "object",
+                    "null"
+                  ]
+                },
                 "created_at": {
                   "type": "string"
                 },
@@ -11426,45 +11555,6 @@
                 },
                 "id": {
                   "type": "string"
-                },
-                "media": {
-                  "items": {
-                    "additionalProperties": false,
-                    "properties": {
-                      "asset_id": {
-                        "type": "string"
-                      },
-                      "height": {
-                        "type": [
-                          "number",
-                          "null"
-                        ]
-                      },
-                      "kind": {
-                        "type": [
-                          "string",
-                          "null"
-                        ]
-                      },
-                      "public_url": {
-                        "type": [
-                          "string",
-                          "null"
-                        ]
-                      },
-                      "slot": {
-                        "type": "string"
-                      },
-                      "width": {
-                        "type": [
-                          "number",
-                          "null"
-                        ]
-                      }
-                    },
-                    "type": "object"
-                  },
-                  "type": "array"
                 },
                 "nav_order": {
                   "description": "Sort position within its section. Lower sorts first.",
@@ -11616,7 +11706,7 @@
                 "scheduled_for",
                 "created_at",
                 "updated_at",
-                "media",
+                "cover",
                 "admin_edit_url",
                 "edit_url",
                 "public_path",
@@ -12254,6 +12344,63 @@
                 },
                 "type": "array"
               },
+              "cover": {
+                "additionalProperties": false,
+                "properties": {
+                  "alt_text": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "asset_id": {
+                    "type": "string"
+                  },
+                  "height": {
+                    "type": [
+                      "number",
+                      "null"
+                    ]
+                  },
+                  "kind": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "public_url": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "thumbnail_url": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "width": {
+                    "type": [
+                      "number",
+                      "null"
+                    ]
+                  }
+                },
+                "required": [
+                  "asset_id",
+                  "public_url",
+                  "thumbnail_url",
+                  "kind",
+                  "alt_text",
+                  "width",
+                  "height"
+                ],
+                "type": [
+                  "object",
+                  "null"
+                ]
+              },
               "created_at": {
                 "type": "string"
               },
@@ -12285,45 +12432,6 @@
               },
               "id": {
                 "type": "string"
-              },
-              "media": {
-                "items": {
-                  "additionalProperties": false,
-                  "properties": {
-                    "asset_id": {
-                      "type": "string"
-                    },
-                    "height": {
-                      "type": [
-                        "number",
-                        "null"
-                      ]
-                    },
-                    "kind": {
-                      "type": [
-                        "string",
-                        "null"
-                      ]
-                    },
-                    "public_url": {
-                      "type": [
-                        "string",
-                        "null"
-                      ]
-                    },
-                    "slot": {
-                      "type": "string"
-                    },
-                    "width": {
-                      "type": [
-                        "number",
-                        "null"
-                      ]
-                    }
-                  },
-                  "type": "object"
-                },
-                "type": "array"
               },
               "nav_order": {
                 "description": "Sort position within its section. Lower sorts first.",
@@ -12475,7 +12583,7 @@
               "scheduled_for",
               "created_at",
               "updated_at",
-              "media",
+              "cover",
               "admin_edit_url",
               "edit_url",
               "public_path",
@@ -14262,6 +14370,63 @@
                 },
                 "type": "array"
               },
+              "cover": {
+                "additionalProperties": false,
+                "properties": {
+                  "alt_text": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "asset_id": {
+                    "type": "string"
+                  },
+                  "height": {
+                    "type": [
+                      "number",
+                      "null"
+                    ]
+                  },
+                  "kind": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "public_url": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "thumbnail_url": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "width": {
+                    "type": [
+                      "number",
+                      "null"
+                    ]
+                  }
+                },
+                "required": [
+                  "asset_id",
+                  "public_url",
+                  "thumbnail_url",
+                  "kind",
+                  "alt_text",
+                  "width",
+                  "height"
+                ],
+                "type": [
+                  "object",
+                  "null"
+                ]
+              },
               "created_at": {
                 "type": "string"
               },
@@ -14293,45 +14458,6 @@
               },
               "id": {
                 "type": "string"
-              },
-              "media": {
-                "items": {
-                  "additionalProperties": false,
-                  "properties": {
-                    "asset_id": {
-                      "type": "string"
-                    },
-                    "height": {
-                      "type": [
-                        "number",
-                        "null"
-                      ]
-                    },
-                    "kind": {
-                      "type": [
-                        "string",
-                        "null"
-                      ]
-                    },
-                    "public_url": {
-                      "type": [
-                        "string",
-                        "null"
-                      ]
-                    },
-                    "slot": {
-                      "type": "string"
-                    },
-                    "width": {
-                      "type": [
-                        "number",
-                        "null"
-                      ]
-                    }
-                  },
-                  "type": "object"
-                },
-                "type": "array"
               },
               "nav_order": {
                 "description": "Sort position within its section. Lower sorts first.",
@@ -14483,7 +14609,7 @@
               "scheduled_for",
               "created_at",
               "updated_at",
-              "media",
+              "cover",
               "admin_edit_url",
               "edit_url",
               "public_path",
@@ -14784,6 +14910,63 @@
                 },
                 "type": "array"
               },
+              "cover": {
+                "additionalProperties": false,
+                "properties": {
+                  "alt_text": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "asset_id": {
+                    "type": "string"
+                  },
+                  "height": {
+                    "type": [
+                      "number",
+                      "null"
+                    ]
+                  },
+                  "kind": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "public_url": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "thumbnail_url": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "width": {
+                    "type": [
+                      "number",
+                      "null"
+                    ]
+                  }
+                },
+                "required": [
+                  "asset_id",
+                  "public_url",
+                  "thumbnail_url",
+                  "kind",
+                  "alt_text",
+                  "width",
+                  "height"
+                ],
+                "type": [
+                  "object",
+                  "null"
+                ]
+              },
               "created_at": {
                 "type": "string"
               },
@@ -14815,45 +14998,6 @@
               },
               "id": {
                 "type": "string"
-              },
-              "media": {
-                "items": {
-                  "additionalProperties": false,
-                  "properties": {
-                    "asset_id": {
-                      "type": "string"
-                    },
-                    "height": {
-                      "type": [
-                        "number",
-                        "null"
-                      ]
-                    },
-                    "kind": {
-                      "type": [
-                        "string",
-                        "null"
-                      ]
-                    },
-                    "public_url": {
-                      "type": [
-                        "string",
-                        "null"
-                      ]
-                    },
-                    "slot": {
-                      "type": "string"
-                    },
-                    "width": {
-                      "type": [
-                        "number",
-                        "null"
-                      ]
-                    }
-                  },
-                  "type": "object"
-                },
-                "type": "array"
               },
               "nav_order": {
                 "description": "Sort position within its section. Lower sorts first.",
@@ -15005,7 +15149,7 @@
               "scheduled_for",
               "created_at",
               "updated_at",
-              "media",
+              "cover",
               "admin_edit_url",
               "edit_url",
               "public_path",

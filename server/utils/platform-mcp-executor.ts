@@ -102,18 +102,6 @@ function optionalArray(args: Record<string, unknown>, key: string) {
   return Array.isArray(value) ? value : undefined
 }
 
-function platformMediaInput(args: Record<string, unknown>) {
-  if (args.media === undefined) return undefined
-  const media = optionalArray(args, 'media')
-  if (!media) throw mcpProtocolError(MCP_ERROR.invalidParams, 'media must be an array.')
-  return media.map((value, index) => {
-    if (!value || typeof value !== 'object' || Array.isArray(value)) throw mcpProtocolError(MCP_ERROR.invalidParams, `media[${index}] must be an object.`)
-    const item = value as Record<string, unknown>
-    if (typeof item.asset_id !== 'string' || item.slot !== 'featured') throw mcpProtocolError(MCP_ERROR.invalidParams, `media[${index}] requires asset_id and slot featured.`)
-    return { asset_id: item.asset_id, slot: 'featured' as const }
-  })
-}
-
 const PLATFORM_BLOG_POST_STATUSES = new Set(['draft', 'published', 'scheduled'])
 const PLATFORM_BLOG_VISIBILITIES = new Set(['public', 'unlisted'])
 const PLATFORM_BLOG_ROBOTS = new Set(['index,follow', 'noindex,follow', 'index,nofollow', 'noindex,nofollow'])
@@ -205,20 +193,18 @@ function platformBlogResponseNullableBoolean(value: unknown, path: string) {
   return value
 }
 
-function projectPlatformMedia(value: unknown) {
-  if (!Array.isArray(value)) invalidPlatformBlogResponse('post.media', 'an array')
-  return value.map((item, index) => {
-    const path = `post.media[${index}]`
-    const media = platformBlogResponseRecord(item, path)
-    return {
-      asset_id: platformBlogResponseString(media.asset_id, `${path}.asset_id`),
-      slot: platformBlogResponseString(media.slot, `${path}.slot`),
-      public_url: platformBlogResponseNullableString(media.public_url, `${path}.public_url`),
-      kind: platformBlogResponseNullableString(media.kind, `${path}.kind`),
-      width: platformBlogResponseNullableNumber(media.width, `${path}.width`),
-      height: platformBlogResponseNullableNumber(media.height, `${path}.height`),
-    }
-  })
+function projectPlatformCover(value: unknown) {
+  if (value === null || value === undefined) return null
+  const cover = platformBlogResponseRecord(value, 'post.cover')
+  return {
+    asset_id: platformBlogResponseString(cover.asset_id, 'post.cover.asset_id'),
+    public_url: platformBlogResponseNullableString(cover.public_url, 'post.cover.public_url'),
+    thumbnail_url: platformBlogResponseNullableString(cover.thumbnail_url, 'post.cover.thumbnail_url'),
+    kind: platformBlogResponseNullableString(cover.kind, 'post.cover.kind'),
+    alt_text: platformBlogResponseNullableString(cover.alt_text, 'post.cover.alt_text'),
+    width: platformBlogResponseNullableNumber(cover.width, 'post.cover.width'),
+    height: platformBlogResponseNullableNumber(cover.height, 'post.cover.height'),
+  }
 }
 
 function projectPlatformContentBlock(value: unknown, index: number) {
@@ -265,7 +251,7 @@ export function projectPlatformBlogPostForMcp(post: Record<string, unknown>) {
     seo_keywords: platformBlogResponseNullableString(post.seo_keywords, 'post.seo_keywords'),
     canonical_url: platformBlogResponseNullableString(post.canonical_url, 'post.canonical_url'),
     robots: platformBlogResponseNullableEnum(post.robots, 'post.robots', PLATFORM_BLOG_ROBOTS),
-    media: projectPlatformMedia(post.media),
+    cover: projectPlatformCover(post.cover),
     admin_edit_url: platformBlogResponseString(post.admin_edit_url, 'post.admin_edit_url'),
     public_path: platformBlogResponseNullableString(post.public_path, 'post.public_path'),
     public_url: platformBlogResponseNullableString(post.public_url, 'post.public_url'),
@@ -850,7 +836,6 @@ export async function executePlatformMcpToolCall(
         seo_keywords: optionalString(rawArguments, 'seo_keywords') ?? null,
         canonical_url: optionalString(rawArguments, 'canonical_url') ?? null,
         robots: optionalString(rawArguments, 'robots') ?? null,
-        media: platformMediaInput(rawArguments) ?? [],
         scheduled_for: optionalNullableString(rawArguments, 'scheduled_for') ?? null,
       }, blogScope, user.env)
       return { post: projectPlatformBlogPostForMcp(result.post) }
@@ -872,7 +857,6 @@ export async function executePlatformMcpToolCall(
         seo_keywords: optionalNullableString(rawArguments, 'seo_keywords'),
         canonical_url: optionalNullableString(rawArguments, 'canonical_url'),
         robots: optionalNullableString(rawArguments, 'robots'),
-        media: platformMediaInput(rawArguments),
         visibility: optionalString(rawArguments, 'visibility') as 'public' | 'unlisted' | undefined,
         slug: optionalNullableString(rawArguments, 'slug'),
         redirect_old_slug: optionalBoolean(rawArguments, 'redirect_old_slug'),
@@ -919,7 +903,6 @@ export async function executePlatformMcpToolCall(
         robots: optionalString(rawArguments, 'robots') ?? null,
         difficulty_level: optionalString(rawArguments, 'difficulty_level') ?? null,
         sort_order: optionalNumber(rawArguments, 'sort_order') ?? 0,
-        media: platformMediaInput(rawArguments) ?? [],
       }, user.env)
     case 'update_platform_doc':
       return await updatePlatformDoc(user.db, requiredString(rawArguments, 'doc_id'), {
@@ -937,7 +920,6 @@ export async function executePlatformMcpToolCall(
         robots: optionalString(rawArguments, 'robots'),
         difficulty_level: optionalString(rawArguments, 'difficulty_level'),
         sort_order: optionalNumber(rawArguments, 'sort_order'),
-        media: platformMediaInput(rawArguments),
       }, user.env)
     case 'reorder_platform_docs':
       return await reorderPlatformDocs(user.db, reorderItems(rawArguments, 'doc_id', { navGroup: true }) as Array<{ doc_id: string; nav_section?: string | null; nav_title?: string | null; nav_order: number; nav_section_order?: number | null; nav_group?: string | null; nav_group_order?: number | null; hide_from_nav?: boolean | null }>)

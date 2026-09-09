@@ -8,7 +8,7 @@
       :key="post.id"
       class="relative isolate flex flex-col justify-end overflow-hidden rounded-2xl bg-gray-900 px-8 pb-8 pt-80 sm:pt-48 lg:pt-80"
     >
-      <img v-if="post.media[0]" :src="post.media[0].public_url" :alt="post.title" loading="lazy" class="absolute inset-0 -z-20 size-full object-cover">
+      <img v-if="post.cover?.public_url" :src="post.cover.public_url" :alt="post.cover.alt_text ?? post.title" loading="lazy" class="absolute inset-0 -z-20 size-full object-cover">
       <div class="absolute inset-0 -z-10 bg-gradient-to-t from-gray-900 via-gray-900/40" />
       <div class="absolute inset-0 -z-10 rounded-2xl ring-1 ring-inset ring-gray-900/10" />
       <div class="flex flex-wrap items-center gap-y-1 overflow-hidden text-sm leading-6 text-gray-300">

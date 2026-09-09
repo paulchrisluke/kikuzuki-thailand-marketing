@@ -169,16 +169,15 @@ function postWhen(post: BlogPost): string {
 }
 
 function coverUrl(post: BlogPost): string | null {
-  const featured = post.media?.find(entry => entry.slot === 'featured')
-  if (!featured) return null
+  if (!post.cover) return null
   // The thumbnail is a scaled-down duplicate of the same asset, so it is the
   // right source for a row; the full image is only fetched where it shows big.
-  return featured.thumbnail_url ?? featured.public_url ?? null
+  return post.cover.thumbnail_url ?? post.cover.public_url ?? null
 }
 
 /** The cover's description belongs to the asset; the headline is already beside it. */
 function coverAlt(post: BlogPost): string {
-  return post.media?.find(entry => entry.slot === 'featured')?.alt_text ?? ''
+  return post.cover?.alt_text ?? ''
 }
 
 function formatDate(iso: string) {

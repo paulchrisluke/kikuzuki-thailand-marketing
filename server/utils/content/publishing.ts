@@ -29,7 +29,8 @@ import { tenantBlogPostPath } from '~/utils/tenant-blog-route'
 import { normalizeBlogSlug, parseScheduledFor, resolveBlogPublicPath, resolveSlugMutation } from '~/utils/blog-editor'
 import { createBlogRedirect } from '~/server/utils/blog-publishing'
 import { resolvePublicTemplate } from '~/utils/template-registry'
-import { buildSingleMediaPlacementQueries, hydrateMediaAssetRefs, hydrateMediaPlacementRefs, insertInitialMediaPlacements } from '~/server/utils/media-asset-manager'
+import { buildSingleMediaPlacementQueries, hydrateMediaPlacementRefs, insertInitialMediaPlacements } from '~/server/utils/media-asset-manager'
+import { COVER_SELECT, attachCoverMedia, coverJoinSql } from '~/server/utils/content/cover'
 import { isSingleMediaPlacement } from '~/shared/media-placement-contract'
 import { getMediaPlacements } from '~/server/utils/media-placement'
 import { d1JsonStringSet } from '~/server/db/d1-limits'
@@ -69,7 +70,6 @@ const BLOG_UPDATE_MUTATION_FIELDS: Array<keyof PlatformBlogUpdateInput> = [
   'seo_keywords',
   'canonical_url',
   'robots',
-  'media',
   'visibility',
   'slug',
   'redirect_old_slug',
@@ -137,20 +137,6 @@ export interface BlogScope {
   organization_id?: string | null
 }
 
-export interface PlatformMediaInput {
-  asset_id: string
-  slot: 'featured'
-}
-
-function featuredAssetId(input: { media?: PlatformMediaInput[] }): string | null | undefined {
-  if (input.media === undefined) return undefined
-  if (!Array.isArray(input.media) || input.media.length > 1) badRequest('media accepts at most one featured asset')
-  const item = input.media[0]
-  if (!item) return null
-  if (item.slot !== 'featured' || typeof item.asset_id !== 'string' || !item.asset_id.trim()) badRequest('media requires asset_id with slot featured')
-  return item.asset_id.trim()
-}
-
 export interface PlatformDocNavGroupInput {
   nav_group?: string | null
   nav_group_order?: number | null
@@ -169,7 +155,6 @@ export interface PlatformBlogCreateInput extends PlatformContentNavInput {
   seo_keywords?: string | null
   canonical_url?: string | null
   robots?: string | null
-  media?: PlatformMediaInput[]
   visibility?: 'public' | 'unlisted'
   scheduled_for?: string | null
 }
@@ -184,7 +169,6 @@ export interface PlatformBlogUpdateInput extends PlatformContentNavInput {
   seo_keywords?: string | null
   canonical_url?: string | null
   robots?: string | null
-  media?: PlatformMediaInput[]
   visibility?: 'public' | 'unlisted'
   slug?: string | null
   redirect_old_slug?: boolean
@@ -233,7 +217,6 @@ export interface PlatformDocCreateInput extends PlatformContentNavInput, Platfor
   robots?: string | null
   difficulty_level?: string | null
   sort_order?: number | null
-  media?: PlatformMediaInput[]
 }
 
 export interface PlatformDocUpdateInput extends PlatformContentNavInput, PlatformDocNavGroupInput {
@@ -248,7 +231,6 @@ export interface PlatformDocUpdateInput extends PlatformContentNavInput, Platfor
   robots?: string | null
   difficulty_level?: string | null
   sort_order?: number | null
-  media?: PlatformMediaInput[]
 }
 
 function badRequest(message: string): never {
@@ -478,34 +460,9 @@ function normalizeNavVisibility<T extends Record<string, unknown>>(record: T) {
   }
 }
 
-export function attachFeaturedMedia(record: ApiRecord) {
-  const {
-    asset_id: assetId,
-    media_public_url: publicUrl,
-    media_thumbnail_url: thumbnailUrl,
-    media_kind: kind,
-    media_alt_text: altText,
-    media_width: width,
-    media_height: height,
-    ...rest
-  } = record
-
-  return {
-    ...normalizeNavVisibility(rest),
-    media: assetId ? [{ asset_id: assetId, slot: 'featured', public_url: publicUrl ?? null, thumbnail_url: thumbnailUrl ?? null, kind: kind ?? null, alt_text: altText ?? null, width: width ?? null, height: height ?? null }] : [],
-  }
-}
-
-export function attachFeaturedMediaFromBareJoin(record: ApiRecord) {
-  const {
-    public_url: publicUrl, thumbnail_url: thumbnailUrl, kind, alt_text: altText, width, height, asset_id: assetId,
-    ...rest
-  } = record
-
-  return {
-    ...normalizeNavVisibility(rest),
-    media: assetId ? [{ asset_id: assetId, slot: 'featured', public_url: publicUrl ?? null, thumbnail_url: thumbnailUrl ?? null, kind: kind ?? null, alt_text: altText ?? null, width: width ?? null, height: height ?? null }] : [],
-  }
+/** Read-model shape shared by every article/doc loader: nav flags normalized, cover lifted from the leading image block. */
+export function attachCover(record: ApiRecord) {
+  return attachCoverMedia(normalizeNavVisibility(record))
 }
 
 export interface ContentReviewContext { orgSlug: string; siteSlug: string }
@@ -602,16 +559,9 @@ export async function getPublishedBlogPost(db: DbClient, category: string, slug:
       (p.metadata_json ->> '$.nav_section') AS nav_section, (p.metadata_json ->> '$.nav_title') AS nav_title, (p.metadata_json ->> '$.nav_order') AS nav_order, (p.metadata_json ->> '$.nav_section_order') AS nav_section_order, (p.metadata_json ->> '$.hide_from_nav') AS hide_from_nav, (p.metadata_json ->> '$.featured_order') AS featured_order,
       p.published_at, p.created_at, p.updated_at,
       p.author_id,
-      mp.asset_id AS asset_id,
-      ma.public_url,
-      ma.thumbnail_url,
-      ma.kind,
-      ma.alt_text,
-      ma.width,
-      ma.height
+      ${COVER_SELECT}
     FROM content_documents p
-    LEFT JOIN media_placements mp ON mp.owner_type = 'content_document' AND mp.owner_id = p.id AND mp.slot = 'featured' AND mp.sort_order = 0
-    LEFT JOIN media_assets ma ON ma.id = mp.asset_id AND ma.status = 'active'
+    ${coverJoinSql('p')}
     WHERE p.kind = 'article' AND p.row_role = 'root' AND p.slug = ? AND (p.metadata_json ->> '$.category') = ? AND p.site_id = ?
       ${token === undefined ? "AND p.status = 'published'" : "AND p.status IN ('draft', 'scheduled', 'published')"}
   `, [slug, category, PLATFORM_SITE_ID])
@@ -626,7 +576,7 @@ export async function getPublishedBlogPost(db: DbClient, category: string, slug:
   const authors = await findAuthUsersByIds(env, [authorId as string | null])
   const author = typeof authorId === 'string' ? authors.get(authorId) ?? null : null
   return {
-    ...attachFeaturedMediaFromBareJoin({ ...postRecord, content_blocks: contentBlocks }),
+    ...attachCover({ ...postRecord, content_blocks: contentBlocks }),
     media: socialMedia?.media ?? [],
     social_image: socialMedia?.social_image ?? null,
     author: author ? { id: author.id, name: author.name, image: author.image } : null,
@@ -646,11 +596,9 @@ export async function getPublishedPlatformDoc(db: DbClient, category: string, sl
        p.seo_description, p.seo_keywords, p.canonical_url, p.robots,
        (p.metadata_json ->> '$.nav_section') AS nav_section, (p.metadata_json ->> '$.nav_title') AS nav_title, (p.metadata_json ->> '$.nav_order') AS nav_order, (p.metadata_json ->> '$.nav_section_order') AS nav_section_order, (p.metadata_json ->> '$.nav_group') AS nav_group, (p.metadata_json ->> '$.nav_group_order') AS nav_group_order, (p.metadata_json ->> '$.hide_from_nav') AS hide_from_nav, (p.metadata_json ->> '$.featured_order') AS featured_order,
        p.author_id,
-       mp.asset_id AS asset_id, p.updated_at,
-       ma.public_url, ma.thumbnail_url, ma.kind, ma.alt_text, ma.width, ma.height
+       ${COVER_SELECT}, p.updated_at
      FROM content_documents p
-     LEFT JOIN media_placements mp ON mp.owner_type = 'content_document' AND mp.owner_id = p.id AND mp.slot = 'featured' AND mp.sort_order = 0
-     LEFT JOIN media_assets ma ON ma.id = mp.asset_id AND ma.status = 'active'
+     ${coverJoinSql('p')}
      WHERE p.kind = 'platform_doc' AND p.row_role = 'root' AND p.site_id = 'platform' AND p.slug = ? AND (p.metadata_json ->> '$.category') = ?`,
     [slug, category],
   )
@@ -664,7 +612,7 @@ export async function getPublishedPlatformDoc(db: DbClient, category: string, sl
   const authors = await findAuthUsersByIds(env, [authorId as string | null])
   const author = typeof authorId === 'string' ? authors.get(authorId) ?? null : null
   return {
-    ...attachFeaturedMediaFromBareJoin({ ...docRecord, content_blocks: contentBlocks }),
+    ...attachCover({ ...docRecord, content_blocks: contentBlocks }),
     media: socialMedia?.media ?? [],
     social_image: socialMedia?.social_image ?? null,
     author: author ? { id: author.id, name: author.name, image: author.image } : null,
@@ -759,17 +707,16 @@ function validateDocCommon(input: Partial<PlatformDocCreateInput>) {
 export async function listPublicPlatformBlogPosts(db: DbClient) {
   const sql = `
     SELECT
-      p.id, p.title, p.slug, p.summary AS excerpt, (p.metadata_json ->> '$.category') AS category, p.seo_description, p.seo_keywords, p.canonical_url, p.robots, p.published_at, (p.metadata_json ->> '$.nav_section') AS nav_section, (p.metadata_json ->> '$.nav_title') AS nav_title, (p.metadata_json ->> '$.nav_order') AS nav_order, (p.metadata_json ->> '$.nav_section_order') AS nav_section_order, (p.metadata_json ->> '$.hide_from_nav') AS hide_from_nav, (p.metadata_json ->> '$.featured_order') AS featured_order, mp.asset_id AS asset_id, ma.public_url, ma.thumbnail_url, ma.kind, ma.alt_text, ma.width, ma.height
+      p.id, p.title, p.slug, p.summary AS excerpt, (p.metadata_json ->> '$.category') AS category, p.seo_description, p.seo_keywords, p.canonical_url, p.robots, p.published_at, (p.metadata_json ->> '$.nav_section') AS nav_section, (p.metadata_json ->> '$.nav_title') AS nav_title, (p.metadata_json ->> '$.nav_order') AS nav_order, (p.metadata_json ->> '$.nav_section_order') AS nav_section_order, (p.metadata_json ->> '$.hide_from_nav') AS hide_from_nav, (p.metadata_json ->> '$.featured_order') AS featured_order, ${COVER_SELECT}
     FROM content_documents p
-    LEFT JOIN media_placements mp ON mp.owner_type = 'content_document' AND mp.owner_id = p.id AND mp.slot = 'featured' AND mp.sort_order = 0 AND mp.status = 'active'
-    LEFT JOIN media_assets ma ON ma.id = mp.asset_id AND ma.status = 'active'
+    ${coverJoinSql('p')}
     WHERE p.kind = 'article' AND p.row_role = 'root' AND p.status = 'published' AND p.site_id = '${PLATFORM_SITE_ID}' AND p.visibility = 'public'
     ORDER BY COALESCE((p.metadata_json ->> '$.featured_order'), 999999), COALESCE((p.metadata_json ->> '$.nav_section_order'), 999999), COALESCE((p.metadata_json ->> '$.nav_section'), (p.metadata_json ->> '$.category')), COALESCE((p.metadata_json ->> '$.nav_order'), 999999), p.published_at DESC
     LIMIT 100
   `
 
   const results = await queryAll<ApiRecord>(db, sql)
-  return results.filter(post => blogCategoryToSlug(post.category)).map(attachFeaturedMediaFromBareJoin)
+  return results.filter(post => blogCategoryToSlug(post.category)).map(attachCover)
 }
 
 export async function listBlogPosts(db: DbClient, siteId: string, status?: string | null, env?: CloudflareEnv) {
@@ -777,12 +724,10 @@ export async function listBlogPosts(db: DbClient, siteId: string, status?: strin
       p.id, p.title, p.slug, p.summary AS excerpt, (p.metadata_json ->> '$.category') AS category, json_extract(p.metadata_json, '$.tags') AS tags_json, p.status, p.visibility, p.scheduled_for,
       p.seo_title, p.seo_description, p.seo_keywords, p.canonical_url, p.robots,
       (p.metadata_json ->> '$.nav_section') AS nav_section, (p.metadata_json ->> '$.nav_title') AS nav_title, (p.metadata_json ->> '$.nav_order') AS nav_order, (p.metadata_json ->> '$.nav_section_order') AS nav_section_order, (p.metadata_json ->> '$.hide_from_nav') AS hide_from_nav, (p.metadata_json ->> '$.featured_order') AS featured_order,
-      mp.asset_id AS asset_id, ma.public_url AS media_public_url, ma.thumbnail_url AS media_thumbnail_url, ma.kind AS media_kind, ma.alt_text AS media_alt_text,
-      ma.width AS media_width, ma.height AS media_height,
+      ${COVER_SELECT},
       p.published_at, p.created_at, p.updated_at
     FROM content_documents p
-    LEFT JOIN media_placements mp ON mp.owner_type = 'content_document' AND mp.owner_id = p.id AND mp.slot = 'featured' AND mp.sort_order = 0
-    LEFT JOIN media_assets ma ON ma.id = mp.asset_id AND ma.status = 'active'
+    ${coverJoinSql('p')}
     WHERE p.kind = 'article' AND p.row_role = 'root' AND p.site_id = ?`
   const params: ApiValue[] = [siteId]
   if (status === 'published') sql += " AND p.status = 'published'"
@@ -797,7 +742,7 @@ export async function listBlogPosts(db: DbClient, siteId: string, status?: strin
   return Promise.all((results ?? []).map((record) => {
     const slug = typeof record.slug === 'string' ? record.slug : ''
     const publicPath = !isPlatformSite(siteId) && slug ? tenantBlogPostPath({ themeId: site?.theme_id }, slug) : null
-    return contentReviewUrls(attachFeaturedMedia(attachPublished(record, Boolean(record.published_at))), 'blog', siteId, publicPath, context, env)
+    return contentReviewUrls(attachCover(attachPublished(record, Boolean(record.published_at))), 'blog', siteId, publicPath, context, env)
   }))
 }
 
@@ -810,12 +755,10 @@ export async function getBlogPost(db: DbClient, postIdOrSlug: string, siteId: st
        p.first_published_at, (p.metadata_json ->> '$.slug_manually_overridden') AS slug_manually_overridden,
        p.seo_title, p.seo_description, p.seo_keywords, p.canonical_url, p.robots,
        (p.metadata_json ->> '$.nav_section') AS nav_section, (p.metadata_json ->> '$.nav_title') AS nav_title, (p.metadata_json ->> '$.nav_order') AS nav_order, (p.metadata_json ->> '$.nav_section_order') AS nav_section_order, (p.metadata_json ->> '$.hide_from_nav') AS hide_from_nav, (p.metadata_json ->> '$.featured_order') AS featured_order,
-       mp.asset_id AS asset_id, ma.public_url AS media_public_url, ma.thumbnail_url AS media_thumbnail_url, ma.kind AS media_kind, ma.alt_text AS media_alt_text,
-       ma.width AS media_width, ma.height AS media_height,
+       ${COVER_SELECT},
        p.published_at, p.created_at, p.updated_at
      FROM content_documents p
-     LEFT JOIN media_placements mp ON mp.owner_type = 'content_document' AND mp.owner_id = p.id AND mp.slot = 'featured' AND mp.sort_order = 0
-     LEFT JOIN media_assets ma ON ma.id = mp.asset_id AND ma.status = 'active'
+     ${coverJoinSql('p')}
      WHERE p.kind = 'article' AND p.row_role = 'root' AND p.id = ?`,
     [postId],
   )
@@ -840,7 +783,7 @@ export async function getBlogPost(db: DbClient, postIdOrSlug: string, siteId: st
   `, ['$.theme_by_template.' + editorTemplate.slug, siteId, '$.theme_by_template.' + editorTemplate.slug]) : null
   const editorThemeTokens = parseBlogEditorThemeTokens(editorThemeTokenRow?.tokens_json)
   return {
-    ...await contentReviewUrls(attachFeaturedMedia(attachPublished(post, Boolean(post.published_at))), 'blog', siteId, publicPath, context, env),
+    ...await contentReviewUrls(attachCover(attachPublished(post, Boolean(post.published_at))), 'blog', siteId, publicPath, context, env),
     tags: parseStringArray(post.tags_json),
     body: renderContentBlocksToMarkdown(rawBlocks),
     content_document: contentDocument,
@@ -858,16 +801,9 @@ export async function getPublicSiteBlogPost(db: DbClient, siteId: string, slug: 
       p.canonical_url, p.robots, (p.metadata_json ->> '$.featured_order') AS featured_order, p.visibility,
       p.published_at, p.created_at, p.updated_at,
       p.author_id,
-      mp.asset_id AS asset_id,
-      ma.public_url,
-      ma.thumbnail_url,
-      ma.kind,
-      ma.alt_text,
-      ma.width,
-      ma.height
+      ${COVER_SELECT}
     FROM content_documents p
-    LEFT JOIN media_placements mp ON mp.owner_type = 'content_document' AND mp.owner_id = p.id AND mp.slot = 'featured' AND mp.sort_order = 0
-    LEFT JOIN media_assets ma ON ma.id = mp.asset_id AND ma.status = 'active'
+    ${coverJoinSql('p')}
     WHERE p.kind = 'article' AND p.row_role = 'root' AND p.slug = ? AND p.site_id = ?
       ${token === undefined ? "AND p.status = 'published' AND (p.scheduled_for IS NULL OR p.scheduled_for <= strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))" : "AND p.status IN ('draft', 'scheduled', 'published')"}
     LIMIT 1
@@ -887,7 +823,7 @@ export async function getPublicSiteBlogPost(db: DbClient, siteId: string, slug: 
   const authors = await findAuthUsersByIds(env, [authorId as string | null])
   const author = typeof authorId === 'string' ? authors.get(authorId) ?? null : null
   return {
-    ...attachFeaturedMediaFromBareJoin({ ...postRecord, content_blocks: contentBlocks ?? [], body: renderContentBlocksToMarkdown(rawBlocks) }),
+    ...attachCover({ ...postRecord, content_blocks: contentBlocks ?? [], body: renderContentBlocksToMarkdown(rawBlocks) }),
     media: socialMedia?.media ?? [],
     social_image: socialMedia?.social_image ?? null,
     author: author ? { id: author.id, name: author.name, image: author.image } : null,
@@ -966,19 +902,10 @@ export async function createBlogPost(
     if (!input.category?.trim()) badRequest('category is required')
     assertValidBlogCategory(input.category)
   }
-  const featuredId = featuredAssetId(input)
   const siteId = scope.site_id
   if (!siteId) badRequest('site_id is required')
   const organizationId = scope.organization_id ?? PLATFORM_ORGANIZATION_ID
   const placementScope = await mediaPlacementScope(db, siteId, organizationId)
-  if (featuredId) {
-    await hydrateMediaAssetRefs(db, {
-      ...placementScope,
-      refs: [{ asset_id: featuredId }],
-      allowedKinds: ['image', 'video'],
-      fieldName: 'media',
-    })
-  }
   const id = crypto.randomUUID()
   const customSlug = typeof input.slug === 'string' && input.slug.trim()
     ? normalizeBlogSlug(input.slug)
@@ -1016,10 +943,7 @@ export async function createBlogPost(
           featured_order: input.featured_order != null ? Number(input.featured_order) : null,
           slug_manually_overridden: customSlug ? 1 : 0 },
       }, canonicalBlocks, { bodyMarkdown: canonicalBody,
-        additionalQueriesAfter: [
-          ...insertInitialMediaPlacements({ organizationId: placementScope.organizationId, siteId: placementScope.siteId, placement: { owner_type: 'content_document', owner_id: id, slot: 'featured' }, media: featuredId ? [{ asset_id: featuredId }] : [], now }),
-          ...await contentBlockPlacementQueries(db, canonicalBlocks, placementScope, now),
-        ],
+        additionalQueriesAfter: await contentBlockPlacementQueries(db, canonicalBlocks, placementScope, now),
       })
       const post = await getBlogPost(db, id, siteId, env)
       if (env) await refreshSocialCard({ db, env, owner: { owner_type: 'content_document', owner_id: id }, actorId: authorId })
@@ -1129,17 +1053,11 @@ export async function updateBlogPost(
   }
   if (input.tags !== undefined) metadata.tags = input.tags
   if (input.hide_from_nav !== undefined) metadata.hide_from_nav = normalizeHideFromNav(input.hide_from_nav) ?? 0
-  const featuredId = featuredAssetId(input)
-  if (featuredId) await hydrateMediaAssetRefs(db, { ...placementScope, refs: [{ asset_id: featuredId }], allowedKinds: ['image', 'video'], fieldName: 'media' })
   const now = new Date().toISOString()
-  const mediaQueries = featuredId === undefined ? [] : buildSingleMediaPlacementQueries({
-    organizationId: placementScope.organizationId, siteId: placementScope.siteId,
-    placement: { owner_type: 'content_document', owner_id: postId, slot: 'featured' }, media: featuredId ? [{ asset_id: featuredId }] : [], now,
-  })
   try {
     await updateContentDocument(db, postId, {
       expected_updated_at: input.expected_updated_at ?? current.updated_at, blocks: normalizedBlocks, changes,
-      additionalQueriesAfter: [...mediaQueries, ...(normalizedBlocks ? await contentBlockPlacementQueries(db, normalizedBlocks, placementScope, now) : []),
+      additionalQueriesAfter: [...(normalizedBlocks ? await contentBlockPlacementQueries(db, normalizedBlocks, placementScope, now) : []),
         ...(input.visibility === undefined ? [] : [publicResourceCacheInvalidationQuery(siteId, 'article-visibility')])],
     })
     if (requestedSlug && requestedSlug !== current.slug && current.first_published_at && input.redirect_old_slug !== false) {
@@ -1199,15 +1117,13 @@ export async function listPlatformDocs(db: DbClient, _status?: string | null) {
   const sql = `SELECT
       d.id, d.title, d.slug, d.summary AS excerpt, (d.metadata_json ->> '$.category') AS category, d.seo_description, d.seo_keywords, d.canonical_url, d.robots,
       (d.metadata_json ->> '$.nav_section') AS nav_section, (d.metadata_json ->> '$.nav_title') AS nav_title, (d.metadata_json ->> '$.nav_order') AS nav_order, (d.metadata_json ->> '$.nav_section_order') AS nav_section_order, (d.metadata_json ->> '$.nav_group') AS nav_group, (d.metadata_json ->> '$.nav_group_order') AS nav_group_order, (d.metadata_json ->> '$.hide_from_nav') AS hide_from_nav, (d.metadata_json ->> '$.featured_order') AS featured_order,
-      mp.asset_id AS asset_id, ma.public_url AS media_public_url, ma.thumbnail_url AS media_thumbnail_url, ma.kind AS media_kind, ma.alt_text AS media_alt_text,
-      ma.width AS media_width, ma.height AS media_height,
+      ${COVER_SELECT},
       (d.metadata_json ->> '$.difficulty_level') AS difficulty_level, d.sort_order, d.created_at, d.updated_at
     FROM content_documents d
-    LEFT JOIN media_placements mp ON mp.owner_type = 'content_document' AND mp.owner_id = d.id AND mp.slot = 'featured' AND mp.sort_order = 0
-    LEFT JOIN media_assets ma ON ma.id = mp.asset_id AND ma.status = 'active'
+    ${coverJoinSql('d')}
     WHERE d.kind = 'platform_doc' AND d.row_role = 'root' AND d.site_id = 'platform' ORDER BY COALESCE((d.metadata_json ->> '$.featured_order'), 999999), COALESCE((d.metadata_json ->> '$.nav_section_order'), 999999), COALESCE((d.metadata_json ->> '$.nav_section'), (d.metadata_json ->> '$.category')), COALESCE((d.metadata_json ->> '$.nav_group_order'), 999999), COALESCE((d.metadata_json ->> '$.nav_group'), ''), COALESCE((d.metadata_json ->> '$.nav_order'), d.sort_order, 999999), d.created_at DESC`
   const results = await queryAll<ApiRecord>(db, sql)
-  return Promise.all((results ?? []).map(record => platformDocReviewUrls(attachFeaturedMedia(attachPublished(record, true)))))
+  return Promise.all((results ?? []).map(record => platformDocReviewUrls(attachCover(attachPublished(record, true)))))
 }
 
 export async function getPlatformDoc(db: DbClient, docIdOrSlug: string) {
@@ -1218,12 +1134,10 @@ export async function getPlatformDoc(db: DbClient, docIdOrSlug: string) {
        d.id, d.title, d.slug, d.summary AS excerpt, (d.metadata_json ->> '$.category') AS category, d.seo_description, d.seo_keywords, d.canonical_url, d.robots,
        (d.metadata_json ->> '$.nav_section') AS nav_section, (d.metadata_json ->> '$.nav_title') AS nav_title, (d.metadata_json ->> '$.nav_order') AS nav_order, (d.metadata_json ->> '$.nav_section_order') AS nav_section_order, (d.metadata_json ->> '$.nav_group') AS nav_group, (d.metadata_json ->> '$.nav_group_order') AS nav_group_order, (d.metadata_json ->> '$.hide_from_nav') AS hide_from_nav, (d.metadata_json ->> '$.featured_order') AS featured_order,
        (d.metadata_json ->> '$.difficulty_level') AS difficulty_level, d.sort_order,
-       mp.asset_id AS asset_id, ma.public_url AS media_public_url, ma.thumbnail_url AS media_thumbnail_url, ma.kind AS media_kind, ma.alt_text AS media_alt_text,
-       ma.width AS media_width, ma.height AS media_height,
+       ${COVER_SELECT},
        d.created_at, d.updated_at
      FROM content_documents d
-     LEFT JOIN media_placements mp ON mp.owner_type = 'content_document' AND mp.owner_id = d.id AND mp.slot = 'featured' AND mp.sort_order = 0
-     LEFT JOIN media_assets ma ON ma.id = mp.asset_id AND ma.status = 'active'
+     ${coverJoinSql('d')}
      WHERE d.kind = 'platform_doc' AND d.row_role = 'root' AND d.site_id = 'platform' AND d.id = ?`,
     [docId],
   )
@@ -1231,7 +1145,7 @@ export async function getPlatformDoc(db: DbClient, docIdOrSlug: string) {
   const contentDocument = await getContentEditorSnapshot(db, docId)
   if (!contentDocument) throw new HTTPError({ statusCode: 500, statusMessage: 'Documentation content document is missing' })
   return {
-    ...await platformDocReviewUrls(attachFeaturedMedia(attachPublished(doc, true))),
+    ...await platformDocReviewUrls(attachCover(attachPublished(doc, true))),
     content_blocks: contentDocument.blocks,
     updated_at: contentDocument.document.updated_at,
   }
@@ -1248,15 +1162,6 @@ export async function createPlatformDoc(
   const placementScope = await mediaPlacementScope(db, PLATFORM_SITE_ID, null)
   const normalizedBlocks = await normalizeEditorContentBlocks(db, input.content_blocks, placementScope)
   const canonicalBody = renderCanonicalBlogBody(normalizedBlocks)
-  const featuredId = featuredAssetId(input)
-  if (featuredId) {
-    await hydrateMediaAssetRefs(db, {
-      ...placementScope,
-      refs: [{ asset_id: featuredId }],
-      allowedKinds: ['image', 'video'],
-      fieldName: 'media',
-    })
-  }
 
   const id = crypto.randomUUID()
   const slugBase = normalizeSlugFromTitle(input.title, 'doc')
@@ -1279,10 +1184,7 @@ export async function createPlatformDoc(
           featured_order: input.featured_order != null ? Number(input.featured_order) : null,
           difficulty_level: input.difficulty_level ?? null },
       }, normalizedBlocks, { bodyMarkdown: canonicalBody,
-        additionalQueriesAfter: [
-          ...insertInitialMediaPlacements({ organizationId: placementScope.organizationId, siteId: placementScope.siteId, placement: { owner_type: 'content_document', owner_id: id, slot: 'featured' }, media: featuredId ? [{ asset_id: featuredId }] : [], now }),
-          ...await contentBlockPlacementQueries(db, normalizedBlocks, placementScope, now),
-        ],
+        additionalQueriesAfter: await contentBlockPlacementQueries(db, normalizedBlocks, placementScope, now),
       })
 
       const doc = await getPlatformDoc(db, id)
@@ -1335,21 +1237,15 @@ export async function updatePlatformDoc(
   }
   if (input.hide_from_nav !== undefined) metadata.hide_from_nav = normalizeHideFromNav(input.hide_from_nav) ?? 0
   const placementScope = await mediaPlacementScope(db, PLATFORM_SITE_ID, null)
-  const featuredId = featuredAssetId(input)
-  if (featuredId) await hydrateMediaAssetRefs(db, { ...placementScope, refs: [{ asset_id: featuredId }], allowedKinds: ['image', 'video'], fieldName: 'media' })
   const blocks = input.content_blocks === undefined ? undefined : await normalizeEditorContentBlocks(db, input.content_blocks, placementScope)
   if (blocks) {
     if (!blocks.length) badRequest('content_blocks cannot be empty')
     if (!input.expected_updated_at) badRequest('expected_updated_at is required with content_blocks')
   }
   const now = new Date().toISOString()
-  const mediaQueries = featuredId === undefined ? [] : buildSingleMediaPlacementQueries({
-    organizationId: placementScope.organizationId, siteId: placementScope.siteId,
-    placement: { owner_type: 'content_document', owner_id: docId, slot: 'featured' }, media: featuredId ? [{ asset_id: featuredId }] : [], now,
-  })
   try {
     await updateContentDocument(db, docId, { expected_updated_at: input.expected_updated_at ?? document.updated_at, blocks, changes,
-      additionalQueriesAfter: [...mediaQueries, ...(blocks ? await contentBlockPlacementQueries(db, blocks, placementScope, now) : [])],
+      additionalQueriesAfter: blocks ? await contentBlockPlacementQueries(db, blocks, placementScope, now) : [],
     })
     const doc = await getPlatformDoc(db, docId)
     if (env) await refreshSocialCard({ db, env, owner: { owner_type: 'content_document', owner_id: docId } })

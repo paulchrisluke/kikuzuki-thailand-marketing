@@ -110,10 +110,6 @@
           />
         </UFormField>
 
-        <UFormField label="Featured Image">
-          <PlatformMediaPicker v-model="featuredAssetId" />
-        </UFormField>
-
         <div class="space-y-4 border-t border-default pt-4">
           <div>
             <h2 class="text-sm font-semibold text-default">Structured content</h2>
@@ -253,7 +249,6 @@ interface Doc {
   seo_keywords?: string | null
   canonical_url?: string | null
   robots?: string | null
-  media?: Array<{ asset_id: string; slot: string }>
   content_blocks: import('~/lib/components/workspace/blog/types').BlogEditorBlock[]
   updated_at: string
 }
@@ -276,7 +271,7 @@ const route = useRoute()
 const docId = route.params.docId as string
 const isNew = docId === 'new'
 
-const { form, canPublish, featuredAssetId } = useDocForm()
+const { form, canPublish } = useDocForm()
 const categoryItems = computed(() => categories.map((item) => ({ label: item, value: item })))
 const difficultyItems = computed(() => difficultyLevels.map((item) => ({ label: item, value: item })))
 const navSectionItems = computed<Array<{ label: string; value: string }>>(() => PLATFORM_DOC_NAV_SECTION_LABELS.map(item => ({ label: item, value: item })))
@@ -366,7 +361,6 @@ async function loadDoc() {
     form.canonical_url = res.doc.canonical_url ?? ''
     form.robots = res.doc.robots ?? ''
     hydrateDocFormContent(form, res.doc.content_blocks)
-    form.media = res.doc.media ?? []
   } catch (err) {
     loadError.value = getErrorMessage(err, 'Failed to load doc.')
   } finally {

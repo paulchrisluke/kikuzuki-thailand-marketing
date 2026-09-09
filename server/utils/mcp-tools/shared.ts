@@ -240,6 +240,22 @@ const mediaPlacementObject = {
   additionalProperties: false,
 }
 
+/** The article's leading image block, or null when it opens with text. */
+const blogCoverObject = {
+  type: ['object', 'null'],
+  properties: {
+    asset_id: { type: 'string' },
+    public_url: { type: ['string', 'null'] },
+    thumbnail_url: { type: ['string', 'null'] },
+    kind: { type: ['string', 'null'] },
+    alt_text: { type: ['string', 'null'] },
+    width: { type: ['number', 'null'] },
+    height: { type: ['number', 'null'] },
+  },
+  required: ['asset_id', 'public_url', 'thumbnail_url', 'kind', 'alt_text', 'width', 'height'],
+  additionalProperties: false,
+}
+
 const blogContentBlockObject = {
   type: 'object',
   properties: {
@@ -277,7 +293,7 @@ export const blogPostObject = {
     scheduled_for: { ...instantSchema, type: ['string', 'null'] },
     created_at: { type: 'string' },
     updated_at: { type: 'string' },
-    media: { type: 'array', items: mediaPlacementObject },
+    cover: blogCoverObject,
     admin_edit_url: { type: ['string', 'null'] },
     edit_url: { type: ['string', 'null'] },
     public_path: { type: ['string', 'null'] },
@@ -291,7 +307,7 @@ export const blogPostObject = {
     'nav_section', 'nav_title', 'nav_order', 'nav_section_order', 'hide_from_nav', 'featured_order',
     'seo_title', 'seo_description', 'seo_keywords', 'canonical_url', 'robots',
     'published', 'published_at', 'status', 'visibility', 'scheduled_for',
-    'created_at', 'updated_at', 'media', 'admin_edit_url', 'edit_url',
+    'created_at', 'updated_at', 'cover', 'admin_edit_url', 'edit_url',
     'public_path', 'public_url', 'preview_url', 'view_url',
     'content_blocks',
   ],
@@ -320,7 +336,7 @@ export const blogPostSummaryObject = {
     scheduled_for: { ...instantSchema, type: ['string', 'null'] },
     created_at: { type: 'string' },
     updated_at: { type: 'string' },
-    media: { type: 'array', items: mediaPlacementObject },
+    cover: blogCoverObject,
     admin_edit_url: { type: ['string', 'null'] },
     edit_url: { type: ['string', 'null'] },
     public_path: { type: ['string', 'null'] },
@@ -333,7 +349,7 @@ export const blogPostSummaryObject = {
     'nav_section', 'nav_title', 'nav_order', 'nav_section_order', 'hide_from_nav', 'featured_order',
     'seo_title', 'seo_description', 'seo_keywords', 'canonical_url', 'robots',
     'published', 'published_at', 'status', 'visibility', 'scheduled_for',
-    'created_at', 'updated_at', 'media', 'admin_edit_url', 'edit_url',
+    'created_at', 'updated_at', 'cover', 'admin_edit_url', 'edit_url',
     'public_path', 'public_url', 'preview_url', 'view_url',
   ],
   additionalProperties: false,
