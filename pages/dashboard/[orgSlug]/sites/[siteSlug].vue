@@ -99,18 +99,21 @@ if (!siteId) throw createError({ statusCode: 404, statusMessage: 'Site not found
 
 const sitePath = computed(() => `/dashboard/${String(route.params.orgSlug)}/sites/${String(route.params.siteSlug)}`)
 
-const STANDALONE_SECTIONS = ['settings', 'brand', 'inbox']
 const routeSegments = computed(() => route.path.slice(sitePath.value.length).replace(/^\//, '').split('/').filter(Boolean))
 const sectionSegment = computed(() => routeSegments.value[0] ?? '')
 
 /**
- * The list of locations belongs in the pane, like any other section. One
- * location does not: it is a different object with its own rail and pane, the
- * way choosing a listing leaves the listings index for that listing's editor.
+ * The site yields when the screen below it draws its own panel and navbar —
+ * the outermost level on screen owns that chrome, and two levels drawing it
+ * puts three columns on screen.
+ *
+ * The child declares this with `ownsChrome` in its own `definePageMeta`, rather
+ * than the site keeping a list of which sections are special. A list is an
+ * exception mechanism: `blog` was missing from it, so the site kept its rail
+ * while `blog.vue` drew its own pair and the article was left 297px of a
+ * 1280px window. Nothing here needs editing when a section gains a chain.
  */
-const rendersStandalone = computed(() =>
-  STANDALONE_SECTIONS.includes(sectionSegment.value)
-  || (sectionSegment.value === 'locations' && routeSegments.value.length > 1))
+const rendersStandalone = computed(() => route.matched.some(record => record.meta?.ownsChrome === true))
 const hasDetail = computed(() => Boolean(sectionSegment.value))
 const activeSection = computed(() => sectionSegment.value || null)
 

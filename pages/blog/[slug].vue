@@ -15,7 +15,7 @@
 
     <article class="min-w-0">
     <div class="mx-auto max-w-4xl">
-    <BlogArticleView :title="post.title" :excerpt="post.excerpt" :category="post.category" :published-at="post.published_at" :updated-at="wasUpdated ? post.updated_at : null" :author-name="authorName" :author-image="authorImage" :site-name="siteName" :media-url="postMedia.url" :media-kind="postMedia.isVideo ? 'video' : 'image'" :read-minutes="readTime" :blocks="post.content_blocks" template="saya" />
+    <BlogArticleView :title="post.title" :excerpt="post.excerpt" :category="post.category" :published-at="post.published_at" :updated-at="wasUpdated ? post.updated_at : null" :author-name="authorName" :author-image="authorImage" :site-name="siteName" :media-url="postMedia.url" :media-alt="postMedia.alt" :media-kind="postMedia.isVideo ? 'video' : 'image'" :read-minutes="readTime" :blocks="post.content_blocks" template="saya" />
 
     <div class="mt-16 flex items-center justify-between gap-6 border-t border-default pt-8">
       <div>
@@ -123,15 +123,15 @@ const { data, pending, error } = await useAsyncData(
     if (import.meta.server) {
       if (!requestEvent) throw createError({ statusCode: 404, statusMessage: 'Post not found' })
 
-      const [{ cloudflareEnv }, { getPublicLocalizedSiteBlogPost }] = await Promise.all([
+      const [{ cloudflareEnv }, { getPublishedLocalizedSiteBlogPost }] = await Promise.all([
         import('~/server/utils/api-response'),
-        import('~/server/utils/platform-content'),
+        import('~/server/utils/content/publishing'),
       ])
       const env = cloudflareEnv(requestEvent)
       const db = env.db
       if (!db) throw createError({ statusCode: 500, statusMessage: 'Database not available' })
 
-      post = await getPublicLocalizedSiteBlogPost(db, siteId, String(route.params.slug), locale, env, previewToken.value) as TenantBlogPost | null
+      post = await getPublishedLocalizedSiteBlogPost(db, siteId, String(route.params.slug), locale, env, previewToken.value) as TenantBlogPost | null
     } else {
       let payload: PublicBlogResponse
       try {

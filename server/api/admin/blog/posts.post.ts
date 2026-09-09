@@ -3,7 +3,7 @@ import { defineHandler } from 'nitro';
 import { cloudflareEnv, jsonResponse, readRequiredBody } from '~/server/utils/api-response'
 import { getAuthSession } from '~/server/utils/auth'
 import { platformPermissionJsonResponse } from '~/server/utils/platform-admin-users'
-import { createPlatformBlogPost } from '~/server/utils/platform-content'
+import { createBlogPost } from '~/server/utils/content/publishing'
 import { platformBlogCreateInput } from '~/server/utils/platform-content-request'
 import { schedulePlatformKnowledgeIndexRebuild } from '~/server/utils/platform-search-rebuild'
 
@@ -26,7 +26,7 @@ export default defineHandler(async (event) => {
   }
 
   try {
-    const result = await createPlatformBlogPost(db, session.user.id, platformBlogCreateInput(body), {}, env)
+    const result = await createBlogPost(db, session.user.id, platformBlogCreateInput(body), {}, env)
     schedulePlatformKnowledgeIndexRebuild(event, env, 'blog post create')
     return jsonResponse(result)
   } catch (err) {

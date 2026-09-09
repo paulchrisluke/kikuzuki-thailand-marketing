@@ -1,5 +1,5 @@
 import { cloudflareEnv, jsonResponse } from '~/server/utils/api-response'
-import { getPublicPlatformBlogPost } from '~/server/utils/platform-content'
+import { getPublishedBlogPost } from '~/server/utils/content/publishing'
 import { slugToBlogCategory } from '~/utils/blog-categories'
 
 export default defineHandler(async (event) => {
@@ -16,7 +16,7 @@ export default defineHandler(async (event) => {
 
   const { token } = getQuery(event)
   if (token !== undefined && typeof token !== 'string') return jsonResponse({ error: 'Invalid preview token' }, { status: 400 })
-  const post = await getPublicPlatformBlogPost(db, category, slug, env, token)
+  const post = await getPublishedBlogPost(db, category, slug, env, token)
   if (!post) return jsonResponse({ error: 'Post not found' }, { status: 404 })
 
   return jsonResponse({ post })

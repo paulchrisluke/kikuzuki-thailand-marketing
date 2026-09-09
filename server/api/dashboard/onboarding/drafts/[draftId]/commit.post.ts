@@ -1,4 +1,4 @@
-import { prepareContentDocumentDeletion, prepareContentDocumentWithBlocks } from '~/server/utils/content-documents'
+import { prepareContentDocumentDeletion, prepareContentDocumentWithBlocks } from '~/server/utils/content/documents'
 import { parseOpeningHours, parseSpecialHours } from '~/shared/reservation-hours'
 import { googleReviewUpserts } from '~/server/utils/google-places'
 import { HTTPError, defineHandler  } from 'nitro';
@@ -15,7 +15,7 @@ import { refreshSocialCard } from '~/server/utils/social-card'
 import { purgePublicResourceCacheSafe } from '~/server/utils/public-resource-cache'
 import { createMediaAsset, insertInitialMediaPlacements } from '~/server/utils/media-asset-manager'
 import { resolveUserOrganization } from '~/server/utils/member-access'
-import { applyOnboardingTenantPages } from '~/server/utils/tenant-pages'
+import { applyOnboardingTenantPages } from '~/server/utils/content/pages'
 import type { SiteVertical } from '~/utils/vertical-copy'
 import { isValidTimezone } from '~/utils/timezone'
 

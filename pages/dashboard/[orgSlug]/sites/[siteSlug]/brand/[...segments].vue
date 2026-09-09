@@ -3,5 +3,5 @@
 </template>
 
 <script setup lang="ts">
-definePageMeta({ layout: 'dashboard' })
+definePageMeta({ layout: 'dashboard', ownsChrome: true })
 </script>

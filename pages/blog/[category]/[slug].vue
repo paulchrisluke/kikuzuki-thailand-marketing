@@ -13,7 +13,7 @@
     <article>
       <DocsBreadcrumb :crumbs="breadcrumbs" />
 
-      <BlogArticleView :title="post.title" :excerpt="post.excerpt" :category="post.category" :published-at="post.published_at" :updated-at="wasUpdated ? post.updated_at : null" :author-name="authorName" :author-image="authorImage" site-name="KrabiClaw" :media-url="postMedia.url" :media-kind="postMedia.isVideo ? 'video' : 'image'" :read-minutes="readTime" :blocks="post.content_blocks" template="platform" />
+      <BlogArticleView :title="post.title" :excerpt="post.excerpt" :category="post.category" :published-at="post.published_at" :updated-at="wasUpdated ? post.updated_at : null" :author-name="authorName" :author-image="authorImage" site-name="KrabiClaw" :media-url="postMedia.url" :media-alt="postMedia.alt" :media-kind="postMedia.isVideo ? 'video' : 'image'" :read-minutes="readTime" :blocks="post.content_blocks" template="platform" />
 
       <div class="mt-16 flex items-center justify-between gap-6 border-t border-default pt-8">
         <div class="flex items-center gap-4">
@@ -107,15 +107,15 @@ const { data, pending, error } = await useAsyncData(
 
       if (!requestEvent) throw createError({ statusCode: 404, statusMessage: 'Article not found' })
 
-      const [{ cloudflareEnv }, { getPublicPlatformBlogPost }] = await Promise.all([
+      const [{ cloudflareEnv }, { getPublishedBlogPost }] = await Promise.all([
         import('~/server/utils/api-response'),
-        import('~/server/utils/platform-content'),
+        import('~/server/utils/content/publishing'),
       ])
       const env = cloudflareEnv(requestEvent)
       const db = env.db
       if (!db) throw createError({ statusCode: 500, statusMessage: 'Database not available' })
 
-      post = await getPublicPlatformBlogPost(db, category, String(route.params.slug), env, previewToken.value) as BlogPost | null
+      post = await getPublishedBlogPost(db, category, String(route.params.slug), env, previewToken.value) as BlogPost | null
     } else {
       let payload: { post?: BlogPost }
       try {

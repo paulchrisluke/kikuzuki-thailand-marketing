@@ -1,6 +1,6 @@
 // GET /api/public/docs - List published platform docs
 import { apiErrorResponse, cloudflareEnv, jsonResponse } from '~/server/utils/api-response'
-import { listPlatformDocs } from '~/server/utils/platform-content'
+import { listPlatformDocs } from '~/server/utils/content/publishing'
 
 export default defineHandler(async (event) => {
   const env = cloudflareEnv(event)

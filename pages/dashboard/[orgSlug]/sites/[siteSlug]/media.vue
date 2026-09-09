@@ -63,7 +63,7 @@
       <img
         v-if="item.row.thumbnail_url || (item.row.kind === 'image' && item.row.public_url)"
         :src="item.row.thumbnail_url || item.row.public_url || undefined"
-        :alt="item.row.alt_text || item.row.file_name || ''"
+        :alt="item.row.alt_text ?? ''"
         class="h-full w-full object-cover"
         loading="lazy"
       >
@@ -80,34 +80,62 @@
     </template>
   </DashboardGridEditor>
 
-  <!-- Edit alt text / translations -->
-  <UModal v-model:open="editOpen" title="Edit media details" :ui="{ content: 'max-w-lg' }">
-    <template #body>
-      <div v-if="editingAsset" class="space-y-5">
-        <img
-          v-if="editingAsset.thumbnail_url || (editingAsset.kind === 'image' && editingAsset.public_url)"
-          :src="editingAsset.thumbnail_url || editingAsset.public_url || undefined"
-          :alt="editAltText || editingAsset.file_name || ''"
-          class="mx-auto h-32 w-32 rounded-lg object-cover"
-        >
-        <label class="block text-sm">Alt text (English)
-          <input v-model="editAltText" class="mt-1 w-full rounded-lg border border-default bg-default px-3 py-2" placeholder="Describe this image">
-        </label>
-        <p v-if="editError" class="text-sm text-error">{{ editError }}</p>
-        <div class="flex justify-end gap-2">
-          <DashboardResourceLocalization
-            :site-id="siteId"
-            resource-type="media_asset"
-            :resource-id="editingAsset.id"
-            resource-label="media details"
-            :fields="mediaLocalizationFields"
-            :language-settings-path="siteLocalizationSettingsPath"
-          />
-          <UButton size="sm" :loading="editSaving" @click="saveAltText">Save</UButton>
-        </div>
-      </div>
+  <!--
+    Alt text is a leaf, so it commits the way every other leaf does: the item
+    sheet's own bar, dismiss on the left, Save on the right. It used to carry a
+    lone Save button loose in the body, which made this the one place in the CMS
+    where committing looked different.
+
+    The field stays optional. An empty alt is the correct markup for a
+    decorative image, and this is the one place a human sets it — the same field
+    the media MCP tool writes, so an assistant filling it in and a person typing
+    it are editing one value, not two.
+  -->
+  <DashboardListItemDialog
+    v-model:open="editOpen"
+    title="Media details"
+    :removable="false"
+    :saving="editSaving"
+    :save-disabled="!altTextChanged"
+    @save="saveAltText"
+  >
+    <template v-if="editingAsset" #default>
+      <img
+        v-if="editingAsset.thumbnail_url || (editingAsset.kind === 'image' && editingAsset.public_url)"
+        :src="editingAsset.thumbnail_url || editingAsset.public_url || undefined"
+        :alt="editAltText"
+        class="mx-auto h-32 w-32 rounded-lg object-cover"
+      >
+      <!--
+        The placeholder is a worked example rather than an instruction. "Describe
+        this image" tells a writer what to do without showing what good looks
+        like, and the alt text that came back was a noun or two; a sentence in
+        the box demonstrates the length and the specificity. Saying who it is
+        for is what makes anyone bother.
+      -->
+      <UFormField
+        label="Alt text"
+        description="A brief description of this image for readers who cannot see it. Leave it empty if the image is decorative."
+      >
+        <UInput
+          v-model="editAltText"
+          placeholder="e.g. A wood-fired oven with a margherita pizza blistering at the mouth"
+          class="w-full"
+        />
+      </UFormField>
+      <p v-if="editError" class="text-sm text-error">{{ editError }}</p>
     </template>
-  </UModal>
+    <template v-if="editingAsset" #actions>
+      <DashboardResourceLocalization
+        :site-id="siteId"
+        resource-type="media_asset"
+        :resource-id="editingAsset.id"
+        resource-label="media details"
+        :fields="mediaLocalizationFields"
+        :language-settings-path="siteLocalizationSettingsPath"
+      />
+    </template>
+  </DashboardListItemDialog>
 
   <!-- Load more -->
   <div v-if="hasMore" class="mt-6 text-center">
@@ -119,6 +147,7 @@
 <script setup lang="ts">
 import DashboardResourceLocalization from '~/components/dashboard/DashboardResourceLocalization.vue'
 import DashboardGridEditor from '~/components/dashboard/DashboardGridEditor.vue'
+import DashboardListItemDialog from '~/components/dashboard/DashboardListItemDialog.vue'
 
 const dashboardApi = useDashboardApi()
 definePageMeta({ layout: 'dashboard', cmsCapabilityKey: 'site.media' })
@@ -395,6 +424,8 @@ watch(search, () => {
 const editOpen = ref(false)
 const editingAsset = ref<MediaAsset | null>(null)
 const editAltText = ref('')
+/** Save stays inert until the alt text actually differs from what is stored. */
+const altTextChanged = computed(() => editAltText.value.trim() !== (editingAsset.value?.alt_text ?? ''))
 const editSaving = ref(false)
 const editError = ref<string | null>(null)
 const mediaLocalizationFields = computed(() => [
@@ -435,6 +466,8 @@ async function saveAltText() {
     const target = assets.value.find(item => item.id === editingAsset.value?.id)
     if (target) target.alt_text = updated
     toast.add({ description: 'Alt text saved', color: 'success' })
+    // Committing closes the sheet, the same as every other item sheet.
+    editOpen.value = false
   } catch (cause) {
     editError.value = getErrorMessage(cause, 'Failed to save alt text')
   } finally {

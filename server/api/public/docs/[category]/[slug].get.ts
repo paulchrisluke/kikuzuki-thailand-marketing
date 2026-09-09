@@ -1,6 +1,6 @@
 // GET /api/public/docs/[category]/[slug] - Get single published doc, scoped to its category
 import { apiErrorResponse, cloudflareEnv, jsonResponse } from '~/server/utils/api-response'
-import { getPublishedPlatformDoc } from '~/server/utils/platform-content'
+import { getPublishedPlatformDoc } from '~/server/utils/content/publishing'
 import { slugToCategory } from '~/utils/docs-categories'
 
 export default defineHandler(async (event) => {

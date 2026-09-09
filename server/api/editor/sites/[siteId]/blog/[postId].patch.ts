@@ -1,6 +1,6 @@
 import { jsonResponse } from "~/server/utils/api-response";
 import { requireBlogAccess } from "~/server/utils/blog-access";
-import { updatePlatformBlogPost, type PlatformBlogUpdateInput } from "~/server/utils/platform-content";
+import { updateBlogPost, type PlatformBlogUpdateInput } from "~/server/utils/content/publishing";
 import { httpErrorDetails } from "~/server/utils/http-error";
 import { finalizeRequestMetrics } from "~/server/utils/request-metrics";
 
@@ -27,7 +27,7 @@ export default defineHandler(async (event) => {
   try {
     const { env, db } = await requireBlogAccess(event, siteId);
 
-    const result = await updatePlatformBlogPost(db, postId, body as PlatformBlogUpdateInput, siteId, env);
+    const result = await updateBlogPost(db, postId, body as PlatformBlogUpdateInput, siteId, env);
 
     const payload = { success: true, post: result.post };
     return jsonResponse(finalizeRequestMetrics(event, 'editor-blog-post-update', payload));

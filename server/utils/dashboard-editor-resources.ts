@@ -24,7 +24,7 @@ import { parseLocationPayload } from '~/server/utils/location-payload'
 import { getProduct, listLocationProducts } from '~/server/utils/product-management'
 import { loadDashboardGuestThreads } from '~/server/utils/dashboard-guest-threads'
 import { requireBlogAccess } from '~/server/utils/blog-access'
-import { getPlatformBlogPost, listPlatformBlogPosts } from '~/server/utils/platform-content'
+import { getBlogPost, listBlogPosts } from '~/server/utils/content/publishing'
 import { listPosts } from '~/server/utils/post-management'
 import { createPreviewToken } from '~/server/utils/preview-token'
 import { resolveSiteCmsCapabilities } from '~/server/utils/cms-capabilities'
@@ -344,7 +344,7 @@ export async function loadDashboardBlogPosts(
   status?: string,
 ) {
   const { env, db } = await requireBlogAccess(event, siteId)
-  return { posts: await listPlatformBlogPosts(db, status, siteId, env) }
+  return { posts: await listBlogPosts(db, status, siteId, env) }
 }
 
 export async function loadDashboardBlogPost(
@@ -353,7 +353,7 @@ export async function loadDashboardBlogPost(
   postId: string,
 ) {
   const { env, db } = await requireBlogAccess(event, siteId)
-  const post = await getPlatformBlogPost(db, postId, siteId, env)
+  const post = await getBlogPost(db, postId, siteId, env)
   if (!post) throw new HTTPError({ statusCode: 404, statusMessage: 'Post not found' })
   return { post }
 }

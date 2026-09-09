@@ -299,10 +299,6 @@ async function scanImages(dir) {
   const entries = (await readdir(resolvedPath)).sort();
   const files = [];
 
-  const brandLabel = SLUG.replace(/-/g, " ").replace(/\b\w/g, (l) =>
-    l.toUpperCase(),
-  );
-
   for (const entry of entries) {
     const ext = extname(entry).toLowerCase();
     if (!IMAGE_EXTS.has(ext)) continue;
@@ -330,7 +326,7 @@ async function scanImages(dir) {
       public_url: `https://media.krabiclaw.com/${r2Key}`,
       assigned_to: assignedTo,
       place_id: rawArgs["images-place-id"] ?? null,
-      alt_text: brandLabel,
+      alt_text: null,
       hash: `sha256:${hash}`,
       size_bytes: info.size,
       uploaded_at: null,
@@ -1140,15 +1136,16 @@ function buildGeneratedCopyInventory(places, mediaManifest) {
     note: "Not available from Places API — write manually or via ChowBot",
   });
 
-  // Media alt_text — generated from slug, not from client
+  // Media alt_text — this pipeline has no source for it. Alt text describes
+  // what is in the picture, and neither the slug nor the file name knows that.
   for (const file of mediaManifest.files ?? []) {
     inventory.push({
       table: "media_assets",
       field: "alt_text",
-      value: file.alt_text,
-      provenance: "generated",
-      source_inputs: ["slug"],
-      note: `Generated for ${file.assigned_to} — update with client-supplied caption if available`,
+      value: null,
+      provenance: "missing",
+      source_inputs: [],
+      note: `No alt text for ${file.assigned_to} — write one before launch, or the image ships unreadable to screen readers and worthless to search`,
     });
   }
 

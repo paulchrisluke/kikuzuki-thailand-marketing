@@ -21,7 +21,7 @@
         <slot name="share" />
       </div>
       <video v-if="mediaUrl && mediaKind === 'video'" :src="mediaUrl" autoplay muted loop playsinline class="mt-8 aspect-video w-full rounded-2xl object-cover" />
-      <img v-else-if="mediaUrl" :src="mediaUrl" :alt="title" class="mt-8 aspect-video w-full rounded-2xl object-cover">
+      <img v-else-if="mediaUrl" :src="mediaUrl" :alt="mediaAlt ?? ''" class="mt-8 aspect-video w-full rounded-2xl object-cover">
     </header>
 
     <BlogArticleRenderer
@@ -60,6 +60,7 @@ const props = withDefaults(defineProps<{
   authorImage?: string | null
   siteName?: string | null
   mediaUrl?: string | null
+  mediaAlt?: string | null
   mediaKind?: string | null
   readMinutes?: number | null
   blocks?: BlogEditorBlock[] | null
@@ -67,7 +68,7 @@ const props = withDefaults(defineProps<{
   template?: 'saya' | 'blawby' | 'platform' | string
   showHeader?: boolean
   showMeta?: boolean
-}>(), { excerpt: null, category: null, publishedAt: null, updatedAt: null, authorName: null, authorImage: null, siteName: null, mediaUrl: null, mediaKind: null, readMinutes: null, blocks: () => [], editable: false, template: 'saya', showHeader: true, showMeta: true })
+}>(), { excerpt: null, category: null, publishedAt: null, updatedAt: null, authorName: null, authorImage: null, siteName: null, mediaUrl: null, mediaAlt: null, mediaKind: null, readMinutes: null, blocks: () => [], editable: false, template: 'saya', showHeader: true, showMeta: true })
 
 defineEmits<{ 'update:title': [value: string]; 'update:block': [index: number, block: BlogEditorBlock]; 'insert-block': [index: number, cursorPosition: number]; 'insert-block-type': [index: number, type: string]; 'move-block': [index: number, delta: -1 | 1]; 'merge-block': [index: number, direction: 'back' | 'forward']; 'split-insert': [index: number, payload: { after: string; blockType: 'image' | 'faq' | 'how_to'; editorMode: 'rich' | 'source' }] }>()
 

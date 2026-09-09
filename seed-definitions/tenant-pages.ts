@@ -86,7 +86,11 @@ function blockData(page: string, rows: SeedTenantPageRow[], sourceRows = rows) {
       id: `${row.id}-block-content`,
       type: isHeading ? 'heading' : 'markdown',
       position: blocks.length,
-      data: isHeading ? { text: row.content, level: 2, field: row.field } : { markdown: row.content, editor_mode: editorModeFor(row.content), field: row.field },
+      data: isHeading
+        ? { text: row.content, level: 2, field: row.field }
+        // editor_mode is not optional on a markdown block: the write path rejects
+        // one without it, so a seed that omits it produces a page nobody can save.
+        : { markdown: row.content, editor_mode: editorModeFor(row.content), field: row.field },
       media: [],
     })
   }

@@ -2021,12 +2021,18 @@ ${resourceRows};
 -- END GENERATED: demo_resource_localizations`
 }
 
-function demoArticleBlocks(body: string, title: string, blockId: string, assetId: string) {
+/**
+ * `bodyAssetId` is the picture inside the article, and it must not be the one
+ * placed on the document as `featured`. The featured image already renders as
+ * the article's lead, so seeding the same asset in both put the identical photo
+ * on screen twice, one directly beneath the other, on every demo article.
+ */
+function demoArticleBlocks(body: string, title: string, blockId: string, bodyAssetId: string) {
   const content = markdownToContentBlocks(body)
   const first = content[0]
   if (first?.type === 'heading' && first.level === 1 && first.data.text === title) content.shift()
   const blocks = content.map((block, index) => ({ ...block, id: index === 0 ? blockId : `${blockId}-${index}`, position: index }))
-  const image = { id: `${blockId}-image`, type: 'image' as const, level: null, position: blocks.length, data: {}, assetId }
+  const image = { id: `${blockId}-image`, type: 'image' as const, level: null, position: blocks.length, data: {}, assetId: bodyAssetId }
   return [...blocks, image]
 }
 
@@ -2070,7 +2076,7 @@ The menu, music, and pacing of service all revolve around the heat and rhythm of
 ## Finish with neighborhood hospitality
 
 We want the room to feel energetic but never rushed, whether you come in for one pie or settle in for the evening.`
-  const blocks = demoArticleBlocks(body, 'How We Build a Wood-Fired Pizza Night', blockId, 'media-demo-hero')
+  const blocks = demoArticleBlocks(body, 'How We Build a Wood-Fired Pizza Night', blockId, 'media-demo-post1')
 
   return `-- BEGIN GENERATED: demo_blog
 -- Tenant blog post for local demo verification.
@@ -2137,7 +2143,7 @@ Our oven runs at 700-800°F, cooking each pizza in 60-90 seconds. This intense h
 
 Every element of our process serves a purpose. The 72-hour fermentation isn't just tradition—it's the foundation of the flavor, texture, and digestibility that make Ember & Slice pizzas unique. When you bite into that first slice, you're tasting three days of careful timing, temperature control, and patience.`
 
-  const article1Blocks = demoArticleBlocks(article1Body, 'The Secret to Our 72-Hour Sourdough Crust', article1BlockId, 'media-demo-article-sourdough')
+  const article1Blocks = demoArticleBlocks(article1Body, 'The Secret to Our 72-Hour Sourdough Crust', article1BlockId, 'media-demo-margherita')
 
   const article2Id = 'article-demo-natural-wine-pairing'
   const article2BlockId = 'content-block-demo-natural-wine-pairing'
@@ -2169,7 +2175,7 @@ Natural wines are conversation starters. They have stories—about the winemaker
 
 This aligns perfectly with our mission: to create a dining experience that's connected, thoughtful, and rooted in quality. Every element of what we serve, from the dough to the wine, is chosen with intention and care.`
 
-  const article2Blocks = demoArticleBlocks(article2Body, 'Why We Only Pair Natural Wines with Wood-Fired Pizza', article2BlockId, 'media-demo-article-wine')
+  const article2Blocks = demoArticleBlocks(article2Body, 'Why We Only Pair Natural Wines with Wood-Fired Pizza', article2BlockId, 'media-demo-exp-wine')
 
   const article3Id = 'article-demo-ember-slice-story'
   const article3BlockId = 'content-block-demo-ember-slice-story'
@@ -2207,7 +2213,7 @@ Today, Ember & Slice is a Brooklyn staple, but we still operate like a pop-up in
 
 This is our story. We're grateful you're part of it.`
 
-  const article3Blocks = demoArticleBlocks(article3Body, 'From Pop-Up to Brooklyn Staple: The Ember & Slice Story', article3BlockId, 'media-demo-article-oven')
+  const article3Blocks = demoArticleBlocks(article3Body, 'From Pop-Up to Brooklyn Staple: The Ember & Slice Story', article3BlockId, 'media-demo-team-1')
 
   const thaiTranslations = [
     {
@@ -2319,9 +2325,9 @@ Ember & Slice ไม่ได้เริ่มต้นด้วยแผนธ
   ]
 
   const sourceArticles = new Map([
-    [article1Id, { blocks: article1Blocks, assetId: 'media-demo-article-sourdough' }],
-    [article2Id, { blocks: article2Blocks, assetId: 'media-demo-article-wine' }],
-    [article3Id, { blocks: article3Blocks, assetId: 'media-demo-article-oven' }],
+    [article1Id, { blocks: article1Blocks, assetId: 'media-demo-margherita' }],
+    [article2Id, { blocks: article2Blocks, assetId: 'media-demo-exp-wine' }],
+    [article3Id, { blocks: article3Blocks, assetId: 'media-demo-team-1' }],
   ])
   const thaiSql = thaiTranslations.map((th) => {
     const thaiBlockId = `content-block-${th.id}`

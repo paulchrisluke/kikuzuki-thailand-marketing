@@ -47,9 +47,16 @@
             index is still on screen beside the detail, so there is nothing to
             dismiss back to. Dismiss discards the draft without warning, matching
             the sheets this is modelled on.
+
+            It renders whenever there is somewhere to dismiss to, not only when
+            a title was supplied. Gating it on the title meant a caller that
+            passed `dismiss-to` and no title produced a full-screen sheet with
+            no way out of it — which is what every chain parent did, so on a
+            phone a post, a dish, an experience and an article were each a dead
+            end.
           -->
           <header
-            v-if="detailTitle"
+            v-if="detailTitle || dismissTo"
             class="grid shrink-0 grid-cols-[auto_1fr_auto] items-center gap-2 border-b border-default px-4 py-3 lg:hidden"
           >
             <UButton

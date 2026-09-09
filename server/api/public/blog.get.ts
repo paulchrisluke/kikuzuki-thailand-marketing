@@ -1,6 +1,6 @@
 // GET /api/public/blog - List published platform blog posts
 import { cloudflareEnv, jsonResponse } from '~/server/utils/api-response'
-import { listPublicPlatformBlogPosts } from '~/server/utils/platform-content'
+import { listPublicPlatformBlogPosts } from '~/server/utils/content/publishing'
 
 export default defineHandler(async (event) => {
   const env = cloudflareEnv(event)

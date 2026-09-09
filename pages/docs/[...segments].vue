@@ -221,7 +221,7 @@ const { data: doc, pending: loading, error } = await useAsyncData(
 
       const [{ cloudflareEnv }, { getPublishedPlatformDoc }] = await Promise.all([
         import('~/server/utils/api-response'),
-        import('~/server/utils/platform-content'),
+        import('~/server/utils/content/publishing'),
       ])
       const env = cloudflareEnv(requestEvent)
       const db = env.db

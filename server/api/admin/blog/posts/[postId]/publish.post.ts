@@ -1,7 +1,7 @@
 import { cloudflareEnv, jsonResponse } from '~/server/utils/api-response'
 import { getAuthSession } from '~/server/utils/auth'
 import { platformPermissionJsonResponse } from '~/server/utils/platform-admin-users'
-import { parsePlatformBlogLifecycleInput, updatePlatformBlogLifecycle } from '~/server/utils/platform-content'
+import { parseBlogLifecycleInput, updateBlogLifecycle } from '~/server/utils/content/publishing'
 import { schedulePlatformKnowledgeIndexRebuild } from '~/server/utils/platform-search-rebuild'
 
 export default defineHandler(async (event) => {
@@ -17,8 +17,8 @@ export default defineHandler(async (event) => {
   if (permissionDenied) return permissionDenied
 
   try {
-    const input = parsePlatformBlogLifecycleInput(await readBody(event) as unknown, 'publish')
-    const lifecycle = await updatePlatformBlogLifecycle(db, postId, input)
+    const input = parseBlogLifecycleInput(await readBody(event) as unknown, 'publish')
+    const lifecycle = await updateBlogLifecycle(db, postId, input)
     schedulePlatformKnowledgeIndexRebuild(event, env, 'blog post publish')
     return jsonResponse({ success: true, lifecycle })
   } catch (error) {

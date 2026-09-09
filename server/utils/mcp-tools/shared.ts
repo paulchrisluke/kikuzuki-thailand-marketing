@@ -181,7 +181,7 @@ const howToStepSchema = {
 // per-type via if/then here instead of left as a bare object — that's what gives the model
 // the actual field names (how_to steps need `name`+`text`) instead of an opaque object it
 // has to guess the shape of. Tenant blog posts share the same validator (and therefore the
-// same field names) as platform blog posts/docs — see server/utils/platform-content.ts.
+// same field names) as platform blog posts/docs — see server/utils/content/publishing.ts.
 export const blogComponentInputSchema = {
   type: 'object',
   properties: {

@@ -2,11 +2,11 @@
   <NuxtPage v-if="frame.mode.value === 'yield'" />
 
   <!-- A post is open: my list is the index column, the post is the detail. -->
-  <UDashboardPanel v-else-if="frame.mode.value === 'pair'" id="location-posts">
+  <UDashboardPanel v-else-if="frame.mode.value === 'pair'" id="site-blog">
     <template #header>
-      <UDashboardNavbar title="Posts" :toggle="false">
+      <UDashboardNavbar title="Blog" :toggle="false">
         <template #leading>
-          <DashboardNavbarLeading :to="locationPath" label="Location" />
+          <DashboardNavbarLeading :to="sitePath" label="Site" />
         </template>
       </UDashboardNavbar>
     </template>
@@ -15,13 +15,13 @@
       <EditorPaneShell
         has-detail
         show-desktop-detail
-        :dismiss-to="postsPath"
+        :dismiss-to="blogPath"
         detail-title="Post"
         wide-detail
         hide-detail-heading
       >
         <template #index>
-          <PostList />
+          <BlogPostList />
         </template>
         <template #detail>
           <NuxtPage />
@@ -30,19 +30,19 @@
     </template>
   </UDashboardPanel>
 
-  <PostList v-else />
+  <BlogPostList v-else />
 </template>
 
 <script setup lang="ts">
 import EditorPaneShell from '~/components/dashboard/EditorPaneShell.vue'
-import PostList from '~/components/dashboard/PostList.vue'
+import BlogPostList from '~/components/dashboard/BlogPostList.vue'
 
-definePageMeta({ layout: 'dashboard', cmsCapabilityKey: 'location.posts' })
+definePageMeta({ layout: 'dashboard', cmsCapabilityKey: 'site.blog' })
 
 const route = useRoute()
-const { locationPaths } = useDashboardSiteLinks()
+const { sitePaths } = useDashboardSiteLinks()
 
-const postsPath = computed(() => locationPaths.value?.posts ?? '')
-const locationPath = computed(() => `/dashboard/${String(route.params.orgSlug)}/sites/${String(route.params.siteSlug)}/locations/${String(route.params.locationSlug)}`)
-const frame = useEditorFrame(postsPath)
+const sitePath = computed(() => sitePaths.value?.site ?? '')
+const blogPath = computed(() => `/dashboard/${String(route.params.orgSlug)}/sites/${String(route.params.siteSlug)}/blog`)
+const frame = useEditorFrame(blogPath)
 </script>

@@ -1,7 +1,7 @@
 import { instantSchema } from '~/utils/timezone'
 import type { McpToolDefinition } from './shared'
 import { BLOG_NAV_FIELDS_SCHEMA, ROBOTS_DIRECTIVE_ENUM, blogPostMutationResultObject, blogPostObject, blogPostSummaryObject, pageInfoObject, paginationInputSchema, siteTool } from './shared'
-import { PUBLICATION_CONTENT_BLOCK_TYPES } from '~/shared/content-registries'
+import { PUBLICATION_CONTENT_BLOCK_TYPES, describeContentBlockTextFields } from '~/shared/content-registries'
 
 const blogContentBlockSchema = {
   type: 'object',
@@ -11,7 +11,7 @@ const blogContentBlockSchema = {
     parent_block_id: { type: ['string', 'null'] },
     level: { type: ['number', 'null'] },
     position: { type: ['number', 'null'] },
-    data: { type: 'object', description: 'Typed non-media block payload. Markdown requires markdown plus editor_mode (rich for visual-editor-safe prose, source for tables/raw HTML). FAQ uses items; How-To uses steps. Asset IDs and delivery URLs belong only in the block media array.' },
+    data: { type: 'object', description: describeContentBlockTextFields(PUBLICATION_CONTENT_BLOCK_TYPES) },
     media: {
       type: 'array',
       items: {
