@@ -34,7 +34,7 @@ KrabiClaw ships two separate MCP surfaces with strict security boundaries.
 
 ## Auth Model
 
-- CLAUDE.md's "Platform and authorization boundaries" is the canonical statement of Better Auth authorization scope.
+- AGENTS.md's "Platform and authorization boundaries" is the canonical statement of Better Auth authorization scope.
 - Platform MCP requires documented Better Auth Admin plugin platform permissions.
 - Tenant MCP requires Better Auth Organization permissions and, for scoped editors, the matching Better Auth Team membership.
 - Org member roles (`owner`, `admin`, `editor`, optional read-only `member`) remain tenant-scoped only and do not grant platform access.
