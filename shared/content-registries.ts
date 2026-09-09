@@ -1,7 +1,6 @@
 export const CONTENT_DOCUMENT_KINDS = [
   'page',
   'article',
-  'platform_doc',
   'social_post',
   'qa',
 ] as const
