@@ -80,6 +80,7 @@
 
 <script setup lang="ts">
 import DashboardListEditor from '~/components/dashboard/DashboardListEditor.vue'
+import { ARTICLE_COLLECTIONS } from '~/utils/article-collections'
 import DashboardListItemDialog from '~/components/dashboard/DashboardListItemDialog.vue'
 import { tenantBlogRepository } from '~/lib/components/workspace/blog/tenantBlogRepository'
 import type { BlogPost } from '~/lib/components/workspace/blog/types'
@@ -157,6 +158,8 @@ function postSummary(post: BlogPost): string {
   // Read from the status rather than treating anything unscheduled as live: a
   // draft was announcing itself as published on the row and in the hub.
   const parts: string[] = [post.status ? STATUS_LABELS[post.status] ?? post.status : 'Live']
+  // KrabiClaw's own site publishes two collections; the blog is implied everywhere else.
+  if (post.collection && post.collection !== 'blog') parts.push(ARTICLE_COLLECTIONS[post.collection].label)
   if (post.category) parts.push(post.category)
   parts.push(postWhen(post))
   return parts.filter(Boolean).join(' · ')

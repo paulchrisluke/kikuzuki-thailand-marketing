@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import test from 'node:test'
 import { Miniflare } from 'miniflare'
-import { orderForDrop } from '../../scripts/reset-preview-d1.mjs'
+import { orderForDrop } from '../../scripts/reset-d1.mjs'
 
 test('preview reset drops populated bookings and review cycles, then replays the baseline with foreign keys enabled', async () => {
   const runtime = new Miniflare({ workers: [{ config: {

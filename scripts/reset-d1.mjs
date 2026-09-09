@@ -60,10 +60,16 @@ function runWrangler(args, { json = false } = {}) {
   }
 }
 
-function queryRows(databaseName, sql) {
+// The production binding is the top-level [[d1_databases]]; every other
+// environment is addressed through wrangler's --env flag.
+function envArgs(environment) {
+  return environment === 'production' ? [] : ['--env', environment]
+}
+
+function queryRows(databaseName, environment, sql) {
   const payload = runWrangler([
     'd1', 'execute', databaseName,
-    '--env', 'preview',
+    ...envArgs(environment),
     '--remote',
     '--command', sql,
     '--json',
@@ -149,90 +155,95 @@ function expectedMigrations(directory) {
     .sort()
 }
 
-function printPlan(preview, objects) {
-  console.log(`Preview D1: ${preview.name}`)
-  console.log(`Database ID: ${preview.id}`)
+function printPlan(environment, target, objects) {
+  console.log(`${environment} D1: ${target.name}`)
+  console.log(`Database ID: ${target.id}`)
   console.log(`Application objects to drop: ${objects.length}`)
   for (const object of objects) console.log(`  ${object.type} ${object.name}`)
 }
 
+const ENVIRONMENTS = {
+  preview: 'env.preview.d1_databases',
+  staging: 'env.staging.d1_databases',
+  production: 'd1_databases',
+}
+
+/**
+ * Drops every application object in one environment's D1 database and replays
+ * the migration chain from the generated baseline. Preview does this on every
+ * CI run before reseeding from production. Staging and production do it only
+ * during a rebaseline write freeze (docs/database/migrations.md), immediately
+ * before the verified data payload is loaded; the database keeps its name and id.
+ */
 function main() {
   if (process.argv.includes('--help')) {
-    console.log('Usage: yarn db:reset:preview [--apply --confirm <preview-database-id>]')
+    console.log('Usage: node scripts/reset-d1.mjs --env <preview|staging|production> [--apply --confirm <database-id> [--frozen]]')
     return
   }
+  const environment = readOption('--env') ?? 'preview'
+  if (!(environment in ENVIRONMENTS)) throw new Error(`Unknown environment: ${environment}`)
 
   const source = readFileSync(WRANGLER_CONFIG, 'utf8')
-  const production = d1Binding(source, 'd1_databases')
-  const preview = d1Binding(source, 'env.preview.d1_databases')
-  const staging = d1Binding(source, 'env.staging.d1_databases')
-
-  if (!/preview/i.test(preview.name)) {
-    throw new Error(`Refusing reset: configured database name is not preview (${preview.name})`)
+  const bindings = Object.fromEntries(Object.entries(ENVIRONMENTS).map(([name, heading]) => [name, d1Binding(source, heading)]))
+  const target = bindings[environment]
+  const others = Object.entries(bindings).filter(([name]) => name !== environment)
+  if (others.some(([, binding]) => binding.id === target.id)) {
+    throw new Error(`Refusing reset: ${environment} database ID is shared with another environment`)
   }
-  if (preview.id === production.id || preview.id === staging.id) {
-    throw new Error('Refusing reset: preview database ID matches staging or production')
+  if (environment === 'preview' && !/preview/i.test(target.name)) {
+    throw new Error(`Refusing reset: configured database name is not preview (${target.name})`)
   }
 
   const objects = orderForDrop(queryRows(
-    preview.name,
+    target.name, environment,
     "SELECT name, type, sql FROM sqlite_schema WHERE type IN ('table', 'view')",
   ).filter(isApplicationObject))
-  printPlan(preview, objects)
+  printPlan(environment, target, objects)
 
   if (!process.argv.includes('--apply')) {
-    console.log(`Dry run only. Apply with: yarn db:reset:preview --apply --confirm ${preview.id}`)
+    console.log(`Dry run only. Apply with: node scripts/reset-d1.mjs --env ${environment} --apply --confirm ${target.id}${environment === 'preview' ? '' : ' --frozen'}`)
     return
   }
   const confirmation = readOption('--confirm')
-  const ciConfirmation = process.env.CI === 'true'
+  const ciConfirmation = environment === 'preview' && process.env.CI === 'true'
     && process.argv.includes('--confirm-configured-preview')
-  if (confirmation !== preview.id && !ciConfirmation) {
-    throw new Error('Refusing reset: --confirm must exactly match the configured preview database ID')
+  if (confirmation !== target.id && !ciConfirmation) {
+    throw new Error(`Refusing reset: --confirm must exactly match the configured ${environment} database ID`)
+  }
+  // A shared environment loses every row here. The operator states that the
+  // maintenance deployment with DB_WRITE_FROZEN is live and the frozen export is
+  // in hand; the transfer payload is loaded right after this script.
+  if (environment !== 'preview' && !process.argv.includes('--frozen')) {
+    throw new Error(`Refusing reset: ${environment} may only be reset during a write freeze; pass --frozen once the maintenance deployment is live`)
   }
 
-  runWrangler([
-    'd1', 'execute', preview.name,
-    '--env', 'preview',
-    '--remote',
-    '--command', `CREATE TABLE IF NOT EXISTS ${quoteIdentifier(RESET_SENTINEL)} (id INTEGER PRIMARY KEY)`,
-  ])
-  const statements = [
+  const execute = command => runWrangler(['d1', 'execute', target.name, ...envArgs(environment), '--remote', '--command', command])
+  execute(`CREATE TABLE IF NOT EXISTS ${quoteIdentifier(RESET_SENTINEL)} (id INTEGER PRIMARY KEY)`)
+  execute([
     'PRAGMA defer_foreign_keys=ON;',
     ...objects.map(object => `DROP ${object.type.toUpperCase()} IF EXISTS ${quoteIdentifier(object.name)};`),
     'PRAGMA defer_foreign_keys=OFF;',
-  ]
-  runWrangler([
-    'd1', 'execute', preview.name,
-    '--env', 'preview',
-    '--remote',
-    '--command', statements.join('\n'),
-  ])
+  ].join('\n'))
 
-  const remaining = queryRows(preview.name, 'PRAGMA table_list').filter(isApplicationObject)
+  const remaining = queryRows(target.name, environment, 'PRAGMA table_list').filter(isApplicationObject)
   if (remaining.length) {
-    throw new Error(`Preview reset left application objects: ${remaining.map(row => row.name).join(', ')}`)
+    throw new Error(`Reset left application objects: ${remaining.map(row => row.name).join(', ')}`)
   }
 
-  runWrangler(['d1', 'migrations', 'apply', preview.name, '--env', 'preview', '--remote'])
+  runWrangler(['d1', 'migrations', 'apply', target.name, ...envArgs(environment), '--remote'])
 
-  const applied = queryRows(preview.name, 'SELECT name FROM d1_migrations ORDER BY name')
+  const applied = queryRows(target.name, environment, 'SELECT name FROM d1_migrations ORDER BY name')
     .map(row => row.name)
-  const expected = expectedMigrations(preview.migrationsDir)
+  const expected = expectedMigrations(target.migrationsDir)
   if (JSON.stringify(applied) !== JSON.stringify(expected)) {
     throw new Error(`Migration ledger mismatch: expected ${expected.length}, found ${applied.length}`)
   }
-  const foreignKeyFailures = queryRows(preview.name, 'PRAGMA foreign_key_check')
+  const foreignKeyFailures = queryRows(target.name, environment, 'PRAGMA foreign_key_check')
   if (foreignKeyFailures.length) {
     throw new Error(`Foreign key check failed: ${JSON.stringify(foreignKeyFailures)}`)
   }
-  runWrangler([
-    'd1', 'execute', preview.name,
-    '--env', 'preview',
-    '--remote',
-    '--command', `DROP TABLE ${quoteIdentifier(RESET_SENTINEL)}`,
-  ])
-  console.log(`Reset complete: ${basename(preview.migrationsDir)} replayed with ${applied.length} migrations`)
+  execute(`DROP TABLE ${quoteIdentifier(RESET_SENTINEL)}`)
+  console.log(`Reset complete: ${environment} replayed ${basename(target.migrationsDir)} with ${applied.length} migration(s)`)
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) main()
