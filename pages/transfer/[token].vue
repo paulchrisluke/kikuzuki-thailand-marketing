@@ -135,7 +135,7 @@
 
             <!-- Not logged in -->
             <template v-if="!isAuthenticated && !sessionLoading">
-              <AuthGoogleAuthButton :loading="authLoading" @activate="signInWithGoogle" />
+              <AuthGoogleAuthButton label="Sign in with Google" :loading="authLoading" @activate="signInWithGoogle" />
               <PlatformButton block variant="outline" size="xl" class="rounded-[10px]" :to="emailLoginUrl">
                 Sign in with email
               </PlatformButton>

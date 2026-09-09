@@ -8,8 +8,8 @@
     <AuthPhoneOtpForm v-if="isWhatsAppMode" default-country="TH" class="mt-6" @verified="finishPhoneSignIn" />
 
     <div v-else class="mt-6 space-y-3">
-      <AuthGoogleAuthButton :loading="googleLoading" :last-used="lastUsedMethod === 'google'" @activate="signInWithGoogle(postLoginUrl)" />
-      <WhatsAppAuthButton :last-used="lastUsedMethod === 'whatsapp'" @activate="showPhone = !showPhone" />
+      <AuthGoogleAuthButton label="Sign in with Google" :loading="googleLoading" :last-used="lastUsedMethod === 'google'" @activate="signInWithGoogle(postLoginUrl)" />
+      <WhatsAppAuthButton label="Sign in with WhatsApp" :last-used="lastUsedMethod === 'whatsapp'" @activate="showPhone = !showPhone" />
       <AuthPhoneOtpForm v-if="showPhone" default-country="TH" @verified="finishPhoneSignIn" />
       <USeparator label="or" />
       <AuthEmailSignInForm :key="queryEmail" :callback-url="postLoginUrl" :initial-email="queryEmail" :last-used="lastUsedMethod === 'email'" @verification-required="showVerification" />
@@ -55,8 +55,7 @@ const operationError = ref<string | null>(null)
 const { loading: googleLoading, error: googleError, signInWithGoogle } = useAuthOperation()
 watch(googleError, value => { operationError.value = value })
 
-if (route.query.signup === 'success') notice.value = queryEmail ? `Check ${queryEmail} to verify your email.` : 'Check your email to verify your account.'
-else if (route.query.verified === '1') notice.value = 'Your email is verified. You can sign in now.'
+if (route.query.verified === '1') notice.value = 'Your email is verified. You can sign in now.'
 else if (route.query.reset === 'success') notice.value = 'Your password was updated. Sign in with your new password.'
 
 const { isAuthenticated } = await useAuthSession()

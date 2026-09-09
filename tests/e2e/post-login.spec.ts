@@ -32,7 +32,15 @@ for (const width of [390, 1280]) {
 
     await loginAs(page.request, baseURL!, 'user-e2e-oauth-private-cimd')
     const session = await (await page.request.get('/api/auth/get-session')).json()
-    for (const path of ['/', '/docs', '/plugin', '/features', '/pricing', '/templates/saya']) {
+
+    // The marketing homepage is for people without an account. A signed-in
+    // owner is sent to their dashboard rather than shown the pitch, which is
+    // what stopped a returning owner clicking "Start free" a second time.
+    const home = await page.request.get('/', { maxRedirects: 0 })
+    expect(home.status()).toBe(302)
+    expect(home.headers().location).toBe('/api/post-login')
+
+    for (const path of ['/docs', '/plugin', '/features', '/pricing', '/templates/saya']) {
       const response = await page.goto(path)
       expect(response?.status()).toBe(200)
       const html = await response!.text()
@@ -40,13 +48,15 @@ for (const width of [390, 1280]) {
       expect(html).not.toContain('href="/signup')
       expect(response!.headers()['cache-control']).toContain('no-store')
       const header = page.locator('header').first()
-      await expect(header.getByRole('link', { name: `Account: ${session.user.name}`, exact: true }).first()).toBeVisible()
-      await expect(header.getByRole('link', { name: 'Dashboard', exact: true }).first()).toHaveAttribute('href', '/api/post-login')
+      // The avatar is a disclosure, not a link: it carries no label of its own
+      // because a word in English is not something every owner can act on.
+      const account = header.getByLabel(`Account: ${session.user.name}`).first()
+      await expect(account).toBeVisible()
       await expect(page.locator('a[href^="/signup"]')).toHaveCount(0)
-      if (width === 390 && path === '/') {
-        await header.getByLabel('Toggle menu').click()
-        await expect(page.locator('#mobile-menu').getByRole('link', { name: 'Dashboard', exact: true })).toBeVisible()
-      }
+      await account.click()
+      await expect(header.getByRole('link', { name: 'Dashboard', exact: true }).first()).toHaveAttribute('href', '/api/post-login')
+      await expect(header.getByRole('link', { name: 'Account settings', exact: true })).toHaveAttribute('href', '/dashboard/account/profile')
+      await expect(header.getByRole('button', { name: 'Log out', exact: true })).toBeVisible()
     }
     for (const path of ['/login', '/signup']) {
       const response = await page.request.get(path, { maxRedirects: 0 })
