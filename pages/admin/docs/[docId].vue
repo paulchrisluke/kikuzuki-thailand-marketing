@@ -1,7 +1,7 @@
 <template>
-  <UDashboardPanel id="admin-docs-edit">
+  <UDashboardPanel :id="isNew ? 'admin-docs-new' : 'admin-docs-edit'">
     <template #header>
-      <UDashboardNavbar title="Edit Documentation">
+      <UDashboardNavbar :title="isNew ? 'New Documentation' : 'Edit Documentation'">
         <template #leading>
           <DashboardNavbarLeading to="/admin/docs" label="Docs" />
         </template>
@@ -25,10 +25,10 @@
       :description="loadError"
     />
 
-    <UCard v-else>
+    <div v-else class="w-full max-w-5xl">
       <div class="space-y-4">
         <UFormField label="Title">
-          <UInput v-model="form.title" placeholder="Getting Started with KrabiClaw" size="lg" />
+          <UInput v-model="form.title" placeholder="Getting Started with KrabiClaw" size="lg" class="w-full" />
         </UFormField>
 
         <div class="grid gap-4 sm:grid-cols-2">
@@ -37,6 +37,7 @@
               v-model="form.category"
               :items="categoryItems"
               placeholder="Select a category"
+              class="w-full"
             />
           </UFormField>
           <UFormField label="Difficulty Level">
@@ -44,6 +45,7 @@
               v-model="form.difficulty_level"
               :items="difficultyItems"
               placeholder="Select difficulty"
+              class="w-full"
             />
           </UFormField>
         </div>
@@ -54,10 +56,11 @@
               v-model="form.nav_section"
               :items="navSectionItems"
               placeholder="Use category default"
+              class="w-full"
             />
           </UFormField>
           <UFormField label="Nav Title" hint="Optional">
-            <UInput v-model="form.nav_title" placeholder="Short sidebar label" />
+            <UInput v-model="form.nav_title" placeholder="Short sidebar label" class="w-full" />
           </UFormField>
           <UFormField label="Nav Order" hint="Optional">
             <UInputNumber v-model="form.nav_order" :min="0" placeholder="10" class="w-full" />
@@ -74,19 +77,19 @@
         </div>
 
         <UFormField label="Excerpt">
-          <UTextarea v-model="form.excerpt" :rows="3" placeholder="One or two sentences that summarize this documentation." />
+          <UTextarea v-model="form.excerpt" :rows="3" placeholder="One or two sentences that summarize this documentation." class="w-full" />
         </UFormField>
 
         <UFormField label="SEO Description">
-          <UTextarea v-model="form.seo_description" :rows="2" placeholder="Meta description for search engines (150-160 characters recommended)" />
+          <UTextarea v-model="form.seo_description" :rows="2" placeholder="Meta description for search engines (150-160 characters recommended)" class="w-full" />
         </UFormField>
 
         <UFormField label="SEO Keywords">
-          <UInput v-model="form.seo_keywords" placeholder="restaurant, website builder, menu management" />
+          <UInput v-model="form.seo_keywords" placeholder="restaurant, website builder, menu management" class="w-full" />
         </UFormField>
 
         <UFormField label="Canonical URL" hint="Optional">
-          <UInput v-model="form.canonical_url" placeholder="Leave blank to use the generated page canonical" />
+          <UInput v-model="form.canonical_url" placeholder="Leave blank to use the generated page canonical" class="w-full" />
         </UFormField>
 
         <UFormField label="Robots">
@@ -94,6 +97,7 @@
             v-model="form.robots"
             :items="robotsItems"
             placeholder="Default (index,follow)"
+            class="w-full"
           />
         </UFormField>
 
@@ -102,7 +106,7 @@
             v-model="form.body"
             :rows="18"
             placeholder="Write your documentation in Markdown..."
-            class="font-mono text-sm"
+            class="w-full font-mono text-sm"
           />
         </UFormField>
 
@@ -127,10 +131,10 @@
             <div v-if="form.faq_items.length" class="space-y-3">
               <div class="grid gap-3 sm:grid-cols-2">
                 <UFormField label="Label" hint="Optional">
-                  <UInput v-model="form.faq_label" placeholder="e.g. Frequently Asked Questions" />
+                  <UInput v-model="form.faq_label" placeholder="e.g. Frequently Asked Questions" class="w-full" />
                 </UFormField>
                 <UFormField label="Status">
-                  <USelect v-model="form.faq_status" :items="componentStatusItems" />
+                  <USelect v-model="form.faq_status" :items="componentStatusItems" class="w-full" />
                 </UFormField>
               </div>
               <div class="flex flex-wrap gap-4">
@@ -142,10 +146,10 @@
                 <div class="space-y-3">
                   <div class="grid gap-3 sm:grid-cols-2">
                     <UFormField label="Question">
-                      <UInput v-model="item.question" placeholder="How do I change my homepage title?" />
+                      <UInput v-model="item.question" placeholder="How do I change my homepage title?" class="w-full" />
                     </UFormField>
                     <UFormField label="Answer">
-                      <UTextarea v-model="item.answer" :rows="3" placeholder="Write the visible answer readers should see." />
+                      <UTextarea v-model="item.answer" :rows="3" placeholder="Write the visible answer readers should see." class="w-full" />
                     </UFormField>
                   </div>
                   <div class="flex gap-2">
@@ -169,10 +173,10 @@
             <div v-if="form.how_to_steps.length" class="space-y-3">
               <div class="grid gap-3 sm:grid-cols-2">
                 <UFormField label="Label" hint="Optional">
-                  <UInput v-model="form.how_to_label" placeholder="e.g. How It Works" />
+                  <UInput v-model="form.how_to_label" placeholder="e.g. How It Works" class="w-full" />
                 </UFormField>
                 <UFormField label="Status">
-                  <USelect v-model="form.how_to_status" :items="componentStatusItems" />
+                  <USelect v-model="form.how_to_status" :items="componentStatusItems" class="w-full" />
                 </UFormField>
               </div>
               <div class="flex flex-wrap gap-4">
@@ -184,15 +188,15 @@
                 <div class="space-y-3">
                   <div class="grid gap-3 sm:grid-cols-2">
                     <UFormField :label="`Step ${index + 1} title`">
-                      <UInput v-model="step.name" placeholder="Open the theme editor" />
+                      <UInput v-model="step.name" placeholder="Open the theme editor" class="w-full" />
                     </UFormField>
                     <UFormField label="Optional URL">
-                      <UInput v-model="step.url" placeholder="https://krabiclaw.com/docs/example" />
+                      <UInput v-model="step.url" placeholder="https://krabiclaw.com/docs/example" class="w-full" />
                     </UFormField>
                   </div>
 
                   <UFormField label="Step text">
-                    <UTextarea v-model="step.text" :rows="3" placeholder="Describe exactly what the reader should do." />
+                    <UTextarea v-model="step.text" :rows="3" placeholder="Describe exactly what the reader should do." class="w-full" />
                   </UFormField>
 
                   <div class="flex gap-2">
@@ -212,15 +216,15 @@
         </div>
 
         <div class="flex flex-wrap items-center gap-2 border-t border-default pt-4">
-          <UButton :loading="saving" :disabled="!canSave" @click="update">
-            Save live changes
+          <UButton :loading="saving" :disabled="!canPublish" @click="save">
+            {{ isNew ? 'Publish' : 'Save live changes' }}
           </UButton>
-          <UButton color="error" variant="ghost" :loading="saving" @click="remove">
+          <UButton v-if="!isNew" color="error" variant="ghost" :loading="saving" @click="remove">
             Delete
           </UButton>
         </div>
       </div>
-    </UCard>
+    </div>
     </template>
   </UDashboardPanel>
 </template>
@@ -270,16 +274,13 @@ definePageMeta({ layout: 'dashboard' })
 
 const route = useRoute()
 const docId = route.params.docId as string
+const isNew = docId === 'new'
 
-const { form, canSave, featuredAssetId } = useDocForm()
+const { form, canPublish, featuredAssetId } = useDocForm()
 const categoryItems = computed(() => categories.map((item) => ({ label: item, value: item })))
 const difficultyItems = computed(() => difficultyLevels.map((item) => ({ label: item, value: item })))
-const navSectionItems = computed(() => [
-  { label: 'Use category default', value: '' },
-  ...PLATFORM_DOC_NAV_SECTION_LABELS.map((item) => ({ label: item, value: item })),
-])
+const navSectionItems = computed<Array<{ label: string; value: string }>>(() => PLATFORM_DOC_NAV_SECTION_LABELS.map(item => ({ label: item, value: item })))
 const robotsItems = [
-  { label: 'Default (index,follow)', value: '' },
   { label: 'index,follow', value: 'index,follow' },
   { label: 'noindex,follow', value: 'noindex,follow' },
   { label: 'index,nofollow', value: 'index,nofollow' },
@@ -291,13 +292,15 @@ const componentStatusItems = [
 ]
 
 const doc = ref<Doc | null>(null)
-const loadPending = ref(true)
+const loadPending = ref(!isNew)
 const loadError = ref('')
 const saving = ref(false)
 const errorMessage = ref('')
 const successMessage = ref('')
 
-onMounted(loadDoc)
+onMounted(() => {
+  if (!isNew) loadDoc()
+})
 
 function addFaqItem() {
   form.faq_items.push(createEmptyFaqItem())
@@ -371,7 +374,7 @@ async function loadDoc() {
   }
 }
 
-async function update() {
+async function save() {
   if (!form.title.trim() || !form.body.trim()) {
     errorMessage.value = 'Title and body are required.'
     return
@@ -380,15 +383,24 @@ async function update() {
   errorMessage.value = ''
   successMessage.value = ''
   try {
-    const updated = await applicationFetch<DocResponse>(`/api/admin/docs/${docId}`, {
-      method: 'PATCH',
-      body: buildPayload(),
-      validate: isDocResponse,
-    })
-    if (!updated.doc) throw new Error('Doc not found after save')
-    doc.value = updated.doc
-    hydrateDocFormContent(form, updated.doc.content_blocks)
-    successMessage.value = 'Live changes saved.'
+    if (isNew) {
+      const created = await applicationFetch<{ id: string | number }>('/api/admin/docs', {
+        method: 'POST',
+        body: buildPayload(),
+        validate: (value): value is { id: string | number } => isRecord(value) && (typeof value.id === 'string' || typeof value.id === 'number'),
+      })
+      await navigateTo(`/admin/docs/${created.id}`)
+    } else {
+      const updated = await applicationFetch<DocResponse>(`/api/admin/docs/${docId}`, {
+        method: 'PATCH',
+        body: buildPayload(),
+        validate: isDocResponse,
+      })
+      if (!updated.doc) throw new Error('Doc not found after save')
+      doc.value = updated.doc
+      hydrateDocFormContent(form, updated.doc.content_blocks)
+      successMessage.value = 'Live changes saved.'
+    }
   } catch (err) {
     errorMessage.value = getErrorMessage(err, 'Failed to save.')
   } finally {
@@ -397,6 +409,7 @@ async function update() {
 }
 
 async function remove() {
+  if (isNew) return
   if (!confirm('Delete this doc permanently?')) return
   saving.value = true
   errorMessage.value = ''
@@ -413,5 +426,5 @@ async function remove() {
   }
 }
 
-useSeoMeta({ title: 'Edit Documentation | Admin' })
+useSeoMeta({ title: isNew ? 'New Documentation | Admin' : 'Edit Documentation | Admin' })
 </script>

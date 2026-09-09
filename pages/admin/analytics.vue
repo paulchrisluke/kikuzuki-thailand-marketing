@@ -2,9 +2,6 @@
   <UDashboardPanel id="admin-analytics">
     <template #header>
       <UDashboardNavbar title="Analytics">
-        <template #leading>
-          <DashboardNavbarLeading to="/admin" label="Admin" />
-        </template>
       </UDashboardNavbar>
     </template>
 

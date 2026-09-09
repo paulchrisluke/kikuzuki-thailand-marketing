@@ -2,36 +2,34 @@
   <UDashboardPanel id="admin-docs">
     <template #header>
       <UDashboardNavbar title="Docs">
-        <template #leading>
-          <DashboardNavbarLeading to="/admin" label="Admin" />
-        </template>
-        <template #trailing>
-          <UButton size="sm" to="/admin/docs/new">New doc</UButton>
-        </template>
       </UDashboardNavbar>
     </template>
 
     <template #body>
-      <div class="space-y-4">
-        <div v-if="docsError" class="text-sm text-error">{{ docsError }}</div>
-        <div v-else-if="docs.length === 0" class="text-sm text-muted py-4">No docs yet.</div>
-        <div v-else class="divide-y divide-default rounded-xl border border-default overflow-hidden">
-          <div v-for="doc in docs" :key="doc.id" class="flex items-center justify-between px-5 py-4">
-            <div class="min-w-0">
-              <p class="font-medium text-default truncate">{{ doc.title }}</p>
-              <p class="text-xs text-muted truncate">{{ doc.category }}<template v-if="doc.slug"> · {{ doc.slug }}</template></p>
-            </div>
-            <div class="flex gap-2 shrink-0">
-              <UButton size="xs" variant="outline" :to="`/admin/docs/${doc.id}`">Edit</UButton>
-              <UButton size="xs" variant="outline" color="error" :loading="deletingDocId === doc.id" @click="openDeleteConfirm(doc.id)">Delete</UButton>
-            </div>
-          </div>
-        </div>
-      </div>
+      <DashboardListEditor
+        :items="listItems"
+        v-model:editing="editing"
+        title="Documentation"
+        description="Manage the platform help library and its navigation metadata."
+        empty-title="No docs yet"
+        empty-icon="i-lucide-book-open"
+        add-label="Add documentation"
+        :pending="docsLoading"
+        :error="docsError"
+        :removing-id="deletingDocId"
+        @add="addDoc"
+        @open="openDoc"
+        @remove="openDeleteConfirm"
+      >
+        <template #item="{ item }">
+          <NuxtLink :to="`/admin/docs/${encodeURIComponent(item.id)}`" class="block w-full focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary">
+            <p class="truncate text-sm font-medium text-highlighted">{{ item.title }}</p>
+            <p v-if="item.summary" class="mt-1 line-clamp-2 text-sm text-muted">{{ item.summary }}</p>
+          </NuxtLink>
+        </template>
+      </DashboardListEditor>
     </template>
   </UDashboardPanel>
-
-  <!-- Delete doc confirm modal -->
   <UModal v-model:open="deleteConfirmOpen" title="Delete doc?" :dismissible="deletingDocId === null" :ui="{ content: 'max-w-md' }">
     <template #body>
       <p class="text-sm text-muted">This action cannot be undone.</p>
@@ -46,6 +44,8 @@
 </template>
 
 <script setup lang="ts">
+import DashboardListEditor from '~/components/dashboard/DashboardListEditor.vue'
+
 definePageMeta({ layout: 'dashboard' })
 useSeoMeta({ title: 'Docs | KrabiClaw Admin', robots: 'noindex, nofollow' })
 
@@ -63,24 +63,36 @@ const isDocsResponse = (value: unknown): value is { docs: Doc[] } =>
   )
 
 const docs = ref<Doc[]>([])
+const editing = ref(false)
+const docsLoading = ref(true)
 const docsError = ref('')
 const deleteConfirmOpen = ref(false)
 const pendingDeleteDocId = ref<string | null>(null)
 const deletingDocId = ref<string | null>(null)
+const listItems = computed(() => docs.value.map(doc => ({
+    ...doc,
+    summary: [doc.category, doc.slug].filter(Boolean).join(' · '),
+  })))
+
+function addDoc() { navigateTo('/admin/docs/new') }
+function openDoc(doc: Doc) { navigateTo(`/admin/docs/${encodeURIComponent(doc.id)}`) }
 
 async function loadDocs() {
+  docsLoading.value = true
   try {
     const res = await applicationFetch<{ docs: Doc[] }>('/api/admin/docs', { validate: isDocsResponse })
-    docs.value = res.docs ?? []
+    docs.value = res.docs
     docsError.value = ''
   } catch {
     docsError.value = 'Failed to load docs.'
+  } finally {
+    docsLoading.value = false
   }
 }
 
-function openDeleteConfirm(id: string) {
+function openDeleteConfirm(doc: Doc) {
   if (deletingDocId.value !== null) return
-  pendingDeleteDocId.value = id
+  pendingDeleteDocId.value = doc.id
   deleteConfirmOpen.value = true
 }
 

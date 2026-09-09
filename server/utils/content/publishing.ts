@@ -508,9 +508,7 @@ export function attachFeaturedMediaFromBareJoin(record: ApiRecord) {
   }
 }
 
-export type ContentReviewContext =
-  | { scope: 'platform' }
-  | { scope: 'tenant'; orgSlug: string; siteSlug: string }
+export interface ContentReviewContext { orgSlug: string; siteSlug: string }
 
 async function contentReviewUrls(
   record: ApiRecord,
@@ -521,13 +519,11 @@ async function contentReviewUrls(
   env?: CloudflareEnv,
 ) {
   const id = String(record.id ?? '')
-  const adminEditUrl = (() => {
-    if (kind === 'doc') return `/admin/docs/${id}`
-    if (context?.scope === 'tenant') {
-      return `/dashboard/${context.orgSlug}/sites/${context.siteSlug}/blog/${id}`
-    }
-    return `/admin/blog/${id}`
-  })()
+  // Every site's articles, KrabiClaw's included, are edited in the shared
+  // dashboard CMS. Documentation still has its own editor under /admin.
+  const adminEditUrl = kind === 'doc'
+    ? `/admin/docs/${id}`
+    : context ? `/dashboard/${context.orgSlug}/sites/${context.siteSlug}/blog/${id}` : null
   const isPublished = typeof record.status === 'string' ? record.status === 'published' : Boolean(record.published_at)
   const category = typeof record.category === 'string' ? record.category : null
   const slug = typeof record.slug === 'string' ? record.slug : null
@@ -575,17 +571,18 @@ async function resolveTenantBlogPostPath(db: DbClient, siteId: string, slug: str
 }
 
 async function resolveTenantContext(db: DbClient, siteId: string, env?: CloudflareEnv): Promise<ContentReviewContext | undefined> {
-  if (!siteId || isPlatformSite(siteId)) return undefined
+  if (!siteId) return undefined
   if (!env) throw new Error('CloudflareEnv is required to resolve tenant organization context')
-  const site = await queryFirst<{ slug: string; organization_id: string }>(
+  // The dashboard addresses a site by its subdomain, not by `sites.slug`.
+  const site = await queryFirst<{ subdomain: string | null; organization_id: string }>(
     db,
-    'SELECT slug, organization_id FROM sites WHERE id = ? LIMIT 1',
+    'SELECT subdomain, organization_id FROM sites WHERE id = ? LIMIT 1',
     [siteId],
   )
-  if (!site) return undefined
+  if (!site?.subdomain) return undefined
   const organization = await findOrganizationById(env, site.organization_id)
   if (!organization) return undefined
-  return { scope: 'tenant', orgSlug: organization.slug, siteSlug: site.slug }
+  return { orgSlug: organization.slug, siteSlug: site.subdomain }
 }
 
 /**
@@ -793,7 +790,7 @@ export async function listBlogPosts(db: DbClient, siteId: string, status?: strin
   else if (status === 'draft') sql += " AND p.status = 'draft'"
   sql += ' ORDER BY COALESCE(featured_order, 999999), COALESCE(nav_section_order, 999999), COALESCE(nav_section, category), COALESCE(nav_order, 999999), p.created_at DESC'
   const results = await queryAll<ApiRecord>(db, sql, params)
-  const context = isPlatformSite(siteId) ? undefined : await resolveTenantContext(db, siteId, env)
+  const context = await resolveTenantContext(db, siteId, env)
   const site = !isPlatformSite(siteId)
     ? await queryFirst<{ theme_id: string | null }>(db, 'SELECT theme_id FROM sites WHERE id = ? LIMIT 1', [siteId])
     : null

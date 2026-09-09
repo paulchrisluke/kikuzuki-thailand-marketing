@@ -1,50 +1,80 @@
-import type { EditorNavigationGroup } from '~/components/dashboard/EditorNavigationList.vue'
+import type { EditorNavigationGroup, EditorNavigationItem } from '~/components/dashboard/EditorNavigationList.vue'
 import { dashboardScopeHeaderModelKey } from '~/lib/components/workspace/dashboard/dashboardScopeHeaderContext'
 
-// The one description of "what is in the menu". The desktop slideover and the
-// mobile menu page are two containers for this single model — neither builds a
-// list of its own, so they cannot drift apart. The admin surface swaps the
-// content here rather than anywhere downstream, for the same reason.
+interface AdminNavigationItem extends EditorNavigationItem { to: string; primary?: boolean }
+interface AdminNavigationGroup extends Omit<EditorNavigationGroup, 'items'> { items: AdminNavigationItem[] }
+
+// The one description of "what is in the platform admin". The admin hub page,
+// the desktop slideover, the top nav and the mobile bottom bar are containers
+// for this single model — none builds a list of its own, so they cannot drift.
 //
-// Admin keeps four links in the bar and the rest in the menu: ten will not fit a
-// centred bar, and splitting them is what lets admin share the tenant chrome
-// instead of earning a second layout.
-const ADMIN_PRIMARY = ['/admin/clients', '/admin/users', '/admin/content', '/admin/analytics']
+// Admin keeps four `primary` links in the bar and the rest in the menu: the
+// full list will not fit a centred bar, and splitting it is what lets admin
+// share the tenant chrome instead of earning a second layout.
+//
+// KrabiClaw's own blog and sharing image are not here: the platform site is an
+// ordinary organization/site, edited through the same dashboard CMS as every
+// tenant. Only genuinely platform-level operations belong in this list.
+export function useAdminNavigationGroups() {
+  const dashboard = useDashboardSite()
+  return computed<AdminNavigationGroup[]>(() => [
+    {
+      id: 'operations',
+      label: 'Operations',
+      items: [
+        { id: 'organizations', label: 'Organizations', summary: 'Sites, locations, billing, and transfers', to: '/admin/organizations', primary: true },
+        ...(dashboard.managedServiceEnabled.value ? [{ id: 'work', label: 'Work Queue', summary: 'Managed service requests', to: '/admin/work' }] : []),
+        { id: 'domains', label: 'Domains', summary: 'Custom domain status and sync history', to: '/admin/domains' },
+      ],
+    },
+    {
+      id: 'people',
+      label: 'People & access',
+      items: [
+        { id: 'users', label: 'Users', summary: 'Accounts and impersonation', to: '/admin/users', primary: true },
+        { id: 'members', label: 'Team Members', summary: 'Platform staff access', to: '/admin/members' },
+      ],
+    },
+    {
+      id: 'publishing',
+      label: 'Publishing',
+      items: [
+        { id: 'docs', label: 'Documentation', summary: 'Help pages and their navigation', to: '/admin/docs', primary: true },
+      ],
+    },
+    {
+      id: 'insights',
+      label: 'Insights',
+      items: [
+        { id: 'analytics', label: 'Analytics', summary: 'Platform-wide usage and activity', to: '/admin/analytics', primary: true },
+      ],
+    },
+  ])
+}
 
 export function useDashboardMenu() {
   const route = useRoute()
-  const dashboard = useDashboardSite()
+  const adminNavigationGroups = useAdminNavigationGroups()
   const scopeHeaderModel = inject(dashboardScopeHeaderModelKey, null)
   const organizationSettings = useOrganizationSettingsNavigation()
 
   const isAdminRoute = computed(() => typeof route.name === 'string' && route.name.startsWith('admin'))
-
   const orgBase = computed(() => {
-    const slug = typeof route.params.orgSlug === 'string' ? route.params.orgSlug : null
-    return slug ? `/dashboard/${encodeURIComponent(slug)}` : null
+    const slug = route.params.orgSlug
+    return typeof slug === 'string' && slug ? `/dashboard/${slug}` : null
   })
 
   function isActivePath(path: string, exact = false) {
     return route.path === path || (!exact && route.path.startsWith(`${path}/`))
   }
 
-  const adminItems = computed(() => [
-    ...(dashboard.managedServiceEnabled.value ? [{ id: 'work', label: 'Work Queue', summary: 'Managed service queue', to: '/admin/work' }] : []),
-    { id: 'clients', label: 'Clients', summary: 'Client organizations and onboarding', to: '/admin/clients' },
-    { id: 'members', label: 'Members', summary: 'Platform staff access', to: '/admin/members' },
-    { id: 'analytics', label: 'Analytics', summary: 'Platform-wide usage', to: '/admin/analytics' },
-    { id: 'domains', label: 'Domains', summary: 'Custom domain requests', to: '/admin/domains' },
-    { id: 'users', label: 'Users', summary: 'Accounts and impersonation', to: '/admin/users' },
-    { id: 'content', label: 'Content', summary: 'Marketing pages', to: '/admin/content' },
-    { id: 'blog', label: 'Blog', summary: 'Platform blog posts', to: '/admin/blog' },
-    { id: 'docs', label: 'Docs', summary: 'Documentation pages', to: '/admin/docs' },
-  ])
+  const adminItems = computed(() => adminNavigationGroups.value.flatMap(group => group.items))
 
   /** Links shown in the top nav and the bottom bar. */
   const primaryNavItems = computed(() => {
     if (!isAdminRoute.value) return null
     return adminItems.value
-      .filter(item => ADMIN_PRIMARY.includes(item.to))
+      .filter(item => item.primary)
       .map(item => ({ key: item.id, label: item.label, icon: 'i-lucide-square', to: item.to, active: isActivePath(item.to) }))
   })
 
@@ -54,9 +84,9 @@ export function useDashboardMenu() {
   const notificationsTo = computed(() => isAdminRoute.value || !orgBase.value ? null : `${orgBase.value}/notifications`)
 
   const groups = computed<EditorNavigationGroup[]>(() => {
-    if (isAdminRoute.value) {
-      return [{ id: 'admin', label: 'Platform admin', items: adminItems.value.filter(item => !ADMIN_PRIMARY.includes(item.to)) }]
-    }
+    if (isAdminRoute.value) return adminNavigationGroups.value
+      .map(group => ({ ...group, items: group.items.filter(item => !item.primary) }))
+      .filter(group => group.items.length > 0)
     return organizationSettings.groups.value
   })
 

@@ -8,13 +8,14 @@ export default defineHandler(async (event) => {
 
   const query = getQuery(event)
   const search = String(query.q || '').trim().toLowerCase()
+  const userId = String(query.id || '').trim()
   const limit = Math.max(1, Math.min(100, Number(query.limit) || 50))
   const offset = Math.max(0, Number(query.offset) || 0)
 
   try {
     await requirePlatformEventPermission(event, env, { user: ['list'] })
     const result = await listPlatformUsers(authAdminApi(env), adminHeadersForEvent(event), {
-      search, limit, offset, })
+      search, userId, limit: userId ? 1 : limit, offset, })
     return jsonResponse({ users: result.users, total: result.total })
   } catch (error) {
     const { statusCode, message } = platformPermissionError(error, 'Failed to fetch users')
