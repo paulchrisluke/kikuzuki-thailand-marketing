@@ -3,7 +3,6 @@ import { definePlugin } from 'nitro'
 import PostalMime from 'postal-mime'
 import { receiveGuestEmail } from '~/server/domain/guest-threads/inbound-email'
 import type { CloudflareEnv } from '~/server/utils/auth'
-import { isDatabaseWriteFrozen } from '~/server/utils/database-write-freeze'
 import { parseReplyToAddress } from '~/server/utils/submission-messages'
 
 function isCloudflareEnvironment(value: unknown): value is CloudflareEnv {
@@ -50,7 +49,6 @@ async function sha256Hex(bytes: Uint8Array<ArrayBuffer>): Promise<string> {
 
 async function processEmail(message: ForwardableEmailMessage, env: unknown): Promise<void> {
   if (!isCloudflareEnvironment(env)) throw new Error('Cloudflare environment is not configured')
-  if (isDatabaseWriteFrozen(env)) throw new Error('Database writes are frozen')
 
   const rawEmail = await readEmailBytes(message.raw)
   const messageId = message.headers.get('Message-ID')?.trim()

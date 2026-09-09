@@ -178,15 +178,14 @@ const ENVIRONMENTS = {
 }
 
 /**
- * Drops every application object in one environment's D1 database and replays
- * the migration chain from the generated baseline. Preview does this on every
- * CI run before reseeding from production. Staging and production do it only
- * during a rebaseline write freeze (docs/database/migrations.md), immediately
- * before the verified data payload is loaded; the database keeps its name and id.
+ * Drops every application object in one D1 database and replays the migration
+ * chain from the generated baseline. Preview does this on every CI run before
+ * reseeding from production. A prepared cutover target (--config) does it right
+ * before its verified payload is loaded (docs/database/migrations.md).
  */
 function main() {
   if (process.argv.includes('--help')) {
-    console.log('Usage: node scripts/reset-d1.mjs (--env <preview|staging|production> | --config <wrangler config>) [--apply --confirm <database-id> [--frozen]]')
+    console.log('Usage: node scripts/reset-d1.mjs (--env <preview|staging|production> | --config <wrangler config>) [--apply --confirm <database-id>]')
     return
   }
   explicitConfig = readOption('--config')
@@ -213,7 +212,7 @@ function main() {
 
   if (!process.argv.includes('--apply')) {
     const selector = explicitConfig ? `--config ${explicitConfig}` : `--env ${environment}`
-    console.log(`Dry run only. Apply with: node scripts/reset-d1.mjs ${selector} --apply --confirm ${target.id}${environment === 'preview' || explicitConfig ? '' : ' --frozen'}`)
+    console.log(`Dry run only. Apply with: node scripts/reset-d1.mjs ${selector} --apply --confirm ${target.id}`)
     return
   }
   const confirmation = readOption('--confirm')
@@ -221,12 +220,6 @@ function main() {
     && process.argv.includes('--confirm-configured-preview')
   if (confirmation !== target.id && !ciConfirmation) {
     throw new Error(`Refusing reset: --confirm must exactly match the configured ${environment} database ID`)
-  }
-  // A shared environment loses every row here. The operator states that the
-  // maintenance deployment with DB_WRITE_FROZEN is live and the frozen export is
-  // in hand; the transfer payload is loaded right after this script.
-  if (environment !== 'preview' && environment !== 'config' && !process.argv.includes('--frozen')) {
-    throw new Error(`Refusing reset: ${environment} may only be reset during a write freeze; pass --frozen once the maintenance deployment is live`)
   }
 
   const execute = command => runWrangler(['d1', 'execute', target.name, ...envArgs(environment), '--remote', '--command', command])

@@ -124,7 +124,7 @@ For the canonical migration workflow, see [docs/database/migrations.md](../datab
 
 Never rewrite migration history for a production database resource in place. Rebaselining production schema history is the documented database rebaseline in [docs/database/migrations.md](../database/migrations.md): a fresh generated baseline, an offline transfer of a frozen export, verification, then a reset of the same database resource during a write freeze.
 
-A database rebaseline does not take the site down. Copy live: export, transfer, load the prepared database, verify in place, deploy the candidate on the new binding, then compare the old database for rows created after the export and copy those over. At today's write volume (a handful of contact and booking requests a week) that gap is minutes and the delta check is the safeguard. A write freeze (`DB_WRITE_FROZEN`, reads keep serving) is only for a case where write volume makes lost rows likely, and it never waits on CI: the code is proven before any freeze starts. `DB_MAINTENANCE` (503 everything) is a last resort, not a procedure step.
+A database rebaseline does not take the site down. Copy live: export, transfer, load the prepared database, verify in place, deploy the candidate on the new binding, then compare the old database for rows created after the export and copy those over. There is no write-freeze or maintenance switch in the codebase; an action that returns errors to customers is never a procedure step.
 
 Before dropping or retiring a legacy table or writer:
 

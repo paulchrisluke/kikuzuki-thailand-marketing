@@ -71,8 +71,7 @@ When a change needs a parent-table rebuild (a constraint change on `sites`,
    `node scripts/verify-d1-payload.mjs <target.sqlite> --config <binding>`, deploy
    the candidate on the new binding, then check the old database for rows created
    after the export timestamp and copy them. Total: minutes, no downtime. CI must
-   be green on the candidate before the export starts. A write freeze is for high
-   write volume only; see the release contract.
+   be green on the candidate before the export starts. 
 
 Squashing is not a routine operation: it needs the prepared database and the
 verified transfer above. Never rewrite the migration ledger of a live database
