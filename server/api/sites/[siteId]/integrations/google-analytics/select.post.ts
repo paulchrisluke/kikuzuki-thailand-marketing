@@ -49,9 +49,8 @@ export default defineHandler(async (event) => {
       WHERE id = ? AND organization_id = ?
         AND json_extract(integrations_json, '$.google.kind') = 'oauth'
         AND json_extract(integrations_json, '$.google.revision') IS ?
-        AND json_extract(settings_json, '$.config.resource_team_generation') IS ?
     `, [ga4PropertyId, ga4PropertyName, measurementId, searchConsoleSiteUrl, crypto.randomUUID(),
-      site.id, site.organization_id, connection.revision, connection.transfer_generation])
+      site.id, site.organization_id, connection.revision])
     if (result.meta?.changes !== 1) {
       return jsonResponse({ error: 'Google Analytics connection changed. Reload before selecting a property.' }, { status: 409 })
     }

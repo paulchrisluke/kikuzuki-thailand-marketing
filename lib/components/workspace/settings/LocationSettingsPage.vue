@@ -212,7 +212,7 @@ const locationEffectiveFeatures = ref<ProductFeature[]>([])
 const locationToggleableFeatures = computed<ProductFeature[]>(() => {
   const site = dashboard.site.value
   if (!site?.vertical) return []
-  const template = resolvePublicTemplate({ vertical: site.vertical as SiteVertical }).slug
+  const template = resolvePublicTemplate({ themeId: site.theme_id, vertical: site.vertical as SiteVertical }).slug
   const configurableHere = new Set(toggleableModulesForScope(template, 'location'))
   return siteEffectiveFeatures.value.filter(feature => configurableHere.has(feature))
 })
@@ -221,7 +221,7 @@ const locationFeatureLabels = computed<Map<ProductFeature, string>>(() => {
   const site = dashboard.site.value
   if (!site?.vertical) return new Map()
   const vertical = site.vertical as SiteVertical
-  const template = resolvePublicTemplate({ vertical }).slug
+  const template = resolvePublicTemplate({ themeId: site.theme_id, vertical }).slug
   const defaults = defaultModuleFeaturesForVertical(vertical)
   const effective = siteEffectiveFeatures.value
   const capabilities = resolveCmsCapabilities(vertical, template, {

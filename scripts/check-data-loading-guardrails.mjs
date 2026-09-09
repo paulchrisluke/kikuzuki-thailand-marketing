@@ -9,7 +9,6 @@ import {
   checkSilentEmptyCatch,
   checkLegacyFallbackFlag,
   checkDashboardFetchUsage,
-  checkAdminFetchUsage,
   checkSsrRequestEventCapture,
   checkDeleteBodyUsage,
   checkDynamicSqlListBindings,
@@ -20,7 +19,6 @@ const dashboardRoots = [
   'pages/dashboard',
   'lib/components/workspace',
 ]
-const adminRoots = ['pages/admin', 'components/admin']
 const applicationRoots = [
   'composables',
   'layouts',
@@ -115,13 +113,6 @@ for (const directory of dashboardRoots) {
     // Skip DashboardAccountMenu.vue for /api/health platform health check
     if (file.replaceAll('\\', '/') === 'lib/components/workspace/dashboard/DashboardAccountMenu.vue') continue
     violations.push(...checkDashboardFetchUsage(file, source))
-  }
-}
-
-for (const directory of adminRoots) {
-  for (const file of await filesUnder(directory)) {
-    const source = await readFile(join(root, file), 'utf8')
-    violations.push(...checkAdminFetchUsage(file, source))
   }
 }
 

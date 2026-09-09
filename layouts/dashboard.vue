@@ -11,7 +11,7 @@
           Impersonating <span class="font-semibold">{{ sessionData?.user?.email }}</span>
         </span>
         <UButton size="xs" color="warning" variant="soft" :loading="stoppingImpersonation" @click="stopImpersonating">
-          Exit to Admin
+          Stop impersonating
         </UButton>
       </div>
     </div>
@@ -294,14 +294,13 @@ const isAccountRoute = computed(() => routeName.value.startsWith('dashboard-acco
 // the onboarding wizard, which loads its own via a dedicated endpoint. Same meaning
 // as in layouts/editor.vue.
 const skipDashboardContext = computed(() => route.meta.skipDashboardContext === true)
-const isAdminRoute = computed(() => routeName.value.startsWith('admin'))
 
 const vertical = computed(() => {
   const raw = site.value?.vertical
   if (!raw) return null
   return normalizeVertical(raw) as SiteVertical
 })
-const templateSlug = computed(() => vertical.value ? resolvePublicTemplate({ vertical: vertical.value }).slug : null)
+const templateSlug = computed(() => vertical.value ? resolvePublicTemplate({ themeId: site.value?.theme_id, vertical: vertical.value }).slug : null)
 // The composable already resolves the route's slug to its record; this was the
 // same find written out a second time.
 const currentLocationRow = dashboardLocation.currentLocation
@@ -458,12 +457,12 @@ const mobileNavItems = computed<DashboardMobileNavItem[]>(() => {
 
 // The top nav (tablet and desktop, md and up) and the bottom bar (mobile, below
 // md) render the same list — one nav source, two presentations. useDashboardMenu
-// owns which list that is, so admin is a different link set, not a second layout.
+// owns which list that is.
 // "Menu" opens the slideover at md and up and navigates to the menu page below
 // it, because a slideover is the wrong control on a phone.
 const menuOpen = ref(false)
-const { primaryNavItems: adminPrimaryNavItems, menuPageTo } = useDashboardMenu()
-const primaryNavItems = computed(() => adminPrimaryNavItems.value ?? mobileNavItems.value)
+const { menuPageTo } = useDashboardMenu()
+const primaryNavItems = computed(() => mobileNavItems.value)
 // A signed-in owner always gets the header: the wordmark and the account menu
 // are user-scoped and need no organization. Only the nav links and the bottom
 // bar wait for an organization, because Today, Calendar, Sites and Inbox do not
@@ -472,11 +471,10 @@ const primaryNavItems = computed(() => adminPrimaryNavItems.value ?? mobileNavIt
 const showNavChrome = computed(() => primaryNavItems.value.length > 0 && !isAccountRoute.value)
 const showDashboardChrome = computed(() => showNavChrome.value || skipDashboardContext.value)
 const topNavHomeTo = computed(() => {
-  if (isAdminRoute.value) return '/admin'
   const routeOrgSlug = typeof route.params.orgSlug === 'string' ? route.params.orgSlug : null
   return routeOrgSlug ? `/dashboard/${encodeURIComponent(routeOrgSlug)}` : '/dashboard'
 })
-const isMenuPageActive = computed(() => isActivePath(menuPageTo.value, isAdminRoute.value))
+const isMenuPageActive = computed(() => isActivePath(menuPageTo.value))
 
 watch(
   () => dashboard.contextKey.value,
@@ -501,7 +499,7 @@ watch(
 )
 
 // Load dashboard context during SSR so nav links render stable org-scoped routes.
-if (!skipDashboardContext.value && (routeName.value.startsWith('dashboard') || isAdminRoute.value) && !dashboard.state.value) {
+if (!skipDashboardContext.value && routeName.value.startsWith('dashboard') && !dashboard.state.value) {
   const requestedScope = dashboard.contextKey.value
   try {
     await dashboard.refresh()
@@ -520,7 +518,7 @@ if (!skipDashboardContext.value && (routeName.value.startsWith('dashboard') || i
 }
 
 onMounted(async () => {
-  if ((routeName.value.startsWith('dashboard') || isAdminRoute.value) && !dashboard.state.value && !dashboardContextError.value) {
+  if (routeName.value.startsWith('dashboard') && !dashboard.state.value && !dashboardContextError.value) {
     dashboardContextController?.abort()
     const controller = new AbortController()
     dashboardContextController = controller
@@ -552,7 +550,7 @@ async function stopImpersonating() {
     const result = await authClient.admin.stopImpersonating()
     if (result.error) throw new Error(result.error.message)
     await waitForSession(result.data.session.id)
-    await navigateTo('/admin/users')
+    await navigateTo('/dashboard')
   } catch (error) {
     console.error('Failed to stop impersonation:', error)
     toast.add({

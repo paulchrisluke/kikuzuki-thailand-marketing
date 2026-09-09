@@ -252,7 +252,10 @@ export function structuredComponentsFromBlocks(blocks: EditorContentBlock[]): Ar
   const components: ReturnType<typeof structuredComponentsFromBlocks> = []
   blocks.forEach((block, position) => {
     if (block.type === 'faq') {
-      const items = Array.isArray(block.data.items) ? block.data.items.filter(item => item && typeof item === 'object') : []
+      const items = Array.isArray(block.data.items)
+        ? block.data.items.filter((item): item is Record<string, unknown> => Boolean(item && typeof item === 'object'))
+          .map(item => ({ question: item.title ?? item.question, answer: item.description ?? item.answer }))
+        : []
       components.push({ type: 'faq', position, status: block.data.status === 'inactive' ? 'inactive' : 'active', render_enabled: block.data.render_enabled !== false, schema_enabled: block.data.schema_enabled !== false, data: { items } })
     }
     if (block.type === 'how_to') {
@@ -265,17 +268,6 @@ export function structuredComponentsFromBlocks(blocks: EditorContentBlock[]): Ar
     }
   })
   return components
-}
-
-export function resolveBlogPublicPath(input: {
-  scope: 'platform' | 'tenant'
-  slug: string
-  category?: string | null
-  template?: 'saya' | 'blawby' | 'platform' | string | null
-}) {
-  const slug = encodeURIComponent(input.slug)
-  if (input.scope === 'tenant') return input.template === 'blawby' ? `/article/${slug}` : `/blog/${slug}`
-  return `/blog/${normalizeBlogSlug(input.category || 'uncategorized', 'uncategorized')}/${slug}`
 }
 
 export function resolveSlugMutation(input: {

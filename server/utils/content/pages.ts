@@ -104,7 +104,7 @@ const RESERVED_EXACT_PATHS = new Set([
 ])
 
 const RESERVED_PREFIXES = [
-  '/api/', '/_nuxt/', '/admin/', '/dashboard/', '/login/', '/signup/',
+  '/api/', '/_nuxt/', '/dashboard/', '/login/', '/signup/',
   '/oauth/', '/account/', '/auth/', '/docs/', '/dev/', '/preview/',
   '/templates/', '/features/', '/blog/', '/menu/', '/order/', '/experiences/',
   '/reservations/', '/locations/', '/services/', '/article/',
@@ -933,11 +933,11 @@ export async function updateTenantPage(db: DbClient, variantId: string, input: {
 
 export async function listPublishedTenantPagePaths(db: DbClient, siteId: string, locale?: string | null) {
   const resolvedLocale = await resolveLocale(db, siteId, locale)
-  return await queryAll<{ id: string; path: string; title: string; updated_at: string; robots: string | null }>(db, `
-    SELECT v.id, v.path, v.title, v.updated_at, v.robots
-      FROM content_documents v
+  return await queryAll<{ id: string; path: string; title: string; summary: string | null; sort_order: number; updated_at: string; robots: string | null }>(db, `
+    SELECT v.id, v.path, v.title, v.summary, p.sort_order, v.updated_at, v.robots
+      FROM content_documents v JOIN content_documents p ON p.id = COALESCE(v.root_id, v.id)
      WHERE v.row_role IN ('root','representation') AND v.kind = 'page' AND v.site_id = ? AND v.locale = ?
-     ORDER BY path ASC
+     ORDER BY v.path ASC
   `, [siteId, resolvedLocale])
 }
 

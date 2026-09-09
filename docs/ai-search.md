@@ -44,15 +44,15 @@ That endpoint rebuilds the full corpus from the current DB plus static platform 
 
 ## Automatic refresh
 
-Platform doc and platform blog admin writes trigger a full AI Search rebuild after the content mutation completes (`schedulePlatformKnowledgeIndexRebuild()` in `server/utils/platform-search-rebuild.ts`). Platform MCP blog/doc mutations do the same. Failures on this in-request path are logged with `console.error` (visible in Workers Logs); they do not retry automatically.
+Article writes through MCP trigger a full AI Search rebuild after the mutation completes (`schedulePlatformKnowledgeIndexRebuild()` in `server/utils/platform-search-rebuild.ts`). Platform MCP blog/doc mutations do the same. Failures on this in-request path are logged with `console.error` (visible in Workers Logs); they do not retry automatically.
 
-Production deploys and client imports that write `blog_posts` directly do **not** go through that in-request hook, so production needs an explicit rebuild:
+Production deploys and client imports that write articles directly do **not** go through that in-request hook, so production needs an explicit rebuild:
 
 - Production AI Search synchronization is an explicit final operation inside the production branch deployment job. Its result is retained with the production release evidence; direct deploy commands cannot invoke it.
 - Production CI (`.github/workflows/ci.yml`) syncs the `PLATFORM_SEARCH_REINDEX_SECRET` repo secret and runs a blocking "Rebuild AI Search index (production)" step. A failed production rebuild fails the deploy job instead of silently leaving production search stale.
 - Preview deploys intentionally do not rebuild AI Search. Staging deploys do not rebuild AI Search; staging is read-only.
 
-Any new script that writes `blog_posts`, `platform_docs`, or NCLS/Blawby-style tenant blog fixtures directly (bypassing the admin/MCP write paths) must either call `POST /api/internal/search/reindex` itself or be followed by `yarn ai-search:sync` in whatever deploy/CI step runs it.
+Any new script that writes articles or tenant blog fixtures directly (bypassing the dashboard/MCP write paths) must either call `POST /api/internal/search/reindex` itself or be followed by `yarn ai-search:sync` in whatever deploy/CI step runs it.
 
 ## Environment expectations
 

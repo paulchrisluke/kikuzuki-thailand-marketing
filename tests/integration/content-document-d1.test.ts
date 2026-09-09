@@ -116,13 +116,13 @@ test('document scopes, translations, block ownership and concurrent edits persis
     assert.equal((await listBlocksForDocument(db, headingSource.id))[0]?.type, 'markdown')
     assert.equal(await getContentDocumentById(db, emptyTranslation.id), undefined)
     await assert.rejects(db.prepare("INSERT INTO content_documents(id,organization_id,site_id,kind,row_role,locale,summary,status,published_at,source,metadata_json) VALUES ('invalid-social','one','one','social_post','root','en','Body','published','2026-09-06T00:00:00.000Z','manual','{}')").run())
-    for (const [id, type, owner, slot] of [['root-image', 'content_document', document.id, 'featured'],
-      ['translated-image', 'content_block', 'translated-body', 'media'], ['retained-image', 'content_document', sourceLinks.document.id, 'featured']]) {
+    for (const [id, type, owner, slot] of [['root-image', 'content_document', document.id, 'cover'],
+      ['translated-image', 'content_block', 'translated-body', 'media'], ['retained-image', 'content_document', sourceLinks.document.id, 'cover']]) {
       await executeBatch(db, [buildMediaPlacementInsertQuery({ id, organizationId: 'one', siteId: 'one', ownerType: type,
         ownerId: owner, slot, assetId: 'shared-image', sortOrder: 0 })])
     }
     await assert.rejects(executeBatch(db, [buildMediaPlacementInsertQuery({ organizationId: 'two', siteId: 'two',
-      ownerType: 'content_document', ownerId: document.id, slot: 'featured', assetId: 'shared-image', sortOrder: 0 })]))
+      ownerType: 'content_document', ownerId: document.id, slot: 'cover', assetId: 'shared-image', sortOrder: 0 })]))
     await executeBatch(db, prepareContentDocumentDeletion({ documentId: document.id, organizationId: 'one', siteId: 'one' }))
     assert.equal(await getContentDocumentById(db, translated.document.id), undefined)
     assert.deepEqual(await listBlocksForDocument(db, translated.document.id), [])

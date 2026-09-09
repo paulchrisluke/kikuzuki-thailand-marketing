@@ -5,7 +5,6 @@ export const PLATFORM_ROUTE_PREFIXES = [
   "/pricing",
   "/dashboard",
   "/api",
-  "/admin",
   "/auth",
   "/oauth",
   "/templates",

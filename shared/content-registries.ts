@@ -1,7 +1,6 @@
 export const CONTENT_DOCUMENT_KINDS = [
   'page',
   'article',
-  'platform_doc',
   'social_post',
   'qa',
 ] as const
@@ -66,7 +65,7 @@ export const CONTENT_BLOCK_TEXT_FIELDS = {
   markdown: [markdown('markdown')],
   image: [plain('caption')],
   gallery: [plain('caption')],
-  faq: [plain('label'), plain('items', '*', 'question'), plain('items', '*', 'answer')],
+  faq: [plain('title')],
   how_to: [
     plain('label'), plain('estimated_time'), plain('tool_items', '*'), plain('supply_items', '*'),
     plain('steps', '*', 'name'), plain('steps', '*', 'text'),

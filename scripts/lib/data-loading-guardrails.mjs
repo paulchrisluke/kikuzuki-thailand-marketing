@@ -113,12 +113,6 @@ export function checkDashboardFetchUsage(file, source) {
   return violations
 }
 
-export function checkAdminFetchUsage(file, source) {
-  return (/\$fetch(?:<|\()/.test(source) || /\bdashboardFetch(?:<|\()/.test(source))
-    ? [`${file}: use applicationFetch for unscoped admin API traffic`]
-    : []
-}
-
 export function checkSsrRequestEventCapture(file, source) {
   if (!file.startsWith('pages/') || !file.endsWith('.vue')) return []
 

@@ -105,7 +105,7 @@ export default defineHandler(async (event) => {
       if (isTenant) {
         await updateTenantPageviewDuration(db, { eventId: body.eventId, siteId, sessionId, durationSeconds: durationSeconds!, now })
       } else {
-        await updatePlatformPageviewDuration(db, { eventId: body.eventId, sessionId, durationSeconds: durationSeconds! })
+        await updatePlatformPageviewDuration(db, { eventId: body.eventId, siteId, sessionId, durationSeconds: durationSeconds! })
       }
       return jsonResponse({ ok: true })
     }
@@ -120,6 +120,7 @@ export default defineHandler(async (event) => {
     if (isPlatform) {
       await recordPlatformPageview(db, {
         eventId: body.eventId,
+        siteId,
         pagePath,
         referrerHost,
         userAgent,

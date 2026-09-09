@@ -72,6 +72,18 @@
         </section>
       </template>
 
+      <template v-else-if="block.type === 'how_to'">
+        <section v-if="howToSteps(block).length" class="my-12">
+          <h2 v-if="text(block.data.title)" class="mb-6 text-2xl font-semibold">{{ text(block.data.title) }}</h2>
+          <ol class="list-decimal space-y-4 pl-6">
+            <li v-for="(step, index) in howToSteps(block)" :key="index">
+              <p v-if="step.name" class="font-semibold">{{ step.name }}</p>
+              <p v-if="step.text" class="text-muted">{{ step.text }}</p>
+            </li>
+          </ol>
+        </section>
+      </template>
+
       <template v-else-if="block.type === 'divider'">
         <hr class="my-12 border-default">
       </template>
@@ -149,7 +161,7 @@ import type { PublicTenantPage } from '~/server/utils/public-tenant-pages'
 import type { TenantPageBlock } from '~/utils/tenant-page-blocks'
 import BlawbyCanonicalPage from './BlawbyCanonicalPage.vue'
 
-defineProps<{ page: PublicTenantPage; template: 'saya' | 'blawby' }>()
+defineProps<{ page: PublicTenantPage; template: 'saya' | 'blawby' | 'platform' }>()
 const sanitizer = useHtmlSanitizer()
 const { t } = useI18n()
 
@@ -218,6 +230,13 @@ function gridItems(block: TenantPageBlock): GridItem[] {
 
 function donationItems(block: TenantPageBlock): GridItem[] {
   return asItems(block.data.tiers)
+}
+
+function howToSteps(block: TenantPageBlock): Array<{ name: string; text: string }> {
+  return Array.isArray(block.data.steps)
+    ? block.data.steps.filter((step): step is Record<string, unknown> => Boolean(step && typeof step === 'object'))
+      .map(step => ({ name: text(step.name), text: text(step.text) })).filter(step => step.name || step.text)
+    : []
 }
 
 function faqItems(block: TenantPageBlock): Array<{ question: string; answer: string }> {

@@ -20,3 +20,23 @@ test('platform blog renders its public API posts in server HTML', async ({ reque
     expect(markup).toContain(title)
   }
 })
+
+test('platform documentation renders its docs collection in server HTML', async ({ request }) => {
+  const api = await request.get('/api/public/blog?collection=docs')
+  expect(api.ok()).toBe(true)
+  const { posts } = await api.json()
+  expect(Array.isArray(posts)).toBe(true)
+  for (const post of posts) expect(post.collection).toBe('docs')
+
+  const index = await request.get('/docs')
+  expect(index.ok()).toBe(true)
+  const markup = (await index.text()).replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, '')
+  for (const post of posts) {
+    const title = post.title.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;').replaceAll("'", '&#39;')
+    expect(markup).toContain(title)
+  }
+
+  const blog = await request.get('/api/public/blog')
+  const blogPosts = (await blog.json()).posts as Array<{ collection: string }>
+  for (const post of blogPosts) expect(post.collection).toBe('blog')
+})

@@ -20,9 +20,15 @@
         </slot>
         <slot name="share" />
       </div>
-      <video v-if="mediaUrl && mediaKind === 'video'" :src="mediaUrl" autoplay muted loop playsinline class="mt-8 aspect-video w-full rounded-2xl object-cover" />
-      <img v-else-if="mediaUrl" :src="mediaUrl" :alt="mediaAlt ?? ''" class="mt-8 aspect-video w-full rounded-2xl object-cover">
     </header>
+
+    <!--
+      The cover is the article's leading image block — rendered by the body
+      renderer in the hero position — so an article that opens with text has
+      no cover, and there is no second place a picture could be duplicated
+      from. While editing, the slot offers to add one.
+    -->
+    <slot v-if="editable && !hasCover" name="cover-empty" />
 
     <BlogArticleRenderer
       v-if="normalizedBlocks.length"
@@ -59,21 +65,19 @@ const props = withDefaults(defineProps<{
   authorName?: string | null
   authorImage?: string | null
   siteName?: string | null
-  mediaUrl?: string | null
-  mediaAlt?: string | null
-  mediaKind?: string | null
   readMinutes?: number | null
   blocks?: BlogEditorBlock[] | null
   editable?: boolean
   template?: 'saya' | 'blawby' | 'platform' | string
   showHeader?: boolean
   showMeta?: boolean
-}>(), { excerpt: null, category: null, publishedAt: null, updatedAt: null, authorName: null, authorImage: null, siteName: null, mediaUrl: null, mediaAlt: null, mediaKind: null, readMinutes: null, blocks: () => [], editable: false, template: 'saya', showHeader: true, showMeta: true })
+}>(), { excerpt: null, category: null, publishedAt: null, updatedAt: null, authorName: null, authorImage: null, siteName: null, readMinutes: null, blocks: () => [], editable: false, template: 'saya', showHeader: true, showMeta: true })
 
 defineEmits<{ 'update:title': [value: string]; 'update:block': [index: number, block: BlogEditorBlock]; 'insert-block': [index: number, cursorPosition: number]; 'insert-block-type': [index: number, type: string]; 'move-block': [index: number, delta: -1 | 1]; 'merge-block': [index: number, direction: 'back' | 'forward']; 'split-insert': [index: number, payload: { after: string; blockType: 'image' | 'faq' | 'how_to'; editorMode: 'rich' | 'source' }] }>()
 
 const authorInitials = computed(() => String(props.authorName || props.siteName || 'A').split(/\s+/).map(part => part[0]).join('').slice(0, 2).toUpperCase())
 const normalizedBlocks = computed(() => props.blocks ?? [])
+const hasCover = computed(() => normalizedBlocks.value[0]?.type === 'image')
 function formatDate(value: string) { return formatTimestamp(value, 'en', 'UTC', { dateStyle: 'medium' }) }
 </script>
 

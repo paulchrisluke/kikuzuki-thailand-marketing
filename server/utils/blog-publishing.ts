@@ -1,8 +1,6 @@
 import { execute, queryAll, queryFirst, type DbClient } from '~/server/db'
 import { HTTPError } from 'nitro';
 import { tenantBlogPostPath } from '~/utils/tenant-blog-route'
-import { resolveBlogPublicPath } from '~/utils/blog-editor'
-import { PLATFORM_SITE_ID } from '~/shared/platform-scope'
 
 export async function publishDueBlogPosts(db: D1Database, now = new Date()) {
   const contentIssues = await queryAll<{ id: string }>(db, `SELECT id FROM content_documents
@@ -41,15 +39,14 @@ export async function createBlogRedirect(db: D1Database, postId: string, siteId:
      WHERE p.kind = 'article' AND p.row_role = 'root' AND p.id = ? AND p.site_id = ? LIMIT 1
   `, [postId, siteId])
   if (!post) throw new HTTPError({ statusCode: 400, statusMessage: 'Blog redirect scope must match its post' })
-  const platform = siteId === PLATFORM_SITE_ID
-  const oldPath = platform ? resolveBlogPublicPath({ scope: 'platform', slug: oldSlug, category: post.category }) : tenantBlogPostPath({ themeId: post.theme_id }, oldSlug)
-  const newPath = platform ? resolveBlogPublicPath({ scope: 'platform', slug: post.slug, category: post.category }) : tenantBlogPostPath({ themeId: post.theme_id }, post.slug)
+  const oldPath = tenantBlogPostPath({ themeId: post.theme_id }, oldSlug, post.category)
+  const newPath = tenantBlogPostPath({ themeId: post.theme_id }, post.slug, post.category)
   const result = await execute(db, `INSERT INTO site_redirects
     (id, organization_id, site_id, locale, owner_type, owner_id, from_path, to_path, status_code, behavior, reason, source, created_at, updated_at)
     VALUES (?, ?, ?, 'en', ?, ?, ?, ?, 301, 'redirect', ?, ?, ?, ?)
     ON CONFLICT(site_id, locale, from_path) DO UPDATE SET owner_type = excluded.owner_type, owner_id = excluded.owner_id,
       to_path = excluded.to_path, status_code = 301, behavior = 'redirect', reason = excluded.reason, source = excluded.source, updated_at = excluded.updated_at`,
-  [crypto.randomUUID(), post.organization_id, siteId, 'content_document', postId, oldPath, newPath, platform ? 'platform_blog_slug_change' : 'tenant_blog_slug_change', platform ? 'platform-blog' : 'tenant-blog', now, now])
+  [crypto.randomUUID(), post.organization_id, siteId, 'content_document', postId, oldPath, newPath, 'blog_slug_change', 'blog', now, now])
   if (Number(result.meta.changes ?? 0) === 0) {
     throw new HTTPError({ statusCode: 400, statusMessage: 'Blog redirect scope must match its post' })
   }
