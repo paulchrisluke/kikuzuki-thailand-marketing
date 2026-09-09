@@ -6,8 +6,7 @@
 //
 //   node scripts/verify-d1-payload.mjs <target.sqlite> --env <preview|staging|production|local> [--without-jwks]
 import { spawnSync } from 'node:child_process'
-import { existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
-import { tmpdir } from 'node:os'
+import { existsSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import Database from 'better-sqlite3'
@@ -38,20 +37,21 @@ const statements = tables.map(fingerprintSql)
 const local = new Map(tables.map((table, index) => { const row = target.prepare(statements[index]).get(); return [table, { n: row.n, b: row.b }] }))
 target.close()
 
-// One statement per table; wrangler reads them from a file so the argument list stays small.
+// A file execution only reports a summary, so rows come back through --command.
+// Tables are grouped into UNION ALL batches to keep each command short.
 const location = config ? ['-c', config, '--remote'] : environment === 'local' ? ['--local'] : [...(environment === 'production' ? [] : ['--env', environment]), '--remote']
 const label = config ?? environment
-const scratch = mkdtempSync(join(tmpdir(), 'krabiclaw-verify-'))
-const sqlPath = join(scratch, 'fingerprints.sql')
-writeFileSync(sqlPath, statements.map(statement => `${statement};`).join('\n'))
-const result = spawnSync(WRANGLER_BIN, ['d1', 'execute', 'DB', ...location, '--file', sqlPath, '--json'], { cwd: ROOT, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 })
-rmSync(scratch, { recursive: true, force: true })
-if (result.status !== 0) throw new Error(`wrangler failed: ${result.stderr || result.stdout}`)
-// wrangler prints upload progress before the JSON when reading from a file.
-const jsonStart = result.stdout.search(/[[{]/)
-if (jsonStart < 0) throw new Error(`wrangler returned no JSON: ${result.stdout.slice(0, 200)}`)
-const payload = JSON.parse(result.stdout.slice(jsonStart))
-const remoteRows = (Array.isArray(payload) ? payload : [payload]).flatMap(envelope => envelope.results ?? [])
+const remoteRows = []
+// D1 caps compound SELECT terms well below SQLite's default; four per command is safe.
+for (let index = 0; index < statements.length; index += 4) {
+  const batch = statements.slice(index, index + 4).join('\nUNION ALL\n')
+  const result = spawnSync(WRANGLER_BIN, ['d1', 'execute', 'DB', ...location, '--command', batch, '--json'], { cwd: ROOT, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 })
+  if (result.status !== 0) throw new Error(`wrangler failed (${result.status}):\n${result.stderr}\n${result.stdout}`)
+  const jsonStart = result.stdout.search(/[[{]/)
+  if (jsonStart < 0) throw new Error(`wrangler returned no JSON: ${result.stdout.slice(0, 200)}`)
+  const payload = JSON.parse(result.stdout.slice(jsonStart))
+  remoteRows.push(...(Array.isArray(payload) ? payload : [payload]).flatMap(envelope => envelope.results ?? []))
+}
 const remote = new Map(remoteRows.map(row => [row.t, { n: row.n, b: row.b }]))
 
 const mismatches = []
