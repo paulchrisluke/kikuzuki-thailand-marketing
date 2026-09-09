@@ -1,5 +1,5 @@
 <template>
-  <div class="flex h-screen flex-col overflow-hidden bg-muted text-highlighted">
+  <div class="flex size-full min-h-0 flex-col overflow-hidden bg-muted text-highlighted">
 
     <div
       v-if="contextLoaded && !contextError"
