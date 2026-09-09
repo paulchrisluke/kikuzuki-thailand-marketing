@@ -19,8 +19,9 @@ const flag = name => { const i = args.indexOf(name); return i >= 0 ? Boolean(arg
 const option = name => { const i = args.indexOf(name); return i >= 0 ? args.splice(i, 2)[1] : null }
 const withoutJwks = flag('--without-jwks')
 const environment = option('--env')
+const config = option('--config')
 const [targetPath] = args
-if (!targetPath || !environment) throw new Error('Usage: verify-d1-payload.mjs <target.sqlite> --env <preview|staging|production|local> [--without-jwks]')
+if (!targetPath || (!environment && !config)) throw new Error('Usage: verify-d1-payload.mjs <target.sqlite> (--env <preview|staging|production|local> | --config <wrangler config>) [--without-jwks]')
 if (!existsSync(targetPath)) throw new Error(`Missing target: ${targetPath}`)
 
 const qi = value => `"${value.replaceAll('"', '""')}"`
@@ -38,14 +39,18 @@ const local = new Map(tables.map((table, index) => { const row = target.prepare(
 target.close()
 
 // One statement per table; wrangler reads them from a file so the argument list stays small.
-const location = environment === 'local' ? ['--local'] : [...(environment === 'production' ? [] : ['--env', environment]), '--remote']
+const location = config ? ['-c', config, '--remote'] : environment === 'local' ? ['--local'] : [...(environment === 'production' ? [] : ['--env', environment]), '--remote']
+const label = config ?? environment
 const scratch = mkdtempSync(join(tmpdir(), 'krabiclaw-verify-'))
 const sqlPath = join(scratch, 'fingerprints.sql')
 writeFileSync(sqlPath, statements.map(statement => `${statement};`).join('\n'))
 const result = spawnSync(WRANGLER_BIN, ['d1', 'execute', 'DB', ...location, '--file', sqlPath, '--json'], { cwd: ROOT, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 })
 rmSync(scratch, { recursive: true, force: true })
 if (result.status !== 0) throw new Error(`wrangler failed: ${result.stderr || result.stdout}`)
-const payload = JSON.parse(result.stdout)
+// wrangler prints upload progress before the JSON when reading from a file.
+const jsonStart = result.stdout.search(/[[{]/)
+if (jsonStart < 0) throw new Error(`wrangler returned no JSON: ${result.stdout.slice(0, 200)}`)
+const payload = JSON.parse(result.stdout.slice(jsonStart))
 const remoteRows = (Array.isArray(payload) ? payload : [payload]).flatMap(envelope => envelope.results ?? [])
 const remote = new Map(remoteRows.map(row => [row.t, { n: row.n, b: row.b }]))
 
@@ -57,7 +62,7 @@ for (const table of tables) {
 }
 const rows = [...local.values()].reduce((sum, row) => sum + row.n, 0)
 if (mismatches.length) {
-  console.error(`Verification FAILED for ${environment}:\n${mismatches.map(item => `  - ${item}`).join('\n')}`)
+  console.error(`Verification FAILED for ${label}:\n${mismatches.map(item => `  - ${item}`).join('\n')}`)
   process.exit(1)
 }
-console.log(`Verified ${environment}: ${tables.length} tables, ${rows} rows match the transfer target exactly (count and quoted-byte fingerprint).`)
+console.log(`Verified ${label}: ${tables.length} tables, ${rows} rows match the transfer target exactly (count and quoted-byte fingerprint).`)

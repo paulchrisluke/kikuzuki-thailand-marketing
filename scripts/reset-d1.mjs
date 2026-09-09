@@ -62,7 +62,9 @@ function runWrangler(args, { json = false } = {}) {
 
 // The production binding is the top-level [[d1_databases]]; every other
 // environment is addressed through wrangler's --env flag.
+let explicitConfig = null
 function envArgs(environment) {
+  if (explicitConfig) return ['-c', explicitConfig]
   return environment === 'production' ? [] : ['--env', environment]
 }
 
@@ -145,12 +147,19 @@ export function orderForDrop(objects) {
   return [...views, ...orderedNames.map(name => byName.get(name))]
 }
 
+function configBinding(path) {
+  const parsed = JSON.parse(readFileSync(path, 'utf8'))
+  const binding = parsed.d1_databases?.find(entry => entry.binding === 'DB')
+  if (!binding?.database_name || !binding?.database_id || !binding?.migrations_dir) throw new Error(`${path} must bind DB with database_name, database_id and migrations_dir`)
+  return { name: binding.database_name, id: binding.database_id, migrationsDir: binding.migrations_dir }
+}
+
 function quoteIdentifier(value) {
   return `"${value.replaceAll('"', '""')}"`
 }
 
 function expectedMigrations(directory) {
-  return readdirSync(join(ROOT, directory))
+  return readdirSync(directory.startsWith('/') ? directory : join(ROOT, directory))
     .filter(name => name.endsWith('.sql'))
     .sort()
 }
@@ -177,15 +186,17 @@ const ENVIRONMENTS = {
  */
 function main() {
   if (process.argv.includes('--help')) {
-    console.log('Usage: node scripts/reset-d1.mjs --env <preview|staging|production> [--apply --confirm <database-id> [--frozen]]')
+    console.log('Usage: node scripts/reset-d1.mjs (--env <preview|staging|production> | --config <wrangler config>) [--apply --confirm <database-id> [--frozen]]')
     return
   }
-  const environment = readOption('--env') ?? 'preview'
-  if (!(environment in ENVIRONMENTS)) throw new Error(`Unknown environment: ${environment}`)
+  explicitConfig = readOption('--config')
+  const environment = explicitConfig ? 'config' : (readOption('--env') ?? 'preview')
+  if (!explicitConfig && !(environment in ENVIRONMENTS)) throw new Error(`Unknown environment: ${environment}`)
 
   const source = readFileSync(WRANGLER_CONFIG, 'utf8')
   const bindings = Object.fromEntries(Object.entries(ENVIRONMENTS).map(([name, heading]) => [name, d1Binding(source, heading)]))
-  const target = bindings[environment]
+  // A prepared cutover target lives outside wrangler.toml: a small config that binds only it.
+  const target = explicitConfig ? configBinding(explicitConfig) : bindings[environment]
   const others = Object.entries(bindings).filter(([name]) => name !== environment)
   if (others.some(([, binding]) => binding.id === target.id)) {
     throw new Error(`Refusing reset: ${environment} database ID is shared with another environment`)
@@ -201,7 +212,8 @@ function main() {
   printPlan(environment, target, objects)
 
   if (!process.argv.includes('--apply')) {
-    console.log(`Dry run only. Apply with: node scripts/reset-d1.mjs --env ${environment} --apply --confirm ${target.id}${environment === 'preview' ? '' : ' --frozen'}`)
+    const selector = explicitConfig ? `--config ${explicitConfig}` : `--env ${environment}`
+    console.log(`Dry run only. Apply with: node scripts/reset-d1.mjs ${selector} --apply --confirm ${target.id}${environment === 'preview' || explicitConfig ? '' : ' --frozen'}`)
     return
   }
   const confirmation = readOption('--confirm')
@@ -213,7 +225,7 @@ function main() {
   // A shared environment loses every row here. The operator states that the
   // maintenance deployment with DB_WRITE_FROZEN is live and the frozen export is
   // in hand; the transfer payload is loaded right after this script.
-  if (environment !== 'preview' && !process.argv.includes('--frozen')) {
+  if (environment !== 'preview' && environment !== 'config' && !process.argv.includes('--frozen')) {
     throw new Error(`Refusing reset: ${environment} may only be reset during a write freeze; pass --frozen once the maintenance deployment is live`)
   }
 
