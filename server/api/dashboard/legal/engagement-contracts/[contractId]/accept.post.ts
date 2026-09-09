@@ -6,10 +6,15 @@
 // [contractId] is interpolated into the route's path param, not sent as a
 // body field. A mutation: Origin is validated FIRST, before
 // resolveLegalStaffAccess. R5: engagement acceptance is the one route
-// family that may additionally forward the trusted client IP, derived from
-// Cloudflare's own request context (getClientIp), never a browser header —
-// U8 only reads it on the 'accepted' branch server-side, which is the only
-// branch this route sends.
+// family that may additionally forward the trusted client IP — U8 only
+// reads it on the 'accepted' branch server-side, which is the only branch
+// this route sends. Read directly from `CF-Connecting-IP` here (NOT via
+// hourly-rate-limit's shared getClientIp, which falls back to the
+// caller-controlled `x-forwarded-for` header when CF-Connecting-IP is
+// absent — that fallback is fine for rate limiting but would let an
+// attacker spoof the IP forwarded to Blawby as trusted). When
+// CF-Connecting-IP is absent, clientIp is left undefined, matching how
+// every other route already omits it.
 //
 // U9 reconciliation scope note: U8's real status route is a full
 // status-action dispatch — `send`/`decline`/`accept` — not acceptance-only.
@@ -18,7 +23,6 @@
 
 import { apiErrorResponse, cloudflareEnv, rethrowHttpError } from '~/server/utils/api-response'
 import { callBlawbyRoute } from '~/server/utils/blawby-client'
-import { getClientIp } from '~/server/utils/hourly-rate-limit'
 import { assertLegalStaffMutationOrigin, legalJsonResponse, legalRequestCorrelationId, resolveLegalStaffAccess } from '~/server/utils/legal-access'
 
 interface EngagementAcceptResult {
@@ -45,6 +49,11 @@ export default defineHandler(async (event) => {
   try {
     const access = await resolveLegalStaffAccess(event, 'engagement', { pathname: '/api/dashboard/legal/engagement-contracts/[contractId]/accept' })
 
+    // Trusted-only: CF-Connecting-IP is set by Cloudflare's edge and cannot
+    // be spoofed by the caller. No x-forwarded-for fallback here — an
+    // absent CF-Connecting-IP means clientIp stays undefined.
+    const trustedClientIp = event.req.headers.get('CF-Connecting-IP') || undefined
+
     const result = await callBlawbyRoute(access.env, {
       routeKey: 'engagementAcceptance',
       scope: 'legal:engagements',
@@ -52,7 +61,7 @@ export default defineHandler(async (event) => {
       identity: { organizationId: access.organizationId, actorId: access.userId, actorKind: 'human' },
       correlationId,
       pathParam: contractId,
-      clientIp: getClientIp(event),
+      clientIp: trustedClientIp,
       body: { status: 'accepted' },
       parseResponse: parseEngagementAcceptResult,
     })

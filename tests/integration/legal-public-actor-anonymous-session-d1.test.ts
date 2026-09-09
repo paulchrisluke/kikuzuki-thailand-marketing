@@ -101,7 +101,7 @@ test('requireLegalPublicActor establishes a fresh anonymous Better Auth session 
       assert.ok(setCookies && (Array.isArray(setCookies) ? setCookies.length > 0 : setCookies.length > 0), 'a session cookie was forwarded onto the outgoing response for the browser to retain')
     })
 
-    await t.test('a second call for the SAME event (same in-progress request) reuses the same freshly-established actor, not a second anonymous user', async () => {
+    await t.test('each cookie-less request establishes its own distinct anonymous actor, not a shared cached one', async () => {
       const event = buildEvent(env, { origin: 'https://site-a.example.com', ip: '10.0.0.2' })
       const context = await resolveLegalPublicSiteAccess(event, 'intake_without_payment', 'site-a', alwaysEntitled)
       const first = await requireLegalPublicActor(event, context)

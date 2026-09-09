@@ -264,9 +264,16 @@ async function fetchBlawby(params: {
   headers: Headers
   body?: string
   correlationId: string
+  /** Appended as URL-encoded query params after the pinned-origin path is built. */
+  query?: Record<string, string>
 }): Promise<BlawbyRawResponse> {
   const origin = resolvePinnedOrigin(params.env, params.correlationId)
   const url = buildBlawbyUrl(origin, params.path, params.correlationId)
+  if (params.query) {
+    for (const [key, value] of Object.entries(params.query)) {
+      url.searchParams.set(key, value)
+    }
+  }
   const timeoutMs = resolveTimeoutMs(params.env, params.correlationId)
 
   const controller = new AbortController()
@@ -533,6 +540,15 @@ export interface BlawbyRouteCallParams<TResponse> {
    * SAFE_PATH_SEGMENT_PATTERN before interpolation.
    */
   pathParam?: string
+  /**
+   * URL-encoded query parameters appended to the request (e.g. U8's real
+   * `GET /intakes/{uuid}/post-pay/status` route, which requires a
+   * `session_id` query param per
+   * `checkoutSessionStatusQuerySchema` in blawby-ts
+   * src/modules/practice-client-intakes/validations/practice-client-intakes.validation.ts:80-82).
+   * Sent as-is, never merged with any inbound query string.
+   */
+  query?: Record<string, string>
   clientIp?: string
   body?: unknown
   /** Runtime-validate a successful (2xx) response body. Return undefined on mismatch. */
@@ -575,6 +591,7 @@ export async function callBlawbyRoute<TResponse>(
       headers,
       body: serializedBody,
       correlationId: params.correlationId,
+      query: params.query,
     })
   }
 

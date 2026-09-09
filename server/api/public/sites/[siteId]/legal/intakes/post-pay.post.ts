@@ -20,17 +20,13 @@
 // intake id, and checkout session id before anything is attached. The path
 // param is the Blawby intake UUID.
 //
-// KNOWN GAP: per task-u8-reconciliation-brief.md section 2, U8's real
-// post-pay route also takes a query param
-// (`checkoutSessionStatusQuerySchema`, likely the Stripe Checkout Session
-// id) that this task's scope (path-param support only, section 4) does not
-// add plumbing for -- callBlawbyRoute has no query-param support yet, and
-// the brief could not confirm the exact query field name from this repo
-// alone. This call currently sends no query string at all; U8's response
-// may therefore not reflect the specific checkoutSessionId being verified.
-// Flagged in task-u8-reconciliation-report.md; needs the real query field
-// name confirmed against blawby-ts before this route can be trusted for
-// production traffic.
+// Query param confirmed against blawby-ts: U8's real post-pay route
+// requires `?session_id=<Stripe Checkout Session id>`
+// (checkoutSessionStatusQuerySchema in
+// src/modules/practice-client-intakes/validations/practice-client-intakes.validation.ts:80-82,
+// read by the handler at
+// src/modules/krabiclaw-integration/intakes.handlers.ts:421). Sent below
+// via callBlawbyRoute's `query` param.
 //
 // Every field the browser sends here (requestReference, blawbyIntakeId,
 // checkoutSessionId) originated from Blawby's own Payment Link redirect
@@ -133,6 +129,7 @@ export default defineHandler(async (event) => {
       // at this point (checked above), but blawbyIntakeId's type is a plain
       // non-null string, avoiding a redundant null-narrowing assertion.
       pathParam: blawbyIntakeId,
+      query: { session_id: checkoutSessionId },
       clientIp: getClientIp(event),
       parseResponse: parsePostPayVerification,
     })

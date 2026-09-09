@@ -231,17 +231,16 @@ test('callBlawbyRoute: header allowlist, client-IP scoping, redirects, and sanit
         'authorization', 'content-type', 'x-krabiclaw-actor-id', 'x-krabiclaw-actor-kind',
         'x-krabiclaw-organization-id', 'x-krabiclaw-request-reference',
       ])
-      assert.equal(headers.get('x-krabiclaw-organization-id'), 'org_1')
-      assert.equal(headers.get('x-krabiclaw-request-reference'), 'req-ref-1')
-      assert.equal(headers.get('cookie'), null)
-      assert.equal(headers.get('x-forwarded-for'), null)
+      assert.equal(headers.get('x-krabiclaw-organization-id'), 'org_1'); assert.equal(headers.get('x-krabiclaw-request-reference'), 'req-ref-1')
+      assert.equal(headers.get('cookie'), null); assert.equal(headers.get('x-forwarded-for'), null)
+      assert.equal(new URL(url).searchParams.get('session_id'), 'cs_test_123') // post-pay's confirmed query param, sent on the URL not a header
       return Response.json({ ok: true })
     })
     try {
       // No inbound-headers parameter exists, so nothing here can forward one.
       await callBlawbyRoute(makeEnv(), {
         routeKey: 'practiceRead', scope: 'legal:test-headers', method: 'POST', identity, correlationId: 'corr-headers',
-        requestReference: 'req-ref-1', body: { note: 'forces content-type' }, parseResponse: (b) => b,
+        requestReference: 'req-ref-1', body: { note: 'forces content-type' }, query: { session_id: 'cs_test_123' }, parseResponse: (b) => b,
       })
     } finally { restore() }
   })
