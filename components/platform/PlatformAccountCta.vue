@@ -30,37 +30,18 @@
         </button>
       </div>
     </details>
-    <!-- Signed out but recognised: the loud button belongs to the account they
-         already have. Leading with "Start free" is what walked a returning owner
-         into a second account when she could not read either label. -->
-    <template v-else-if="remembered">
-      <NuxtLink :to="to" class="text-sm font-semibold no-underline">{{ label }}</NuxtLink>
-      <PlatformButton to="/login" size="md" :aria-label="`Sign in as ${remembered.name ?? remembered.identifier}`">
-        <UAvatar v-if="remembered.image" :src="remembered.image" :alt="remembered.name ?? ''" size="2xs" />
-        <PlatformGoogleIcon v-else-if="remembered.method === 'google'" class="size-4 shrink-0" />
-        <UIcon v-else :name="remembered.method === 'email' ? 'i-lucide-mail' : 'i-lucide-message-circle'" class="size-4 shrink-0" />
-        <span class="max-w-40 truncate">{{ remembered.name ?? remembered.identifier }}</span>
-      </PlatformButton>
-    </template>
     <template v-else>
       <NuxtLink to="/login" class="text-sm font-semibold no-underline">Sign in</NuxtLink>
       <PlatformButton :to="to" size="sm">{{ label }}</PlatformButton>
     </template>
   </div>
-  <PlatformButton
-    v-else
-    :to="inlineTarget"
-    :external="Boolean(user)"
-    :aria-label="remembered && !user ? `Sign in as ${remembered.identifier}` : undefined"
-    v-bind="$attrs"
-  >
-    <span class="max-w-56 truncate">{{ inlineLabel }}</span>
+  <PlatformButton v-else :to="user ? postLoginUrl : to" :external="Boolean(user)" v-bind="$attrs">
+    {{ user && !selectedPlan ? 'Dashboard' : label }}
   </PlatformButton>
 </template>
 
 <script setup lang="ts">
 import { buildPostLoginUrl } from '~/shared/auth/return-target'
-import { LAST_LOGIN_METHOD_COOKIE, REMEMBERED_PROFILE_COOKIE, readRememberedProfile } from '~/shared/auth/remembered-profile'
 import { signOutUser } from '~/composables/useAuth'
 
 defineOptions({ inheritAttrs: false })
@@ -73,12 +54,6 @@ const props = withDefaults(defineProps<{ account?: boolean, to?: string, label?:
 const { user, sessionError } = await useAuthSession()
 const selectedPlan = computed(() => new URL(props.to, 'https://krabiclaw.internal').searchParams.get('plan'))
 const postLoginUrl = computed(() => buildPostLoginUrl({ plan: selectedPlan.value ?? undefined }))
-
-// Display-only browser hints. They never establish identity or authorize a
-// request; /login still requires the full credential.
-const lastMethod = useCookie<string | null>(LAST_LOGIN_METHOD_COOKIE)
-const lastIdentifier = useCookie<string | null>(REMEMBERED_PROFILE_COOKIE)
-const remembered = computed(() => readRememberedProfile(lastMethod.value, lastIdentifier.value))
 
 const accountMenu = ref<HTMLDetailsElement | null>(null)
 function closeMenu() {
@@ -103,16 +78,5 @@ onMounted(() => {
 onBeforeUnmount(() => {
   document.removeEventListener('pointerdown', onDocumentPointerDown)
   document.removeEventListener('keydown', onDocumentKeydown)
-})
-
-const inlineTarget = computed(() => {
-  if (user.value) return postLoginUrl.value
-  // A plan-carrying CTA is a purchase intent, so it keeps its own destination.
-  return remembered.value && !selectedPlan.value ? '/login' : props.to
-})
-const inlineLabel = computed(() => {
-  if (user.value) return selectedPlan.value ? props.label : 'Dashboard'
-  if (!remembered.value || selectedPlan.value) return props.label
-  return remembered.value.name ?? remembered.value.identifier
 })
 </script>

@@ -89,25 +89,18 @@ test('signed-in Growth CTA retains its plan through the canonical billing redire
   expect(invalid.status()).toBe(400)
 })
 
-test('successful sign-in remembers a profile without retaining authentication, and can be forgotten', async ({ page, baseURL }) => {
+test('sign-in surfaces the last used method without remembering the account', async ({ page, baseURL }) => {
   await dismissPreviewToolbar(page)
   await loginAs(page.request, baseURL!, 'user-e2e-oauth-private-cimd')
-  const { user } = await (await page.request.get('/api/auth/get-session')).json()
   const signOut = await page.request.post('/api/auth/sign-out', { headers: { origin: baseURL! }, data: {} })
   expect(signOut.status()).toBe(200)
+
   await page.goto('/login')
-  const remembered = page.getByRole('button', { name: `${user.email} Last used` })
-  await expect(remembered).toBeVisible()
+  // Better Auth's lastLoginMethod records the method, so the email form is
+  // badged. No identity is retained: the email field is empty and nothing
+  // offers to continue as the previous account.
+  await expect(page.getByText('Last used', { exact: true })).toBeVisible()
+  await expect(page.getByRole('textbox', { name: 'Email', exact: true })).toHaveValue('')
+  await expect(page.getByRole('button', { name: /Continue as/ })).toHaveCount(0)
   expect(await (await page.request.get('/api/auth/get-session')).json()).toBeNull()
-  await remembered.click()
-  await expect(page.getByRole('textbox', { name: 'Email', exact: true })).toHaveValue(user.email)
-  await expect(page.getByLabel('Password', { exact: true })).toHaveValue('')
-  await page.getByRole('button', { name: 'Log in with another profile', exact: true }).click()
-  await expect(page.getByRole('textbox', { name: 'Email', exact: true })).toHaveValue('')
-  await page.reload()
-  await expect(remembered).toBeVisible()
-  await page.getByRole('button', { name: 'Forget this profile', exact: true }).click()
-  await page.reload()
-  await expect(page.getByText('Last used', { exact: true })).toHaveCount(0)
-  await expect(page.getByRole('textbox', { name: 'Email', exact: true })).toHaveValue('')
 })
