@@ -80,8 +80,8 @@ WHATSAPP_DELIVERY_MODE = "provider"
 
 [[d1_databases]]
 binding = "DB"
-database_name = "krabiclaw"
-database_id = "5bf2ad29-ce38-41d9-a3c4-6a8be8ce26ab"
+database_name = "krabiclaw-production"
+database_id = "a3d20d54-8e98-425d-9b3a-fd03b1824fd9"
 migrations_dir = "migrations"
 remote = false
 
