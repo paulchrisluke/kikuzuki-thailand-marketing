@@ -531,7 +531,7 @@ const recentBlogPosts = computed(() =>
       excerpt: typeof post.excerpt === 'string' ? post.excerpt : '',
       category: typeof post.category === 'string' ? post.category : '',
       publishedAt: typeof post.published_at === 'string' ? post.published_at : null,
-      image: resolveMedia(post.cover).url,
+      image: resolveMedia(post.cover).thumb,
     }))
 )
 

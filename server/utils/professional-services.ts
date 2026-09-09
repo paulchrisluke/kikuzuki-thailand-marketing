@@ -625,8 +625,8 @@ function mapPublicBlogPost(row: ApiRecord | null): PublicBlogPost | null {
           thumbnail_url: typeof (row.cover as ApiRecord).thumbnail_url === 'string' ? String((row.cover as ApiRecord).thumbnail_url) : null,
           kind: typeof (row.cover as ApiRecord).kind === 'string' ? String((row.cover as ApiRecord).kind) : null,
           alt_text: typeof (row.cover as ApiRecord).alt_text === 'string' ? String((row.cover as ApiRecord).alt_text) : null,
-          width: Number.isFinite(Number((row.cover as ApiRecord).width)) ? Number((row.cover as ApiRecord).width) : null,
-          height: Number.isFinite(Number((row.cover as ApiRecord).height)) ? Number((row.cover as ApiRecord).height) : null,
+          width: typeof (row.cover as ApiRecord).width === 'number' && Number.isFinite((row.cover as ApiRecord).width) ? Number((row.cover as ApiRecord).width) : null,
+          height: typeof (row.cover as ApiRecord).height === 'number' && Number.isFinite((row.cover as ApiRecord).height) ? Number((row.cover as ApiRecord).height) : null,
         }
       : null,
     social_image: parseSocialImageSource(row.social_image),
