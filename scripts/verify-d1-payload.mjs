@@ -6,7 +6,8 @@
 //
 //   node scripts/verify-d1-payload.mjs <target.sqlite> --env <preview|staging|production|local> [--without-jwks]
 import { spawnSync } from 'node:child_process'
-import { existsSync } from 'node:fs'
+import { existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import Database from 'better-sqlite3'
@@ -32,14 +33,17 @@ function fingerprintSql(table) {
   const bytes = columns.map(name => `length(quote(${qi(name)}))`).join(' + ')
   return `SELECT '${table}' AS t, count(*) AS n, total(${bytes}) AS b FROM ${qi(table)}`
 }
-const sql = tables.map(fingerprintSql).join('\nUNION ALL\n')
-
-const local = new Map(target.prepare(sql).all().map(row => [row.t, { n: row.n, b: row.b }]))
+const statements = tables.map(fingerprintSql)
+const local = new Map(tables.map((table, index) => { const row = target.prepare(statements[index]).get(); return [table, { n: row.n, b: row.b }] }))
 target.close()
 
+// One statement per table; wrangler reads them from a file so the argument list stays small.
 const location = environment === 'local' ? ['--local'] : [...(environment === 'production' ? [] : ['--env', environment]), '--remote']
-const wranglerArgs = ['d1', 'execute', 'DB', ...location, '--command', sql, '--json']
-const result = spawnSync(WRANGLER_BIN, wranglerArgs, { cwd: ROOT, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 })
+const scratch = mkdtempSync(join(tmpdir(), 'krabiclaw-verify-'))
+const sqlPath = join(scratch, 'fingerprints.sql')
+writeFileSync(sqlPath, statements.map(statement => `${statement};`).join('\n'))
+const result = spawnSync(WRANGLER_BIN, ['d1', 'execute', 'DB', ...location, '--file', sqlPath, '--json'], { cwd: ROOT, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 })
+rmSync(scratch, { recursive: true, force: true })
 if (result.status !== 0) throw new Error(`wrangler failed: ${result.stderr || result.stdout}`)
 const payload = JSON.parse(result.stdout)
 const remoteRows = (Array.isArray(payload) ? payload : [payload]).flatMap(envelope => envelope.results ?? [])
