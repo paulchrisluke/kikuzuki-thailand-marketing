@@ -1,9 +1,9 @@
 import { defineHandler } from 'nitro'
-import { isDatabaseWriteFrozen } from '~/server/utils/database-write-freeze'
+import { isRequestFrozen, type DatabaseWriteFreezeEnv } from '~/server/utils/database-write-freeze'
 
 export default defineHandler((event) => {
-  const env = event.req.runtime?.cloudflare?.env as Record<string, unknown> | undefined
-  if (!isDatabaseWriteFrozen(env)) return
+  const env = event.req.runtime?.cloudflare?.env as DatabaseWriteFreezeEnv | undefined
+  if (!isRequestFrozen(env, event.req.method)) return
 
   return new Response(
     JSON.stringify({

@@ -124,7 +124,7 @@ For the canonical migration workflow, see [docs/database/migrations.md](../datab
 
 Never rewrite migration history for a production database resource in place. Rebaselining production schema history is the documented database rebaseline in [docs/database/migrations.md](../database/migrations.md): a fresh generated baseline, an offline transfer of a frozen export, verification, then a reset of the same database resource during a write freeze.
 
-The rebaseline write freeze is the only exception to the normal one-deploy release path. Deploy the exact release candidate once with `DB_WRITE_FROZEN = "true"`, export, transfer and verify, reset the database from the new baseline and the verified payload, then promote normally.
+The rebaseline freeze is the only exception to the normal one-deploy release path, and it starts only after CI is green on the exact candidate. Deploy that candidate with `DB_WRITE_FROZEN = "true"` (reads serve, writes are refused) for the export and transfer, redeploy it with `DB_MAINTENANCE = "true"` (every request 503s) for the reset and load, verify in place, then end the outage with a normal deploy of the same candidate and merge afterwards. The freeze window holds only the data steps.
 
 Before dropping or retiring a legacy table or writer:
 
