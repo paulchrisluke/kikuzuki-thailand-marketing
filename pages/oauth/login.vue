@@ -62,8 +62,8 @@
           <div v-else class="space-y-3 py-1">
             <div v-if="error" role="alert" class="rounded-lg border border-red-500/30 bg-red-500/5 px-4 py-3 text-sm text-red-500">{{ error }}</div>
 
-            <AuthGoogleAuthButton :loading="loading || authLoading" @activate="handleGoogleSignIn" />
-            <WhatsAppAuthButton :disabled="loading || authLoading" @activate="showPhone = !showPhone" />
+            <AuthGoogleAuthButton label="Sign in with Google" :loading="loading || authLoading" @activate="handleGoogleSignIn" />
+            <WhatsAppAuthButton label="Sign in with WhatsApp" :disabled="loading || authLoading" @activate="showPhone = !showPhone" />
             <AuthPhoneOtpForm v-if="showPhone" verify-label="Verify and sign in" @verified="finishOAuthPhoneSignIn" />
 
             <!-- Divider -->

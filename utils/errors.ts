@@ -16,7 +16,7 @@ export function getErrorMessage(error: unknown, fallback: string): string {
  * failed.
  *
  * The two need different answers. A record that is not there is not a page, and
- * `PRD.md` says an unsupported route 404s rather than rendering something in
+ * `DESIGN.md` says an unsupported route 404s rather than rendering something in
  * its place. A request that failed is a state the surface shows, because the
  * record may well still exist. Rendering "not found" inside the pane for both
  * made a deleted record look like a broken editor.

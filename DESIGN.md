@@ -1,6 +1,4 @@
-# Product requirements
-
-## CMS navigation and editing patterns
+# CMS navigation and editing patterns
 
 **Status: Contract**
 

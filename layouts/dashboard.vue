@@ -17,7 +17,7 @@
     </div>
 
     <div
-      v-if="dashboard.pending.value"
+      v-if="!skipDashboardContext && dashboard.pending.value"
       class="flex min-h-screen items-center justify-center bg-default px-6"
       data-testid="dashboard-context-loading"
     >
@@ -27,7 +27,7 @@
       </div>
     </div>
     <div
-      v-else-if="dashboardContextError"
+      v-else-if="!skipDashboardContext && dashboardContextError"
       class="flex min-h-screen items-center justify-center bg-default px-6"
       data-testid="dashboard-context-error"
     >
@@ -64,7 +64,7 @@
       :min-size="14"
       :default-size="18"
       :max-size="24"
-      :ui="{ base: showDashboardChrome ? 'z-40 md:top-(--kc-dashboard-top-nav) max-md:bottom-(--kc-dashboard-bottom-nav)' : '' }"
+      :ui="{ base: [showDashboardChrome ? 'z-40' : '', showNavChrome ? 'md:top-(--kc-dashboard-top-nav) max-md:bottom-(--kc-dashboard-bottom-nav)' : showDashboardChrome ? 'top-(--kc-dashboard-top-nav)' : ''].filter(Boolean).join(' ') }"
     >
       <UDashboardSearch v-model:search-term="dashboardSearchTerm" :groups="dashboardSearchGroups" :loading="dashboardSearchLoading" :color-mode="false" />
 
@@ -72,7 +72,7 @@
     </UDashboardGroup>
 
     <nav
-      v-if="showDashboardChrome"
+      v-if="showNavChrome"
       class="fixed inset-x-0 bottom-0 z-30 flex h-(--kc-dashboard-bottom-nav) items-stretch border-t border-default bg-default pb-[env(safe-area-inset-bottom)] md:hidden"
       aria-label="Dashboard"
       data-testid="dashboard-mobile-nav"
@@ -290,6 +290,10 @@ const routeLocationSlug = computed(() => typeof route.params.locationSlug === 's
 const locationBase = computed(() => locationsBase.value && routeLocationSlug.value ? `${locationsBase.value}/${routeLocationSlug.value}` : null)
 const routeName = computed(() => typeof route.name === 'string' ? route.name : '')
 const isAccountRoute = computed(() => routeName.value.startsWith('dashboard-account'))
+// Set by routes that own their context and have no org/site scope of their own —
+// the onboarding wizard, which loads its own via a dedicated endpoint. Same meaning
+// as in layouts/editor.vue.
+const skipDashboardContext = computed(() => route.meta.skipDashboardContext === true)
 
 const vertical = computed(() => {
   const raw = site.value?.vertical
@@ -459,7 +463,13 @@ const mobileNavItems = computed<DashboardMobileNavItem[]>(() => {
 const menuOpen = ref(false)
 const { menuPageTo } = useDashboardMenu()
 const primaryNavItems = computed(() => mobileNavItems.value)
-const showDashboardChrome = computed(() => primaryNavItems.value.length > 0 && !isAccountRoute.value)
+// A signed-in owner always gets the header: the wordmark and the account menu
+// are user-scoped and need no organization. Only the nav links and the bottom
+// bar wait for an organization, because Today, Calendar, Sites and Inbox do not
+// exist until there is one. Gating both together is what left an owner who
+// abandoned onboarding with no way to reach account settings or log out.
+const showNavChrome = computed(() => primaryNavItems.value.length > 0 && !isAccountRoute.value)
+const showDashboardChrome = computed(() => showNavChrome.value || skipDashboardContext.value)
 const topNavHomeTo = computed(() => {
   const routeOrgSlug = typeof route.params.orgSlug === 'string' ? route.params.orgSlug : null
   return routeOrgSlug ? `/dashboard/${encodeURIComponent(routeOrgSlug)}` : '/dashboard'
@@ -471,7 +481,7 @@ watch(
   async (nextContextKey, previousContextKey) => {
     dashboardContextController?.abort()
     dashboardContextController = null
-    if (!nextContextKey) return
+    if (skipDashboardContext.value || !nextContextKey) return
     clearDashboardContextError(nextContextKey)
     if (nextContextKey === previousContextKey || dashboard.state.value) return
     const controller = new AbortController()
@@ -489,7 +499,7 @@ watch(
 )
 
 // Load dashboard context during SSR so nav links render stable org-scoped routes.
-if (routeName.value.startsWith('dashboard') && !dashboard.state.value) {
+if (!skipDashboardContext.value && routeName.value.startsWith('dashboard') && !dashboard.state.value) {
   const requestedScope = dashboard.contextKey.value
   try {
     await dashboard.refresh()

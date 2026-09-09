@@ -2,7 +2,7 @@
 
 ## What It Is
 
-**Website builder for local and professional-service businesses** — multi-tenant SaaS where owners get a subdomain site and build their web presence completely through conversation with ChatGPT (via MCP) or the dashboard CMS. SSR-rendered, SEO-optimised sites. The ChatGPT plugin is the primary creation surface. Supports the `restaurant`, `experience`, and `service` verticals today, with the model designed to easily accommodate more local-business categories over time. See `CONTEXT.md` for the canonical vertical contract.
+**Website builder for local and professional-service businesses** — multi-tenant SaaS where owners get a subdomain site and build their web presence completely through conversation with ChatGPT (via MCP) or the dashboard CMS. SSR-rendered, SEO-optimised sites. The ChatGPT plugin is the primary creation surface. Supports the `restaurant`, `experience`, and `service` verticals today, with the model designed to easily accommodate more local-business categories over time.
 
 ---
 
