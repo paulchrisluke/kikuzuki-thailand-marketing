@@ -1,4 +1,6 @@
-# CMS navigation and editing patterns
+# Product requirements
+
+## CMS navigation and editing patterns
 
 **Status: Contract**
 
@@ -9,12 +11,6 @@ so review can say "that is a hub, hubs do X" instead of arguing from taste.
 Airbnb's host tools are the reference. The goal is **parity of behaviour**, not
 pixel copying, and where Airbnb has no equivalent this document says so rather
 than forcing an analogy.
-
-The screenshots the patterns were derived from are in
-[docs/design/cms-redesign-packet](docs/design/cms-redesign-packet/). That packet
-is working reference for the refactor and is expected to be deleted once the
-refactor lands; this document is the permanent record, so it must stand on its
-own without it.
 
 **There are no exceptions to this document.** Products, experiences, posts, Q&A,
 photos and every surface added later obey the same rules. A screen that cannot
