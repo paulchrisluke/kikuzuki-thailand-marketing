@@ -93,7 +93,7 @@ class_name = "GuestInboxHubObject"
 tag = "v1_guest_inbox_infra"
 new_sqlite_classes = ["GuestThreadCommandObject", "GuestInboxHubObject"]
 
-# Keep the production command namespace through the Epoch 4 rollback window.
+# Keep the production command namespace stable across Worker redeploys.
 # Preview and staging already applied their deletion; preserve that history below.
 
 [[r2_buckets]]
@@ -127,8 +127,8 @@ enabled = true
 # Preview environment — CI deploys here on every PR; Playwright smoke tests run
 # against preview.krabiclaw.com. Dedicated resources isolated from staging/prod.
 #
-# Dedicated preview resources (D1 replaced for epoch 3 on 2026-08-29):
-#   krabiclaw-db-preview-epoch3  D1   d2f7a4a0-d6b8-493b-b484-8c0ead1ff83b
+# Dedicated preview resources:
+#   krabiclaw-preview            D1
 #   krabiclaw-media-preview      R2
 #   krabiclaw-site-cache-preview KV   69252567b9cd4becbd486a337ab1e589
 [env.preview]
@@ -168,8 +168,8 @@ E2E_ALLOW_DEV_ROUTES = "true"
 
 [[env.preview.d1_databases]]
 binding = "DB"
-database_name = "krabiclaw-db-preview-epoch3"
-database_id = "d2f7a4a0-d6b8-493b-b484-8c0ead1ff83b"
+database_name = "krabiclaw-preview"
+database_id = "fe738267-6d05-48a3-8a80-f0e81f80833c"
 migrations_dir = "migrations"
 remote = false
 
@@ -256,8 +256,8 @@ E2E_ALLOW_DEV_ROUTES = "true"
 
 [[env.staging.d1_databases]]
 binding = "DB"
-database_name = "krabiclaw-db-staging-epoch6-reconciled"
-database_id = "b6505079-9408-475c-a669-420504165367"
+database_name = "krabiclaw-staging"
+database_id = "84ea830f-1b88-4c96-9e3d-89928acf81fb"
 migrations_dir = "migrations"
 remote = false
 
