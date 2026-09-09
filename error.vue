@@ -18,34 +18,55 @@
       <PlatformButton size="lg" class="rounded-full" @click="clearError({ redirect: '/' })">
         Go back home
       </PlatformButton>
-
-      <div v-if="isDev" class="mt-8 text-left rounded-lg border border-red-200 bg-red-50 p-3 text-xs font-mono text-red-700 whitespace-pre-wrap">
-        <p>Message: {{ error.message }}</p>
-        <p v-if="error.stack" class="mt-2">Stack: {{ error.stack }}</p>
-      </div>
     </div>
   </div>
 </template>
 
 <script setup>
 import { buildTenantHeadLinks } from '~/utils/tenant-head'
+import { publicSurfaceStylesheetForRequest } from '~/utils/public-surface-hints'
 
 const props = defineProps({
   error: Object
 })
 
-const isDev = import.meta.dev
 const errorStatusCode = computed(() => props.error?.statusCode ?? props.error?.status ?? 500)
 const isNotFound = computed(() => errorStatusCode.value === 404)
 
-const { isPlatform, site } = useTenantSite()
+const { isPlatform, tenantType, themeId, site } = useTenantSite()
 const route = useRoute()
 
+// Nuxt renders this page outside the layout system, so the surface CSS a layout
+// would import never loads and production served the error page in Times with
+// no tokens at all. Dev hid it, because Vite injects every stylesheet there.
+// The surface is resolved rather than hardcoded, since tenant sites 404 through
+// this same component and must not be handed the platform sheet.
+const surfaceStylesheet = computed(() => {
+  try {
+    return publicSurfaceStylesheetForRequest({
+      pathname: route.path,
+      tenantType,
+      themeId,
+      vertical: site?.vertical,
+    })
+  } catch {
+    // An unsupported template must not throw while already rendering an error.
+    return null
+  }
+})
+
+// The platform owns html.dark through this composable. Without it the error
+// page cannot honour a light or dark preference.
+if (isPlatform) usePlatformTheme()
+
 useHead(() => ({
-  link: buildTenantHeadLinks({
-    isPlatform,
-    siteMedia: site?.media,
-    isSitePreview: route.path.startsWith('/preview/site/'),
-  })
+  link: [
+    ...(surfaceStylesheet.value ? [{ rel: 'stylesheet', href: surfaceStylesheet.value }] : []),
+    ...buildTenantHeadLinks({
+      isPlatform,
+      siteMedia: site?.media,
+      isSitePreview: route.path.startsWith('/preview/site/'),
+    }),
+  ],
 }))
 </script>
