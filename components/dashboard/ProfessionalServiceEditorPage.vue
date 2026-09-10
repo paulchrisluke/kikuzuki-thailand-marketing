@@ -95,6 +95,8 @@ import { getErrorMessage } from '~/utils/errors'
 import {
   isProfessionalServicesResponse,
   professionalServiceCreateBlockers,
+  serviceCanonicalPath,
+  serviceWritableMedia,
   slugifyServiceName,
   type ProfessionalServiceRow,
 } from '~/utils/site-services'
@@ -294,8 +296,23 @@ async function saveOpenSection() {
       method: 'PATCH',
       body: {
         // A new row carries no id; the upsert mints one for an unseen slug.
-        offerings: next.map(({ id, name: rowName, slug: rowSlug, summary, short_description, sort_order, featured }) =>
-          ({ ...(id ? { id } : {}), name: rowName, slug: rowSlug, summary, short_description, sort_order, featured })),
+        // `schema_type`, `canonical_path` and `source` are required by the upsert
+        // and belong to the record, so every row carries its own back unchanged
+        // — including the rows this screen did not touch. Media rides along for
+        // the same reason: omitting it clears an offering's placements.
+        offerings: next.map(row => ({
+          ...(row.id ? { id: row.id } : {}),
+          name: row.name,
+          slug: row.slug,
+          summary: row.summary,
+          short_description: row.short_description,
+          sort_order: row.sort_order,
+          featured: row.featured,
+          schema_type: row.schema_type,
+          canonical_path: row.canonical_path ?? serviceCanonicalPath(row.slug),
+          source: row.source ?? 'dashboard',
+          ...(serviceWritableMedia(row.media).length ? { media: serviceWritableMedia(row.media) } : {}),
+        })),
       },
       validate: (value): value is Record<string, unknown> => isRecord(value),
     })
