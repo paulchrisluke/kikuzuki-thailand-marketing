@@ -7,6 +7,7 @@ import { publicApiRequest, isRecord } from '~/utils/api-clients'
 import type { PublicTenantPage } from '~/server/utils/public-tenant-pages'
 import type { PublicLocaleRepresentation } from '~/utils/public-resource-contracts'
 import type { PublicBlawbyIdentity, PublicCompliance } from '~/types/blawby'
+import { normalizeRobotsIntent } from '~/shared/robots-directive'
 
 const props = defineProps<{ path: string; previewToken?: string | null; locale?: string | null }>()
 const { siteId, isTenant, site } = useTenantSite()
@@ -126,7 +127,7 @@ useSocialMetadata(() => ({
   path: page.value.canonical_url || page.value.path,
   title: page.value.seo_title || `${page.value.title} | ${site?.brand_name || ''}`,
   description: page.value.seo_description || page.value.summary || '',
-  robots: page.value.robots,
+  robots: normalizeRobotsIntent(page.value.robots),
   brand: {
     siteName: site?.brand_name || '',
   },

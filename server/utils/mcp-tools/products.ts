@@ -1,5 +1,5 @@
 import type { McpToolDefinition } from './shared'
-import { pageInfoObject, paginationInputSchema, resolvedMediaAssetObject, siteTool } from './shared'
+import { pageInfoObject, paginationInputSchema, resolvedMediaAssetObject, ROBOTS_DIRECTIVE_ENUM, siteTool } from './shared'
 import { PRODUCT_DETAILS_INPUT_SCHEMA, PRODUCT_LIMITS } from '~/server/utils/product-validation'
 import { SUPPORTED_CURRENCIES } from '~/shared/currencies'
 
@@ -96,7 +96,8 @@ const productWrite = {
   category_id: { type: 'string', description: 'ID of a category at the selected location. Read list_product_categories first; use create_product_category when the intended section does not exist. Never send a category name in place of this ID.' }, name: { type: 'string' }, description: { type: 'string' }, price: priceWrite,
   order_url: { type: ['string', 'null'] }, is_visible: { type: 'boolean' }, available: { type: 'boolean' }, featured: { type: 'boolean' },
   featured_sort_order: { type: 'number' }, tags: { type: 'array', items: { type: 'string' } }, details: PRODUCT_DETAILS_INPUT_SCHEMA,
-  seo_title: { type: ['string', 'null'] }, seo_description: { type: ['string', 'null'] }, canonical_url: { type: ['string', 'null'] }, robots: { type: ['string', 'null'] },
+  seo_title: { type: ['string', 'null'] }, seo_description: { type: ['string', 'null'] }, canonical_url: { type: ['string', 'null'] },
+  robots: { type: ['string', 'null'], enum: [...ROBOTS_DIRECTIVE_ENUM, null], description: 'Search engine indexing directive. Leave unset for the default index,follow.' },
 } as const
 
 const { category_id: _createOnlyCategoryId, ...productUpdate } = productWrite

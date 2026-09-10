@@ -1,6 +1,6 @@
 {
   "surface": "tenant",
-  "fingerprint": "sha256:df8fae023d5590a08d15b185736644b53b744e52b1fa247cd5d6b66b592d913b",
+  "fingerprint": "sha256:f0110a8aa994e482632a6b46eca42dd03a913cd5e602023ec119b04934e3c0c5",
   "tools": [
     {
       "name": "attach_media",
@@ -346,6 +346,14 @@
                   ]
                 },
                 "robots": {
+                  "description": "Search engine indexing directive. Leave unset for the default index,follow.",
+                  "enum": [
+                    "index,follow",
+                    "noindex,follow",
+                    "index,nofollow",
+                    "noindex,nofollow",
+                    null
+                  ],
                   "type": [
                     "string",
                     "null"
@@ -2466,6 +2474,14 @@
             ]
           },
           "robots": {
+            "description": "Search engine indexing directive. Leave unset for the default index,follow.",
+            "enum": [
+              "index,follow",
+              "noindex,follow",
+              "index,nofollow",
+              "noindex,nofollow",
+              null
+            ],
             "type": [
               "string",
               "null"
@@ -3113,6 +3129,14 @@
             ]
           },
           "robots": {
+            "description": "Search engine indexing directive. Leave unset for the default index,follow.",
+            "enum": [
+              "index,follow",
+              "noindex,follow",
+              "index,nofollow",
+              "noindex,nofollow",
+              null
+            ],
             "type": [
               "string",
               "null"
@@ -13121,6 +13145,14 @@
                   "type": "string"
                 },
                 "robots": {
+                  "description": "Search engine indexing directive. Leave unset for the default index,follow.",
+                  "enum": [
+                    "index,follow",
+                    "noindex,follow",
+                    "index,nofollow",
+                    "noindex,nofollow",
+                    null
+                  ],
                   "type": [
                     "string",
                     "null"
@@ -16329,6 +16361,14 @@
             "type": "string"
           },
           "robots": {
+            "description": "Search engine indexing directive. Leave unset for the default index,follow.",
+            "enum": [
+              "index,follow",
+              "noindex,follow",
+              "index,nofollow",
+              "noindex,nofollow",
+              null
+            ],
             "type": [
               "string",
               "null"
@@ -17268,6 +17308,14 @@
             "type": "array"
           },
           "robots": {
+            "description": "Search engine indexing directive. Leave unset for the default index,follow.",
+            "enum": [
+              "index,follow",
+              "noindex,follow",
+              "index,nofollow",
+              "noindex,nofollow",
+              null
+            ],
             "type": [
               "string",
               "null"

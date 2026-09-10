@@ -132,7 +132,7 @@ export function useSocialMetadata(input: MaybeRefOrGetter<PageSocialMetadataInpu
       { name: 'twitter:image:alt', content: normalized.value.tags.twitterImageAlt },
       { property: 'article:author', content: normalized.value.tags.articleAuthor },
       { property: 'article:published_time', content: normalized.value.tags.articlePublishedTime },
-      ...(normalized.value.tags.robots ? [{ name: 'robots', content: normalized.value.tags.robots }] : []),
+      { name: 'robots', content: normalized.value.tags.robots },
       ].filter(item => item.content !== undefined),
       link: [
         canonicalLink,

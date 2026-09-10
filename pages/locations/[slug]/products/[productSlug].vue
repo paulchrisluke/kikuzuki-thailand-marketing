@@ -5,6 +5,7 @@
 <script setup lang="ts">
 import ProductDetailPage from '~/components/products/ProductDetailPage.vue'
 import { requireProductPresentation } from '~/utils/product-presentation'
+import { normalizeRobotsIntent } from '~/shared/robots-directive'
 import { composeProductSeoDescription, isOfferedProduct } from '~/utils/product-seo'
 
 definePageMeta({ layout: 'saya' })
@@ -25,7 +26,7 @@ useSocialMetadata(() => ({
     product: detail.value.product,
     locationTitle: detail.value.location.title,
   }, t),
-  robots: detail.value.product.robots,
+  robots: normalizeRobotsIntent(detail.value.product.robots),
   socialImage: detail.value.product.social_image,
   brand: { siteName: detail.value.brandName },
 }))

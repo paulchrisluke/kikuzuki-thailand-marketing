@@ -4,7 +4,7 @@ import { definePlugin, HTTPError } from 'nitro'
 import { queryAll, queryFirst, type DbClient } from '~/server/db'
 import { cloudflareEnv } from '~/server/utils/api-response'
 import { isNonIndexableHost, PLATFORM_SITEMAP_ROUTES } from '~/server/utils/seo-policy'
-import { articleCategoryToSlug, collectionArticlePath, isArticleCollection } from '~/utils/article-collections'
+import { ARTICLE_COLLECTIONS, articleCategoryToSlug, collectionArticlePath, isArticleCollection } from '~/utils/article-collections'
 import { TENANT_TYPES } from '~/utils/tenant-routing'
 import { resolvePublicTemplate } from '~/utils/template-registry'
 import { resolveProductPresentation } from '~/utils/product-presentation'
@@ -75,13 +75,27 @@ export default definePlugin((nitroApp) => {
       )
 
       // Blog posts and documentation are both article collections; each shapes its own URL.
+      // A documentation category also answers at /docs/{category} — as its landing
+      // article when one exists, otherwise as the category's index (see
+      // pages/docs/[...segments].vue) — so every category holding a published
+      // article contributes that URL too. Duplicates collapse in addUniqueEntries.
+      const docsCategoryLastmod = new Map<string, string | undefined>()
       for (const article of articles ?? []) {
         const slug = typeof article.slug === 'string' ? article.slug : ''
-        if (!slug || !isArticleCollection(article.collection) || !articleCategoryToSlug(article.collection, article.category as string | null)) continue
+        if (!slug || !isArticleCollection(article.collection)) continue
+        const categorySlug = articleCategoryToSlug(article.collection, article.category as string | null)
+        if (!categorySlug) continue
+        const lastmod = article.updated_at as string | undefined
         entries.push({
           loc: collectionArticlePath(article.collection, article.category as string | null, slug),
-          lastmod: article.updated_at as string | undefined,
+          lastmod,
         })
+        if (article.collection !== 'docs') continue
+        const known = docsCategoryLastmod.get(categorySlug)
+        if (!known || (lastmod && lastmod > known)) docsCategoryLastmod.set(categorySlug, lastmod)
+      }
+      for (const [categorySlug, lastmod] of docsCategoryLastmod) {
+        entries.push({ loc: `${ARTICLE_COLLECTIONS.docs.pathPrefix}/${categorySlug}`, lastmod })
       }
 
       ctx.urls.length = 0

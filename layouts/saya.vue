@@ -41,6 +41,7 @@
 import { getPreviewSubpath } from '~/composables/usePublicPageRequest'
 import sayaCriticalCss from '~/assets/css/saya-critical.css?raw'
 import '~/assets/css/saya-entry.css'
+import { NON_INDEXABLE_ROBOTS_INTENT, normalizeRobotsIntent, type RobotsIntent } from '~/shared/robots-directive'
 
 const route = useRoute()
 const hydrated = ref(false)
@@ -160,11 +161,9 @@ const isDemoHost = DEMO_HOSTS.has(requestHostname)
 
 // Site-wide default only — individual pages set their own robots directive
 // when they have one; this covers pages without a page-specific directive.
-const siteRobots = computed(() => {
-  if (isDemoHost) {
-    return 'noindex, nofollow'
-  }
-  return config.value?.robots || null
+const siteRobots = computed<RobotsIntent | null>(() => {
+  if (isDemoHost) return NON_INDEXABLE_ROBOTS_INTENT
+  return normalizeRobotsIntent(config.value?.robots)
 })
 
 useSocialMetadata(() => ({
