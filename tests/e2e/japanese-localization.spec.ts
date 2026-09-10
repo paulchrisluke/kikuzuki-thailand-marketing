@@ -1,11 +1,23 @@
 import { expect, test, type APIResponse } from '@playwright/test'
 import { openTenantPage } from './helpers'
 import { loginAs } from './helpers/auth'
+import { acquireTenantMutationLock } from './helpers/tenant-mutation-lock'
 import { kikuzukiTestBaseUrl, kikuzukiTestExtraHeaders, testBaseUrl } from './test-env'
 
 async function expectStatus(response: APIResponse, status: number) {
   expect(response.status(), await response.text()).toBe(status)
 }
+
+let releaseTenantMutationLock: (() => Promise<void>) | undefined
+
+test.beforeAll(async ({ browser: _browser }, testInfo) => {
+  test.setTimeout(700_000)
+  releaseTenantMutationLock = await acquireTenantMutationLock(testInfo, 'site-kikuzuki')
+})
+
+test.afterAll(async () => {
+  await releaseTenantMutationLock?.()
+})
 
 test('Japanese is a second secondary language and keeps its public shell through hydration', async ({ playwright, page }) => {
   test.setTimeout(180_000)

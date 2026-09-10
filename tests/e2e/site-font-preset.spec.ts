@@ -1,6 +1,7 @@
 import { expect, test, type APIResponse, type Browser } from '@playwright/test'
 import { openTenantPage, potteryHouseBaseURL, potteryHouseExtraHeaders } from './helpers'
 import { loginAs } from './helpers/auth'
+import { acquireTenantMutationLock } from './helpers/tenant-mutation-lock'
 import { kikuzukiTestBaseUrl, kikuzukiTestExtraHeaders, testBaseUrl } from './test-env'
 
 type Metrics = { lcp: number; cls: number; fontBytes: number; fontRequests: number }
@@ -8,6 +9,17 @@ type Metrics = { lcp: number; cls: number; fontBytes: number; fontRequests: numb
 async function expectStatus(response: APIResponse, status: number) {
   expect(response.status(), await response.text()).toBe(status)
 }
+
+let releaseTenantMutationLock: (() => Promise<void>) | undefined
+
+test.beforeAll(async ({ browser: _browser }, testInfo) => {
+  test.setTimeout(700_000)
+  releaseTenantMutationLock = await acquireTenantMutationLock(testInfo, 'site-kikuzuki')
+})
+
+test.afterAll(async () => {
+  await releaseTenantMutationLock?.()
+})
 
 async function coldMobileSample(browser: Browser, url: string, preset: 'default' | 'mali'): Promise<Metrics> {
   const context = await browser.newContext({
