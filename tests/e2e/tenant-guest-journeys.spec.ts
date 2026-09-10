@@ -147,7 +147,14 @@ test.describe('tenant guest journeys (disposable local/preview data only)', () =
     expect((await book('Invalid Slot', 'slot@playwright.example', future, '03:17')).status()).toBe(400)
     expect((await request.post(`${baseURL}/api/public/sites/site-pottery-house/contact`, { headers, data: {} })).status()).toBe(400)
     expect((await request.post(`${baseURL}/api/public/sites/site-pottery-house/reservations`, { headers, data: {} })).status()).toBe(400)
-    const created = await book('Cancel Once', 'cancel-once@playwright.example', future, '10:00')
+    // The slot comes from the experience's own schedule for that day, not a
+    // time the fixture happened to offer when this test was written.
+    const availability = await request.get(`${baseURL}/api/public/sites/site-pottery-house/experiences/pottery-wheel-class/availability?date=${future}`, { headers })
+    expect(availability.status()).toBe(200)
+    const { dates } = await availability.json() as { dates: Array<{ slots: Array<{ time_slot: string; is_closed: boolean }> }> }
+    const openSlot = dates[0]?.slots.find(slot => !slot.is_closed)
+    expect(openSlot, `pottery-wheel-class offers no open slot on ${future}`).toBeTruthy()
+    const created = await book('Cancel Once', 'cancel-once@playwright.example', future, openSlot!.time_slot)
     expect(created.status()).toBe(201)
     const body = await created.json() as { booking_id: string; cancellation_token: string }
     expect(JSON.stringify(body)).not.toContain('cancel-once@playwright.example')
