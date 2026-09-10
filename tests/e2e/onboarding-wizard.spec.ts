@@ -15,6 +15,9 @@ test('a new owner builds a draft and creates a site through the wizard', async (
   const name = `E2E Wizard ${Date.now().toString(36)}`
 
   await page.goto('/dashboard/onboarding')
+  // The welcome button is server-rendered; on the preview Worker a click before
+  // hydration lands on markup with no handler, so wait for the wizard to hydrate.
+  await expect(page.locator('[data-onboarding-hydrated="true"]')).toBeVisible()
   await page.getByRole('button', { name: 'Start building' }).click()
   await page.getByRole('button', { name: /Restaurant, café or bar/ }).click()
   await page.getByRole('button', { name: /Start manually/ }).click()
