@@ -5,6 +5,7 @@ import { calculateMapEmbedUrl } from '~/server/utils/google-places'
 import type { PublicShellPayload } from '~/utils/public-resource-contracts'
 import { resolveSiteCmsCapabilities } from '~/server/utils/cms-capabilities'
 import { isCurrencyCode } from '~/shared/currencies'
+import { resolveSiteFontPreset } from '~/shared/site-fonts'
 
 type BatchResult = { results?: unknown[] }
 
@@ -65,7 +66,7 @@ export function appendPublicShellQueries(
     config: push(`SELECT setting.key, setting.value
                 FROM sites s, json_each(s.settings_json, '$.config') setting
                WHERE s.organization_id = ? AND s.id = ?
-                 AND setting.key IN ('brand_color', 'press_email', 'partnerships_email', 'catering_email', 'careers_email', 'google_site_verification', 'default_timezone')
+                 AND setting.key IN ('brand_color', 'font_preset', 'press_email', 'partnerships_email', 'catering_email', 'careers_email', 'google_site_verification', 'default_timezone')
               UNION ALL
               SELECT '__experience_count',
                      CAST((SELECT COUNT(*) FROM products p JOIN business_locations bl ON bl.id = p.location_id AND bl.site_id = p.site_id AND bl.organization_id = p.organization_id WHERE p.site_id = ? AND p.product_type = 'experience' AND p.is_visible = 1 AND bl.status = 'active') AS TEXT)
@@ -137,6 +138,7 @@ export function buildPublicShellPayload(
   const config: Record<string, string> = Object.fromEntries(
     configRows.filter(({ key }) => !key.startsWith('__')).map(({ key, value }) => [key, value]),
   )
+  config.font_preset = resolveSiteFontPreset(config.font_preset)
   if (!isCurrencyCode(site.default_currency)) throw new Error(`Unsupported site currency: ${site.default_currency}`)
   config.default_currency = site.default_currency
   if (site.contact_email) config.contact_email = site.contact_email

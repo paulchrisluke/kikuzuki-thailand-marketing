@@ -2,6 +2,7 @@
   <div
     class="tenant-layout saya-theme min-h-screen flex flex-col font-sans bg-default text-default"
     :style="themeStyles"
+    :data-font-preset="fontPreset"
     :data-hydrated="hydrated ? 'true' : 'false'"
     :data-public-critical-shell="isHome ? 'true' : undefined"
   >
@@ -42,6 +43,7 @@ import { getPreviewSubpath } from '~/composables/usePublicPageRequest'
 import sayaCriticalCss from '~/assets/css/saya-critical.css?raw'
 import '~/assets/css/saya-entry.css'
 import { NON_INDEXABLE_ROBOTS_INTENT, normalizeRobotsIntent, type RobotsIntent } from '~/shared/robots-directive'
+import { MALI_FONT_CSS, resolveSiteFontPreset, siteFontStyles } from '~/shared/site-fonts'
 
 const route = useRoute()
 const hydrated = ref(false)
@@ -90,13 +92,23 @@ const brandColor = computed(
   () => config.value?.brand_color || null
 )
 const brandTextColor = computed(() => getContrastColor(brandColor.value))
+const fontPreset = computed(() => resolveSiteFontPreset(config.value.font_preset))
+
+// The existing SSR shell supplies the choice. No mounted font loader, extra
+// settings request, global font stylesheet, or blanket font preloads.
+useHead(() => ({
+  style: fontPreset.value === 'mali'
+    ? [{ key: 'saya-font-preset', innerHTML: MALI_FONT_CSS, tagPriority: 'critical' }]
+    : [],
+}))
 
 const themeStyles = computed(() => {
-  if (!brandColor.value) return {}
-  return {
-    '--brand-color': brandColor.value,
-    '--brand-color-foreground': brandTextColor.value,
+  const styles = siteFontStyles(fontPreset.value)
+  if (brandColor.value) {
+    styles['--brand-color'] = brandColor.value
+    styles['--brand-color-foreground'] = brandTextColor.value
   }
+  return styles
 })
 
 // A page under /locations/<slug> is about exactly one location: the location
