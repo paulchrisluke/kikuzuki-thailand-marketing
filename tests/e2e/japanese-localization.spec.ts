@@ -21,7 +21,9 @@ test('Japanese is a second secondary language and keeps its public shell through
   const originalSettingsResponse = await owner.get(settingsUrl)
   await expectStatus(originalSettingsResponse, 200)
   const originalFontPreset = (await originalSettingsResponse.json() as { settings: { font_preset: 'default' | 'mali' } }).settings.font_preset
-  const hadJapanese = original.languages.some(language => language.locale === 'ja' && language.status === 'published')
+  const wasPublished = (locale: string) => original.languages.some(language => language.locale === locale && language.status === 'published')
+  const hadJapanese = wasPublished('ja')
+  const hadThai = wasPublished('th')
   const hydrationErrors: string[] = []
   page.on('console', message => {
     if (/hydration.*mismatch|mismatch.*hydration/i.test(message.text())) hydrationErrors.push(message.text())
@@ -83,6 +85,7 @@ test('Japanese is a second secondary language and keeps its public shell through
     await expect(page.getByRole('link', { name: 'Reserve a table' }).first()).toBeVisible()
   } finally {
     await expectStatus(await owner.post(`${localePath}/ja/${hadJapanese ? 'enable' : 'disable'}`), 200)
+    await expectStatus(await owner.post(`${localePath}/th/${hadThai ? 'enable' : 'disable'}`), 200)
     await expectStatus(await owner.patch(settingsUrl, { data: { font_preset: originalFontPreset } }), 200)
     await owner.dispose()
   }

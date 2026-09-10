@@ -84,6 +84,11 @@ test('Mali saves through Brand, renders before hydration, and stays within the c
   const initial = await owner.get(settingsUrl)
   await expectStatus(initial, 200)
   const original = (await initial.json() as { settings: { font_preset: 'default' | 'mali'; brand_color: string } }).settings
+  const localePath = `/api/editor/sites/${siteId}/locales`
+  const localesBefore = await owner.get(localePath)
+  await expectStatus(localesBefore, 200)
+  const hadThai = (await localesBefore.json() as { languages: Array<{ locale: string; status: string }> })
+    .languages.some(language => language.locale === 'th' && language.status === 'published')
     const performanceRoutes = {
       home: `${kikuzukiTestBaseUrl()}/`,
       menu: `${kikuzukiTestBaseUrl()}/menu`,
@@ -100,7 +105,8 @@ test('Mali saves through Brand, renders before hydration, and stays within the c
     await patch({ font_preset: 'default', brand_color: '' })
     const cms = await dashboard.newPage()
     const brandPath = `${baseURL}/dashboard/org-bVY8SxxUuG6Ctk2CQnfCk8T2cPsj4jJX/sites/kikuzuki-krabi-thailand/brand/font`
-    await openTenantPage(cms, brandPath, {})
+    // The dashboard is not a tenant surface and carries no Zaraz consent gate.
+    await cms.goto(brandPath, { waitUntil: 'load' })
     await cms.getByRole('combobox').click()
     await cms.getByRole('option', { name: 'Mali (Thai and English)', exact: true }).click()
     await expect(cms.getByTestId('site-font-preview')).toHaveCSS('font-family', /Mali/)
@@ -114,7 +120,7 @@ test('Mali saves through Brand, renders before hydration, and stays within the c
     await expectStatus(persisted, 200)
     expect(await persisted.json()).toMatchObject({ settings: { font_preset: 'mali', brand_color: '' } })
     await expectStatus(await owner.patch(settingsUrl, { data: { font_preset: 'https://example.com/font.css' } }), 400)
-    await expectStatus(await owner.post(`/api/editor/sites/${siteId}/locales/th/enable`), 200)
+    await expectStatus(await owner.post(`${localePath}/th/enable`), 200)
 
     for (const path of ['/', '/menu', '/th/reservations', '/contact']) {
       const guest = await browser.newContext({ viewport: { width: 390, height: 844 }, serviceWorkers: 'block' })
@@ -203,6 +209,7 @@ test('Mali saves through Brand, renders before hydration, and stays within the c
     } finally { await reset.dispose() }
   } finally {
     await patch({ font_preset: original.font_preset, brand_color: original.brand_color })
+    await expectStatus(await owner.post(`${localePath}/th/${hadThai ? 'enable' : 'disable'}`), 200)
     await dashboard.close()
     await owner.dispose()
   }
