@@ -1,4 +1,3 @@
-import { Buffer } from 'node:buffer'
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises'
 import { resolve } from 'node:path'
 import { randomUUID } from 'node:crypto'
@@ -20,12 +19,12 @@ export default defineNuxtModule({
         { filename: 'LICENSE.txt', sourcePath: 'LICENSE' },
       ].map(async ({ filename, sourcePath }) => {
         const path = resolve(directory, filename)
-        const validate = (bytes: Buffer) => {
+        const validate = (bytes: Uint8Array) => {
           if (filename.endsWith('.woff2')) {
-            if (bytes.length < 48 || bytes.toString('ascii', 0, 4) !== 'wOF2') {
+            if (bytes.length < 48 || ![0x77, 0x4f, 0x46, 0x32].every((byte, index) => bytes[index] === byte)) {
               throw new Error(`Invalid Mali WOFF2 asset: ${filename}`)
             }
-          } else if (!bytes.toString('utf8').includes('SIL OPEN FONT LICENSE')) {
+          } else if (!new TextDecoder().decode(bytes).includes('SIL OPEN FONT LICENSE')) {
             throw new Error('Invalid Mali font license')
           }
         }
@@ -37,7 +36,7 @@ export default defineNuxtModule({
         }
         const response = await fetch(`${SOURCE}/${sourcePath}`, { signal: AbortSignal.timeout(30_000) })
         if (!response.ok) throw new Error(`Mali asset download failed (${response.status}): ${filename}`)
-        const bytes = Buffer.from(await response.arrayBuffer())
+        const bytes = new Uint8Array(await response.arrayBuffer())
         validate(bytes)
         const temporaryPath = `${path}.${randomUUID()}.tmp`
         await writeFile(temporaryPath, bytes)
