@@ -2,6 +2,7 @@ import { executeBatch, queryAll, queryFirst, type BatchQuery, type DbClient } fr
 import { cleanString } from '~/server/utils/api-response'
 import { getPublicBlawbyData } from '~/server/utils/professional-services'
 import { sanitizeUrl } from '~/utils/sanitize'
+import { slugifyTitle } from '~/utils/post-slugs'
 import { normalizeNonprofitStatus } from '~/utils/professional-service-schema'
 import { buildSingleMediaPlacementQueries, hydrateMediaAssetRefs, hydrateMediaPlacementRefs, insertInitialMediaPlacements } from '~/server/utils/media-asset-manager'
 import { getMediaPlacements } from '~/server/utils/media-placement'
@@ -244,14 +245,17 @@ export async function upsertProfessionalServiceContent(
   const { organizationId, siteId, data, updatedBy = null, env } = input
   const written: Record<string, number> = {}
   const statements: BatchQuery[] = []
-  const existingOfferings = await queryAll<{ id: string; slug: string }>(db, 'SELECT id, slug FROM offerings WHERE site_id = ?', [siteId])
-  const offeringIdBySlug = new Map(existingOfferings.map(offering => [offering.slug, offering.id]))
-  const offeringIdsInSite = new Set(existingOfferings.map(offering => offering.id))
+  // Whole rows, not id and slug: an incoming offering is merged over the row it
+  // names, so a caller sends only the fields it changes. Every column the
+  // caller leaves out keeps its stored value.
+  const existingOfferings = await listEditableOfferings(db, siteId)
+  const offeringIdBySlug = new Map(existingOfferings.map(offering => [String(offering.slug), String(offering.id)]))
+  const offeringById = new Map(existingOfferings.map(offering => [String(offering.id), offering]))
   const writtenOfferingIds: string[] = []
   const existingOfferingMedia = await getMediaPlacements(db, {
     siteId,
     ownerType: 'offering',
-    ownerIds: existingOfferings.map(offering => offering.id),
+    ownerIds: existingOfferings.map(offering => String(offering.id)),
   })
   for (const field of ['compliance', 'consultation', 'themeTokens'] as const) {
     if (Object.hasOwn(data, field) && (data[field] == null || typeof data[field] !== 'object' || Array.isArray(data[field]))) {
@@ -261,31 +265,35 @@ export async function upsertProfessionalServiceContent(
 
 
   const incomingOfferingSlugs = new Set<string>()
-  for (const item of recordArray(data.offerings, 'offerings')) {
-    const name = cleanString(item.name, 200)
-    const slug = cleanString(item.slug, 180)
-    if (!name || !slug) validationError('Each offering needs name and slug.')
-    if (incomingOfferingSlugs.has(slug)) validationError(`Duplicate offering slug: ${slug}.`)
-    incomingOfferingSlugs.add(slug)
-    // Identity is the row's own id whenever the payload carries one. Resolving
-    // by slug alone made a rename an INSERT of a primary key the site already
-    // held, and the whole batch died on `UNIQUE constraint failed:
-    // offerings.id` — a slug could never be changed. An id this site does not
-    // own is refused rather than inserted: `cleanString` returns '' for an
-    // absent value, so a new row is minted an id here, and no caller can
-    // choose a primary key or update an offering belonging to another site.
-    const incomingId = cleanString(item.id, 80)
-    if (incomingId && !offeringIdsInSite.has(incomingId)) {
-      validationError(`offerings.${slug}.id is not an offering on this site.`)
+  let nextSortOrder = existingOfferings.reduce((max, offering) => Math.max(max, Number(offering.sort_order ?? 0) + 1), 0)
+  for (const incoming of recordArray(data.offerings, 'offerings')) {
+    // Identity is the row's own id whenever the payload carries one; a slug
+    // alone also names its row. An id this site does not own is refused rather
+    // than inserted, so no caller can choose a primary key or reach another
+    // site's offering. A row matching neither is created.
+    const incomingId = cleanString(incoming.id, 80)
+    if (incomingId && !offeringById.has(incomingId)) {
+      validationError(`offerings[${incomingId}].id is not an offering on this site.`)
     }
-    const slugOwnerId = offeringIdBySlug.get(slug)
-    // A row carrying one offering's id under another's slug would reach the
-    // slug's unique index and fail the batch with a raw D1 error; name it here
-    // instead, the way safeStoredPath names a path the CHECK would reject.
+    const incomingSlug = cleanString(incoming.slug, 180)
+    const slugOwnerId = incomingSlug ? offeringIdBySlug.get(incomingSlug) : undefined
     if (incomingId && slugOwnerId && slugOwnerId !== incomingId) {
-      validationError(`offerings.${slug}.slug already belongs to another offering.`)
+      validationError(`offerings.${incomingSlug}.slug already belongs to another offering.`)
     }
     const existingOfferingId = incomingId || slugOwnerId
+    const existing = existingOfferingId ? offeringById.get(existingOfferingId) : undefined
+    // Only the keys the caller sent replace the stored row.
+    const item: ApiRecord = existing ? { ...existing, ...incoming } : incoming
+    const name = cleanString(item.name, 200)
+    if (!name) validationError('Each offering needs a name.')
+    const slug = cleanString(item.slug, 180) || slugifyTitle(name).slice(0, 180)
+    if (!slug) validationError(`offerings[${name}] needs a slug: none can be derived from its name.`)
+    if (incomingOfferingSlugs.has(slug)) validationError(`Duplicate offering slug: ${slug}.`)
+    incomingOfferingSlugs.add(slug)
+    const slugTaken = offeringIdBySlug.get(slug)
+    if (slugTaken && slugTaken !== existingOfferingId) {
+      validationError(`offerings.${slug}.slug already belongs to another offering.`)
+    }
     const id = existingOfferingId || idWith('offering')
     // Two rows resolving to one primary key would both target it and the last
     // would win silently — renaming one offering's slug in the same request
@@ -295,9 +303,21 @@ export async function upsertProfessionalServiceContent(
       validationError(`offerings.${slug} resolves to an offering already written in this request.`)
     }
     writtenOfferingIds.push(id)
+    // A new offering that names no path lives where every offering lives, and
+    // files after the ones already there; its source is the column's default.
+    const canonicalPath = existing || item.canonical_path != null
+      ? requiredStoredPath(item.canonical_path, `offerings.${slug}.canonical_path`, 300)
+      : `/services/${slug}`
+    const sortOrder = item.sort_order == null ? nextSortOrder++ : Number(item.sort_order)
+    const source = cleanString(item.source, 80) || 'manual'
     validateOfferingContent(item, slug)
-    const offeringMedia = strictMediaRefs(item.media, `offerings.${slug}.media`, ['thumbnail', 'hero', 'gallery'])
-    await hydrateMediaPlacementRefs(db, {
+    // Media is reconciled only when the caller speaks to it. A stored row
+    // carries its placements on read; a caller editing text leaves them out
+    // and they stay as they are.
+    const offeringMedia = Object.hasOwn(incoming, 'media')
+      ? strictMediaRefs(incoming.media, `offerings.${slug}.media`, ['thumbnail', 'hero', 'gallery'])
+      : null
+    if (offeringMedia) await hydrateMediaPlacementRefs(db, {
       organizationId,
       siteId,
       refs: offeringMedia,
@@ -341,16 +361,16 @@ export async function upsertProfessionalServiceContent(
         requiredText(item.schema_type, `offerings.${slug}.schema_type`, 120),
         cleanString(item.seo_title, 200) || null,
         cleanString(item.seo_description, 500) || null,
-        requiredStoredPath(item.canonical_path, `offerings.${slug}.canonical_path`, 300),
-        Number(item.sort_order ?? 0),
-        item.featured ? 1 : 0,
-        requiredText(item.source, `offerings.${slug}.source`, 80),
+        canonicalPath,
+        sortOrder,
+        item.featured === true || item.featured === 1 ? 1 : 0,
+        source,
         cleanString(item.source_ref, 300) || null,
         updatedBy,
       ],
     })
     if (!existingOfferingId) {
-      statements.push(
+      if (offeringMedia) statements.push(
         ...insertInitialMediaPlacements({
           organizationId,
           siteId,
@@ -370,7 +390,7 @@ export async function upsertProfessionalServiceContent(
           media: offeringMedia.filter(item => item.slot === 'gallery').map(item => ({ asset_id: item.asset_id })),
         }),
       )
-    } else {
+    } else if (offeringMedia) {
       const currentBySlot = new Map<string, string[]>()
       for (const placement of existingOfferingMedia.get(existingOfferingId) ?? []) {
         const ids = currentBySlot.get(placement.slot) ?? []
@@ -554,5 +574,5 @@ export async function upsertProfessionalServiceContent(
     }
   }
 
-  return { success: true, written }
+  return { success: true, written, offering_ids: writtenOfferingIds }
 }
