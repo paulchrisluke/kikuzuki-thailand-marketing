@@ -46,21 +46,35 @@
         </template>
 
         <template #detail>
-          <div v-if="editorKey === 'profile'" class="space-y-6">
-            <p class="text-base text-muted">The public identity and contact details for this location.</p>
-            <div class="flex flex-wrap gap-6">
-              <UCheckbox :model-value="detailsForm.status === 'active'" label="Active" @update:model-value="setDetailsActive" />
-            </div>
-            <UFormField label="Name"><UInput v-model="detailsForm.title" size="xl" autofocus class="w-full" /></UFormField>
-            <UFormField label="Slug"><UInput v-model="detailsForm.slug" size="xl" class="w-full" /></UFormField>
-            <div class="grid gap-5 sm:grid-cols-2">
-              <UFormField label="City"><UInput v-model="detailsForm.city" size="xl" class="w-full" /></UFormField>
-              <UFormField label="Neighbourhood"><UInput v-model="detailsForm.neighborhood" size="xl" class="w-full" /></UFormField>
-              <UFormField label="Phone"><UInput v-model="detailsForm.phone" type="tel" size="xl" class="w-full" /></UFormField>
-              <UFormField label="Email"><UInput v-model="detailsForm.email" type="email" size="xl" class="w-full" /></UFormField>
-            </div>
+          <UFormField v-if="editorKey === 'name'" label="Name" required>
+            <UInput v-model="detailsForm.title" size="xl" autofocus class="w-full" />
+          </UFormField>
+
+          <UFormField
+            v-else-if="editorKey === 'slug'"
+            label="Slug"
+            description="The location's segment in its public URL."
+          >
+            <UInput v-model="detailsForm.slug" size="xl" autofocus class="w-full" />
+          </UFormField>
+
+          <div v-else-if="editorKey === 'address'" class="space-y-6">
+            <p class="text-base text-muted">Where guests find this location.</p>
+            <UFormField label="Address"><UTextarea v-model="detailsForm.address" :rows="4" autofocus class="w-full" /></UFormField>
+            <UFormField label="City"><UInput v-model="detailsForm.city" size="xl" class="w-full" /></UFormField>
+            <UFormField label="Neighbourhood"><UInput v-model="detailsForm.neighborhood" size="xl" class="w-full" /></UFormField>
+          </div>
+
+          <div v-else-if="editorKey === 'contact'" class="space-y-6">
+            <p class="text-base text-muted">How guests reach this location.</p>
+            <UFormField label="Phone"><UInput v-model="detailsForm.phone" type="tel" size="xl" autofocus class="w-full" /></UFormField>
+            <UFormField label="Email"><UInput v-model="detailsForm.email" type="email" size="xl" class="w-full" /></UFormField>
             <UFormField label="Website URL"><UInput v-model="detailsForm.website_url" type="url" size="xl" class="w-full" /></UFormField>
-            <UFormField label="Address"><UTextarea v-model="detailsForm.address" :rows="4" class="w-full" /></UFormField>
+          </div>
+
+          <div v-else-if="editorKey === 'status'" class="space-y-6">
+            <p class="text-base text-muted">An inactive location is hidden from the public site.</p>
+            <UCheckbox :model-value="detailsForm.status === 'active'" label="Active" @update:model-value="setDetailsActive" />
           </div>
 
 
@@ -189,8 +203,8 @@ const locationId = computed(() => dashboardLocation.currentLocationId.value ?? '
 const levelBackTo = computed(() => locationPath.value)
 const routeSegments = frame.rest
 const detailKey = computed(() => routeSegments.value[0] ?? null)
-const editorKey = computed(() => detailKey.value ?? 'profile')
-const validDetailKeys = new Set(['profile', 'hours', 'content', 'discovery', 'notifications', 'features'])
+const editorKey = computed(() => detailKey.value ?? 'name')
+const validDetailKeys = new Set(['name', 'slug', 'address', 'contact', 'status', 'hours', 'content', 'discovery', 'notifications', 'features'])
 if (routeSegments.value.length > 1 || (detailKey.value && !validDetailKeys.has(detailKey.value))) {
   throw createError({ statusCode: 404, statusMessage: 'Location setting not found' })
 }
@@ -372,6 +386,10 @@ const setDetailsActive = (v: boolean | 'indeterminate') => {
 }
 
 const addressSummary = computed(() => location.value?.address?.addressLines?.join(', ') || location.value?.city || 'Not set')
+const nameSummary = computed(() => location.value?.title?.trim() || 'Not named yet')
+const slugSummary = computed(() => location.value?.slug?.trim() || 'Not set')
+const contactSummary = computed(() => location.value?.phone?.trim() || location.value?.email?.trim() || location.value?.website_url?.trim() || 'Not set')
+const statusSummary = computed(() => location.value?.status === 'active' ? 'Active' : 'Hidden from the public site')
 const hoursSummary = computed(() => location.value?.opening_hours === null ? 'Not set' : `${location.value?.opening_hours?.periods.length ?? 0} opening periods`)
 const contentSummary = computed(() => location.value?.short_description?.trim() || location.value?.description?.trim() || 'Not set')
 const discoverySummary = computed(() => location.value?.google_place_id ? 'Google Places connected' : 'Not connected')
@@ -381,7 +399,11 @@ const featureSummary = computed(() => {
   return count ? `${count} ${count === 1 ? 'module' : 'modules'} available` : 'No location modules'
 })
 const navigationItems = computed(() => [
-  { id: 'profile', label: 'Profile', summary: addressSummary.value, icon: 'i-lucide-map-pin', to: `${settingsPath.value}/profile` },
+  { id: 'name', label: 'Name', summary: nameSummary.value, icon: 'i-lucide-type', to: `${settingsPath.value}/name` },
+  { id: 'slug', label: 'Slug', summary: slugSummary.value, icon: 'i-lucide-link', to: `${settingsPath.value}/slug` },
+  { id: 'address', label: 'Address', summary: addressSummary.value, icon: 'i-lucide-map-pin', to: `${settingsPath.value}/address` },
+  { id: 'contact', label: 'Contact', summary: contactSummary.value, icon: 'i-lucide-phone', to: `${settingsPath.value}/contact` },
+  { id: 'status', label: 'Status', summary: statusSummary.value, icon: 'i-lucide-eye', to: `${settingsPath.value}/status` },
   { id: 'hours', label: 'Hours', summary: hoursSummary.value, icon: 'i-lucide-clock-3', to: `${settingsPath.value}/hours` },
   { id: 'content', label: 'Public content', summary: contentSummary.value, icon: 'i-lucide-align-left', to: `${settingsPath.value}/content` },
   { id: 'discovery', label: 'Discovery', summary: discoverySummary.value, icon: 'i-simple-icons-googlemaps', to: `${settingsPath.value}/discovery` },
@@ -389,12 +411,16 @@ const navigationItems = computed(() => [
   { id: 'features', label: 'Available features', summary: featureSummary.value, icon: 'i-lucide-layout-grid', to: `${settingsPath.value}/features` },
 ])
 const navigationGroups = computed(() => [
-  { id: 'location', label: 'Location', items: navigationItems.value.slice(0, 2) },
-  { id: 'guest-facing', label: 'Guest-facing details', items: navigationItems.value.slice(2, 4) },
-  { id: 'operations', label: 'Operations', items: navigationItems.value.slice(4) },
+  { id: 'location', label: 'Location', items: navigationItems.value.slice(0, 6) },
+  { id: 'guest-facing', label: 'Guest-facing details', items: navigationItems.value.slice(6, 8) },
+  { id: 'operations', label: 'Operations', items: navigationItems.value.slice(8) },
 ])
 const detailTitles: Record<string, string> = {
-  profile: 'Profile',
+  name: 'Name',
+  slug: 'Slug',
+  address: 'Address',
+  contact: 'Contact',
+  status: 'Status',
   hours: 'Hours',
   content: 'Public content',
   discovery: 'Discovery',
@@ -409,11 +435,11 @@ const saving = computed(() => detailsSaving.value || savingLocationFeatures.valu
 
 function editorSignature(key: string | null): string {
   switch (key) {
-    case 'profile': return JSON.stringify([
-      detailsForm.title, detailsForm.slug, detailsForm.city, detailsForm.neighborhood,
-      detailsForm.phone, detailsForm.email, detailsForm.website_url, detailsForm.address,
-      detailsForm.status,
-    ])
+    case 'name': return JSON.stringify(detailsForm.title)
+    case 'slug': return JSON.stringify(detailsForm.slug)
+    case 'address': return JSON.stringify([detailsForm.address, detailsForm.city, detailsForm.neighborhood])
+    case 'contact': return JSON.stringify([detailsForm.phone, detailsForm.email, detailsForm.website_url])
+    case 'status': return JSON.stringify(detailsForm.status)
     case 'hours': return JSON.stringify(hoursForm.value)
     case 'content': return JSON.stringify([detailsForm.short_description, detailsForm.description, detailsForm.price_level])
     case 'discovery': return JSON.stringify([detailsForm.google_place_id, detailsForm.maps_url, detailsForm.google_review_url])
@@ -432,9 +458,9 @@ function isValidUrl(value: string): boolean {
   }
 }
 const validationMessage = computed(() => {
-  if (editorKey.value === 'profile') {
-    if (!detailsForm.title.trim()) return 'Enter a location name.'
-    if (!detailsForm.slug.trim()) return 'Enter a location slug.'
+  if (editorKey.value === 'name' && !detailsForm.title.trim()) return 'Enter a location name.'
+  if (editorKey.value === 'slug' && !detailsForm.slug.trim()) return 'Enter a location slug.'
+  if (editorKey.value === 'contact') {
     if (detailsForm.email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(detailsForm.email)) return 'Enter a valid email address.'
     if (!isValidUrl(detailsForm.website_url)) return 'Enter a complete website URL.'
   }
@@ -508,20 +534,34 @@ async function saveCurrentEditor() {
     await saveLocationFeatures()
     return
   }
-  if (editorKey.value === 'profile') {
+  if (editorKey.value === 'name') {
+    await patchLocation({ title: detailsForm.title.trim() }, 'Name saved')
+    return
+  }
+  if (editorKey.value === 'slug') {
+    await patchLocation({ slug: detailsForm.slug.trim() }, 'Slug saved')
+    return
+  }
+  if (editorKey.value === 'address') {
     await patchLocation({
-      title: detailsForm.title.trim(),
-      slug: detailsForm.slug.trim(),
-      city: detailsForm.city.trim() || null,
-      neighborhood: detailsForm.neighborhood.trim() || null,
-      phone: detailsForm.phone.trim() || null,
-      email: detailsForm.email.trim() || null,
-      website_url: detailsForm.website_url.trim() || null,
       address: detailsForm.address.trim()
         ? { addressLines: detailsForm.address.split('\n').map(line => line.trim()).filter(Boolean) }
         : null,
-      status: detailsForm.status,
-    }, 'Profile saved')
+      city: detailsForm.city.trim() || null,
+      neighborhood: detailsForm.neighborhood.trim() || null,
+    }, 'Address saved')
+    return
+  }
+  if (editorKey.value === 'contact') {
+    await patchLocation({
+      phone: detailsForm.phone.trim() || null,
+      email: detailsForm.email.trim() || null,
+      website_url: detailsForm.website_url.trim() || null,
+    }, 'Contact saved')
+    return
+  }
+  if (editorKey.value === 'status') {
+    await patchLocation({ status: detailsForm.status }, 'Status saved')
     return
   }
   if (editorKey.value === 'hours') {

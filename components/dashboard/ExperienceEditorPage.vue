@@ -63,17 +63,24 @@
 
         <template #detail>
           <!-- Details -->
-          <div v-if="editorKey === 'details'" class="space-y-6">
-            <p class="text-base text-muted">How this experience introduces itself on your site.</p>
-            <UFormField label="Title" required>
-              <UInput v-model="editor.form.title" size="xl" autofocus class="w-full" />
-            </UFormField>
-            <UFormField label="Tagline" help="One-line hook shown on the listing card.">
-              <UInput v-model="editor.form.tagline" size="xl" class="w-full" />
-            </UFormField>
-            <UFormField label="Description">
-              <UTextarea v-model="editor.form.body" :rows="8" class="w-full" />
-            </UFormField>
+          <UFormField v-if="editorKey === 'title'" label="Title" required>
+            <UInput v-model="editor.form.title" size="xl" autofocus class="w-full" />
+          </UFormField>
+
+          <UFormField
+            v-else-if="editorKey === 'tagline'"
+            label="Tagline"
+            description="One-line hook shown on the listing card."
+          >
+            <UInput v-model="editor.form.tagline" size="xl" autofocus class="w-full" />
+          </UFormField>
+
+          <UFormField v-else-if="editorKey === 'description'" label="Description">
+            <UTextarea v-model="editor.form.body" :rows="10" autofocus class="w-full" />
+          </UFormField>
+
+          <div v-else-if="editorKey === 'visibility'" class="space-y-6">
+            <p class="text-base text-muted">Whether this experience is published, and whether it is promoted.</p>
             <UFormField label="Status">
               <USelect v-model="editor.form.status" :items="statusOptions" class="w-full" />
             </UFormField>
@@ -333,7 +340,10 @@ const weekdayNames = WEEKDAY_NAMES
 
 // ── Which leaf is open ──────────────────────────────────
 const sectionLabels: Record<string, string> = {
-  details: 'Details',
+  title: 'Title',
+  tagline: 'Tagline',
+  description: 'Description',
+  visibility: 'Visibility',
   location: 'Location',
   photos: 'Photos',
   itinerary: 'Itinerary',
@@ -361,7 +371,7 @@ if (routeSegments.value.length > 1 || (detailKey.value && !validSectionKeys.has(
 
 // Photos commit as you act, so there is no pending draft for a footer to save.
 const showActions = computed(() => editorKey.value !== 'photos')
-const saveDisabled = computed(() => editorKey.value === 'details' && !editor.form.title.trim())
+const saveDisabled = computed(() => editorKey.value === 'title' && !editor.form.title.trim())
 const saving = computed(() => editor.saving.value)
 
 // ── Load ────────────────────────────────────────────────
@@ -505,6 +515,10 @@ const guestsSummary = computed(() => {
   return parts.join(' · ') || 'No limit set'
 })
 
+const visibilitySummary = computed(() => {
+  const status = statusOptions.find(option => option.value === editor.form.status)?.label ?? editor.form.status
+  return editor.form.featured ? `${status} · Featured` : status
+})
 const itinerarySummary = computed(() => {
   const parts: string[] = []
   if (editor.form.duration_minutes) parts.push(`${editor.form.duration_minutes} min`)
@@ -524,7 +538,10 @@ const navigationGroups = computed<EditorNavigationGroup[]>(() => [
     id: 'content',
     label: 'Content',
     items: [
-      { id: 'details', label: 'Details', summary: editor.form.tagline || editor.form.title, icon: 'i-lucide-align-left', to: `${experiencePath.value}/details` },
+      { id: 'title', label: 'Title', summary: editor.form.title || 'Not named yet', icon: 'i-lucide-type', to: `${experiencePath.value}/title` },
+      { id: 'tagline', label: 'Tagline', summary: editor.form.tagline || 'Not set', icon: 'i-lucide-align-left', to: `${experiencePath.value}/tagline` },
+      { id: 'description', label: 'Description', summary: editor.form.body ? 'Written' : 'Nothing written yet', icon: 'i-lucide-text', to: `${experiencePath.value}/description` },
+      { id: 'visibility', label: 'Visibility', summary: visibilitySummary.value, icon: 'i-lucide-eye', to: `${experiencePath.value}/visibility` },
       { id: 'photos', label: 'Photos', summary: editor.form.media.length ? `${editor.form.media.length} photos` : 'No photos yet', icon: 'i-lucide-images', to: `${experiencePath.value}/photos` },
       { id: 'location', label: 'Location', summary: editor.form.meeting_point || 'No meeting point set', icon: 'i-lucide-map-pin', to: `${experiencePath.value}/location` },
       { id: 'itinerary', label: 'Itinerary', summary: itinerarySummary.value, icon: 'i-lucide-clock-3', to: `${experiencePath.value}/itinerary` },
