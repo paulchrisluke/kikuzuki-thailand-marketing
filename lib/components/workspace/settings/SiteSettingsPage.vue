@@ -101,7 +101,7 @@
 
           <div v-else-if="detailKey === 'localization'" class="space-y-6">
             <p class="text-base text-muted">
-              English is the permanent source language. Growth includes one secondary language at no extra cost.
+              English is the permanent source language. Growth includes two secondary languages at no extra cost.
             </p>
             <div v-if="localizationLoading" class="space-y-3">
               <USkeleton class="h-16 rounded-lg" />
