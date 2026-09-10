@@ -8,8 +8,8 @@
     <AuthPhoneOtpForm v-if="isWhatsAppMode" default-country="TH" class="mt-6" @verified="finishPhoneSignIn" />
 
     <div v-else class="mt-6 space-y-3">
-      <AuthGoogleAuthButton label="Sign in with Google" :loading="googleLoading" :last-used="lastUsedMethod === 'google'" @activate="signInWithGoogle(postLoginUrl)" />
-      <WhatsAppAuthButton label="Sign in with WhatsApp" :last-used="lastUsedMethod === 'whatsapp'" @activate="showPhone = !showPhone" />
+      <AuthGoogleButton label="Sign in with Google" :loading="googleLoading" :last-used="lastUsedMethod === 'google'" @activate="signInWithGoogle(postLoginUrl)" />
+      <AuthWhatsAppButton label="Sign in with WhatsApp" :last-used="lastUsedMethod === 'whatsapp'" @activate="showPhone = !showPhone" />
       <AuthPhoneOtpForm v-if="showPhone" default-country="TH" @verified="finishPhoneSignIn" />
       <USeparator label="or" />
       <AuthEmailSignInForm :key="queryEmail" :callback-url="postLoginUrl" :initial-email="queryEmail" :last-used="lastUsedMethod === 'email'" @verification-required="showVerification" />
@@ -26,7 +26,6 @@
 </template>
 
 <script setup lang="ts">
-import WhatsAppAuthButton from '~/components/auth/WhatsAppAuthButton.vue'
 import { authClient } from '~/lib/auth-client'
 import { buildPostLoginUrl, validatedInternalPath } from '~/shared/auth/return-target'
 

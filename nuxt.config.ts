@@ -154,8 +154,7 @@ export default defineNuxtConfig({
       ],
     },
     customCollections: [
-      pickIcons('simple-icons', ['facebook', 'google', 'googlemaps', 'openai', 'whatsapp']),
-      pickIcons('logos', ['google-icon', 'whatsapp-icon']),
+      pickIcons('simple-icons', ['facebook', 'google', 'googlemaps']),
     ],
   },
   runtimeConfig: {

@@ -299,6 +299,7 @@
 </template>
 
 <script setup lang="ts">
+import type { SayaIconName } from '~/components/saya/SayaIcon.vue'
 import { $fetch } from 'ofetch'
 import { setBookingConfirmation } from '~/composables/useBookingHandoff'
 import { getActiveSpecialClosure, formatClosureMessage } from '~/utils/formatters'
@@ -400,7 +401,7 @@ const sanitizedBody = computed(() => {
 const thingsToKnow = computed(() => {
   const exp = experience.value
   if (!exp) return []
-  const groups: Array<{ id: string; title: string; icon: string; lines: string[] }> = []
+  const groups: Array<{ id: string; title: string; icon: SayaIconName; lines: string[] }> = []
 
   if (exp.included_items?.length) {
     groups.push({

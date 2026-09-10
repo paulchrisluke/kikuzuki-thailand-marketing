@@ -1,9 +1,9 @@
 <template>
-  <PlatformButton variant="outline" size="lg" block :disabled="disabled" @click="$emit('activate')">
-    <UIcon name="i-simple-icons-whatsapp" class="size-5" />
+  <UButton color="neutral" variant="outline" size="lg" block :ui="{ base: 'justify-start' }" :disabled="disabled" @click="$emit('activate')">
+    <AuthWhatsAppMark class="size-5 shrink-0" />
     {{ label }}
     <UBadge v-if="lastUsed" color="primary" variant="soft" size="sm" class="ml-auto shrink-0">Last used</UBadge>
-  </PlatformButton>
+  </UButton>
 </template>
 
 <script setup lang="ts">
