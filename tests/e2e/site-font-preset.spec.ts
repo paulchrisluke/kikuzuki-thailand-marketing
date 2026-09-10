@@ -51,7 +51,7 @@ async function coldMobileSample(browser: Browser, url: string, preset: 'default'
     const response = await page.goto(url, { waitUntil: 'load' })
     expect(response?.status()).toBe(200)
     await expect(page.locator('.tenant-layout')).toHaveAttribute('data-font-preset', preset)
-    await expect(page.locator('.tenant-layout')).toHaveCSS('font-family', preset === 'mali' ? /Mali/ : /Instrument Serif/)
+    await expect(page.locator('.tenant-layout')).toHaveCSS('font-family', preset === 'mali' ? /Mali/ : /Poppins/)
     await expect(page.locator('.tenant-layout')).toHaveAttribute('data-hydrated', 'true')
     await page.evaluate(() => document.fonts.ready.then(() => undefined))
     // Observe post-font layout without clicking consent, scrolling, or ending LCP.
