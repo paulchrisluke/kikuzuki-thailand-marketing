@@ -73,7 +73,7 @@ export async function runSiteCreation(
   env: SetupEnv,
   db: D1Database,
   userId: string,
-  params: { organizationId: string; name: string; subdomain: string; vertical: SiteVertical },
+  params: { organizationId: string; name: string; subdomain: string; vertical: SiteVertical; activate?: boolean },
 ): Promise<SiteCreationResult> {
   const { organizationId, name, vertical } = params
   const normalizedSubdomain = params.subdomain.toLowerCase()
@@ -105,7 +105,7 @@ export async function runSiteCreation(
       await execute(db, `UPDATE sites SET theme_id = ?, vertical = ?, updated_at = ? WHERE id = ?`,
         [themeId, vertical, new Date().toISOString(), siteId])
       await ensureSiteTeam(db, { env, organizationId, siteId, name })
-      return await performSeeding(env, db, siteId, organizationId, name, vertical, normalizedSubdomain)
+      return await performSeeding(env, db, siteId, organizationId, name, vertical, normalizedSubdomain, params.activate !== false)
     }
     if (await isSystemSubdomainSpent(env, db, normalizedSubdomain)) {
       return { status: 409, data: { error: 'This subdomain is permanently unavailable' } }
@@ -141,13 +141,18 @@ export async function runSiteCreation(
     }
     await ensureSiteTeam(db, { env, organizationId, siteId, name })
 
-    return await performSeeding(env, db, siteId, organizationId, name, vertical, normalizedSubdomain)
+    return await performSeeding(env, db, siteId, organizationId, name, vertical, normalizedSubdomain, params.activate !== false)
 
   } catch (error) {
     console.error('Site creation failed:', asError(error))
     const failure = siteId ? await markSiteCreationFailed(db, siteId, error) : asError(error)
     return { status: 500, data: { error: failure.message } }
   }
+}
+
+/** Makes a pending site public. */
+export async function activateSite(db: D1Database, siteId: string): Promise<void> {
+  await execute(db, `UPDATE sites SET onboarding_status = 'active', updated_at = ? WHERE id = ?`, [new Date().toISOString(), siteId])
 }
 
 // Creates a brand-new organization owned by `userId`. Callers decide when a new
@@ -258,14 +263,17 @@ async function performSeeding(
   organizationId: string,
   name: string,
   vertical: SiteVertical,
-  subdomain: string
+  subdomain: string,
+  // Onboarding creates the site before the owner has finished answering, so it
+  // stays pending: the address is reserved and the site is previewable with its
+  // preview token, but it is not public until activateSite() is called.
+  activate: boolean,
 ): Promise<SiteCreationResult> {
-  const now = new Date().toISOString()
   const locationId = await seedNewSite(db, { organizationId, siteId, name, vertical })
 
   await createSystemSubdomain(env, db, siteId, organizationId, subdomain)
 
-  await execute(db, `UPDATE sites SET onboarding_status = 'active', updated_at = ? WHERE id = ?`, [now, siteId])
+  if (activate) await activateSite(db, siteId)
 
   return {
     status: 200,

@@ -58,6 +58,7 @@
 
 <script setup lang="ts">
 import type { SiteVertical } from '~/utils/vertical-copy'
+import { tenantSiteOrigin } from '~/utils/tenant-site-origin'
 
 // This route creates a new site, so it has no org or site of its own yet:
 // there is no orgSlug segment and nothing dashboard-scoped to load. The
@@ -75,6 +76,7 @@ const selectedVertical = ref<SiteVertical>('restaurant')
 const activeStep = ref('welcome')
 const draftPreview = ref<{
   draftId: string
+  siteId: string
   previewToken: string
   draftName: string
   subdomainCandidate: string
@@ -88,12 +90,15 @@ const selectedLocationId = ref<string | null>(null)
 const previewReloadToken = ref(0)
 
 // ─── Preview target ───────────────────────────────────────────────────────────
-const freeSiteHost = computed(() => (config.public.freeSiteDomain as string).replace(/^https?:\/\//, ''))
-const freeSiteProtocol = computed(() => (config.public.freeSiteDomain as string).startsWith('http://') ? 'http:' : 'https:')
+const siteOriginFor = (subdomain: string) => tenantSiteOrigin({
+  platformDomain: String(config.public.platformDomain),
+  freeSiteDomain: String(config.public.freeSiteDomain),
+  subdomain,
+})
 
 const previewLocations = computed(() => {
   if (draftPreview.value) return [{
-    id: draftPreview.value.draftId,
+    id: draftPreview.value.siteId,
     slug: draftPreview.value.subdomainCandidate,
     title: draftPreview.value.draftName,
   }]
@@ -102,23 +107,21 @@ const previewLocations = computed(() => {
 
 const siteDomain = computed(() => {
   const slug = createdSite.value?.siteSlug ?? draftPreview.value?.subdomainCandidate
-  return slug ? `${slug}.${freeSiteHost.value}` : ''
+  return slug ? siteOriginFor(slug).replace(/^https?:\/\//, '') : ''
 })
 
-// SSR-safe origin — derived from the incoming request on the server and from
-// window.location on the client.
-const requestURL = useRequestURL()
-
+// The preview is the site itself, on its own subdomain: the same host, the
+// same templates and the same navigation the public gets. Before activation the
+// site is pending, so the first load carries its preview token — the tenant host
+// turns that into a preview cookie for the rest of the visit.
 const iframeSrc = computed(() => {
-  if (createdSite.value) {
-    const url = new URL(`${freeSiteProtocol.value}//${createdSite.value.siteSlug}.${freeSiteHost.value}/`)
-    if (previewReloadToken.value) url.searchParams.set('t', String(previewReloadToken.value))
-    return url.toString()
+  const slug = createdSite.value?.siteSlug ?? draftPreview.value?.subdomainCandidate
+  const origin = slug ? siteOriginFor(slug) : ''
+  if (!origin) return ''
+  const url = new URL(`${origin}/`)
+  if (!createdSite.value && draftPreview.value) {
+    url.searchParams.set('preview_token', draftPreview.value.previewToken)
   }
-  if (!draftPreview.value) return ''
-  const url = new URL(`/preview/draft/${draftPreview.value.draftId}`, requestURL.origin)
-  url.searchParams.set('preview', 'true')
-  url.searchParams.set('token', draftPreview.value.previewToken)
   if (previewReloadToken.value) url.searchParams.set('t', String(previewReloadToken.value))
   return url.toString()
 })
@@ -192,12 +195,13 @@ const onSiteCreated = ({ siteSlug }: { siteSlug: string | null }) => {
 
 const onDraftSaved = (draft: {
   draftId: string
+  siteId: string
   previewToken: string
   draftName: string
   subdomainCandidate: string
 }) => {
   draftPreview.value = draft
-  selectedLocationId.value = draft.draftId
+  selectedLocationId.value = draft.siteId
   previewReloadToken.value = Date.now()
   // Every wizard step saves the draft again. The slideover covers the wizard, so
   // it opens itself only the first time there is something to preview — after

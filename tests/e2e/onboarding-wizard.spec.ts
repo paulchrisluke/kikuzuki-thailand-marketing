@@ -3,10 +3,11 @@ import { collectPageErrors, dismissPreviewToolbar } from './helpers'
 import { loginAs } from './helpers/auth'
 
 // The manual-name path of the new-site wizard, driven the way an owner drives
-// it: every step through the real UI, the draft preview rendering in its iframe,
-// and the commit creating a NEW organization that becomes the session's active
-// one. The fixture user owns one more organization per run; reset-e2e-artifacts
-// sweeps non-fixture organizations older than two hours.
+// it: every step through the real UI, the preview pane framing the owner's own
+// pending site on its own subdomain, and activation making it public inside a
+// NEW organization that becomes the session's active one. The fixture user owns
+// one more organization per run; reset-e2e-artifacts sweeps non-fixture
+// organizations older than two hours.
 test('a new owner builds a draft and creates a site through the wizard', async ({ page, baseURL }) => {
   test.setTimeout(180_000)
   await dismissPreviewToolbar(page)
@@ -24,9 +25,10 @@ test('a new owner builds a draft and creates a site through the wizard', async (
   await page.getByPlaceholder('Your business name…').fill(name)
   await page.keyboard.press('Enter')
 
-  // The first save creates the draft and the pane switches to its live preview.
+  // The first save creates the site — pending, on its own subdomain — and the
+  // pane frames that site itself, carrying the preview token that authorizes it.
   const previewFrame = page.locator('iframe[title="Site preview"]')
-  await expect(previewFrame).toHaveAttribute('src', /\/preview\/draft\//)
+  await expect(previewFrame).toHaveAttribute('src', /preview_token=/)
   const preview = page.frameLocator('iframe[title="Site preview"]')
   await expect(preview.locator('body')).toContainText(name)
   await expect(preview.locator('body')).not.toContainText('did not match its contract')
@@ -63,7 +65,7 @@ test('a new owner builds a draft and creates a site through the wizard', async (
   await page.getByRole('button', { name: 'Create site', exact: true }).click()
   await expect(page.getByText('Done. Your workspace is live at')).toBeVisible({ timeout: 90_000 })
 
-  // The commit created a new organization named after the business and made it
+  // Activation created a new organization named after the business and made it
   // the session's active one, so post-login lands there.
   const session = await (await page.request.get('/api/auth/get-session')).json() as { session: { activeOrganizationId: string | null } }
   const organizationId = session.session.activeOrganizationId
@@ -75,11 +77,16 @@ test('a new owner builds a draft and creates a site through the wizard', async (
   expect(postLogin.status()).toBe(302)
   expect(postLogin.headers().location).toBe(`/dashboard/${created!.slug}`)
 
-  // The pane now frames the live site itself, at the subdomain the wizard announced
-  // (the site subdomain and the organization slug are derived separately).
+  // The pane frames the same host the wizard announced, and now without a
+  // preview token: the site is public. The site subdomain and the organization
+  // slug are derived separately, so the dashboard path names the subdomain.
   const liveAt = await page.getByText(/^Done\. Your workspace is live at /).locator('strong').textContent()
-  const subdomain = liveAt!.split('.')[0]
-  await expect(previewFrame).toHaveAttribute('src', new RegExp(`^https?://${subdomain}\\.`))
+  const liveHost = liveAt!.trim()
+  await expect(previewFrame).toHaveAttribute('src', new RegExp(`^https?://${liveHost.replace(/\./g, '\\.')}/`))
+  await expect(previewFrame).not.toHaveAttribute('src', /preview_token=/)
+  const site = await (await page.request.get('/api/dashboard/context', { params: { orgSlug: created!.slug } })).json() as { sites?: Array<{ subdomain: string | null }> }
+  const subdomain = site.sites?.[0]?.subdomain
+  expect(typeof subdomain).toBe('string')
   await page.getByRole('button', { name: 'Open my dashboard' }).click()
   await expect(page).toHaveURL(new RegExp(`/dashboard/${created!.slug}/sites/${subdomain}$`))
   expect(errors).toEqual([])

@@ -251,9 +251,9 @@ import { setContactConfirmation } from '~/composables/useContactHandoff'
 
 definePageMeta({ layout: false })
 
-const { isPlatform, siteId, draftId, site } = useTenantSite()
+const { isPlatform, siteId, previewAuthorized, site } = useTenantSite()
 const { isBlawby } = usePublicTemplate()
-if (isPlatform || (!siteId && !draftId)) throw createError({ statusCode: 404 })
+if (isPlatform || !siteId) throw createError({ statusCode: 404 })
 
 const { locale, localePath, t } = useI18n()
 const vertCopy = computed(() => getVerticalCopy(site?.vertical, locale.value))
@@ -266,7 +266,9 @@ import { FORM_INPUT_CLASS } from '~/utils/form-constants'
 const inputClass = FORM_INPUT_CLASS
 
 const businessName = computed(() => site?.brand_name?.trim() ?? '')
-const isDraftPreview = computed(() => Boolean(draftId && !siteId))
+// A preview is the real site, so the form is real too — but an owner looking
+// at an unlaunched site should not be able to file a guest thread against it.
+const isDraftPreview = computed(() => previewAuthorized)
 
 // ── Bootstrap: locations + config in one call ─────────────
 const { locations, config: siteConfig, tenantPage } = await usePublicPageData()

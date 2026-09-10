@@ -275,7 +275,7 @@ import { getActiveSpecialClosure } from '~/utils/formatters'
 import { resolveSiteExperienceHref } from '~/utils/experience-navigation'
 import { normalizeRobotsIntent } from '~/shared/robots-directive'
 
-const { siteId, draftId, site } = useTenantSite()
+const { siteId, site } = useTenantSite()
 const { locale, localePath, t } = useI18n()
 
 const homeCopy = computed(() => getVerticalCopy(site?.vertical, locale.value))
@@ -283,7 +283,7 @@ const { resolveMedia } = useMedia()
 
 
 // Validate tenant context ONLY for tenant sites
-if (!siteId && !draftId) {
+if (!siteId) {
   throw createError({
     statusCode: 404,
     statusMessage: 'Site not found'

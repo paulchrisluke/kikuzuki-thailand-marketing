@@ -357,31 +357,33 @@ export async function upsertActiveOnboardingDraft(db: D1Database, input: {
   payload: OnboardingDraftPayload
 }): Promise<OnboardingDraftUpsertResult> {
   const payloadJson = JSON.stringify(input.payload)
-  const subdomainCandidate = input.payload.preview.subdomainCandidate
   const now = nowIso()
 
   const id = crypto.randomUUID()
-  const draft = await queryFirst<{ id: string }>(db, `
+  // The address is claimed at the first save, when the pending site is created,
+  // so a later change of brand name renames the brand and not the site's host —
+  // and every following save keeps writing to the same site. organization_id is
+  // set once for the same reason.
+  const draft = await queryFirst<{ id: string; subdomain_candidate: string }>(db, `
     INSERT INTO onboarding_drafts
       (id, user_id, organization_id, name, vertical, subdomain_candidate, source_type, status, payload_json, created_at, updated_at)
     VALUES (?, ?, ?, ?, ?, ?, ?, 'active', ?, ?, ?)
     ON CONFLICT(user_id) WHERE status = 'active'
     DO UPDATE SET
-      organization_id = excluded.organization_id,
+      organization_id = COALESCE(onboarding_drafts.organization_id, excluded.organization_id),
       name = excluded.name,
       vertical = excluded.vertical,
-      subdomain_candidate = excluded.subdomain_candidate,
       source_type = excluded.source_type,
       payload_json = excluded.payload_json,
       updated_at = excluded.updated_at
-    RETURNING id
+    RETURNING id, subdomain_candidate
   `, [
     id,
     input.userId,
     input.organizationId ?? null,
     input.name,
     input.vertical,
-    subdomainCandidate,
+    input.payload.preview.subdomainCandidate,
     input.sourceType,
     payloadJson,
     now,
@@ -393,7 +395,7 @@ export async function upsertActiveOnboardingDraft(db: D1Database, input: {
 
   return {
     id: draft.id,
-    subdomainCandidate,
+    subdomainCandidate: draft.subdomain_candidate,
     payload: input.payload,
   }
 }

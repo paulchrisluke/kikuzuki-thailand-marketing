@@ -5,8 +5,10 @@ import { getPlaceDetails, PlaceDetailsError } from '~/server/utils/google-places
 import { queryFirst } from '~/server/db'
 import {
   buildOnboardingDraftPayload, getDraftMedia, parseOnboardingDraftPayload, upsertActiveOnboardingDraft, type DraftBrandInput, type DraftDetailsInput, type DraftUploadedImage, type OnboardingDraftPayload, type PlaceDetailsSnapshot, } from '~/server/utils/onboarding-drafts'
-import { createScopedPreviewToken } from '~/server/utils/preview-token'
+import { createPreviewToken, PREVIEW_TOKEN_TTL_MS, previewSecretOf } from '~/server/utils/preview-token'
 import { VALID_VERTICALS } from '~/server/utils/site-creation'
+import { applyOnboardingDraftToSite, ensureOnboardingSite } from '~/server/utils/onboarding-site'
+import { isValidTimezone } from '~/utils/timezone'
 import { isCurrencyCode, type CurrencyCode } from '~/shared/currencies'
 import type { SiteVertical } from '~/utils/vertical-copy'
 
@@ -66,7 +68,7 @@ export default defineHandler(async (event) => {
   const session = await getAuthSession(event, env)
   if (!session?.user?.id) return jsonResponse({ error: 'Authentication required' }, { status: 401 })
 
-  const previewSecret = env.PREVIEW_SECRET as string | undefined
+  const previewSecret = previewSecretOf(env)
   if (!previewSecret) return jsonResponse({ error: 'Preview secret not configured' }, { status: 503 })
 
   const body = await readBody(event) as {
@@ -138,16 +140,51 @@ export default defineHandler(async (event) => {
 
   const draft = await upsertActiveOnboardingDraft(db, {
     // /dashboard/onboarding is the "New Organization" entry point, so a draft
-    // never carries the session's active organization: commit creates a new one
-    // and records it here. Adding a site to an existing organization is
+    // never carries the session's active organization: the first save creates a
+    // new one and records it here. Adding a site to an existing organization is
     // POST /api/sites from that organization's dashboard.
     userId: session.user.id, organizationId: null, name: payload.preview.brandName, vertical, sourceType, payload, })
 
-  const expiresAt = Date.now() + (1000 * 60 * 60 * 12)
-  const previewToken = await createScopedPreviewToken(previewSecret, 'draft', draft.id, expiresAt)
+  // The site is real from this first save: pending, on its own reserved
+  // subdomain, previewable with its preview token and invisible to the public
+  // until POST /api/dashboard/onboarding/activate. There is no separate draft
+  // renderer — the preview is the site.
+  const existing = await queryFirst<{ organization_id: string | null }>(db, `
+    SELECT organization_id FROM onboarding_drafts WHERE id = ? LIMIT 1
+  `, [draft.id])
+  const site = await ensureOnboardingSite(env, db, session.user.id, {
+    id: draft.id,
+    organization_id: existing?.organization_id ?? null,
+    name: payload.preview.brandName,
+    vertical,
+    subdomain_candidate: draft.subdomainCandidate,
+  })
+  if ('error' in site) return jsonResponse({ error: site.error }, { status: site.status })
+
+  // Currency and timezone are the owner's answers and arrive part-way through
+  // the wizard. Until they do, the site keeps what site creation gave it.
+  const answeredCurrency = payload.source.details.currency
+  const answeredTimezone = payload.source.details.timezone
+  if (answeredCurrency && isValidTimezone(answeredTimezone)) {
+    await applyOnboardingDraftToSite(env, db, {
+      userId: session.user.id,
+      target: site.target,
+      payload,
+      defaultCurrency: answeredCurrency,
+      timezone: answeredTimezone,
+    })
+  }
+
+  const previewToken = await createPreviewToken(previewSecret, site.target.siteId, Date.now() + PREVIEW_TOKEN_TTL_MS)
 
   return jsonResponse({
-    success: true, draftId: draft.id, draftName: payload.preview.brandName, subdomainCandidate: draft.subdomainCandidate, previewToken, })
+    success: true,
+    draftId: draft.id,
+    draftName: payload.preview.brandName,
+    siteId: site.target.siteId,
+    subdomainCandidate: site.target.subdomain,
+    previewToken,
+  })
 })
 import { defineHandler } from 'nitro';
 import { readBody } from 'nitro/h3';

@@ -315,6 +315,7 @@ interface QuickReply {
 
 interface DraftSavedPayload {
   draftId: string
+  siteId: string
   previewToken: string
   draftName: string
   subdomainCandidate: string
@@ -579,18 +580,14 @@ const workspaceEntryPath = computed(() => {
   return siteSlug ? `/dashboard/${slug}/sites/${siteSlug}` : `/dashboard/${slug}`
 })
 
-const freeSiteHost = computed(() => {
-  const raw = String(config.public.freeSiteDomain || '').trim()
-  if (!raw) return ''
-  try {
-    return new URL(/^https?:\/\//i.test(raw) ? raw : `https://${raw}`).host.replace(/\/$/, '')
-  } catch {
-    return raw.replace(/^https?:\/\//i, '').replace(/\/.*$/, '').replace(/\/$/, '')
-  }
-})
+const siteHostFor = (subdomain: string) => tenantSiteOrigin({
+  platformDomain: String(config.public.platformDomain),
+  freeSiteDomain: String(config.public.freeSiteDomain),
+  subdomain,
+}).replace(/^https?:\/\//, '')
 const draftReadyDomain = computed(() => {
   const candidate = draftPreviewPayload.value?.subdomainCandidate
-  return candidate && freeSiteHost.value ? `${candidate}.${freeSiteHost.value}` : ''
+  return candidate ? siteHostFor(candidate) : ''
 })
 const draftReadyThumbnailUrl = computed(() => brandDraftForm.heroPreviewUrl || brandDraftForm.logoPreviewUrl || '')
 const draftReadyBackground = computed(() => draftReadyThumbnailUrl.value || !brandDraftForm.brandColor
@@ -1070,6 +1067,7 @@ async function saveActiveDraft(options: { silent?: boolean } = {}) {
     const res = await applicationFetch<{
       success: boolean
       draftId?: string
+      siteId?: string
       previewToken?: string
       draftName?: string
       subdomainCandidate?: string
@@ -1087,6 +1085,7 @@ async function saveActiveDraft(options: { silent?: boolean } = {}) {
       validate: (value): value is {
         success: boolean
         draftId?: string
+        siteId?: string
         previewToken?: string
         draftName?: string
         subdomainCandidate?: string
@@ -1094,18 +1093,20 @@ async function saveActiveDraft(options: { silent?: boolean } = {}) {
       } => isRecord(value)
         && typeof value.success === 'boolean'
         && (value.draftId === undefined || typeof value.draftId === 'string')
+        && (value.siteId === undefined || typeof value.siteId === 'string')
         && (value.previewToken === undefined || typeof value.previewToken === 'string')
         && (value.draftName === undefined || typeof value.draftName === 'string')
         && (value.subdomainCandidate === undefined || typeof value.subdomainCandidate === 'string'),
     })
 
-    if (!res.success || !res.draftId || !res.previewToken || !res.draftName || !res.subdomainCandidate) {
+    if (!res.success || !res.draftId || !res.siteId || !res.previewToken || !res.draftName || !res.subdomainCandidate) {
       throw new Error(res.error ?? 'Failed to save your preview draft. Please try again.')
     }
 
     onboardingDraftId.value = res.draftId
     draftPreviewPayload.value = {
       draftId: res.draftId,
+      siteId: res.siteId,
       previewToken: res.previewToken,
       draftName: res.draftName,
       subdomainCandidate: res.subdomainCandidate,
@@ -1226,7 +1227,7 @@ async function commitDraft() {
       siteSlug?: string | null
       locationSlug?: string | null
       error?: string
-    }>(`/api/dashboard/onboarding/drafts/${onboardingDraftId.value}/commit`, {
+    }>(`/api/dashboard/onboarding/drafts/${onboardingDraftId.value}/activate`, {
       method: 'POST',
       validate: (value): value is {
         success: boolean
@@ -1355,7 +1356,8 @@ async function finishCreation(orgSlug: string | null | undefined, siteSlug: stri
   }
 
   const domainSlug = siteSlug ?? orgSlug
-  const domain = domainSlug && freeSiteHost.value ? `**${domainSlug}.${freeSiteHost.value}**` : 'your new workspace'
+  const domainHost = domainSlug ? siteHostFor(domainSlug) : ''
+  const domain = domainHost ? `**${domainHost}**` : 'your new workspace'
   pushBot(`Done. Your workspace is live at ${domain}.`)
   pushBot(
     "From here, head to your dashboard to keep building — chat with ChowBot, use the structured editor, or pick it back up in ChatGPT. Connect Facebook whenever you're ready and posts you publish there will sync to your site too.",

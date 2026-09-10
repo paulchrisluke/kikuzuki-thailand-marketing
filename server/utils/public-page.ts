@@ -16,7 +16,7 @@ import {
 } from "~/server/utils/public-review-aggregate";
 import { getPublicTenantPageForPath, type PublicTenantPage } from "~/server/utils/public-tenant-pages";
 import { mapProduct } from '~/server/utils/product-management'
-import { verifyPreviewToken } from "~/server/utils/preview-token";
+import { previewSecretOf, resolvePreviewAuthorization } from "~/server/utils/preview-token";
 import { attachAvailabilitySummaries, attachExperienceMedia, type Experience } from "~/server/utils/experiences";
 import {
   toResolvedMediaAsset,
@@ -256,11 +256,7 @@ async function loadPublicPageSource(
   const db = env.DB;
   if (!db) throw new HTTPError({ statusCode: 503, statusMessage: "Database unavailable" });
 
-  const rawToken = typeof query.token === "string" ? query.token : null;
-  let isPreviewAuthorized = false;
-  if (rawToken && env.PREVIEW_SECRET) {
-    isPreviewAuthorized = await verifyPreviewToken(String(env.PREVIEW_SECRET), siteId, rawToken);
-  }
+  const isPreviewAuthorized = await resolvePreviewAuthorization(event, siteId, previewSecretOf(env));
   options.signal?.throwIfAborted();
 
   if (mutateResponseHeaders) {

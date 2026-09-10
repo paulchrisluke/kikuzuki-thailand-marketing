@@ -14,8 +14,9 @@ The flow is draft-first, and this is the one and only new-site creation path:
 
 `OnboardingWizard.vue`: `welcome → vertical → source → url/manual name → confirm → location → contact → currency → hours → brand → hero → draft_ready → create → imported`. The `imported` step offers one action, "Open my dashboard"; there are no post-creation handoff cards.
 
-- The first real business identity creates an active draft through `POST /api/dashboard/onboarding/drafts/active`: manual name entry creates a manual draft, and confirming a Google listing creates a Google Places draft. Completed onboarding sections patch that same active draft, and the preview renders from `/preview/draft/:draftId` until commit.
-- `commitDraft()` turns that draft into a real site via `POST /api/dashboard/onboarding/drafts/[draftId]/commit`, which calls the same `runSiteCreation()` used by the only other site-creation entry point, `POST /api/sites` (the dashboard's "add a site to this organization" form). Both pass the target organization explicitly: `/dashboard/onboarding` is the "New Organization" entry point, so a draft never carries an organization and the commit creates a new one named after the brand (recorded on the draft so a retried commit reuses it) and makes it the session's active organization; `POST /api/sites` takes the organization from the dashboard route's `org` query or an explicit `organizationId`.
+- The first real business identity creates an active draft through `POST /api/dashboard/onboarding/drafts/active`: manual name entry creates a manual draft, and confirming a Google listing creates a Google Places draft. That same first save also creates the **real site**, pending, in a new organization named after the brand: `ensureOnboardingSite()` calls the same `runSiteCreation()` used by the only other site-creation entry point, `POST /api/sites`, with `activate: false`. Both pass the target organization explicitly — `/dashboard/onboarding` is the "New Organization" entry point, so a draft never carries one and the first save creates it and records it on the draft; `POST /api/sites` takes the organization from the dashboard route's `org` query or an explicit `organizationId`.
+- Every following save re-applies the whole draft to that site through `applyOnboardingDraftToSite()`, which is a full rebuild and idempotent. The preview pane frames the site itself, on its own subdomain, carrying the site's preview token — there is no separate draft renderer. The site's address is claimed at the first save and does not change if the brand name does.
+- `commitDraft()` makes it public via `POST /api/dashboard/onboarding/drafts/[draftId]/activate`: it re-applies the draft, flips `onboarding_status` to `active`, makes the organization the session's active one, and closes the draft. An abandoned pending site is removed by the `deletion-sweep` task (see [Deleting a tenant](#deleting-a-tenant)).
 - Adding a location to an *existing* site is a separate mode of the same `OnboardingWizard.vue` component (`mode="add-location"`), and creates exclusively through `POST /api/dashboard/locations/add` — that endpoint owns both the Places-preview lookup and the mutation for add-location.
 
 ## Content state model
@@ -29,7 +30,7 @@ Generated placeholder rows are no longer part of onboarding or site creation. Te
 | # | Step | Required | Lands on |
 |---|---|---|---|
 | 1 | Business basics (Maps import or manual: name, vertical, address, contact) | Required | Wizard |
-| 2 | Draft preview (private, current architecture) | Proposed (not currently step 2) | Wizard → `/preview/draft/...` |
+| 2 | Site preview (the pending site on its own subdomain, preview token) | Proposed (not currently step 2) | Wizard → `https://<subdomain>/` |
 | 3 | Brand — brand color and logo | Optional (skippable) | Wizard active draft |
 | 4 | Homepage hero — hero photo, headline, and description | Optional (skippable) | Wizard active draft |
 | 5 | Operations — timezone, currency, notification phone | Required | Wizard |
@@ -47,3 +48,16 @@ Only asked again on **add-location** (`OnboardingWizard.vue` `mode="add-location
 - Notification routing for this location
 - Location hero/media (uses location media only; it remains empty until supplied)
 - Optional location-specific notes/social
+
+## Deleting a tenant
+
+Onboarding creates the site before the owner has finished answering, so leaving
+the wizard leaves a pending site holding a subdomain. `server/utils/tenant-deletion.ts`
+is the only path that removes one, and the `deletion-sweep` task (daily, 03:00)
+runs it: it releases the Cloudflare custom hostnames and the Cloudflare Images
+the organization is the last holder of, then Better Auth deletes the
+organization and D1's `ON DELETE CASCADE` takes the sites, domains, locations,
+content and media with it. Owners reach the same path from Site settings →
+Delete workspace and Account → Delete account; both schedule the deletion 30
+days out and can be cancelled until then, and the site keeps serving in the
+meantime.

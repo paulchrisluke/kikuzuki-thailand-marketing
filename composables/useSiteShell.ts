@@ -8,9 +8,8 @@ import {
 } from '~/utils/public-resource-contracts'
 
 export const useSiteShellState = () => {
-  const { isPlatform, siteId, draftId } = useTenantSite();
+  const { isPlatform, siteId } = useTenantSite();
   const requestEvent = useRequestEvent();
-  const route = useRoute();
   const { locale } = useI18n();
   const isSyntheticServerAssetFetch = import.meta.server
     && !requestEvent?.req.runtime?.cloudflare?.env
@@ -21,7 +20,6 @@ export const useSiteShellState = () => {
       || requestEvent?.path?.startsWith('/__nuxt_error')
     );
 
-  const entityId = computed(() => siteId || draftId || null);
 
   const params = computed<PublicPageRequest>(() => ({
     page: null,
@@ -30,20 +28,17 @@ export const useSiteShellState = () => {
     datasets: [],
     blogSlug: null,
     locale: locale.value,
-    token: typeof route.query.token === 'string' && route.path.startsWith('/preview/')
-      ? route.query.token
-      : null,
   }));
 
-  const key = computed(() => usePublicResourceKey('shell', entityId.value, params.value));
-  const url = computed(() => buildPublicPageUrl(siteId, params.value, route, 'shell'));
+  const key = computed(() => usePublicResourceKey('shell', siteId, params.value));
+  const url = computed(() => buildPublicPageUrl(siteId, params.value, 'shell'));
 
   let data: Ref<SiteShellPayload | undefined>
   let error: Ref<Error | null>
   let pending: Ref<boolean>
   let refresh: () => Promise<unknown>
   let ready: Promise<unknown>
-  if (isSyntheticServerAssetFetch || isPlatform || (!siteId && !draftId)) {
+  if (isSyntheticServerAssetFetch || isPlatform || !siteId) {
     data = ref<SiteShellPayload>()
     error = ref<Error | null>(null)
     pending = ref(false)
@@ -53,14 +48,12 @@ export const useSiteShellState = () => {
     const asyncData = useAsyncData<SiteShellPayload>(
           key,
           (_nuxtApp, { signal }) => loadPublicResourcePayload<SiteShellPayload>({
-              draftId,
               siteId,
               resourceKind: 'shell',
               url: url.value,
               key: key.value,
               query: {
                 locale: params.value.locale ?? undefined,
-                token: params.value.token ?? undefined,
               },
               validate: isPublicShellPayload,
               failureMessage: 'Public shell failed',

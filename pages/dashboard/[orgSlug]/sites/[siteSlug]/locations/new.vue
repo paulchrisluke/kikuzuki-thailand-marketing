@@ -99,11 +99,15 @@ const siteDomain = computed(() =>
   siteData.value?.subdomain ? `${siteData.value.subdomain}.${platformHostname.value}` : ''
 )
 
-const sitePreviewBaseUrl = computed(() => {
-  if (!siteData.value?.id) return ''
-  const platformBase = ((config.public.platformDomain || config.public.freeSiteDomain) as string).replace(/\/$/, '')
-  return `${platformBase}/preview/site/${siteData.value.id}`
-})
+// The preview is the live site on its own host, so this pane shows exactly
+// what a visitor sees.
+const sitePreviewBaseUrl = computed(() => siteData.value?.subdomain
+  ? tenantSiteOrigin({
+      platformDomain: String(config.public.platformDomain),
+      freeSiteDomain: String(config.public.freeSiteDomain),
+      subdomain: siteData.value.subdomain,
+    })
+  : '')
 
 const selectedLocation = computed(() =>
   siteLocations.value.find(l => l.id === selectedLocationId.value) ?? null
