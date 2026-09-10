@@ -1,7 +1,9 @@
 <template>
-  <UDashboardPanel id="account-profile">
+  <NuxtPage v-if="frame.mode.value === 'yield'" />
+
+  <UDashboardPanel v-else id="account-profile" :ui="{ body: 'min-h-0 gap-0! overflow-hidden! p-0! sm:p-0!' }">
     <template #header>
-      <UDashboardNavbar title="Account">
+      <UDashboardNavbar title="Account" :toggle="false">
         <template #leading>
           <DashboardNavbarLeading to="/dashboard" label="Dashboard" />
         </template>
@@ -9,74 +11,110 @@
     </template>
 
     <template #body>
-      <div class="w-full max-w-[var(--ws-page-narrow,45rem)]">
-        <section class="flex items-center gap-4 pb-[22px] max-sm:pb-[18px]" :class="rowTone('avatar')">
-          <UAvatar :src="sessionData?.user?.image ?? undefined" icon="i-lucide-user" alt="User avatar" class="size-14" :ui="{ icon: 'size-7' }" />
-          <span class="account-action text-muted" title="Avatar is managed by your sign-in provider">Change photo</span>
-        </section>
+      <EditorPaneShell
+        :has-detail="frame.mode.value === 'pair'"
+        show-desktop-detail
+        :detail-title="detailTitle"
+        :dismiss-to="profilePath"
+        show-actions
+        :saving="saving"
+        :save-disabled="saveDisabled"
+        :save-label="saveLabel"
+        @cancel="closeDetail"
+        @save="saveDetail"
+      >
+        <!--
+          The index previews every value and opens one at a time. Rows that
+          navigate away or act on the session — Reset password, Copy, Billing,
+          Log out — keep their own control here: they open nothing, so they are
+          not levels of the chain.
+        -->
+        <template #index>
+          <section class="flex items-center gap-4 pb-[22px] max-sm:pb-[18px]">
+            <UAvatar :src="sessionData?.user?.image ?? undefined" icon="i-lucide-user" alt="User avatar" class="size-14" :ui="{ icon: 'size-7' }" />
+            <span class="account-action text-muted" title="Avatar is managed by your sign-in provider">Change photo</span>
+          </section>
 
-        <section class="profile-row" :class="rowTone('name')">
-          <div class="min-w-0 flex-1" :class="editingRow === 'name' ? 'space-y-3.5' : ''">
-            <div class="flex items-start justify-between gap-4">
-              <div><h3 class="profile-label">Display name</h3><p v-if="editingRow !== 'name'" class="profile-value">{{ sessionData?.user?.name || 'Not set' }}</p></div>
-              <UButton v-if="editingRow === 'name'" variant="link" color="neutral" @click="cancelEdit">Cancel</UButton>
+          <NuxtLink :to="`${profilePath}/name`" class="profile-row no-underline" :class="rowTone('name')">
+            <div class="min-w-0">
+              <h3 class="profile-label">Display name</h3>
+              <p class="profile-value">{{ sessionData?.user?.name || 'Not set' }}</p>
             </div>
-            <UInput v-if="editingRow === 'name'" v-model="nameInput" size="xl" autofocus @input="nameTouched = true" @keydown.enter="saveNameAndClose" />
-            <UButton v-if="editingRow === 'name'" size="sm" :disabled="!nameDirty" :loading="nameSaving" @click="saveNameAndClose">Save</UButton>
+            <UIcon name="i-lucide-chevron-right" class="size-4 shrink-0 text-muted" />
+          </NuxtLink>
+
+          <section class="profile-row" :class="rowTone('email')">
+            <div class="min-w-0">
+              <h3 class="profile-label">Email</h3>
+              <p class="profile-value">{{ sessionData?.user?.email }}</p>
+              <p v-if="sessionData?.user?.emailVerified" class="profile-meta text-success"><span class="size-1.5 rounded-full bg-current" />Verified</p>
+            </div>
+            <NuxtLink to="/forgot-password" class="account-action shrink-0">Reset password</NuxtLink>
+          </section>
+
+          <section class="profile-row" :class="rowTone('google')">
+            <div class="min-w-0">
+              <h3 class="profile-label">Google</h3>
+              <p class="profile-value">
+                <span v-if="googleStatus === 'loading'">Checking…</span>
+                <span v-else-if="googleStatus === 'connected'">Connected</span>
+                <span v-else-if="googleStatus === 'error'">Unable to check connection status</span>
+                <span v-else>Not connected</span>
+              </p>
+            </div>
+          </section>
+
+          <NuxtLink :to="`${profilePath}/phone`" class="profile-row no-underline" :class="rowTone('phone')">
+            <div class="min-w-0">
+              <h3 class="profile-label">Phone number</h3>
+              <p class="profile-value">{{ sessionData?.user?.phoneNumber || 'Not set' }}</p>
+              <p class="profile-meta" :class="sessionData?.user?.phoneNumberVerified ? 'text-success' : 'text-warning'"><span class="size-1.5 rounded-full bg-current" />{{ sessionData?.user?.phoneNumberVerified ? 'Verified' : 'Not verified' }}</p>
+            </div>
+            <UIcon name="i-lucide-chevron-right" class="size-4 shrink-0 text-muted" />
+          </NuxtLink>
+
+          <section class="profile-row" :class="rowTone('user-id')">
+            <div class="min-w-0"><h3 class="profile-label">User ID</h3><p class="profile-value font-mono">{{ sessionData?.user?.id }}</p></div>
+            <UButton variant="link" color="neutral" @click="copyUserId">Copy</UButton>
+          </section>
+
+          <section v-if="billingTo" class="profile-row" :class="rowTone('billing')">
+            <div class="min-w-0"><h3 class="profile-label">Billing</h3><p class="profile-value whitespace-normal">Plan and payments for {{ organizationName }}.</p></div>
+            <NuxtLink :to="billingTo" class="account-action shrink-0">Open</NuxtLink>
+          </section>
+
+          <NuxtLink :to="`${profilePath}/delete`" class="profile-row no-underline" :class="rowTone('delete')">
+            <div><h3 class="profile-label text-error">Delete account</h3><p class="profile-value whitespace-normal">Removes your account, organization, site, locations and menu data.</p></div>
+            <UIcon name="i-lucide-chevron-right" class="size-4 shrink-0 text-muted" />
+          </NuxtLink>
+
+          <section class="profile-row" :class="rowTone('log-out')">
+            <div class="min-w-0"><h3 class="profile-label">Log out</h3><p class="profile-value whitespace-normal">Sign out on this device.</p></div>
+            <UButton variant="link" color="neutral" @click="handleSignOut">Log out</UButton>
+          </section>
+        </template>
+
+        <template #detail>
+          <UFormField v-if="openKey === 'name'" label="Display name">
+            <UInput v-model="nameInput" size="xl" autofocus class="w-full" @input="nameTouched = true" @keydown.enter="saveDetail" />
+          </UFormField>
+
+          <div v-else-if="openKey === 'phone'" class="space-y-4">
+            <p class="text-base text-muted">A code is sent over WhatsApp to confirm the number before it is saved.</p>
+            <UFormField label="Phone number">
+              <UInput v-model="phoneInput" size="xl" placeholder="+1234567890" autofocus class="w-full" @input="phoneTouched = true" @keydown.enter="saveDetail" />
+            </UFormField>
           </div>
-          <UButton v-if="editingRow !== 'name'" variant="link" color="neutral" @click="editingRow = 'name'">Edit</UButton>
-        </section>
 
-        <section class="profile-row" :class="rowTone('email')">
-          <div class="min-w-0">
-            <h3 class="profile-label">Email</h3>
-            <p class="profile-value">{{ sessionData?.user?.email }}</p>
-            <p v-if="sessionData?.user?.emailVerified" class="profile-meta text-success"><span class="size-1.5 rounded-full bg-current" />Verified</p>
+          <div v-else-if="openKey === 'delete'" class="space-y-4">
+            <p class="text-base text-muted">This permanently deletes your account, organization, site, locations and menu data. It cannot be undone.</p>
+            <UAlert v-if="deleteError" color="error" variant="soft" icon="i-lucide-triangle-alert" :description="deleteError" />
+            <UFormField label="Type DELETE to confirm">
+              <UInput v-model="deleteConfirmText" placeholder="DELETE" :disabled="deleting" autofocus class="w-full" @keydown.enter="saveDetail" />
+            </UFormField>
           </div>
-          <NuxtLink to="/forgot-password" class="account-action shrink-0">Reset password</NuxtLink>
-        </section>
-
-        <section class="profile-row" :class="rowTone('google')">
-          <div class="min-w-0">
-            <h3 class="profile-label">Google</h3>
-            <p class="profile-value">
-              <span v-if="googleStatus === 'loading'">Checking…</span>
-              <span v-else-if="googleStatus === 'connected'">Connected</span>
-              <span v-else-if="googleStatus === 'error'">Unable to check connection status</span>
-              <span v-else>Not connected</span>
-            </p>
-          </div>
-        </section>
-
-        <section class="profile-row items-start" :class="rowTone('phone')">
-          <div class="min-w-0 flex-1 space-y-3">
-            <div><h3 class="profile-label">Phone number</h3><p v-if="editingRow !== 'phone'" class="profile-value">{{ sessionData?.user?.phoneNumber || 'Not set' }}</p><p v-if="editingRow !== 'phone'" class="profile-meta" :class="sessionData?.user?.phoneNumberVerified ? 'text-success' : 'text-warning'"><span class="size-1.5 rounded-full bg-current" />{{ sessionData?.user?.phoneNumberVerified ? 'Verified' : 'Not verified' }}</p></div>
-            <UInput v-if="editingRow === 'phone'" v-model="phoneInput" size="xl" placeholder="+1234567890" autofocus @input="phoneTouched = true" @keydown.enter="requestPhoneVerify" />
-            <div v-if="editingRow === 'phone'" class="flex items-center gap-3"><UButton size="sm" :disabled="!phoneDirty || !phoneInput.trim()" :loading="phoneSaving" @click="requestPhoneVerify">Verify & Save</UButton><UButton variant="link" color="neutral" @click="cancelEdit">Cancel</UButton></div>
-          </div>
-          <UButton v-if="editingRow !== 'phone'" variant="link" color="neutral" @click="editingRow = 'phone'">Edit</UButton>
-        </section>
-
-        <section class="profile-row" :class="rowTone('user-id')">
-          <div class="min-w-0"><h3 class="profile-label">User ID</h3><p class="profile-value font-mono">{{ sessionData?.user?.id }}</p></div>
-          <UButton variant="link" color="neutral" @click="copyUserId">Copy</UButton>
-        </section>
-
-        <section v-if="billingTo" class="profile-row" :class="rowTone('billing')">
-          <div class="min-w-0"><h3 class="profile-label">Billing</h3><p class="profile-value whitespace-normal">Plan and payments for {{ organizationName }}.</p></div>
-          <NuxtLink :to="billingTo" class="account-action shrink-0">Open</NuxtLink>
-        </section>
-
-        <section class="profile-row" :class="rowTone('delete')">
-          <div><h3 class="profile-label text-error">Delete account</h3><p class="profile-value whitespace-normal">Removes your account, organization, site, locations and menu data.</p></div>
-          <UButton variant="link" color="error" @click="deleteModalOpen = true">Delete</UButton>
-        </section>
-
-        <section class="profile-row" :class="rowTone('log-out')">
-          <div class="min-w-0"><h3 class="profile-label">Log out</h3><p class="profile-value whitespace-normal">Sign out on this device.</p></div>
-          <UButton variant="link" color="neutral" @click="handleSignOut">Log out</UButton>
-        </section>
-      </div>
+        </template>
+      </EditorPaneShell>
     </template>
   </UDashboardPanel>
 
@@ -167,14 +205,19 @@
 
 <script setup lang="ts">
 // -nocheck
+import EditorPaneShell from '~/components/dashboard/EditorPaneShell.vue'
 import { authClient } from '~/lib/auth-client'
 import { useAuth } from '~/composables/useAuth'
 import { dashboardOrganizationParentKey } from '~/lib/components/workspace/dashboard/dashboardScopeHeaderContext'
 
-definePageMeta({ layout: 'dashboard' })
 
 const toast = useToast()
 const route = useRoute()
+
+// The frame comes first, and before any `await`: `useEditorFrame` provides and
+// injects, which Vue binds only while setup is still synchronous.
+const profilePath = computed(() => '/dashboard/account/profile')
+const frame = useEditorFrame(profilePath)
 const { data: sessionData } = useAuth()
 
 const organizationParent = inject(dashboardOrganizationParentKey, null)
@@ -217,10 +260,51 @@ const nameInput = ref(sessionData.value?.user?.name || '')
 const nameDirty = computed(() => nameInput.value.trim() !== (sessionData.value?.user?.name || ''))
 const nameSaving = ref(false)
 type ProfileRow = 'avatar' | 'name' | 'email' | 'google' | 'phone' | 'user-id' | 'billing' | 'delete' | 'log-out'
-const editingRow = ref<ProfileRow | null>(null)
+const DETAIL_LABELS: Record<string, string> = { name: 'Display name', phone: 'Phone number', delete: 'Delete account' }
+const detailKey = computed(() => frame.childSegment.value)
+/**
+ * With nothing open the pane still shows the first row rather than empty space:
+ * the reference profile opens on its first section too. `has-detail` stays tied
+ * to the route, so below `lg` a phone shows the index and no sheet to escape.
+ */
+const openKey = computed(() => detailKey.value ?? 'name')
+const detailTitle = computed(() => DETAIL_LABELS[openKey.value])
+
+// An unsupported row 404s rather than opening an empty pane.
+watchEffect(() => {
+  if (frame.rest.value.length > 1 || (detailKey.value && !(detailKey.value in DETAIL_LABELS))) {
+    throw createError({ statusCode: 404, statusMessage: 'Page not found' })
+  }
+})
 
 function rowTone(row: ProfileRow) {
-  return editingRow.value && editingRow.value !== row ? 'opacity-40' : ''
+  return detailKey.value && detailKey.value !== row ? 'opacity-40' : ''
+}
+
+const saving = computed(() => openKey.value === 'name' ? nameSaving.value
+  : openKey.value === 'phone' ? phoneSaving.value
+  : openKey.value === 'delete' ? deleting.value
+  : false)
+
+const saveDisabled = computed(() => openKey.value === 'name' ? !nameDirty.value
+  : openKey.value === 'phone' ? (!phoneDirty.value || !phoneInput.value.trim())
+  : openKey.value === 'delete' ? deleteConfirmText.value !== 'DELETE'
+  : true)
+
+const saveLabel = computed(() => openKey.value === 'phone' ? 'Verify and save'
+  : openKey.value === 'delete' ? 'Delete account'
+  : undefined)
+
+async function saveDetail() {
+  if (saveDisabled.value) return
+  if (openKey.value === 'name') return void await saveNameAndClose()
+  if (openKey.value === 'phone') return void await requestPhoneVerify()
+  if (openKey.value === 'delete') return void await confirmDeleteAccount()
+}
+
+function closeDetail() {
+  cancelEdit()
+  void navigateTo(profilePath.value)
 }
 
 function cancelEdit() {
@@ -228,7 +312,6 @@ function cancelEdit() {
   phoneInput.value = sessionData.value?.user?.phoneNumber || ''
   nameTouched.value = false
   phoneTouched.value = false
-  editingRow.value = null
 }
 
 async function saveName() {
@@ -249,7 +332,7 @@ async function saveName() {
 }
 
 async function saveNameAndClose() {
-  if (await saveName()) editingRow.value = null
+  if (await saveName()) await navigateTo(profilePath.value)
 }
 
 // useAuth()'s session resolves asynchronously, so nameInput starts as '' before
@@ -304,7 +387,7 @@ async function verifyPhone() {
     
     await refreshSession()
     verifyModalOpen.value = false
-    editingRow.value = null
+    await navigateTo(profilePath.value)
     toast.add({ title: 'Phone verified', icon: 'i-lucide-circle-check', color: 'success' })
   } catch (_err) {
     verifyError.value = _err instanceof Error ? _err.message : String(_err)
