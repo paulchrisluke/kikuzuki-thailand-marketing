@@ -10,15 +10,6 @@ function flagEnabled(env: ApiRecord | undefined, key: string): boolean {
 }
 
 /**
- * Controls whether managed-service operations are accepting new Growth
- * support requests. It never defines a plan or entitlement. The Growth
- * entitlement remains authoritative when the flag is off.
- */
-export function isManagedServiceEnabled(env: ApiRecord | undefined): boolean {
-  return flagEnabled(env, 'MANAGED_SERVICE_ENABLED')
-}
-
-/**
  * Controls whether legal practice read operations are enabled for Blawby integration.
  * Callers must additionally check the site's legal_operations entitlement.
  */

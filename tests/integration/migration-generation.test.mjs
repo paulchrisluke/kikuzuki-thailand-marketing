@@ -29,7 +29,7 @@ function fixture(t) {
   symlinkSync(join(root, 'node_modules'), join(directory, 'node_modules'), process.platform === 'win32' ? 'junction' : 'dir')
   writeFileSync(join(directory, 'drizzle.config.ts'), "export default { schema: './schema.ts', out: './migrations', dialect: 'sqlite' }\n")
   writeFileSync(join(directory, 'schema.ts'), schema())
-  const result = generate(directory, 'epoch_5_baseline')
+  const result = generate(directory, 'baseline')
   assert.equal(result.status, 0, result.stderr + result.stdout)
   return directory
 }

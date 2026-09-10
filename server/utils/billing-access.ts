@@ -1,54 +1,36 @@
+import { instantDate } from '~/utils/timezone'
+
 export const PAST_DUE_GRACE_PERIOD_MS = 7 * 24 * 60 * 60 * 1000
 
 export interface SubscriptionAccessInput {
   plan: string | null | undefined
   status: string | null | undefined
   paymentStatus: string | null | undefined
-  trialEnd?: Date | string | number | null
-  periodEnd?: Date | string | number | null
-  paidThrough?: Date | string | number | null
-  pastDueSince?: Date | string | number | null
+  trialEnd?: Date | string | null
+  paidThrough?: Date | string | null
+  pastDueSince?: Date | string | null
 }
 
-function periodEndMs(value: SubscriptionAccessInput['periodEnd']): number | null {
-  if (value instanceof Date) return Number.isNaN(value.getTime()) ? null : value.getTime()
-  if (typeof value === 'number') {
-    const milliseconds = Math.abs(value) >= 100_000_000_000 ? value : value * 1000
-    return Number.isFinite(milliseconds) ? milliseconds : null
-  }
-  if (typeof value === 'string' && value.trim()) {
-    const parsed = Date.parse(value)
-    return Number.isNaN(parsed) ? null : parsed
-  }
-  return null
-}
-
-/**
- * Returns the plan whose entitlements may be used at this moment. The
- * original Stripe/Better Auth plan remains stored separately for billing
- * history; access is derived from subscription state.
- */
-export function getEffectiveAccessPlan(
-  input: SubscriptionAccessInput,
-  now = new Date(),
-): string {
+/** Canonical access and expiry derived from authoritative subscription/payment facts. */
+export function getSubscriptionAccess(input: SubscriptionAccessInput, now = new Date()): {
+  plan: string
+  expiresAt: string | null
+} {
+  const free = { plan: 'free', expiresAt: null }
   const plan = input.plan?.trim()
-  if (!plan) return 'free'
+  if (!plan) return free
+  let expiry: Date
   if (input.status === 'trialing') {
-    const trialEnd = periodEndMs(input.trialEnd ?? input.periodEnd)
-    if (trialEnd === null || now.getTime() > trialEnd) return 'free'
-    return plan
+    if (input.trialEnd == null) return free
+    expiry = instantDate(input.trialEnd)
+  } else if (input.status === 'active' && input.paymentStatus === 'paid') {
+    if (input.paidThrough == null) return free
+    expiry = instantDate(input.paidThrough)
+  } else if (input.status === 'past_due') {
+    if (input.pastDueSince == null) return free
+    expiry = new Date(instantDate(input.pastDueSince).getTime() + PAST_DUE_GRACE_PERIOD_MS)
+  } else {
+    return free
   }
-  if (input.status === 'active' && input.paymentStatus === 'paid') {
-    const paidThrough = periodEndMs(input.paidThrough)
-    if (paidThrough === null || now.getTime() > paidThrough) return 'free'
-    return plan
-  }
-
-  if (input.status === 'past_due') {
-    const graceAnchor = periodEndMs(input.paidThrough) ?? periodEndMs(input.pastDueSince)
-    if (graceAnchor !== null && now.getTime() <= graceAnchor + PAST_DUE_GRACE_PERIOD_MS) return plan
-  }
-
-  return 'free'
+  return now.getTime() > expiry.getTime() ? free : { plan, expiresAt: expiry.toISOString() }
 }

@@ -13,7 +13,6 @@ const OUTPUT_PATH = 'chatgpt-app-submission.json'
 // Reviewed effects are authored here; annotation values still come from the registry.
 // A newly exposed tool must receive an explicit review before regeneration succeeds.
 const effects = {
-  analyze_document: 'Analyzes an uploaded document through Anthropic via Cloudflare AI Gateway and charges tenant AI credits.',
   attach_media: 'Adds an existing asset to a public content collection without replacing its existing placements.',
   batch_create_products: 'Creates new products in the selected location and records product events.',
   change_tenant_page_path: 'Changes a tenant page URL and its routing records.',
@@ -21,7 +20,7 @@ const effects = {
   create_experience: 'Creates a bookable experience with pricing and scheduling at the selected location.',
   create_location_qa: 'Adds a public question and answer to the selected location.',
   create_owner_entered_site_review: 'Creates an owner-entered review with source and attribution provenance for the selected site.',
-  create_post: 'Creates a website announcement, publishing immediately unless scheduled for later.',
+  create_post: 'Creates a private website announcement draft, or schedules publication when a future date is supplied.',
   create_product: 'Creates a product with explicit price semantics in the selected location and category.',
   create_product_category: 'Adds a product category to the selected location.',
   create_site_qa: 'Adds a public question and answer to the selected site.',
@@ -37,7 +36,7 @@ const effects = {
   delete_resource_localization: 'Deletes the selected translated resource representation.',
   delete_site_qa: 'Deletes the selected site question and answer.',
   get_blog_post: 'Reads the selected tenant blog article and content for editing.',
-  get_booking_policy: 'Reads the selected site or location booking policy.',
+  get_booking_policy: 'Reads the selected site, location, or individual experience booking policy and its resolved terms.',
   get_contact_inquiries: 'Reads authorized customer contact inquiries, including personal contact information.',
   get_experience: 'Reads the selected experience and its pricing and scheduling details.',
   get_location: 'Reads the selected location, including operational contact and notification settings.',
@@ -49,13 +48,10 @@ const effects = {
   get_resource_localization: 'Reads a resource translation and any existing authoring document.',
   get_site: 'Reads the selected accessible site and workspace context.',
   get_site_analytics: 'Reads site analytics reports from stored aggregates and retained raw events without creating aggregates.',
-  get_site_domains: 'Reads the selected site domain records and configuration instructions.',
   get_site_media_assets: 'Lists the selected site media library and public asset URLs.',
   get_site_settings: 'Reads the selected site settings.',
   get_tenant_page: 'Reads the selected tenant page and its existing content document.',
   get_workspace_context: 'Reads the authenticated user workspace selection and available context.',
-  import_from_maps: 'Queries Google Places and charges tenant credits without creating or updating a site or location.',
-  import_products_from_media: 'Sends a stored image or PDF to Anthropic through Cloudflare AI Gateway, charges credits, and creates extracted products.',
   list_all_experience_bookings: 'Lists authorized bookings across the selected site, including guest names and contact details.',
   list_blog_posts: 'Lists the selected site blog articles.',
   list_experience_bookings: 'Lists authorized bookings for the selected experience, including guest names and contact details.',
@@ -78,7 +74,6 @@ const effects = {
   put_resource_localization: 'Creates or overwrites translated resource values and supplied translated content.',
   remove_media: 'Removes an asset placement from public content while retaining the underlying media asset.',
   rename_product_category: 'Overwrites the selected product category name.',
-  reorder_blog_posts: 'Overwrites the presentation order of selected blog articles.',
   reorder_location_qa: 'Overwrites question-and-answer order for the selected location.',
   reorder_media: 'Overwrites media placement ordering for the selected public content collection.',
   reorder_product_categories: 'Overwrites category order in the selected location.',
@@ -93,13 +88,13 @@ const effects = {
   set_media: 'Replaces or clears the asset assigned to a single public media placement.',
   set_workspace_context: 'Overwrites the authenticated user selected workspace site or location.',
   show_generated_images: 'Formats supplied image references for display without saving or generating images.',
-  sync_product_catalog_localization: 'Reconciles translated product catalog values for the selected site and locale.',
-  sync_products: 'Reconciles a complete location catalog, creates and updates products, and marks omitted products unavailable.',
+  replace_product_localizations: 'Replaces the submitted product translations for one locale; omitted products remain untouched.',
+  reconcile_products: 'Creates and updates products at one location, and marks omitted products unavailable only when explicitly requested.',
   update_blog_metadata: 'Overwrites selected blog metadata, including public navigation and search settings.',
   update_blog_post: 'Overwrites supplied fields of an existing tenant blog article.',
-  update_booking_policy: 'Overwrites booking rules, including cancellation and deposit terms, for the selected site or location.',
+  update_booking_policy: 'Overwrites booking rules, including cancellation and deposit terms, for the selected site, location, or individual experience.',
   update_experience: 'Overwrites experience content, price, capacity, status or schedule as requested.',
-  update_experience_booking: 'Overwrites a booking status and emits an internal inbox event; cancellation also revokes its review request.',
+  update_experience_booking: 'Confirms, cancels, or completes a booking through its guest conversation. Confirmation and cancellation send the applicable guest email notification; cancellation also revokes its review request.',
   update_location: 'Overwrites supplied location fields, including public hours and contact details or operational capacity and notification settings.',
   update_location_qa: 'Overwrites the selected location question or answer.',
   update_media_asset: 'Overwrites media metadata such as alt text or category.',
@@ -114,9 +109,6 @@ const effects = {
 }
 
 const externalProcessing = {
-  analyze_document: 'Document contents and the question are sent to Anthropic through Cloudflare AI Gateway.',
-  import_from_maps: 'The requested business lookup is sent to Google Places.',
-  import_products_from_media: 'The image or PDF is sent to Anthropic through Cloudflare AI Gateway, and extracted products can appear on the public website.',
   upload_user_media: 'The attachment is stored in Cloudflare storage at a public media URL.',
   save_generated_image: 'The supplied image bytes are stored in Cloudflare storage at a public media URL.',
   save_generated_image_file: 'The supplied image attachment is stored in Cloudflare storage at a public media URL.',
@@ -127,9 +119,7 @@ function justifications(tool) {
   if (!effect) throw new Error(`Tool requires an implementation review: ${tool.name}`)
   const annotations = tool.annotations
   return {
-    read_only_justification: annotations.readOnlyHint
-      ? `${effect} It does not mutate application content or consume AI credits.`
-      : `${effect} This changes persisted state or consumes credits.`,
+    read_only_justification: effect,
     open_world_justification: externalProcessing[tool.name] ?? (annotations.openWorldHint
       ? `${effect} Its effects can change content or behavior on the public website.`
       : `${effect} It does not publish content or write to an external service.`),
@@ -155,7 +145,7 @@ const submission = {
   app_info: {
     display_name: 'KrabiClaw',
     subtitle: 'Manage your business website',
-    description: 'Manage your KrabiClaw business website from ChatGPT. Choose a site and location, edit products and experiences, publish announcements and blog articles, update page content and translations, and upload or assign media. Review customer inquiries and experience bookings from your connected workspace. Publishing and content changes can appear on your public website. Some imports and document analysis use AI credits. A KrabiClaw account with access to the selected business is required. Site and location setup and deletion are managed in the KrabiClaw CMS.',
+    description: 'Manage your KrabiClaw business website from ChatGPT. Choose a site and location, edit products and experiences, publish announcements and blog articles, update page content and translations, and upload or assign media. Review customer inquiries and experience bookings from your connected workspace. Publishing and content changes can appear on your public website. A KrabiClaw account with access to the selected business is required. Site and location setup and deletion are managed in the KrabiClaw CMS.',
     category: 'BUSINESS',
   },
   tools,
@@ -177,28 +167,28 @@ const submission = {
         "expected_output_url": null
     },
     {
-        "description": "Mark a menu item unavailable without deleting it.",
-        "user_prompt": "At Ember & Slice, West Village, mark Tea in Submission Drinks unavailable because it is sold out. Keep the item, price, and description so I can make it available again later.",
-        "file_attachment_urls": null,
-        "tools_triggered": "list_location_products, get_product, update_product",
-        "expected_output": "Sets available to false on the explicitly identified Tea product. The product remains stored with its price and description unchanged; no product is deleted.",
-        "expected_output_url": null
+      description: 'Create a wording-only price without inventing a numeric amount.',
+      user_prompt: 'At Ember & Slice, West Village, in Submission Drinks, add Submission Seasonal Drink with description “Ask about today’s selection” and price wording “Market Price”. Do not assign a fixed amount; if the exact item exists, ask before duplicating it.',
+      file_attachment_urls: null,
+      tools_triggered: 'list_sites, list_locations, list_product_categories, list_location_products, create_product',
+      expected_output: 'Creates the explicitly located product with price null and an explicit price-note detail reading Market Price; does not substitute zero or an estimated amount.',
+      expected_output_url: null,
     },
     {
-        "description": "Change an existing experience description.",
-        "user_prompt": "At Ember & Slice, West Village, update Submission cooking class with tagline “Cook, taste, and learn together” and description “A hands-on cooking class with guided preparation and a shared meal.” Keep its price and duration unchanged.",
-        "file_attachment_urls": null,
-        "tools_triggered": "list_experiences, get_experience, update_experience",
-        "expected_output": "Updates only the selected experience tagline and description, preserving price, duration, and scheduling.",
-        "expected_output_url": null
+      description: 'Preview and save a location reservation policy without inventing other terms.',
+      user_prompt: 'For Ember & Slice, West Village table reservations, show the current policy and preview a 48-hour free-cancellation window. Show the proposed result before asking me to save it; preserve all other stored terms.',
+      file_attachment_urls: null,
+      tools_triggered: 'list_sites, list_locations, get_booking_policy, preview_booking_policy, update_booking_policy',
+      expected_output: 'Reads the explicit location policy and previews free_cancellation_until_minutes 2880 without saving. Only after the user confirms, saves that field and reads it back; unspecified terms stay unspecified.',
+      expected_output_url: null,
     },
     {
-        "description": "Change experience pricing and duration.",
-        "user_prompt": "At Ember & Slice, West Village, change Submission cooking class to 90 minutes and 1,200 THB per person excluding tax. Keep its description and booking schedule unchanged.",
-        "file_attachment_urls": null,
-        "tools_triggered": "list_experiences, get_experience, update_experience",
-        "expected_output": "Updates the selected experience to duration_minutes 90 and price amount_minor 120000, currency THB, unit person, tax_behavior exclusive; preserves content and booking schedule.",
-        "expected_output_url": null
+      description: 'Publish a website announcement and return its canonical public URL.',
+      user_prompt: 'On Ember & Slice, publish a website-only announcement titled Submission Welcome with text “Welcome to our updated website.” Show me the final public link. If that exact announcement exists, ask before creating another.',
+      file_attachment_urls: null,
+      tools_triggered: 'list_sites, get_site, list_posts, create_post, publish_post',
+      expected_output: 'Creates the requested announcement and publishes it to the site channel after any required confirmation; returns the public URL supplied by the tool and does not claim Facebook or Instagram publication.',
+      expected_output_url: null,
     }
 ],
   negative_test_cases: [
@@ -219,11 +209,11 @@ const submission = {
       expected_output_url: null,
     },
     {
-      description: 'Deleting a location belongs in the CMS.',
-      user_prompt: 'Delete my business location permanently.',
+      description: 'Maps import and domain management belong in the CMS.',
+      user_prompt: 'Import my business from Google Maps and configure its custom domain DNS.',
       file_attachment_urls: null,
       tools_triggered: null,
-      expected_output: 'Explain that location deletion is managed in the CMS; do not approximate it by deleting the location’s products, experiences, or media.',
+      expected_output: 'Direct the user to Maps import and domain management in the CMS; do not invoke unrelated content tools to approximate these operations.',
       expected_output_url: null,
     },
   ],

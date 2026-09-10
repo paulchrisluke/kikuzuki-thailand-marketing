@@ -1,6 +1,7 @@
+import { instantSchema } from '~/utils/timezone'
 import type { McpToolDefinition } from './shared'
-import { BLOG_NAV_FIELDS_SCHEMA, ROBOTS_DIRECTIVE_ENUM, blogPostMutationResultObject, blogPostObject, blogPostSummaryObject, pageInfoObject, paginationInputSchema, siteTool } from './shared'
-import { PUBLICATION_CONTENT_BLOCK_TYPES } from '~/shared/content-registries'
+import { ROBOTS_DIRECTIVE_ENUM, blogPostMutationResultObject, blogPostObject, blogPostSummaryObject, pageInfoObject, paginationInputSchema, siteTool } from './shared'
+import { PUBLICATION_CONTENT_BLOCK_TYPES, describeContentBlockTextFields } from '~/shared/content-registries'
 
 const blogContentBlockSchema = {
   type: 'object',
@@ -10,7 +11,7 @@ const blogContentBlockSchema = {
     parent_block_id: { type: ['string', 'null'] },
     level: { type: ['number', 'null'] },
     position: { type: ['number', 'null'] },
-    data: { type: 'object', description: 'Typed non-media block payload. Markdown requires markdown plus editor_mode (rich for visual-editor-safe prose, source for tables/raw HTML). FAQ uses items; How-To uses steps. Asset IDs and delivery URLs belong only in the block media array.' },
+    data: { type: 'object', description: describeContentBlockTextFields(PUBLICATION_CONTENT_BLOCK_TYPES) },
     media: {
       type: 'array',
       items: {
@@ -27,11 +28,11 @@ const blogContentBlockSchema = {
 export const BLOG_TOOLS: McpToolDefinition[] = [
   siteTool({
       name: 'list_blog_posts',
-      description: 'List this site\'s published and scheduled blog articles. This is the site\'s own long-form content blog — distinct from list_posts, which is the social-update feed.',
+      description: 'List this site\'s draft, published and scheduled blog articles. This is the site\'s own long-form content blog — distinct from list_posts, which is the social-update feed.',
       domain: 'blog',
       minimumRole: 'editor',
       confirmRequired: false,
-      inputSchema: { status: { type: 'string', enum: ['published', 'scheduled'] }, ...paginationInputSchema },
+      inputSchema: { status: { type: 'string', enum: ['draft', 'published', 'scheduled'] }, ...paginationInputSchema },
       outputSchema: {
         type: 'object',
         properties: { posts: { type: 'array', items: blogPostSummaryObject }, page_info: pageInfoObject },
@@ -58,13 +59,14 @@ export const BLOG_TOOLS: McpToolDefinition[] = [
     }),
   siteTool({
       name: 'create_blog_post',
-      description: 'Create a long-form, evergreen, SEO-indexed article using content_blocks as the only authoring shape. Omit scheduled_for to publish immediately, or provide a future ISO 8601 datetime to schedule it. Compose and review the complete article with the user before calling this tool. category is free text for tenant blogs.',
+      description: 'Create a long-form, evergreen, SEO-indexed article using content_blocks as the only authoring shape. Creation saves a draft by default. Set status to published to publish immediately, or provide a future scheduled_for to schedule it. Compose and review the complete article with the user before calling this tool. category is free text for tenant blogs.',
       domain: 'blog',
       minimumRole: 'editor',
       confirmRequired: true,
       inputSchema: {
         title: { type: 'string' },
         excerpt: { type: 'string' },
+        collection: { type: 'string', enum: ['blog', 'docs'], description: "KrabiClaw's own site only: which collection the article belongs to. Every other site has one blog." },
         category: { type: 'string' },
         tags: { type: 'array', items: { type: 'string' }, description: 'Searchable topical tags. Use a short, deduplicated list; category remains the primary public grouping.' },
         content_blocks: { type: 'array', minItems: 1, description: 'Canonical ordered article blocks. This is the source of truth for FAQ, How-To, media, and other structured content.', items: blogContentBlockSchema },
@@ -74,7 +76,8 @@ export const BLOG_TOOLS: McpToolDefinition[] = [
         canonical_url: { type: 'string' },
         robots: { type: ['string', 'null'], enum: [...ROBOTS_DIRECTIVE_ENUM, null] },
         visibility: { type: 'string', enum: ['public', 'unlisted'], description: 'Unlisted posts work by direct URL but are excluded from indexes, search, feeds, and sitemap.' },
-        scheduled_for: { type: ['string', 'null'], description: 'Optional future ISO 8601 datetime with timezone. Omit or pass null to publish immediately.' },
+        status: { type: 'string', enum: ['draft', 'scheduled', 'published'], description: 'Creation defaults to draft. Scheduled requires a future scheduled_for; published goes live immediately.' },
+        scheduled_for: { ...instantSchema, type: ['string', 'null'], description: 'Optional future ISO 8601 datetime with timezone. With no status or schedule, creation saves a draft.' },
       },
       required: ['title', 'content_blocks'],
       outputSchema: blogPostMutationResultObject,
@@ -89,6 +92,7 @@ export const BLOG_TOOLS: McpToolDefinition[] = [
         post_id: { type: 'string', description: 'Post id or slug.' },
         title: { type: 'string' },
         excerpt: { type: 'string' },
+        collection: { type: 'string', enum: ['blog', 'docs'], description: "KrabiClaw's own site only: which collection the article belongs to. Every other site has one blog." },
         category: { type: 'string' },
         tags: { type: 'array', items: { type: 'string' }, description: 'Searchable topical tags. Use a short, deduplicated list; category remains the primary public grouping.' },
         content_blocks: { type: 'array', minItems: 1, description: 'Canonical ordered article blocks. Sending this replaces the complete block snapshot.', items: blogContentBlockSchema },
@@ -117,9 +121,9 @@ export const BLOG_TOOLS: McpToolDefinition[] = [
         expected_updated_at: { type: 'string', description: 'Optional metadata concurrency token from the post updated_at field.' },
         title: { type: 'string' },
         excerpt: { type: 'string' },
+        collection: { type: 'string', enum: ['blog', 'docs'], description: "KrabiClaw's own site only: which collection the article belongs to. Every other site has one blog." },
         category: { type: 'string' },
         tags: { type: 'array', items: { type: 'string' }, description: 'Searchable topical tags. Use a short, deduplicated list; category remains the primary public grouping.' },
-        ...BLOG_NAV_FIELDS_SCHEMA,
         seo_title: { type: ['string', 'null'], description: 'Optional SEO/browser-tab title override. Falls back to the post title if unset.' },
         seo_description: { type: ['string', 'null'] },
         seo_keywords: { type: ['string', 'null'], description: 'Comma-separated SEO keyword phrases when useful.' },
@@ -149,46 +153,15 @@ export const BLOG_TOOLS: McpToolDefinition[] = [
     }),
   siteTool({
       name: 'publish_blog_post',
-      description: 'Publish a scheduled tenant blog article immediately, or reschedule it with scheduled_for. Requires the current document concurrency token. Use only after the writer has approved the final article.',
+      description: 'Publish a draft or scheduled tenant blog article immediately, or reschedule it with scheduled_for. Requires the current document concurrency token. Use only after the writer has approved the final article.',
       domain: 'blog', minimumRole: 'editor', confirmRequired: true,
       inputSchema: {
         post_id: { type: 'string', description: 'Post id or slug.' },
         expected_updated_at: { type: 'string', description: 'Exact post.updated_at concurrency token from the latest get_blog_post or successful blog mutation.' },
-        scheduled_for: { type: ['string', 'null'], description: 'Optional future ISO 8601 datetime with timezone. Omit or pass null to publish immediately.' },
+        scheduled_for: { ...instantSchema, type: ['string', 'null'], description: 'Optional future ISO 8601 datetime with timezone. Omit or pass null to publish immediately.' },
       },
       required: ['post_id', 'expected_updated_at'],
       outputSchema: blogPostMutationResultObject,
-    }),
-  siteTool({
-      name: 'reorder_blog_posts',
-      description: 'Set editorial navigation (section, title, order, visibility) for this site\'s blog posts without changing their taxonomy category or public URL. Blog posts do not support nav_group subgrouping (docs-only feature) — only nav_section.',
-      domain: 'blog',
-      minimumRole: 'editor',
-      confirmRequired: false,
-      inputSchema: {
-        items: {
-          type: 'array',
-          items: {
-            type: 'object',
-            properties: {
-              post_id: { type: 'string', description: 'Post id or slug.' },
-              nav_section: BLOG_NAV_FIELDS_SCHEMA.nav_section,
-              nav_title: BLOG_NAV_FIELDS_SCHEMA.nav_title,
-              nav_order: { type: 'number' },
-              nav_section_order: BLOG_NAV_FIELDS_SCHEMA.nav_section_order,
-              hide_from_nav: BLOG_NAV_FIELDS_SCHEMA.hide_from_nav,
-            },
-            required: ['post_id', 'nav_order'],
-          },
-        },
-      },
-      required: ['items'],
-      outputSchema: {
-        type: 'object',
-        properties: { success: { type: 'boolean' }, posts: { type: 'array', items: blogPostSummaryObject } },
-        required: ['success', 'posts'],
-        additionalProperties: false,
-      },
     }),
   siteTool({
       name: 'delete_blog_post',

@@ -215,9 +215,10 @@ async function main() {
     pass("Using MCP_BEARER_TOKEN from environment");
   } else if (USE_CREDENTIAL_LOGIN) {
     section("Better Auth credential login");
-    const sessionCookie = await credentialCookie(BASE_URL, {
-      userId: process.env.MCP_E2E_USER_ID || "user-e2e-oauth-cimd",
-    });
+    // A seeded E2E user by id, or an explicit account (the production canary).
+    const sessionCookie = await credentialCookie(BASE_URL, process.env.MCP_LOGIN_EMAIL
+      ? { email: process.env.MCP_LOGIN_EMAIL, password: process.env.MCP_LOGIN_PASSWORD }
+      : { userId: process.env.MCP_E2E_USER_ID || "user-e2e-oauth-cimd" });
     pass(`Got session cookie (${sessionCookie.split("=")[0]})`);
 
     section("CIMD + PKCE auth flow");

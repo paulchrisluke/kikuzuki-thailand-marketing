@@ -1,6 +1,6 @@
 import type { IntegrationVersion, FacebookIntegration } from '~/shared/site-settings'
 import type { D1Database } from '@cloudflare/workers-types'
-import { prepareContentDocumentWithBlocks } from './content-documents'
+import { prepareContentDocumentWithBlocks } from './content/documents'
 import { parsePostInput } from '~/shared/posts'
 import { execute, executeBatch, queryFirst } from '~/server/db'
 import { encryptSecret, decryptSecret, encryptionEnv } from './encryption'
@@ -259,8 +259,7 @@ export const storeFacebookPagesConnection = async (
         '$.created_at', COALESCE(json_extract(integrations_json, '$.facebook.created_at'), ?)))
     WHERE id = ? AND organization_id = ?
       AND json_extract(integrations_json, '$.facebook.revision') IS ?
-      AND json_extract(settings_json, '$.config.resource_team_generation') IS ?
-  `, [payload, now, siteId, organizationId, expected.revision, expected.transfer_generation])
+  `, [payload, now, siteId, organizationId, expected.revision])
   if (result.meta?.changes !== 1) throw new Error('Site ownership or facebook connection changed during authorization')
 
   return connectionId
@@ -277,7 +276,6 @@ export const getFacebookPagesConnection = async (
     SELECT id AS site_id, organization_id,
            json_extract(integrations_json, '$.facebook.id') AS id,
            json_extract(integrations_json, '$.facebook.revision') AS revision,
-           json_extract(settings_json, '$.config.resource_team_generation') AS transfer_generation,
            json_extract(integrations_json, '$.facebook.connected_by_user_id') AS connected_by_user_id,
            json_extract(integrations_json, '$.facebook.facebook_user_id') AS facebook_user_id,
            json_extract(integrations_json, '$.facebook.facebook_page_id') AS facebook_page_id,
@@ -440,7 +438,7 @@ export const syncInstagramPosts = async (
           status: 'active',
         }, now),
         ...prepareContentDocumentWithBlocks({ id: postId, organizationId, siteId, kind: 'social_post',
-          rowRole: 'root', locale: 'en', title, summary: body, status: 'published', source: 'manual',
+          rowRole: 'root', locale: 'en', title, summary: body, status: 'published', visibility: 'public', source: 'manual',
           publishedAt: item.timestamp, createdBy: 'instagram-sync',
           metadata: { post_type: 'standard', event: null, offer: null, call_to_action: null, alert_type: null,
             channels: { instagram: { status: 'published', provider_post_id: item.id, error_message: null,
@@ -528,7 +526,7 @@ export const syncFacebookPosts = async (
           status: 'active',
         }, now),
         ...prepareContentDocumentWithBlocks({ id: postId, organizationId, siteId, kind: 'social_post',
-          rowRole: 'root', locale: 'en', title, summary: body, status: 'published', source: 'manual',
+          rowRole: 'root', locale: 'en', title, summary: body, status: 'published', visibility: 'public', source: 'manual',
           publishedAt: item.created_time, createdBy: 'facebook-sync',
           metadata: { post_type: 'standard', event: null, offer: null, call_to_action: null, alert_type: null,
             channels: { facebook: { status: 'published', provider_post_id: item.id, error_message: null,

@@ -318,7 +318,7 @@ const capabilities = computed(() => {
   if (!vertical) return null
   try {
     const normalizedVertical = normalizeVertical(vertical) as SiteVertical
-    const template = resolvePublicTemplate({ vertical }).slug
+    const template = resolvePublicTemplate({ themeId: dashboard.site.value?.theme_id, vertical }).slug
     const location = props.scope === 'location'
       ? dashboard.locations.value.find(candidate => candidate.id === selectedLocationId.value) ?? null
       : null

@@ -97,7 +97,7 @@ export const LOCALES_TOOLS: McpToolDefinition[] = [
     outputSchema: { type: 'object', properties: { locale: { type: 'string' }, products: { type: 'array', items: { type: 'object', additionalProperties: true } } }, required: ['locale', 'products'], additionalProperties: false },
   }),
   siteTool({
-    name: 'sync_product_catalog_localization',
+    name: 'replace_product_localizations',
     description: 'Atomically replace 1–250 exact Product localizations for one published locale. Omitted Products remain untouched; any invalid item rejects the whole submitted batch.',
     domain: 'locales',
     minimumRole: 'editor',

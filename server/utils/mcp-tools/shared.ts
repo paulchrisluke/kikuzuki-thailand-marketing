@@ -1,3 +1,4 @@
+import { instantSchema, calendarDateSchema, timezoneSchema } from '~/utils/timezone'
 import { postMutationJsonSchema } from '~/shared/posts'
 import { openingHoursSchema, specialHoursSchema, recurringSlotsSchema, WEEKDAYS } from '~/shared/reservation-hours'
 import type { McpToolRole } from '~/server/utils/mcp-auth'
@@ -5,6 +6,7 @@ import { EXPERIENCE_STATUSES } from '~/server/utils/experiences'
 import { SUPPORTED_CURRENCIES } from '~/shared/currencies'
 import { PUBLICATION_CONTENT_BLOCK_TYPES } from '~/shared/content-registries'
 import { PRODUCT_DETAILS_INPUT_SCHEMA } from '~/server/utils/product-validation'
+import { ROBOTS_INTENTS } from '~/shared/robots-directive'
 
 export interface McpToolDefinition {
   name: string
@@ -53,18 +55,7 @@ export const pageInfoObject = {
 
 // --- reusable schema fragments ---
 
-export const ROBOTS_DIRECTIVE_ENUM = ['index,follow', 'noindex,follow', 'index,nofollow', 'noindex,nofollow']
-
-// Tenant blog shares the nav vocabulary with platform docs/blog (server/utils/platform-mcp-tools.ts
-// NAV_FIELDS_SCHEMA), but blog posts never get nav_group subgrouping — only docs do.
-export const BLOG_NAV_FIELDS_SCHEMA = {
-  nav_section: { type: ['string', 'null'], description: 'Top-level sidebar section label for this site\'s blog. Falls back to category if unset. Does not affect the public URL.' },
-  nav_title: { type: ['string', 'null'], description: 'Sidebar label override. Falls back to the post title if unset. Does not affect the public URL.' },
-  nav_order: { type: ['number', 'null'], description: 'Sort position within its section. Lower sorts first.' },
-  nav_section_order: { type: ['number', 'null'], description: 'Sort position of the section itself among all sections.' },
-  hide_from_nav: { type: ['boolean', 'null'], description: 'Excludes this post from nav rendering only. Does NOT deindex it or remove it from the sitemap — use robots="noindex,..." for that.' },
-  featured_order: { type: ['number', 'null'], description: 'Sort position in featured/homepage placements, independent of nav ordering.' },
-}
+export const ROBOTS_DIRECTIVE_ENUM = [...ROBOTS_INTENTS]
 
 /** SEO override fields shared across location/Product/experience/site tools. */
 export function seoOverrideFieldsSchema() {
@@ -99,8 +90,8 @@ export const locationObject = {
     description: { type: ['string', 'null'] },
     short_description: { type: ['string', 'null'] },
     status: { type: 'string' },
-    notification_phone: { type: ['string', 'null'], description: 'WhatsApp number for internal booking/reservation alerts to this location\'s manager. Not shown to guests. Falls back to the site-level whatsapp_phone if null.' },
-    timezone: { type: ['string', 'null'], description: 'IANA time zone identifier for this location, e.g. Asia/Bangkok. Used to interpret opening hours and booking slots.' },
+    notification_phone: { type: ['string', 'null'], description: 'WhatsApp number for internal booking/reservation alerts to this location\'s manager. Not shown to guests. Null means no location-specific recipient is configured. Site-wide recipients are configured independently.' },
+    timezone: { ...timezoneSchema, type: ['string', 'null'] },
     max_capacity: { type: ['number', 'null'], description: 'Maximum total guests this location can seat per reservation time slot. Null means no cap is enforced (slots remain bookable).' },
     facebook_url: { type: ['string', 'null'] },
     instagram_url: { type: ['string', 'null'] },
@@ -155,16 +146,6 @@ export const locationMutationSummaryObject = {
   required: ['ok', 'entity', 'id'],
 }
 
-const faqItemSchema = {
-  type: 'object',
-  properties: {
-    question: { type: 'string' },
-    answer: { type: 'string' },
-    position: { type: 'number' },
-  },
-  required: ['question', 'answer'],
-}
-
 const howToStepSchema = {
   type: 'object',
   properties: {
@@ -180,7 +161,7 @@ const howToStepSchema = {
 // per-type via if/then here instead of left as a bare object — that's what gives the model
 // the actual field names (how_to steps need `name`+`text`) instead of an opaque object it
 // has to guess the shape of. Tenant blog posts share the same validator (and therefore the
-// same field names) as platform blog posts/docs — see server/utils/platform-content.ts.
+// same field names) as platform blog posts/docs — see server/utils/content/publishing.ts.
 export const blogComponentInputSchema = {
   type: 'object',
   properties: {
@@ -200,8 +181,9 @@ export const blogComponentInputSchema = {
         properties: {
           data: {
             type: 'object',
-            properties: { items: { type: 'array', items: faqItemSchema } },
-            required: ['items'],
+            // The block lists the article's published Q&A records; it stores no questions.
+            properties: { title: { type: ['string', 'null'] }, source: { type: 'string', const: 'page_qa' } },
+            required: ['source'],
           },
         },
       },
@@ -239,6 +221,22 @@ const mediaPlacementObject = {
   additionalProperties: false,
 }
 
+/** The article's leading image block, or null when it opens with text. */
+const blogCoverObject = {
+  type: ['object', 'null'],
+  properties: {
+    asset_id: { type: 'string' },
+    public_url: { type: ['string', 'null'] },
+    thumbnail_url: { type: ['string', 'null'] },
+    kind: { type: ['string', 'null'] },
+    alt_text: { type: ['string', 'null'] },
+    width: { type: ['number', 'null'] },
+    height: { type: ['number', 'null'] },
+  },
+  required: ['asset_id', 'public_url', 'thumbnail_url', 'kind', 'alt_text', 'width', 'height'],
+  additionalProperties: false,
+}
+
 const blogContentBlockObject = {
   type: 'object',
   properties: {
@@ -261,9 +259,9 @@ export const blogPostObject = {
     title: { type: 'string' },
     slug: { type: 'string' },
     excerpt: { type: ['string', 'null'] },
+    collection: { type: 'string', enum: ['blog', 'docs'] },
     category: { type: ['string', 'null'] },
     tags: { type: 'array', items: { type: 'string' } },
-    ...BLOG_NAV_FIELDS_SCHEMA,
     seo_title: { type: ['string', 'null'] },
     seo_description: { type: ['string', 'null'] },
     seo_keywords: { type: ['string', 'null'] },
@@ -271,12 +269,12 @@ export const blogPostObject = {
     robots: { type: ['string', 'null'] },
     published: { type: 'boolean' },
     published_at: { type: ['string', 'null'] },
-    status: { type: 'string', enum: ['published', 'scheduled'] },
+    status: { type: 'string', enum: ['draft', 'published', 'scheduled'] },
     visibility: { type: 'string', enum: ['public', 'unlisted'] },
-    scheduled_for: { type: ['string', 'null'] },
+    scheduled_for: { ...instantSchema, type: ['string', 'null'] },
     created_at: { type: 'string' },
     updated_at: { type: 'string' },
-    media: { type: 'array', items: mediaPlacementObject },
+    cover: blogCoverObject,
     admin_edit_url: { type: ['string', 'null'] },
     edit_url: { type: ['string', 'null'] },
     public_path: { type: ['string', 'null'] },
@@ -284,16 +282,14 @@ export const blogPostObject = {
     preview_url: { type: ['string', 'null'] },
     view_url: { type: ['string', 'null'] },
     content_blocks: { type: 'array', items: blogContentBlockObject },
-    document_updated_at: { type: 'string', description: 'Concurrency token required when replacing content_blocks or changing publication state.' },
   },
   required: [
-    'id', 'title', 'slug', 'excerpt', 'category', 'tags',
-    'nav_section', 'nav_title', 'nav_order', 'nav_section_order', 'hide_from_nav', 'featured_order',
+    'id', 'title', 'slug', 'excerpt', 'collection', 'category', 'tags',
     'seo_title', 'seo_description', 'seo_keywords', 'canonical_url', 'robots',
     'published', 'published_at', 'status', 'visibility', 'scheduled_for',
-    'created_at', 'updated_at', 'media', 'admin_edit_url', 'edit_url',
+    'created_at', 'updated_at', 'cover', 'admin_edit_url', 'edit_url',
     'public_path', 'public_url', 'preview_url', 'view_url',
-    'content_blocks', 'document_updated_at',
+    'content_blocks',
   ],
   additionalProperties: false,
 }
@@ -305,9 +301,9 @@ export const blogPostSummaryObject = {
     title: { type: 'string' },
     slug: { type: 'string' },
     excerpt: { type: ['string', 'null'] },
+    collection: { type: 'string', enum: ['blog', 'docs'] },
     category: { type: ['string', 'null'] },
     tags: { type: 'array', items: { type: 'string' } },
-    ...BLOG_NAV_FIELDS_SCHEMA,
     seo_title: { type: ['string', 'null'] },
     seo_description: { type: ['string', 'null'] },
     seo_keywords: { type: ['string', 'null'] },
@@ -315,12 +311,12 @@ export const blogPostSummaryObject = {
     robots: { type: ['string', 'null'] },
     published: { type: 'boolean' },
     published_at: { type: ['string', 'null'] },
-    status: { type: 'string', enum: ['published', 'scheduled'] },
+    status: { type: 'string', enum: ['draft', 'published', 'scheduled'] },
     visibility: { type: 'string', enum: ['public', 'unlisted'] },
-    scheduled_for: { type: ['string', 'null'] },
+    scheduled_for: { ...instantSchema, type: ['string', 'null'] },
     created_at: { type: 'string' },
     updated_at: { type: 'string' },
-    media: { type: 'array', items: mediaPlacementObject },
+    cover: blogCoverObject,
     admin_edit_url: { type: ['string', 'null'] },
     edit_url: { type: ['string', 'null'] },
     public_path: { type: ['string', 'null'] },
@@ -329,11 +325,10 @@ export const blogPostSummaryObject = {
     view_url: { type: ['string', 'null'] },
   },
   required: [
-    'id', 'title', 'slug', 'excerpt', 'category', 'tags',
-    'nav_section', 'nav_title', 'nav_order', 'nav_section_order', 'hide_from_nav', 'featured_order',
+    'id', 'title', 'slug', 'excerpt', 'collection', 'category', 'tags',
     'seo_title', 'seo_description', 'seo_keywords', 'canonical_url', 'robots',
     'published', 'published_at', 'status', 'visibility', 'scheduled_for',
-    'created_at', 'updated_at', 'media', 'admin_edit_url', 'edit_url',
+    'created_at', 'updated_at', 'cover', 'admin_edit_url', 'edit_url',
     'public_path', 'public_url', 'preview_url', 'view_url',
   ],
   additionalProperties: false,
@@ -398,8 +393,8 @@ export const postObject = {
     title: { type: ['string', 'null'] },
     body: { type: 'string' },
     location_id: { type: ['string', 'null'] },
-    status: { type: 'string', enum: ['published', 'scheduled'] },
-    scheduled_for: { type: ['string', 'null'] },
+    status: { type: 'string', enum: ['draft', 'published', 'scheduled'] },
+    scheduled_for: { ...instantSchema, type: ['string', 'null'] },
     published_at: { type: ['string', 'null'] },
     public_path: { type: ['string', 'null'] },
     public_url: { type: ['string', 'null'] },
@@ -512,8 +507,8 @@ export const priceObject = {
     id: { type: 'string' }, amount_minor: { type: 'integer' }, currency: { type: 'string' },
     unit: { type: 'string', enum: ['item', 'person', 'table'] },
     tax_behavior: { type: 'string', enum: ['unspecified', 'inclusive', 'exclusive'] },
-    compare_at_amount_minor: { type: ['integer', 'null'] }, valid_from: { type: 'string' },
-    valid_until: { type: ['string', 'null'] }, provenance: { type: 'string' },
+    compare_at_amount_minor: { type: ['integer', 'null'] }, valid_from: instantSchema,
+    valid_until: { ...instantSchema, type: ['string', 'null'] }, provenance: { type: 'string' },
   },
   required: ['id', 'amount_minor', 'currency', 'unit', 'tax_behavior', 'compare_at_amount_minor', 'valid_from', 'valid_until', 'provenance'],
 }
@@ -524,8 +519,8 @@ export const priceWriteObject = {
     amount_minor: { type: 'integer', minimum: 0 }, currency: { type: 'string' },
     unit: { type: 'string', enum: ['item', 'person', 'table'] },
     tax_behavior: { type: 'string', enum: ['unspecified', 'inclusive', 'exclusive'] },
-    compare_at_amount_minor: { type: ['integer', 'null'] }, valid_from: { type: 'string' },
-    valid_until: { type: ['string', 'null'] }, provenance: { type: 'string' },
+    compare_at_amount_minor: { type: ['integer', 'null'] }, valid_from: instantSchema,
+    valid_until: { ...instantSchema, type: ['string', 'null'] }, provenance: { type: 'string' },
   },
   required: ['amount_minor'],
   additionalProperties: false,
@@ -702,7 +697,7 @@ export const bookingObject = {
     guest_email: { type: 'string' },
     guest_phone: { type: ['string', 'null'] },
     status: { type: 'string', enum: ['pending', 'confirmed', 'cancelled'] },
-    booking_date: { type: ['string', 'null'] },
+    booking_date: { ...calendarDateSchema, type: ['string', 'null'] },
     time_slot: { type: ['string', 'null'] },
     party_size: { type: 'number' },
     notes: { type: ['string', 'null'] },
@@ -789,21 +784,6 @@ export const reservationSubmissionObject = {
     created_at: { type: 'string' },
     location_id: { type: ['string', 'null'] },
     location_title: { type: ['string', 'null'] },
-  },
-}
-
-export const workRequestObject = {
-  type: 'object',
-  properties: {
-    id: { type: 'string' },
-    type: { type: 'string' },
-    title: { type: 'string' },
-    description: { type: ['string', 'null'] },
-    status: { type: 'string', enum: ['open', 'in_progress', 'done', 'cancelled'] },
-    priority: { type: 'string', enum: ['low', 'normal', 'high'] },
-    notes: { type: ['string', 'null'] },
-    created_at: { type: 'string' },
-    updated_at: { type: 'string' },
   },
 }
 
@@ -977,7 +957,6 @@ const D = Object.freeze(openWorldDestructiveAnnotations())
 
 /** Submission-review contract. Every real public tool is listed explicitly. */
 export const EXPECTED_TOOL_ANNOTATIONS = {
-  analyze_document: W,
   attach_media: W,
   batch_create_products: W,
   change_tenant_page_path: D,
@@ -1015,13 +994,10 @@ export const EXPECTED_TOOL_ANNOTATIONS = {
   get_resource_localization: R,
   get_site: R,
   get_site_analytics: R,
-  get_site_domains: R,
   get_site_media_assets: R,
   get_site_settings: R,
   get_tenant_page: R,
   get_workspace_context: R,
-  import_from_maps: W,
-  import_products_from_media: W,
   list_all_experience_bookings: R,
   list_blog_posts: R,
   list_experience_bookings: R,
@@ -1044,7 +1020,6 @@ export const EXPECTED_TOOL_ANNOTATIONS = {
   put_resource_localization: D,
   remove_media: D,
   rename_product_category: D,
-  reorder_blog_posts: D,
   reorder_location_qa: D,
   reorder_media: D,
   reorder_site_qa: D,
@@ -1057,13 +1032,13 @@ export const EXPECTED_TOOL_ANNOTATIONS = {
   set_media: D,
   set_workspace_context: BD,
   show_generated_images: R,
-  sync_product_catalog_localization: D,
-  sync_products: D,
+  replace_product_localizations: D,
+  reconcile_products: D,
   update_blog_metadata: D,
   update_blog_post: D,
   update_booking_policy: D,
   update_experience: D,
-  update_experience_booking: BD,
+  update_experience_booking: D,
   update_location: D,
   update_location_qa: D,
   update_media_asset: D,

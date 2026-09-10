@@ -1,5 +1,5 @@
 <template>
-  <form class="space-y-3" @submit.prevent="submit">
+  <form method="post" class="space-y-3" @submit.prevent="submit">
     <UFormField label="Email" name="login-email" size="lg">
       <UInput v-model="email" type="email" placeholder="you@example.com" :disabled="loading" autocomplete="email" size="lg" class="w-full" />
     </UFormField>
@@ -8,7 +8,10 @@
     </UFormField>
     <div class="flex items-center justify-between gap-3 text-sm">
       <NuxtLink to="/forgot-password" class="text-primary font-medium hover:underline no-underline">Forgot password?</NuxtLink>
-      <UButton type="submit" size="lg" :loading="loading">Sign in with email</UButton>
+      <div class="flex items-center gap-2">
+        <UBadge v-if="lastUsed" color="primary" variant="soft" size="sm">Last used</UBadge>
+        <UButton type="submit" size="lg" :loading="loading">Sign in with email</UButton>
+      </div>
     </div>
     <UAlert v-if="error" color="error" variant="soft" :description="error" />
   </form>
@@ -18,7 +21,7 @@
 import { authClient } from '~/lib/auth-client'
 import { requiresEmailVerification } from '~/shared/auth/email-sign-in'
 
-const props = withDefaults(defineProps<{ callbackUrl: string; initialEmail?: string }>(), { initialEmail: '' })
+const props = withDefaults(defineProps<{ callbackUrl: string; initialEmail?: string; lastUsed?: boolean }>(), { initialEmail: '', lastUsed: false })
 const emit = defineEmits<{ verificationRequired: [email: string] }>()
 const email = ref(props.initialEmail)
 const password = ref('')

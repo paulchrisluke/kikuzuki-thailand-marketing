@@ -22,7 +22,12 @@ const booking = guestScope.extend({
   booking_date: z.string(), time_slot: z.string(), party_size: z.number().int().positive(), payload: bookingPayload,
 })
 export const guestRequestSchema = z.discriminatedUnion('kind', [
-  guestScope.extend({ kind: z.literal('contact'), status: z.null(), payload: z.object({ guest, subject: z.string().nullable(), message: z.string(), consent_at: z.string().nullable(), ip_hash: z.string().nullable() }) }),
+  guestScope.extend({ kind: z.literal('contact'), status: z.null(), payload: z.object({
+    guest, subject: z.string().nullable(), message: z.string(), consent_at: z.string().nullable(), ip_hash: z.string().nullable(),
+    // Where the message came from, when a form or ChatGPT escalation says so.
+    source: z.string().nullable().optional(), route_context: z.string().nullable().optional(),
+    suggested_summary: z.string().nullable().optional(), agent_metadata: z.unknown().optional(),
+  }) }),
   booking.extend({ kind: z.literal('reservation'), product_id: z.null(), payload: bookingPayload.extend({ guest: guest.extend({ phone: z.string() }) }) }),
   booking.extend({ kind: z.literal('experience_booking'), product_id: z.string() }),
 ])

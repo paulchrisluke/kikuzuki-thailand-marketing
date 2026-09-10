@@ -10,7 +10,15 @@ import { ensureLocationTeam } from "~/server/utils/member-access";
 import type { CloudflareEnv } from "~/server/utils/auth";
 import { refreshSocialCard } from '~/server/utils/social-card'
 import { resourceLocalizationDeletionQueries } from '~/server/utils/localization'
-import { prepareContentDocumentDeletion } from '~/server/utils/content-documents'
+import { prepareContentDocumentDeletion } from '~/server/utils/content/documents'
+import { parseRobotsIntent, ROBOTS_INTENTS } from '~/shared/robots-directive'
+
+/** A location stores an indexing intent, never a rendered directive. */
+function normalizeLocationRobots(value: unknown) {
+  const parsed = parseRobotsIntent(value)
+  if (!parsed.ok) throw new Error(`robots must be one of: ${ROBOTS_INTENTS.join(', ')}`)
+  return parsed.intent
+}
 
 export function normalizeLocationNotificationPhone(raw: string | null | undefined): string | null {
   if (raw === undefined || raw === null || !raw.trim()) return null;
@@ -467,7 +475,7 @@ export async function createLocation(
           input.seo_title ?? null,
           input.seo_description ?? null,
           input.canonical_url ?? null,
-          input.robots ?? null,
+          normalizeLocationRobots(input.robots),
           normalizedEnabledFeatures,
           now,
           now,
@@ -662,7 +670,9 @@ export async function updateLocation(
           ? normalizedTimezone ?? null
           : field === "notification_phone"
             ? normalizedNotificationPhone ?? null
-            : input[field] ?? null,
+            : field === "robots"
+              ? normalizeLocationRobots(input.robots)
+              : input[field] ?? null,
       );
     }
   }

@@ -100,8 +100,8 @@ WHATSAPP_DELIVERY_MODE = "provider"
 
 [[d1_databases]]
 binding = "DB"
-database_name = "krabiclaw-db-epoch5-production"
-database_id = "58c0932a-fe6e-4062-8155-1bfd8a86c495"
+database_name = "krabiclaw-production"
+database_id = "a3d20d54-8e98-425d-9b3a-fd03b1824fd9"
 migrations_dir = "migrations"
 remote = false
 
@@ -113,7 +113,7 @@ class_name = "GuestInboxHubObject"
 tag = "v1_guest_inbox_infra"
 new_sqlite_classes = ["GuestThreadCommandObject", "GuestInboxHubObject"]
 
-# Keep the production command namespace through the Epoch 4 rollback window.
+# Keep the production command namespace stable across Worker redeploys.
 # Preview and staging already applied their deletion; preserve that history below.
 
 [[r2_buckets]]
@@ -130,6 +130,9 @@ remote = false
 binding = "AI"
 remote = true
 
+[images]
+binding = "IMAGES"
+
 [[ai_search_namespaces]]
 binding = "AI_SEARCH"
 namespace = "default"
@@ -144,8 +147,8 @@ enabled = true
 # Preview environment — CI deploys here on every PR; Playwright smoke tests run
 # against preview.krabiclaw.com. Dedicated resources isolated from staging/prod.
 #
-# Dedicated preview resources (D1 replaced for epoch 3 on 2026-08-29):
-#   krabiclaw-db-preview-epoch3  D1   d2f7a4a0-d6b8-493b-b484-8c0ead1ff83b
+# Dedicated preview resources:
+#   krabiclaw-preview            D1
 #   krabiclaw-media-preview      R2
 #   krabiclaw-site-cache-preview KV   69252567b9cd4becbd486a337ab1e589
 [env.preview]
@@ -185,8 +188,8 @@ E2E_ALLOW_DEV_ROUTES = "true"
 
 [[env.preview.d1_databases]]
 binding = "DB"
-database_name = "krabiclaw-db-preview-epoch3"
-database_id = "d2f7a4a0-d6b8-493b-b484-8c0ead1ff83b"
+database_name = "krabiclaw-preview"
+database_id = "fe738267-6d05-48a3-8a80-f0e81f80833c"
 migrations_dir = "migrations"
 remote = false
 
@@ -215,6 +218,9 @@ remote = false
 [env.preview.ai]
 binding = "AI"
 remote = true
+
+[env.preview.images]
+binding = "IMAGES"
 
 [[env.preview.ai_search_namespaces]]
 binding = "AI_SEARCH"
@@ -270,8 +276,8 @@ E2E_ALLOW_DEV_ROUTES = "true"
 
 [[env.staging.d1_databases]]
 binding = "DB"
-database_name = "krabiclaw-db-staging-epoch5-final"
-database_id = "e1683b37-39cb-4d46-b299-7cf0b4401147"
+database_name = "krabiclaw-staging"
+database_id = "84ea830f-1b88-4c96-9e3d-89928acf81fb"
 migrations_dir = "migrations"
 remote = false
 
@@ -300,6 +306,9 @@ remote = false
 [env.staging.ai]
 binding = "AI"
 remote = true
+
+[env.staging.images]
+binding = "IMAGES"
 
 [[env.staging.ai_search_namespaces]]
 binding = "AI_SEARCH"

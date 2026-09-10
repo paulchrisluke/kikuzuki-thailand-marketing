@@ -1,5 +1,5 @@
 import { PLATFORM_LOCALES, platformLocale } from '~/shared/platform-locales'
-import { prepareContentDocumentDeletion } from '~/server/utils/content-documents'
+import { prepareContentDocumentDeletion } from '~/server/utils/content/documents'
 import { execute, executeBatch, queryAll, queryFirst, type DbClient } from '~/server/db'
 import { getOrganizationBillingStatus } from '~/server/utils/billing'
 import type { CloudflareEnv } from '~/server/utils/auth'

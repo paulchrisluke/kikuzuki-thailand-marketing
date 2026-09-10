@@ -6,6 +6,7 @@ import { queryFirst } from '~/server/db'
 import { getDraftMedia, parseOnboardingDraftPayload, type OnboardingDraftPayload } from '~/server/utils/onboarding-drafts'
 import { verifyScopedPreviewToken } from '~/server/utils/preview-token'
 import type { BlawbyRouteRecipe, PublicBlawbyRouteData, PublicBlawbyShellData } from '~/types/blawby'
+import { NON_INDEXABLE_ROBOTS_INTENT } from '~/shared/robots-directive'
 
 async function loadDraftPreviewSource(
   event: H3Event,
@@ -103,7 +104,7 @@ export function buildPublicDraftBlawbyDocument(
         brand_name: payload.preview.brandName,
         brand_description: heroDescription,
         media: logoUrl ? [{ asset_id: logoMedia!.draftAssetId, slot: 'logo', public_url: logoUrl, thumbnail_url: logoMedia!.thumbnailUrl, kind: 'image' }] : [],
-        social_image: logoUrl ? { url: logoUrl } : null,
+        social_image: null,
         phone: payload.source.details.phone ?? null,
         banner_content: null,
         banner_dismissible: false,
@@ -131,6 +132,7 @@ export function buildPublicDraftBlawbyDocument(
         id: 'draft-home',
         page_id: 'draft-home',
         path: '/',
+        sort_order: 0,
         title: payload.preview.brandName,
         page_type: 'recipe',
         recipe: 'home',
@@ -139,7 +141,7 @@ export function buildPublicDraftBlawbyDocument(
         seo_title: heroTitle,
         seo_description: heroDescription,
         canonical_url: null,
-        robots: 'noindex',
+        robots: NON_INDEXABLE_ROBOTS_INTENT,
         media: [],
         social_image: null,
         blocks: [{

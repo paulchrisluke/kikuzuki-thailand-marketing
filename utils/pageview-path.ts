@@ -1,5 +1,5 @@
 export const PAGEVIEW_SKIP_PREFIXES = [
-  '/api/', '/dashboard', '/admin', '/auth/', '/preview/', '/_nuxt/', '/assets/', '/_ipx/',
+  '/api/', '/dashboard', '/auth/', '/preview/', '/_nuxt/', '/assets/', '/_ipx/',
   '/favicon', '/apple-touch-icon',
 ]
 

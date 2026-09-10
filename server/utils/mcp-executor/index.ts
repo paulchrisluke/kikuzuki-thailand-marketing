@@ -23,14 +23,12 @@ import { handleOnboardingTools } from './onboarding'
 import { handlePostsTools } from './posts'
 import { handleQaTools } from './qa'
 import { handleReviewsTools } from './reviews'
-import { handleSettingsTools } from './settings'
 import { handleSitesTools } from './sites'
 import { handleSubmissionsTools } from './submissions'
 import {
   NOT_HANDLED,
   humanizeEntitlement,
   normalizeWorkspaceArguments,
-  resolveGoogleMapsPlace,
   resolveSitePublicOrigin,
   validateRequiredArguments,
   workspaceContextPayload,
@@ -56,7 +54,6 @@ export const DOMAIN_HANDLERS: Record<string, (_ctx: McpExecutorContext) => Promi
   posts: handlePostsTools,
   qa: handleQaTools,
   reviews: handleReviewsTools,
-  settings: handleSettingsTools,
   sites: handleSitesTools,
   submissions: handleSubmissionsTools,
 }
@@ -194,68 +191,6 @@ export async function executeMcpToolCall(
       sites: workspaceSitesPayload(refreshed),
       locations: workspaceLocationsPayload(refreshed),
     };
-  }
-
-  if (toolName === "import_from_maps") {
-    const user = authenticatedUser ?? await requireMcpUser(event);
-    const apiKey = (user.env as Record<string, unknown>)
-      .GOOGLE_PLACES_API_KEY as string | undefined;
-    if (!apiKey)
-      throw mcpProtocolError(
-        MCP_ERROR.internal,
-        "Google Places API not configured.",
-      );
-
-    const rawUrl = requiredString(normalizedArguments, "maps_url");
-
-    const { placeId } = await resolveGoogleMapsPlace(rawUrl, {
-      resolveShortLink: async (url) => {
-        const response = await fetch(url, {
-          method: "GET",
-          redirect: "follow",
-          signal: AbortSignal.timeout(8000),
-          headers: { "User-Agent": "Mozilla/5.0" },
-        });
-        return { ok: response.ok, url: response.url };
-      },
-      searchPlaces: async (query, locationBias) => {
-        const results = await searchPlaces(apiKey, query, locationBias);
-        await chargeFlatCreditsForUser(user, "google_places_search");
-        return results;
-      },
-    });
-    let details;
-    try {
-      details = await getPlaceDetails(apiKey, placeId);
-    } catch (error) {
-      const message =
-        error instanceof PlaceDetailsError || error instanceof Error
-          ? error.message
-          : "Google Places detail lookup failed.";
-      throw new HTTPError({
-        statusCode: 502,
-        statusMessage: message,
-      });
-    }
-    await chargeFlatCreditsForUser(user, "google_places_details");
-
-    const structuredContent = {
-      business: {
-        name: details.name,
-        address: details.formattedAddress,
-        phone: details.phone,
-        hours: details.openingHours ?? [],
-        rating: details.rating,
-        reviewCount: details.ratingCount,
-        placeId: details.placeId,
-        mapsUrl: details.mapsUrl ?? rawUrl,
-      },
-    };
-
-    return renderStructuredResponse(
-      structuredContent,
-      `Imported: ${details.name} — ${details.formattedAddress}.`,
-    );
   }
 
   if (toolName === "show_generated_images") {

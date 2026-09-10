@@ -1,4 +1,4 @@
-# KrabiClaw — LLM Working Rules
+# KrabiClaw — development instructions
 
 ## Canonical operating contracts
 
@@ -12,7 +12,21 @@ Custom database migrations are prohibited. If an LLM proposes, generates, or edi
 
 - Fix the canonical API, schema, or domain source of truth. Do not add frontend fallbacks, guards, shadow models, compatibility branches, or silent empty success states unless nullable behavior is intentional and documented.
 - Do not hand-mutate staging or production data or schema to mask application failures.
-- Do not broaden the task to adjacent defects. Report them unless they directly block the requested change; if they block it, fix them through the same canonical path rather than creating another mechanism.
+- Do not broaden the task to adjacent defects, but scope is not a place to leave one standing. If the defect blocks the requested change, or sits in code the change already edits, fix it through the same canonical path rather than creating another mechanism. Otherwise file it, with the query or reproduction that found it. "Pre-existing", "not mine", and "future work" are not dispositions: a defect is fixed or filed.
+
+## Evidence
+
+A claim about data comes from a query. A claim about a surface comes from loading
+it. A claim about behavior comes from running it. Say how you know in the same
+breath as the claim, so the reader can re-run it.
+
+Count rows before describing a shape. `SELECT DISTINCT` and `group_concat(DISTINCT
+...)` describe the union across rows, never any single row; reading one as a census
+turns five stale rows into a fictional migration.
+
+`typecheck`, `lint`, and `build` prove the code compiles. They are not evidence
+that it does the thing, and never stand in for loading the surface or reading the
+rows.
 
 ## No fallbacks
 
@@ -63,7 +77,9 @@ Do not add a helper, wrapper, service, repository, composable, endpoint, schema 
 
 A refactor must remove the implementation it replaces in the same change. Do not leave dual reads, dual writes, aliases, temporary fallbacks, or "migration" compatibility code behind.
 
-Do not implement adjacent cleanup, TODOs, "future work," roadmap ideas, or reviewer suggestions unless they are required to complete the requested task.
+One concept, one name. If two files, functions, types, or tools describe the same thing, they are the same thing: pick the name and delete the other. A caller's identity does not belong in the name — `platform-content` alongside `tenant-pages` over one content model is what produced three hand-written schemas for a single executor. Rename in the change that finds the duplication.
+
+Do not implement adjacent cleanup, TODOs, "future work," roadmap ideas, or reviewer suggestions unless they are required to complete the requested task. Repairing something the change already had to touch is not adjacent cleanup.
 
 For cleanup/refactor work, net handwritten production code should decrease.
 
@@ -94,9 +110,22 @@ Use the approved client onboarding and import pipeline. Never manually seed or p
 
 ## Agent documentation
 
-- Domain context and ADRs: root `CONTEXT.md` and `docs/adr/`
-- Local setup and signing in: [docs/local-development.md](docs/local-development.md)
-- CMS navigation and editing patterns: root `DESIGN.md`
+Each root document owns one thing, and nothing duplicates another's contents.
+`CLAUDE.md` is a symlink to this file, so both names resolve to the same
+development instructions.
+
+- **[PRODUCT.md](PRODUCT.md)** — what the product is, and its domain language.
+  Also see `docs/adr/`.
+- **[DESIGN.md](DESIGN.md)** — how the CMS behaves: hub and leaf, leaf size, the
+  editor frame and its columns, creating, committing, naming.
+- **AGENTS.md** (this file, and `CLAUDE.md`) — development instructions.
+- **[README.md](README.md)** — setup and navigation.
+
+`PRD.md` is reserved for product requirements and does not exist yet. DESIGN.md
+was briefly filed there; requirements and design contracts are different things,
+and naming a composable or a breakpoint is the tell that a document is design.
+
+Local setup and signing in: [docs/local-development.md](docs/local-development.md)
 
 ## Local development contract
 

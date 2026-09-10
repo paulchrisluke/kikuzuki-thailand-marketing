@@ -79,6 +79,8 @@ const emit = defineEmits<{
 }>()
 
 const inputClass = FORM_INPUT_CLASS
+// The help form is the KrabiClaw site's contact form: it files into that site's inbox like every tenant's.
+const { siteId } = useTenantSite()
 const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 const form = ref({
   name: '',
@@ -123,7 +125,8 @@ async function handleSubmit() {
 
   submitting.value = true
   try {
-    await $fetch<unknown>('/api/contact', {
+    if (!siteId) throw new Error('This form is only available on the KrabiClaw site.')
+    await $fetch<unknown>(`/api/public/sites/${encodeURIComponent(siteId)}/contact`, {
       method: 'POST',
       body: {
         name: form.value.name.trim(),

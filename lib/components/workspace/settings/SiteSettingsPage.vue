@@ -62,9 +62,6 @@
           <div v-else-if="detailKey === 'sharing-image'" class="space-y-6">
             <p class="text-base text-muted">Choose the image used as the source for generated social sharing cards.</p>
             <MediaPicker v-model="form.socialShareAssetId" :site-id="siteId" accept="image" title="Select social sharing image" />
-            <div class="flex justify-end">
-              <UButton color="neutral" variant="outline" :loading="regeneratingCards" @click="regenerateSocialCards">Regenerate social cards</UButton>
-            </div>
           </div>
 
           <div v-else-if="detailKey === 'description'" class="space-y-6">
@@ -215,7 +212,6 @@ import MediaPicker from '~/lib/components/workspace/media/MediaPicker.vue'
 import EditorPaneShell from '~/components/dashboard/EditorPaneShell.vue'
 import EditorNavigationList from '~/components/dashboard/EditorNavigationList.vue'
 import { CURRENCY_OPTIONS, DEFAULT_CURRENCY, isCurrencyCode, type CurrencyCode } from '~/shared/currencies'
-import { isSocialCardRegenerationResponse, socialCardRefreshNotice, type SocialCardRegenerationResponse } from '~/utils/social-card-refresh'
 
 const props = withDefaults(defineProps<{ surface?: 'brand' | 'settings' }>(), { surface: 'settings' })
 const surface = computed(() => props.surface)
@@ -224,6 +220,15 @@ const route = useRoute()
 const router = useRouter()
 const toast = useToast()
 const dashboard = useDashboardSite()
+const siteDashboardPath = computed(() => `/dashboard/${String(route.params.orgSlug)}/sites/${String(route.params.siteSlug)}`)
+const brandPath = computed(() => `${siteDashboardPath.value}/brand`)
+const settingsPath = computed(() => `${siteDashboardPath.value}/settings`)
+// `useEditorFrame` provides and injects, so it runs before any `await`, and it
+// is the only place the route below this level is split into segments. This
+// component used to re-derive them from `route.params.segments`, a second copy
+// of the composable's own `rest`.
+const frame = useEditorFrame(computed(() => surface.value === 'brand' ? brandPath.value : settingsPath.value))
+
 if (!dashboard.state.value) await dashboard.refresh()
 const siteId = await useDashboardSiteId()
 
@@ -266,9 +271,6 @@ const isNotificationsResponse = (value: unknown): value is { success: boolean; n
 const isFacebookStatus = (value: unknown): value is FacebookConnectionStatus =>
   isRecord(value) && typeof value.connected === 'boolean' && (value.facebook_page_name === undefined || typeof value.facebook_page_name === 'string')
 
-const siteDashboardPath = computed(() => `/dashboard/${String(route.params.orgSlug)}/sites/${String(route.params.siteSlug)}`)
-const brandPath = computed(() => `${siteDashboardPath.value}/brand`)
-const settingsPath = computed(() => `${siteDashboardPath.value}/settings`)
 
 // Two different "up"s, and they are not the same destination.
 //
@@ -287,11 +289,7 @@ const dismissTo = computed(() => {
   if (isSearchLevel.value) return `${settingsPath.value}/search`
   return surface.value === 'brand' ? brandPath.value : settingsPath.value
 })
-const routeSegments = computed(() => {
-  const raw = route.params.segments
-  if (Array.isArray(raw)) return raw.map(String)
-  return raw ? [String(raw)] : []
-})
+const routeSegments = frame.rest
 const firstSegment = computed(() => routeSegments.value[0] ?? null)
 const secondSegment = computed(() => routeSegments.value[1] ?? null)
 const detailKey = computed(() => surface.value === 'brand' ? firstSegment.value : firstSegment.value === 'search' ? secondSegment.value ?? 'search-index' : firstSegment.value)
@@ -312,7 +310,6 @@ watchEffect(() => {
 const loading = ref(true)
 const loadError = ref<string | null>(null)
 const saving = ref(false)
-const regeneratingCards = ref(false)
 const connectingFacebook = ref(false)
 const notificationChannels = ref<string[]>([])
 const whatsappPhone = ref('')
@@ -373,7 +370,7 @@ const domainSummary = computed(() => dashboard.site.value?.custom_domain || dash
 const brandItems = computed<EditorNavigationItem[]>(() => [
   { id: 'name', label: 'Brand name', summary: explicitSummary(loadedSettings.value?.brand_name), icon: 'i-lucide-type', to: `${brandPath.value}/name` },
   { id: 'logo', label: 'Logo', summary: loadedSettings.value?.media?.some(item => item.slot === 'logo') ? 'Logo selected' : 'Not set', icon: 'i-lucide-image', to: `${brandPath.value}/logo` },
-  { id: 'sharing-image', label: 'Social sharing image', summary: loadedSettings.value?.media?.some(item => item.slot === 'social_share') ? 'Image selected' : 'Uses the site logo', icon: 'i-lucide-panels-top-left', to: `${brandPath.value}/sharing-image` },
+  { id: 'sharing-image', label: 'Social sharing image', summary: loadedSettings.value?.media?.some(item => item.slot === 'social_share') ? 'Image selected' : 'Not set', icon: 'i-lucide-panels-top-left', to: `${brandPath.value}/sharing-image` },
   { id: 'description', label: 'Description', summary: explicitSummary(loadedSettings.value?.brand_description), icon: 'i-lucide-align-left', to: `${brandPath.value}/description` },
   { id: 'color', label: 'Brand color', summary: explicitSummary(loadedSettings.value?.brand_color), icon: 'i-lucide-palette', to: `${brandPath.value}/color` },
   { id: 'contact', label: 'Contact details', summary: explicitSummary(loadedSettings.value?.contact_email), icon: 'i-lucide-mail', to: `${brandPath.value}/contact` },
@@ -407,7 +404,7 @@ const navigationGroups = computed(() => {
   ]
 })
 const activeNavigationId = computed(() => surface.value === 'brand' || isSearchLevel.value ? detailKey.value : firstSegment.value)
-const hasDetail = computed(() => detailKey.value !== null)
+const hasDetail = computed(() => routeSegments.value.length > 0)
 const detailTitles: Record<string, string> = { 'search-index': 'Search and analytics', name: 'Brand name', logo: 'Logo', 'sharing-image': 'Social sharing image', description: 'Description', color: 'Brand color', contact: 'Contact details', social: 'Social profiles', currency: 'Currency', notifications: 'Notifications', analytics: 'Google Analytics', verification: 'Search verification', visibility: 'Search visibility', publishing: 'Facebook publishing', localization: 'Localization' }
 const detailTitle = computed(() => detailKey.value ? detailTitles[detailKey.value] : undefined)
 
@@ -537,26 +534,6 @@ async function patchSettings(body: Record<string, unknown>, successMessage: stri
   originalSignature.value = editorSignature(detailKey.value)
   toast.add({ description: successMessage, color: 'success' })
   await dashboard.refresh()
-}
-async function regenerateSocialCards() {
-  regeneratingCards.value = true
-  try {
-    const summary = { generated: 0, reused: 0, skipped: 0, failed: 0, total: 0 }
-    let after: string | null = null
-    do {
-      const response: SocialCardRegenerationResponse = await dashboardApi<SocialCardRegenerationResponse>(`/api/editor/sites/${siteId}/social-cards/regenerate`, {
-        method: 'POST', body: { after }, validate: isSocialCardRegenerationResponse,
-      })
-      for (const key of ['generated', 'reused', 'skipped', 'failed', 'total'] as const) summary[key] += response.summary[key]
-      after = response.next_cursor
-    } while (after)
-    const notice = socialCardRefreshNotice(summary)
-    toast.add({ description: notice.message, color: notice.color })
-  } catch (error) {
-    toast.add({ description: errorMessage(error, 'Failed to regenerate social cards'), color: 'error' })
-  } finally {
-    regeneratingCards.value = false
-  }
 }
 async function saveCurrentEditor() {
   if (saveDisabled.value || !detailKey.value) return

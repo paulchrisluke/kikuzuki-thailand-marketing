@@ -3,9 +3,10 @@ import { queryAll, queryFirst, type DbClient } from '~/server/db'
 import { d1JsonStringSet } from '~/server/db/d1-limits'
 import { listPageQa, type QaDocument } from '~/server/utils/location-qa'
 import { listSiteReviews } from '~/server/utils/site-reviews'
-import { getTenantPageForEditor, getPublishedTenantPage, listPublishedTenantPagePaths, type TenantPageDto } from '~/server/utils/tenant-pages'
+import { getTenantPageForEditor, getPublishedTenantPage, listPublishedTenantPagePaths, type TenantPageDto } from '~/server/utils/content/pages'
 import type { TenantPageBlock } from '~/utils/tenant-page-blocks'
 import type { MediaPlacementItem } from '~/server/utils/media-placement'
+import { COVER_SELECT, attachCoverMedia, coverJoinSql } from '~/server/utils/content/cover'
 import { loadPublicSocialMedia } from '~/server/utils/public-social-image'
 import type { SocialImageSource } from '~/utils/social-metadata'
 import {
@@ -29,6 +30,7 @@ export interface PublicTenantPage {
   robots: string | null
   page_type: string
   recipe: string | null
+  sort_order: number
   locale: string
   blocks: TenantPageBlock[]
   media: MediaPlacementItem[]
@@ -74,10 +76,6 @@ export async function listPublicTenantPageOfferingRows(
   return rows.map(row => ({ ...row, media: placements.get(row.id)?.media ?? [] }))
 }
 
-export function selectPublicTenantPageBlocks(blocks: TenantPageBlock[]): TenantPageBlock[] {
-  return blocks.filter(block => !(block.type === 'callout' && block.data.type === 'legal_meta'))
-}
-
 async function hydrateBlocks(
   db: DbClient,
   siteId: string,
@@ -87,14 +85,13 @@ async function hydrateBlocks(
   resources: PublicTenantPageHydrationResources = {},
   localizations: readonly ExactPublicLocalization[] | null = null,
 ): Promise<TenantPageBlock[]> {
-  const publicBlocks = selectPublicTenantPageBlocks(blocks)
   const offeringIds = new Set<string>()
   const locationIds = new Set<string>()
-  const hasOfferingSource = publicBlocks.some(block => block.type === 'offering_grid' && block.data.source === 'site_offerings')
-  const hasQaSource = publicBlocks.some(block => block.type === 'faq' && block.data.source === 'page_qa')
-  const hasReviewSource = publicBlocks.some(block => block.type === 'testimonial_grid' && block.data.source === 'site_reviews')
-  const hasPostSource = publicBlocks.some(block => block.type === 'feature_grid' && block.data.source === 'site_posts')
-  for (const block of publicBlocks) {
+  const hasOfferingSource = blocks.some(block => block.type === 'offering_grid' && block.data.source === 'site_offerings')
+  const hasQaSource = blocks.some(block => block.type === 'faq' && block.data.source === 'page_qa')
+  const hasReviewSource = blocks.some(block => block.type === 'testimonial_grid' && block.data.source === 'site_reviews')
+  const hasPostSource = blocks.some(block => block.type === 'feature_grid' && block.data.source === 'site_posts')
+  for (const block of blocks) {
     if (block.type === 'offering_grid' && Array.isArray(block.data.offering_ids)) {
       for (const value of block.data.offering_ids) if (typeof value === 'string' && value.trim()) offeringIds.add(value)
     }
@@ -142,13 +139,12 @@ async function hydrateBlocks(
   const [sourceQaRows, sourceReviewRows, sourcePostRows] = await Promise.all([
     hasQaSource ? (locale === 'en' && resources.qaRows ? resources.qaRows : listPageQa(db, siteId, pagePath, true, locale)) : Promise.resolve([]),
     hasReviewSource ? listSiteReviews(db, siteId, { publishedOnly: true }) : Promise.resolve([]),
-    hasPostSource ? queryAll<{ id: string; title: string; slug: string; excerpt: string | null; canonical_url: string | null; asset_id: string | null; public_url: string | null; thumbnail_url: string | null; kind: string | null; alt_text: string | null }>(db, `
-      SELECT p.id, p.title, p.slug, p.summary AS excerpt, p.canonical_url, ma.id AS asset_id, ma.public_url, ma.thumbnail_url, ma.kind, ma.alt_text
+    hasPostSource ? queryAll<{ id: string; title: string; slug: string; excerpt: string | null; canonical_url: string | null; cover_asset_id: string | null; cover_public_url: string | null; cover_thumbnail_url: string | null; cover_kind: string | null; cover_alt_text: string | null; cover_width: number | null; cover_height: number | null }>(db, `
+      SELECT p.id, p.title, p.slug, p.summary AS excerpt, p.canonical_url, ${COVER_SELECT}
         FROM content_documents root JOIN content_documents p ON COALESCE(p.root_id,p.id) = root.id AND p.locale = ?
-        LEFT JOIN media_placements mp ON mp.owner_type = 'content_document' AND mp.owner_id = p.id AND mp.slot = 'featured' AND mp.sort_order = 0 AND mp.status = 'active'
-        LEFT JOIN media_assets ma ON ma.id = mp.asset_id AND ma.status = 'active'
+        ${coverJoinSql('p')}
        WHERE root.kind = 'article' AND root.row_role = 'root' AND p.site_id = ? AND root.status = 'published' AND root.visibility = 'public'
-       ORDER BY COALESCE((root.metadata_json ->> '$.featured_order'), 999999), root.published_at IS NULL, root.published_at DESC, p.id DESC
+       ORDER BY root.published_at IS NULL, root.published_at DESC, p.id DESC
     `, [locale, siteId]) : Promise.resolve([]),
   ])
   const qaRows = sourceQaRows
@@ -165,17 +161,20 @@ async function hydrateBlocks(
     description: typeof row.content === 'string' ? row.content : undefined,
     value: row.rating == null ? undefined : String(row.rating),
   }))
-  const postItems = postRows.map(post => ({
-    id: post.id,
-    title: post.title,
-    description: post.excerpt || undefined,
-    url: post.canonical_url || `/article/${post.slug}`,
-    labelKey: 'saya.posts.read_full_story',
-    media: post.asset_id
-      ? projectLocalizedMediaAlt([{ asset_id: post.asset_id, slot: 'featured', public_url: post.public_url, thumbnail_url: post.thumbnail_url, kind: post.kind, alt_text: post.alt_text }], localizations ?? [])
-      : [],
-  }))
-  return publicBlocks.map(block => {
+  const postItems = postRows.map((post) => {
+    const { cover, ...row } = attachCoverMedia(post)
+    return {
+      id: row.id,
+      title: row.title,
+      description: row.excerpt || undefined,
+      url: row.canonical_url || `/article/${row.slug}`,
+      labelKey: 'saya.posts.read_full_story',
+      media: cover
+        ? projectLocalizedMediaAlt([{ asset_id: cover.asset_id, slot: 'media', public_url: cover.public_url, thumbnail_url: cover.thumbnail_url, kind: cover.kind, alt_text: cover.alt_text }], localizations ?? [])
+        : [],
+    }
+  })
+  return blocks.map(block => {
     const data = { ...block.data }
     if (block.type === 'offering_grid' && Array.isArray(data.offering_ids)) {
       data.items = data.offering_ids.flatMap((id) => {
@@ -255,6 +254,7 @@ function mapPage(
     robots: page.robots,
     page_type: page.page_type,
     recipe: page.recipe,
+    sort_order: page.sort_order,
     locale: page.locale,
     blocks,
     ...socialMedia,

@@ -30,7 +30,9 @@ async function expectLocalizedMenu(page: Page) {
   await expect(page.getByRole('navigation', { name: 'การนำทางหลัก' }).getByRole('link', { name: 'เมนู', exact: true })).toBeVisible()
   await expect(page.getByRole('link', { name: 'จองโต๊ะ' }).first()).toBeVisible()
   await expect(page.getByRole('heading', { name: 'Kikuzuki กระบี่ ประเทศไทย' })).toBeVisible()
-  await expect(page.getByRole('button', { name: 'ซูชิ' })).toBeVisible()
+  const sushiCategories = page.getByRole('button', { name: 'ซูชิ', exact: true })
+  await expect(sushiCategories).toHaveCount(2)
+  for (const category of await sushiCategories.all()) await expect(category).toBeVisible()
   await expect(page.getByRole('link', { name: 'ซูชิทูน่า' }).first()).toBeVisible()
   await expect(page.getByRole('button', { name: /🇹🇭 th/ })).toBeVisible()
   await expect(page.locator('body')).not.toContainText('Tuna Sushi')
@@ -56,7 +58,7 @@ test.beforeAll(async ({ playwright }, testInfo) => {
     expect(await locationResponse.json()).toMatchObject({
       location: {
         opening_hours: {
-          periods: expect.arrayContaining([1, 2].map(day => ({
+          periods: expect.arrayContaining([2, 3].map(day => ({
             open: { day, hour: 14, minute: 0 }, close: { day, hour: 23, minute: 0 },
           }))),
         },
@@ -72,7 +74,7 @@ test.beforeAll(async ({ playwright }, testInfo) => {
         short_description: 'โรบาตายากิและซูชิในอ่าวนาง',
       },
     })
-    await putLocalization(owner, 'product_category', 'category-loc-kikuzuki-sushi', {
+    await putLocalization(owner, 'product_category', 'pc_loc-kikuzuki_standard_sushi', {
       values: { name: 'ซูชิ' },
     })
     await putLocalization(owner, 'product', 'item-kiku-tuna-sushi', {
@@ -127,7 +129,7 @@ test('Kikuzuki keeps its Thai shell and category translations on a hard load', a
     kikuzukiTestExtraHeaders(),
   )
   expect(locationPageResponse?.status()).toBeLessThan(400)
-  for (const day of ['วันจันทร์', 'วันอังคาร']) {
+  for (const day of ['วันอังคาร', 'วันพุธ']) {
     const hoursRow = page.getByText(day, { exact: true }).locator('..')
     await expect(hoursRow).toContainText('14:00')
     await expect(hoursRow).toContainText('23:00')
@@ -149,9 +151,12 @@ test('Kikuzuki Localize preserves its translated address', async ({ browser, pla
   try {
     await loginAs(owner, baseURL, 'user-e2e-kikuzuki-owner')
     const dashboardContext = await browser.newContext({ baseURL, storageState: await owner.storageState() })
+    const cms = await dashboardContext.newPage()
     try {
-      const cms = await dashboardContext.newPage()
-      await openTenantPage(cms, `${baseURL}/dashboard/kikuzuki-krabi-thailand/sites/kikuzuki-krabi-thailand/locations/kikuzuki-japanese-robatayaki-izakaya/settings/profile`, {})
+      // The settings level, not a `profile` section: that one leaf became
+      // name, slug, address, contact and status, and the level's own navbar is
+      // what carries Localize either way.
+      await openTenantPage(cms, `${baseURL}/dashboard/org-bVY8SxxUuG6Ctk2CQnfCk8T2cPsj4jJX/sites/kikuzuki-krabi-thailand/locations/kikuzuki-japanese-robatayaki-izakaya/settings`, {})
       await cms.getByTestId('localize-resource').click()
       await cms.getByTestId('localize-language').click()
       await cms.getByRole('option', { name: /ไทย \(th\)/ }).click()
@@ -165,6 +170,7 @@ test('Kikuzuki Localize preserves its translated address', async ({ browser, pla
       const payload = saveResponse.request().postDataJSON() as { values: { address: unknown } }
       expect(payload.values.address).toBe('325 ตำบลอ่าวนาง กระบี่ 81180 ประเทศไทย')
     } finally {
+      await cms.close()
       await dashboardContext.close()
     }
   } finally {

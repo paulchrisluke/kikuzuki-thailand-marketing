@@ -37,7 +37,7 @@
                 <NuxtLink :to="localePath(`/blog?tags[]=${encodeURIComponent(tag)}`)" class="text-white no-underline">{{ tag }}</NuxtLink>
               </template>
             </h3>
-            <BlogArticleView :title="post.title" :excerpt="post.excerpt" :category="t('saya.search.article')" :published-at="post.published_at" :updated-at="hasUpdatedDate ? post.updated_at : null" :author-name="post.author?.name" :author-image="post.author?.image" :site-name="identity.brand_name" :media-url="articleDisplayMedia?.public_url" :media-kind="articleDisplayMedia?.kind || 'image'" :blocks="post.content_blocks" template="blawby" />
+            <BlogArticleView :title="post.title" :excerpt="post.excerpt" :category="t('saya.search.article')" :published-at="post.published_at" :updated-at="hasUpdatedDate ? post.updated_at : null" :author-name="post.author?.name" :author-image="post.author?.image" :site-name="identity.brand_name" :blocks="post.content_blocks" template="blawby" />
             <p v-if="compliance?.disclaimer" class="mt-8 text-sm italic text-gray-500">{{ compliance.disclaimer }}</p>
           </div>
 
@@ -108,13 +108,12 @@ const org = useBlawbyOrgIdentity(identity, compliance)
 const { data: blogIndexData, error: blogIndexError } = await useBlawbyRoute('blog')
 if (blogIndexError.value) throw blogIndexError.value
 const post = computed(() => data.value.post!)
-const articleDisplayMedia = computed(() => post.value.media.find(item => item.slot === 'featured') ?? null)
-const articleSocialMedia = computed(() => post.value.media.find(item => item.slot === 'featured') ?? null)
+const articleSocialMedia = computed(() => post.value.cover ?? null)
 const articleSocialImage = computed(() => resolveSocialImageUrl(articleSocialMedia.value))
 const ctaBlock = computed(() => {
   const page = data.value.page
   if (!page) return null
-  return findTenantPageBlock(page.blocks, 'consultation_cta', 'contact_cta')
+  return findTenantPageBlock(page.blocks, 'contact_cta')
 })
 const displayTags = computed(() => Array.isArray(post.value.tags) ? post.value.tags.slice(1) : [])
 const hasUpdatedDate = computed(() => Boolean(post.value.updated_at && post.value.updated_at !== post.value.published_at))

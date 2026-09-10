@@ -3,6 +3,7 @@ import { createRequire } from 'node:module'
 import { getIcons } from '@iconify/utils'
 import { visualizer } from 'rollup-plugin-visualizer'
 import { DEFAULT_CURRENCY, isCurrencyCode } from './shared/currencies'
+import { ROBOTS_DISABLED_DIRECTIVE, ROBOTS_ENABLED_DIRECTIVE } from './shared/robots-directive'
 import { localizedPublicRouteAliases } from './build/localized-public-routes'
 
 const configuredDefaultCurrency = process.env.DEFAULT_CURRENCY?.toUpperCase()
@@ -174,6 +175,8 @@ export default defineNuxtConfig({
   },
 
   vite: {
+    // Preserve Vue's concrete server/client mismatch details in production builds.
+    define: { __VUE_PROD_HYDRATION_MISMATCH_DETAILS__: true },
     build: {
       modulePreload: false,
       rollupOptions: {
@@ -193,8 +196,11 @@ export default defineNuxtConfig({
     },
   },
 
-  // Bundle analysis is opt-in and client-only; it has no runtime effect.
   hooks: {
+    ready(nuxt) {
+      const clientComposables = nuxt.options.optimization.treeShake.composables.client
+      if (clientComposables.vue) clientComposables.vue = clientComposables.vue.filter(name => name !== 'onServerPrefetch')
+    },
     'pages:extend'(pages) {
       pages.push(...localizedPublicRouteAliases(pages))
     },
@@ -227,15 +233,23 @@ export default defineNuxtConfig({
     defaults: false,
   },
 
-  // Crawler guidance. Runtime X-Robots-Tag middleware remains the authoritative
-  // indexing control for private routes and non-production hosts.
+  // Crawler guidance. @nuxtjs/robots owns /robots.txt and the X-Robots-Tag
+  // response header, which stays the authoritative indexing control for private
+  // routes and non-production hosts. It does not own the `<meta name="robots">`
+  // tag: `metaTag: false` leaves that to useSocialMetadata, so one derivation
+  // (shared/robots-directive.ts) produces the served directive for every page —
+  // CMS-driven and hardcoded alike — instead of two emitters racing through
+  // useHead's dedupe. The enabled/disabled values come from the same derivation
+  // so the header and the meta tag agree byte for byte.
   robots: {
+    metaTag: false,
+    robotsEnabledValue: ROBOTS_ENABLED_DIRECTIVE,
+    robotsDisabledValue: ROBOTS_DISABLED_DIRECTIVE,
     groups: [
       {
         userAgent: ['*'],
         allow: ['/'],
         disallow: [
-          '/admin',
           '/api',
           '/auth',
           '/dashboard',
@@ -317,6 +331,10 @@ export default defineNuxtConfig({
       pathPrefix: false,
     },
     {
+      path: '~/components/reviews',
+      pathPrefix: false,
+    },
+    {
       path: '~/lib/components/workspace/dashboard',
       pathPrefix: false,
     },
@@ -326,10 +344,6 @@ export default defineNuxtConfig({
     },
     {
       path: '~/lib/components/workspace/content',
-      pathPrefix: false,
-    },
-    {
-      path: '~/lib/components/workspace/editor',
       pathPrefix: false,
     },
     {
@@ -377,7 +391,6 @@ export default defineNuxtConfig({
     // Auth/API/dashboard — never cache
     '/api/**':       { headers: { 'cache-control': 'no-store' } },
     '/dashboard/**': { headers: { 'cache-control': 'no-store' } },
-    '/admin/**':     { headers: { 'cache-control': 'no-store' } },
     '/auth/**':      { headers: { 'cache-control': 'no-store' } },
     '/signup':       { headers: { 'cache-control': 'no-store', 'x-frame-options': 'DENY', 'content-security-policy': "frame-ancestors 'none'" } },
     '/login':        { headers: { 'cache-control': 'no-store', 'x-frame-options': 'DENY', 'content-security-policy': "frame-ancestors 'none'" } },
@@ -393,6 +406,11 @@ export default defineNuxtConfig({
     },
     devServer: {
       watch: ['server']
+    },
+    rolldownConfig: {
+      output: {
+        strictExecutionOrder: true,
+      },
     },
     // Leave the resolved WASM import for Wrangler, which uploads .wasm as a precompiled
     // module. Nitro's Rollup pass cannot parse the binary, and Workers cannot compile raw

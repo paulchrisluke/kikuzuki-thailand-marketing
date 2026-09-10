@@ -1,13 +1,8 @@
 import { z } from 'zod'
 import { HTTPError } from 'nitro'
 import { executeBatch, queryAll, queryFirst, type DbClient } from '~/server/db'
-import {
-  addLocalDays,
-  localDateAt,
-  localDateBounds,
-  parseAnalyticsRange,
-  isValidTimeZone,
-} from '~/server/utils/analytics-calendar'
+import { localDateBounds, parseAnalyticsRange } from '~/server/utils/analytics-calendar'
+import { addLocalDays, localDateAt, isValidTimezone } from '~/utils/timezone'
 
 export interface SiteAnalyticsReport {
   period: { startDate: string; endDate: string; timezone: string; analyticsDataStartAt: string | null }
@@ -57,7 +52,7 @@ export async function resolveSiteAnalyticsContext(db: DbClient, siteId: string):
     WHERE s.id = ? LIMIT 1
   `, [siteId])
   if (!row) throw new HTTPError({ statusCode: 404, statusMessage: 'Site not found' })
-  if (!isValidTimeZone(row.timezone)) throw new HTTPError({ statusCode: 422, statusMessage: 'Site default_timezone is missing or invalid' })
+  if (!isValidTimezone(row.timezone)) throw new HTTPError({ statusCode: 422, statusMessage: 'Site default_timezone is missing or invalid' })
   return {
     organizationId: row.organization_id,
     timezone: row.timezone,
@@ -270,7 +265,7 @@ export async function aggregatePreviousLocalDateForAllSites(db: DbClient, now = 
   const sites = await queryAll<{ id: string; timezone: string | null }>(db, `SELECT s.id, json_extract(s.settings_json, '$.config.default_timezone') AS timezone FROM sites s WHERE s.status = 'active'`)
   const aggregated: string[] = []
   for (const site of sites) {
-    if (!isValidTimeZone(site.timezone)) throw new Error(`Site ${site.id} default_timezone is missing or invalid`)
+    if (!isValidTimezone(site.timezone)) throw new Error(`Site ${site.id} default_timezone is missing or invalid`)
     const timezone = site.timezone
     const date = addLocalDays(localDateAt(now, timezone), -1)
     await aggregateSiteAnalyticsDate(db, site.id, date)
@@ -291,7 +286,7 @@ export async function cleanupTenantAnalytics(db: DbClient, now = new Date()): Pr
   ], { operation: 'clean retained tenant analytics events and sessions' })
   let changes = initialResults.reduce((sum, result) => sum + Number(result.meta?.changes ?? 0), 0)
   for (const site of sites) {
-    if (!isValidTimeZone(site.timezone)) throw new Error(`Site ${site.id} default_timezone is missing or invalid`)
+    if (!isValidTimezone(site.timezone)) throw new Error(`Site ${site.id} default_timezone is missing or invalid`)
     const timezone = site.timezone
     const retainedDate = addLocalDays(localDateAt(now, timezone), -739)
     const results = await executeBatch(db, [

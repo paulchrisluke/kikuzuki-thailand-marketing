@@ -2,7 +2,6 @@ import { HTTPError } from 'nitro';
 
 import type { H3Event } from 'nitro'
 import type Stripe from 'stripe'
-import { getOrganizationCreditsResource } from '~/server/utils/ai-credits'
 import { getOrganizationBillingStatus, getStripe, requireBillingAccess } from '~/server/utils/billing'
 import { loadOrganizationSiteSummaries } from '~/server/utils/billing-site-resource'
 import { getDashboardContext } from '~/server/utils/dashboard-context'
@@ -16,11 +15,7 @@ export async function loadDashboardBillingResource(event: H3Event, organizationS
     organizationSlug,
   })
   await requireBillingAccess(env, db, organization.id, userId)
-  const [billingStatus, credits] = await Promise.all([
-    getOrganizationBillingStatus(env, db, organization.id),
-    getOrganizationCreditsResource(db, organization.id),
-
-  ])
+  const billingStatus = await getOrganizationBillingStatus(env, db, organization.id)
 
   let card: { brand: string; last4: string; exp_month: number; exp_year: number } | null = null
   if (billingStatus.stripeCustomerId) {
@@ -44,9 +39,6 @@ export async function loadDashboardBillingResource(event: H3Event, organizationS
       success: true as const,
       billing: { ...billingStatus, organizationId: organization.id },
       userRole: organization.role,
-    },
-    credits: {
-      ...credits,
     },
     paymentMethod: { card },
     sites: {

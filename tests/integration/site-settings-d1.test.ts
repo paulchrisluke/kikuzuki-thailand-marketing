@@ -41,7 +41,7 @@ test('site settings and workspace patches preserve independent owners and exclud
     await db.prepare("UPDATE sites SET integrations_json='{}' WHERE id='site'").run()
     const providerEnv = { DB: db, CONNECTOR_TOKEN_ENCRYPTION_KEY: Buffer.alloc(32, 7).toString('base64') }
     const connection = { organization_id: 'org', site_id: 'site', connected_by_user_id: 'user', provider_account_email: 'owner@example.test', encrypted_access_token: 'access-token', encrypted_refresh_token: 'refresh-token', scopes: 'analytics.readonly', status: 'active' as const }
-    const attempts = await Promise.allSettled([storeGoogleAnalyticsConnection(providerEnv, connection, { revision: null, transfer_generation: null }), storeGoogleAnalyticsConnection(providerEnv, connection, { revision: null, transfer_generation: null })])
+    const attempts = await Promise.allSettled([storeGoogleAnalyticsConnection(providerEnv, connection, { revision: null }), storeGoogleAnalyticsConnection(providerEnv, connection, { revision: null })])
     assert.equal(attempts.filter(result => result.status === 'fulfilled').length, 1)
     const connected = await getGoogleAnalyticsConnection(providerEnv, 'org', 'site')
     assert.ok(connected)
@@ -50,8 +50,6 @@ test('site settings and workspace patches preserve independent owners and exclud
     await storeGoogleAnalyticsConnection(providerEnv, connection, connected)
     const currentConnection = await getGoogleAnalyticsConnection(providerEnv, 'org', 'site')
     assert.ok(currentConnection)
-    await db.prepare("UPDATE sites SET settings_json=json_set(settings_json,'$.config.resource_team_generation',json(?)) WHERE id='site'").bind(JSON.stringify({ transfer_id: 'transfer', generation: 'new-generation' })).run()
-    await assert.rejects(storeGoogleAnalyticsConnection(providerEnv, connection, currentConnection))
 
     await patchWhatsAppWorkspaceState(db, { userId: 'user', pendingConfirmation: { intent: 'one' } })
     await Promise.all([patchWhatsAppWorkspaceState(db, { userId: 'user', lastInboundId: 'inbound' }), upsertMcpWorkspacePreference(db, { userId: 'user', organizationId: 'org', siteId: 'site', locationId: null })])

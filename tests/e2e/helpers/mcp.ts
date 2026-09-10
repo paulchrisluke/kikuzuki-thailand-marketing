@@ -3,12 +3,11 @@ import { expect, type APIRequestContext } from '@playwright/test'
 import { loginAs } from './auth'
 
 export const MCP_VERSION = '2025-06-18'
-// Fixed fixture sites seeded by generate-demo-seed.ts with the matching plan already
+// Fixed fixture sites retained in the production snapshot with the matching plan already
 // active. Entitlement checks are site-scoped (hasSiteEntitlement), so a plan-gated tool
 // call needs the org's actual paid site, not a brand-new site from ensureSite() (which
 // always starts on `free` per the second-site billing rule).
 export const MCP_GROWTH_SITE_ID = 'site-mcp-growth'
-export const MCP_GROWTH_SERVICE_SITE_ID = 'site-mcp-growth-service'
 
 export async function mcpRequest(
   request: APIRequestContext,
@@ -55,16 +54,25 @@ export async function mcpRequest(
       },
       data: payload,
     })
+    const headers = response.headers()
     console.info('[e2e-mcp]', JSON.stringify({
       event: 'finished', ...diagnostic, durationMs: Date.now() - startedAt,
-      status: response.status(), rayId: response.headers()['cf-ray'] ?? null,
-      serverTiming: response.headers()['server-timing'] ?? null,
+      status: response.status(), rayId: headers['cf-ray'] ?? null,
+      serverRequestId: headers['x-request-id'] ?? null,
+      d1Statements: headers['x-d1-query-count'] ?? null,
+      d1Batches: headers['x-d1-batch-count'] ?? null,
+      d1DurationMs: headers['x-d1-duration-ms'] ?? null,
+      serverDurationMs: headers['x-total-duration-ms'] ?? null,
     }))
     return response
-  } catch {
-    // Playwright errors include request headers, including session credentials.
-    console.error('[e2e-mcp]', JSON.stringify({ event: 'transport_failed', ...diagnostic, durationMs: Date.now() - startedAt }))
-    throw new Error(`MCP transport failed: ${options.method} ${options.toolName ?? ''}; requestId=${requestId}`)
+  } catch (error) {
+    // Playwright puts the full request, cookies included, in the error's call log.
+    // The first line is only the failure kind, e.g. "apiRequestContext.post: read ECONNRESET".
+    const reason = error instanceof Error ? error.message.split('\n')[0] : String(error)
+    console.error('[e2e-mcp]', JSON.stringify({ event: 'transport_failed', ...diagnostic, reason, durationMs: Date.now() - startedAt }))
+    // The original error is deliberately not attached as `cause`: its call log carries the cookies.
+    // eslint-disable-next-line preserve-caught-error
+    throw new Error(`MCP transport failed: ${options.method} ${options.toolName ?? ''}; ${reason}; requestId=${requestId}`)
   }
 }
 

@@ -5,6 +5,7 @@
     :product="product"
     :location="productLocation"
     :reviews="[]"
+    :category-siblings="categorySiblings"
     :currency="currency"
     :presentation="presentation"
     :analytics-enabled="false"
@@ -15,6 +16,7 @@
 import ProductDetailPage from '~/components/products/ProductDetailPage.vue'
 import { isCurrencyCode } from '~/shared/currencies'
 import { requireProductPresentation } from '~/utils/product-presentation'
+import { composeProductSeoDescription, selectProductCategorySiblings } from '~/utils/product-seo'
 
 const props = defineProps<{ routeKind: 'menu' | 'products' }>()
 const route = useRoute()
@@ -35,10 +37,16 @@ const productLocation = {
   title: String(location.value.title),
 }
 
+const categorySiblings = selectProductCategorySiblings(products.value, product)
+const { t } = useI18n()
+
 useSocialMetadata(() => ({
   path: presentation.productPath(productLocation.slug, product.slug),
   title: product.seo_title || product.name,
-  description: product.seo_description || product.description,
+  description: composeProductSeoDescription({
+    product,
+    locationTitle: productLocation.title,
+  }, t),
   robots: 'noindex,nofollow',
   brand: { siteName: String(site.value?.brand_name ?? '') },
 }))

@@ -57,7 +57,7 @@ export interface ResolvedBookingPolicy extends Omit<BookingPolicy,
   organization_id: string | null
   created_at: string | null
   updated_at: string | null
-  source_scope: BookingPolicyScopeType | 'default'
+  source_scope: BookingPolicyScopeType | null
 }
 
 type NumericBookingPolicyField =
@@ -125,7 +125,7 @@ const BOOKING_POLICY_SELECT = `SELECT owner_id AS id, organization_id, site_id, 
     SELECT id, organization_id, site_id, 'experience', 'experience', NULL, id, json_extract(experience_json, '$.policy') FROM products WHERE product_type = 'experience'
   ) WHERE policy IS NOT NULL`
 
-const EMPTY_RESERVATION_POLICY: Omit<ResolvedBookingPolicy, 'id' | 'organization_id' | 'created_at' | 'updated_at' | 'source_scope'> = {
+const EMPTY_POLICY: Omit<ResolvedBookingPolicy, 'id' | 'organization_id' | 'created_at' | 'updated_at' | 'source_scope'> = {
   site_id: '',
   policy_type: 'reservation',
   scope_type: 'site',
@@ -142,23 +142,6 @@ const EMPTY_RESERVATION_POLICY: Omit<ResolvedBookingPolicy, 'id' | 'organization
   additional_notes_html: null,
 }
 
-const EXPERIENCE_DEFAULTS: Omit<ResolvedBookingPolicy, 'id' | 'organization_id' | 'created_at' | 'updated_at' | 'source_scope'> = {
-  site_id: '',
-  policy_type: 'experience',
-  scope_type: 'site',
-  location_id: null,
-  experience_id: null,
-  advance_notice_minutes: null,
-  free_cancellation_until_minutes: 24 * 60,
-  reschedule_allowed: true,
-  reschedule_cutoff_minutes: 24 * 60,
-  deposit_required: false,
-  deposit_trigger_party_size: null,
-  minimum_guest_age: null,
-  accessibility_contact_required: false,
-  additional_notes_html: null,
-}
-
 function rowToPolicy(row: BookingPolicyRow): BookingPolicy {
   return {
     ...row,
@@ -168,39 +151,16 @@ function rowToPolicy(row: BookingPolicyRow): BookingPolicy {
   }
 }
 
-function baseDefaults(siteId: string, policyType: BookingPolicyType): ResolvedBookingPolicy {
-  const defaults = policyType === 'experience' ? EXPERIENCE_DEFAULTS : EMPTY_RESERVATION_POLICY
+function emptyBookingPolicy(siteId: string, policyType: BookingPolicyType): ResolvedBookingPolicy {
   return {
-    ...defaults,
+    ...EMPTY_POLICY,
     site_id: siteId,
     policy_type: policyType,
     id: null,
     organization_id: null,
     created_at: null,
     updated_at: null,
-    source_scope: 'default',
-  }
-}
-
-// Row seed for a newly-created policy, before the caller's patch is applied. Experience site-scope
-// rows hold the established experience defaults. Location/experience-scope rows
-// must start with every overlay field null — seeding them with baseDefaults would persist a
-// concrete value for every unset field, which applyPolicy's overlay then treats as an explicit
-// override and applies to every guest, silently breaking inheritance from the site-level policy.
-function seedDefaultsForScope(
-  siteId: string,
-  policyType: BookingPolicyType,
-  scopeType: BookingPolicyScopeType,
-): ResolvedBookingPolicy {
-  const base = baseDefaults(siteId, policyType)
-  if (scopeType === 'site') return base
-  return {
-    ...base,
-    advance_notice_minutes: null,
-    free_cancellation_until_minutes: null,
-    reschedule_cutoff_minutes: null,
-    deposit_trigger_party_size: null,
-    minimum_guest_age: null,
+    source_scope: null,
   }
 }
 
@@ -443,13 +403,13 @@ export async function resolveBookingPolicy(
       scopeType: 'location',
       locationId: input.locationId,
     })
-    const empty = baseDefaults(input.siteId, 'reservation')
+    const empty = emptyBookingPolicy(input.siteId, 'reservation')
     empty.location_id = input.locationId
     empty.scope_type = 'location'
     return direct ? applyPolicy(empty, direct) : empty
   }
 
-  let resolved = baseDefaults(input.siteId, input.policyType)
+  let resolved = emptyBookingPolicy(input.siteId, input.policyType)
 
   const sitePolicy = await getDirectBookingPolicy(db, {
     siteId: input.siteId,
@@ -525,7 +485,7 @@ export async function resolveBookingPolicyIndex(
   )
 
   let site: ResolvedBookingPolicy | null = input.policyType === 'experience'
-    ? baseDefaults(input.siteId, input.policyType)
+    ? emptyBookingPolicy(input.siteId, input.policyType)
     : null
   if (sitePolicy && site) site = applyPolicy(site, sitePolicy)
 
@@ -533,7 +493,7 @@ export async function resolveBookingPolicyIndex(
   for (const locationId of new Set(input.locations ?? [])) {
     const direct = locationPolicies.get(locationId)
     if (input.policyType === 'reservation') {
-      const empty = baseDefaults(input.siteId, 'reservation')
+      const empty = emptyBookingPolicy(input.siteId, 'reservation')
       empty.location_id = locationId
       empty.scope_type = 'location'
       byLocation.set(locationId, direct ? applyPolicy(empty, direct) : empty)
@@ -604,13 +564,8 @@ export async function upsertBookingPolicy(db: DbClient, input: UpsertBookingPoli
       ? { table: 'business_locations', column: 'booking_json', path: `$.${input.policyType}.policy`, id: input.locationId, scope: 'site_id = ?' }
       : { table: 'products', column: 'experience_json', path: '$.policy', id: input.experienceId, scope: "site_id = ? AND product_type = 'experience'" }
   const now = new Date().toISOString()
-  const seeded = seedDefaultsForScope(input.siteId, input.policyType, input.scopeType)
+  const seeded = emptyBookingPolicy(input.siteId, input.policyType)
   const defaults = Object.fromEntries(policyFields.map(field => [field, field === 'created_at' || field === 'updated_at' ? now : seeded[field]]))
-  if (input.scopeType !== 'site') {
-    defaults.reschedule_allowed = null
-    defaults.deposit_required = null
-    defaults.accessibility_contact_required = null
-  }
   const changes = Object.entries(input.patch).filter(([, value]) => value !== undefined)
   const paths = changes.map(([field]) => `'$.${field}', json(?)`)
   const result = await execute(db, `UPDATE ${owner.table}

@@ -1,8 +1,8 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "49f89ac5-db5c-49eb-922d-0e4185989a89",
-  "prevId": "991e5afb-3c17-4f42-a303-0f9d55b256b5",
+  "id": "73bc12e7-4acf-4693-a74c-9b8a33c1c0a8",
+  "prevId": "3f0f892e-aaa9-492c-adf8-409f58ab304d",
   "tables": {
     "account": {
       "name": "account",
@@ -462,21 +462,13 @@
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "checkConstraints": {
-        "activity_entries_kind_check": {
-          "name": "activity_entries_kind_check",
-          "value": "kind IN ('submission', 'message', 'operation', 'assignment', 'resolution', 'notification', 'acknowledgement', 'audit')"
+        "activity_entries_instants_check": {
+          "name": "activity_entries_instants_check",
+          "value": "(occurred_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', occurred_at, '+0 days') IS occurred_at) AND (created_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', created_at, '+0 days') IS created_at)"
         },
         "activity_entries_scope_check": {
           "name": "activity_entries_scope_check",
-          "value": "(scope_kind = 'request' AND request_id IS NOT NULL AND organization_id IS NULL AND site_id IS NULL AND context_site_id IS NULL AND location_id IS NULL) OR (scope_kind = 'site' AND kind = 'audit' AND site_id IS NOT NULL AND context_site_id IS NULL AND organization_id IS NULL AND request_id IS NULL) OR (scope_kind = 'organization' AND organization_id IS NOT NULL AND site_id IS NULL AND request_id IS NULL) OR (scope_kind = 'platform' AND organization_id IS NULL AND site_id IS NULL AND context_site_id IS NULL AND request_id IS NULL)"
-        },
-        "activity_entries_actor_check": {
-          "name": "activity_entries_actor_check",
-          "value": "actor_kind IN ('guest', 'member', 'system', 'cloudflare')"
-        },
-        "activity_entries_channel_check": {
-          "name": "activity_entries_channel_check",
-          "value": "channel IS NULL OR channel IN ('web', 'email', 'whatsapp', 'system')"
+          "value": "(scope_kind = 'request' AND request_id IS NOT NULL AND organization_id IS NULL AND site_id IS NULL AND context_site_id IS NULL AND location_id IS NULL) OR (scope_kind = 'site' AND kind = 'audit' AND site_id IS NOT NULL AND context_site_id IS NULL AND organization_id IS NULL AND request_id IS NULL) OR (scope_kind = 'organization' AND organization_id IS NOT NULL AND site_id IS NULL AND request_id IS NULL) OR (scope_kind = 'global' AND organization_id IS NULL AND site_id IS NULL AND context_site_id IS NULL AND request_id IS NULL)"
         },
         "activity_entries_payload_check": {
           "name": "activity_entries_payload_check",
@@ -688,9 +680,9 @@
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "checkConstraints": {
-        "analytics_events_kind_check": {
-          "name": "analytics_events_kind_check",
-          "value": "kind IN ('pageview', 'conversion')"
+        "analytics_events_instants_check": {
+          "name": "analytics_events_instants_check",
+          "value": "(created_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', created_at, '+0 days') IS created_at)"
         },
         "analytics_events_payload_check": {
           "name": "analytics_events_payload_check",
@@ -857,9 +849,9 @@
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "checkConstraints": {
-        "analytics_summaries_kind_check": {
-          "name": "analytics_summaries_kind_check",
-          "value": "kind IN ('session', 'site_day', 'page_day', 'dimension_day')"
+        "analytics_summaries_instants_check": {
+          "name": "analytics_summaries_instants_check",
+          "value": "(created_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', created_at, '+0 days') IS created_at) AND (updated_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', updated_at, '+0 days') IS updated_at)"
         },
         "analytics_summaries_payload_check": {
           "name": "analytics_summaries_payload_check",
@@ -1281,6 +1273,10 @@
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "checkConstraints": {
+        "business_locations_instants_check": {
+          "name": "business_locations_instants_check",
+          "value": "(last_synced_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', last_synced_at, '+0 days') IS last_synced_at) AND (created_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', created_at, '+0 days') IS created_at) AND (updated_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', updated_at, '+0 days') IS updated_at)"
+        },
         "business_locations_booking_check": {
           "name": "business_locations_booking_check",
           "value": "json_valid(booking_json) AND json_type(booking_json) = 'object'"
@@ -1296,10 +1292,6 @@
         "business_locations_feature_overrides_check": {
           "name": "business_locations_feature_overrides_check",
           "value": "feature_overrides IS NULL OR (json_valid(feature_overrides) AND json_type(feature_overrides) IS 'object')"
-        },
-        "business_locations_status_check": {
-          "name": "business_locations_status_check",
-          "value": "status IN ('active', 'inactive', 'sync_error')"
         },
         "business_locations_opening_hours_check": {
           "name": "business_locations_opening_hours_check",
@@ -1468,29 +1460,29 @@
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "checkConstraints": {
+        "content_blocks_instants_check": {
+          "name": "content_blocks_instants_check",
+          "value": "(created_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', created_at, '+0 days') IS created_at) AND (updated_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', updated_at, '+0 days') IS updated_at)"
+        },
         "content_blocks_source_check": {
           "name": "content_blocks_source_check",
           "value": "source_block_id IS NULL OR source_block_id <> id"
         },
-        "content_blocks_type_check": {
-          "name": "content_blocks_type_check",
-          "value": "\"content_blocks\".\"type\" IN ('heading', 'markdown', 'image', 'gallery', 'faq', 'how_to', 'divider', 'ai_assistance', 'cta', 'callout', 'hero', 'button_group', 'feature_grid', 'testimonial_grid', 'contact_cta', 'booking_cta', 'donation_choices', 'offering_grid', 'location_grid')"
-        },
         "content_blocks_data_json_check": {
           "name": "content_blocks_data_json_check",
-          "value": "json_valid(\"content_blocks\".\"data_json\") AND json_type(\"content_blocks\".\"data_json\") IS 'object'"
+          "value": "json_valid(data_json) AND json_type(data_json) IS 'object'"
         },
         "content_blocks_parent_check": {
           "name": "content_blocks_parent_check",
-          "value": "\"content_blocks\".\"parent_block_id\" IS NULL OR \"content_blocks\".\"parent_block_id\" <> \"content_blocks\".\"id\""
+          "value": "parent_block_id IS NULL OR parent_block_id <> id"
         },
         "content_blocks_position_check": {
           "name": "content_blocks_position_check",
-          "value": "\"content_blocks\".\"position\" >= 0"
+          "value": "position >= 0"
         },
         "content_blocks_level_check": {
           "name": "content_blocks_level_check",
-          "value": "\"content_blocks\".\"level\" IS NULL OR \"content_blocks\".\"level\" BETWEEN 1 AND 6"
+          "value": "level IS NULL OR level BETWEEN 1 AND 6"
         }
       }
     },
@@ -1954,9 +1946,9 @@
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "checkConstraints": {
-        "content_documents_kind_check": {
-          "name": "content_documents_kind_check",
-          "value": "\"content_documents\".\"kind\" IN ('page', 'article', 'platform_doc', 'social_post', 'qa')"
+        "content_documents_instants_check": {
+          "name": "content_documents_instants_check",
+          "value": "(published_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', published_at, '+0 days') IS published_at) AND (first_published_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', first_published_at, '+0 days') IS first_published_at) AND (scheduled_for IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', scheduled_for, '+0 days') IS scheduled_for) AND (created_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', created_at, '+0 days') IS created_at) AND (updated_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', updated_at, '+0 days') IS updated_at)"
         },
         "content_documents_metadata_check": {
           "name": "content_documents_metadata_check",
@@ -1969,10 +1961,6 @@
         "content_documents_path_check": {
           "name": "content_documents_path_check",
           "value": "path IS NULL OR (path LIKE '/%' AND path NOT LIKE '//%')"
-        },
-        "content_documents_platform_doc_scope_check": {
-          "name": "content_documents_platform_doc_scope_check",
-          "value": "kind <> 'platform_doc' OR (organization_id = 'platform' AND site_id = 'platform')"
         },
         "content_documents_page_copy_check": {
           "name": "content_documents_page_copy_check",
@@ -1992,15 +1980,15 @@
         },
         "content_documents_publication_check": {
           "name": "content_documents_publication_check",
-          "value": "row_role <> 'root' OR kind NOT IN ('article', 'social_post') OR (status IN ('published','scheduled')) IS 1"
+          "value": "row_role <> 'root' OR kind NOT IN ('article', 'social_post') OR (status IN ('draft','published','scheduled')) IS 1"
         },
         "content_documents_social_schedule_check": {
           "name": "content_documents_social_schedule_check",
-          "value": "kind <> 'social_post' OR row_role <> 'root' OR ((status = 'scheduled' AND scheduled_for IS NOT NULL AND published_at IS NULL) OR (status = 'published' AND scheduled_for IS NULL AND published_at IS NOT NULL))"
+          "value": "kind <> 'social_post' OR row_role <> 'root' OR ((status = 'draft' AND scheduled_for IS NULL AND published_at IS NULL) OR (status = 'scheduled' AND scheduled_for IS NOT NULL AND published_at IS NULL) OR (status = 'published' AND scheduled_for IS NULL AND published_at IS NOT NULL))"
         },
         "content_documents_article_visibility_check": {
           "name": "content_documents_article_visibility_check",
-          "value": "kind <> 'article' OR row_role <> 'root' OR (visibility IN ('public','unlisted')) IS 1"
+          "value": "kind NOT IN ('article','social_post') OR row_role <> 'root' OR (visibility IN ('public','unlisted')) IS 1"
         },
         "content_documents_qa_state_check": {
           "name": "content_documents_qa_state_check",
@@ -2012,7 +2000,7 @@
         },
         "content_documents_copy_required_check": {
           "name": "content_documents_copy_required_check",
-          "value": "row_role <> 'root' OR ((kind NOT IN ('page','article','platform_doc','qa') OR title IS NOT NULL) AND (kind NOT IN ('article','platform_doc') OR slug IS NOT NULL) AND (kind <> 'social_post' OR summary IS NOT NULL))"
+          "value": "row_role <> 'root' OR ((kind NOT IN ('page','article','qa') OR title IS NOT NULL) AND (kind <> 'article' OR slug IS NOT NULL) AND (kind <> 'social_post' OR summary IS NOT NULL))"
         },
         "content_documents_article_tags_check": {
           "name": "content_documents_article_tags_check",
@@ -2161,20 +2149,6 @@
           "notNull": false,
           "autoincrement": false
         },
-        "last_booking_at": {
-          "name": "last_booking_at",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "last_review_at": {
-          "name": "last_review_at",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
         "created_at": {
           "name": "created_at",
           "type": "text",
@@ -2293,13 +2267,9 @@
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "checkConstraints": {
-        "customers_source_check": {
-          "name": "customers_source_check",
-          "value": "source IN ('reservation', 'experience_booking', 'review_request', 'manual', 'stripe', 'import')"
-        },
-        "customers_status_check": {
-          "name": "customers_status_check",
-          "value": "status IN ('active', 'merged', 'suppressed', 'deleted')"
+        "customers_instants_check": {
+          "name": "customers_instants_check",
+          "value": "(review_request_opted_out_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', review_request_opted_out_at, '+0 days') IS review_request_opted_out_at) AND (created_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', created_at, '+0 days') IS created_at) AND (updated_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', updated_at, '+0 days') IS updated_at)"
         }
       }
     },
@@ -2417,21 +2387,13 @@
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "checkConstraints": {
-        "guest_thread_deliveries_channel_check": {
-          "name": "guest_thread_deliveries_channel_check",
-          "value": "channel IN ('email', 'whatsapp')"
+        "guest_thread_deliveries_instants_check": {
+          "name": "guest_thread_deliveries_instants_check",
+          "value": "(created_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', created_at, '+0 days') IS created_at) AND (updated_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', updated_at, '+0 days') IS updated_at)"
         },
         "guest_thread_deliveries_provider_check": {
           "name": "guest_thread_deliveries_provider_check",
           "value": "(channel = 'email' AND provider IN ('resend', 'log_only')) OR (channel = 'whatsapp' AND provider IN ('meta', 'log_only'))"
-        },
-        "guest_thread_deliveries_purpose_check": {
-          "name": "guest_thread_deliveries_purpose_check",
-          "value": "purpose IN ('owner_alert', 'guest_acknowledgement', 'member_reply', 'status_update')"
-        },
-        "guest_thread_deliveries_status_check": {
-          "name": "guest_thread_deliveries_status_check",
-          "value": "status IN ('pending', 'accepted', 'sent', 'delivered', 'read', 'failed', 'unknown')"
         }
       }
     },
@@ -2758,6 +2720,13 @@
           "name": "legal_intake_references_organization_id_idx",
           "columns": [
             "organization_id"
+          ],
+          "isUnique": false
+        },
+        "idx_legal_intake_references_actor": {
+          "name": "idx_legal_intake_references_actor",
+          "columns": [
+            "original_actor_id"
           ],
           "isUnique": false
         }
@@ -3156,6 +3125,10 @@
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "checkConstraints": {
+        "mcp_tool_call_events_instants_check": {
+          "name": "mcp_tool_call_events_instants_check",
+          "value": "(created_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', created_at, '+0 days') IS created_at)"
+        },
         "mcp_tool_call_events_arguments_summary_json_check": {
           "name": "mcp_tool_call_events_arguments_summary_json_check",
           "value": "arguments_summary_json IS NULL OR (json_valid(arguments_summary_json))"
@@ -3163,18 +3136,6 @@
         "mcp_tool_call_events_result_summary_json_check": {
           "name": "mcp_tool_call_events_result_summary_json_check",
           "value": "result_summary_json IS NULL OR (json_valid(result_summary_json))"
-        },
-        "mcp_tool_call_events_status_check": {
-          "name": "mcp_tool_call_events_status_check",
-          "value": "status IN ('success', 'error', 'auth_required', 'blocked')"
-        },
-        "mcp_tool_call_events_surface_check": {
-          "name": "mcp_tool_call_events_surface_check",
-          "value": "mcp_surface IN ('client', 'platform', 'public_help')"
-        },
-        "mcp_tool_call_events_mutating_check": {
-          "name": "mcp_tool_call_events_mutating_check",
-          "value": "is_mutating IN (0, 1)"
         },
         "mcp_tool_call_events_duration_check": {
           "name": "mcp_tool_call_events_duration_check",
@@ -3420,29 +3381,13 @@
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "checkConstraints": {
-        "media_assets_kind_check": {
-          "name": "media_assets_kind_check",
-          "value": "\"media_assets\".\"kind\" IN ('image', 'video', 'file')"
-        },
-        "media_assets_category_check": {
-          "name": "media_assets_category_check",
-          "value": "category IS NULL OR category IN ('exterior', 'interior', 'food', 'menu', 'team', 'other', 'logo', 'blog')"
+        "media_assets_instants_check": {
+          "name": "media_assets_instants_check",
+          "value": "(created_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', created_at, '+0 days') IS created_at) AND (updated_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', updated_at, '+0 days') IS updated_at)"
         },
         "media_assets_video_thumbnail_check": {
           "name": "media_assets_video_thumbnail_check",
           "value": "kind <> 'video' OR (thumbnail_url IS NOT NULL AND length(trim(thumbnail_url)) > 0)"
-        },
-        "media_assets_status_check": {
-          "name": "media_assets_status_check",
-          "value": "status IN ('pending', 'active', 'deleted', 'failed')"
-        },
-        "media_assets_provider_check": {
-          "name": "media_assets_provider_check",
-          "value": "provider IN ('cloudflare_images', 'cloudflare_r2')"
-        },
-        "media_assets_source_check": {
-          "name": "media_assets_source_check",
-          "value": "source IN ('uploaded', 'generated', 'external')"
         }
       }
     },
@@ -3612,17 +3557,13 @@
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "checkConstraints": {
-        "media_placements_owner_type_check": {
-          "name": "media_placements_owner_type_check",
-          "value": "\"media_placements\".\"owner_type\" IN ('site', 'business_location', 'product', 'content_document', 'offering', 'content_block', 'review', 'review_request')"
+        "media_placements_instants_check": {
+          "name": "media_placements_instants_check",
+          "value": "(created_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', created_at, '+0 days') IS created_at) AND (updated_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', updated_at, '+0 days') IS updated_at)"
         },
         "media_placements_sort_order_check": {
           "name": "media_placements_sort_order_check",
-          "value": "\"media_placements\".\"sort_order\" >= 0"
-        },
-        "media_placements_status_check": {
-          "name": "media_placements_status_check",
-          "value": "\"media_placements\".\"status\" IN ('pending', 'active', 'rejected')"
+          "value": "sort_order >= 0"
         }
       }
     },
@@ -4822,6 +4763,10 @@
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "checkConstraints": {
+        "offerings_instants_check": {
+          "name": "offerings_instants_check",
+          "value": "(created_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', created_at, '+0 days') IS created_at) AND (updated_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', updated_at, '+0 days') IS updated_at)"
+        },
         "offerings_features_check": {
           "name": "offerings_features_check",
           "value": "features IS NULL OR (json_valid(features) AND json_type(features) IS 'array')"
@@ -4991,17 +4936,13 @@
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "checkConstraints": {
-        "onboarding_drafts_source_type_check": {
-          "name": "onboarding_drafts_source_type_check",
-          "value": "source_type IN ('google_places', 'manual')"
+        "onboarding_drafts_instants_check": {
+          "name": "onboarding_drafts_instants_check",
+          "value": "(committed_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', committed_at, '+0 days') IS committed_at) AND (created_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', created_at, '+0 days') IS created_at) AND (updated_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', updated_at, '+0 days') IS updated_at)"
         },
         "onboarding_drafts_payload_json_check": {
           "name": "onboarding_drafts_payload_json_check",
           "value": "payload_json IS NULL OR (json_valid(payload_json) AND json_type(payload_json) IS 'object')"
-        },
-        "onboarding_drafts_status_check": {
-          "name": "onboarding_drafts_status_check",
-          "value": "status IN ('active', 'committing', 'committed', 'failed')"
         }
       }
     },
@@ -5081,7 +5022,7 @@
       "checkConstraints": {
         "organization_slug_required_check": {
           "name": "organization_slug_required_check",
-          "value": "trim(\"organization\".\"slug\") <> ''"
+          "value": "trim(slug) <> ''"
         }
       }
     },
@@ -5181,13 +5122,9 @@
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "checkConstraints": {
-        "organization_billing_payment_status_check": {
-          "name": "organization_billing_payment_status_check",
-          "value": "payment_status IN ('unknown', 'paid', 'processing', 'failed', 'pending', 'trialing', 'past_due')"
-        },
-        "organization_billing_access_plan_check": {
-          "name": "organization_billing_access_plan_check",
-          "value": "\"organization_billing\".\"access_plan\" IN ('free', 'growth')"
+        "organization_billing_instants_check": {
+          "name": "organization_billing_instants_check",
+          "value": "(access_expires_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', access_expires_at, '+0 days') IS access_expires_at) AND (updated_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', updated_at, '+0 days') IS updated_at) AND (paid_through IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', paid_through, '+0 days') IS paid_through) AND (past_due_since IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', past_due_since, '+0 days') IS past_due_since)"
         }
       }
     },
@@ -5402,29 +5339,21 @@
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "checkConstraints": {
+        "prices_instants_check": {
+          "name": "prices_instants_check",
+          "value": "(strftime('%Y-%m-%dT%H:%M:%fZ', valid_from, '+0 days') IS valid_from) AND (valid_until IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', valid_until, '+0 days') IS valid_until) AND (created_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', created_at, '+0 days') IS created_at)"
+        },
         "prices_amount_check": {
           "name": "prices_amount_check",
-          "value": "\"prices\".\"amount_minor\" >= 0"
+          "value": "amount_minor >= 0"
         },
         "prices_compare_at_check": {
           "name": "prices_compare_at_check",
-          "value": "\"prices\".\"compare_at_amount_minor\" IS NULL OR \"prices\".\"compare_at_amount_minor\" > \"prices\".\"amount_minor\""
-        },
-        "prices_currency_check": {
-          "name": "prices_currency_check",
-          "value": "\"prices\".\"currency\" IN ('THB','USD','EUR','GBP','JPY','AUD','CAD','SGD','HKD','MYR','IDR','PHP','VND','INR')"
-        },
-        "prices_unit_check": {
-          "name": "prices_unit_check",
-          "value": "\"prices\".\"unit\" IN ('item', 'person', 'table')"
-        },
-        "prices_tax_behavior_check": {
-          "name": "prices_tax_behavior_check",
-          "value": "\"prices\".\"tax_behavior\" IN ('unspecified', 'inclusive', 'exclusive')"
+          "value": "compare_at_amount_minor IS NULL OR compare_at_amount_minor > amount_minor"
         },
         "prices_validity_check": {
           "name": "prices_validity_check",
-          "value": "\"prices\".\"valid_until\" IS NULL OR \"prices\".\"valid_until\" > \"prices\".\"valid_from\""
+          "value": "valid_until IS NULL OR valid_until > valid_from"
         }
       }
     },
@@ -5623,21 +5552,21 @@
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "checkConstraints": {
+        "product_categories_instants_check": {
+          "name": "product_categories_instants_check",
+          "value": "(created_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', created_at, '+0 days') IS created_at) AND (updated_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', updated_at, '+0 days') IS updated_at)"
+        },
         "product_categories_name_not_blank_check": {
           "name": "product_categories_name_not_blank_check",
-          "value": "trim(\"product_categories\".\"name\") <> ''"
+          "value": "trim(name) <> ''"
         },
         "product_categories_slug_check": {
           "name": "product_categories_slug_check",
-          "value": "\"product_categories\".\"slug\" <> '' AND \"product_categories\".\"slug\" = lower(\"product_categories\".\"slug\") AND \"product_categories\".\"slug\" NOT GLOB '*[^a-z0-9-]*' AND \"product_categories\".\"slug\" NOT LIKE '-%' AND \"product_categories\".\"slug\" NOT LIKE '%-' AND \"product_categories\".\"slug\" NOT LIKE '%--%'"
+          "value": "slug <> '' AND slug = lower(slug) AND slug NOT GLOB '*[^a-z0-9-]*' AND slug NOT LIKE '-%' AND slug NOT LIKE '%-' AND slug NOT LIKE '%--%'"
         },
         "product_categories_sort_order_check": {
           "name": "product_categories_sort_order_check",
-          "value": "\"product_categories\".\"sort_order\" >= 0"
-        },
-        "product_categories_type_check": {
-          "name": "product_categories_type_check",
-          "value": "\"product_categories\".\"product_type\" IN ('standard', 'experience')"
+          "value": "sort_order >= 0"
         }
       }
     },
@@ -5995,25 +5924,29 @@
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "checkConstraints": {
+        "products_instants_check": {
+          "name": "products_instants_check",
+          "value": "(created_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', created_at, '+0 days') IS created_at) AND (updated_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', updated_at, '+0 days') IS updated_at)"
+        },
         "products_name_not_blank_check": {
           "name": "products_name_not_blank_check",
-          "value": "trim(\"products\".\"name\") <> ''"
+          "value": "trim(name) <> ''"
         },
         "products_slug_check": {
           "name": "products_slug_check",
-          "value": "\"products\".\"slug\" <> '' AND \"products\".\"slug\" = lower(\"products\".\"slug\") AND \"products\".\"slug\" NOT GLOB '*[^a-z0-9-]*' AND \"products\".\"slug\" NOT LIKE '-%' AND \"products\".\"slug\" NOT LIKE '%-' AND \"products\".\"slug\" NOT LIKE '%--%'"
+          "value": "slug <> '' AND slug = lower(slug) AND slug NOT GLOB '*[^a-z0-9-]*' AND slug NOT LIKE '-%' AND slug NOT LIKE '%-' AND slug NOT LIKE '%--%'"
         },
         "products_sort_order_check": {
           "name": "products_sort_order_check",
-          "value": "\"products\".\"sort_order\" >= 0"
+          "value": "sort_order >= 0"
         },
         "products_featured_sort_order_check": {
           "name": "products_featured_sort_order_check",
-          "value": "\"products\".\"featured_sort_order\" >= 0"
+          "value": "featured_sort_order >= 0"
         },
         "products_boolean_check": {
           "name": "products_boolean_check",
-          "value": "\"products\".\"is_visible\" IN (0, 1) AND \"products\".\"available\" IN (0, 1) AND \"products\".\"featured\" IN (0, 1)"
+          "value": "is_visible IN (0, 1) AND available IN (0, 1) AND featured IN (0, 1)"
         },
         "products_experience_check": {
           "name": "products_experience_check",
@@ -6023,29 +5956,17 @@
           "name": "products_experience_fields_check",
           "value": "experience_json IS NULL OR ((json_type(experience_json, '$.recurring_slots') IS NULL OR json_type(experience_json, '$.recurring_slots') IN ('null', 'object')) AND (json_type(experience_json, '$.included_items') IS NULL OR json_type(experience_json, '$.included_items') IN ('null', 'array')) AND (json_type(experience_json, '$.what_to_bring') IS NULL OR json_type(experience_json, '$.what_to_bring') IN ('null', 'array')))"
         },
-        "products_type_check": {
-          "name": "products_type_check",
-          "value": "\"products\".\"product_type\" IN ('standard', 'experience')"
-        },
         "products_tags_json_check": {
           "name": "products_tags_json_check",
-          "value": "json_valid(\"products\".\"tags_json\") AND json_type(\"products\".\"tags_json\") = 'array'"
+          "value": "json_valid(tags_json) AND json_type(tags_json) = 'array'"
         },
         "products_details_json_check": {
           "name": "products_details_json_check",
-          "value": "json_valid(\"products\".\"details_json\") AND json_type(\"products\".\"details_json\") = 'array'"
-        },
-        "products_source_check": {
-          "name": "products_source_check",
-          "value": "\"products\".\"source\" IN ('manual', 'template', 'ai', 'import', 'copy')"
+          "value": "json_valid(details_json) AND json_type(details_json) = 'array'"
         },
         "products_order_url_check": {
           "name": "products_order_url_check",
-          "value": "\"products\".\"order_url\" IS NULL OR (\"products\".\"order_url\" LIKE 'https://_%' AND instr(\"products\".\"order_url\", '@') = 0 AND instr(\"products\".\"order_url\", char(10)) = 0 AND instr(\"products\".\"order_url\", char(13)) = 0)"
-        },
-        "products_robots_check": {
-          "name": "products_robots_check",
-          "value": "\"products\".\"robots\" IS NULL OR \"products\".\"robots\" IN ('index,follow', 'noindex,follow', 'index,nofollow', 'noindex,nofollow')"
+          "value": "order_url IS NULL OR (order_url LIKE 'https://_%' AND instr(order_url, '@') = 0 AND instr(order_url, char(10)) = 0 AND instr(order_url, char(13)) = 0)"
         }
       }
     },
@@ -6155,9 +6076,9 @@
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "checkConstraints": {
-        "public_resource_cache_invalidations_status_check": {
-          "name": "public_resource_cache_invalidations_status_check",
-          "value": "status IN ('pending', 'processing', 'processed', 'failed')"
+        "public_resource_cache_invalidations_instants_check": {
+          "name": "public_resource_cache_invalidations_instants_check",
+          "value": "(claimed_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', claimed_at, '+0 days') IS claimed_at) AND (processed_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', processed_at, '+0 days') IS processed_at) AND (created_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', created_at, '+0 days') IS created_at)"
         },
         "public_resource_cache_invalidations_attempt_count_check": {
           "name": "public_resource_cache_invalidations_attempt_count_check",
@@ -6211,7 +6132,12 @@
       "foreignKeys": {},
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
-      "checkConstraints": {}
+      "checkConstraints": {
+        "rate_limits_instants_check": {
+          "name": "rate_limits_instants_check",
+          "value": "(updated_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', updated_at, '+0 days') IS updated_at) AND (expires_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', expires_at, '+0 days') IS expires_at)"
+        }
+      }
     },
     "requests": {
       "name": "requests",
@@ -6265,13 +6191,6 @@
           "notNull": false,
           "autoincrement": false
         },
-        "assigned_to": {
-          "name": "assigned_to",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
         "review_id": {
           "name": "review_id",
           "type": "text",
@@ -6281,13 +6200,6 @@
         },
         "status": {
           "name": "status",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "priority": {
-          "name": "priority",
           "type": "text",
           "primaryKey": false,
           "notNull": false,
@@ -6401,16 +6313,6 @@
           ],
           "isUnique": false
         },
-        "requests_work_queue_idx": {
-          "name": "requests_work_queue_idx",
-          "columns": [
-            "kind",
-            "status",
-            "priority",
-            "created_at"
-          ],
-          "isUnique": false
-        },
         "requests_org_created_idx": {
           "name": "requests_org_created_idx",
           "columns": [
@@ -6479,19 +6381,6 @@
           "tableTo": "customers",
           "columnsFrom": [
             "customer_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "set null",
-          "onUpdate": "no action"
-        },
-        "requests_assigned_to_user_id_fk": {
-          "name": "requests_assigned_to_user_id_fk",
-          "tableFrom": "requests",
-          "tableTo": "user",
-          "columnsFrom": [
-            "assigned_to"
           ],
           "columnsTo": [
             "id"
@@ -6584,9 +6473,9 @@
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "checkConstraints": {
-        "requests_kind_check": {
-          "name": "requests_kind_check",
-          "value": "kind IN ('contact', 'reservation', 'experience_booking', 'platform_contact', 'work')"
+        "requests_instants_check": {
+          "name": "requests_instants_check",
+          "value": "(resolved_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', resolved_at, '+0 days') IS resolved_at) AND (created_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', created_at, '+0 days') IS created_at) AND (updated_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', updated_at, '+0 days') IS updated_at)"
         },
         "requests_payload_check": {
           "name": "requests_payload_check",
@@ -6594,31 +6483,27 @@
         },
         "requests_guest_payload_check": {
           "name": "requests_guest_payload_check",
-          "value": "kind = 'work' OR (json_type(payload_json, '$.guest.name') IS 'text' AND json_type(payload_json, '$.guest.email') IS 'text' AND (json_type(payload_json, '$.guest.phone') IS 'text' OR json_type(payload_json, '$.guest.phone') IS 'null'))"
+          "value": "(json_type(payload_json, '$.guest.name') IS 'text' AND json_type(payload_json, '$.guest.email') IS 'text' AND (json_type(payload_json, '$.guest.phone') IS 'text' OR json_type(payload_json, '$.guest.phone') IS 'null'))"
         },
         "requests_booking_payload_check": {
           "name": "requests_booking_payload_check",
           "value": "kind NOT IN ('reservation', 'experience_booking') OR (json_type(payload_json, '$.party_size_is_minimum') IN ('true', 'false') AND json_type(payload_json, '$.cancellation') IS 'object' AND json_type(payload_json, '$.completion') IS 'object' AND json_type(payload_json, '$.review') IS 'object' AND (kind != 'reservation' OR json_type(payload_json, '$.guest.phone') IS 'text')) IS TRUE"
         },
-        "requests_work_payload_check": {
-          "name": "requests_work_payload_check",
-          "value": "kind != 'work' OR (json_type(payload_json, '$.title') IS 'text' AND (payload_json ->> '$.type') IN ('content_update', 'product_update', 'seo', 'google_places', 'seasonal', 'photo_update', 'social_media', 'technical', 'other') AND (payload_json ->> '$.source') IN ('dashboard', 'whatsapp')) IS TRUE"
-        },
         "requests_message_payload_check": {
           "name": "requests_message_payload_check",
-          "value": "kind NOT IN ('contact', 'platform_contact') OR json_type(payload_json, '$.message') IS 'text'"
+          "value": "kind <> 'contact' OR json_type(payload_json, '$.message') IS 'text'"
         },
         "requests_scope_check": {
           "name": "requests_scope_check",
-          "value": "(kind = 'platform_contact' AND organization_id IS NULL AND site_id IS NULL AND location_id IS NULL AND product_id IS NULL AND customer_id IS NULL) OR (kind = 'work' AND organization_id IS NOT NULL AND location_id IS NULL AND product_id IS NULL AND customer_id IS NULL) OR (kind IN ('contact', 'reservation', 'experience_booking') AND organization_id IS NOT NULL AND site_id IS NOT NULL)"
+          "value": "kind IN ('contact', 'reservation', 'experience_booking') AND organization_id IS NOT NULL AND site_id IS NOT NULL"
         },
         "requests_booking_check": {
           "name": "requests_booking_check",
-          "value": "(kind IN ('reservation', 'experience_booking') AND location_id IS NOT NULL AND booking_date IS NOT NULL AND time_slot IS NOT NULL AND party_size IS NOT NULL AND party_size > 0 AND status IS NOT NULL AND status IN ('pending', 'confirmed', 'cancelled', 'completed') AND (kind != 'experience_booking' OR product_id IS NOT NULL) AND (kind != 'reservation' OR product_id IS NULL)) OR (kind NOT IN ('reservation', 'experience_booking') AND booking_date IS NULL AND time_slot IS NULL AND party_size IS NULL)"
+          "value": "(kind IN ('reservation', 'experience_booking') AND location_id IS NOT NULL AND booking_date IS NOT NULL AND date(booking_date, '+0 days') IS booking_date AND time_slot IS NOT NULL AND time_slot GLOB '[0-2][0-9]:[0-5][0-9]' AND time_slot < '24:00' AND party_size IS NOT NULL AND party_size > 0 AND status IS NOT NULL AND status IN ('pending', 'confirmed', 'cancelled', 'completed') AND (kind != 'experience_booking' OR product_id IS NOT NULL) AND (kind != 'reservation' OR product_id IS NULL)) OR (kind NOT IN ('reservation', 'experience_booking') AND booking_date IS NULL AND time_slot IS NULL AND party_size IS NULL)"
         },
         "requests_state_check": {
           "name": "requests_state_check",
-          "value": "(kind = 'work' AND status IS NOT NULL AND status IN ('pending', 'in_progress', 'done', 'cancelled') AND priority IS NOT NULL AND priority IN ('low', 'normal', 'high', 'urgent') AND conversation_state IS NULL) OR (kind IN ('contact', 'reservation', 'experience_booking') AND conversation_state IS NOT NULL AND conversation_state IN ('needs_attention', 'waiting_on_guest', 'resolved') AND priority IS NULL AND assigned_to IS NULL AND (kind != 'contact' OR status IS NULL)) OR (kind = 'platform_contact' AND status IS NULL AND priority IS NULL AND conversation_state IS NULL AND assigned_to IS NULL)"
+          "value": "conversation_state IS NOT NULL AND conversation_state IN ('needs_attention', 'waiting_on_guest', 'resolved') AND (kind != 'contact' OR status IS NULL)"
         }
       }
     },
@@ -6774,21 +6659,21 @@
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "checkConstraints": {
-        "resource_localizations_resource_type_check": {
-          "name": "resource_localizations_resource_type_check",
-          "value": "\"resource_localizations\".\"resource_type\" IN ('site', 'business_location', 'product', 'product_category', 'offering', 'media_asset')"
+        "resource_localizations_instants_check": {
+          "name": "resource_localizations_instants_check",
+          "value": "(created_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', created_at, '+0 days') IS created_at) AND (updated_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', updated_at, '+0 days') IS updated_at)"
         },
         "resource_localizations_values_json_check": {
           "name": "resource_localizations_values_json_check",
-          "value": "json_valid(\"resource_localizations\".\"values_json\") AND json_type(\"resource_localizations\".\"values_json\") = 'object'"
+          "value": "json_valid(values_json) AND json_type(values_json) = 'object'"
         },
         "resource_localizations_non_english_check": {
           "name": "resource_localizations_non_english_check",
-          "value": "\"resource_localizations\".\"locale\" <> 'en'"
+          "value": "locale <> 'en'"
         },
         "resource_localizations_route_path_check": {
           "name": "resource_localizations_route_path_check",
-          "value": "\"resource_localizations\".\"route_path\" IS NULL OR (\"resource_localizations\".\"route_path\" LIKE '/' || \"resource_localizations\".\"locale\" || '/%' AND \"resource_localizations\".\"route_path\" NOT LIKE '%?%' AND \"resource_localizations\".\"route_path\" NOT LIKE '%#%' AND \"resource_localizations\".\"route_path\" NOT LIKE '%//%')"
+          "value": "route_path IS NULL OR (route_path LIKE '/' || locale || '/%' AND route_path NOT LIKE '%?%' AND route_path NOT LIKE '%#%' AND route_path NOT LIKE '%//%')"
         }
       }
     },
@@ -7093,9 +6978,9 @@
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "checkConstraints": {
-        "review_requests_booking_type_check": {
-          "name": "review_requests_booking_type_check",
-          "value": "booking_type IN ('reservation', 'experience_booking')"
+        "review_requests_instants_check": {
+          "name": "review_requests_instants_check",
+          "value": "(expires_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', expires_at, '+0 days') IS expires_at) AND (first_sent_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', first_sent_at, '+0 days') IS first_sent_at) AND (reminder_sent_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', reminder_sent_at, '+0 days') IS reminder_sent_at) AND (submitted_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', submitted_at, '+0 days') IS submitted_at) AND (clicked_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', clicked_at, '+0 days') IS clicked_at) AND (revoked_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', revoked_at, '+0 days') IS revoked_at) AND (created_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', created_at, '+0 days') IS created_at) AND (updated_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', updated_at, '+0 days') IS updated_at)"
         }
       }
     },
@@ -7510,29 +7395,17 @@
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "checkConstraints": {
-        "reviews_status_check": {
-          "name": "reviews_status_check",
-          "value": "status IN ('pending', 'approved', 'rejected')"
+        "reviews_instants_check": {
+          "name": "reviews_instants_check",
+          "value": "(owner_reply_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', owner_reply_at, '+0 days') IS owner_reply_at) AND (created_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', created_at, '+0 days') IS created_at) AND (updated_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', updated_at, '+0 days') IS updated_at)"
         },
         "reviews_google_review_metadata_check": {
           "name": "reviews_google_review_metadata_check",
           "value": "google_review_metadata IS NULL OR (json_valid(google_review_metadata) AND json_type(google_review_metadata) IS 'object')"
         },
-        "reviews_booking_type_check": {
-          "name": "reviews_booking_type_check",
-          "value": "booking_type IS NULL OR booking_type IN ('reservation', 'experience_booking')"
-        },
         "reviews_rating_check": {
           "name": "reviews_rating_check",
           "value": "rating BETWEEN 1 AND 5"
-        },
-        "reviews_publication_authorized_check": {
-          "name": "reviews_publication_authorized_check",
-          "value": "publication_authorized IN (0, 1)"
-        },
-        "reviews_collection_method_check": {
-          "name": "reviews_collection_method_check",
-          "value": "collection_method IS NULL OR collection_method IN ('in_person', 'email', 'phone', 'migration', 'other')"
         },
         "reviews_product_scope_check": {
           "name": "reviews_product_scope_check",
@@ -8083,6 +7956,10 @@
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "checkConstraints": {
+        "site_domains_instants_check": {
+          "name": "site_domains_instants_check",
+          "value": "(retired_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', retired_at, '+0 days') IS retired_at) AND (reconciliation_expires_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', reconciliation_expires_at, '+0 days') IS reconciliation_expires_at) AND (dns_last_resolved_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', dns_last_resolved_at, '+0 days') IS dns_last_resolved_at) AND (last_synced_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', last_synced_at, '+0 days') IS last_synced_at) AND (next_check_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', next_check_at, '+0 days') IS next_check_at) AND (activated_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', activated_at, '+0 days') IS activated_at) AND (certificate_last_active_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', certificate_last_active_at, '+0 days') IS certificate_last_active_at) AND (renewal_issue_started_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', renewal_issue_started_at, '+0 days') IS renewal_issue_started_at) AND (renewal_notification_sent_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', renewal_notification_sent_at, '+0 days') IS renewal_notification_sent_at) AND (certificate_expires_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', certificate_expires_at, '+0 days') IS certificate_expires_at) AND (created_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', created_at, '+0 days') IS created_at) AND (updated_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', updated_at, '+0 days') IS updated_at)"
+        },
         "site_domains_owner_check": {
           "name": "site_domains_owner_check",
           "value": "(status = 'retired' AND type = 'subdomain' AND role = 'secondary' AND organization_id IS NULL AND site_id IS NULL AND former_site_id IS NOT NULL AND retired_at IS NOT NULL) OR (status <> 'retired' AND organization_id IS NOT NULL AND site_id IS NOT NULL AND former_site_id IS NULL AND retired_at IS NULL AND successor_domain IS NULL)"
@@ -8098,26 +7975,6 @@
         "site_domains_metadata_check": {
           "name": "site_domains_metadata_check",
           "value": "metadata IS NULL OR (json_valid(metadata))"
-        },
-        "site_domains_type_check": {
-          "name": "site_domains_type_check",
-          "value": "type IN ('subdomain', 'custom')"
-        },
-        "site_domains_role_check": {
-          "name": "site_domains_role_check",
-          "value": "role IN ('canonical', 'secondary')"
-        },
-        "site_domains_status_check": {
-          "name": "site_domains_status_check",
-          "value": "status IN ('pending', 'verifying', 'active', 'blocked', 'failed', 'disabled', 'deleted', 'retired')"
-        },
-        "site_domains_validation_strategy_check": {
-          "name": "site_domains_validation_strategy_check",
-          "value": "validation_strategy IN ('http_auto', 'txt_manual', 'delegated_dcv')"
-        },
-        "site_domains_dns_status_check": {
-          "name": "site_domains_dns_status_check",
-          "value": "dns_status IN ('pending', 'valid', 'invalid', 'unknown')"
         }
       }
     },
@@ -8281,9 +8138,9 @@
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "checkConstraints": {
-        "site_locales_source_boolean_check": {
-          "name": "site_locales_source_boolean_check",
-          "value": "is_source IN (0, 1)"
+        "site_locales_instants_check": {
+          "name": "site_locales_instants_check",
+          "value": "(activated_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', activated_at, '+0 days') IS activated_at) AND (disabled_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', disabled_at, '+0 days') IS disabled_at) AND (created_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', created_at, '+0 days') IS created_at) AND (updated_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', updated_at, '+0 days') IS updated_at)"
         },
         "site_locales_status_check": {
           "name": "site_locales_status_check",
@@ -8474,13 +8331,13 @@
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "checkConstraints": {
+        "site_redirects_instants_check": {
+          "name": "site_redirects_instants_check",
+          "value": "(created_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', created_at, '+0 days') IS created_at) AND (updated_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', updated_at, '+0 days') IS updated_at)"
+        },
         "site_redirects_from_path_check": {
           "name": "site_redirects_from_path_check",
           "value": "from_path LIKE '/%'"
-        },
-        "site_redirects_behavior_check": {
-          "name": "site_redirects_behavior_check",
-          "value": "behavior IN ('redirect', 'gone', 'noindex')"
         },
         "site_redirects_redirect_to_path_check": {
           "name": "site_redirects_redirect_to_path_check",
@@ -8489,274 +8346,6 @@
         "site_redirects_owner_check": {
           "name": "site_redirects_owner_check",
           "value": "(owner_type IS NULL AND owner_id IS NULL) OR (owner_type IS NOT NULL AND owner_id IS NOT NULL)"
-        }
-      }
-    },
-    "site_transfer_requests": {
-      "name": "site_transfer_requests",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "site_id": {
-          "name": "site_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "from_organization_id": {
-          "name": "from_organization_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "to_email": {
-          "name": "to_email",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "token": {
-          "name": "token",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "status": {
-          "name": "status",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": "'pending'"
-        },
-        "initiated_by_user_id": {
-          "name": "initiated_by_user_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "accepted_by_user_id": {
-          "name": "accepted_by_user_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "claiming_user_id": {
-          "name": "claiming_user_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "claiming_organization_id": {
-          "name": "claiming_organization_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "message": {
-          "name": "message",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "invited_plan": {
-          "name": "invited_plan",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "invited_coupon": {
-          "name": "invited_coupon",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "invited_domain": {
-          "name": "invited_domain",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "requires_payment": {
-          "name": "requires_payment",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": 0
-        },
-        "stripe_checkout_session_id": {
-          "name": "stripe_checkout_session_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "payment_completed_at": {
-          "name": "payment_completed_at",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": "(strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))"
-        },
-        "completed_at": {
-          "name": "completed_at",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "last_reminder_at": {
-          "name": "last_reminder_at",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "reminder_count": {
-          "name": "reminder_count",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": 0
-        },
-        "invited_interval": {
-          "name": "invited_interval",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": "'month'"
-        }
-      },
-      "indexes": {
-        "idx_site_transfer_pending": {
-          "name": "idx_site_transfer_pending",
-          "columns": [
-            "site_id"
-          ],
-          "isUnique": true,
-          "where": "status = 'pending'"
-        },
-        "idx_site_transfer_reminders": {
-          "name": "idx_site_transfer_reminders",
-          "columns": [
-            "status",
-            "requires_payment",
-            "created_at"
-          ],
-          "isUnique": false
-        },
-        "idx_site_transfer_site": {
-          "name": "idx_site_transfer_site",
-          "columns": [
-            "site_id",
-            "status"
-          ],
-          "isUnique": false
-        },
-        "idx_site_transfer_token": {
-          "name": "idx_site_transfer_token",
-          "columns": [
-            "token"
-          ],
-          "isUnique": true
-        }
-      },
-      "foreignKeys": {
-        "site_transfer_requests_site_id_sites_id_fk": {
-          "name": "site_transfer_requests_site_id_sites_id_fk",
-          "tableFrom": "site_transfer_requests",
-          "tableTo": "sites",
-          "columnsFrom": [
-            "site_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "site_transfer_requests_initiated_by_user_id_user_id_fk": {
-          "name": "site_transfer_requests_initiated_by_user_id_user_id_fk",
-          "tableFrom": "site_transfer_requests",
-          "tableTo": "user",
-          "columnsFrom": [
-            "initiated_by_user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "restrict",
-          "onUpdate": "no action"
-        },
-        "site_transfer_requests_accepted_by_user_id_user_id_fk": {
-          "name": "site_transfer_requests_accepted_by_user_id_user_id_fk",
-          "tableFrom": "site_transfer_requests",
-          "tableTo": "user",
-          "columnsFrom": [
-            "accepted_by_user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "set null",
-          "onUpdate": "no action"
-        },
-        "site_transfer_requests_claiming_user_id_user_id_fk": {
-          "name": "site_transfer_requests_claiming_user_id_user_id_fk",
-          "tableFrom": "site_transfer_requests",
-          "tableTo": "user",
-          "columnsFrom": [
-            "claiming_user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "set null",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "checkConstraints": {
-        "site_transfer_requests_status_check": {
-          "name": "site_transfer_requests_status_check",
-          "value": "status IN ('pending', 'accepted', 'cancelled')"
-        },
-        "site_transfer_requests_invited_plan_check": {
-          "name": "site_transfer_requests_invited_plan_check",
-          "value": "invited_plan IN ('growth')"
-        },
-        "site_transfer_requests_invited_interval_check": {
-          "name": "site_transfer_requests_invited_interval_check",
-          "value": "invited_interval IN ('month', 'year')"
         }
       }
     },
@@ -9046,6 +8635,10 @@
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "checkConstraints": {
+        "sites_instants_check": {
+          "name": "sites_instants_check",
+          "value": "(last_published_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', last_published_at, '+0 days') IS last_published_at) AND (created_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', created_at, '+0 days') IS created_at) AND (updated_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', updated_at, '+0 days') IS updated_at) AND (analytics_data_start_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', analytics_data_start_at, '+0 days') IS analytics_data_start_at)"
+        },
         "sites_settings_json_check": {
           "name": "sites_settings_json_check",
           "value": "json_valid(settings_json) AND json_type(settings_json) IS 'object'"
@@ -9089,10 +8682,6 @@
         "sites_config_notifications_check": {
           "name": "sites_config_notifications_check",
           "value": "json_type(settings_json, '$.config.owner_notification_channels') IS NULL OR json_type(settings_json, '$.config.owner_notification_channels') IS 'array'"
-        },
-        "sites_config_resource_generation_check": {
-          "name": "sites_config_resource_generation_check",
-          "value": "json_type(settings_json, '$.config.resource_team_generation') IS NULL OR (json_type(settings_json, '$.config.resource_team_generation') IS 'object' AND json_type(settings_json, '$.config.resource_team_generation.transfer_id') IS 'text' AND json_type(settings_json, '$.config.resource_team_generation.generation') IS 'text')"
         },
         "sites_consultation_metadata_check": {
           "name": "sites_consultation_metadata_check",
@@ -9157,30 +8746,6 @@
         "sites_feature_overrides_check": {
           "name": "sites_feature_overrides_check",
           "value": "feature_overrides IS NULL OR (json_valid(feature_overrides) AND json_type(feature_overrides) IS 'object')"
-        },
-        "sites_theme_id_check": {
-          "name": "sites_theme_id_check",
-          "value": "\"sites\".\"theme_id\" IN ('saya-theme-v1', 'blawby-theme-v1')"
-        },
-        "sites_status_check": {
-          "name": "sites_status_check",
-          "value": "\"sites\".\"status\" IN ('active', 'inactive', 'suspended')"
-        },
-        "sites_onboarding_status_check": {
-          "name": "sites_onboarding_status_check",
-          "value": "\"sites\".\"onboarding_status\" IN ('pending', 'active', 'failed')"
-        },
-        "sites_url_structure_check": {
-          "name": "sites_url_structure_check",
-          "value": "\"sites\".\"url_structure\" IN ('location_subdirectories', 'brand_pages')"
-        },
-        "sites_vertical_check": {
-          "name": "sites_vertical_check",
-          "value": "\"sites\".\"vertical\" IN ('restaurant', 'experience', 'retail', 'wellness', 'service')"
-        },
-        "sites_default_currency_check": {
-          "name": "sites_default_currency_check",
-          "value": "\"sites\".\"default_currency\" IN ('THB','USD','EUR','GBP','JPY','AUD','CAD','SGD','HKD','MYR','IDR','PHP','VND','INR')"
         }
       }
     },
@@ -9405,17 +8970,9 @@
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "checkConstraints": {
-        "stripe_ga4_subscription_intents_action_check": {
-          "name": "stripe_ga4_subscription_intents_action_check",
-          "value": "\"stripe_ga4_subscription_intents\".\"action\" IN ('initial_subscription', 'upgrade', 'downgrade')"
-        },
-        "stripe_ga4_subscription_intents_status_check": {
-          "name": "stripe_ga4_subscription_intents_status_check",
-          "value": "\"stripe_ga4_subscription_intents\".\"status\" IN ('pending', 'consumed', 'expired')"
-        },
-        "stripe_ga4_subscription_intents_timing_check": {
-          "name": "stripe_ga4_subscription_intents_timing_check",
-          "value": "\"stripe_ga4_subscription_intents\".\"effective_timing\" IN ('immediate', 'period_end')"
+        "stripe_ga4_subscription_intents_instants_check": {
+          "name": "stripe_ga4_subscription_intents_instants_check",
+          "value": "(lifecycle_sent_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', lifecycle_sent_at, '+0 days') IS lifecycle_sent_at) AND (consumed_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', consumed_at, '+0 days') IS consumed_at) AND (expires_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', expires_at, '+0 days') IS expires_at) AND (created_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', created_at, '+0 days') IS created_at) AND (updated_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', updated_at, '+0 days') IS updated_at)"
         }
       }
     },
@@ -9581,13 +9138,9 @@
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "checkConstraints": {
-        "stripe_invoice_payments_status_check": {
-          "name": "stripe_invoice_payments_status_check",
-          "value": "status IN ('paid', 'processing', 'failed')"
-        },
-        "stripe_invoice_payments_ga4_purchase_status_check": {
-          "name": "stripe_invoice_payments_ga4_purchase_status_check",
-          "value": "ga4_purchase_status IN ('pending', 'sending', 'sent', 'failed')"
+        "stripe_invoice_payments_instants_check": {
+          "name": "stripe_invoice_payments_instants_check",
+          "value": "(ga4_purchase_claimed_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', ga4_purchase_claimed_at, '+0 days') IS ga4_purchase_claimed_at) AND (ga4_purchase_sent_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', ga4_purchase_sent_at, '+0 days') IS ga4_purchase_sent_at) AND (updated_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', updated_at, '+0 days') IS updated_at) AND (period_start IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', period_start, '+0 days') IS period_start) AND (period_end IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', period_end, '+0 days') IS period_end) AND (past_due_since IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', past_due_since, '+0 days') IS past_due_since)"
         }
       }
     },
@@ -9628,7 +9181,12 @@
       "foreignKeys": {},
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
-      "checkConstraints": {}
+      "checkConstraints": {
+        "stripe_subscription_versions_instants_check": {
+          "name": "stripe_subscription_versions_instants_check",
+          "value": "(updated_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', updated_at, '+0 days') IS updated_at)"
+        }
+      }
     },
     "stripe_webhook_events": {
       "name": "stripe_webhook_events",
@@ -9749,9 +9307,9 @@
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "checkConstraints": {
-        "stripe_webhook_events_status_check": {
-          "name": "stripe_webhook_events_status_check",
-          "value": "status IN ('pending', 'processed', 'failed', 'dead_letter')"
+        "stripe_webhook_events_instants_check": {
+          "name": "stripe_webhook_events_instants_check",
+          "value": "(claimed_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', claimed_at, '+0 days') IS claimed_at) AND (lease_expires_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', lease_expires_at, '+0 days') IS lease_expires_at) AND (next_attempt_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', next_attempt_at, '+0 days') IS next_attempt_at) AND (dead_lettered_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', dead_lettered_at, '+0 days') IS dead_lettered_at) AND (created_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', created_at, '+0 days') IS created_at)"
         },
         "stripe_webhook_events_payload_check": {
           "name": "stripe_webhook_events_payload_check",
@@ -10237,169 +9795,13 @@
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "checkConstraints": {
+        "usage_events_instants_check": {
+          "name": "usage_events_instants_check",
+          "value": "(created_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', created_at, '+0 days') IS created_at)"
+        },
         "usage_events_metadata_json_check": {
           "name": "usage_events_metadata_json_check",
           "value": "metadata_json IS NULL OR (json_valid(metadata_json))"
-        }
-      }
-    },
-    "usage_quota_grants": {
-      "name": "usage_quota_grants",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "organization_id": {
-          "name": "organization_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "resource": {
-          "name": "resource",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "quantity": {
-          "name": "quantity",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "unit": {
-          "name": "unit",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "period_key": {
-          "name": "period_key",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "period_start": {
-          "name": "period_start",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "period_end": {
-          "name": "period_end",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "grant_type": {
-          "name": "grant_type",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "reason": {
-          "name": "reason",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "created_by": {
-          "name": "created_by",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "idempotency_key": {
-          "name": "idempotency_key",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "applied_at": {
-          "name": "applied_at",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": "(strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))"
-        }
-      },
-      "indexes": {
-        "usage_quota_grants_active_idx": {
-          "name": "usage_quota_grants_active_idx",
-          "columns": [
-            "organization_id",
-            "resource",
-            "period_start",
-            "period_end"
-          ],
-          "isUnique": false
-        },
-        "usage_quota_grants_organization_id_idempotency_key_unique": {
-          "name": "usage_quota_grants_organization_id_idempotency_key_unique",
-          "columns": [
-            "organization_id",
-            "idempotency_key"
-          ],
-          "isUnique": true
-        }
-      },
-      "foreignKeys": {
-        "usage_quota_grants_organization_id_organization_id_fk": {
-          "name": "usage_quota_grants_organization_id_organization_id_fk",
-          "tableFrom": "usage_quota_grants",
-          "tableTo": "organization",
-          "columnsFrom": [
-            "organization_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "usage_quota_grants_created_by_user_id_fk": {
-          "name": "usage_quota_grants_created_by_user_id_fk",
-          "tableFrom": "usage_quota_grants",
-          "tableTo": "user",
-          "columnsFrom": [
-            "created_by"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "set null",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "checkConstraints": {
-        "usage_quota_grants_grant_type_check": {
-          "name": "usage_quota_grants_grant_type_check",
-          "value": "grant_type IN ('plan', 'reset', 'manual')"
         }
       }
     },
@@ -10682,6 +10084,10 @@
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "checkConstraints": {
+        "user_workspace_state_instants_check": {
+          "name": "user_workspace_state_instants_check",
+          "value": "(created_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', created_at, '+0 days') IS created_at) AND (updated_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', updated_at, '+0 days') IS updated_at) AND (whatsapp_updated_at IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', whatsapp_updated_at, '+0 days') IS whatsapp_updated_at)"
+        },
         "user_workspace_state_whatsapp_pending_check": {
           "name": "user_workspace_state_whatsapp_pending_check",
           "value": "whatsapp_pending_confirmation IS NULL OR (json_valid(whatsapp_pending_confirmation) AND json_type(whatsapp_pending_confirmation) IS 'object')"

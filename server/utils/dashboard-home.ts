@@ -5,7 +5,7 @@ import type { CloudflareEnv } from '~/server/utils/auth'
 import { getGuestThreadOperationSummary } from '~/server/domain/guest-threads/repository'
 import { calculateMapEmbedUrl } from '~/server/utils/google-places'
 import { loadSettingsPayload } from '~/server/utils/site-settings'
-import { listTenantPages } from '~/server/utils/tenant-pages'
+import { listTenantPages } from '~/server/utils/content/pages'
 import { listMediaAssets } from '~/server/utils/media-asset-manager'
 import { getLinksPage } from '~/server/utils/site-links'
 

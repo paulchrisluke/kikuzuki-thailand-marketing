@@ -143,6 +143,7 @@
 </template>
 
 <script setup lang="ts">
+import { localDateAt } from '~/utils/timezone'
 import TodayAgendaCard from './TodayAgendaCard.vue'
 import { bookingNeedsResponse } from '~/utils/booking-lifecycle'
 import { bookingCountLabel, resolveAggregateBookingPresentation, type BookingKind } from '~/utils/booking-presentation'
@@ -404,14 +405,7 @@ function needsResponse(item: AgendaItem): boolean {
 }
 
 function referenceDay(item: AgendaItem): string {
-  const parts = new Intl.DateTimeFormat('en-CA', {
-    timeZone: item.timeZone,
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  }).formatToParts(new Date(resolvedAt.value))
-  const value = Object.fromEntries(parts.map(part => [part.type, part.value]))
-  return `${value.year}-${value.month}-${value.day}`
+  return localDateAt(new Date(resolvedAt.value), item.timeZone)
 }
 
 function isUpcoming(item: AgendaItem): boolean {

@@ -12,7 +12,7 @@ import {
   type ContentDocumentChanges,
   type ContentDocumentKind,
   type ContentBlockInput,
-} from '~/server/utils/content-documents'
+} from '~/server/utils/content/documents'
 import { localizationError } from '~/server/utils/localization-errors'
 import {
   RESOURCE_LOCALIZATION_REGISTRY,
@@ -438,7 +438,7 @@ function remapNewLocalizedBlockIds(blocks: ContentBlockInput[]): ContentBlockInp
 }
 
 const DOCUMENT_LOCALIZED_METADATA: Record<ContentDocumentKind, readonly string[]> = {
-  page: [], article: ['category', 'tags', 'nav_title'], platform_doc: ['category', 'nav_title'],
+  page: [], article: ['category', 'tags'],
   social_post: ['event', 'offer'], qa: [],
 }
 
@@ -485,9 +485,9 @@ export async function putLocalizationForAuthoring(db: D1Database,
   const existing = await getContentRepresentation(db, { rootId: root.id, locale })
   const blocks = input.contentBlocks
   if (blocks !== undefined && !Array.isArray(blocks)) localizationError(422, 'LOCALIZATION_VALIDATION_FAILED', 'content_blocks must be an array')
-  if ((root.kind === 'article' || root.kind === 'platform_doc' || root.kind === 'page') && !existing && (!Array.isArray(blocks) || !blocks.length)) localizationError(422, 'LOCALIZATION_VALIDATION_FAILED', 'Translated content blocks are required')
+  if ((root.kind === 'article' || root.kind === 'page') && !existing && (!Array.isArray(blocks) || !blocks.length)) localizationError(422, 'LOCALIZATION_VALIDATION_FAILED', 'Translated content blocks are required')
   const requested = blocks === undefined ? undefined : existing ? blocks as ContentBlockInput[] : remapNewLocalizedBlockIds(blocks as ContentBlockInput[])
-  const { prepareTenantBlogContentBlocks } = await import('~/server/utils/platform-content')
+  const { prepareTenantBlogContentBlocks } = await import('~/server/utils/content/publishing')
   const prepared = requested ? await prepareTenantBlogContentBlocks(db, requested, input.siteId, input.organizationId, new Date().toISOString()) : null
   const after = [...(prepared?.placementQueries ?? []), publicResourceCacheInvalidationQuery(input.siteId, 'document-localization-put')]
   if (existing) {
@@ -625,7 +625,7 @@ export async function getProductCatalogLocalization(
   }
 }
 
-export async function syncProductCatalogLocalization(
+export async function replaceProductLocalizations(
   db: DbClient,
   input: {
     organizationId: string
@@ -717,7 +717,7 @@ export async function syncProductCatalogLocalization(
     params: [input.organizationId, input.siteId, locale, JSON.stringify(ids)],
   })
   try {
-    await executeBatch(db, statements, { operation: 'sync product catalog localization' })
+    await executeBatch(db, statements, { operation: 'replace product localizations' })
   } catch (error) {
     if (error instanceof Error && error.message.includes('UNIQUE constraint failed')) {
       localizationError(409, 'LOCALIZED_ROUTE_CONFLICT', 'A submitted Product route conflicts with existing localized content')

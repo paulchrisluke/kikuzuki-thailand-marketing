@@ -67,7 +67,7 @@ curl -s -X POST "https://api.cloudflare.com/client/v4/graphql" \
   --data-binary @/tmp/cf-query.json
 ```
 
-Change `clientRequestPath` to `/api/mcp/platform` (or drop the filter entirely to see all paths) as needed.
+Drop the `clientRequestPath` filter to see all paths.
 
 ### Workers Observability / Logs telemetry API
 
@@ -129,7 +129,7 @@ Useful `error_message` patterns:
 
 **2. Cloudflare GraphQL analytics**
 
-Use GraphQL analytics when you need request-level status patterns for `/api/mcp` and `/api/mcp/platform` to confirm whether failures are isolated to one surface or align to a specific time window.
+Use GraphQL analytics when you need request-level status patterns for `/api/mcp` to confirm whether failures align to a specific time window.
 
 **3. Telemetry query API (or dashboard Logs UI)**
 
@@ -167,7 +167,7 @@ Durable logging of ChatGPT MCP protocol requests for understanding tool discover
 
 ### What is captured
 
-MCP requests against `server/api/mcp.post.ts` (tenant surface) and `server/api/mcp/platform.post.ts` (platform surface) write rows to `mcp_tool_call_events` (`server/db/schema.ts`) via `logMcpToolCallEvent()` in `server/utils/mcp-telemetry.ts`. Writes are fire-and-forget — wrapped in Cloudflare's `waitUntil` when available, or a detached promise otherwise — so telemetry can never add latency to, or fail, an MCP response.
+MCP requests against `server/api/mcp.post.ts` write rows to `mcp_tool_call_events` (`server/db/schema.ts`) via `logMcpToolCallEvent()` in `server/utils/mcp-telemetry.ts`. Writes are fire-and-forget — wrapped in Cloudflare's `waitUntil` when available, or a detached promise otherwise — so telemetry can never add latency to, or fail, an MCP response.
 
 Captured per row: surface, organization/site/location/user id (best-effort), request id, method, tool name + domain, HTTP status, JSON-RPC error code/message, protocol version, hashed session id, hashed OAuth client id, user agent, Cloudflare ray id, catalog fingerprint, redacted summaries of arguments and result, unknown-tool fields, status (`success` / `error` / `auth_required` / `blocked`), and duration in ms.
 
@@ -189,13 +189,7 @@ ChatGPT's `tools/call` payload contains only the tool name and its structured ar
 
 ### Querying
 
-Query via `wrangler d1 execute` locally, or the read-only admin JSON endpoint:
-
-```text
-GET /api/admin/mcp-usage?days=7&site_id=<optional>
-```
-
-Returns `top_tools`, `failures_by_tool`, `blocked_or_auth_required`, `by_site`, and `recent_errors` for the requested window (platform-admin gated).
+Query via `wrangler d1 execute` (locally or with `--remote`).
 
 Ad-hoc SQL examples:
 

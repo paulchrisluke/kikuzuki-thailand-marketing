@@ -73,6 +73,7 @@ function baseEnv(db: unknown): CloudflareEnv {
     DB: db, MEDIA_BUCKET: {}, SITE_CACHE: {}, AI: {},
     BETTER_AUTH_URL: 'https://dashboard.example',
     BETTER_AUTH_SECRET: 'test-only-secret-at-least-32-characters-long',
+    STRIPE_SECRET_KEY: 'sk_test_local_d1_no_stripe_requests',
     NUXT_PUBLIC_PLATFORM_DOMAIN: 'dashboard.example',
     // Generous so the IP/site budget resolveLegalPublicSiteAccess checks
     // last never trips across this file's tests (each test uses a distinct

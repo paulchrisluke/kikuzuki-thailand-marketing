@@ -36,7 +36,7 @@
           playsinline
           class="h-full w-full object-cover"
         />
-        <img v-else :src="featuredMedia.public_url" :alt="post.title" loading="lazy" class="h-full w-full object-cover">
+        <img v-else :src="featuredMedia.public_url" :alt="featuredMedia.alt_text ?? ''" loading="lazy" class="h-full w-full object-cover">
       </div>
     </div>
 
@@ -56,7 +56,7 @@
           playsinline
           class="h-full w-full object-cover"
         />
-        <img v-else :src="featuredMedia.public_url" :alt="post.title" loading="lazy" class="h-full w-full object-cover">
+        <img v-else :src="featuredMedia.public_url" :alt="featuredMedia.alt_text ?? ''" loading="lazy" class="h-full w-full object-cover">
       </div>
       <div class="p-6">
         <div class="mb-3 flex flex-wrap items-center gap-3 text-sm" :class="metaTextClass">
@@ -80,7 +80,7 @@ export interface TenantBlogCardPost {
   category?: string | null
   canonical_url?: string | null
   published_at?: string | null
-  media?: Array<{ asset_id: string; slot: string; public_url: string | null; thumbnail_url?: string | null; kind?: string | null; width?: number | null; height?: number | null }>
+  cover?: { asset_id: string; public_url: string | null; thumbnail_url: string | null; kind: string | null; alt_text: string | null; width: number | null; height: number | null } | null
 }
 
 const props = withDefaults(defineProps<{
@@ -96,7 +96,7 @@ const props = withDefaults(defineProps<{
 const { locale, localePath, t } = useI18n()
 const postPath = computed(() => localePath(props.post.canonical_url || `${props.basePath}/${props.post.slug}`))
 const isBlawby = computed(() => props.variant === 'blawby')
-const featuredMedia = computed(() => props.post.media?.find(item => item.slot === 'featured') ?? null)
+const featuredMedia = computed(() => props.post.cover ?? null)
 const metaTextClass = computed(() => isBlawby.value ? 'text-gray-500' : 'text-dimmed')
 const categoryClass = computed(() => isBlawby.value ? 'bg-[var(--blawby-primary-100)] text-[var(--blawby-primary)]' : 'bg-muted text-muted')
 const titleClass = computed(() => isBlawby.value ? 'blawby-display text-[var(--blawby-primary)]' : 'text-default')

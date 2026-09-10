@@ -3,16 +3,16 @@
     <BlawbyPageHero v-if="heroTitle || heroDescription" :title="heroTitle" :description="heroDescription" variant="contact" />
     <BlawbyShieldDivider variant="contact" />
 
-    <section class="bg-white py-24 sm:py-32" data-parity-section="contact">
+    <section v-if="contactBlocks.length" class="bg-white py-24 sm:py-32" data-parity-section="contact">
       <div class="mx-auto max-w-7xl px-6 lg:px-8">
         <div class="mx-auto max-w-2xl space-y-16 divide-y divide-gray-100 lg:mx-0 lg:max-w-none">
-          <div class="grid grid-cols-1 gap-x-8 gap-y-10 lg:grid-cols-3">
+          <div v-for="contactBlock in contactBlocks" :key="contactBlock.id" class="grid grid-cols-1 gap-x-8 gap-y-10 lg:grid-cols-3">
             <div>
-              <h2 v-if="contactBlock?.title" class="blawby-display text-3xl font-bold text-[var(--blawby-primary)]">{{ contactBlock.title }}</h2>
-              <p class="mt-4 leading-7 text-[var(--blawby-primary)]/80">{{ contactBlock?.description }}</p>
+              <h2 v-if="contactBlock.data.title" class="blawby-display text-3xl font-bold text-[var(--blawby-primary)]">{{ contactBlock.data.title }}</h2>
+              <p class="mt-4 leading-7 text-[var(--blawby-primary)]/80">{{ contactBlock.data.description }}</p>
             </div>
             <div class="grid grid-cols-1 gap-6 sm:grid-cols-1 lg:col-span-2 lg:gap-8">
-              <article v-for="(content, index) in contactCards" :key="index" class="rounded-2xl bg-[var(--blawby-primary-100)] p-10 text-gray-700">
+              <article v-for="(content, index) in contactBlock.cards" :key="index" class="rounded-2xl bg-[var(--blawby-primary-100)] p-10 text-gray-700">
                 <BlawbyRichText
                   :content="content"
                   unstyled
@@ -72,11 +72,6 @@ const consultation = computed(() => shell.value.consultation)
 const compliance = computed(() => shell.value.compliance)
 const org = useBlawbyOrgIdentity(identity, compliance)
 
-function block(type: string) {
-  if (!page.value) return null
-  const canonicalType = type === 'page_hero' ? 'hero' : type === 'contact_cards' ? 'contact_cta' : type === 'consultation_cta' ? 'contact_cta' : type === 'qa' ? 'faq' : undefined
-  return findTenantPageBlock(page.value.blocks, type, canonicalType)
-}
 function optionalString(value: unknown) {
   return typeof value === 'string' && value ? value : null
 }
@@ -86,13 +81,17 @@ function mediaUrl(value: ApiRecord | null | undefined, slot: string) {
   return typeof item?.public_url === 'string' ? item.public_url : null
 }
 
-const heroBlock = computed(() => block('page_hero'))
-const contactBlock = computed(() => block('contact_cards'))
-const ctaBlock = computed(() => block('consultation_cta'))
-const qaBlock = computed(() => block('qa'))
+const heroBlock = computed(() => page.value ? findTenantPageBlock(page.value.blocks, 'hero') : null)
+const contactBlocks = computed(() => {
+  if (!page.value) return []
+  return page.value.blocks.flatMap(block => block.type === 'contact_cta' && Array.isArray(block.data.cardsContent)
+    ? [{ id: block.id, data: block.data, cards: block.data.cardsContent.map(String) }]
+    : [])
+})
+const ctaBlock = computed(() => page.value ? findTenantPageBlock(page.value.blocks.filter(block => block.data.section === 'consultation'), 'contact_cta') : null)
+const qaBlock = computed(() => page.value ? findTenantPageBlock(page.value.blocks, 'faq') : null)
 const heroTitle = computed(() => String(heroBlock.value?.title || page.value?.title || ''))
 const heroDescription = computed(() => Array.isArray(heroBlock.value?.description) ? heroBlock.value.description.join('\n\n') : String(heroBlock.value?.description || page.value?.summary || ''))
-const contactCards = computed(() => Array.isArray(contactBlock.value?.cardsContent) ? contactBlock.value.cardsContent.map(String) : [])
 const submitting = ref(false)
 const submitMessage = ref('')
 const form = reactive({ name: '', email: '', subject: 'general', message: '', consent: false })

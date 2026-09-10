@@ -13,7 +13,7 @@
     <article>
       <DocsBreadcrumb :crumbs="breadcrumbs" />
 
-      <BlogArticleView :title="post.title" :excerpt="post.excerpt" :category="post.category" :published-at="post.published_at" :updated-at="wasUpdated ? post.updated_at : null" :author-name="authorName" :author-image="authorImage" site-name="KrabiClaw" :media-url="postMedia.url" :media-kind="postMedia.isVideo ? 'video' : 'image'" :read-minutes="readTime" :blocks="post.content_blocks" template="platform" />
+      <BlogArticleView :title="post.title" :excerpt="post.excerpt" :category="post.category" :published-at="post.published_at" :updated-at="wasUpdated ? post.updated_at : null" :author-name="authorName" :author-image="authorImage" site-name="KrabiClaw" :read-minutes="readTime" :blocks="post.content_blocks" template="platform" />
 
       <div class="mt-16 flex items-center justify-between gap-6 border-t border-default pt-8">
         <div class="flex items-center gap-4">
@@ -51,7 +51,6 @@ import { loadDomPurify } from '~/utils/dom-purify-loader'
 
 const DOMPurify = import.meta.client ? await loadDomPurify() : { sanitize: sanitizeHtmlForSsr }
 
-const { resolveMedia } = useMedia()
 
 definePageMeta({ layout: 'blog' })
 
@@ -72,22 +71,16 @@ interface BlogPost {
   created_at?: string | null
   updated_at?: string | null
   author: { id: string; name: string; image: string | null } | null
-  media?: Array<{
-    asset_id: string
-    slot: string
-    public_url: string | null
-    thumbnail_url: string | null
-    kind: string | null
-    width: number | null
-    height: number | null
-  }>
+  cover?: { asset_id: string; public_url: string | null; thumbnail_url: string | null; kind: string | null; alt_text: string | null; width: number | null; height: number | null } | null
+  social_image?: import('~/utils/social-metadata').SocialImageSource | null
   components?: ContentComponent[]
   content_blocks?: import('~/lib/components/workspace/blog/types').BlogEditorBlock[] | null
 }
 
 const route = useRoute()
 const requestEvent = useRequestEvent()
-const postEndpoint = computed(() => `/api/public/blog/${String(route.params.category)}/${String(route.params.slug)}`)
+const previewToken = computed(() => typeof route.query.token === 'string' ? route.query.token : undefined)
+const postEndpoint = computed(() => `/api/public/blog/${String(route.params.category)}/${String(route.params.slug)}${previewToken.value === undefined ? '' : '?token=' + encodeURIComponent(previewToken.value)}`)
 
 const { data, pending, error } = await useAsyncData(
   () => `blog-post-${postEndpoint.value}`,
@@ -105,15 +98,15 @@ const { data, pending, error } = await useAsyncData(
 
       if (!requestEvent) throw createError({ statusCode: 404, statusMessage: 'Article not found' })
 
-      const [{ cloudflareEnv }, { getPublishedPlatformBlogPost }] = await Promise.all([
+      const [{ cloudflareEnv }, { getPublishedBlogPost }] = await Promise.all([
         import('~/server/utils/api-response'),
-        import('~/server/utils/platform-content'),
+        import('~/server/utils/content/publishing'),
       ])
       const env = cloudflareEnv(requestEvent)
       const db = env.db
       if (!db) throw createError({ statusCode: 500, statusMessage: 'Database not available' })
 
-      post = await getPublishedPlatformBlogPost(db, category, String(route.params.slug), env) as BlogPost | null
+      post = await getPublishedBlogPost(db, category, String(route.params.slug), env, previewToken.value) as BlogPost | null
     } else {
       let payload: { post?: BlogPost }
       try {
@@ -183,10 +176,7 @@ const wasUpdated = computed(() => {
   return Math.abs(updatedDate.getTime() - publishedDate.getTime()) > 60_000
 })
 
-const selectedPostImage = computed(() => {
-  return post.value?.media?.find(item => item.slot === 'featured') ?? null
-})
-const postMedia = computed(() => resolveMedia(selectedPostImage.value))
+const selectedPostImage = computed(() => post.value?.cover ?? null)
 const postImageUrl = computed(() => resolveSocialImageUrl(selectedPostImage.value))
 
 const categorySlug = computed(() => blogCategoryToSlug(post.value?.category) || String(route.params.category))
@@ -218,7 +208,7 @@ const { canonicalUrl } = useSocialMetadata(() => ({
   author: authorName.value,
   publishedAt: post.value?.published_at || null,
   robots: resolvedSeo.value.robots,
-  indexable: post.value?.visibility !== 'unlisted' && (!post.value?.robots || !/noindex/i.test(post.value.robots)),
+  socialImage: post.value?.social_image ?? null,
 }))
 
 useHead(() => ({

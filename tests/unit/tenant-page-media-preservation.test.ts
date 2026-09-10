@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { preserveOmittedBlockMedia } from '../../server/utils/tenant-pages.ts'
+import { preserveOmittedBlockMedia } from '../../server/utils/content/pages.ts'
 import type { TenantPageBlock } from '../../utils/tenant-page-blocks.ts'
 
 // Regression coverage for the tenant-page block-media preservation boundary

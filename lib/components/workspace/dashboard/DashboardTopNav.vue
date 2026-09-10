@@ -1,6 +1,9 @@
 <template>
   <header
-    class="fixed inset-x-0 top-0 z-30 hidden h-(--kc-dashboard-top-nav) items-center gap-4 border-b border-default bg-default px-(--kc-nav-gutter) md:grid md:grid-cols-[1fr_auto_1fr]"
+    class="fixed inset-x-0 top-0 z-30 h-(--kc-dashboard-top-nav) items-center gap-4 border-b border-default bg-default px-(--kc-nav-gutter)"
+    :class="items.length
+      ? 'hidden md:grid md:grid-cols-[1fr_auto_1fr]'
+      : 'grid grid-cols-[1fr_auto]'"
     data-testid="dashboard-top-nav"
   >
     <NuxtLink :to="homeTo" class="group flex w-fit shrink-0 items-center gap-2.5 no-underline">
@@ -16,7 +19,7 @@
       </span>
     </NuxtLink>
 
-    <nav class="flex items-center justify-center gap-6" aria-label="Dashboard">
+    <nav v-if="items.length" class="flex items-center justify-center gap-6" aria-label="Dashboard">
       <NuxtLink
         v-for="item in items"
         :key="item.key"
@@ -34,6 +37,7 @@
     <div class="flex items-center justify-end gap-3">
       <DashboardAccountMenu />
       <UButton
+        v-if="items.length"
         color="neutral"
         variant="ghost"
         square
@@ -47,6 +51,10 @@
 </template>
 
 <script setup lang="ts">
+// Below md the bar is normally hidden, because navigation lives in the bottom
+// bar on a phone. With no navigation items there is no bottom bar either, so
+// the bar shows at every width as identity only — wordmark and account. That is
+// the sole way out of onboarding on a phone.
 import DashboardAccountMenu from './DashboardAccountMenu.vue'
 
 export interface DashboardTopNavItem {

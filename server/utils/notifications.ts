@@ -1,3 +1,4 @@
+import { formatCalendarDate, formatTime } from '~/utils/timezone'
 import { getGuestRequest } from '~/server/domain/requests'
 import { renderEmail } from '~/server/emails/vue-email'
 import { queryFirst, type DbClient } from '~/server/db'
@@ -7,7 +8,6 @@ import { getWhatsAppDeliveryMode } from '~/server/utils/whatsapp-delivery'
 import { buildReplyToAddress } from '~/server/utils/submission-messages'
 import { isAuthorizedWhatsAppRecipient, getOrganizationOwnerEmail  } from '~/server/utils/member-access'
 import type { CloudflareEnv } from '~/server/utils/auth'
-import { getPlatformSupportEmails } from '~/server/utils/platform-support'
 import ReservationOwnerNew from '~/server/emails/templates/ReservationOwnerNew'
 import ReservationOwnerCancelled from '~/server/emails/templates/ReservationOwnerCancelled'
 import ReservationGuestReceived from '~/server/emails/templates/ReservationGuestReceived'
@@ -48,7 +48,6 @@ interface NotificationEnv extends CloudflareEnv {
   EMAIL_DELIVERY_MODE?: string
   NUXT_PUBLIC_PLATFORM_DOMAIN?: string
   EMAIL_REPLY_SECRET?: string
-  PLATFORM_OWNER_EMAILS?: string
   GUEST_INBOX_HUBS?: DurableObjectNamespace
 }
 
@@ -86,17 +85,6 @@ interface ContactNotificationInput extends SiteContext {
   consentAcknowledged?: boolean
   experienceId?: string | null
   experienceTitle?: string | null
-}
-
-interface PlatformContactNotificationInput {
-  contactId: string
-  guestName: string
-  email: string
-  subject?: string | null
-  message: string
-  source?: string | null
-  routeContext?: string | null
-  suggestedSummary?: string | null
 }
 
 interface ExperienceBookingNotificationInput extends SiteContext {
@@ -180,37 +168,6 @@ function siteName(opts: SiteContext): string {
   const value = opts.siteName?.trim()
   if (!value) throw new Error('Tenant site name is required for notifications')
   return value
-}
-
-function formatDateHuman(dateValue: string): string {
-  const value = String(dateValue || '').trim()
-  const isoMatch = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value)
-  if (!isoMatch) return value
-  const [, y, m, d] = isoMatch
-  const dt = new Date(Date.UTC(Number(y), Number(m) - 1, Number(d)))
-  return new Intl.DateTimeFormat('en-US', {
-    weekday: 'short',
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-    timeZone: 'UTC',
-  }).format(dt)
-}
-
-function formatTimeHuman(timeValue: string): string {
-  const value = String(timeValue || '').trim()
-  const match = /^(\d{1,2}):(\d{2})/.exec(value)
-  if (!match) return value
-  const h = Number(match[1])
-  const m = Number(match[2])
-  if (Number.isNaN(h) || Number.isNaN(m)) return value
-  const dt = new Date(Date.UTC(2000, 0, 1, h, m))
-  return new Intl.DateTimeFormat('en-US', {
-    hour: 'numeric',
-    minute: '2-digit',
-    hour12: true,
-    timeZone: 'UTC',
-  }).format(dt)
 }
 
 // The WhatsApp "Reply in dashboard" button URL is declared in the approved Meta
@@ -408,7 +365,7 @@ async function sendWhatsAppThreadNotification(
 
   let result: Awaited<ReturnType<typeof sendWhatsAppNotification>>
   try {
-    result = await sendWhatsAppNotification(env, db, opts)
+    result = await sendWhatsAppNotification(env, opts)
   } catch (error) {
     await recordDeliveryOutcome(db, {
       claim,
@@ -426,14 +383,6 @@ async function sendWhatsAppThreadNotification(
     error: result.success ? null : result.error,
   })
   await publishGuestInboxThreadEvent(env, db, { threadId: opts.delivery.threadId, type: 'delivery.changed' })
-  if (!result.success && result.status === 'sent') {
-    console.error('whatsapp_delivery_accounting_failed', {
-      organizationId: opts.organizationId,
-      siteId: opts.siteId,
-      error: result.error,
-    })
-    throw new Error(result.error)
-  }
   return result.success
 }
 
@@ -598,15 +547,7 @@ async function notifyOwner(
       if (delivery) {
         await sendWhatsAppThreadNotification(env, db, { ...sendOptions, delivery })
       } else {
-        const result = await sendWhatsAppNotification(env, db, sendOptions)
-        if (!result.success && result.status === 'sent') {
-          console.error('whatsapp_delivery_accounting_failed', {
-            organizationId: opts.organizationId,
-            siteId: opts.siteId,
-            error: result.error,
-          })
-          throw new Error(result.error)
-        }
+        await sendWhatsAppNotification(env, sendOptions)
       }
     }))
   }
@@ -653,35 +594,14 @@ function buildGuestReplyOwnerEmail(opts: {
   }
 }
 
-async function sendPlatformEmailNotification(
-  env: NotificationEnv,
-  opts: {
-    to: string
-    replyTo?: string | null
-    template: string
-    title: string
-    payload: Record<string, string>
-    email: EmailTemplate
-  }
-) {
-  const result = await sendEmail(env, {
-    to: opts.to,
-    replyTo: opts.replyTo,
-    subject: opts.email.subject,
-    html: opts.email.html,
-    text: opts.email.text,
-  })
-  if (result.status !== 'sent') throw new Error(result.error)
-}
-
 export async function notifyReservationCreated(
   env: NotificationEnv,
   db: DbClient,
   opts: ReservationNotificationInput
 ) {
   const restaurant = siteName(opts)
-  const prettyDate = formatDateHuman(opts.date)
-  const prettyTime = formatTimeHuman(opts.time)
+  const prettyDate = formatCalendarDate(opts.date, 'en')
+  const prettyTime = formatTime(opts.time, 'en')
   const platformDomain = getPlatformDomain(env)
   const [replyTo, inboxUrl] = await Promise.all([
     buildReplyToAddress(env, 'reservation', opts.reservationId),
@@ -770,8 +690,8 @@ export async function notifyReservationCancelled(
 ) {
   const confirmed = Boolean(opts.wasConfirmed)
   const restaurant = siteName(opts)
-  const prettyDate = formatDateHuman(opts.date)
-  const prettyTime = formatTimeHuman(opts.time)
+  const prettyDate = formatCalendarDate(opts.date, 'en')
+  const prettyTime = formatTime(opts.time, 'en')
   const platformDomain = getPlatformDomain(env)
   const inboxUrl = await buildOwnerInboxUrl(env, db, {
     organizationId: opts.organizationId,
@@ -935,86 +855,6 @@ export async function notifyContactSubmitted(
 
 }
 
-export async function notifyPlatformContactSubmitted(
-  env: NotificationEnv,
-  db: DbClient,
-  opts: PlatformContactNotificationInput
-) {
-  const siteLabel = 'KrabiClaw Support'
-  const platformDomain = getPlatformDomain(env)
-  const supportEmails = getPlatformSupportEmails(env)
-  const payload = {
-    contact_id: opts.contactId,
-    guest_name: opts.guestName,
-    email: opts.email,
-    subject: opts.subject ?? '',
-    message_preview: opts.message.slice(0, 200),
-    source: opts.source ?? '',
-    route_context: opts.routeContext ?? '',
-    suggested_summary: opts.suggestedSummary ?? '',
-    site_name: siteLabel,
-  }
-
-  const [ownerEmail, guestEmail] = await Promise.all([
-    renderEmail(ContactOwnerNew, {
-      guestName: opts.guestName,
-      email: opts.email,
-      subject: opts.subject,
-      message: opts.message,
-      siteName: siteLabel,
-      platformDomain,
-    }),
-    renderEmail(ContactGuestReceived, {
-      guestName: opts.guestName,
-      siteName: siteLabel,
-      subject: opts.subject,
-      message: opts.message,
-      platformDomain,
-    }),
-  ])
-
-  const ownerTasks = supportEmails.map(to =>
-    sendPlatformEmailNotification(env, {
-      to,
-      replyTo: opts.email,
-      template: 'platform_contact_owner_new',
-      title: `New website message from ${opts.guestName}`,
-      payload,
-      email: {
-        subject: `New website message from ${opts.guestName}`,
-        html: ownerEmail.html,
-        text: ownerEmail.text,
-      },
-    }),
-  )
-
-  const results = await Promise.allSettled([
-    ...ownerTasks,
-    sendPlatformEmailNotification(env, {
-      to: opts.email,
-      template: 'platform_contact_customer_received',
-      title: 'Your message was sent',
-      payload,
-      email: {
-        subject: 'Your message was sent',
-        html: guestEmail.html,
-        text: guestEmail.text,
-      },
-    }),
-  ])
-
-  results.forEach((result, index) => {
-    if (result.status === 'rejected') {
-      console.error('notifyPlatformContactSubmitted_failed', {
-        task: index < ownerTasks.length ? 'sendPlatformOwnerEmail' : 'sendPlatformGuestEmail',
-        contactId: opts.contactId,
-        error: result.reason instanceof Error ? result.reason.message : String(result.reason),
-      })
-    }
-  })
-
-}
-
 export async function notifyReviewReceived(
   env: NotificationEnv,
   db: DbClient,
@@ -1119,8 +959,8 @@ export async function notifyExperienceBookingCreated(
   opts: ExperienceBookingNotificationInput
 ) {
   const studio = siteName(opts)
-  const prettyDate = formatDateHuman(opts.bookingDate)
-  const prettyTime = formatTimeHuman(opts.timeSlot)
+  const prettyDate = formatCalendarDate(opts.bookingDate, 'en')
+  const prettyTime = formatTime(opts.timeSlot, 'en')
   const platformDomain = getPlatformDomain(env)
   const [replyTo, inboxUrl] = await Promise.all([
     buildReplyToAddress(env, 'experience_booking', opts.bookingId),
@@ -1208,8 +1048,8 @@ export async function notifyExperienceBookingCancelled(
 ) {
   const confirmed = Boolean(opts.wasConfirmed)
   const studio = siteName(opts)
-  const prettyDate = formatDateHuman(opts.bookingDate)
-  const prettyTime = formatTimeHuman(opts.timeSlot)
+  const prettyDate = formatCalendarDate(opts.bookingDate, 'en')
+  const prettyTime = formatTime(opts.timeSlot, 'en')
   const platformDomain = getPlatformDomain(env)
   const inboxUrl = await buildOwnerInboxUrl(env, db, {
     organizationId: opts.organizationId,
@@ -1324,7 +1164,7 @@ export async function notifyBookingChangeOwner(
     : opts.status === 'accepted'
       ? 'The guest accepted. The updated details are now confirmed.'
       : 'The guest declined. The original details remain unchanged.'
-  const body = `${message}\n\nRequested location: ${opts.locationTitle}\nDate: ${formatDateHuman(opts.date)}\nTime: ${formatTimeHuman(opts.time)}\nGuests: ${opts.guests}`
+  const body = `${message}\n\nRequested location: ${opts.locationTitle}\nDate: ${formatCalendarDate(opts.date, 'en')}\nTime: ${formatTime(opts.time, 'en')}\nGuests: ${opts.guests}`
   const replyUrl = await buildOwnerThreadInboxUrl(env, db, opts)
   const email = await renderEmail(BookingChange, {
     title,
@@ -1354,8 +1194,8 @@ export async function notifyBookingChangeOwner(
         guest_name: opts.guestName,
         status: opts.status,
         location: opts.locationTitle,
-        date: formatDateHuman(opts.date),
-        time: formatTimeHuman(opts.time),
+        date: formatCalendarDate(opts.date, 'en'),
+        time: formatTime(opts.time, 'en'),
         guests: String(opts.guests),
         message,
         reply_path: inboxUrlToWhatsAppReplyPath(replyUrl),

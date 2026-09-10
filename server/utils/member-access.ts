@@ -4,10 +4,6 @@ import { execute, queryAll, queryFirst, type DbClient } from '~/server/db'
 import { getOrgAdapter } from 'better-auth/plugins'
 import { parsePhoneOrThrow } from '~/utils/phone'
 import type { CloudflareEnv } from '~/server/utils/auth'
-import {
-  parseResourceTeamGeneration,
-  RESOURCE_TEAM_GENERATION_CONFIG_KEY,
-} from '~/shared/site-transfer-policy'
 
 // Tenant-scoped authorization is Better Auth organization role plus Better
 // Auth Teams membership. Owner/admin are organization-wide. Editors are scoped
@@ -86,16 +82,12 @@ export function assertOrganizationAccess(role: string): void {
   }
 }
 
-export function siteTeamId(siteId: string, generation?: string): string {
-  return generation
-    ? `site:${siteId}:generation:${generation}`
-    : `site:${siteId}`
+export function siteTeamId(siteId: string): string {
+  return `site:${siteId}`
 }
 
-export function locationTeamId(locationId: string, generation?: string): string {
-  return generation
-    ? `location:${locationId}:generation:${generation}`
-    : `location:${locationId}`
+export function locationTeamId(locationId: string): string {
+  return `location:${locationId}`
 }
 
 type OrganizationAdapter = ReturnType<typeof getOrgAdapter>
@@ -267,42 +259,11 @@ async function ensureTeam(
   }
 }
 
-async function resourceTeamGeneration(
-  db: DbClient,
-  input: { organizationId: string; siteId: string },
-): Promise<string | null> {
-  const row = await queryFirst<{ value: string | null }>(db, `
-    SELECT json_extract(settings_json, '$.config.resource_team_generation') AS value
-    FROM sites
-    WHERE organization_id = ? AND id = ?
-      AND json_type(settings_json, '$.config.resource_team_generation') IS NOT NULL
-    LIMIT 1
-  `, [input.organizationId, input.siteId])
-
-  // Absence of the transfer marker is the legacy path. Presence with a null,
-  // non-string, or malformed value fails closed rather than silently falling
-  // back to a pre-transfer deterministic id.
-  if (!row) return null
-  if (typeof row.value !== 'string') {
-    throw new Error(`Invalid ${RESOURCE_TEAM_GENERATION_CONFIG_KEY}`)
-  }
-  return parseResourceTeamGeneration(row.value).generation
-}
-
 export async function ensureSiteTeam(
   db: DbClient,
   input: { env: CloudflareEnv; organizationId: string; siteId: string; name?: string | null },
 ): Promise<string> {
-  const generation = await resourceTeamGeneration(db, input)
-  return await ensureSiteTeamForGeneration(db, input, generation)
-}
-
-async function ensureSiteTeamForGeneration(
-  db: DbClient,
-  input: { env: CloudflareEnv; organizationId: string; siteId: string; name?: string | null },
-  generation: string | null,
-): Promise<string> {
-  const teamId = siteTeamId(input.siteId, generation ?? undefined)
+  const teamId = siteTeamId(input.siteId)
   await ensureTeam(input.env, {
     teamId,
     organizationId: input.organizationId,
@@ -318,43 +279,26 @@ async function ensureSiteTeamForGeneration(
   return teamId
 }
 
-export async function ensureLocationTeam(
-  db: DbClient,
-  input: { env: CloudflareEnv; organizationId: string; siteId: string; locationId: string; name?: string | null },
-): Promise<string> {
-  const generation = await resourceTeamGeneration(db, input)
-  return await ensureLocationTeamForGeneration(db, input, generation)
-}
-
 export async function ensureResourceTeams(
   db: DbClient,
   input: { env: CloudflareEnv; organizationId: string; siteId?: string | null; locationId?: string | null },
 ): Promise<void> {
-  const generation = input.siteId
-    ? await resourceTeamGeneration(db, { organizationId: input.organizationId, siteId: input.siteId })
-    : null
-  if (input.siteId) await ensureSiteTeamForGeneration(db, { env: input.env, organizationId: input.organizationId, siteId: input.siteId }, generation)
+  if (input.siteId) await ensureSiteTeam(db, { env: input.env, organizationId: input.organizationId, siteId: input.siteId })
   if (input.siteId && input.locationId) {
-    await ensureLocationTeamForGeneration(db, {
-      env: input.env,
-      organizationId: input.organizationId,
-      siteId: input.siteId,
-      locationId: input.locationId,
-    }, generation)
+    await ensureLocationTeam(db, { env: input.env, organizationId: input.organizationId, siteId: input.siteId, locationId: input.locationId })
   }
 }
 
-async function ensureLocationTeamForGeneration(
+export async function ensureLocationTeam(
   db: DbClient,
   input: { env: CloudflareEnv; organizationId: string; siteId: string; locationId: string; name?: string | null },
-  generation: string | null,
 ): Promise<string> {
-  const teamId = locationTeamId(input.locationId, generation ?? undefined)
-  await ensureSiteTeamForGeneration(db, {
+  const teamId = locationTeamId(input.locationId)
+  await ensureSiteTeam(db, {
     env: input.env,
     organizationId: input.organizationId,
     siteId: input.siteId,
-  }, generation)
+  })
   await ensureTeam(input.env, {
     teamId,
     organizationId: input.organizationId,

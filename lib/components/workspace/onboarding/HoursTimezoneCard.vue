@@ -52,8 +52,8 @@
 </template>
 
 <script setup lang="ts">
-import { TIMEZONE_OPTIONS } from '~/utils/timezone'
-import { WEEKDAYS, parseOpeningHours, parseSpecialHours, toTimeString, toMinutes, localNow, type OpeningHours, type SpecialHours, type WeekPoint } from '~/shared/reservation-hours'
+import { TIMEZONE_OPTIONS, localNow } from '~/utils/timezone'
+import { WEEKDAYS, parseOpeningHours, parseSpecialHours, toTimeString, toMinutes, type OpeningHours, type SpecialHours, type WeekPoint } from '~/shared/reservation-hours'
 export type HoursTimezoneForm = { timezone: string; hours: OpeningHours; specialHours: SpecialHours }
 const form = defineModel<HoursTimezoneForm>('form', { required: true })
 defineProps<{ actionLabel?: string; loading?: boolean; disabled?: boolean }>()

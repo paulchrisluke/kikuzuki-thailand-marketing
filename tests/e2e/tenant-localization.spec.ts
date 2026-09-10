@@ -202,19 +202,50 @@ test.describe.serial('published Thai content saves through the CMS and renders w
       testInfo.setTimeout(45_000)
       dashboardContext = await browser.newContext({ baseURL, storageState: await owner.storageState() })
       cms = await dashboardContext.newPage()
-      await openTenantPage(cms, `${baseURL}/dashboard/north-carolina-legal-services/sites/ncls/links`, {})
+      const requests = new Map<object, number>()
+      cms.on('request', request => {
+        const path = new URL(request.url()).pathname
+        if (!path.startsWith(`/api/editor/sites/${siteId}/`)) return
+        requests.set(request, Date.now())
+        console.info('[e2e-localization-cms]', JSON.stringify({ event: 'started', method: request.method(), path }))
+      })
+      cms.on('response', response => {
+        const startedAt = requests.get(response.request())
+        if (startedAt === undefined) return
+        requests.delete(response.request())
+        const headers = response.headers()
+        console.info('[e2e-localization-cms]', JSON.stringify({ event: 'finished', method: response.request().method(),
+          path: new URL(response.url()).pathname, status: response.status(), durationMs: Date.now() - startedAt,
+          requestId: headers['x-request-id'], rayId: headers['cf-ray'], serverTiming: headers['server-timing'] }))
+      })
+      cms.on('requestfailed', request => {
+        const startedAt = requests.get(request)
+        if (startedAt === undefined) return
+        requests.delete(request)
+        console.error('[e2e-localization-cms]', JSON.stringify({ event: 'transport_failed', method: request.method(),
+          path: new URL(request.url()).pathname, durationMs: Date.now() - startedAt }))
+      })
+      // The links leaf, where the list of links lives. The page's own Localize
+      // control is in the level's navbar beside it; a link's own Localize is in
+      // the navbar of the record the row opens.
+      await openTenantPage(cms, `${baseURL}/dashboard/north-carolina-legal-services/sites/ncls/links/links`, {})
     })
 
     test('loads and saves one representative Thai link translation through Localize', async () => {
+      // Preview's two dialog loads consumed 22s before the save in CI 34110539544.
+      test.setTimeout(60_000)
       await cms.getByTestId('localize-resource').first().click()
       await cms.getByTestId('localize-language').click()
       await cms.getByRole('option', { name: /ไทย \(th\)/ }).click()
       await expect(cms.getByTestId('localize-field-title')).toHaveValue('ลิงก์กฎหมายภาษาไทย')
       await cms.getByRole('button', { name: 'Cancel' }).click()
 
+      // A row opens the link's own level rather than a sheet, so the Localize
+      // that follows is the record's, in that level's navbar.
       await cms.getByTestId('list-editor-toggle').click()
       await cms.getByRole('button', { name: 'Edit Family law services' }).click()
-      await cms.getByRole('button', { name: 'Localize' }).last().click()
+      await expect(cms).toHaveURL(new RegExp(`/links/links/${links.items[0]!.id}$`))
+      await cms.getByTestId('localize-resource').click()
       await cms.getByTestId('localize-language').click()
       await cms.getByRole('option', { name: /ไทย \(th\)/ }).click()
       await expect(cms.getByTestId('localize-field-label')).toHaveValue('บริการกฎหมายครอบครัวเก่า')
@@ -228,8 +259,17 @@ test.describe.serial('published Thai content saves through the CMS and renders w
   })
 
   test('keeps dirty Thai Localize state after a rejected save', async () => {
-    await cms.getByRole('button', { name: 'Close Edit link' }).click()
+    // This test opens a Localize dialog of its own, and preview spends upwards
+    // of 11s on each one, which is why its sibling above also buys headroom.
+    test.setTimeout(60_000)
+    // Back out of the link's level to the links leaf, whose navbar carries the
+    // page's own Localize. The record's navbar carries one too, so the URL has
+    // to settle first: mid-transition both are mounted, and the click landed on
+    // the record's as it detached.
+    await cms.getByTestId('dashboard-navbar-back').click()
+    await expect(cms).toHaveURL(/\/links\/links$/)
     await cms.getByTestId('localize-resource').first().click()
+    await expect(cms.getByTestId('localize-language')).toBeEnabled()
     await cms.getByTestId('localize-language').click()
     await cms.getByRole('option', { name: /ไทย \(th\)/ }).click()
     await expect(cms.getByTestId('localize-field-title')).toHaveValue('ลิงก์กฎหมายภาษาไทย')
@@ -326,6 +366,7 @@ test.describe.serial('published Thai content saves through the CMS and renders w
     expect(alignedSaveResponse.status()).toBe(200)
     const aligned = (await alignedSaveResponse.json() as { page: { blocks: Array<{ source_block_id: string | null }> } }).page
     expect(aligned.blocks.map(block => block.source_block_id)).toEqual([secondBlockId, firstBlockId])
+    await cms.close()
   })
 
   async function verifyThaiLinksAndHome(page: Page) {

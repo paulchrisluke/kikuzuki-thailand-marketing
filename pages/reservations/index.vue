@@ -132,7 +132,7 @@
       <div v-if="bookingStep === 3" class="flex-1 overflow-y-auto">
         <BookingRecap
           v-if="timeSelection"
-          :main-line="`${timeSelection.label.split(',')[0]} · ${fmt12Hour(timeSelection.time)}`"
+          :main-line="`${timeSelection.label.split(',')[0]} · ${formatTime(timeSelection.time, locale)}`"
           :meta-line="`${guests >= 8 ? '8+' : guests} ${guests === 1 ? resCopy.guestLabel : resCopy.guestsLabelPlural}`"
           @edit="bookingStep = 2"
         />
@@ -159,7 +159,8 @@ import BookingModal from '@/components/booking/BookingModal.vue'
 import BookingRecap from '@/components/booking/BookingRecap.vue'
 import BookingTimeStep, { type RawDateAvailability, type TimeSlotSelection } from '@/components/booking/BookingTimeStep.vue'
 import { useBreadcrumbSchema } from '~/composables/useSchemaOrg'
-import { fmt12Hour, getTodayHoursLabel, isOpenNow } from '~/shared/reservation-hours'
+import { getTodayHoursLabel, isOpenNow } from '~/shared/reservation-hours'
+import { formatTime } from '~/utils/timezone'
 import { setBookingConfirmation } from '~/composables/useBookingHandoff'
 
 function formatTitleItalics(text: string | null | undefined): string {
@@ -186,13 +187,6 @@ watch(isExperienceSite, (isExp) => {
     navigateTo({ path: '/experiences', query: route.query }, { replace: true, redirectCode: 302 })
   }
 }, { immediate: true })
-
-// Belt-and-suspenders: prevent this page from being indexed on experience sites
-// while the async bootstrap resolves on the client (server redirect above already
-// handles SSR, but client-side navigation hydration can briefly render the page).
-useSeoMeta({
-  robots: computed(() => isExperienceSite.value ? 'noindex,follow' : 'index,follow')
-})
 
 const activeReservationPolicySummary = computed(() => {
   const locationId = selectedLocation.value?.id ? String(selectedLocation.value.id) : null
@@ -432,6 +426,10 @@ useSocialMetadata(() => ({
   brand: {
     siteName: brandName.value,
   },
+  // An experience site has no reservations page: the server redirects to
+  // /experiences, but a client-side navigation can render this briefly during
+  // hydration, so the intent says noindex rather than relying on the redirect.
+  robots: isExperienceSite.value ? 'noindex,follow' : 'index,follow',
 }))
 
 useSchemaOrg([

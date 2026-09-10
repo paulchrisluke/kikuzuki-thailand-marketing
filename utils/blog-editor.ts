@@ -1,4 +1,6 @@
-import { PUBLICATION_CONTENT_BLOCK_LOCALIZED_FIELDS, type PublicationContentBlockType } from '~/shared/content-registries'
+import { instantDate, isValidInstant, localDateTimeToInstant } from './timezone'
+import { PUBLICATION_CONTENT_BLOCK_LOCALIZED_FIELDS, expandContentFieldPath, readContentFieldValue, type PublicationContentBlockType } from '~/shared/content-registries'
+import { normalizeRobotsIntent } from '~/shared/robots-directive'
 
 export type BlogVisibility = 'public' | 'unlisted'
 
@@ -37,41 +39,16 @@ function localizedTextField(data: Record<string, unknown>, path: BlogLocalizedFi
   }]
 }
 
-function expandLocalizedFieldPath(
-  data: Record<string, unknown>,
-  pattern: readonly (string | '*')[],
-  path: BlogLocalizedFieldPath = [],
-): BlogLocalizedFieldPath[] {
-  const [segment, ...remaining] = pattern
-  if (segment === undefined) return [path]
-  if (segment !== '*') return expandLocalizedFieldPath(data, remaining, [...path, segment])
-  const collection = readBlogLocalizedValue(data, path)
-  if (!Array.isArray(collection)) return []
-  return collection.flatMap((_, index) => expandLocalizedFieldPath(data, remaining, [...path, index]))
-}
 
 export function blogLocalizedTextFields(block: Pick<EditorContentBlock, 'type' | 'data'>): BlogLocalizedTextField[] {
   if (!(block.type in PUBLICATION_CONTENT_BLOCK_LOCALIZED_FIELDS)) return []
   const patterns = PUBLICATION_CONTENT_BLOCK_LOCALIZED_FIELDS[block.type as PublicationContentBlockType]
-  return patterns.flatMap(pattern => expandLocalizedFieldPath(block.data, pattern).flatMap(path => localizedTextField(block.data, path)))
+  return patterns.flatMap(pattern => expandContentFieldPath(block.data, pattern).flatMap(path => localizedTextField(block.data, path)))
 }
 
-function readBlogLocalizedValue(data: Record<string, unknown>, path: BlogLocalizedFieldPath): unknown {
-  let value: unknown = data
-  for (const segment of path) {
-    if (typeof segment === 'number') {
-      if (!Array.isArray(value)) return undefined
-      value = value[segment]
-    } else {
-      if (!objectRecord(value)) return undefined
-      value = value[segment]
-    }
-  }
-  return value
-}
 
 export function readBlogLocalizedText(data: Record<string, unknown>, path: BlogLocalizedFieldPath): string | undefined {
-  const value = readBlogLocalizedValue(data, path)
+  const value = readContentFieldValue(data, path)
   return typeof value === 'string' ? value : undefined
 }
 
@@ -94,8 +71,26 @@ export function writeBlogLocalizedText(data: Record<string, unknown>, path: Blog
   }
 }
 
+/**
+ * A deep, proxy-free copy of editor blocks.
+ *
+ * `toRaw` is shallow: it unwraps the array but every object read out of a
+ * reactive array is still a proxy, and `structuredClone` throws
+ * `DataCloneError: [object Array] could not be cloned` on the first nested
+ * proxy it reaches — a block's `media`, or an FAQ's `items`. That fired from
+ * the autosave watcher on every structural insert, so adding an image killed
+ * the save and the block never persisted.
+ *
+ * Blocks are JSON by definition; they are stored in `content_blocks.data_json`
+ * and sent as JSON. A round-trip through it is the same serialization the
+ * payload already undergoes, and it unwraps every proxy at every depth.
+ */
+export function cloneEditorBlocks<T>(blocks: T): T {
+  return JSON.parse(JSON.stringify(blocks)) as T
+}
+
 export function blankBlogLocalizedText<T extends EditorContentBlock>(block: T): T {
-  const blank = structuredClone(block)
+  const blank = cloneEditorBlocks(block)
   for (const field of blogLocalizedTextFields(blank)) writeBlogLocalizedText(blank.data, field.path, '')
   if (blank.media) {
     blank.media = blank.media.map(item => ({ ...item, alt_text: null, caption: null }))
@@ -226,7 +221,7 @@ export function resolveBlogSeo(input: {
     title: input.seoTitle?.trim() || input.title.trim(),
     description,
     canonicalUrl: input.canonicalUrl?.trim() || new URL(path, input.baseUrl).toString(),
-    robots: input.robots?.trim() || 'index, follow',
+    robots: normalizeRobotsIntent(input.robots),
   }
 }
 
@@ -237,21 +232,14 @@ export function firstImageAssetId(blocks: EditorContentBlock[]) {
 
 export function parseScheduledFor(value: unknown) {
   if (value === undefined || value === null || value === '') return null
-  if (typeof value !== 'string'
-    || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/.test(value)) {
-    throw new Error('scheduled_for must be an ISO 8601 datetime with Z or a numeric timezone offset')
-  }
-  const parsed = new Date(value)
-  if (Number.isNaN(parsed.getTime())) throw new Error('scheduled_for must be an ISO 8601 datetime with Z or a numeric timezone offset')
-  return parsed.toISOString()
+  if (!isValidInstant(value)) throw new Error('scheduled_for requires a valid timestamp with an explicit UTC offset')
+  return instantDate(value).toISOString()
 }
 
-export function scheduledLifecycleValue(timing: 'Now' | 'Scheduled', localValue: string) {
+export function scheduledLifecycleValue(timing: 'Now' | 'Scheduled', localValue: string, timeZone: string) {
   if (timing === 'Now') return null
-  if (!localValue) throw new Error('Scheduled date and time is required')
-  const parsed = new Date(localValue)
-  if (Number.isNaN(parsed.getTime())) throw new Error('Scheduled date and time is invalid')
-  return parsed.toISOString()
+  if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}(?:\.\d{1,3})?)?$/.test(localValue)) throw new Error('Scheduled date and time is required')
+  return localDateTimeToInstant(localValue.slice(0, 10), localValue.slice(11), timeZone).toISOString()
 }
 
 export function structuredComponentsFromBlocks(blocks: EditorContentBlock[]): Array<{
@@ -265,7 +253,10 @@ export function structuredComponentsFromBlocks(blocks: EditorContentBlock[]): Ar
   const components: ReturnType<typeof structuredComponentsFromBlocks> = []
   blocks.forEach((block, position) => {
     if (block.type === 'faq') {
-      const items = Array.isArray(block.data.items) ? block.data.items.filter(item => item && typeof item === 'object') : []
+      const items = Array.isArray(block.data.items)
+        ? block.data.items.filter((item): item is Record<string, unknown> => Boolean(item && typeof item === 'object'))
+          .map(item => ({ question: item.title ?? item.question, answer: item.description ?? item.answer }))
+        : []
       components.push({ type: 'faq', position, status: block.data.status === 'inactive' ? 'inactive' : 'active', render_enabled: block.data.render_enabled !== false, schema_enabled: block.data.schema_enabled !== false, data: { items } })
     }
     if (block.type === 'how_to') {
@@ -278,17 +269,6 @@ export function structuredComponentsFromBlocks(blocks: EditorContentBlock[]): Ar
     }
   })
   return components
-}
-
-export function resolveBlogPublicPath(input: {
-  scope: 'platform' | 'tenant'
-  slug: string
-  category?: string | null
-  template?: 'saya' | 'blawby' | 'platform' | string | null
-}) {
-  const slug = encodeURIComponent(input.slug)
-  if (input.scope === 'tenant') return input.template === 'blawby' ? `/article/${slug}` : `/blog/${slug}`
-  return `/blog/${normalizeBlogSlug(input.category || 'uncategorized', 'uncategorized')}/${slug}`
 }
 
 export function resolveSlugMutation(input: {

@@ -33,7 +33,6 @@ for (const runtimeRoot of runtimeRoots) {
 }
 
 const allowedRegenerationCallers = new Set([
-  'server/api/admin/platform/social-cards/regenerate.post.ts',
   'server/api/editor/sites/[siteId]/social-cards/regenerate.post.ts',
   'server/utils/social-card.ts',
 ])

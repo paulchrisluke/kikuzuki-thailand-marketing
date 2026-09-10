@@ -35,20 +35,20 @@
 
     <template v-else-if="block.type === 'faq'">
       <UFormField label="Section title"><UInput :model-value="stringField('title')" @update:model-value="setString('title', $event)" /></UFormField>
-      <UFormField label="Data source">
-        <USelect :model-value="faqSourceValue" :items="faqSourceOptions" @update:model-value="setString('source', $event)" />
-        <p class="mt-1 text-xs text-muted">Use the site's published Q&amp;A records, or manage questions manually on this page.</p>
-      </UFormField>
-      <UAlert v-if="faqSourceValue === 'page_qa'" color="neutral" variant="soft" title="Live Q&amp;A source" description="Questions and answers come from the site's Q&amp;A manager and are shown in the preview after publishing." />
-      <div v-else class="space-y-3">
-        <div v-for="(item, index) in objectArray('items')" :key="itemKey(item, index)" class="rounded-lg border border-default p-3">
-          <div class="mb-3 flex items-center justify-between gap-3"><p class="text-sm font-medium text-highlighted">Question {{ index + 1 }}</p><UButton icon="i-lucide-trash-2" color="error" variant="ghost" size="xs" aria-label="Remove FAQ item" @click="removeObjectItem('items', index)" /></div>
+      <UAlert color="neutral" variant="soft" title="Questions come from Q&amp;A" description="This block lists the published Q&amp;A records for this page. Add or edit questions in the site's Q&amp;A manager." />
+    </template>
+
+    <template v-else-if="block.type === 'how_to'">
+      <UFormField label="Section title"><UInput :model-value="stringField('title')" @update:model-value="setString('title', $event)" /></UFormField>
+      <div class="space-y-3">
+        <div v-for="(step, index) in objectArray('steps')" :key="itemKey(step, index)" class="rounded-lg border border-default p-3">
+          <div class="mb-3 flex items-center justify-between gap-3"><p class="text-sm font-medium text-highlighted">Step {{ index + 1 }}</p><UButton icon="i-lucide-trash-2" color="error" variant="ghost" size="xs" aria-label="Remove step" @click="removeObjectItem('steps', index)" /></div>
           <div class="space-y-3">
-            <UFormField label="Question"><UInput :model-value="faqField(index, 'title')" @update:model-value="setFaqField(index, 'title', $event)" /></UFormField>
-            <UFormField label="Answer"><UTextarea :model-value="faqField(index, 'description')" :rows="3" autoresize @update:model-value="setFaqField(index, 'description', $event)" /></UFormField>
+            <UFormField label="Step name"><UInput :model-value="objectField(index, 'steps', 'name')" @update:model-value="setObjectField('steps', index, 'name', $event)" /></UFormField>
+            <UFormField label="Instructions"><UTextarea :model-value="objectField(index, 'steps', 'text')" :rows="3" autoresize @update:model-value="setObjectField('steps', index, 'text', $event)" /></UFormField>
           </div>
         </div>
-        <UButton icon="i-lucide-plus" color="neutral" variant="soft" size="sm" @click="addObjectItem('items', { title: '', description: '' })">Add question</UButton>
+        <UButton icon="i-lucide-plus" color="neutral" variant="soft" size="sm" @click="addObjectItem('steps', { name: '', text: '' })">Add step</UButton>
       </div>
     </template>
 
@@ -176,12 +176,10 @@ const galleryBusy = ref(false)
 
 const headingLevels = [1, 2, 3, 4, 5, 6].map(level => ({ label: `H${level}`, value: level }))
 const toneOptions = ['neutral', 'info', 'success', 'warning', 'error'].map(value => ({ label: value[0]!.toUpperCase() + value.slice(1), value }))
-const faqSourceOptions = [{ label: 'Manual questions', value: 'manual' }, { label: 'Published site Q&A', value: 'page_qa' }]
 
 const validationErrors = computed(() => validateTenantPageBlock(props.block))
 const isCtaBlock = computed(() => ['cta', 'contact_cta', 'booking_cta'].includes(props.block.type))
 const isGridBlock = computed(() => ['feature_grid', 'testimonial_grid', 'offering_grid', 'location_grid'].includes(props.block.type))
-const faqSourceValue = computed(() => stringField('source') || 'manual')
 const sourceOptions = computed(() => {
   switch (props.block.type) {
     case 'feature_grid': return [{ label: 'Manual items', value: 'manual' }, { label: 'Published posts', value: 'site_posts' }, { label: 'Pricing calculator', value: 'calculator' }]
@@ -211,10 +209,9 @@ function setString(key: string, value: unknown) {
   emitBlock({ ...props.block, data: { ...props.block.data, [key]: value == null ? '' : String(value) } })
 }
 
-function setAsset(asset: { asset_id: string; alt_text?: string } | null) {
+function setAsset(asset: { asset_id: string } | null) {
   emitBlock({
     ...props.block,
-    data: { ...props.block.data, alt: asset?.alt_text ?? '' },
     media: asset ? [{ asset_id: asset.asset_id, slot: 'media', sort_order: 0 }, ...props.block.media.filter(item => item.slot !== 'media')] : props.block.media.filter(item => item.slot !== 'media'),
   })
 }
@@ -384,21 +381,6 @@ function setObjectField(key: string, index: number, field: string, value: unknow
   if (!item) return
   items[index] = { ...item, [field]: value == null ? '' : String(value) }
   setObjectArray(key, items)
-}
-
-function faqField(index: number, field: 'title' | 'description'): string {
-  const aliases = field === 'title' ? ['question'] : ['answer']
-  return objectField(index, 'items', field, aliases)
-}
-
-function setFaqField(index: number, field: 'title' | 'description', value: unknown) {
-  const items = objectArray('items')
-  const item = items[index]
-  if (!item) return
-  const canonicalValue = value == null ? '' : String(value)
-  const alias = field === 'title' ? 'question' : 'answer'
-  items[index] = { ...item, [field]: canonicalValue, ...(item[alias] !== undefined ? { [alias]: canonicalValue } : {}) }
-  setObjectArray('items', items)
 }
 
 function addObjectItem(key: string, item: Record<string, unknown>) {

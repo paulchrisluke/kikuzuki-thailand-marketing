@@ -1,7 +1,9 @@
 export const HIGH_IMPACT_PATTERNS = [
   'app.vue', 'build/**', 'error.vue', 'nuxt.config.ts', 'patch.cjs',
   'playwright.config.ts', 'wrangler.toml', 'yarn.lock', 'migrations/**',
-  'seed-definitions/**', 'server/db/schema.ts', 'server/middleware/**',
+  'server/db/schema.ts', 'server/middleware/**',
+  'scripts/pull-production-snapshot.ts', 'scripts/provision-development-auth.ts',
+  'config/development-auth-fixtures.ts',
   'server/plugins/**', 'tests/e2e/helpers.ts', 'tests/e2e/helpers/**',
   'tests/e2e/test-env.ts', 'workers/**',
 ]
@@ -21,6 +23,17 @@ export const CORE_ONLY_PATTERNS = [
 
 export const IMPACT_GROUPS = [
   {
+    id: 'platform-site',
+    patterns: [
+      'composables/useBlogNav.ts', 'composables/useDocsArticles.ts', 'components/blog/**', 'components/docs/**',
+      'pages/blog/**', 'pages/docs/**', 'server/api/public/blog.get.ts', 'server/api/public/blog/**',
+      'server/utils/content/publishing.ts', 'server/utils/platform-llm.ts', 'server/utils/platform-site.ts',
+      'server/routes/blog/**', 'server/routes/blog-md/**', 'server/routes/docs/**', 'server/routes/docs-md/**',
+      'utils/article-collections.ts', 'utils/blog-categories.ts', 'utils/docs-categories.ts', 'utils/tenant-blog-route.ts',
+    ],
+    specs: ['tests/e2e/platform-blog-ssr.spec.ts'],
+  },
+  {
     id: 'tenant-public',
     patterns: [
       'components/saya/**', 'components/blawby/**', 'components/blog/**',
@@ -34,10 +47,7 @@ export const IMPACT_GROUPS = [
       'pages/schedule.vue', 'pages/services/**',
       'server/middleware/public-resource-provider.ts', 'server/utils/public-*.ts',
       'server/utils/public*.ts', 'server/utils/site-i18n.ts',
-      'server/utils/site-template.ts', 'scripts/generate-kikuzuki-seed.ts',
-      'scripts/generate-pottery-house-seed.ts', 'scripts/generate-ncls-seed.ts',
-      'seed-definitions/kikuzuki.ts', 'seed-definitions/pottery-house.ts',
-      'seed-definitions/ncls.ts', 'utils/blawby-*.ts', 'utils/public-*.ts',
+      'server/utils/site-template.ts', 'utils/blawby-*.ts', 'utils/public-*.ts',
       'utils/tenant-page-blocks.ts', 'utils/vertical-copy.ts',
     ],
     specs: [
@@ -83,10 +93,25 @@ export const IMPACT_GROUPS = [
     ],
     specs: [
       'tests/e2e/mcp-authorization.spec.ts',
+      'tests/e2e/mcp-product-large-batch.spec.ts',
+      'tests/e2e/mcp-product-nullable-price.spec.ts',
       'tests/e2e/mcp-content.spec.ts',
       'tests/e2e/mcp-media.spec.ts',
       'tests/e2e/mcp-owner-tools.spec.ts',
       'tests/e2e/oauth-discovery.spec.ts',
     ],
   },
+  {
+    id: 'billing-and-session',
+    patterns: [
+      'server/api/webhooks/**', 'server/utils/stripe*.ts', 'server/utils/billing*.ts',
+      'server/utils/auth.ts', 'composables/useAuth*.ts', 'layouts/default.vue',
+      'components/layout/**',
+    ],
+    specs: [
+      'tests/e2e/provider-ingress.spec.ts',
+      'tests/e2e/post-login.spec.ts',
+    ],
+  },
+
 ]

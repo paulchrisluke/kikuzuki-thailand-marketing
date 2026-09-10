@@ -1,4 +1,5 @@
 import { dismissPreviewToolbar } from './helpers'
+import { localDateAt } from '../../utils/timezone'
 import { createHmac } from 'node:crypto'
 import { expect, test, type APIRequestContext, type APIResponse } from '@playwright/test'
 import type {
@@ -110,12 +111,12 @@ test('guest thread state stays source-owned, per-user, tenant-isolated, and idem
     expect(secondOwnerListBefore.threads).toHaveLength(1)
     const threadId = ownerListBefore.threads[0]!.id
     const organizationList = await owner.get('/api/dashboard/guest-threads', {
-      params: { org: 'pottery-house-krabi', search: guestName },
+      params: { org: 'org-user-pottery-house', search: guestName },
     })
     await expectStatus(organizationList, 200)
     expect(await organizationList.json()).toMatchObject({ threads: [{ id: threadId }] })
     await expectStatus(await foreignOwner.get('/api/dashboard/guest-threads', {
-      params: { org: 'pottery-house-krabi', search: guestName },
+      params: { org: 'org-user-pottery-house', search: guestName },
     }), 404)
     expect(secondOwnerListBefore.threads[0]!.id).toBe(threadId)
     expect(ownerListBefore.threads[0]).toMatchObject({ guestName, submissionType: 'contact', unread: true })
@@ -228,22 +229,47 @@ test('Today uses the CMS patterns and sends one reservation change request', asy
   test.setTimeout(180_000)
   await loginAs(page.request, baseURL)
 
+  const now = Date.now()
+  const firstName = `Maya${now}`
+  const guestName = `${firstName} Chen`
+  const guestEmail = `maya-${now}@example.test`
+  const availability = await page.request.get('/api/public/sites/site-demo/reservations/availability', {
+    params: { date: new Date(now).toISOString().slice(0, 10), location_id: 'loc-demo' },
+  })
+  await expectStatus(availability, 200)
+  const { timezone } = await availability.json() as { timezone: string }
+  expect(timezone).toEqual(expect.any(String))
+  const bookingIds: string[] = []
+  for (const [name, email, instant] of [
+    [guestName, guestEmail, now],
+    [`Priya${now} Patel`, `priya-${now}@example.test`, now + 86_400_000],
+  ] as const) {
+    const response = await page.request.post('/api/public/sites/site-demo/reservations', {
+      data: { name, email, phone: '+12025550123', date: localDateAt(new Date(instant), timezone), time: '19:00', guests: '2', location_id: 'loc-demo' },
+    })
+    await expectStatus(response, 201)
+    const { id } = await response.json() as { id: string }
+    expect(id).toEqual(expect.any(String))
+    bookingIds.push(id)
+  }
+  const upcomingBookingId = bookingIds[1]!
+
   await dismissPreviewToolbar(page)
 
   await page.goto(`${baseURL}/dashboard/ember-slice-demo`)
-  const heading = page.getByRole('heading', { name: /^You have \d+ (?:bookings|reservations)$/ })
+  const heading = page.getByRole('heading', { name: /^You have \d+ (?:bookings?|reservations?)$/ })
   await expect(heading).toBeVisible()
   expect(await heading.evaluate(element => getComputedStyle(element).textAlign)).toBe('center')
   await expect(page.getByRole('tab', { name: 'Today', exact: true })).toBeVisible()
   await expect(page.getByRole('tab', { name: 'Upcoming', exact: true })).toBeVisible()
   await expect(page.getByRole('button', { name: 'Filter bookings', exact: true })).toBeVisible()
 
-  await page.getByRole('link', { name: /Maya arrives today/i }).click()
+  await page.getByRole('link', { name: new RegExp(`${firstName} arrives today`) }).click()
   await expect(page.getByRole('heading', { name: 'Currently hosting', exact: true })).toBeVisible()
-  await expect(page.getByText('Maya Chen', { exact: true }).first()).toBeVisible()
-  await expect(page.getByText('maya.today@example.test', { exact: true })).toHaveCount(0)
-  await page.getByRole('link', { name: /Maya Chen/ }).last().click()
-  await expect(page.getByText('maya.today@example.test', { exact: true })).toBeVisible()
+  await expect(page.getByText(guestName, { exact: true }).first()).toBeVisible()
+  await expect(page.getByText(guestEmail, { exact: true })).toHaveCount(0)
+  await page.getByRole('link', { name: guestName }).last().click()
+  await expect(page.getByText(guestEmail, { exact: true })).toBeVisible()
   await page.goBack()
 
   const note = `Today page note ${Date.now()}`
@@ -259,13 +285,13 @@ test('Today uses the CMS patterns and sends one reservation change request', asy
   await expect(page.getByRole('dialog')).toBeVisible()
   await page.getByRole('link', { name: 'Change reservation', exact: true }).click()
   await expect(page.getByRole('heading', { name: 'What do you want to change?', exact: true })).toBeVisible()
-  await expect(page.getByText(/send a request to your guest, Maya, to confirm the alterations to your reservation/i)).toBeVisible()
+  await expect(page.getByText(new RegExp(`send a request to your guest, ${firstName}, to confirm the alterations to your reservation`, 'i'))).toBeVisible()
   await expect(page.getByRole('heading', { name: 'Reservation details', exact: true })).toBeVisible()
   await expect(page.getByRole('button', { name: 'Send request', exact: true })).toBeVisible()
 
-  await page.goto(`${baseURL}/dashboard/ember-slice-demo/bookings/reservation/reservation-demo-upcoming-priya/change`)
+  await page.goto(`${baseURL}/dashboard/ember-slice-demo/bookings/reservation/${upcomingBookingId}/change`)
   const beforeResponse = await page.request.get(
-    '/api/dashboard/bookings/reservation/reservation-demo-upcoming-priya',
+    `/api/dashboard/bookings/reservation/${upcomingBookingId}`,
     { params: { org: 'ember-slice-demo' } },
   )
   await expectStatus(beforeResponse, 200)
@@ -277,7 +303,7 @@ test('Today uses the CMS patterns and sends one reservation change request', asy
   const requestedAt = new Date().toISOString()
   const requestCompleted = page.waitForResponse(response =>
     response.request().method() === 'POST'
-    && new URL(response.url()).pathname.endsWith('/api/dashboard/bookings/reservation/reservation-demo-upcoming-priya/changes'),
+    && new URL(response.url()).pathname.endsWith(`/api/dashboard/bookings/reservation/${upcomingBookingId}/changes`),
   )
   await page.getByRole('button', { name: 'Send request', exact: true }).click()
   const changeResponse = await requestCompleted
@@ -312,7 +338,7 @@ test('Today uses the CMS patterns and sends one reservation change request', asy
     expect(await accepted.json()).toMatchObject({ status: 'accepted' })
 
     const afterResponse = await page.request.get(
-      '/api/dashboard/bookings/reservation/reservation-demo-upcoming-priya',
+      `/api/dashboard/bookings/reservation/${upcomingBookingId}`,
       { params: { org: 'ember-slice-demo' } },
     )
     await expectStatus(afterResponse, 200)

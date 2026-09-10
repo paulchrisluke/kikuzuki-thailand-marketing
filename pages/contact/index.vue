@@ -8,9 +8,9 @@
       <!-- Brand contact layout — shows for all tenant shapes -->
       <div>
         <!-- Page header -->
-        <header class="mx-auto max-w-7xl px-4 pt-16 pb-12 sm:px-6 lg:px-8">
+        <header v-if="contactHeroEyebrow || contactHeroTitle || contactHeroSummary" class="mx-auto max-w-7xl px-4 pt-16 pb-12 sm:px-6 lg:px-8">
           <p v-if="contactHeroEyebrow" class="saya-kicker mb-6">{{ contactHeroEyebrow }}</p>
-          <h1 class="saya-display-md text-default">
+          <h1 v-if="contactHeroTitle" class="saya-display-md text-default">
             {{ contactHeroTitle }}
           </h1>
           <p v-if="contactHeroSummary" class="mt-5 max-w-xl text-sm leading-relaxed text-muted">

@@ -156,12 +156,12 @@ export default defineHandler(async (event) => {
           AND review_id IS NULL`, params: [
         now, reviewId, now, result.request.booking_id, result.request.booking_type, result.context.organization_id, result.context.site_id, result.request.customer_id, ], }, batchAssertion('changes() = 1', [], 'review booking submission compare-and-set failed'), {
       query: `UPDATE customers
-        SET last_review_at = ?, user_id = COALESCE(user_id, ?), updated_at = ?
+        SET user_id = COALESCE(user_id, ?), updated_at = ?
         WHERE id = ?
           AND organization_id = ?
           AND site_id = ?
           AND (user_id IS NULL OR user_id = ?)`, params: [
-        now, sessionUser.id, now, result.request.customer_id, result.context.organization_id, result.context.site_id, sessionUser.id, ], }, batchAssertion('changes() = 1', [], 'review customer update lost its scope guard'), )
+        sessionUser.id, now, result.request.customer_id, result.context.organization_id, result.context.site_id, sessionUser.id, ], }, batchAssertion('changes() = 1', [], 'review customer update lost its scope guard'), )
 
   if (mediaCount) {
     batch.push(

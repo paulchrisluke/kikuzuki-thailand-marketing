@@ -36,6 +36,7 @@ function baseEnv(db: unknown): CloudflareEnv {
     DB: db, MEDIA_BUCKET: {}, SITE_CACHE: {}, AI: {},
     BETTER_AUTH_URL: 'https://dashboard.example',
     BETTER_AUTH_SECRET: 'test-only-secret-at-least-32-characters-long',
+    STRIPE_SECRET_KEY: 'sk_test_local_d1_no_stripe_requests',
     NUXT_PUBLIC_PLATFORM_DOMAIN: 'dashboard.example',
     LEGAL_PUBLIC_BUDGET_IP_SITE_OP_LIMIT: '1000',
     LEGAL_PUBLIC_BUDGET_IP_SITE_OP_WINDOW_MS: '3600000',

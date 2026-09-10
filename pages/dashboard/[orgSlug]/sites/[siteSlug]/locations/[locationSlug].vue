@@ -4,7 +4,13 @@
     listing editor's cog opens a separate preferences screen rather than a pane
     beside the rail. Everything else is a section of this location.
   -->
-  <NuxtPage v-if="rendersStandalone" />
+  <!--
+    Nothing of this level is on screen once the open level is deeper than one of
+    its sections: the two columns always belong to the open level and its
+    parent. Rendering the rail anyway is what put a third column beside a
+    grandchild's own pair.
+  -->
+  <NuxtPage v-if="rendersStandalone || frame.mode.value === 'yield'" />
 
   <UDashboardPanel v-else id="location-hub">
     <template #header>
@@ -28,7 +34,6 @@
     <template #body>
       <EditorPaneShell
         :has-detail="hasDetail"
-        :show-desktop-detail="hasDetail"
         :detail-title="detailTitle"
         :dismiss-to="locationPath"
         wide-detail
@@ -90,7 +95,7 @@ import { resolvePublicTemplate } from '~/utils/template-registry'
 import { getTodayHoursLabel, type OpeningHours } from '~/shared/reservation-hours'
 import { normalizeVertical, type SiteVertical } from '~/utils/vertical-copy'
 
-definePageMeta({ layout: 'dashboard' })
+definePageMeta({ layout: 'dashboard', ownsChrome: true })
 
 interface LocationOverview {
   id: string
@@ -125,21 +130,25 @@ const dashboardApi = useDashboardApi()
 const route = useRoute()
 const dashboard = useDashboardSite()
 const dashboardLocation = useDashboardLocation()
-const siteId = await useDashboardSiteId()
-
-const locationId = computed(() => dashboardLocation.currentLocationId.value ?? '')
 const sitePath = computed(() => `/dashboard/${String(route.params.orgSlug)}/sites/${String(route.params.siteSlug)}`)
 const locationsPath = computed(() => `${sitePath.value}/locations`)
 const locationPath = computed(() => `${locationsPath.value}/${String(route.params.locationSlug)}`)
+// `useEditorFrame` provides and injects, so it must run while setup is still
+// synchronous. Awaiting before it binds the frame to nothing: the mode never
+// resolves and this level silently drops out of the chain.
+const frame = useEditorFrame(locationPath)
+
+const siteId = await useDashboardSiteId()
+
+const locationId = computed(() => dashboardLocation.currentLocationId.value ?? '')
 const settingsPath = computed(() => `${locationPath.value}/settings`)
 
+// Settings and Inbox are their own screens rather than sections of this one, so
+// they leave the chain entirely rather than taking a column in it.
 const STANDALONE_SECTIONS = ['settings', 'inbox']
-const sectionSegment = computed(() => {
-  const rest = route.path.slice(locationPath.value.length).replace(/^\//, '')
-  return rest.split('/')[0] ?? ''
-})
+const sectionSegment = computed(() => frame.childSegment.value ?? '')
 const rendersStandalone = computed(() => STANDALONE_SECTIONS.includes(sectionSegment.value))
-const hasDetail = computed(() => Boolean(sectionSegment.value))
+const hasDetail = computed(() => frame.mode.value === 'pair')
 const activeSection = computed(() => sectionSegment.value || null)
 
 const location = ref<LocationOverview | null>(null)
@@ -160,7 +169,7 @@ const capabilities = computed(() => {
   // Deliberately unguarded: swallowing a capability error left the hub with an
   // empty feature set, which removes every content and reservation row and
   // leaves a location that looks like it holds nothing.
-  return resolveCmsCapabilities(normalizeVertical(vertical) as SiteVertical, resolvePublicTemplate({ vertical }).slug, {
+  return resolveCmsCapabilities(normalizeVertical(vertical) as SiteVertical, resolvePublicTemplate({ themeId: dashboard.site.value?.theme_id, vertical }).slug, {
     site: parseCmsFeatureOverrideDelta(dashboard.site.value?.feature_overrides),
     location: parseCmsFeatureOverrideDelta(dashboardLocationRow.value?.feature_overrides),
   })
@@ -264,7 +273,10 @@ const PANE_BREAKPOINT = '(min-width: 1024px)'
 let sectionChosen = false
 
 function openFirstSectionBesideTheRail() {
-  if (sectionChosen || loading.value || hasDetail.value) return
+  // Only from the location itself. `hasDetail` is also false when a deeper
+  // level owns both columns, and opening the first section from there threw the
+  // tenant out of whatever they had open.
+  if (sectionChosen || loading.value || frame.mode.value !== 'index') return
   if (!window.matchMedia(PANE_BREAKPOINT).matches) return
   const first = contentGroups.value[0]?.items[0]
   if (!first) return

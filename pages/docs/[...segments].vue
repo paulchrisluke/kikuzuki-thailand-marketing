@@ -1,52 +1,42 @@
 <template>
   <div>
-    <div v-if="isCategoryRedirect" class="py-12 text-center">
-      <p class="text-muted">Redirecting...</p>
-    </div>
-
-    <div v-else-if="loading" class="py-12 text-center">
+    <div v-if="pending" class="py-12 text-center">
       <p class="text-muted">Loading...</p>
     </div>
 
-    <div v-else-if="error || !doc" class="rounded-lg border border-red-200 bg-red-50 p-6">
+    <div v-else-if="isCategoryIndexOnly">
+      <h1 class="mb-6 text-4xl font-bold text-default">{{ categoryName }}</h1>
+      <p class="text-muted">{{ seoDescription }}</p>
+
+      <div class="mt-14 grid gap-6 sm:grid-cols-2">
+        <NuxtLink
+          v-for="item in siblings"
+          :key="item.path"
+          :to="item.path"
+          class="rounded-2xl border border-default p-6 no-underline transition hover:border-muted hover:bg-elevated"
+        >
+          <p class="text-lg font-semibold text-default">{{ item.title }}</p>
+          <p v-if="item.excerpt" class="mt-2 text-sm text-muted">{{ item.excerpt }}</p>
+        </NuxtLink>
+      </div>
+    </div>
+
+    <div v-else-if="error || !article" class="rounded-lg border border-red-200 bg-red-50 p-6">
       <p class="text-red-600">{{ error?.message || 'Documentation not found' }}</p>
     </div>
 
     <div v-else class="xl:grid xl:grid-cols-[minmax(0,1fr)_240px] xl:gap-10">
       <article>
-        <h1 class="mb-6 text-4xl font-bold text-default">{{ doc.title }}</h1>
-
-        <div v-if="docMedia.url" class="mb-10 overflow-hidden rounded-2xl">
-          <video
-            v-if="docMedia.isVideo"
-            :src="docMedia.url"
-            autoplay
-            muted
-            loop
-            playsinline
-            class="max-h-96 w-full object-cover"
-          />
-          <img
-            v-else
-            :src="docMedia.url"
-            :alt="doc.title"
-            class="max-h-96 w-full object-cover"
-          />
-        </div>
+        <h1 class="mb-6 text-4xl font-bold text-default">{{ article.title }}</h1>
 
         <div ref="articleBodyRef">
-          <BlogArticleRenderer
-            :title="doc.title"
-            :blocks="doc.content_blocks"
-            :show-title="false"
-            template="platform"
-          />
+          <BlogArticleRenderer :title="article.title" :blocks="blocks" template="platform" :show-title="false" class="docs-page-body max-w-none! px-0! py-0!" />
         </div>
 
-        <div v-if="isOverviewDoc && siblingDocs.length" class="mt-14 grid gap-6 sm:grid-cols-2">
+        <div v-if="current?.isCategoryIndex && siblings.length" class="mt-14 grid gap-6 sm:grid-cols-2">
           <NuxtLink
-            v-for="item in siblingDocs"
-            :key="item.slug"
+            v-for="item in siblings"
+            :key="item.path"
             :to="item.path"
             class="rounded-2xl border border-default p-6 no-underline transition hover:border-muted hover:bg-elevated"
           >
@@ -55,28 +45,28 @@
           </NuxtLink>
         </div>
 
-        <nav v-if="!isOverviewDoc && (previousDoc || nextDoc)" class="mt-16 flex items-start justify-between gap-6">
+        <nav v-if="!current?.isCategoryIndex && (previousArticle || nextArticle)" class="mt-16 flex items-start justify-between gap-6">
           <NuxtLink
-            v-if="previousDoc"
-            :to="previousDoc.path"
+            v-if="previousArticle"
+            :to="previousArticle.path"
             class="group flex min-w-0 flex-initial flex-col gap-1 no-underline"
           >
             <p class="text-xs font-semibold uppercase tracking-[0.14em] text-muted">Previous</p>
             <span class="flex w-full min-w-0 items-center gap-1.5 text-lg font-semibold text-default group-hover:text-primary">
               <PlatformIcon name="arrow-left" class="size-4 shrink-0" />
-              <span class="min-w-0 truncate">{{ previousDoc.title }}</span>
+              <span class="min-w-0 truncate">{{ previousArticle.title }}</span>
             </span>
           </NuxtLink>
           <div v-else class="flex-1" />
 
           <NuxtLink
-            v-if="nextDoc"
-            :to="nextDoc.path"
+            v-if="nextArticle"
+            :to="nextArticle.path"
             class="group flex min-w-0 flex-initial flex-col items-end gap-1 text-right no-underline"
           >
             <p class="text-xs font-semibold uppercase tracking-[0.14em] text-muted">Next</p>
             <span class="flex w-full min-w-0 items-center gap-1.5 text-lg font-semibold text-default group-hover:text-primary">
-              <span class="min-w-0 truncate">{{ nextDoc.title }}</span>
+              <span class="min-w-0 truncate">{{ nextArticle.title }}</span>
               <PlatformIcon name="arrow-right" class="size-4 shrink-0" />
             </span>
           </NuxtLink>
@@ -92,166 +82,106 @@
 
 <script setup lang="ts">
 import { shallowRef } from 'vue'
+import BlogArticleRenderer from '~/components/blog/BlogArticleRenderer.vue'
 import { renderMarkdownToHtml, sanitizeHtmlForSsr } from '~/utils/markdown'
 import type { BlogEditorBlock } from '~/lib/components/workspace/blog/types'
 import { useContentPageSchema } from '~/composables/useContentPageSchema'
-import { categoryToSlug, slugToCategory } from '~/utils/docs-categories'
+import { articleCategoryFromSlug } from '~/utils/article-collections'
 import { structuredComponentsFromBlocks } from '~/utils/blog-editor'
 import { isRecord, publicApiRequest } from '~/utils/api-clients'
 import { loadDomPurify } from '~/utils/dom-purify-loader'
+import { normalizeRobotsIntent } from '~/shared/robots-directive'
 
-definePageMeta({ layout: 'docs' })
-
-const DOMPurify = import.meta.client ? await loadDomPurify() : { sanitize: sanitizeHtmlForSsr }
-const { resolveMedia } = useMedia()
-
-interface Doc {
+interface DocsArticleDetail {
   id: string
   title: string
   slug: string
   excerpt?: string | null
   category?: string | null
+  seo_title?: string | null
   seo_description?: string | null
-  seo_keywords?: string | null
   canonical_url?: string | null
   robots?: string | null
-  difficulty_level?: string | null
-  published_at?: string | null
   updated_at?: string | null
-  author?: { id: string; name: string | null; image: string | null } | null
-  media?: Array<{
-    asset_id: string
-    slot: string
-    public_url: string | null
-    kind: string | null
-    width: number | null
-    height: number | null
-  }>
   social_image?: import('~/utils/social-metadata').SocialImageSource | null
-  content_blocks: BlogEditorBlock[]
+  content_blocks?: BlogEditorBlock[] | null
 }
 
-interface DocListItem {
-  title: string
-  slug: string
-  category?: string | null
-  excerpt?: string | null
-  nav_title?: string | null
-  nav_order?: number | null
-  hide_from_nav?: boolean | number | null
-}
+// Documentation is the site's `docs` article collection, rendered inside the
+// docs layout. /docs/{category} is the category's landing article when one exists.
+definePageMeta({ layout: 'docs' })
 
-const isPublicDocResponse = (value: unknown): value is { doc: Doc } =>
-  isRecord(value)
-  && isRecord(value.doc)
-  && typeof value.doc.id === 'string'
-  && typeof value.doc.title === 'string'
-  && typeof value.doc.slug === 'string'
-  && Array.isArray(value.doc.content_blocks)
+const DOMPurify = import.meta.client ? await loadDomPurify() : { sanitize: sanitizeHtmlForSsr }
 
 const route = useRoute()
 const requestEvent = useRequestEvent()
 const segments = computed(() => {
   const raw = route.params.segments
-  if (Array.isArray(raw)) return raw.filter(Boolean)
-  if (typeof raw === 'string' && raw.length) {
-    return raw.split('/').map(part => part.trim()).filter(Boolean)
-  }
-  return []
+  const parts = Array.isArray(raw) ? raw : typeof raw === 'string' ? raw.split('/') : []
+  return parts.map(part => part.trim()).filter(Boolean)
 })
 
-const categoryParam = computed(() => segments.value[0] ?? '')
-const slugParam = computed(() => segments.value[1] ?? null)
-
-if (segments.value.length < 1 || segments.value.length > 2) {
+const categorySlug = computed(() => segments.value[0] ?? '')
+const category = computed(() => articleCategoryFromSlug('docs', categorySlug.value))
+if (segments.value.length < 1 || segments.value.length > 2 || !category.value) {
   throw createError({ statusCode: 404, statusMessage: 'Documentation not found' })
 }
 
-if (!slugToCategory(categoryParam.value)) {
+const path = computed(() => `/docs/${segments.value.join('/')}`)
+const { articles, error: articlesError } = await useDocsArticles()
+if (articlesError.value) throw createError({ statusCode: 500, statusMessage: 'Failed to load documentation index' })
+
+const current = computed(() => articles.value.find(item => item.path === path.value) ?? null)
+const categoryArticles = computed(() => articles.value.filter(item => item.categorySlug === categorySlug.value))
+
+// Every category with published articles answers at /docs/{category}. When one
+// of them is the category's landing article that article is the page; otherwise
+// the page is the category's index, listing what the category contains. It is
+// the same URL either way, so the sitemap can name it without knowing which
+// shape a category happens to have today.
+const isCategoryIndexOnly = computed(() => segments.value.length === 1 && !current.value)
+if (isCategoryIndexOnly.value && !categoryArticles.value.length) {
   throw createError({ statusCode: 404, statusMessage: 'Documentation category not found' })
 }
 
-const { data: docsList, error: docsListError } = await useDocsNav()
+// The landing article's slug is its category segment.
+const slug = computed(() => segments.value[1] ?? categorySlug.value)
 
-if (docsListError.value) {
-  throw createError({ statusCode: 500, statusMessage: 'Failed to load documentation index' })
-}
+const isArticleResponse = (value: unknown): value is { post: DocsArticleDetail } =>
+  isRecord(value) && isRecord(value.post) && typeof value.post.title === 'string' && Array.isArray(value.post.content_blocks)
 
-// A category route with no doc slug (e.g. /docs/getting-started) renders that
-// category's overview doc — a doc whose slug matches the category slug — if one
-// exists, instead of always redirecting to the first child doc. Mirrors Vercel's
-// docs, where top-level category pages ("Fundamentals") have their own intro
-// content rather than just bouncing to the first article.
-const categoryOverviewSlug = computed(() => {
-  const category = slugToCategory(categoryParam.value)
-  const hasOverview = (docsList.value?.docs ?? []).some(d => d.category === category && d.slug === categoryParam.value)
-  return hasOverview ? categoryParam.value : null
-})
-
-const effectiveSlug = computed(() => slugParam.value ?? categoryOverviewSlug.value)
-const isCategoryRedirect = computed(() => segments.value.length === 1 && !categoryOverviewSlug.value)
-
-if (!slugParam.value && !categoryOverviewSlug.value) {
-  const firstDoc = (docsList.value?.docs ?? []).find(doc =>
-    doc.category === slugToCategory(categoryParam.value) && !doc.hide_from_nav,
-  )
-  if (!firstDoc) {
-    throw createError({ statusCode: 404, statusMessage: 'Documentation category not found' })
+const { data: article, pending, error } = await useAsyncData(`docs-article-${path.value}`, async () => {
+  let loaded: DocsArticleDetail | null
+  if (import.meta.server) {
+    // Read through the request's own D1 binding rather than a nested self-fetch.
+    if (!requestEvent) throw createError({ statusCode: 500, statusMessage: 'Request context unavailable' })
+    const [{ cloudflareEnv }, { getPublishedBlogPost }] = await Promise.all([
+      import('~/server/utils/api-response'),
+      import('~/server/utils/content/publishing'),
+    ])
+    const env = cloudflareEnv(requestEvent)
+    if (!env.db) throw createError({ statusCode: 503, statusMessage: 'Documentation is temporarily unavailable' })
+    loaded = await getPublishedBlogPost(env.db, category.value!, slug.value, env, undefined, 'docs') as DocsArticleDetail | null
+  } else {
+    const response = await publicApiRequest<{ post: DocsArticleDetail }>(
+      `/api/public/blog/${encodeURIComponent(categorySlug.value)}/${encodeURIComponent(slug.value)}?collection=docs`,
+      { validate: isArticleResponse },
+    )
+    loaded = response.post
   }
-  await navigateTo(`/docs/${categoryParam.value}/${firstDoc.slug}`, { replace: true, redirectCode: 302 })
-}
+  if (!loaded) throw createError({ statusCode: 404, statusMessage: 'Documentation not found' })
+  return loaded
+}, { immediate: !isCategoryIndexOnly.value })
 
-const { data: doc, pending: loading, error } = await useAsyncData(
-  `doc-${categoryParam.value}-${effectiveSlug.value ?? 'index'}`,
-  async () => {
-    if (!effectiveSlug.value) return null
-
-    let doc: Doc | null | undefined
-
-    // Fetch directly against the real request's D1 binding instead of doing a nested
-    // self-fetch back to our own API — Nitro's internal dispatch for this two-segment
-    // dynamic route doesn't reliably reproduce the same route-param/binding resolution
-    // as a real external request, which caused pages/blog/[category]/[slug].vue to 404
-    // on posts its own API served correctly. Same fix applied here.
-    if (import.meta.server) {
-      const category = slugToCategory(categoryParam.value)
-      if (!category) throw createError({ statusCode: 404, statusMessage: 'Documentation not found' })
-
-      if (!requestEvent) throw createError({ statusCode: 404, statusMessage: 'Documentation not found' })
-
-      const [{ cloudflareEnv }, { getPublishedPlatformDoc }] = await Promise.all([
-        import('~/server/utils/api-response'),
-        import('~/server/utils/platform-content'),
-      ])
-      const env = cloudflareEnv(requestEvent)
-      const db = env.db
-      if (!db) throw createError({ statusCode: 500, statusMessage: 'Database not available' })
-
-      doc = await getPublishedPlatformDoc(db, category, effectiveSlug.value, env) as Doc | null
-    } else {
-      const endpoint = `/api/public/docs/${categoryParam.value}/${effectiveSlug.value}`
-      const response = await publicApiRequest<{ doc: Doc }>(endpoint, {
-        validate: isPublicDocResponse,
-      })
-      doc = response.doc
-    }
-
-    if (!doc) {
-      throw createError({ statusCode: 404, statusMessage: 'Documentation not found' })
-    }
-    return doc
-  },
-)
-
-if (error.value) {
-  throw error.value
-}
+if (error.value) throw error.value
 
 function renderMarkdown(markdown: string) {
   return DOMPurify.sanitize(renderMarkdownToHtml(markdown || ''))
 }
 
-const tocHtml = computed(() => (doc.value?.content_blocks ?? [])
+const blocks = computed(() => (article.value?.content_blocks ?? []) as BlogEditorBlock[])
+
+const tocHtml = computed(() => blocks.value
   .filter(block => block.type === 'heading' || block.type === 'markdown')
   .map(block => block.type === 'heading'
     ? `<h${Math.max(2, Math.min(6, block.level || 2))}>${DOMPurify.sanitize(String(block.data.text || ''))}</h${Math.max(2, Math.min(6, block.level || 2))}>`
@@ -259,114 +189,63 @@ const tocHtml = computed(() => (doc.value?.content_blocks ?? [])
   .join('\n'))
 
 const articleBodyRef = shallowRef<Element | null>(null)
-useCopyableCodeBlocks(articleBodyRef, computed(() => doc.value?.content_blocks))
-const renderedComponents = computed(() => {
-  return structuredComponentsFromBlocks(doc.value?.content_blocks ?? [])
-})
+useCopyableCodeBlocks(articleBodyRef, blocks)
+const renderedComponents = computed(() => structuredComponentsFromBlocks(blocks.value))
 
-const orderedDocs = computed(() => (docsList.value?.docs ?? [])
-  .filter(item => !item.hide_from_nav)
-  .map((item) => {
-    const itemCategorySlug = categoryToSlug(item.category)
-    if (!itemCategorySlug) return null
-    // A doc whose slug matches its own category slug is that category's overview
-    // doc — link to the category-only route, not a duplicate /category/category URL.
-    const path = item.slug === itemCategorySlug ? `/docs/${itemCategorySlug}` : `/docs/${itemCategorySlug}/${item.slug}`
-    return { ...item, path }
-  })
-  .filter((item): item is DocListItem & { path: string } => Boolean(item)))
+const siblings = computed(() => categoryArticles.value.filter(item => item.path !== current.value?.path))
 
-const categoryDocs = computed(() =>
-  orderedDocs.value.filter(item => item.category === doc.value?.category),
-)
+// Previous/Next walks the sidebar's order across every category.
+const currentIndex = computed(() => articles.value.findIndex(item => item.path === path.value))
+const previousArticle = computed(() => currentIndex.value > 0 ? articles.value[currentIndex.value - 1] : null)
+const nextArticle = computed(() => currentIndex.value >= 0 && currentIndex.value < articles.value.length - 1 ? articles.value[currentIndex.value + 1] : null)
 
-const isOverviewDoc = computed(() =>
-  Boolean(doc.value && categoryOverviewSlug.value && doc.value.slug === categoryOverviewSlug.value),
-)
-
-const siblingDocs = computed(() =>
-  categoryDocs.value.filter(item => item.slug !== doc.value?.slug),
-)
-
-// Previous/Next walks the full curated Section → Group → Page hierarchy (the same
-// order the sidebar renders in — /api/public/docs is already sorted by
-// nav_section_order → nav_section → nav_group_order → nav_group → nav_order/sort_order),
-// not just the current taxonomy category. This matches Vercel-style docs pagers,
-// which step across sections/groups rather than stopping at a category boundary.
-const currentDocIndex = computed(() =>
-  orderedDocs.value.findIndex(item =>
-    item.slug === doc.value?.slug && item.category === doc.value?.category,
-  ),
-)
-
-const previousDoc = computed(() =>
-  currentDocIndex.value > 0 ? orderedDocs.value[currentDocIndex.value - 1] : null,
-)
-
-const nextDoc = computed(() =>
-  currentDocIndex.value >= 0 && currentDocIndex.value < orderedDocs.value.length - 1
-    ? orderedDocs.value[currentDocIndex.value + 1]
-    : null,
-)
-
-const featuredMedia = computed(() => doc.value?.media?.find(item => item.slot === 'featured') ?? null)
-const docMedia = computed(() => resolveMedia(featuredMedia.value))
-
-const categorySlug = computed(() => categoryToSlug(doc.value?.category) || categoryParam.value)
-const docPath = computed(() => {
-  if (!doc.value) return '/docs'
-  if (doc.value.canonical_url) return doc.value.canonical_url
-  return isOverviewDoc.value ? `/docs/${categorySlug.value}` : `/docs/${categorySlug.value}/${doc.value.slug}`
-})
-const seoTitle = computed(() => doc.value?.title || 'Documentation')
-const seoDescription = computed(() => doc.value?.seo_description || doc.value?.excerpt || `Learn about ${doc.value?.title || 'this topic'} in KrabiClaw documentation.`)
+const categoryName = computed(() => current.value?.category ?? category.value!)
+const seoTitle = computed(() => isCategoryIndexOnly.value
+  ? `${categoryName.value} documentation`
+  : article.value?.seo_title || article.value?.title || 'Documentation')
+const seoDescription = computed(() => isCategoryIndexOnly.value
+  ? `${categoryName.value} guides in the KrabiClaw documentation.`
+  : article.value?.seo_description || article.value?.excerpt || `Learn about ${article.value?.title || 'this topic'} in KrabiClaw documentation.`)
 
 const breadcrumbs = computed(() => [
   { name: 'Docs', url: '/docs' },
-  ...(doc.value?.category ? [{ name: doc.value.category, url: `/docs/${categorySlug.value}` }] : []),
-  ...(doc.value && !isOverviewDoc.value ? [{ name: doc.value.title, url: `/docs/${categorySlug.value}/${doc.value.slug}` }] : []),
+  { name: categoryName.value, url: `/docs/${categorySlug.value}` },
+  ...(current.value && !current.value.isCategoryIndex ? [{ name: current.value.title, url: current.value.path }] : []),
 ])
 
-// This page emits its content-specific schema.org graph separately.
 const runtimeConfig = useRuntimeConfig()
 const requestURL = useRequestURL()
 const platformOrigin = computed(() => runtimeConfig.public.siteUrl || requestURL.origin)
 const { canonicalUrl } = useSocialMetadata(() => ({
   template: 'platform' as const,
   schema: false,
-  pageType: 'article' as const,
   title: seoTitle.value,
   description: seoDescription.value,
-  path: resolveSeoUrl(docPath.value, platformOrigin.value),
   brand: { siteName: 'KrabiClaw' },
-  socialImage: doc.value?.social_image ?? null,
-  robots: doc.value?.robots?.trim() || null,
-  indexable: !doc.value?.robots || !/noindex/i.test(doc.value.robots),
-}))
-
-useHead(() => ({
-  meta: [
-    ...(doc.value?.seo_keywords?.trim() ? [{ name: 'keywords', content: doc.value.seo_keywords.trim() }] : []),
-  ],
+  // A category index is one of the site's own index pages, so it carries the
+  // site's social card the way /features and /pricing do. An article carries
+  // its own generated card and nothing else — omitting the key would reach for
+  // the site's card and hide a missing article card.
+  ...(isCategoryIndexOnly.value
+    ? { pageType: 'website' as const, path: path.value }
+    : {
+        pageType: 'article' as const,
+        path: resolveSeoUrl(article.value?.canonical_url || path.value, platformOrigin.value),
+        socialImage: article.value?.social_image ?? null,
+        robots: normalizeRobotsIntent(article.value?.robots),
+      }),
 }))
 
 useContentPageSchema(computed(() => {
-  if (!doc.value) return null
+  if (!article.value) return null
   return {
     articleType: 'TechArticle' as const,
     url: canonicalUrl.value,
-    title: doc.value.title,
+    title: article.value.title,
     description: seoDescription.value,
-    imageUrl: docMedia.value.url || undefined,
-    imageWidth: featuredMedia.value?.width ?? undefined,
-    imageHeight: featuredMedia.value?.height ?? undefined,
-    datePublished: doc.value.published_at,
-    dateModified: doc.value.updated_at,
-    authorName: doc.value.author?.name || undefined,
-    articleSection: doc.value.category || undefined,
-    keywords: doc.value.seo_keywords || undefined,
+    dateModified: article.value.updated_at ?? undefined,
+    articleSection: current.value?.category,
     inLanguage: 'en-US',
-    proficiencyLevel: doc.value.difficulty_level || undefined,
     breadcrumbs: breadcrumbs.value,
     components: renderedComponents.value,
   }

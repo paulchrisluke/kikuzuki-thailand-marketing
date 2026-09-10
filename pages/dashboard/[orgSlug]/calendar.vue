@@ -127,6 +127,7 @@
 </template>
 
 <script setup lang="ts">
+import { formatCalendarDate } from '~/utils/timezone'
 import DashboardAvailabilityCalendar from '~/components/dashboard/AvailabilityCalendar.vue'
 import { getErrorMessage } from '~/utils/errors'
 import type { AgendaItem, AgendaKind, AgendaLocation, AgendaPayload, AgendaSite } from '~/server/utils/dashboard-agenda'
@@ -163,7 +164,7 @@ const selectedDay = ref(localDayKey())
 
 const monthStart = computed(() => currentMonth.value.toISOString().slice(0, 10))
 const monthEnd = computed(() => new Date(Date.UTC(currentMonth.value.getUTCFullYear(), currentMonth.value.getUTCMonth() + 1, 0)).toISOString().slice(0, 10))
-const monthLabel = computed(() => new Intl.DateTimeFormat('en-US', { timeZone: 'UTC', month: 'long', year: 'numeric' }).format(currentMonth.value))
+const monthLabel = computed(() => formatCalendarDate(currentMonth.value.toISOString().slice(0, 10), 'en', { month: 'long', year: 'numeric' }))
 const query = computed(() => ({
   from: monthStart.value, to: monthEnd.value,
   siteId: filters.siteId !== FILTER_ALL ? filters.siteId : undefined,
@@ -273,7 +274,7 @@ function goToday() {
   currentMonth.value = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1))
 }
 function dayLabel(dayKey: string) {
-  return new Intl.DateTimeFormat('en-US', { timeZone: 'UTC', weekday: 'long', month: 'long', day: 'numeric' }).format(new Date(`${dayKey}T12:00:00Z`))
+  return formatCalendarDate(dayKey, 'en', { weekday: 'long', month: 'long', day: 'numeric' })
 }
 function kindLabel(kind: AgendaKind) {
   return ({ reservation: 'Reservation', experience_booking: 'Experience booking', post: 'Post' })[kind]

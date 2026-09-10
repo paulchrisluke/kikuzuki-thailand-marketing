@@ -1,5 +1,5 @@
 import { getPersistedSourceLocale } from '~/server/utils/localization'
-import { createContentDocumentWithBlocks, prepareContentDocumentDeletion } from '~/server/utils/content-documents'
+import { createContentDocumentWithBlocks, prepareContentDocumentDeletion } from '~/server/utils/content/documents'
 import { execute, executeBatch, queryAll, queryFirst, type DbClient } from '../db/index.ts'
 import { d1JsonStringSet } from '../db/d1-limits.ts'
 
@@ -71,8 +71,16 @@ function stringOrNull(value: unknown, maxLength: number) {
   return normalized ? normalized.slice(0, maxLength) : null
 }
 
-export async function listQa(db: DbClient, siteId: string, locationId: string | null, publishedOnly = false, pagePath?: string | null, locale = 'en') {
-  const scope = scopeSql(locationId, pagePath)
+/**
+ * `qaId` addresses one record whatever its scope. A dashboard record has a URL
+ * of its own — `/qa/<id>` — and cannot know the page it was filed under before
+ * it has read it, so an id lookup replaces the scope clause rather than
+ * narrowing it. Without an id this behaves exactly as before.
+ */
+export async function listQa(db: DbClient, siteId: string, locationId: string | null, publishedOnly = false, pagePath?: string | null, locale = 'en', qaId?: string | null) {
+  const scope = qaId
+    ? { clause: 'root.id = ?', params: [qaId] as unknown[] }
+    : scopeSql(locationId, pagePath)
   return queryAll<QaDocument>(db, `
     SELECT p.id, p.organization_id, p.site_id, root.location_id, root.scope_path AS page_path,
       p.title AS question, p.summary AS answer, (root.metadata_json ->> '$.question_author') AS question_author,
@@ -89,6 +97,21 @@ export async function listQa(db: DbClient, siteId: string, locationId: string | 
 export async function listPageQa(db: DbClient, siteId: string, pagePath: string, publishedOnly = false, locale = 'en') {
   const scoped = await listQa(db, siteId, null, publishedOnly, pagePath, locale)
   return scoped.length ? scoped : listQa(db, siteId, null, publishedOnly, undefined, locale)
+}
+
+/**
+ * FAQ blocks hold no questions of their own: they list the published Q&A records
+ * scoped to the page (or article) they sit on. Public readers attach those
+ * records here so every surface renders the same items.
+ */
+export async function attachPageQa<T extends { type: string; data: Record<string, unknown> }>(
+  db: DbClient, siteId: string, pagePath: string, blocks: T[], locale = 'en',
+): Promise<T[]> {
+  const sourced = (block: T) => block.type === 'faq' && block.data.source === 'page_qa'
+  if (!blocks.some(sourced)) return blocks
+  const items = (await listPageQa(db, siteId, pagePath, true, locale))
+    .map(row => ({ id: String(row.id), title: String(row.question), description: typeof row.answer === 'string' ? row.answer : undefined }))
+  return blocks.map(block => sourced(block) ? { ...block, data: { ...block.data, items } } : block)
 }
 
 export async function createQa(db: DbClient, scope: QaScope, input: CreateQaInput) {

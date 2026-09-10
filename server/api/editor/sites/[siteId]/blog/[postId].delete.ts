@@ -1,5 +1,5 @@
 import { jsonResponse } from "~/server/utils/api-response";
-import { deletePlatformBlogPost } from "~/server/utils/platform-content";
+import { deleteBlogPost } from "~/server/utils/content/publishing";
 import { httpErrorDetails } from "~/server/utils/http-error";
 import { requireSiteAccess } from "~/server/utils/location-access";
 
@@ -20,7 +20,7 @@ export default defineHandler(async (event) => {
   try {
     const { db } = await requireSiteAccess(event, siteId);
 
-    await deletePlatformBlogPost(db, postId, siteId);
+    await deleteBlogPost(db, postId, siteId);
 
     return jsonResponse({ success: true });
   } catch (error) {

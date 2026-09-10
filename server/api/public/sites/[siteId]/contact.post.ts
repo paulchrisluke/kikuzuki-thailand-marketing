@@ -29,6 +29,15 @@ export default defineHandler(async (event) => {
   const email   = cleanString(body.email, 200)
   const message = cleanString(body.message, 2000)
   const subject = cleanString(body.subject, 30)
+  // Free-text context the KrabiClaw help form and ChowBot escalations attach.
+  const topic = cleanString(body.topic, 200)
+  const source = cleanString(body.source, 100)
+  const routeContext = cleanString(body.route_context, 500)
+  const suggestedSummary = cleanString(body.suggested_summary, 1000)
+  const agentMetadata = body.agent_metadata_json !== undefined && body.agent_metadata_json !== null
+    ? (() => { try { return JSON.parse(JSON.stringify(body.agent_metadata_json)) as ApiValue } catch { return null } })()
+    : null
+  if (agentMetadata !== null && JSON.stringify(agentMetadata).length > 10_000) return jsonResponse({ error: 'agent_metadata_json is too large.' }, { status: 400 })
   const experienceIdInput = cleanString(body.experienceId, 100)
   const locationIdInput = cleanString(body.location_id, 100) || cleanString(body.locationId, 100)
 
@@ -76,12 +85,13 @@ export default defineHandler(async (event) => {
   const now = new Date().toISOString()
   await executeBatch(db, requestInsertQueries({ id, kind: 'contact', organization_id: site.organization_id, site_id: siteId, location_id: assignedLocationId,
     product_id: experience?.id ?? null, customer_id: null, review_id: null, status: null, conversation_state: 'needs_attention', resolved_at: null,
-    payload: { guest: { name, email, phone: null }, subject: subject || null, message, consent_at: consentAt, ip_hash: ipHash }, created_at: now, updated_at: now }))
+    payload: { guest: { name, email, phone: null }, subject: subject || topic || null, message, consent_at: consentAt, ip_hash: ipHash,
+      source: source || null, route_context: routeContext || null, suggested_summary: suggestedSummary || null, agent_metadata: agentMetadata }, created_at: now, updated_at: now }))
   await publishGuestInboxThreadEvent(env, db, { threadId: id, type: 'thread.created' })
 
   try {
     await notifyContactSubmitted(env, db, {
-      organizationId: site.organization_id, siteId, locationId: assignedLocationId, siteName: site.brand_name, contactId: id, guestName: name, email, subject: subject || null, message, consentAcknowledged, experienceId: experience?.id ?? null, experienceTitle: experience?.title ?? null, })
+      organizationId: site.organization_id, siteId, locationId: assignedLocationId, siteName: site.brand_name, contactId: id, guestName: name, email, subject: subject || topic || null, message, consentAcknowledged, experienceId: experience?.id ?? null, experienceTitle: experience?.title ?? null, })
   } catch (error) {
     console.error('contact_notification_failed', {
       organizationId: site.organization_id, siteId, contactId: id, error: error instanceof Error ? error.message : String(error)

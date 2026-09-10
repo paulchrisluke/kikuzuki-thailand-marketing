@@ -14,11 +14,13 @@ export function createTenantPageEditorData(type: TenantPageBlockType): EditorDat
     case 'markdown':
       return { markdown: '', editor_mode: 'rich' }
     case 'image':
-      return { alt: '', caption: '' }
+      return { caption: '' }
     case 'gallery':
       return {}
     case 'faq':
-      return { title: '', items: [{ title: '', description: '' }] }
+      return { title: '', source: 'page_qa' }
+    case 'how_to':
+      return { title: '', steps: [{ name: '', text: '' }] }
     case 'divider':
       return {}
     case 'cta':
@@ -28,7 +30,7 @@ export function createTenantPageEditorData(type: TenantPageBlockType): EditorDat
     case 'callout':
       return { title: '', body: '', tone: 'neutral', buttons: [] }
     case 'hero':
-      return { eyebrow: '', title: '', subtitle: '', alt: '', cta_label: '', cta_url: '' }
+      return { eyebrow: '', title: '', subtitle: '', cta_label: '', cta_url: '' }
     case 'button_group':
       return { buttons: [{ label: '', url: '' }] }
     case 'feature_grid':

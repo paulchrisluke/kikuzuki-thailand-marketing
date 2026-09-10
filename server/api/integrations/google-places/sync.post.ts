@@ -1,7 +1,6 @@
 import { jsonResponse } from '../../../utils/api-response'
 import { syncPlaceToLocation } from '../../../utils/google-places'
 import { hasSiteEntitlement } from '~/server/utils/billing'
-import { chargeFlatCredits } from '~/server/utils/ai-credits'
 import { purgePublicResourceCacheSafe } from '~/server/utils/public-resource-cache'
 import { queryFirst } from '~/server/db'
 import { requireRequestedLocationAccess } from '~/server/utils/location-access'
@@ -35,7 +34,6 @@ export default defineHandler(async (event) => {
     const { place, reviewsUpserted } = await syncPlaceToLocation(
       db, apiKey, site.organization_id, site.id, locationId, location.google_place_id
     )
-    await chargeFlatCredits(db, site.organization_id, { siteId: site.id, action: 'google_places_details' })
     await purgePublicResourceCacheSafe(env, site.id)
 
     return jsonResponse({

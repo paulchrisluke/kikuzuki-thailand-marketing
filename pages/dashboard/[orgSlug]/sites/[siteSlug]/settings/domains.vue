@@ -160,8 +160,9 @@
 </template>
 
 <script setup lang="ts">
+import { formatTimestamp } from '~/utils/timezone'
 const dashboardApi = useDashboardApi()
-definePageMeta({ layout: 'dashboard' })
+definePageMeta({ layout: 'dashboard', ownsChrome: true })
 
 const { sitePaths } = useDashboardSiteLinks()
 
@@ -495,12 +496,7 @@ function domainMenuItems(group: DomainGroup) {
 }
 
 function formatDateTime(value: string) {
-  return new Intl.DateTimeFormat(undefined, {
-    month: 'short',
-    day: 'numeric',
-    hour: 'numeric',
-    minute: '2-digit',
-  }).format(new Date(value))
+  return formatTimestamp(value, 'en', 'UTC') + ' UTC'
 }
 
 watch(() => route.params.siteSlug, () => {

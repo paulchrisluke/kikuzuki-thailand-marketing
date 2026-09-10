@@ -25,8 +25,9 @@ import {
 import { getMediaPlacements } from '~/server/utils/media-placement'
 import type { Product } from '~/server/types/products'
 import { resolveSiteCmsCapabilities } from '~/server/utils/cms-capabilities'
-import { attachFeaturedMediaFromBareJoin } from "~/server/utils/platform-content";
-import { getContentBlocksForDocument } from '~/server/utils/content-documents'
+import { attachCover } from "~/server/utils/content/publishing";
+import { COVER_SELECT, coverJoinSql } from "~/server/utils/content/cover";
+import { getContentBlocksForDocument } from '~/server/utils/content/documents'
 import {
   buildPublicResourceCacheKey,
   getPublicResourceCache,
@@ -71,7 +72,6 @@ interface SiteContent {
   hero_title?: string | null
   hero_subtitle?: string | null
   media?: Array<{ asset_id: string; slot: string; public_url?: string | null; thumbnail_url?: string | null; kind?: string | null }>
-  component?: string | null
   updated_at: string
 }
 
@@ -82,7 +82,6 @@ function groupContentBlocks(rows: SiteContent[]): Array<SiteContent & { _section
     if (!groups[section]) {
       groups[section] = { ...row, field: section, _section: section }
     } else {
-      if (row.component) groups[section].component = row.component
       for (const key of Object.keys(row) as Array<keyof SiteContent>) {
         if (groups[section][key] == null) (groups[section] as unknown as Record<string, unknown>)[key] = row[key]
       }
@@ -156,7 +155,6 @@ function tenantPageToContentRows(page: PublicTenantPage): SiteContent[] {
       type: block.type === 'image' || block.type === 'gallery' ? 'media' : 'text',
       source: 'tenant-pages',
       updated_at: page.updated_at,
-      component: null,
       media: block.media,
     } satisfies SiteContent
     if (block.type === 'hero') {
@@ -605,9 +603,8 @@ async function loadPublicPageSource(
   if (requestedDatasets.has("blog"))
     idxBlogList = push(
       `SELECT p.id, root.id AS root_id, root.slug AS source_slug, p.title, p.slug, p.summary AS excerpt, (p.metadata_json ->> '$.category') AS category, (p.metadata_json ->> '$.nav_title') AS nav_title, p.seo_description, p.seo_keywords,
-              p.canonical_url, p.robots, root.published_at, p.updated_at, (root.metadata_json ->> '$.featured_order') AS featured_order,
-              mp.asset_id AS asset_id,
-              ma.public_url, ma.thumbnail_url, ma.kind, ma.width, ma.height,
+              p.canonical_url, p.robots, root.published_at, p.updated_at,
+              ${COVER_SELECT},
               CAST(MAX(1, ROUND((COALESCE((
                 SELECT SUM(LENGTH(COALESCE(json_extract(cb.data_json, '$.markdown'), json_extract(cb.data_json, '$.text'), '')))
                 FROM content_documents cd
@@ -615,10 +612,9 @@ async function loadPublicPageSource(
                 WHERE cd.id = p.id
               ), 0) / 5.0) / 200.0)) AS INTEGER) AS read_time_minutes
        FROM content_documents root JOIN content_documents p ON COALESCE(p.root_id,p.id) = root.id AND p.locale = ?
-       LEFT JOIN media_placements mp ON mp.owner_type = 'content_document' AND mp.owner_id = p.id AND mp.slot = 'featured' AND mp.sort_order = 0 AND mp.status = 'active'
-       LEFT JOIN media_assets ma ON ma.id = mp.asset_id AND ma.status = 'active'
+       ${coverJoinSql('p')}
        WHERE root.row_role = 'root' AND root.kind = 'article' AND root.status = 'published' AND p.site_id = ? AND root.visibility = 'public'
-       ORDER BY COALESCE((root.metadata_json ->> '$.featured_order'), 999999), root.published_at IS NULL, root.published_at DESC, p.id DESC
+       ORDER BY root.published_at IS NULL, root.published_at DESC, p.id DESC
        LIMIT ?`,
       [localizedLocale ?? "en", siteId, page === "home" ? 3 : 50],
     );
@@ -627,11 +623,9 @@ async function loadPublicPageSource(
     idxBlogPost = push(
       `SELECT p.id, root.id AS root_id, root.slug AS source_slug, p.title, p.slug, p.summary AS excerpt, (p.metadata_json ->> '$.category') AS category, (p.metadata_json ->> '$.nav_title') AS nav_title, p.seo_description, p.seo_keywords,
               p.canonical_url, p.robots, root.published_at, p.created_at, p.updated_at,
-              mp.asset_id AS asset_id,
-              ma.public_url, ma.thumbnail_url, ma.kind, ma.width, ma.height
+              ${COVER_SELECT}
        FROM content_documents root JOIN content_documents p ON COALESCE(p.root_id,p.id) = root.id AND p.locale = ?
-       LEFT JOIN media_placements mp ON mp.owner_type = 'content_document' AND mp.owner_id = p.id AND mp.slot = 'featured' AND mp.sort_order = 0 AND mp.status = 'active'
-       LEFT JOIN media_assets ma ON ma.id = mp.asset_id AND ma.status = 'active'
+       ${coverJoinSql('p')}
        WHERE ${localizedBlogPostId ? 'p.id' : 'p.slug'} = ? AND p.site_id = ? AND root.row_role = 'root' AND root.kind = 'article' AND root.status = 'published'
        LIMIT 1`,
       [localizedLocale ?? "en", localizedBlogPostId ?? blogSlug, siteId],
@@ -1019,7 +1013,7 @@ async function loadPublicPageSource(
     idxBlogList >= 0
       ? (
           (batchResults[idxBlogList] as { results: ApiRecord[] })?.results ?? []
-        ).map(attachFeaturedMediaFromBareJoin)
+        ).map(attachCover)
       : [];
   const blogList = sourceBlogList
 
@@ -1034,8 +1028,11 @@ async function loadPublicPageSource(
       }
       sourceBlogPostIdentity = { id: String(postRow.root_id), slug: String(postRow.source_slug) }
       options.signal?.throwIfAborted();
-      const contentBlocks = await getContentBlocksForDocument(db, postRow.id);
-      blogPost = attachFeaturedMediaFromBareJoin({ ...postRow, content_blocks: contentBlocks });
+      const loadedBlocks = await getContentBlocksForDocument(db, postRow.id);
+      const contentBlocks = loadedBlocks
+        ? await attachPageQa(db, siteId, tenantBlogPostPath({ themeId: site.theme_id, vertical: site.vertical }, String(postRow.source_slug)), loadedBlocks, localizedLocale ?? 'en')
+        : loadedBlocks
+      blogPost = attachCover({ ...postRow, content_blocks: contentBlocks });
     }
   }
 

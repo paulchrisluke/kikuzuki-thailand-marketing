@@ -1,20 +1,11 @@
-// Shared MCP JSON-RPC-over-HTTP transport plumbing for the two separate MCP
-// resource surfaces (server/api/mcp.post.ts — tenant, server/api/mcp/platform.post.ts
-// — platform admin). This is transport formatting, not authentication: each
-// surface still builds its own requireMcpUser options (audience/scopes/
-// requirePlatformAdmin), tool catalog, and tools/call execution — this file
-// only extracts the byte-identical request/response shaping both files had
-// duplicated (credential-missing handling, the seven non-tool-call protocol
-// methods, and outer-catch error/telemetry shaping), per the Better Auth
-// epic's "a configurable shared transport/runtime is allowed; a merged tool
-// endpoint or tool-filter-only security boundary is not."
+// MCP JSON-RPC-over-HTTP transport plumbing for server/api/mcp.post.ts. This is
+// transport formatting, not authentication: the route builds its own
+// requireMcpUser options (audience/scopes), tool catalog, and tools/call
+// execution — this file holds the request/response shaping (credential-missing
+// handling, the seven non-tool-call protocol methods, and outer-catch
+// error/telemetry shaping).
 import type { H3Event } from 'nitro';
 import {  setResponseStatus, readBody  } from 'nitro/h3';
-import { asMcpError, mcpFailure, mcpProtocolError, mcpSuccess, MCP_ERROR, MCP_PROTOCOL_VERSION, SUPPORTED_PROTOCOL_VERSIONS, type JsonRpcId, type McpRpcRequest, } from '~/server/utils/mcp-protocol'
-import { mcpHttpStatusForError, sendMcpErrorResponse, setMcpNotificationAccepted } from '~/server/utils/mcp-http-response'
-import { requireMcpUser, type RequireMcpUserOptions } from '~/server/utils/mcp-auth'
-import {
-  buildMcpAuthChallengeForError, buildMcpOAuthChallenge, describeMcpAuthTelemetryError, mcpAuthRequiredResult, mcpToolErrorResult, setMcpAuthChallenge, } from '~/server/utils/mcp-route-helpers'
 
 export interface McpToolMeta {
   domain?: string | null

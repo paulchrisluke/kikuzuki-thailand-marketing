@@ -1,5 +1,5 @@
 import { sanitizeUrl } from './sanitize.ts'
-import type { ContentComponentType } from './content-component-resolver.ts'
+export type ContentComponentType = 'faq' | 'how_to' | 'ai_assistance'
 
 export interface ContentFaqItem {
   question?: string | null

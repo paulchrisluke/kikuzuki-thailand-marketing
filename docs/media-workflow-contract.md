@@ -17,13 +17,6 @@ The canonical route family is under:
 - `PATCH /api/editor/sites/[siteId]/media/[assetId]`
 - `DELETE /api/editor/sites/[siteId]/media/[assetId]`
 
-Related workflow helpers:
-
-- `POST /api/ai/[siteId]/generate-image`
-- `POST /api/ai/[siteId]/menu/extract`
-- ChowBot `import_menu_from_media`
-- ChowBot `resolve_pending_media`
-
 ## Canonical lifecycle
 
 1. `request-upload`
@@ -39,7 +32,7 @@ Related workflow helpers:
    Optional follow-up edits such as alt text or category changes happen through `PATCH`. Content ownership is never stored on the asset; assignment always uses a placement.
 
 5. downstream workflows
-   Confirmed assets may then be used by higher-level flows like menu OCR/import, hero image selection, or AI-assisted generation.
+   Confirmed assets may then be assigned to content through media placements.
 
 6. delete
    Deletion is a workflow action on the asset record and storage object, not a table-row-only concern.
@@ -48,7 +41,6 @@ Related workflow helpers:
 
 - Do not invent a separate `create media` MCP tool that bypasses the canonical Cloudflare upload and media-asset manager paths.
 - Do not treat pending assets as usable by public-site workflows.
-- Menu extraction must only operate on confirmed or explicitly pending-media workflow inputs.
 - AI-generated images still end as normal media assets and must be visible through the canonical media listing surface.
 - AI-generated image briefs should first resolve and review `image.generate` Agent Skill guidance through the relevant MCP surface. The review is advisory; the file transport and media persistence rules below remain enforced by tool contracts.
 - Canonical MCP generated-image contracts are split by source:
@@ -69,7 +61,6 @@ Related workflow helpers:
   - `delete_media_asset`
   - `save_generated_image`
   - `save_generated_image_file`
-  - `import_menu_from_media`
 
 ## Auth boundary
 

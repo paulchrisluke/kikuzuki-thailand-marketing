@@ -7,11 +7,14 @@ export const PLATFORM_SITEMAP_ROUTES = [
   '/about',
   '/blog',
   '/docs',
+  '/experiences',
   '/features',
   '/help',
+  '/legal',
   '/plugin',
   '/pricing',
   '/privacy',
+  '/restaurants',
   '/templates',
   '/templates/blawby',
   '/templates/saya',
@@ -19,7 +22,6 @@ export const PLATFORM_SITEMAP_ROUTES = [
 ] as const
 
 export const PRIVATE_ROUTE_PREFIXES = [
-  '/admin',
   '/api',
   '/auth',
   '/dashboard',
@@ -43,7 +45,6 @@ export const PRIVATE_EXACT_ROUTES = new Set([
 
 export const TENANT_ONLY_EXACT_ROUTES = new Set([
   '/contact',
-  '/experiences',
   '/locations',
   '/menu',
   '/order',

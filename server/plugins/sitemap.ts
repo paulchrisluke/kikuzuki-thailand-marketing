@@ -4,13 +4,11 @@ import { definePlugin, HTTPError } from 'nitro'
 import { queryAll, queryFirst, type DbClient } from '~/server/db'
 import { cloudflareEnv } from '~/server/utils/api-response'
 import { isNonIndexableHost, PLATFORM_SITEMAP_ROUTES } from '~/server/utils/seo-policy'
-import { blogCategoryToSlug } from '~/utils/blog-categories'
-import { categoryToSlug } from '~/utils/docs-categories'
+import { ARTICLE_COLLECTIONS, articleCategoryToSlug, collectionArticlePath, isArticleCollection } from '~/utils/article-collections'
 import { TENANT_TYPES } from '~/utils/tenant-routing'
 import { resolvePublicTemplate } from '~/utils/template-registry'
 import { resolveProductPresentation } from '~/utils/product-presentation'
 import { assertSiteLanguageEntitlement } from '~/server/utils/localization'
-import { PLATFORM_SITE_ID } from '~/shared/platform-scope'
 
 interface SitemapEntry {
   loc: string
@@ -62,45 +60,42 @@ export default definePlugin((nitroApp) => {
     const entries: SitemapEntry[] = []
 
     if (event.context.tenantType === TENANT_TYPES.PLATFORM) {
+      const platformSiteId = event.context.siteId as string
       entries.push(...PLATFORM_SITEMAP_ROUTES.map(loc => ({ loc })))
 
-      const [docs, posts] = await Promise.all([
-        queryAll<ApiRecord>(
-          db,
-          `SELECT slug, (metadata_json ->> '$.category') AS category, updated_at
-           FROM content_documents
-           WHERE kind = 'platform_doc' AND row_role = 'root' AND site_id = '${PLATFORM_SITE_ID}'
-             AND (robots IS NULL OR robots NOT LIKE '%noindex%')`,
-        ),
-        queryAll<ApiRecord>(
-          db,
-          `SELECT slug, (metadata_json ->> '$.category') AS category, updated_at
-           FROM content_documents
-           WHERE kind = 'article' AND row_role = 'root' AND status = 'published'
-             AND site_id = '${PLATFORM_SITE_ID}'
-             AND visibility = 'public'
-             AND (robots IS NULL OR robots NOT LIKE '%noindex%')`,
-        ),
-      ])
+      const articles = await queryAll<ApiRecord>(
+        db,
+        `SELECT slug, (metadata_json ->> '$.collection') AS collection, (metadata_json ->> '$.category') AS category, updated_at
+         FROM content_documents
+         WHERE kind = 'article' AND row_role = 'root' AND status = 'published'
+           AND site_id = ?
+           AND visibility = 'public'
+           AND (robots IS NULL OR robots NOT LIKE '%noindex%')`,
+        [platformSiteId],
+      )
 
-      for (const doc of docs ?? []) {
-        const categorySlug = categoryToSlug(doc.category as string | null)
-        const slug = typeof doc.slug === 'string' ? doc.slug : ''
-        if (!categorySlug || !slug) continue
+      // Blog posts and documentation are both article collections; each shapes its own URL.
+      // A documentation category also answers at /docs/{category} — as its landing
+      // article when one exists, otherwise as the category's index (see
+      // pages/docs/[...segments].vue) — so every category holding a published
+      // article contributes that URL too. Duplicates collapse in addUniqueEntries.
+      const docsCategoryLastmod = new Map<string, string | undefined>()
+      for (const article of articles ?? []) {
+        const slug = typeof article.slug === 'string' ? article.slug : ''
+        if (!slug || !isArticleCollection(article.collection)) continue
+        const categorySlug = articleCategoryToSlug(article.collection, article.category as string | null)
+        if (!categorySlug) continue
+        const lastmod = article.updated_at as string | undefined
         entries.push({
-          loc: slug === categorySlug ? `/docs/${categorySlug}` : `/docs/${categorySlug}/${slug}`,
-          lastmod: doc.updated_at as string | undefined,
+          loc: collectionArticlePath(article.collection, article.category as string | null, slug),
+          lastmod,
         })
+        if (article.collection !== 'docs') continue
+        const known = docsCategoryLastmod.get(categorySlug)
+        if (!known || (lastmod && lastmod > known)) docsCategoryLastmod.set(categorySlug, lastmod)
       }
-
-      for (const post of posts ?? []) {
-        const categorySlug = blogCategoryToSlug(post.category as string | null)
-        const slug = typeof post.slug === 'string' ? post.slug : ''
-        if (!categorySlug || !slug) continue
-        entries.push({
-          loc: `/blog/${categorySlug}/${slug}`,
-          lastmod: post.updated_at as string | undefined,
-        })
+      for (const [categorySlug, lastmod] of docsCategoryLastmod) {
+        entries.push({ loc: `${ARTICLE_COLLECTIONS.docs.pathPrefix}/${categorySlug}`, lastmod })
       }
 
       ctx.urls.length = 0
@@ -157,7 +152,7 @@ export default definePlugin((nitroApp) => {
            WHERE d.site_id = ? AND d.locale = ? AND d.row_role = 'representation' AND d.path IS NOT NULL
              AND (root.robots IS NULL OR root.robots NOT LIKE '%noindex%')
              AND (root.kind = 'page' OR (root.kind = 'article' AND root.status = 'published' AND root.visibility = 'public')
-               OR (root.kind = 'social_post' AND root.status = 'published'))
+               OR (root.kind = 'social_post' AND root.status = 'published' AND root.visibility = 'public'))
            ORDER BY d.path
         `, [siteId, candidate.locale]),
       ])

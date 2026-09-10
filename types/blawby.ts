@@ -90,18 +90,18 @@ export interface PublicBlogSummary {
   excerpt: string | null
   category: string | null
   tags: string[]
-  featured_order: number | null
   published_at: string | null
   canonical_url: string
-  media: Array<{
+  /** The leading image block of the article, or null when the article opens with text. */
+  cover: {
     asset_id: string
-    slot: string
-    public_url: string
+    public_url: string | null
     thumbnail_url: string | null
     kind: string | null
+    alt_text: string | null
     width: number | null
     height: number | null
-  }>
+  } | null
   social_image: SocialImageSource | null
 }
 

@@ -29,7 +29,6 @@
     <template #body>
       <EditorPaneShell
         :has-detail="hasDetail"
-        :show-desktop-detail="hasDetail"
         :detail-title="detailTitle"
         :dismiss-to="sitePath"
         wide-detail
@@ -82,6 +81,7 @@ import EditorNavigationList from '~/components/dashboard/EditorNavigationList.vu
 import EditorPaneShell from '~/components/dashboard/EditorPaneShell.vue'
 import { parseCmsFeatureOverrideDelta, resolveCmsCapabilities } from '~/config/cms-registry'
 import { resolvePublicTemplate } from '~/utils/template-registry'
+import { hasPlatformAdminPermission } from '~/utils/platform-admin-access'
 import { normalizeVertical, type SiteVertical } from '~/utils/vertical-copy'
 import type { DashboardHomeData } from '~/server/utils/dashboard-home'
 
@@ -93,26 +93,27 @@ const dashboard = useDashboardSite()
 const requestEvent = useRequestEvent()
 const { orgPaths } = useDashboardSiteLinks()
 
+// The frame comes first, and before any `await`. `useEditorFrame` provides and
+// injects, which Vue only binds to this instance while setup is still
+// synchronous; called after an await it binds to nothing and every level below
+// this one loses its place in the chain.
+const sitePath = computed(() => `/dashboard/${String(route.params.orgSlug)}/sites/${String(route.params.siteSlug)}`)
+const frame = useEditorFrame(sitePath)
+
 if (!dashboard.state.value) await dashboard.refresh()
 const siteId = dashboard.siteId.value
 if (!siteId) throw createError({ statusCode: 404, statusMessage: 'Site not found' })
 
-const sitePath = computed(() => `/dashboard/${String(route.params.orgSlug)}/sites/${String(route.params.siteSlug)}`)
-
-const STANDALONE_SECTIONS = ['settings', 'brand', 'inbox']
-const routeSegments = computed(() => route.path.slice(sitePath.value.length).replace(/^\//, '').split('/').filter(Boolean))
-const sectionSegment = computed(() => routeSegments.value[0] ?? '')
-
 /**
- * The list of locations belongs in the pane, like any other section. One
- * location does not: it is a different object with its own rail and pane, the
- * way choosing a listing leaves the listings index for that listing's editor.
+ * The site yields when the screen below it draws its own panel and navbar. The
+ * child declares that with `ownsChrome` in its own `definePageMeta`, rather
+ * than the site keeping a list of which sections are special — a list is an
+ * exception mechanism, and nothing here needs editing when a section gains a
+ * chain of its own.
  */
-const rendersStandalone = computed(() =>
-  STANDALONE_SECTIONS.includes(sectionSegment.value)
-  || (sectionSegment.value === 'locations' && routeSegments.value.length > 1))
-const hasDetail = computed(() => Boolean(sectionSegment.value))
-const activeSection = computed(() => sectionSegment.value || null)
+const rendersStandalone = computed(() => route.matched.some(record => record.meta?.ownsChrome === true))
+const hasDetail = computed(() => frame.mode.value !== 'index')
+const activeSection = frame.childSegment
 
 const siteName = computed(() => dashboard.site.value?.brand_name ?? '')
 const canManageSite = computed(() => dashboard.siteAccess.value !== 'location')
@@ -122,7 +123,8 @@ const canManageSite = computed(() => dashboard.siteAccess.value !== 'location')
 const siteDomain = computed(() => dashboard.site.value?.custom_domain ?? null)
 const publicSiteUrl = computed(() => dashboard.site.value?.public_url || '')
 
-const template = computed(() => resolvePublicTemplate({ vertical: dashboard.site.value?.vertical }).slug)
+const { user: currentUser } = useAuth()
+const template = computed(() => resolvePublicTemplate({ themeId: dashboard.site.value?.theme_id, vertical: dashboard.site.value?.vertical }).slug)
 const vertical = computed(() => {
   const raw = dashboard.site.value?.vertical
   if (!raw) throw createError({ statusCode: 500, statusMessage: 'Site vertical is not configured' })
@@ -218,9 +220,15 @@ const sectionGroups = computed(() => {
     { id: 'brand', label: 'Brand', summary: siteName.value, to: `${sitePath.value}/brand` },
   ]
 
+  // KrabiClaw's own site adds the one platform-only tool: acting as a customer.
+  const platform = template.value === 'platform' && hasPlatformAdminPermission(currentUser.value?.role)
+    ? [{ id: 'people', label: 'People', summary: 'Every account; impersonate to see their dashboard', to: `${sitePath.value}/people` }]
+    : []
+
   return [
     { id: 'place', items: place },
     { id: 'content', label: 'Content', items: content },
+    { id: 'platform', label: 'KrabiClaw', items: platform },
   ].filter(group => group.items.length > 0)
 })
 

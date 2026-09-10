@@ -318,6 +318,7 @@
 </template>
 
 <script setup lang="ts">
+import { localDateAt, formatCalendarDate, formatTime, formatTimestamp } from '~/utils/timezone'
 import DashboardListItemDialog from '~/components/dashboard/DashboardListItemDialog.vue'
 import EditorPaneShell from '~/components/dashboard/EditorPaneShell.vue'
 import { bookingNeedsResponse } from '~/utils/booking-lifecycle'
@@ -341,7 +342,11 @@ const toast = useToast()
 const orgSlug = computed(() => String(route.params.orgSlug || ''))
 const todayPath = computed(() => `/dashboard/${orgSlug.value}`)
 const bookingPath = computed(() => `${todayPath.value}/bookings/${props.bookingType}/${encodeURIComponent(props.bookingId)}`)
-const editorSegments = computed(() => Array.isArray(route.params.editor) ? route.params.editor : route.params.editor ? [route.params.editor] : [])
+// `useEditorFrame` provides and injects, so it runs before any `await`, and it
+// owns the split of the route below this booking. The `route.params.editor`
+// derivation this replaces was a second copy of the composable's `rest`.
+const frame = useEditorFrame(bookingPath)
+const editorSegments = frame.rest
 const editorKey = computed(() => editorSegments.value[0] || '')
 const editorField = computed(() => editorSegments.value[1] || '')
 const isChangeMode = computed(() => editorKey.value === 'change')
@@ -389,7 +394,7 @@ const presentation = computed(() => booking.value
   : null)
 const noun = computed(() => presentation.value?.noun ?? '')
 
-const referenceDay = computed(() => booking.value ? new Intl.DateTimeFormat('en-CA', { timeZone: booking.value.timeZone }).format(new Date()) : '')
+const referenceDay = computed(() => booking.value ? localDateAt(new Date(), booking.value.timeZone) : '')
 const pageTitle = computed(() => {
   if (!booking.value) return 'Booking details'
   if (booking.value.status === 'cancelled') return 'Cancelled'
@@ -397,11 +402,10 @@ const pageTitle = computed(() => {
   if (booking.value.bookingDate > referenceDay.value) return 'Coming up'
   return `Past ${noun.value}`
 })
-const formattedDate = computed(() => booking.value ? new Intl.DateTimeFormat('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' }).format(new Date(`${booking.value.bookingDate}T12:00:00Z`)) : '')
+const formattedDate = computed(() => booking.value ? formatCalendarDate(booking.value.bookingDate, 'en') : '')
 const formattedTime = computed(() => {
   if (!booking.value) return ''
-  const [hour, minute] = booking.value.bookingTime.split(':').map(Number)
-  return new Intl.DateTimeFormat('en-US', { hour: 'numeric', minute: '2-digit', timeZone: 'UTC' }).format(new Date(Date.UTC(2000, 0, 1, hour, minute)))
+  return formatTime(booking.value.bookingTime, 'en')
 })
 const guestCountLabel = computed(() => `${booking.value?.partySize ?? 0} ${(booking.value?.partySize ?? 0) === 1 ? 'guest' : 'guests'}`)
 const statusLabel = computed(() => {
@@ -431,22 +435,27 @@ const changeFieldOriginal = ref<string | number | null>(null)
 const changeLocation = computed(() => booking.value?.locations.find(location => location.id === changeDraft.value.locationId))
 const changeDirty = computed(() => Boolean(booking.value) && (changeDraft.value.bookingDate !== booking.value?.bookingDate || changeDraft.value.bookingTime !== booking.value?.bookingTime.slice(0, 5) || changeDraft.value.partySize !== booking.value?.partySize || changeDraft.value.locationId !== booking.value?.locationId))
 const changeFields = computed(() => [
-  { key: 'date', label: 'Date', summary: changeDraft.value.bookingDate ? new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' }).format(new Date(`${changeDraft.value.bookingDate}T12:00:00Z`)) : 'Choose a date' },
-  { key: 'time', label: 'Time', summary: changeDraft.value.bookingTime ? new Intl.DateTimeFormat('en-US', { hour: 'numeric', minute: '2-digit', timeZone: 'UTC' }).format(new Date(`2000-01-01T${changeDraft.value.bookingTime}:00Z`)) : 'Choose a time' },
+  { key: 'date', label: 'Date', summary: changeDraft.value.bookingDate ? formatCalendarDate(changeDraft.value.bookingDate, 'en') : 'Choose a date' },
+  { key: 'time', label: 'Time', summary: changeDraft.value.bookingTime ? formatTime(changeDraft.value.bookingTime, 'en') : 'Choose a time' },
   { key: 'guests', label: 'Guests', summary: `${changeDraft.value.partySize} ${changeDraft.value.partySize === 1 ? 'guest' : 'guests'}` },
 ])
 const changeValid = computed(() => Boolean(changeDraft.value.bookingDate && changeDraft.value.bookingTime && Number.isInteger(changeDraft.value.partySize) && changeDraft.value.partySize > 0))
 const pendingAction = ref<string | null>(null)
 const actionAttempt = ref<{ draft: string; key: string } | null>(null)
 const noteDraft = ref('')
+const noteRevisionId = ref<string>()
 const noteSaving = ref(false)
 const noteAttemptKey = ref<string | null>(null)
 const noteAttemptDraft = ref<string | null>(null)
 
-watch([booking, editorKey, editorField], ([currentBooking, key]) => {
-  noteDraft.value = selectedNote.value?.body || ''
+watch([detailsKey, () => selectedNote.value?.id, editorKey, editorField], () => {
+  noteDraft.value = selectedNote.value?.body ?? ''
+  noteRevisionId.value = selectedNote.value?.revisionId
   noteAttemptKey.value = null
   noteAttemptDraft.value = null
+}, { immediate: true })
+
+watch([booking, editorKey, editorField], ([currentBooking, key]) => {
   // A field leaf is a route, so Nuxt may recreate this component while moving
   // between it and the change hub. Keep the one staged draft in Nuxt state and
   // only reseed it when it belongs to an older source revision.
@@ -500,7 +509,7 @@ function capitalize(value: string) {
 }
 
 function formatCreatedAt(value: string) {
-  return new Intl.DateTimeFormat('en-US', { month: 'long', day: 'numeric', year: 'numeric' }).format(new Date(value))
+  return formatTimestamp(value, 'en', 'UTC', { dateStyle: 'medium' })
 }
 
 function closeEditor() {
@@ -559,7 +568,7 @@ async function saveNote() {
       `/api/dashboard/bookings/${props.bookingType}/${encodeURIComponent(props.bookingId)}/notes`,
       {
         method: 'POST',
-        body: { note: noteDraft.value, idempotencyKey: noteAttemptKey.value, noteId: selectedNote.value?.id, revisionId: selectedNote.value?.revisionId },
+        body: { note: noteDraft.value, idempotencyKey: noteAttemptKey.value, noteId: selectedNote.value?.id, revisionId: noteRevisionId.value },
         validate: isBookingResponse,
       },
     )

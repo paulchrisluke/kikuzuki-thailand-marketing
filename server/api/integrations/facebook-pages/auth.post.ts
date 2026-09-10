@@ -20,8 +20,7 @@ export default defineHandler(async (event) => {
   }
 
   const version = await queryFirst<IntegrationVersion>(db, `
-      SELECT json_extract(integrations_json, '$.facebook.revision') AS revision,
-             json_extract(settings_json, '$.config.resource_team_generation') AS transfer_generation
+      SELECT json_extract(integrations_json, '$.facebook.revision') AS revision
         FROM sites WHERE id = ? AND organization_id = ?
     `, [site.id, site.organization_id])
   if (!version) throw new Error('Site no longer belongs to this organization')

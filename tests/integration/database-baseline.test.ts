@@ -6,11 +6,11 @@ import Database from 'better-sqlite3'
 function baselineDatabase() {
   const database = new Database(':memory:')
   database.pragma('foreign_keys = ON')
-  database.exec(readFileSync('migrations/0000_epoch_5_baseline.sql', 'utf8'))
+  database.exec(readFileSync('migrations/0000_baseline.sql', 'utf8'))
   return database
 }
 
-test('epoch-5 baseline creates the complete schema from zero', () => {
+test('the baseline creates the complete schema from zero', () => {
   const database = baselineDatabase()
   try {
     const tableCount = database.prepare(`
@@ -18,7 +18,7 @@ test('epoch-5 baseline creates the complete schema from zero', () => {
       FROM sqlite_schema
       WHERE type = 'table' AND name NOT LIKE 'sqlite_%'
     `).get() as { count: number }
-    assert.equal(tableCount.count, 53)
+    assert.equal(tableCount.count, 51)
     const ledgerCount = database.prepare("SELECT count(*) count FROM sqlite_schema WHERE name = 'd1_migrations'").get() as { count: number }
     assert.equal(ledgerCount.count, 0)
     const splitAvailabilityTables = database.prepare("SELECT count(*) count FROM sqlite_schema WHERE type = 'table' AND name IN ('experience_slot_overrides', 'reservation_slot_overrides')").get() as { count: number }
@@ -33,7 +33,7 @@ test('epoch-5 baseline creates the complete schema from zero', () => {
   }
 })
 
-test('epoch-5 baseline enforces canonical cross-scope and value constraints', () => {
+test('the baseline enforces canonical cross-scope and structural constraints', () => {
   const database = baselineDatabase()
   try {
     database.prepare("INSERT INTO organization (id, name, slug) VALUES ('org', 'Org', 'org')").run()
@@ -85,15 +85,11 @@ test('epoch-5 baseline enforces canonical cross-scope and value constraints', ()
       /organization_slug_required_check/,
     )
     assert.throws(
-      () => database.prepare("INSERT INTO sites (id, organization_id, slug, default_currency) VALUES ('bad-currency', 'org', 'bad-currency', 'XYZ')").run(),
-      /sites_default_currency_check/,
-    )
-    assert.throws(
       () => database.prepare("INSERT INTO media_assets (id, organization_id, site_id, kind, provider, source) VALUES ('video', 'org', 'site', 'video', 'cloudflare_r2', 'uploaded')").run(),
       /media_assets_video_thumbnail_check/,
     )
     database.prepare("INSERT INTO site_locales (id,organization_id,site_id,locale,is_source,status) VALUES ('source','org','site','en',1,'published')").run()
-    database.prepare("INSERT INTO content_documents (id,organization_id,site_id,kind,row_role,locale,summary,status,published_at,source,metadata_json) VALUES ('social','org','site','social_post','root','en','Body','published','2026-01-01T00:00:00.000Z','manual',?)").run(JSON.stringify({ post_type: 'alert', alert_type: 'covid_19', channels: {} }))
+    database.prepare("INSERT INTO content_documents (id,organization_id,site_id,kind,row_role,locale,summary,status,visibility,published_at,source,metadata_json) VALUES ('social','org','site','social_post','root','en','Body','published','public','2026-01-01T00:00:00.000Z','manual',?)").run(JSON.stringify({ post_type: 'alert', alert_type: 'covid_19', channels: {} }))
     assert.throws(
       () => database.prepare("UPDATE content_documents SET metadata_json = ? WHERE id = 'social'").run(JSON.stringify({ post_type: 'promotion', channels: {} })),
       /content_documents_social_post_type_check/,
@@ -117,30 +113,22 @@ test('epoch-5 baseline enforces canonical cross-scope and value constraints', ()
   }
 })
 
-test('epoch-5 rejects unknown content, localization, and media owners at the SQLite boundary', () => {
+// Closed value sets (document kinds, block types, statuses, theme ids) are not CHECK
+// constraints: D1 cannot rebuild a referenced parent table, so a value set that
+// grows must not require one. They are enforced by the registries in shared/.
+test('the baseline keeps structural JSON checks without enum membership checks', () => {
   const database = baselineDatabase()
   try {
     database.prepare("INSERT INTO organization (id, name, slug) VALUES ('org', 'Org', 'org')").run()
     database.prepare("INSERT INTO sites (id, organization_id, slug) VALUES ('site', 'org', 'site')").run()
-    database.prepare("INSERT INTO site_locales (id, organization_id, site_id, locale, is_source, status) VALUES ('locale', 'org', 'site', 'th', 0, 'published')").run()
     database.prepare("INSERT INTO site_locales (id,organization_id,site_id,locale,is_source,status) VALUES ('source','org','site','en',1,'published')").run()
     database.prepare("INSERT INTO content_documents (id,organization_id,site_id,kind,row_role,locale,title,path,metadata_json) VALUES ('document','org','site','page','root','en','Page','/page','{\"page_type\":\"custom\"}')").run()
     database.prepare("INSERT INTO content_blocks (id, document_id, type, position, data_json) VALUES ('block', 'document', 'markdown', 0, '{}')").run()
-    database.prepare("INSERT INTO resource_localizations (id, organization_id, site_id, resource_type, resource_id, locale, values_json, created_by_user_id, updated_by_user_id) VALUES ('localization', 'org', 'site', 'site', 'site', 'th', '{}', 'actor', 'actor')").run()
-    database.prepare("INSERT INTO media_assets (id, organization_id, site_id, kind, provider, source) VALUES ('image', 'org', 'site', 'image', 'cloudflare_r2', 'uploaded')").run()
-    database.prepare("INSERT INTO media_placements (id, organization_id, site_id, owner_type, owner_id, slot, asset_id) VALUES ('placement', 'org', 'site', 'site', 'site', 'logo', 'image')").run()
-
-    for (const [query, constraint] of [
-      ["UPDATE content_documents SET kind = 'retired_kind' WHERE id = 'document'", /content_documents_kind_check/],
-      ["UPDATE content_blocks SET type = 'retired_block' WHERE id = 'block'", /content_blocks_type_check/],
-      ["UPDATE content_blocks SET data_json = '[]' WHERE id = 'block'", /content_blocks_data_json_check/],
-      ["UPDATE resource_localizations SET resource_type = 'retired_resource' WHERE id = 'localization'", /resource_localizations_resource_type_check/],
-      ["UPDATE media_assets SET kind = 'retired_media' WHERE id = 'image'", /media_assets_kind_check/],
-      ["UPDATE media_placements SET owner_type = 'retired_owner' WHERE id = 'placement'", /media_placements_owner_type_check/],
-    ] as const) {
-      assert.throws(() => database.prepare(query).run(), constraint)
-    }
-    assert.equal(database.pragma('foreign_key_check').length, 0)
+    assert.throws(() => database.prepare("UPDATE content_blocks SET data_json = '[]' WHERE id = 'block'").run(), /content_blocks_data_json_check/)
+    const checks = database.prepare("SELECT sql FROM sqlite_schema WHERE type = 'table'").all() as Array<{ sql: string }>
+    const enumChecks = checks.flatMap(row => [...row.sql.matchAll(/CONSTRAINT "([^"]+)" CHECK\((\w+) IN \([^()]*\)\)/g)].map(match => match[1]))
+    assert.deepEqual(enumChecks, [])
+    assert.equal(checks.some(row => row.sql.includes('"sites"."')), false)
   } finally {
     database.close()
   }

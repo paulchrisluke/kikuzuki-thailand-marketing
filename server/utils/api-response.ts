@@ -152,7 +152,7 @@ export const cloudflareEnv = (event: H3Event): CloudflareEnv => {
   // by inspecting .nuxt/dev/index.mjs: two distinct `useRuntimeConfig`/`useRuntimeConfig$N`
   // function bodies, each closing over its own `runtimeConfig` object) — this file is one such
   // module (server/utils/api-response.ts is dynamically imported from composables/useAuthSession.ts
-  // and elsewhere per the CLAUDE.md self-fetch pattern), and the inlined copy's snapshot is taken
+  // and elsewhere per the AGENTS.md self-fetch pattern), and the inlined copy's snapshot is taken
   // before Nuxt modules finish registering their runtimeConfig.public keys, so `.public` itself is
   // absent rather than merely incomplete. `?? {}` is scoped to exactly that dev-bundler defect, not
   // a stand-in for a real API contract — every value read off `publicConfig` below is optional
@@ -168,7 +168,13 @@ export const cloudflareEnv = (event: H3Event): CloudflareEnv => {
   const whatsappDeliveryMode = typeof effectiveEnv.WHATSAPP_DELIVERY_MODE === 'string' ? effectiveEnv.WHATSAPP_DELIVERY_MODE : undefined
 
   const rawD1 = runtimeEnv.DB as D1Database | undefined
-  const d1 = rawD1 ? instrumentD1(event, rawD1) : undefined
+  // One D1 session per request, anchored on the primary. The first statement reads the
+  // primary's current version; later reads may be served by a read replica that has
+  // caught up to that bookmark, and writes always go to the primary. That keeps
+  // read-your-writes across requests while a Worker running far from the primary stops
+  // paying a cross-region round trip for every SELECT. Without read replication enabled
+  // on the database, the session is served by the primary and behaves as before.
+  const d1 = rawD1 ? instrumentD1(event, rawD1.withSession('first-primary'), rawD1) : undefined
   const db = d1 ? createDb(d1) : undefined
 
   // Apply E2E delivery-mode overrides only for approved dev/E2E requests

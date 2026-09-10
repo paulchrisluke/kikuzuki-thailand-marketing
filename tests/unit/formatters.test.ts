@@ -1,53 +1,34 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { execFileSync } from 'node:child_process'
+import { formatCalendarDate, formatTimestamp, localDateTimeToInstant } from '../../utils/timezone.ts'
 
-import { formatDate } from '../../utils/formatters.ts'
-
-// Kept as a file: URL string (not converted via fileURLToPath) — a plain OS
-// path is not a valid import specifier on every platform (Windows drive
-// paths, or any path containing URL-significant characters), while a file:
-// URL always is.
-const formattersUrl = new URL('../../utils/formatters.ts', import.meta.url).href
-
-// formatDate's timezone handling only diverges from the runner's own local
-// timezone when that timezone isn't UTC, so both regression cases below run
-// in a subprocess pinned to America/Los_Angeles (UTC-7 in July) rather than
-// trusting whatever TZ the CI/dev machine happens to have.
+const timezoneUrl = new URL('../../utils/timezone.ts', import.meta.url).href
 function runInTimezone(expression: string, timeZone: string): string {
-  const script = `
-    const { formatDate } = await import(${JSON.stringify(formattersUrl)});
+  return execFileSync(process.execPath, ['--experimental-strip-types', '--input-type=module', '--eval', `
+    const { formatCalendarDate, formatTimestamp } = await import(${JSON.stringify(timezoneUrl)});
     process.stdout.write(String(${expression}));
-  `
-  return execFileSync(process.execPath, ['--experimental-strip-types', '--input-type=module', '--eval', script], {
-    env: { ...process.env, TZ: timeZone },
-    encoding: 'utf8',
-  })
+  `], { env: { ...process.env, TZ: timeZone }, encoding: 'utf8' })
 }
 
-test('formatDate: YYYY-MM-DD input preserves calendar date regardless of local timezone', () => {
-  // A pure YYYY-MM-DD input is parsed as UTC midnight by the Date constructor.
-  // The formatter must pass timeZone: 'UTC' so the output reflects the
-  // calendar date that was written (Jul 25) rather than rolling back to the
-  // previous day in a timezone west of UTC.
-  const result = runInTimezone("formatDate('2026-07-25')", 'America/Los_Angeles')
-  assert.equal(result, 'Jul 25, 2026')
+test('civil dates preserve the Gregorian day across browser zones and locales', () => {
+  assert.equal(runInTimezone("formatCalendarDate('2026-07-25', 'en')", 'America/Los_Angeles'), 'Jul 25, 2026')
+  assert.match(formatCalendarDate('2026-07-25', 'th'), /2026/)
 })
 
-test('formatDate: ISO datetime strings are also formatted in UTC, not the runtime local timezone', () => {
-  // formatDate is used on SSR'd public pages (e.g. reviews/[reviewId].vue,
-  // reservations/confirmed.vue) — the server always runs in UTC (Cloudflare
-  // Workers) while the client hydrates in the visitor's own timezone. Any
-  // divergence in the rendered calendar date between those two renders is a
-  // Vue hydration mismatch, not just a formatting preference, so both
-  // date-only and full-ISO inputs must format in UTC unconditionally.
-  const result = runInTimezone("formatDate('2026-07-25T00:00:00Z')", 'America/Los_Angeles')
-  assert.equal(result, 'Jul 25, 2026')
+test('instants use the declared timezone independently of the runtime zone', () => {
+  assert.equal(runInTimezone("formatTimestamp('2026-07-25T00:00:00Z', 'en', 'UTC', { dateStyle: 'medium' })", 'America/Los_Angeles'), 'Jul 25, 2026')
+  assert.equal(formatTimestamp('2026-07-25T00:00:00Z', 'en', 'America/Los_Angeles', { dateStyle: 'medium' }), 'Jul 24, 2026')
 })
 
-test('formatDate: missing or invalid input returns em-dash', () => {
-  assert.equal(formatDate(null), '—')
-  assert.equal(formatDate(undefined), '—')
-  assert.equal(formatDate(''), '—')
-  assert.equal(formatDate('not-a-date'), '—')
+test('invalid civil dates, offsetless instants, and missing zones fail explicitly', () => {
+  assert.throws(() => formatCalendarDate('2026-02-30', 'en'))
+  assert.throws(() => formatTimestamp('2026-07-25T00:00:00', 'en', 'UTC'))
+  assert.throws(() => formatTimestamp('2026-07-25T00:00:00Z', 'en', ''))
+})
+
+test('booking wall times resolve in their location and reject DST gaps and overlaps', () => {
+  assert.equal(localDateTimeToInstant('2026-07-25', '12:30', 'Asia/Bangkok').toISOString(), '2026-07-25T05:30:00.000Z')
+  assert.throws(() => localDateTimeToInstant('2026-03-08', '02:30', 'America/New_York'), /No such absolute time/)
+  assert.throws(() => localDateTimeToInstant('2026-11-01', '01:30', 'America/New_York'), /Multiple possible absolute times/)
 })

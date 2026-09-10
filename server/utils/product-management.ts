@@ -1,14 +1,14 @@
+import { instantDate, isValidInstant } from '~/utils/timezone'
 import { resourceLocalizationDeletionQueries } from '~/server/utils/localization'
 import { HTTPError } from 'nitro'
 import type { CloudflareEnv } from '~/server/utils/auth'
 import { d1JsonArray, executeBatch, queryAll, queryFirst, type BatchQuery, type DbClient } from '~/server/db'
 import type {
   CreateProductInput,
-  ExtractedProductCandidate,
   Product,
   ProductDetail,
   ProductSource,
-  SyncProductInput,
+  ReconcileProductInput,
   UpdateProductInput,
 } from '~/server/types/products'
 import { refreshSocialCard } from '~/server/utils/social-card'
@@ -16,7 +16,7 @@ import { loadPublicSocialMedia } from '~/server/utils/public-social-image'
 import { publicResourceCacheInvalidationQuery } from '~/server/utils/public-resource-cache'
 import { fireOrganizationEventSafe, type OrganizationEventType } from '~/server/utils/organization-events'
 import { isCurrencyCode, type CurrencyCode } from '~/shared/currencies'
-import { isIsoInstant, PRICE_TAX_BEHAVIORS, PRICE_UNITS, type Price, type PriceInput, type PriceTaxBehavior, type PriceUnit } from '~/shared/prices'
+import { PRICE_TAX_BEHAVIORS, PRICE_UNITS, type Price, type PriceInput, type PriceTaxBehavior, type PriceUnit } from '~/shared/prices'
 import {
   PRODUCT_LIMITS,
   assertNoPriceNoteContradiction,
@@ -37,7 +37,6 @@ type SqlValue = string | number | boolean | null
 
 interface ProductWriteAttribution {
   actorId: string
-  priceProvenance?: ProductPriceProvenance
 }
 
 function notFound(): never {
@@ -145,12 +144,10 @@ interface NormalizedPriceInput {
   compareAt: number | null
   validFrom: string
   validUntil: string | null
-  provenance: ProductPriceProvenance
+  provenance: 'manual'
   validFromProvided: boolean
   validUntilProvided: boolean
 }
-
-export type ProductPriceProvenance = 'manual' | 'ai-import'
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === 'object' && !Array.isArray(value)
@@ -164,7 +161,7 @@ function isPriceTaxBehavior(value: unknown): value is PriceTaxBehavior {
   return typeof value === 'string' && PRICE_TAX_BEHAVIORS.some(candidate => candidate === value)
 }
 
-export function normalizePriceInput(input: PriceInput | null | undefined, defaultCurrency: CurrencyCode, provenance: ProductPriceProvenance, field = 'price'): NormalizedPriceInput | null {
+export function normalizePriceInput(input: PriceInput | null | undefined, defaultCurrency: CurrencyCode, field = 'price'): NormalizedPriceInput | null {
   if (input === undefined) throw new HTTPError({ statusCode: 400, statusMessage: `${field} is required` })
   if (input === null) return null
   if (!isRecord(input)) throw new HTTPError({ statusCode: 400, statusMessage: `${field} must be an object or null` })
@@ -182,13 +179,13 @@ export function normalizePriceInput(input: PriceInput | null | undefined, defaul
   const validFromProvided = input.valid_from !== undefined
   const validFrom = validFromProvided ? input.valid_from : new Date().toISOString()
   if (typeof validFrom !== 'string') throw new HTTPError({ statusCode: 400, statusMessage: `${field}.valid_from must be an ISO UTC instant (YYYY-MM-DDTHH:mm:ss[.SSS]Z)` })
-  if (!isIsoInstant(validFrom)) throw new HTTPError({ statusCode: 400, statusMessage: `${field}.valid_from must be an ISO UTC instant (YYYY-MM-DDTHH:mm:ss[.SSS]Z)` })
+  if (!isValidInstant(validFrom)) throw new HTTPError({ statusCode: 400, statusMessage: `${field}.valid_from must be an ISO UTC instant (YYYY-MM-DDTHH:mm:ss[.SSS]Z)` })
   const validUntilProvided = input.valid_until !== undefined
   const validUntil = input.valid_until ?? null
-  if (validUntil !== null && (typeof validUntil !== 'string' || !isIsoInstant(validUntil) || validUntil <= validFrom)) {
+  if (validUntil !== null && (typeof validUntil !== 'string' || !isValidInstant(validUntil) || Date.parse(validUntil) <= Date.parse(validFrom))) {
     throw new HTTPError({ statusCode: 400, statusMessage: `${field}.valid_until must be an ISO UTC instant after valid_from` })
   }
-  return { amountMinor, currency, unit, taxBehavior, compareAt, validFrom, validUntil, provenance, validFromProvided, validUntilProvided }
+  return { amountMinor, currency, unit, taxBehavior, compareAt, validFrom: instantDate(validFrom).toISOString(), validUntil: validUntil === null ? null : instantDate(validUntil).toISOString(), provenance: 'manual', validFromProvided, validUntilProvided }
 }
 
 async function siteDefaultCurrency(db: DbClient, organizationId: string, siteId: string): Promise<CurrencyCode> {
@@ -198,7 +195,7 @@ async function siteDefaultCurrency(db: DbClient, organizationId: string, siteId:
   return site.default_currency
 }
 
-// Shared by updateProduct and syncProducts, which both batch their writes
+// Shared by updateProduct and reconcileProducts, which both batch their writes
 // through one executeBatch — this must return a query, never execute
 // anything itself, or the two writes would no longer be atomic.
 function closeActivePriceQuery(priceId: string, at: string): BatchQuery {
@@ -222,7 +219,7 @@ function closeActivePriceQuery(priceId: string, at: string): BatchQuery {
 // state read earlier is still the current one). `valid_until IS ?` gives
 // null-safe comparison so an active (NULL valid_until) Price compares
 // correctly. Feeding this into the Price snapshot guard (see the guarded
-// updated_at expression in updateProduct and syncProducts) turns a
+// updated_at expression in updateProduct and reconcileProducts) turns a
 // concurrent close/replace into a real batch failure instead of a lost
 // update.
 function priceSnapshotMatchesPredicate(productId: string, price: Pick<Price, 'id' | 'valid_from' | 'valid_until'>): { sql: string; params: SqlValue[] } {
@@ -259,7 +256,7 @@ function noActivePricePredicate(productId: string): { sql: string; params: SqlVa
 }
 
 // True only if no *other* Price row for this Product overlaps [validFrom, validUntil).
-// Same shape as the pre-read conflict queries in updateProduct/syncProducts —
+// Same shape as the pre-read conflict queries in updateProduct/reconcileProducts —
 // reused here so it can also feed the Price snapshot guard, not just serve as
 // an early user-facing validation error.
 function priceOverlapAbsentPredicate(productId: string, excludePriceId: string | null, validFrom: string, validUntil: string | null): { sql: string; params: SqlValue[] } {
@@ -485,7 +482,7 @@ export async function createProduct(
   attribution: ProductWriteAttribution,
   env: CloudflareEnv,
 ): Promise<Product> {
-  const { actorId: actor, priceProvenance = 'manual' } = attribution
+  const { actorId: actor } = attribution
   await assertLocationOwnership(db, organizationId, siteId, locationId)
   const category = await requireProductCategory(db, organizationId, siteId, locationId, requireTrimmedProductString(input.category_id, 'category_id', PRODUCT_LIMITS.category))
   const name = requireTrimmedProductString(input.name, 'name', PRODUCT_LIMITS.name)
@@ -496,7 +493,7 @@ export async function createProduct(
   if (description.length > PRODUCT_LIMITS.description) {
     throw new HTTPError({ statusCode: 400, statusMessage: `description must be at most ${PRODUCT_LIMITS.description} characters` })
   }
-  const price = normalizePriceInput(input.price, await siteDefaultCurrency(db, organizationId, siteId), priceProvenance)
+  const price = normalizePriceInput(input.price, await siteDefaultCurrency(db, organizationId, siteId))
   const orderUrl = validateProductOrderUrl(input.order_url)
   const tags = validateProductTags(input.tags)
   const details = validateProductDetails(input.details)
@@ -563,10 +560,10 @@ export async function createProductsBatch(
   organizationId: string,
   siteId: string,
   locationId: string,
-  inputs: CreateProductInput[] | ExtractedProductCandidate[],
+  inputs: CreateProductInput[],
   attribution: ProductWriteAttribution,
 ): Promise<Product[]> {
-  const { actorId: actor, priceProvenance = 'manual' } = attribution
+  const { actorId: actor } = attribution
   await assertLocationOwnership(db, organizationId, siteId, locationId)
   if (!Array.isArray(inputs) || inputs.length === 0 || inputs.length > PRODUCT_LIMITS.batchCreate) {
     throw new HTTPError({ statusCode: 400, statusMessage: `products must contain between 1 and ${PRODUCT_LIMITS.batchCreate} rows` })
@@ -576,22 +573,14 @@ export async function createProductsBatch(
   const now = new Date().toISOString()
   const defaultCurrency = await siteDefaultCurrency(db, organizationId, siteId)
   const categories = await categoryLookup({ db, organizationId, siteId, locationId })
-  // Imported section names are planned without writes. Categories, Products,
-  // and Prices must all commit or roll back in the same D1 batch.
-  const categoryPlan = await planProductCategories({
-    db, organizationId, siteId, locationId, actor,
-    names: priceProvenance === 'ai-import' ? inputs.map(input => 'category' in input ? input.category : '') : [],
-  })
   const ids: string[] = []
   const inserts: BatchQuery[] = inputs.flatMap((input, index) => {
-    const category = priceProvenance === 'ai-import' && 'category' in input
-      ? categoryPlan.resolved.get(input.category)!
-      : resolveCategory(categories, 'category_id' in input ? input.category_id : undefined, `products[${index}].category_id`)
+    const category = resolveCategory(categories, input.category_id, `products[${index}].category_id`)
     const name = requireTrimmedProductString(input.name, `products[${index}].name`, PRODUCT_LIMITS.name)
     if (input.description !== undefined && typeof input.description !== 'string') throw new HTTPError({ statusCode: 400, statusMessage: `products[${index}].description must be a string` })
     const description = input.description?.trim() ?? ''
     if (description.length > PRODUCT_LIMITS.description) throw new HTTPError({ statusCode: 400, statusMessage: `products[${index}].description is too long` })
-    const price = normalizePriceInput(input.price, defaultCurrency, priceProvenance, `products[${index}].price`)
+    const price = normalizePriceInput(input.price, defaultCurrency, `products[${index}].price`)
     const details = validateProductDetails(input.details)
     assertNoPriceNoteContradiction(price !== null, details)
     const base = slugifyProductName(name)
@@ -634,24 +623,24 @@ export async function createProductsBatch(
       params: [crypto.randomUUID(), organizationId, siteId, locationId, id, price.amountMinor, price.currency, price.unit, price.taxBehavior, price.compareAt, price.validFrom, price.validUntil, price.provenance, actor, now],
     }]
   })
-  await executeBatch(db, [...categoryPlan.inserts, ...inserts, publicResourceCacheInvalidationQuery(siteId, 'product.batch_created')], { operation: 'batch create Products' })
+  await executeBatch(db, [...inserts, publicResourceCacheInvalidationQuery(siteId, 'product.batch_created')], { operation: 'batch create Products' })
   await productEvent(db, 'product.created', { organizationId, siteId, locationId, actor, metadata: { product_count: ids.length } })
   const created = await queryAll<ProductRow>(db, `SELECT ${PRODUCT_COLUMNS} FROM products p ${ACTIVE_PRICE_JOIN} ${CATEGORY_JOIN} WHERE p.site_id = ? AND p.location_id = ? AND p.product_type = 'standard' AND p.id IN (SELECT value FROM json_each(?)) ORDER BY pc.sort_order, p.sort_order, p.id`, [siteId, locationId, JSON.stringify(ids)])
   return hydrateProductMedia(db, siteId, created.map(mapProduct))
 }
 
-export async function syncProducts(
+export async function reconcileProducts(
   db: DbClient,
   organizationId: string,
   siteId: string,
   locationId: string,
-  inputs: SyncProductInput[],
+  inputs: ReconcileProductInput[],
   attribution: ProductWriteAttribution,
   setMissingUnavailable = false,
 ): Promise<Product[]> {
-  const { actorId: actor, priceProvenance = 'manual' } = attribution
+  const { actorId: actor } = attribution
   await assertLocationOwnership(db, organizationId, siteId, locationId)
-  if (!Array.isArray(inputs) || inputs.length > PRODUCT_LIMITS.sync) throw new HTTPError({ statusCode: 400, statusMessage: `products may contain at most ${PRODUCT_LIMITS.sync} rows` })
+  if (!Array.isArray(inputs) || inputs.length > PRODUCT_LIMITS.reconcile) throw new HTTPError({ statusCode: 400, statusMessage: `products may contain at most ${PRODUCT_LIMITS.reconcile} rows` })
   for (const [index, input] of inputs.entries()) {
     if (Object.hasOwn(input, 'product_id') && (typeof input.product_id !== 'string' || input.product_id.trim().length === 0)) {
       throw new HTTPError({ statusCode: 400, statusMessage: `products[${index}].product_id must be a non-empty string when provided` })
@@ -668,7 +657,7 @@ export async function syncProducts(
   }
   const now = new Date().toISOString()
   const usedSlugs = new Set(existing.map(product => product.slug))
-  // Order is per category, so sync accumulates one intended order per category.
+  // Order is per category, so reconciliation accumulates one intended order per category.
   const orderedIds: string[] = []
   const orderByCategory = new Map<string, string[]>()
   const writes: BatchQuery[] = []
@@ -682,7 +671,7 @@ export async function syncProducts(
     const orderUrl = validateProductOrderUrl(input.order_url)
     const tags = validateProductTags(input.tags)
     const details = validateProductDetails(input.details)
-    const price = normalizePriceInput(input.price, defaultCurrency, priceProvenance, `products[${index}].price`)
+    const price = normalizePriceInput(input.price, defaultCurrency, `products[${index}].price`)
     const current = input.product_id ? existingById.get(input.product_id)! : null
     const id = current?.id ?? crypto.randomUUID()
     orderedIds.push(id)
@@ -695,7 +684,7 @@ export async function syncProducts(
       assertNoPriceNoteContradiction(price !== null, effectiveDetails)
 
       // Resolve this row's Price mutation (if any) first, so its guard can
-      // also gate this row's own updated_at expression below. sync_products
+      // also gate this row's own updated_at expression below. reconcile_products
       // asserts a complete Price state for every row it touches, so every
       // row gets a guard — including "same fixed Price, nothing to write"
       // and "no Price, staying that way" — not only rows with an actual
@@ -748,7 +737,7 @@ export async function syncProducts(
       // when this row's Price context is being mutated, updated_at only
       // takes its real value if that context still holds; otherwise it
       // computes to NULL, which products.updated_at's NOT NULL constraint
-      // rejects, rolling back the entire sync batch.
+      // rejects, rolling back the entire reconciliation batch.
       const updatedAtClause = guardParts.length
         ? `CASE WHEN ${guardParts.map(part => part.sql).join(' AND ')} THEN ? ELSE NULL END`
         : '?'
@@ -823,14 +812,14 @@ export async function syncProducts(
       params: [organizationId, siteId, locationId, categoryId],
     }, actor, now))
   }
-  writes.push(publicResourceCacheInvalidationQuery(siteId, 'product.synced'))
+  writes.push(publicResourceCacheInvalidationQuery(siteId, 'product.reconciled'))
   try {
-    await executeBatch(db, writes, { operation: 'sync Products' })
+    await executeBatch(db, writes, { operation: 'reconcile Products' })
   } catch (error) {
     if (isPriceSnapshotConflict(error)) throw new HTTPError({ statusCode: 409, statusMessage: 'A Product Price changed concurrently; re-read the location and retry' })
     throw error
   }
-  await productEvent(db, 'product.reordered', { organizationId, siteId, locationId, actor, metadata: { product_count: inputs.length, omitted_count: omitted.length, set_missing_unavailable: setMissingUnavailable, mutation_type: 'sync_products', requested_location_id: locationId, resolved_location_id: locationId } })
+  await productEvent(db, 'product.reordered', { organizationId, siteId, locationId, actor, metadata: { product_count: inputs.length, omitted_count: omitted.length, set_missing_unavailable: setMissingUnavailable, mutation_type: 'reconcile_products', requested_location_id: locationId, resolved_location_id: locationId } })
   return listLocationProducts(db, organizationId, siteId, locationId)
 }
 
@@ -844,7 +833,7 @@ export async function updateProduct(
   attribution: ProductWriteAttribution,
   env: CloudflareEnv,
 ): Promise<Product> {
-  const { actorId: actor, priceProvenance = 'manual' } = attribution
+  const { actorId: actor } = attribution
   const existing = await getProduct(db, organizationId, siteId, locationId, productId)
   if (!existing) notFound()
   if (input.sort_order !== undefined && input.sort_order !== existing.sort_order) {
@@ -891,7 +880,7 @@ export async function updateProduct(
     const at = input.price?.valid_from ?? new Date().toISOString()
     if (existing.price && at <= existing.price.valid_from) throw new HTTPError({ statusCode: 409, statusMessage: 'Replacement Price must start after the active Price' })
     if (input.price !== null) {
-      const price = normalizePriceInput({ ...input.price, valid_from: at }, await siteDefaultCurrency(db, organizationId, siteId), priceProvenance)!
+      const price = normalizePriceInput({ ...input.price, valid_from: at }, await siteDefaultCurrency(db, organizationId, siteId))!
       const conflict = await queryFirst<{ id: string }>(db, `
         SELECT id FROM prices
         WHERE product_id = ? AND id <> COALESCE(?, '')

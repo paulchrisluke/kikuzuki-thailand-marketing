@@ -38,7 +38,7 @@
             <img
               v-else
               :src="featuredMedia.url ?? undefined"
-              :alt="featuredPost.title"
+              :alt="featuredMedia.alt"
               class="h-full w-full object-cover"
             />
           </div>
@@ -93,7 +93,7 @@
                 <img
                   v-else
                   :src="post.media.url ?? undefined"
-                  :alt="post.title"
+                  :alt="post.media.alt"
                   loading="lazy"
                   class="h-full w-full object-cover"
                 />
@@ -128,7 +128,7 @@ const { posts, pending, error } = useBlogNav()
 
 const featuredPost = computed(() => posts.value[0] ?? null)
 const featuredPostPath = computed(() => getBlogPostPath(featuredPost.value?.category, featuredPost.value?.slug))
-const featuredMedia = computed(() => resolveMedia(featuredPost.value?.media?.find(item => item.slot === 'featured')))
+const featuredMedia = computed(() => resolveMedia(featuredPost.value?.cover))
 const visibleCategories = computed(() => {
   const featuredId = featuredPost.value?.id ?? null
   return BLOG_CATEGORY_LABELS.map(category => ({
@@ -138,7 +138,7 @@ const visibleCategories = computed(() => {
       .filter(post => post.category === category && post.id !== featuredId)
       .map(post => ({
         ...post,
-        media: resolveMedia(post.media?.find(item => item.slot === 'featured')),
+        media: resolveMedia(post.cover),
       })),
   }))
 })

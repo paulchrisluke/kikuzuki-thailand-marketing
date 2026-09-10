@@ -5,7 +5,6 @@ export default {
   },
   "legal": {
     "cookie_preferences": "Cookie preferences",
-    "cookie_preferences_unavailable": "Cookie preferences unavailable",
     "privacy": "Privacy",
     "terms": "Terms"
   },
@@ -169,6 +168,11 @@ export default {
       "collection_title": "{site} Products",
       "empty": "No products published.",
       "meta_description": "Products from {site}."
+    },
+    "product_detail": {
+      "more_in_category": "More in {category}",
+      "meta_description": "{name} — {detail}. Available at {location}.",
+      "meta_description_priced": "{name} — {detail}. {price} at {location}."
     },
     "photos": {
       "title": "Photos from every room.",

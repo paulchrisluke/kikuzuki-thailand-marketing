@@ -12,7 +12,7 @@
         </template>
       </UAlert>
 
-      <form v-else class="mt-6 space-y-4" @submit.prevent="handleSubmit">
+      <form v-else method="post" class="mt-6 space-y-4" @submit.prevent="handleSubmit">
         <UFormField label="New password" name="password" :error="passwordError" size="lg">
           <UInput v-model="password" type="password" placeholder="••••••••" :disabled="loading" autocomplete="new-password" size="lg" class="w-full" />
         </UFormField>
@@ -29,13 +29,19 @@
 </template>
 
 <script setup>
+import { NON_INDEXABLE_ROBOTS_INTENT } from '~/shared/robots-directive'
 definePageMeta({ layout: 'access', auth: false })
 
 import { authClient } from '~/lib/auth-client'
 import { validatePassword } from '~/utils/password-validation'
 
-useSeoMeta({
-  robots: 'noindex, nofollow'
+useSocialMetadata({
+  template: 'platform',
+  schema: false,
+  path: '/reset-password',
+  title: 'Choose a new password',
+  description: 'Set a new password for your KrabiClaw account.',
+  robots: NON_INDEXABLE_ROBOTS_INTENT,
 })
 
 const route = useRoute()

@@ -22,9 +22,7 @@
           Crawlable HTML menus, automated Google Places sync, and direct table reservations with zero commissions — managed completely through conversation.
         </p>
         <div class="flex flex-wrap items-center justify-center gap-4 mt-2">
-          <PlatformButton to="/signup" size="lg" class="shadow-sm transition-transform hover:-translate-y-0.5">
-            Start Free for Restaurants
-          </PlatformButton>
+          <PlatformAccountCta label="Start Free for Restaurants" size="lg" class="shadow-sm transition-transform hover:-translate-y-0.5" />
           <PlatformButton to="/pricing" variant="outline" size="lg" class="transition-transform hover:-translate-y-0.5">
             View Pricing
           </PlatformButton>
@@ -44,7 +42,7 @@
             <ul class="space-y-4 p-0 list-none text-sm text-muted">
               <li class="flex items-start gap-3">
                 <span class="size-5 rounded-full bg-red-500/10 text-red-500 flex items-center justify-center shrink-0 mt-0.5 font-bold text-xs">✕</span>
-                <span><strong>Heavy Commissions:</strong> Booking platforms charge $1–$3 per seated diner; delivery portals take 15–30% of every ticket.</span>
+                <span><strong>Heavy Commissions:</strong> Booking platforms charge you for every seated diner, and delivery portals take a cut of every ticket.</span>
               </li>
               <li class="flex items-start gap-3">
                 <span class="size-5 rounded-full bg-red-500/10 text-red-500 flex items-center justify-center shrink-0 mt-0.5 font-bold text-xs">✕</span>
@@ -260,9 +258,7 @@
           Create your site in minutes, connect the KrabiClaw app in ChatGPT, and start taking direct bookings with zero per-cover fees.
         </p>
         <div class="flex flex-wrap gap-4">
-          <PlatformButton to="/signup" size="lg" class="shadow-sm">
-            Start Free
-          </PlatformButton>
+          <PlatformAccountCta label="Start Free" size="lg" class="shadow-sm" />
           <PlatformButton to="/pricing" variant="outline" size="lg">
             View All Plans
           </PlatformButton>
@@ -315,7 +311,7 @@ const restaurantFeatures = [
 const faqs = [
   {
     q: 'Are there any per-cover or booking fees?',
-    a: 'None. KrabiClaw charges zero commission per reservation. Starter is free forever ($0), and Growth is a flat $49/month regardless of how many guests you seat.'
+    a: 'None. KrabiClaw charges zero commission per reservation. Starter is free forever, and Growth is a flat monthly rate regardless of how many guests you seat — see the pricing page for current rates.'
   },
   {
     q: 'How does menu editing work with ChatGPT?',
@@ -323,7 +319,7 @@ const faqs = [
   },
   {
     q: 'Can I connect my own custom domain?',
-    a: 'Yes. On the Growth plan ($49/mo), you can connect your custom domain (like mybistro.com) with automated global SSL and edge CDN routing.'
+    a: 'Yes. On the Growth plan, you can connect your custom domain (like mybistro.com) with automated global SSL and edge CDN routing.'
   },
   {
     q: 'How does Google Places syncing work?',

@@ -1,3 +1,4 @@
+import { instantDate, isValidInstant } from '~/utils/timezone'
 import { bookingPayloadForGuest, requestInsertQueries } from '~/server/domain/requests'
 import { parseRecurringSlots, type RecurringSlots, type Weekday } from '~/shared/reservation-hours'
 import { resourceLocalizationDeletionQueries } from '~/server/utils/localization'
@@ -22,7 +23,7 @@ import { refreshSocialCard } from '~/server/utils/social-card'
 import { loadPublicSocialMedia } from '~/server/utils/public-social-image'
 import type { SocialImageSource } from '~/utils/social-metadata'
 import type { ProductDetail } from '~/server/types/products'
-import { validateProductDetails, validateProductTags } from '~/server/utils/product-validation'
+import { validateProductDetails, validateProductRobots, validateProductTags } from '~/server/utils/product-validation'
 import {
   readAvailability,
   executeAvailabilityClaim,
@@ -352,12 +353,12 @@ async function normalizeExperiencePrice(
     throw new HTTPError({ statusCode: 400, statusMessage: 'price.compare_at_amount_minor must exceed amount_minor' })
   }
   const validFrom = input.valid_from ?? new Date().toISOString()
-  if (Number.isNaN(Date.parse(validFrom))) throw new HTTPError({ statusCode: 400, statusMessage: 'price.valid_from must be an ISO instant' })
+  if (!isValidInstant(validFrom)) throw new HTTPError({ statusCode: 400, statusMessage: 'price.valid_from must be an ISO instant' })
   const validUntil = input.valid_until ?? null
-  if (validUntil !== null && (Number.isNaN(Date.parse(validUntil)) || validUntil <= validFrom)) {
+  if (validUntil !== null && (!isValidInstant(validUntil) || Date.parse(validUntil) <= Date.parse(validFrom))) {
     throw new HTTPError({ statusCode: 400, statusMessage: 'price.valid_until must be an ISO instant after valid_from' })
   }
-  return { amountMinor: input.amount_minor, currency, unit, taxBehavior, compareAt, validFrom, validUntil, provenance: input.provenance ?? 'manual' }
+  return { amountMinor: input.amount_minor, currency, unit, taxBehavior, compareAt, validFrom: instantDate(validFrom).toISOString(), validUntil: validUntil === null ? null : instantDate(validUntil).toISOString(), provenance: input.provenance ?? 'manual' }
 }
 
 
@@ -441,7 +442,7 @@ export async function createExperience(
         input.featured ? 1 : 0, input.featured_sort_order ?? 0, input.sort_order ?? 0,
         JSON.stringify(tags), JSON.stringify(details),
         JSON.stringify({ tagline: input.tagline ?? null, pricing_note: normalizedPrice ? null : input.pricing_note?.trim() || null, duration_minutes: input.duration_minutes ?? null, max_capacity: input.max_capacity ?? null, recurring_slots: recurringSlotsJson ? JSON.parse(recurringSlotsJson) : null, included_items: includedItemsJson ? JSON.parse(includedItemsJson) : null, what_to_bring: whatToBringJson ? JSON.parse(whatToBringJson) : null, meeting_point: input.meeting_point ?? null, cancellation_policy: null, created_at: now, updated_at: now }),
-        input.seo_title ?? null, input.seo_description ?? null, input.canonical_url ?? null, input.robots ?? null,
+        input.seo_title ?? null, input.seo_description ?? null, input.canonical_url ?? null, validateProductRobots(input.robots),
         now, now, userId, userId,
       ],
     },
@@ -569,7 +570,7 @@ export async function updateExperience(
   if (input.seo_title !== undefined) { productSets.push('seo_title = ?'); productParams.push(input.seo_title ?? null) }
   if (input.seo_description !== undefined) { productSets.push('seo_description = ?'); productParams.push(input.seo_description ?? null) }
   if (input.canonical_url !== undefined) { productSets.push('canonical_url = ?'); productParams.push(input.canonical_url ?? null) }
-  if (input.robots !== undefined) { productSets.push('robots = ?'); productParams.push(input.robots ?? null) }
+  if (input.robots !== undefined) { productSets.push('robots = ?'); productParams.push(validateProductRobots(input.robots)) }
 
   const now = new Date().toISOString()
   const queries: BatchQuery[] = []
@@ -735,7 +736,7 @@ export async function listExperienceBookingsForSite(
     params.push(opts.locationId)
   }
   if (opts.sinceDays) {
-    where += ` AND eb.created_at >= datetime('now', ?)`
+    where += ` AND eb.created_at >= strftime('%Y-%m-%dT%H:%M:%fZ', 'now', ?)`
     params.push(`-${opts.sinceDays} days`)
   }
   const results = await queryAll<ExperienceBooking & { experience_title?: string | null }>(
@@ -772,7 +773,7 @@ export async function getExperienceBookingsSummary(
     params.push(opts.locationId)
   }
   if (opts.sinceDays) {
-    where += ` AND eb.created_at >= datetime('now', ?)`
+    where += ` AND eb.created_at >= strftime('%Y-%m-%dT%H:%M:%fZ', 'now', ?)`
     params.push(`-${opts.sinceDays} days`)
   }
 

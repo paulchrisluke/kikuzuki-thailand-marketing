@@ -11,6 +11,7 @@ export default defineHandler(async (event) => {
   const recipe = typeof query.recipe === 'string' ? query.recipe as BlawbyRouteRecipe : null
   const slug = typeof query.slug === 'string' ? query.slug : null
   const locale = query.locale === undefined ? 'en' : query.locale
+  if (query.token !== undefined && typeof query.token !== 'string') return apiErrorResponse(event, 400, 'INVALID_PREVIEW_TOKEN', 'Invalid preview token')
   if (!siteId || !recipe || !RECIPES.has(recipe) || typeof locale !== 'string') {
     return apiErrorResponse(event, 400, 'BLAWBY_DOCUMENT_REQUIRED', 'Valid site ID and Blawby route recipe required')
   }
@@ -19,7 +20,7 @@ export default defineHandler(async (event) => {
   }
 
   try {
-    const document = await loadPublicBlawbyDocument(event, siteId, recipe, { slug, locale })
+    const document = await loadPublicBlawbyDocument(event, siteId, recipe, { slug, locale, token: query.token })
     return jsonResponse(finalizeRequestMetrics(event, 'public-blawby-document', document))
   } catch (error) {
     const typedError = error as {

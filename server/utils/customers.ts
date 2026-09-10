@@ -17,7 +17,6 @@ export interface FindOrCreateCustomerInput {
   email?: string | null
   phone?: string | null
   source: CustomerSource
-  bookingAt?: string | null
   userId?: string | null
 }
 
@@ -127,7 +126,6 @@ export async function findOrCreateCustomer(
   const phoneMetadataVersion = customerPhoneMetadataVersion(phone)
   const emailHash = emailNormalized ? await hashIdentifier(emailNormalized) : null
   const name = input.name?.trim() || null
-  const bookingAt = input.bookingAt ?? new Date().toISOString()
 
   const existing = await findExistingCustomer(db, input.siteId, emailNormalized, phoneNormalized)
   if (existing) {
@@ -143,9 +141,9 @@ export async function findOrCreateCustomer(
     await execute(db, `
       INSERT INTO customers (
         id, organization_id, site_id, user_id, name, email, email_normalized, email_hash,
-        phone, phone_normalized, phone_metadata_version, source, status, last_booking_at, created_at, updated_at
+        phone, phone_normalized, phone_metadata_version, source, status, created_at, updated_at
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, ?, ?)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, ?)
     `, [
       id,
       input.organizationId,
@@ -159,7 +157,6 @@ export async function findOrCreateCustomer(
       phoneNormalized,
       phoneMetadataVersion,
       input.source,
-      bookingAt,
       now,
       now,
     ])
@@ -202,7 +199,6 @@ async function updateCustomerBooking(
   const phoneMetadataVersion = customerPhoneMetadataVersion(phone)
   const emailHash = includeEmail && emailNormalized ? await hashIdentifier(emailNormalized) : null
   const name = input.name?.trim() || null
-  const bookingAt = input.bookingAt ?? new Date().toISOString()
 
   if (includeEmail) {
     const phoneSupplied = input.phone !== undefined && input.phone !== null
@@ -216,7 +212,6 @@ async function updateCustomerBooking(
           phone_normalized = COALESCE(?, phone_normalized),
           phone_metadata_version = CASE WHEN ? THEN ? ELSE phone_metadata_version END,
           source = CASE WHEN source = 'manual' THEN source ELSE ? END,
-          last_booking_at = ?,
           updated_at = ?
       WHERE id = ?
     `, [
@@ -229,7 +224,6 @@ async function updateCustomerBooking(
       phoneSupplied ? 1 : 0,
       phoneMetadataVersion,
       input.source,
-      bookingAt,
       new Date().toISOString(),
       customerId,
     ])
@@ -244,7 +238,6 @@ async function updateCustomerBooking(
         phone_normalized = COALESCE(?, phone_normalized),
         phone_metadata_version = CASE WHEN ? THEN ? ELSE phone_metadata_version END,
         source = CASE WHEN source = 'manual' THEN source ELSE ? END,
-        last_booking_at = ?,
         updated_at = ?
     WHERE id = ?
   `, [
@@ -254,7 +247,6 @@ async function updateCustomerBooking(
     phoneSupplied ? 1 : 0,
     phoneMetadataVersion,
     input.source,
-    bookingAt,
     new Date().toISOString(),
     customerId,
   ])

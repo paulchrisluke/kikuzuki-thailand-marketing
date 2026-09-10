@@ -260,16 +260,6 @@
         </div>
       </section>
 
-      <!-- ── Dynamic content blocks ───────────────────────────── -->
-      <template v-if="contentBlocks.length > 0">
-        <component
-          v-for="block in contentBlocks.filter(b => b.component)"
-          :key="block._uid || block.field"
-          :is="resolveComponent(block.component)"
-          :data="block"
-          class="content-block"
-        />
-      </template>
       </template>
       <section v-else-if="pageError" class="mx-auto max-w-xl px-4 py-16 text-center sm:px-6" data-testid="saya-home-content-error">
         <p role="alert" class="text-sm text-muted">{{ t('saya.common.temporarily_unavailable') }}</p>
@@ -281,9 +271,9 @@
 <script setup>
 import { formatProductMoney, formatProductPriceLabel } from '~/utils/product-money'
 import { resolveProductPresentation } from '~/utils/product-presentation'
-import { useDynamicComponent } from '~/composables/useDynamicComponent'
 import { getActiveSpecialClosure } from '~/utils/formatters'
 import { resolveSiteExperienceHref } from '~/utils/experience-navigation'
+import { normalizeRobotsIntent } from '~/shared/robots-directive'
 
 const { siteId, draftId, site } = useTenantSite()
 const { locale, localePath, t } = useI18n()
@@ -291,7 +281,6 @@ const { locale, localePath, t } = useI18n()
 const homeCopy = computed(() => getVerticalCopy(site?.vertical, locale.value))
 const { resolveMedia } = useMedia()
 
-const { resolveComponent } = useDynamicComponent()
 
 // Validate tenant context ONLY for tenant sites
 if (!siteId && !draftId) {
@@ -314,7 +303,6 @@ const {
   site: publicSite,
   products,
   experiencesList,
-  contentBlocks,
 } = await usePublicPageData({ server: true, lazy: false })
 
 const {
@@ -419,7 +407,7 @@ if (siteId) {
     brand: {
       siteName: site?.brand_name || restaurantName.value,
     },
-    robots: pageConfig.value?.robots || null,
+    robots: normalizeRobotsIntent(pageConfig.value?.robots),
   }))
 }
 
@@ -531,7 +519,7 @@ const recentBlogPosts = computed(() =>
       excerpt: typeof post.excerpt === 'string' ? post.excerpt : '',
       category: typeof post.category === 'string' ? post.category : '',
       publishedAt: typeof post.published_at === 'string' ? post.published_at : null,
-      image: resolveMedia(post.media?.find(item => item.slot === 'featured')).url,
+      image: resolveMedia(post.cover).thumb,
     }))
 )
 

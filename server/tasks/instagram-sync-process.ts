@@ -76,7 +76,7 @@ export default defineScheduledTask({
         ON ob.organization_id = s.organization_id
        AND ob.access_plan = 'growth'
       WHERE json_extract(s.integrations_json, '$.facebook.status') = 'active'
-        OR (json_extract(s.integrations_json, '$.facebook.status') = 'error' AND json_extract(s.integrations_json, '$.facebook.updated_at') < datetime('now', '-1 hour'))
+        OR (json_extract(s.integrations_json, '$.facebook.status') = 'error' AND json_extract(s.integrations_json, '$.facebook.updated_at') < strftime('%Y-%m-%dT%H:%M:%fZ', 'now', '-1 hour'))
       ORDER BY s.organization_id
     `)
     const connections = billingRows.filter((row) => hasScheduledPaidEntitlement(row, 'managed_service'))

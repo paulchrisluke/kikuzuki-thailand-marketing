@@ -29,6 +29,7 @@
 </template>
 
 <script setup lang="ts">
+const { formatDate } = useLocaleDate()
 import { $fetch } from 'ofetch'
 import { getErrorMessage } from '~/utils/errors'
 import type { respondToBookingChange } from '~/server/domain/guest-threads/booking-changes'

@@ -6,6 +6,7 @@ export type TenantPageBlockType =
   | 'image'
   | 'gallery'
   | 'faq'
+  | 'how_to'
   | 'divider'
   | 'cta'
   | 'callout'
@@ -85,9 +86,10 @@ export const TENANT_PAGE_TYPES: readonly TenantPageType[] = ['custom', 'recipe',
 export const TENANT_PAGE_BLOCK_REGISTRY: Record<TenantPageBlockType, TenantPageBlockDefinition> = {
   heading: blockDefinitionWithMetadata('heading', 'Heading', 'A semantic heading.', ALL_RECIPES, ['text', 'level'], { accessibility: 'required', seo: 'structured' }),
   markdown: blockDefinitionWithMetadata('markdown', 'Rich text', 'Markdown-safe prose.', ALL_RECIPES, ['markdown'], { accessibility: 'required', seo: 'inherited' }),
-  image: blockDefinitionWithMetadata('image', 'Image', 'A tenant media placement.', ALL_RECIPES, ['alt', 'caption']),
+  image: blockDefinitionWithMetadata('image', 'Image', 'A tenant media placement.', ALL_RECIPES, ['caption']),
   gallery: blockDefinitionWithMetadata('gallery', 'Gallery', 'An ordered media placement.', ALL_RECIPES, ['caption']),
-  faq: blockDefinitionWithMetadata('faq', 'FAQ', 'Structured frequently asked questions.', ALL_RECIPES, ['items'], { accessibility: 'required', seo: 'structured' }),
+  faq: blockDefinitionWithMetadata('faq', 'FAQ', 'The page\'s published questions and answers.', ALL_RECIPES, ['source'], { accessibility: 'required', seo: 'structured' }),
+  how_to: blockDefinitionWithMetadata('how_to', 'How-To', 'Ordered steps.', ALL_RECIPES, ['steps'], { accessibility: 'required', seo: 'structured' }),
   divider: blockDefinitionWithMetadata('divider', 'Divider', 'A visual section divider.', ALL_RECIPES, [], { accessibility: 'inherited', seo: 'none' }),
   cta: blockDefinitionWithMetadata('cta', 'Call to action', 'A typed call-to-action.', ALL_RECIPES, ['title', 'description', 'label', 'url']),
   callout: blockDefinitionWithMetadata('callout', 'Callout', 'A highlighted message.', ALL_RECIPES, ['title', 'body', 'tone']),
@@ -173,9 +175,9 @@ function blockDefinitionWithMetadata(
 }
 
 const STRING_FIELDS = new Set([
-  'eyebrow', 'title', 'subtitle', 'text', 'markdown', 'alt', 'caption', 'description',
+  'eyebrow', 'title', 'subtitle', 'text', 'markdown', 'caption', 'description',
   'label', 'url', 'body', 'tone', 'cta_label', 'cta_url', 'source',
-  'source_url', 'effective_date', 'field', 'section', 'destination', 'legacy_type',
+  'source_url', 'effective_date', 'field', 'section', 'destination',
 ])
 const ARRAY_FIELDS = new Set(['offering_ids', 'location_ids'])
 
@@ -195,17 +197,20 @@ function validateBlockData(type: TenantPageBlockType, data: Record<string, unkno
   if (data.level !== undefined && (!Number.isInteger(data.level) || Number(data.level) < 1 || Number(data.level) > 6)) {
     throw new Error(`${type}.level must be an integer from 1 to 6.`)
   }
-  for (const key of ['items', 'buttons', 'tiers']) {
+  for (const key of ['items', 'buttons', 'tiers', 'steps']) {
     if (data[key] === undefined) continue
     if (!Array.isArray(data[key]) || data[key].some(item => !item || typeof item !== 'object' || Array.isArray(item))) {
       throw new Error(`${type}.${key} must be an array of objects.`)
     }
   }
-  if (type === 'faq' && Array.isArray(data.items)) {
-    for (const [index, item] of data.items.entries()) {
-      const record = item as Record<string, unknown>
-      if (record.question !== undefined && typeof record.question !== 'string') throw new Error(`${type}.items[${index}].question must be a string.`)
-      if (record.answer !== undefined && typeof record.answer !== 'string') throw new Error(`${type}.items[${index}].answer must be a string.`)
+  // FAQ blocks render the page's Q&A records; they carry no questions of their own.
+  if (type === 'faq' && data.items !== undefined) throw new Error('faq.items is not stored; questions are Q&A records for this page.')
+  if (type === 'how_to' && Array.isArray(data.steps)) {
+    for (const [index, step] of data.steps.entries()) {
+      const record = step as Record<string, unknown>
+      for (const field of ['name', 'text']) {
+        if (record[field] !== undefined && record[field] !== null && typeof record[field] !== 'string') throw new Error(`${type}.steps[${index}].${field} must be a string.`)
+      }
     }
   }
   return { ...data }
@@ -217,7 +222,7 @@ export function createTenantPageBlock(type: TenantPageBlockType, data: Record<st
 }
 
 const TRANSLATABLE_DATA_FIELDS = new Set([
-  'alt', 'answer', 'body', 'caption', 'copy_label', 'description', 'eyebrow', 'heading',
+  'answer', 'body', 'caption', 'copy_label', 'description', 'eyebrow', 'heading',
   'intro', 'label', 'markdown', 'name', 'note', 'prompt', 'question', 'short_description',
   'subtitle', 'summary', 'text', 'title', 'cta_label',
 ])
@@ -404,12 +409,10 @@ export function blockDefinition(type: TenantPageBlockType): TenantPageBlockDefin
 
 export function findTenantPageBlock(
   blocks: TenantPageBlock[],
-  legacyType: string,
-  canonicalType?: TenantPageBlockType,
+  type: TenantPageBlockType,
 ): Record<string, unknown> | null {
-  const block = blocks.find((candidate) =>
-    candidate.data.legacy_type === legacyType
-    || (canonicalType ? candidate.type === canonicalType : false),
-  )
+  const matches = blocks.filter(candidate => candidate.type === type)
+  if (matches.length > 1) throw new Error(`Multiple ${type} blocks require an explicit selection.`)
+  const block = matches[0]
   return block ? { ...block.data, media: block.media } : null
 }

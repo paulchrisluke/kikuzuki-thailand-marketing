@@ -30,8 +30,8 @@ up, because rendering a card runs in the Worker, and it takes a while on the
 first run — a card is rendered and uploaded per product, post and page. Requests
 process five owners at a time. Each generated or reused PNG is fetched and its
 1200×630 dimensions checked; every skipped or failed owner is reported. Re-running
-reuses matching cards. Use `--site-id` for one tenant and `--platform` with a
-platform administrator account for platform pages and documentation.
+reuses matching cards. Use `--site-id` to limit it to one site; KrabiClaw's own
+site is an ordinary site here.
 
 Approved `client:import --apply` runs this same generator for the imported site
 and then `client:verify`; failed generation or verification prevents handoff.
@@ -42,9 +42,10 @@ authorized account (`--email` selects it). Remote targets also require an explic
 Only production runs the `social-card-backfill` task: preview and staging set
 `crons = []`, and it is bounded to a small number of owners per night.
 
-Use **Ember & Slice** (`ember-slice-demo`) for general review. It is the fixture
-that carries rolling analytics, today's reservations and upcoming bookings, so
-Today, Calendar and Insights all have something to show.
+Local and preview use production snapshots. Existing bookings retain their
+original dates; setup does not manufacture current activity. For date-sensitive
+Today or Calendar checks, create bookings through the guest flow in the local
+or preview environment.
 
 ## Signing in
 
@@ -53,9 +54,9 @@ under `Local developer sign-in`. Setup generates a fresh password on every run,
 prints it once, and stores only its hash in local D1. No reusable local password
 is recorded in the repository.
 
-The account exists only in local D1. It is a platform admin and an owner in each
-curated tenant organization, so it is the single manual sign-in for platform,
-demo, Pottery House, Kikuzuki, and NCLS work. Better Auth handles the normal
+The account exists only in local D1. It is a Better Auth admin (it can
+impersonate) and an owner in each curated tenant organization, so it is the
+single manual sign-in for demo, Pottery House, Kikuzuki, and NCLS work. Better Auth handles the normal
 email/password request and stores only the password hash; there is no auth
 bypass, magic header, or cookie to paste.
 
@@ -105,7 +106,7 @@ resolves that segment against `sites.subdomain`.
 
 ```sh
 corepack yarn quality && corepack yarn test:unit && corepack yarn test:d1 && corepack yarn test:migrations && corepack yarn test:mcp
-corepack yarn chatgpt:submission:check && corepack yarn lint:migrations && corepack yarn lint:schema-drift && corepack yarn lint:seeds
+corepack yarn chatgpt:submission:check && corepack yarn lint:migrations && corepack yarn lint:schema-drift
 ```
 
 That is every CI check that runs without a deployed environment. `test:unit`

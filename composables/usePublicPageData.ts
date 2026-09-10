@@ -28,7 +28,6 @@ interface ContentRow {
   hero_title: string | null;
   hero_subtitle: string | null;
   media?: Array<{ asset_id: string; slot: string; public_url: string | null; thumbnail_url?: string | null; kind?: string | null }>;
-  component: string | null;
   [key: string]: unknown;
 }
 
@@ -263,15 +262,6 @@ export const usePublicPageData = async (options: {
     };
   };
 
-  // ── Content Blocks for Dynamic Rendering ───────────────────
-  const contentBlocks = computed(() => {
-    const rows = (data.value?.content ?? []) as ContentRow[];
-    return rows.map((row) => ({
-      ...row,
-      _uid: row.field, // Use field as unique identifier for now
-      component: row.component || null,
-    }));
-  });
 
   // Register every lifecycle hook above before suspending setup. Route-owned
   // data is authoritative: navigation completes only after this single request
@@ -315,7 +305,6 @@ export const usePublicPageData = async (options: {
     getFieldStr,
     getHero,
     contentMap,
-    contentBlocks,
     products,
     productsByCategory,
     error,

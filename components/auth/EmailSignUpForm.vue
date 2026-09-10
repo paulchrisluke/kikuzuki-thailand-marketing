@@ -1,5 +1,5 @@
 <template>
-  <form class="space-y-3" @submit.prevent="submit">
+  <form method="post" class="space-y-3" @submit.prevent="submit">
     <UFormField label="Email" name="signup-email" :error="emailError" size="lg">
       <UInput v-model="email" type="email" placeholder="you@example.com" :disabled="loading" autocomplete="email" size="lg" class="w-full" />
     </UFormField>

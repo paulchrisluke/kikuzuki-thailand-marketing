@@ -25,7 +25,7 @@
           confirmation.guests,
           Number(confirmation.guests) === 1 ? resCopy.guestLabel : resCopy.guestsLabelPlural,
           readableDate,
-          fmt12Hour(confirmation.time)
+          formatTime(confirmation.time, locale)
         ) }}
       </template>
       <template #actions>
@@ -55,7 +55,7 @@
 import { $fetch } from 'ofetch'
 import { getBookingConfirmation, type BookingConfirmation as BookingConfirmationData } from '~/composables/useBookingHandoff'
 import BookingConfirmation from '~/components/booking/BookingConfirmation.vue'
-import { fmt12Hour } from '~/shared/reservation-hours'
+import { formatTime } from '~/utils/timezone'
 import type { RenderedBookingPolicySummaryItem } from '~/server/utils/booking-policies'
 
 definePageMeta({ layout: 'saya' })
@@ -73,7 +73,7 @@ const pending = ref(true)
 
 const readableDate = computed(() => {
   if (!confirmation.value?.date) return ''
-  return formatDate(`${confirmation.value.date}T12:00:00`)
+  return formatDate(confirmation.value.date)
 })
 
 const receiptRows = computed(() => {
@@ -81,7 +81,7 @@ const receiptRows = computed(() => {
   const rows: Array<{ label: string; value: string }> = []
   if (confirmation.value.locationName) rows.push({ label: 'Location', value: confirmation.value.locationName })
   rows.push({ label: 'Date', value: readableDate.value })
-  rows.push({ label: 'Time', value: fmt12Hour(confirmation.value.time) })
+  rows.push({ label: 'Time', value: formatTime(confirmation.value.time, locale.value) })
   rows.push({
     label: 'Party',
     value: `${confirmation.value.guests} ${Number(confirmation.value.guests) === 1 ? resCopy.value.guestLabel : resCopy.value.guestsLabelPlural}`,
@@ -152,7 +152,7 @@ onMounted(async () => {
 
 async function share() {
   if (!confirmation.value) return
-  const text = `My reservation at ${confirmation.value.siteName} is confirmed for ${readableDate.value} at ${fmt12Hour(confirmation.value.time)}.`
+  const text = `My reservation at ${confirmation.value.siteName} is confirmed for ${readableDate.value} at ${formatTime(confirmation.value.time, locale.value)}.`
   if (import.meta.client && navigator.share) {
     try {
       await navigator.share({ title: 'Reservation confirmed', text, url: window.location.origin })

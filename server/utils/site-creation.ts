@@ -1,3 +1,4 @@
+import { instantDate } from '~/utils/timezone'
 // Core site creation logic shared by site creation entry points. Handles org creation/lookup,
 // idempotency, subdomain uniqueness, and seeding.
 import { seedNewSite } from '~/server/utils/site-template'
@@ -154,7 +155,7 @@ export async function resolveCreationOrganization(
   const adapter = await organizationAdapter(env)
   const organizations = (await adapter.listOrganizations(userId))
     .slice()
-    .sort((left, right) => timestampValue(left.createdAt) - timestampValue(right.createdAt))
+    .sort((left, right) => instantDate(left.createdAt).getTime() - instantDate(right.createdAt).getTime())
 
   const snapshots: Array<{
     organizationId: string
@@ -304,15 +305,6 @@ async function uniqueOrganizationSlug(adapter: OrganizationAdapter, name: string
   return `${base}-${crypto.randomUUID().slice(0, 8)}`
 }
 
-function timestampValue(value: Date | string | number): number {
-  if (value instanceof Date) {
-    const timestamp = value.getTime()
-    return Number.isNaN(timestamp) ? Number.POSITIVE_INFINITY : timestamp
-  }
-  if (typeof value === 'number') return Number.isFinite(value) ? value : Number.POSITIVE_INFINITY
-  const parsed = Date.parse(value)
-  return Number.isNaN(parsed) ? Number.POSITIVE_INFINITY : parsed
-}
 
 export async function findOldestOwnedOrganization(
   env: CloudflareEnv,
@@ -321,7 +313,7 @@ export async function findOldestOwnedOrganization(
   const adapter = await organizationAdapter(env)
   const organizations = (await adapter.listOrganizations(userId))
     .slice()
-    .sort((left, right) => timestampValue(left.createdAt) - timestampValue(right.createdAt))
+    .sort((left, right) => instantDate(left.createdAt).getTime() - instantDate(right.createdAt).getTime())
   for (const organization of organizations) {
     const member = await adapter.findMemberByOrgId({ userId, organizationId: organization.id })
     if (member && String(member.role) === 'owner') return organization.id

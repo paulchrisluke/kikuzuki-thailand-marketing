@@ -32,7 +32,15 @@ for (const width of [390, 1280]) {
 
     await loginAs(page.request, baseURL!, 'user-e2e-oauth-private-cimd')
     const session = await (await page.request.get('/api/auth/get-session')).json()
-    for (const path of ['/', '/docs', '/plugin', '/features', '/pricing', '/templates/saya']) {
+
+    // The marketing homepage is for people without an account. A signed-in
+    // owner is sent to their dashboard rather than shown the pitch, which is
+    // what stopped a returning owner clicking "Start free" a second time.
+    const home = await page.request.get('/', { maxRedirects: 0 })
+    expect(home.status()).toBe(302)
+    expect(home.headers().location).toBe('/api/post-login')
+
+    for (const path of ['/docs', '/plugin', '/features', '/pricing', '/templates/saya']) {
       const response = await page.goto(path)
       expect(response?.status()).toBe(200)
       const html = await response!.text()
@@ -40,13 +48,15 @@ for (const width of [390, 1280]) {
       expect(html).not.toContain('href="/signup')
       expect(response!.headers()['cache-control']).toContain('no-store')
       const header = page.locator('header').first()
-      await expect(header.getByRole('link', { name: `Account: ${session.user.name}`, exact: true }).first()).toBeVisible()
-      await expect(header.getByRole('link', { name: 'Dashboard', exact: true }).first()).toHaveAttribute('href', '/api/post-login')
+      // The avatar is a disclosure, not a link: it carries no label of its own
+      // because a word in English is not something every owner can act on.
+      const account = header.getByLabel(`Account: ${session.user.name}`).first()
+      await expect(account).toBeVisible()
       await expect(page.locator('a[href^="/signup"]')).toHaveCount(0)
-      if (width === 390 && path === '/') {
-        await header.getByLabel('Toggle menu').click()
-        await expect(page.locator('#mobile-menu').getByRole('link', { name: 'Dashboard', exact: true })).toBeVisible()
-      }
+      await account.click()
+      await expect(header.getByRole('link', { name: 'Dashboard', exact: true }).first()).toHaveAttribute('href', '/api/post-login')
+      await expect(header.getByRole('link', { name: 'Account settings', exact: true })).toHaveAttribute('href', '/dashboard/account/profile')
+      await expect(header.getByRole('button', { name: 'Log out', exact: true })).toBeVisible()
     }
     for (const path of ['/login', '/signup']) {
       const response = await page.request.get(path, { maxRedirects: 0 })
@@ -89,25 +99,18 @@ test('signed-in Growth CTA retains its plan through the canonical billing redire
   expect(invalid.status()).toBe(400)
 })
 
-test('successful sign-in remembers a profile without retaining authentication, and can be forgotten', async ({ page, baseURL }) => {
+test('sign-in surfaces the last used method without remembering the account', async ({ page, baseURL }) => {
   await dismissPreviewToolbar(page)
   await loginAs(page.request, baseURL!, 'user-e2e-oauth-private-cimd')
-  const { user } = await (await page.request.get('/api/auth/get-session')).json()
   const signOut = await page.request.post('/api/auth/sign-out', { headers: { origin: baseURL! }, data: {} })
   expect(signOut.status()).toBe(200)
+
   await page.goto('/login')
-  const remembered = page.getByRole('button', { name: `${user.email} Last used` })
-  await expect(remembered).toBeVisible()
+  // Better Auth's lastLoginMethod records the method, so the email form is
+  // badged. No identity is retained: the email field is empty and nothing
+  // offers to continue as the previous account.
+  await expect(page.getByText('Last used', { exact: true })).toBeVisible()
+  await expect(page.getByRole('textbox', { name: 'Email', exact: true })).toHaveValue('')
+  await expect(page.getByRole('button', { name: /Continue as/ })).toHaveCount(0)
   expect(await (await page.request.get('/api/auth/get-session')).json()).toBeNull()
-  await remembered.click()
-  await expect(page.getByRole('textbox', { name: 'Email', exact: true })).toHaveValue(user.email)
-  await expect(page.getByLabel('Password', { exact: true })).toHaveValue('')
-  await page.getByRole('button', { name: 'Log in with another profile', exact: true }).click()
-  await expect(page.getByRole('textbox', { name: 'Email', exact: true })).toHaveValue('')
-  await page.reload()
-  await expect(remembered).toBeVisible()
-  await page.getByRole('button', { name: 'Forget this profile', exact: true }).click()
-  await page.reload()
-  await expect(page.getByText('Last used', { exact: true })).toHaveCount(0)
-  await expect(page.getByRole('textbox', { name: 'Email', exact: true })).toHaveValue('')
 })

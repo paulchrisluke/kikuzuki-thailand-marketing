@@ -3,7 +3,7 @@ import { errorChainForTelemetry } from "~/server/utils/error-telemetry";
 import { HTTPError } from 'nitro';
 import type { H3Event } from 'nitro';
 import { queryFirst } from "~/server/db";
-import { assertSafeDownloadUrl } from "~/server/utils/platform-mcp-executor";
+import { isIP } from "node:net";
 import { getMediaAsset } from "~/server/utils/media-asset-manager";
 import { generateSlots } from "~/server/utils/experiences";
 import type { getMcpTool } from "~/server/utils/mcp-tools";
@@ -14,13 +14,12 @@ import {
   type McpLocationSummary,
   type McpSiteSummary,
 } from "~/server/utils/mcp-context";
-import { chargeFlatCredits, type FlatCreditAction } from "~/server/utils/ai-credits";
 import { sniffMediaMimeType, VIDEO_MIME_TYPES, MAX_VIDEO_BYTES, R2_IMAGE_MIME_TYPES } from "~/server/utils/media-mime";
 import { assertMarkdownSize, decodeMarkdownText, resolveMarkdownMimeType } from "~/server/utils/markdown-document";
 import { hasCloudflareImagesConfig } from "~/server/utils/cloudflare-images";
 import { parseMediaPlacementKey } from '~/server/utils/media-placement'
 import { isSingleMediaPlacement } from '~/shared/media-placement-contract'
-import { findOrganizationById, listUserOrganizations } from '~/server/utils/member-access'
+import { findOrganizationById } from '~/server/utils/member-access'
 
 /**
  * Resolves the upload provider for an image based on content type and Cloudflare Images config.
@@ -33,51 +32,6 @@ export function resolveImageUploadProvider(contentType: string, env: ApiRecord):
     throw new Error("Cloudflare Images not configured");
   }
   return provider as "cloudflare_r2" | "cloudflare_images" | undefined;
-}
-
-// Prefers the user's active organization (session-based auth only — see
-// McpUserContext.activeOrganizationId) and falls back to the oldest
-// membership, matching the REST places endpoints. A user without a
-// membership is intentionally a no-op; membership/accounting query failures
-// propagate so a provider call cannot be reported as an unqualified success.
-export async function chargeFlatCreditsForUser(
-  user: McpUserContext,
-  action: FlatCreditAction,
-): Promise<void> {
-  const activeOrgId = user.activeOrganizationId ?? ''
-  const organizations = (await listUserOrganizations(user.env, user.userId))
-    .slice()
-    .sort((left, right) => {
-      const activeOrder = Number(right.id === activeOrgId) - Number(left.id === activeOrgId)
-      return activeOrder || left.createdAt.getTime() - right.createdAt.getTime()
-    })
-  const organization = organizations[0]
-  if (!organization) return;
-
-  const result = await chargeFlatCredits(user.db, organization.id, { action });
-  if (!result.charged) {
-    console.error(`chargeFlatCredits did not charge for ${action}`, {
-      organizationId: organization.id,
-      newBalance: result.newBalance,
-    });
-  }
-}
-
-export function haversineKm(
-  lat1: number,
-  lng1: number,
-  lat2: number,
-  lng2: number,
-): number {
-  const R = 6371;
-  const dLat = (lat2 - lat1) * (Math.PI / 180);
-  const dLng = (lng2 - lng1) * (Math.PI / 180);
-  const a =
-    Math.sin(dLat / 2) ** 2 +
-    Math.cos(lat1 * (Math.PI / 180)) *
-      Math.cos(lat2 * (Math.PI / 180)) *
-      Math.sin(dLng / 2) ** 2;
-  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
 export async function resolveGeneratedImageUpload(
@@ -562,211 +516,6 @@ export async function resolveUserUploadedMediaFile(
   }
 }
 
-export interface GoogleMapsSignals {
-  nameHint: string | null;
-  lat: number | null;
-  lng: number | null;
-  rawId: string | null;
-  isChijId: boolean;
-}
-
-export interface GoogleMapsPlaceCandidate {
-  placeId?: string | null;
-  lat?: number | null;
-  lng?: number | null;
-}
-
-export interface GoogleMapsPlaceResolution {
-  placeId: string;
-  resolvedUrl: string;
-  usedTextSearch: boolean;
-}
-
-interface GoogleMapsPlaceResolverDependencies {
-  resolveShortLink: (_url: string) => Promise<{ ok: boolean; url: string }>;
-  searchPlaces: (
-    _query: string,
-    _locationBias: { latitude: number; longitude: number },
-  ) => Promise<GoogleMapsPlaceCandidate[]>;
-}
-
-function validCoordinates(
-  lat: number | null | undefined,
-  lng: number | null | undefined,
-): { lat: number; lng: number } | null {
-  if (
-    typeof lat === "number" &&
-    Number.isFinite(lat) &&
-    lat >= -90 &&
-    lat <= 90 &&
-    typeof lng === "number" &&
-    Number.isFinite(lng) &&
-    lng >= -180 &&
-    lng <= 180
-  ) {
-    return { lat, lng };
-  }
-  return null;
-}
-
-export async function resolveGoogleMapsPlace(
-  rawUrl: string,
-  dependencies: GoogleMapsPlaceResolverDependencies,
-): Promise<GoogleMapsPlaceResolution> {
-  let parsedUrl: URL;
-  try {
-    parsedUrl = new URL(rawUrl);
-  } catch {
-    throw mcpProtocolError(MCP_ERROR.invalidParams, "Invalid Maps URL.");
-  }
-
-  if (!isAllowedGoogleMapsHost(parsedUrl.hostname)) {
-    throw mcpProtocolError(
-      MCP_ERROR.invalidParams,
-      "URL does not appear to be a Google Maps link. Please paste a google.com/maps or maps.app.goo.gl link.",
-    );
-  }
-
-  let resolvedUrl = parsedUrl.toString();
-  if (parsedUrl.hostname === "maps.app.goo.gl") {
-    let probe: { ok: boolean; url: string };
-    try {
-      probe = await dependencies.resolveShortLink(parsedUrl.toString());
-    } catch {
-      throw new HTTPError({
-        statusCode: 502,
-        statusMessage: "Google Maps link resolution failed.",
-      });
-    }
-
-    let resolvedHost: string;
-    try {
-      resolvedHost = new URL(probe.url).hostname;
-    } catch {
-      throw mcpProtocolError(
-        MCP_ERROR.invalidParams,
-        "The Google Maps share link did not resolve to a valid Google Maps place URL.",
-      );
-    }
-    if (!probe.ok || !isAllowedGoogleMapsHost(resolvedHost)) {
-      throw mcpProtocolError(
-        MCP_ERROR.invalidParams,
-        "The Google Maps share link did not resolve to a valid Google Maps place URL.",
-      );
-    }
-    resolvedUrl = probe.url;
-  }
-
-  const signals = extractGoogleMapsSignals(resolvedUrl);
-  if (signals.isChijId && signals.rawId) {
-    return {
-      placeId: signals.rawId,
-      resolvedUrl,
-      usedTextSearch: false,
-    };
-  }
-
-  if (!signals.nameHint) {
-    throw mcpProtocolError(
-      MCP_ERROR.invalidParams,
-      "Could not extract place details from that Maps URL. Try copying the full Google Maps URL from the address bar.",
-    );
-  }
-  const urlCoordinates = validCoordinates(signals.lat, signals.lng);
-  if (!urlCoordinates) {
-    throw mcpProtocolError(
-      MCP_ERROR.invalidParams,
-      "This URL does not contain valid location coordinates. Paste the full Google Maps URL from the address bar so the place can be identified precisely.",
-    );
-  }
-
-  const locationBias = {
-    latitude: urlCoordinates.lat,
-    longitude: urlCoordinates.lng,
-  };
-  let results: GoogleMapsPlaceCandidate[];
-  try {
-    results = await dependencies.searchPlaces(signals.nameHint, locationBias);
-  } catch (error) {
-    throw new HTTPError({
-      statusCode: 502,
-      statusMessage:
-        error instanceof Error ? error.message : "Google Places search failed.",
-    });
-  }
-
-  const candidate = results[0];
-  if (!candidate?.placeId) {
-    throw mcpProtocolError(
-      MCP_ERROR.invalidParams,
-      `Could not find "${signals.nameHint}" in Google Places. Try the full Maps URL from the address bar.`,
-    );
-  }
-  const candidateCoordinates = validCoordinates(candidate.lat, candidate.lng);
-  if (!candidateCoordinates) {
-    throw mcpProtocolError(
-      MCP_ERROR.invalidParams,
-      `The top search result for "${signals.nameHint}" did not include valid coordinates and could not be verified against the Maps URL.`,
-    );
-  }
-
-  const distanceKm = haversineKm(
-    locationBias.latitude,
-    locationBias.longitude,
-    candidateCoordinates.lat,
-    candidateCoordinates.lng,
-  );
-  if (distanceKm > 5) {
-    throw mcpProtocolError(
-      MCP_ERROR.invalidParams,
-      `The top search result for "${signals.nameHint}" is ${Math.round(distanceKm)} km from the location in that URL. Paste the full Google Maps URL from the address bar so the exact place can be identified.`,
-    );
-  }
-
-  return {
-    placeId: candidate.placeId,
-    resolvedUrl,
-    usedTextSearch: true,
-  };
-}
-
-export function extractGoogleMapsSignals(resolvedUrl: string): GoogleMapsSignals {
-  const rawIdMatch = resolvedUrl.match(/!1s([^!&]+)/);
-  let rawId: string | null = null;
-  if (rawIdMatch?.[1]) {
-    try {
-      rawId = decodeURIComponent(rawIdMatch[1]);
-    } catch {
-      rawId = null;
-    }
-  }
-  const isChijId = rawId ? /^ChIJ/.test(rawId) : false;
-
-  const nameFromPath = resolvedUrl.match(/\/maps\/place\/([^/@?]+)/)?.[1];
-  let nameHint: string | null = null;
-  if (nameFromPath) {
-    try {
-      nameHint = decodeURIComponent(nameFromPath.replace(/\+/g, " "));
-    } catch {
-      nameHint = null;
-    }
-  }
-
-  // !3d/!4d are the exact business coords; @ is the map viewport (less precise)
-  const coordinatePattern = "-?\\d+(?:\\.\\d+)?";
-  const lat3d = resolvedUrl.match(new RegExp(`!3d(${coordinatePattern})`))?.[1];
-  const lng4d = resolvedUrl.match(new RegExp(`!4d(${coordinatePattern})`))?.[1];
-  const viewportMatch = resolvedUrl.match(
-    new RegExp(`@(${coordinatePattern}),(${coordinatePattern})`),
-  );
-  const latRaw = lat3d ?? viewportMatch?.[1] ?? null;
-  const lngRaw = lng4d ?? viewportMatch?.[2] ?? null;
-  const lat = latRaw != null ? Number(latRaw) : null;
-  const lng = lngRaw != null ? Number(lngRaw) : null;
-
-  return { nameHint, lat, lng, rawId, isChijId };
-}
-
 export function workspaceContextPayload(
   organization: Awaited<ReturnType<typeof resolveMcpWorkspace>>["organization"],
   site: McpSiteSummary | null,
@@ -958,7 +707,7 @@ export async function normalizeWorkspaceArguments(
 ) {
   const args = { ...rawArguments };
 
-  if (["get_workspace_context", "set_workspace_context", "import_from_maps", "list_sites"].includes(toolName)) {
+  if (["get_workspace_context", "set_workspace_context", "list_sites"].includes(toolName)) {
     return args;
   }
 
@@ -1053,16 +802,6 @@ export function propertyAllowsNull(schema: Record<string, unknown> | null) {
   if (type === "null") return true;
   if (Array.isArray(type)) return type.includes("null");
   return false;
-}
-
-export function isAllowedGoogleMapsHost(hostname: string): boolean {
-  const h = hostname.toLowerCase();
-  return (
-    h === "maps.app.goo.gl" ||
-    h === "maps.google.com" ||
-    h === "google.com" ||
-    h.endsWith(".google.com")
-  );
 }
 
 export function requiredString(source: Record<string, unknown>, key: string) {
@@ -1302,4 +1041,75 @@ export interface McpExecutorContext {
   siteId?: string
   site: McpSiteContext
   args: Record<string, unknown>
+}
+
+// Download targets supplied by a client (ChatGPT attachments, generated files)
+// must never reach loopback or private address space from the Worker.
+function isPrivateIpv4(hostname: string): boolean {
+  const parts = hostname.split('.').map(part => Number.parseInt(part, 10))
+  if (parts.length !== 4 || parts.some(part => !Number.isInteger(part) || part < 0 || part > 255)) return false
+  const [a, b = -1] = parts
+  return a === 0 || a === 10 || a === 127 || (a === 169 && b === 254) || (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168)
+}
+
+function isPrivateIpv6(hostname: string): boolean {
+  const normalized = hostname.toLowerCase()
+  // IPv4-mapped literals (::ffff:10.0.0.1 or ::ffff:a00:1) must fail the IPv4 rules too.
+  const mapped = /^::ffff:(.+)$/.exec(normalized)?.[1]
+  if (mapped) {
+    if (mapped.includes('.')) return isPrivateIpv4(mapped)
+    const groups = mapped.split(':')
+    if (groups.length === 2) {
+      const high = Number.parseInt(groups[0]!, 16)
+      const low = Number.parseInt(groups[1]!, 16)
+      if (Number.isInteger(high) && Number.isInteger(low)) {
+        return isPrivateIpv4([high >> 8, high & 0xff, low >> 8, low & 0xff].join('.'))
+      }
+    }
+  }
+  return normalized === '::1' || normalized === '::' || normalized.startsWith('fe80:') || normalized.startsWith('fc') || normalized.startsWith('fd')
+}
+
+function normalizeHostnameForIpChecks(hostname: string): string {
+  if (hostname.startsWith('[') && hostname.endsWith(']')) {
+    return hostname.slice(1, -1)
+  }
+  return hostname
+}
+
+export function assertSafeDownloadUrl(rawUrl: string, label: string): URL {
+  let parsed: URL
+  try {
+    parsed = new URL(rawUrl)
+  } catch {
+    throw mcpProtocolError(MCP_ERROR.invalidParams, `${label} download URL is invalid.`)
+  }
+
+  const hostname = parsed.hostname.trim().toLowerCase()
+  const normalizedHostname = normalizeHostnameForIpChecks(hostname)
+  if (!hostname) {
+    throw mcpProtocolError(MCP_ERROR.invalidParams, `${label} download URL must include a hostname.`)
+  }
+  const isDevLoopback = import.meta.dev && parsed.protocol === 'http:' && (
+    hostname === 'localhost' ||
+    hostname.endsWith('.localhost') ||
+    normalizedHostname === '127.0.0.1' ||
+    normalizedHostname === '::1'
+  )
+  if (parsed.protocol !== 'https:' && !isDevLoopback) {
+    throw mcpProtocolError(MCP_ERROR.invalidParams, `${label} download URL must use https.`)
+  }
+  if (isDevLoopback) return parsed
+
+  if (hostname === 'localhost' || hostname.endsWith('.localhost')) {
+    throw mcpProtocolError(MCP_ERROR.invalidParams, `${label} download URL cannot target localhost.`)
+  }
+  if (isIP(normalizedHostname) === 4 && isPrivateIpv4(normalizedHostname)) {
+    throw mcpProtocolError(MCP_ERROR.invalidParams, `${label} download URL cannot target a private IPv4 address.`)
+  }
+  if (isIP(normalizedHostname) === 6 && isPrivateIpv6(normalizedHostname)) {
+    throw mcpProtocolError(MCP_ERROR.invalidParams, `${label} download URL cannot target a private IPv6 address.`)
+  }
+
+  return parsed
 }

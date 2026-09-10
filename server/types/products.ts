@@ -127,14 +127,7 @@ export interface RenameProductCategoryInput {
   name: string
 }
 
-export type SyncProductInput = CreateProductInput & { product_id?: string }
-
-/**
- * What AI extraction produces: a category *name*, because the model reads a
- * printed menu and cannot know category IDs. The import layer resolves these
- * to real categories before any Product is written.
- */
-export type ExtractedProductCandidate = Omit<CreateProductInput, 'category_id'> & { category: string }
+export type ReconcileProductInput = CreateProductInput & { product_id?: string }
 
 export interface ProductPresentation {
   feature: 'products'

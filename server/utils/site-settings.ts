@@ -3,6 +3,7 @@ import { deleteConfig, getConfig, setConfig } from '~/server/utils/site-config'
 import { createSystemSubdomain, isSystemSubdomainSpent } from '~/server/utils/domains'
 import { reconcileZarazAnalytics } from '~/server/utils/zaraz-analytics'
 import { isCurrencyCode } from '~/shared/currencies'
+import { parseRobotsIntent, ROBOTS_INTENTS } from '~/shared/robots-directive'
 import type { UpdateSiteSettingsRequest } from '~/server/types/site'
 import { execute, executeBatch, queryAll, queryFirst, type DbClient } from '~/server/db'
 import { defaultModuleFeaturesForVertical, parseCmsFeatureOverrideDelta, toggleableModulesForScope, type CmsCapabilityOverrideDelta, type ProductFeature } from '~/config/cms-registry'
@@ -10,7 +11,7 @@ import { resolveSiteCmsCapabilities } from '~/server/utils/cms-capabilities'
 import { checkModuleHasLiveData } from '~/server/utils/module-content-guard'
 import type { SiteVertical } from '~/utils/vertical-copy'
 import { buildSingleMediaPlacementQueries, hydrateMediaAssetRefs } from '~/server/utils/media-asset-manager'
-import { refreshSocialCard, refreshSiteBrandSocialCards } from '~/server/utils/social-card'
+import { refreshSocialCard } from '~/server/utils/social-card'
 
 type SetupEnv = Parameters<typeof createSystemSubdomain>[0]
 
@@ -319,8 +320,10 @@ async function attemptSiteUpdate(
     params.push(updates.canonical_url ?? null)
   }
   if (updates.robots !== undefined) {
+    const parsed = parseRobotsIntent(updates.robots)
+    if (!parsed.ok) return { status: 400, data: { error: `robots must be one of: ${ROBOTS_INTENTS.join(', ')}` } }
     setParts.push('robots = ?')
-    params.push(updates.robots ?? null)
+    params.push(parsed.intent)
   }
   for (const key of ['social_facebook_url', 'social_instagram_url', 'social_tiktok_url'] as const) {
     if (updates[key] === undefined) continue
@@ -454,11 +457,7 @@ async function attemptSiteUpdate(
     || updates.seo_description !== undefined
     || siteMedia?.some(item => item.slot === 'logo' || item.slot === 'social_share') === true
   if (cardInputChanged) {
-    if (updates.brand_name !== undefined || siteMedia?.some(item => item.slot === 'logo' || item.slot === 'social_share')) {
-      await refreshSiteBrandSocialCards({ db, env, siteId, actorId: userId })
-    } else {
-      await refreshSocialCard({ db, env, owner: { owner_type: 'site', owner_id: siteId }, actorId: userId })
-    }
+    await refreshSocialCard({ db, env, owner: { owner_type: 'site', owner_id: siteId }, actorId: userId })
   }
 
   const settings = await loadSettingsPayload(db, organizationId, siteId)

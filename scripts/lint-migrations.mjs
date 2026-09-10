@@ -2,8 +2,8 @@
 /**
  * D1 migration guardrails.
  *
- * D1 rejects raw BEGIN/COMMIT/ROLLBACK (see AGENTS.md "D1 does not support raw
- * transactions" — confirmed both via Drizzle's execute() and the raw binding).
+ * D1 rejects raw BEGIN/COMMIT/ROLLBACK, confirmed both via Drizzle's execute()
+ * and the raw binding.
  * A migration that slips one in applies fine in isolation but breaks the first
  * write path that tries to wrap it, so this is checked at the SQL-file level:
  *
@@ -21,7 +21,7 @@ import { DatabaseSync, constants } from 'node:sqlite'
 
 const ROOT = process.cwd()
 const MIGRATIONS_DIR = join(ROOT, 'migrations')
-const EPOCH_BASELINE = '0000_epoch_5_baseline.sql'
+const EPOCH_BASELINE = '0000_baseline.sql'
 
 function stripTriggerBodies(sql) {
   // Replace with an equal number of newlines (not '') so line numbers for any
@@ -40,7 +40,7 @@ function lintTransactionControl(sql, filePath) {
     violations.push({
       file: relative(ROOT, filePath),
       line,
-      message: `Bare "${match[1]}" statement outside a CREATE TRIGGER body — D1 rejects raw transaction control (see AGENTS.md "D1 does not support raw transactions").`,
+      message: `Bare "${match[1]}" statement outside a CREATE TRIGGER body — D1 rejects raw transaction control.`,
     })
   }
 
@@ -61,7 +61,7 @@ function lintEpochBaseline(presentFiles) {
   if (names[0] === EPOCH_BASELINE) return []
   return [{
     file: `migrations/${EPOCH_BASELINE}`,
-    message: 'Epoch 5 must start with its generated baseline. Production history is immutable after cutover; an unreleased staging Epoch 5 candidate may be reset and reprovisioned from this baseline.',
+    message: 'The chain must start with the generated baseline. Production history is immutable after cutover; see docs/database/migrations.md.',
   }]
 }
 
@@ -85,14 +85,17 @@ function lintDuplicateMigrationNumbers(presentFiles) {
 }
 
 // Let SQLite parse the SQL and inspect its actual foreign keys. Snapshot metadata
-// alone cannot establish whether a DROP is safe at this point in the chain.
+// alone cannot establish whether a DROP is safe at this point in the chain. A
+// table that only references itself may be dropped: its cascade cannot reach
+// another table.
 async function lintReferencedParentDrops(files) {
   const db = new DatabaseSync(':memory:')
   let parents = new Set()
   let blockedTable
+  let droppedLater = new Set()
   db.setAuthorizer((action, table) => {
     if (action === constants.SQLITE_ATTACH) return constants.SQLITE_DENY
-    if (action === constants.SQLITE_DROP_TABLE && parents.has(table.toLowerCase())) {
+    if (action === constants.SQLITE_DROP_TABLE && parents.has(table.toLowerCase()) && !droppedLater.has(table.toLowerCase())) {
       blockedTable = table
       return constants.SQLITE_DENY
     }
@@ -101,17 +104,24 @@ async function lintReferencedParentDrops(files) {
   try {
     for (const file of files) {
       let remaining = await readFile(file, 'utf8')
+      // A rebuild may drop a parent whose only referencing tables are themselves
+      // dropped in this file: the cascade cannot reach a table that survives.
+      const dropped = [...remaining.matchAll(/DROP TABLE\s+`?([A-Za-z0-9_]+)`?/gi)].map(match => match[1].toLowerCase())
       try {
         while (true) {
           // Strip only leading whitespace, delimiters and comments; SQLite finds
           // statement boundaries, including quoted text and trigger bodies.
           remaining = remaining.replace(/^(?:\s|;|--[^\n]*(?:\n|$)|\/\*[\s\S]*?\*\/)+/, '')
           if (!remaining) break
-          parents = new Set(db.prepare(`
-            SELECT DISTINCT lower(f."table") AS name
+          const references = db.prepare(`
+            SELECT DISTINCT lower(s.name) AS child, lower(f."table") AS parent
             FROM sqlite_schema AS s, pragma_foreign_key_list(s.name) AS f
-            WHERE s.type = 'table'
-          `).all().map(row => row.name))
+            WHERE s.type = 'table' AND lower(s.name) <> lower(f."table")
+          `).all()
+          parents = new Set(references.map(row => row.parent))
+          droppedLater = new Set([...parents].filter(parent => references
+            .filter(row => row.parent === parent)
+            .every(row => dropped.includes(row.child))))
           const statement = db.prepare(remaining)
           const length = statement.sourceSQL.length
           statement.run()

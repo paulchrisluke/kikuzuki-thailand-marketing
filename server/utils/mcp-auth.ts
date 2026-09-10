@@ -53,7 +53,6 @@ interface McpAuthChallengeDetails {
 export interface RequireMcpUserOptions {
   audiences?: string[]
   requiredScopes?: string[]
-  requirePlatformAdmin?: boolean
   forbiddenScopes?: string[]
 }
 
@@ -61,10 +60,9 @@ export async function requireMcpUser(
   event: H3Event,
   options: RequireMcpUserOptions = {},
 ): Promise<McpUserContext> {
-  // No implicit cross-surface forbidding: a token can legitimately present more
-  // scopes than the current MCP surface needs. The real per-surface boundary is
-  // `audiences` (aud claim, bound to the resource param) plus requirePlatformAdmin
-  // or the DB site-membership check each route already performs.
+  // No implicit forbidding: a token can legitimately present more scopes than a
+  // call needs. The real boundary is `audiences` (aud claim, bound to the
+  // resource param) plus the DB site-membership check each route performs.
   const normalizedOptions: RequireMcpUserOptions = {
     ...options,
     forbiddenScopes: options.forbiddenScopes ?? [],
@@ -77,11 +75,7 @@ export async function requireMcpUser(
 
   const authHeader = (event.req.headers.get('authorization'))
   if (authHeader?.startsWith('Bearer ')) {
-    const user = await verifyBearerToken(event, authHeader.slice(7), env, db, normalizedOptions)
-    if (normalizedOptions.requirePlatformAdmin && !user.isPlatformAdmin) {
-      throw new HTTPError({ statusCode: 403, statusMessage: 'Platform admin access required' })
-    }
-    return user
+    return await verifyBearerToken(event, authHeader.slice(7), env, db, normalizedOptions)
   }
 
   const session = await getAuthSession(event, env)
@@ -89,9 +83,9 @@ export async function requireMcpUser(
     throw new HTTPError({ statusCode: 401, statusMessage: 'Authentication required' })
   }
 
-  // Session-based auth has no token to derive scopes from, so we assume the caller's
-  // requested scopes are granted outright. This is safe because forbiddenScopes and
-  // requirePlatformAdmin below still enforce the real restrictions for this surface.
+  // Session-based auth has no token to derive scopes from, so the caller's
+  // requested scopes are taken as granted; forbiddenScopes and the site
+  // membership check in requireMcpSite enforce the real restrictions.
   const sessionRecord = session.session as typeof session.session & { activeOrganizationId?: string }
   const user = {
     env,
@@ -102,9 +96,6 @@ export async function requireMcpUser(
     activeOrganizationId: typeof sessionRecord.activeOrganizationId === 'string' ? sessionRecord.activeOrganizationId : undefined,
   }
   ensureForbiddenScopesAbsent(user.scopes, normalizedOptions.forbiddenScopes)
-  if (normalizedOptions.requirePlatformAdmin && !user.isPlatformAdmin) {
-    throw new HTTPError({ statusCode: 403, statusMessage: 'Platform admin access required' })
-  }
   return user
 }
 
@@ -122,10 +113,8 @@ async function verifyBearerToken(
   const audiences = options.audiences?.length
     ? options.audiences
     : [`${baseUrl}/api/mcp`]
-  // Use ?? (not ?.length ? :) so a surface can explicitly opt out of any scope
-  // requirement by passing requiredScopes: [] — see platform.post.ts, where the
-  // real authorization boundary is requirePlatformAdmin (DB role), not the OAuth
-  // scope claim alone.
+  // Use ?? (not ?.length ? :) so a caller can explicitly opt out of any scope
+  // requirement by passing requiredScopes: [].
   const requiredScopes = options.requiredScopes ?? ['tenant']
 
   let payload: JWTPayload & { client_id?: unknown }

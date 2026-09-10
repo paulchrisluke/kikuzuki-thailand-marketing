@@ -1,7 +1,7 @@
-import { localizationError } from '~/server/utils/localization-errors'
+import { localizationError } from './localization-errors.ts'
 
-import { LOCALIZED_RESOURCE_TYPES, type LocalizedResourceType } from '~/shared/content-registries'
-export { LOCALIZED_RESOURCE_TYPES, type LocalizedResourceType } from '~/shared/content-registries'
+import { LOCALIZED_RESOURCE_TYPES, type LocalizedResourceType } from '../../shared/content-registries.ts'
+export { LOCALIZED_RESOURCE_TYPES, type LocalizedResourceType } from '../../shared/content-registries.ts'
 
 export type LocalizedValues = Record<string, unknown>
 

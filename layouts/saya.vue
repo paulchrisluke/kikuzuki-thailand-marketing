@@ -19,8 +19,7 @@
       :site="resolvedSite"
       :locations="locations"
       :has-products="shell.hasProducts.value"
-      :has-experiences="showExperiences"
-      :experience-cta-path="locationExperienceCtaPath"
+      :has-experiences="hasExperiences"
     />
     <main class="grow" :data-route-shell="route.path">
       <slot />
@@ -28,21 +27,21 @@
     <LazySayaFooter
       :site="resolvedSite"
       :is-platform="isPlatform"
-      :locations="locations"
+      :locations="footerLocations"
       :locales="locales"
       :error="bootstrapError"
       :config="config"
       :has-products="shell.hasProducts.value"
-      :has-experiences="showExperiences"
+      :has-experiences="hasExperiences"
     />
   </div>
 </template>
 
 <script setup lang="ts">
-import { resolveLocationExperienceHref } from '~/utils/experience-navigation'
 import { getPreviewSubpath } from '~/composables/usePublicPageRequest'
 import sayaCriticalCss from '~/assets/css/saya-critical.css?raw'
 import '~/assets/css/saya-entry.css'
+import { NON_INDEXABLE_ROBOTS_INTENT, normalizeRobotsIntent, type RobotsIntent } from '~/shared/robots-directive'
 
 const route = useRoute()
 const hydrated = ref(false)
@@ -85,21 +84,7 @@ if (import.meta.dev) useDebugLCP()
 const shell = useSiteShellState()
 if (import.meta.server && isHome.value) await shell.ready
 const { config, locations, hasExperiences, locales, error: bootstrapError, site: shellSite } = shell
-const { isPlatform, siteId, draftId, site } = useTenantSite()
-const pageParams = usePublicPageRequest()
-const activePageKey = computed(() => usePublicPageKey(siteId || draftId || null, pageParams.value))
-const nuxtApp = useNuxtApp()
-const pagePayload = computed(() =>
-  (nuxtApp.payload.data[activePageKey.value] as ApiRecord | undefined)
-  ?? (nuxtApp.static.data[activePageKey.value] as ApiRecord | undefined)
-  ?? null,
-)
-const experiencesList = computed(() =>
-  Array.isArray(pagePayload.value?.experiencesList)
-    ? pagePayload.value.experiencesList as ApiRecord[]
-    : [],
-)
-const showExperiences = computed(() => hasExperiences.value || experiencesList.value.length > 0)
+const { isPlatform, site } = useTenantSite()
 const resolvedSite = computed(() => shellSite.value || site)
 const brandColor = computed(
   () => config.value?.brand_color || null
@@ -114,6 +99,29 @@ const themeStyles = computed(() => {
   }
 })
 
+// A page under /locations/<slug> is about exactly one location: the location
+// itself, its menu, or a single dish. Printing every location's address, phone
+// and today's hours in the footer of those pages was the single largest source
+// of duplicate text on Kikuzuki's 896 dish pages — that block was roughly half
+// of each page's ~124 visible words and byte-identical across all of them. The
+// footer now carries the location the page is actually about, which also makes
+// the 84 dishes sold at two locations genuinely distinct pages.
+//
+// Slug matching works in every locale because the shell's locations are fetched
+// per locale and carry the same localized slugs the route does.
+const scopedLocationSlug = computed(() => {
+  const path = getPreviewSubpath(route.path) ?? route.path
+  const localePrefix = `/${activeLocale.value}`
+  const sourcePath = activeLocale.value !== 'en' && path.startsWith(localePrefix)
+    ? path.slice(localePrefix.length)
+    : path
+  const matched = sourcePath.match(/^\/locations\/([^/]+)/)?.[1]
+  return matched === undefined ? null : decodeURIComponent(matched)
+})
+const footerLocations = computed(() => (scopedLocationSlug.value === null
+  ? locations.value
+  : locations.value.filter(location => location.slug === scopedLocationSlug.value)))
+
 const googleSiteVerification = computed(() => config.value?.google_site_verification || null)
 
 // Request-scoped URL state must be captured eagerly during setup. Tenant routing
@@ -121,10 +129,6 @@ const googleSiteVerification = computed(() => config.value?.google_site_verifica
 // rendered request origin is the canonical origin for every indexable tenant page.
 const requestURL = useRequestURL()
 const requestHostname = requestURL.hostname
-const routeLocationSlug = computed(() => {
-  const match = route.path.match(/^\/locations\/([^/]+)/)
-  return match?.[1] ?? null
-})
 
 if (import.meta.client) {
   const sayaTheme = usePlatformTheme()
@@ -143,10 +147,6 @@ if (import.meta.client) {
     delete window.toggleSayaDark
   })
 }
-const locationExperienceCtaPath = computed(() => {
-  if (!routeLocationSlug.value) return undefined
-  return resolveLocationExperienceHref(routeLocationSlug.value, experiencesList.value)
-})
 
 // Shared demo-host check: the synthetic "Ember & Slice" showcase site isn't a
 // real business collecting real visitor data, so it's excluded from search
@@ -161,11 +161,9 @@ const isDemoHost = DEMO_HOSTS.has(requestHostname)
 
 // Site-wide default only — individual pages set their own robots directive
 // when they have one; this covers pages without a page-specific directive.
-const siteRobots = computed(() => {
-  if (isDemoHost) {
-    return 'noindex, nofollow'
-  }
-  return config.value?.robots || null
+const siteRobots = computed<RobotsIntent | null>(() => {
+  if (isDemoHost) return NON_INDEXABLE_ROBOTS_INTENT
+  return normalizeRobotsIntent(config.value?.robots)
 })
 
 useSocialMetadata(() => ({

@@ -5,32 +5,14 @@
     <UAlert v-if="notice" color="success" variant="soft" :description="notice" class="mt-4" />
     <UAlert v-if="operationError" color="error" variant="soft" :description="operationError" class="mt-4" />
 
-    <div v-if="rememberedProfile && showRememberedProfile" class="mt-8 space-y-5">
-      <PlatformButton variant="outline" size="xl" block :loading="googleLoading" :disabled="!interactive" class="min-h-20 text-left" @click="continueRememberedProfile">
-        <PlatformGoogleIcon v-if="rememberedProfile.method === 'google'" class="size-6 shrink-0" />
-        <UIcon v-else :name="rememberedProfile.method === 'email' ? 'i-lucide-mail' : 'i-lucide-message-circle'" class="size-6 shrink-0" />
-        <span class="min-w-0 flex-1 truncate">{{ rememberedProfile.identifier }}</span>
-        <UBadge color="primary" variant="soft" class="shrink-0">Last used</UBadge>
-        <UIcon name="i-lucide-arrow-right" class="size-5 shrink-0" />
-      </PlatformButton>
-      <USeparator label="or" />
-      <UButton block size="xl" :disabled="!interactive" @click="chooseAnotherProfile">Log in with another profile</UButton>
-      <UButton block color="neutral" variant="link" size="sm" :disabled="!interactive" @click="forgetProfile">Forget this profile</UButton>
-    </div>
-
-    <AuthPhoneOtpForm v-else-if="isWhatsAppMode" default-country="TH" class="mt-6" @verified="finishPhoneSignIn" />
+    <AuthPhoneOtpForm v-if="isWhatsAppMode" default-country="TH" class="mt-6" @verified="finishPhoneSignIn" />
 
     <div v-else class="mt-6 space-y-3">
-      <template v-if="!selectedProfile">
-        <AuthGoogleAuthButton :loading="googleLoading" @activate="signInWithGoogle(postLoginUrl)" />
-        <WhatsAppAuthButton @activate="showPhone = !showPhone" />
-        <AuthPhoneOtpForm v-if="showPhone" default-country="TH" @verified="finishPhoneSignIn" />
-        <USeparator label="or" />
-      </template>
-      <AuthPhoneOtpForm v-if="selectedProfile?.method === 'whatsapp'" :fixed-phone="selectedProfile.identifier" @verified="finishPhoneSignIn" />
-      <AuthEmailSignInForm v-else :key="emailForSignIn" :callback-url="postLoginUrl" :initial-email="emailForSignIn" @verification-required="showVerification" />
-
-      <UButton v-if="selectedProfile" block color="neutral" variant="ghost" @click="chooseAnotherProfile">Log in with another profile</UButton>
+      <AuthGoogleAuthButton label="Sign in with Google" :loading="googleLoading" :last-used="lastUsedMethod === 'google'" @activate="signInWithGoogle(postLoginUrl)" />
+      <WhatsAppAuthButton label="Sign in with WhatsApp" :last-used="lastUsedMethod === 'whatsapp'" @activate="showPhone = !showPhone" />
+      <AuthPhoneOtpForm v-if="showPhone" default-country="TH" @verified="finishPhoneSignIn" />
+      <USeparator label="or" />
+      <AuthEmailSignInForm :key="queryEmail" :callback-url="postLoginUrl" :initial-email="queryEmail" :last-used="lastUsedMethod === 'email'" @verification-required="showVerification" />
 
       <UAlert v-if="verificationEmail" color="neutral" variant="soft" description="Verify your email before signing in.">
         <template #actions>
@@ -44,13 +26,20 @@
 </template>
 
 <script setup lang="ts">
+import { NON_INDEXABLE_ROBOTS_INTENT } from '~/shared/robots-directive'
 import WhatsAppAuthButton from '~/components/auth/WhatsAppAuthButton.vue'
-import { LAST_LOGIN_METHOD_COOKIE, REMEMBERED_PROFILE_COOKIE, readRememberedProfile } from '~/shared/auth/remembered-profile'
 import { authClient } from '~/lib/auth-client'
 import { buildPostLoginUrl, validatedInternalPath } from '~/shared/auth/return-target'
 
 definePageMeta({ layout: 'access', auth: false })
-useSeoMeta({ robots: 'noindex, nofollow' })
+useSocialMetadata({
+  template: 'platform',
+  schema: false,
+  path: '/login',
+  title: 'Sign in',
+  description: 'Sign in to your KrabiClaw account to manage your site, bookings and content.',
+  robots: NON_INDEXABLE_ROBOTS_INTENT,
+})
 
 const route = useRoute()
 const queryEmail = typeof route.query.email === 'string' ? route.query.email : ''
@@ -61,35 +50,11 @@ const signupUrl = computed(() => redirect.value ? { path: '/signup', query: { re
 const showPhone = ref(false)
 const interactive = ref(false)
 onMounted(() => { interactive.value = true })
-const lastMethod = useCookie<string | null>(LAST_LOGIN_METHOD_COOKIE)
-const lastIdentifier = useCookie<string | null>(REMEMBERED_PROFILE_COOKIE)
-const rememberedProfile = computed(() => readRememberedProfile(lastMethod.value, lastIdentifier.value))
-const showRememberedProfile = ref(!isWhatsAppMode.value && !queryEmail && !route.query.signup && !route.query.verified && !route.query.reset)
-const selectedProfile = ref<ReturnType<typeof readRememberedProfile>>(null)
-const emailForSignIn = computed(() => selectedProfile.value?.method === 'email' ? selectedProfile.value.identifier : queryEmail)
-
-function chooseAnotherProfile() {
-  showRememberedProfile.value = false
-  selectedProfile.value = null
-  showPhone.value = false
-}
-
-function forgetProfile() {
-  lastMethod.value = null
-  lastIdentifier.value = null
-  chooseAnotherProfile()
-}
-
-async function continueRememberedProfile() {
-  const profile = rememberedProfile.value
-  if (!profile) return
-  if (profile.method === 'google') {
-    await signInWithGoogle(postLoginUrl.value, profile.identifier)
-    return
-  }
-  selectedProfile.value = profile
-  showRememberedProfile.value = false
-}
+// Which button they pressed last, from Better Auth's lastLoginMethod plugin.
+// It is a method name only — never an identity — so nothing here remembers who
+// the previous person was. Client-only: the cookie is not read during SSR.
+const lastUsedMethod = ref<string | null>(null)
+onMounted(() => { lastUsedMethod.value = authClient.getLastUsedLoginMethod() })
 
 const verificationEmail = ref('')
 const resending = ref(false)
@@ -98,8 +63,7 @@ const operationError = ref<string | null>(null)
 const { loading: googleLoading, error: googleError, signInWithGoogle } = useAuthOperation()
 watch(googleError, value => { operationError.value = value })
 
-if (route.query.signup === 'success') notice.value = queryEmail ? `Check ${queryEmail} to verify your email.` : 'Check your email to verify your account.'
-else if (route.query.verified === '1') notice.value = 'Your email is verified. You can sign in now.'
+if (route.query.verified === '1') notice.value = 'Your email is verified. You can sign in now.'
 else if (route.query.reset === 'success') notice.value = 'Your password was updated. Sign in with your new password.'
 
 const { isAuthenticated } = await useAuthSession()

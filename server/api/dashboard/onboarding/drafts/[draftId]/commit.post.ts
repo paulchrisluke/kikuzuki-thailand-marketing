@@ -1,4 +1,4 @@
-import { prepareContentDocumentDeletion, prepareContentDocumentWithBlocks } from '~/server/utils/content-documents'
+import { prepareContentDocumentDeletion, prepareContentDocumentWithBlocks } from '~/server/utils/content/documents'
 import { parseOpeningHours, parseSpecialHours } from '~/shared/reservation-hours'
 import { googleReviewUpserts } from '~/server/utils/google-places'
 import { HTTPError, defineHandler  } from 'nitro';
@@ -15,7 +15,7 @@ import { refreshSocialCard } from '~/server/utils/social-card'
 import { purgePublicResourceCacheSafe } from '~/server/utils/public-resource-cache'
 import { createMediaAsset, insertInitialMediaPlacements } from '~/server/utils/media-asset-manager'
 import { resolveUserOrganization } from '~/server/utils/member-access'
-import { applyOnboardingTenantPages } from '~/server/utils/tenant-pages'
+import { applyOnboardingTenantPages } from '~/server/utils/content/pages'
 import type { SiteVertical } from '~/utils/vertical-copy'
 import { isValidTimezone } from '~/utils/timezone'
 
@@ -275,7 +275,7 @@ export default defineHandler(async (event) => {
     }, []).queries)
     for (const post of payload.preview.posts) batchQueries.push(...prepareContentDocumentWithBlocks({
       id: post.id, organizationId, siteId, kind: 'social_post', rowRole: 'root', locale: 'en', locationId: locationRow.id,
-      title: post.title, summary: post.body, status: post.status, publishedAt: post.published_at, source: 'template',
+      title: post.title, summary: post.body, status: post.status, visibility: 'public', publishedAt: post.published_at, source: 'template',
       createdBy: session.user.id, metadata: { post_type: 'standard', channels: {} },
     }, []).queries)
 

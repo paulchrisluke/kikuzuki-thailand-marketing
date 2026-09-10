@@ -1,20 +1,24 @@
+import { instantDate } from '~/utils/timezone'
+import { useRuntimeConfig } from 'nitro/runtime-config'
 import { HTTPError } from 'nitro';
 import type { H3Event } from 'nitro';
 import {  getRequestHost } from 'nitro/h3';
 import { queryAll, queryFirst, type DbClient } from '../db/index.ts'
-import { getContentBlocksForDocument } from './content-documents.ts'
+import { getContentBlocksForDocument } from './content/documents.ts'
 import { findAuthUsersByIds, type CloudflareEnv } from './auth.ts'
 import { blogCategoryToSlug, slugToBlogCategory } from '../../utils/blog-categories.ts'
-import { categoryToSlug, slugToCategory } from '../../utils/docs-categories.ts'
-import { PLATFORM_SITE_ID } from '../../shared/platform-scope.ts'
+import { articleCategoryFromSlug, collectionArticlePath } from '../../utils/article-collections.ts'
+import { tenantBlogPostPath } from '../../utils/tenant-blog-route.ts'
+import { getPlatformSite } from './platform-site.ts'
 
+/** A documentation page: an ordinary site page whose path starts with /docs. */
 interface PlatformLlmDocSummary {
   id: string
   title: string
   slug: string
+  category: string | null
+  path: string
   excerpt?: string | null
-  category?: string | null
-  difficulty_level?: string | null
   canonical_url?: string | null
   seo_description?: string | null
   updated_at?: string | null
@@ -63,7 +67,6 @@ export interface PlatformLlmLinkEntry {
   publishedAt?: string | null
   updatedAt?: string | null
   authorName?: string | null
-  difficultyLevel?: string | null
 }
 
 function normalizeWhitespace(value: string | null | undefined) {
@@ -184,28 +187,31 @@ export function renderContentBlocksForLlm(blocks: LlmContentBlock[]) {
 
 function formatDateOnly(value: string | null | undefined) {
   if (!value) return null
-  const parsed = new Date(value)
-  if (Number.isNaN(parsed.getTime())) return null
-  return parsed.toISOString().slice(0, 10)
+  return instantDate(value).toISOString().slice(0, 10)
 }
 
 function buildFrontMatter(lines: Array<string | null>) {
   return `---\n${lines.filter(Boolean).join('\n')}\n---`
 }
 
+function docCategory(path: string) {
+  return articleCategoryFromSlug('docs', path.split('/')[2] ?? null)
+}
+
+function docMarkdownPath(path: string) {
+  return `/docs-md${path.slice('/docs'.length)}.md`
+}
+
 export function renderPlatformDocMarkdown(doc: PlatformLlmDocDetail, origin: string) {
-  const categorySlug = categoryToSlug(doc.category)
-  if (!categorySlug) throw new HTTPError({ statusCode: 404, statusMessage: 'Documentation not found' })
-  const path = `/docs/${categorySlug}/${doc.slug}`
-  const markdownPath = `/docs-md/${categorySlug}/${doc.slug}.md`
+  const path = doc.path
+  const markdownPath = docMarkdownPath(path)
   const canonicalUrl = doc.canonical_url?.trim() || absoluteUrl(origin, path)
   const body = renderContentBlocksForLlm(doc.content_blocks)
 
   return [
     buildFrontMatter([
       optionalFrontMatterLine('title', doc.title),
-      optionalFrontMatterLine('category', doc.category),
-      optionalFrontMatterLine('difficulty', doc.difficulty_level),
+      optionalFrontMatterLine('category', docCategory(path)),
       optionalFrontMatterLine('url', path),
       optionalFrontMatterLine('markdown_url', markdownPath),
       optionalFrontMatterLine('canonical_url', canonicalUrl),
@@ -256,36 +262,45 @@ export function renderPlatformBlogMarkdown(post: PlatformLlmBlogDetail, origin: 
   return renderBlogMarkdown(post, origin, { path, markdownPath })
 }
 
-export function renderTenantBlogMarkdown(post: TenantLlmBlogDetail, origin: string) {
-  const path = `/blog/${post.slug}`
+/** A tenant's template decides its article prefix (/blog or /article); the markdown mirror is always /blog-md. */
+export function renderTenantBlogMarkdown(post: TenantLlmBlogDetail, origin: string, template: { themeId?: string | null; vertical?: string | null }) {
+  const path = tenantBlogPostPath(template, post.slug, post.category)
   const markdownPath = `/blog-md/${post.slug}.md`
   return renderBlogMarkdown(post, origin, { path, markdownPath })
 }
 
-export async function listPublishedPlatformDocsForLlm(db: DbClient) {
-  return await queryAll<PlatformLlmDocSummary>(
-    db,
-    `SELECT
-      id, title, slug, summary AS excerpt, (metadata_json ->> '$.category') AS category, (metadata_json ->> '$.difficulty_level') AS difficulty_level, canonical_url, seo_description, updated_at
+const DOC_SUMMARY_SELECT = `SELECT id, title, slug, (metadata_json ->> '$.category') AS category, summary AS excerpt, canonical_url, seo_description, updated_at
      FROM content_documents
-     WHERE kind = 'platform_doc' AND row_role = 'root' AND site_id = '${PLATFORM_SITE_ID}'
-     ORDER BY category, sort_order, updated_at DESC`,
+     WHERE kind = 'article' AND row_role = 'root' AND status = 'published' AND visibility = 'public'
+       AND (metadata_json ->> '$.collection') = 'docs' AND site_id = ?`
+
+function withDocPath<T extends { slug: string; category: string | null }>(row: T): T & { path: string } {
+  return { ...row, path: collectionArticlePath('docs', row.category, row.slug) }
+}
+
+/** Documentation is KrabiClaw's `docs` article collection, in editorial order. */
+export async function listPublishedPlatformDocsForLlm(db: DbClient): Promise<PlatformLlmDocSummary[]> {
+  const rows = await queryAll<Omit<PlatformLlmDocSummary, 'path'>>(
+    db, `${DOC_SUMMARY_SELECT} ORDER BY sort_order, title`, [(await getPlatformSite(db)).id],
   )
+  return rows.map(withDocPath)
 }
 
+/** KrabiClaw's blog collection only; documentation has its own readers above. */
 export async function listPublishedPlatformBlogPostsForLlm(db: DbClient, env: CloudflareEnv) {
-  return listPublishedTenantBlogPostsForLlm(db, PLATFORM_SITE_ID, env)
+  return listPublishedTenantBlogPostsForLlm(db, (await getPlatformSite(db)).id, env, 'blog')
 }
 
-export async function listPublishedTenantBlogPostsForLlm(db: DbClient, siteId: string, env: CloudflareEnv) {
+export async function listPublishedTenantBlogPostsForLlm(db: DbClient, siteId: string, env: CloudflareEnv, collection?: 'blog' | 'docs') {
   const posts = await queryAll<TenantLlmBlogSummary & { author_id: string | null }>(
     db,
     `SELECT
       p.id, p.title, p.slug, p.summary AS excerpt, (p.metadata_json ->> '$.category') AS category, p.canonical_url, p.seo_description, p.published_at, p.updated_at, p.author_id
      FROM content_documents p
      WHERE p.kind = 'article' AND p.row_role = 'root' AND p.status = 'published' AND p.site_id = ? AND p.visibility = 'public'
+       ${collection ? "AND (p.metadata_json ->> '$.collection') = ?" : ''}
      ORDER BY p.published_at DESC, p.updated_at DESC`,
-    [siteId],
+    collection ? [siteId, collection] : [siteId],
   )
   const authors = await findAuthUsersByIds(env, posts.map(post => post.author_id))
   return posts.map(({ author_id: authorId, ...post }) => ({
@@ -294,39 +309,35 @@ export async function listPublishedTenantBlogPostsForLlm(db: DbClient, siteId: s
   }))
 }
 
-export async function getPublishedPlatformDocBySlug(db: DbClient, categorySlug: string, slug: string) {
-  const category = slugToCategory(categorySlug)
+export async function getPublishedPlatformDocBySlug(db: DbClient, categorySlug: string, slug: string): Promise<PlatformLlmDocDetail | null> {
+  const category = articleCategoryFromSlug('docs', categorySlug)
   if (!category) return null
-  const detail = await queryFirst<Omit<PlatformLlmDocDetail, 'content_blocks'>>(
-    db,
-    `SELECT
-      id, title, slug, summary AS excerpt, (metadata_json ->> '$.category') AS category, (metadata_json ->> '$.difficulty_level') AS difficulty_level, canonical_url, seo_description, updated_at
-     FROM content_documents
-     WHERE kind = 'platform_doc' AND row_role = 'root' AND site_id = '${PLATFORM_SITE_ID}'
-       AND slug = ? AND (metadata_json ->> '$.category') = ?`,
-    [slug, category],
+  const row = await queryFirst<Omit<PlatformLlmDocSummary, 'path'>>(
+    db, `${DOC_SUMMARY_SELECT} AND slug = ? AND (metadata_json ->> '$.category') = ?`, [(await getPlatformSite(db)).id, slug, category],
   )
-  if (!detail) return null
+  if (!row) return null
+  const detail = withDocPath(row)
   const contentBlocks = await getContentBlocksForDocument(db, detail.id)
   if (!contentBlocks) throw new HTTPError({ statusCode: 500, statusMessage: 'Documentation content document is missing' })
   return { ...detail, content_blocks: contentBlocks }
 }
 
-export async function getPublishedPlatformBlogPostBySlug(db: DbClient, categorySlug: string, slug: string) {
+export async function getPublishedBlogPostBySlug(db: DbClient, categorySlug: string, slug: string) {
   const category = slugToBlogCategory(categorySlug)
   if (!category) return null
-  const detail = await getPublishedTenantBlogPostBySlug(db, PLATFORM_SITE_ID, slug)
+  const detail = await getPublishedTenantBlogPostBySlug(db, (await getPlatformSite(db)).id, slug, 'blog')
   return detail?.category === category ? detail : null
 }
 
-export async function getPublishedTenantBlogPostBySlug(db: DbClient, siteId: string, slug: string) {
+export async function getPublishedTenantBlogPostBySlug(db: DbClient, siteId: string, slug: string, collection?: 'blog' | 'docs') {
   const detail = await queryFirst<Omit<TenantLlmBlogDetail, 'content_blocks'>>(
     db,
     `SELECT
       p.id, p.title, p.slug, p.summary AS excerpt, (p.metadata_json ->> '$.category') AS category, p.canonical_url, p.seo_description, p.published_at, p.updated_at
      FROM content_documents p
-     WHERE p.kind = 'article' AND p.row_role = 'root' AND p.slug = ? AND p.status = 'published' AND p.site_id = ? AND p.visibility = 'public'`,
-    [slug, siteId],
+     WHERE p.kind = 'article' AND p.row_role = 'root' AND p.slug = ? AND p.status = 'published' AND p.site_id = ? AND p.visibility = 'public'
+       ${collection ? "AND (p.metadata_json ->> '$.collection') = ?" : ''}`,
+    collection ? [slug, siteId, collection] : [slug, siteId],
   )
   if (!detail) return null
   const contentBlocks = await getContentBlocksForDocument(db, detail.id)
@@ -335,21 +346,15 @@ export async function getPublishedTenantBlogPostBySlug(db: DbClient, siteId: str
 }
 
 export function buildPlatformDocLinkEntries(docs: PlatformLlmDocSummary[], origin: string): PlatformLlmLinkEntry[] {
-  return docs.flatMap((doc) => {
-    const categorySlug = categoryToSlug(doc.category)
-    if (!categorySlug) return []
-    const path = `/docs/${categorySlug}/${doc.slug}`
-    return [{
+  return docs.map(doc => ({
       title: doc.title,
-      path,
-      markdownPath: `/docs-md/${categorySlug}/${doc.slug}.md`,
-      canonicalUrl: doc.canonical_url?.trim() || absoluteUrl(origin, path),
+      path: doc.path,
+      markdownPath: docMarkdownPath(doc.path),
+      canonicalUrl: doc.canonical_url?.trim() || absoluteUrl(origin, doc.path),
       summary: safeSummary(doc.seo_description || doc.excerpt, 'KrabiClaw documentation.'),
-      category: doc.category,
+      category: docCategory(doc.path),
       updatedAt: doc.updated_at,
-      difficultyLevel: doc.difficulty_level,
-    }]
-  })
+    }))
 }
 
 export function buildPlatformBlogLinkEntries(posts: PlatformLlmBlogSummary[], origin: string): PlatformLlmLinkEntry[] {
@@ -377,14 +382,14 @@ export function buildPlatformBlogLinkEntries(posts: PlatformLlmBlogSummary[], or
   })
 }
 
-export function buildTenantBlogLinkEntries(posts: TenantLlmBlogSummary[], origin: string): PlatformLlmLinkEntry[] {
+export function buildTenantBlogLinkEntries(posts: TenantLlmBlogSummary[], origin: string, template: { themeId?: string | null; vertical?: string | null }): PlatformLlmLinkEntry[] {
   const sortedPosts = [...posts].sort((a, b) => {
     const aDate = a.published_at ? new Date(a.published_at).getTime() : 0
     const bDate = b.published_at ? new Date(b.published_at).getTime() : 0
     return bDate - aDate
   })
   return sortedPosts.map((post) => {
-    const path = `/blog/${post.slug}`
+    const path = tenantBlogPostPath(template, post.slug, post.category)
     return {
       title: post.title,
       path,
@@ -492,7 +497,6 @@ export function buildDocsIndexJson(docs: PlatformLlmLinkEntry[]) {
     docs: docs.map(doc => ({
       title: doc.title,
       category: doc.category ?? null,
-      difficulty_level: doc.difficultyLevel ?? null,
       url: doc.path,
       markdown_url: doc.markdownPath,
       canonical_url: doc.canonicalUrl,
@@ -539,20 +543,20 @@ interface BlogFeedOptions {
 
 export function buildNamedBlogRss(origin: string, posts: PlatformLlmLinkEntry[], options: BlogFeedOptions = {}) {
   const latestPostDate = posts
-    .map(post => post.updatedAt ?? post.publishedAt)
+    .map(post => post.updatedAt)
     .filter(Boolean)
     .sort()
     .at(-1)
 
   const items = posts.map((post) => {
-    const pubDate = new Date(post.publishedAt ?? post.updatedAt ?? Date.now()).toUTCString()
+    const pubDate = post.publishedAt == null ? null : instantDate(post.publishedAt).toUTCString()
     return [
       '<item>',
       `<title>${escapeXml(post.title)}</title>`,
       `<link>${escapeXml(post.canonicalUrl)}</link>`,
       `<guid>${escapeXml(post.canonicalUrl)}</guid>`,
       `<description>${escapeXml(post.summary)}</description>`,
-      `<pubDate>${escapeXml(pubDate)}</pubDate>`,
+      pubDate === null ? '' : `<pubDate>${escapeXml(pubDate)}</pubDate>`,
       '</item>',
     ].join('')
   }).join('')
@@ -588,7 +592,7 @@ export function buildNamedBlogJsonFeed(origin: string, posts: PlatformLlmLinkEnt
       title: post.title,
       summary: post.summary,
       date_published: post.publishedAt ?? null,
-      date_modified: post.updatedAt ?? post.publishedAt ?? null,
+      date_modified: post.updatedAt ?? null,
       ...(post.authorName ? { authors: [{ name: post.authorName }] } : {}),
       tags: post.category ? [post.category] : [],
     })),

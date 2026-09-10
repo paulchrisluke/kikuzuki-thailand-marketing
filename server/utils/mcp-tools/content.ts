@@ -1,5 +1,6 @@
+import { CONTENT_BLOCK_TYPES, describeContentBlockTextFields } from '~/shared/content-registries'
 import type { McpToolDefinition } from './shared'
-import { bookingPolicyObject, bookingPolicyWriteSchema, pageInfoObject, paginationInputSchema, renderedBookingPolicySummaryObject, siteTool } from './shared'
+import { bookingPolicyObject, bookingPolicyWriteSchema, pageInfoObject, paginationInputSchema, renderedBookingPolicySummaryObject, ROBOTS_DIRECTIVE_ENUM, siteTool } from './shared'
 
 const TENANT_PAGE_METADATA_SCHEMA = {
   path: { type: 'string' },
@@ -8,7 +9,7 @@ const TENANT_PAGE_METADATA_SCHEMA = {
   seoTitle: { type: ['string', 'null'] },
   seoDescription: { type: ['string', 'null'] },
   canonicalUrl: { type: ['string', 'null'] },
-  robots: { type: ['string', 'null'] },
+  robots: { type: ['string', 'null'], enum: [...ROBOTS_DIRECTIVE_ENUM, null], description: 'Search engine indexing directive. Leave unset for the default index,follow.' },
   pageType: { type: 'string', enum: ['custom', 'recipe', 'legal', 'system'] },
   recipe: { type: ['string', 'null'] },
   sortOrder: { type: ['number', 'null'] },
@@ -22,7 +23,7 @@ const TENANT_PAGE_BLOCKS_SCHEMA = {
       id: { type: 'string' },
       type: { type: 'string' },
       position: { type: 'number' },
-      data: { type: 'object' },
+      data: { type: 'object', description: describeContentBlockTextFields(CONTENT_BLOCK_TYPES) },
       media: {
         type: 'array',
         items: {
