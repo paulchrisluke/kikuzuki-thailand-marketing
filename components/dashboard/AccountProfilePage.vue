@@ -84,7 +84,7 @@
           </section>
 
           <NuxtLink :to="`${profilePath}/delete`" class="profile-row no-underline" :class="rowTone('delete')">
-            <div><h3 class="profile-label text-error">Delete account</h3><p class="profile-value whitespace-normal">Removes your account, organization, site, locations and menu data.</p></div>
+            <div><h3 class="profile-label text-error">Delete account</h3><p class="profile-value whitespace-normal">{{ deletionScheduledAt ? `Scheduled for ${deletionDateLabel}. Cancel any time before then.` : 'Removes your account, organization, site, locations and menu data.' }}</p></div>
             <UIcon name="i-lucide-chevron-right" class="size-4 shrink-0 text-muted" />
           </NuxtLink>
 
@@ -107,11 +107,24 @@
           </div>
 
           <div v-else-if="openKey === 'delete'" class="space-y-4">
-            <p class="text-base text-muted">This permanently deletes your account, organization, site, locations and menu data. It cannot be undone.</p>
-            <UAlert v-if="deleteError" color="error" variant="soft" icon="i-lucide-triangle-alert" :description="deleteError" />
-            <UFormField label="Type DELETE to confirm">
-              <UInput v-model="deleteConfirmText" placeholder="DELETE" :disabled="deleting" autofocus class="w-full" @keydown.enter="saveDetail" />
-            </UFormField>
+            <template v-if="deletionScheduledAt">
+              <UAlert
+                color="warning"
+                variant="soft"
+                icon="i-lucide-clock"
+                title="Deletion scheduled"
+                :description="`Your account, organization, site, locations and menu data are deleted on ${deletionDateLabel}. Everything keeps working until then, and your site stays online.`"
+              />
+              <UAlert v-if="deleteError" color="error" variant="soft" icon="i-lucide-triangle-alert" :description="deleteError" />
+              <UButton color="neutral" variant="solid" size="lg" :loading="deleting" @click="keepAccount">Keep my account</UButton>
+            </template>
+            <template v-else>
+              <p class="text-base text-muted">This schedules your account, organization, site, locations and menu data for deletion in {{ graceDays }} days. Nothing is removed today, and you can cancel here until then.</p>
+              <UAlert v-if="deleteError" color="error" variant="soft" icon="i-lucide-triangle-alert" :description="deleteError" />
+              <UFormField label="Type DELETE to confirm">
+                <UInput v-model="deleteConfirmText" placeholder="DELETE" :disabled="deleting" autofocus class="w-full" @keydown.enter="saveDetail" />
+              </UFormField>
+            </template>
           </div>
         </template>
       </EditorPaneShell>
@@ -241,11 +254,11 @@ const saving = computed(() => openKey.value === 'name' ? nameSaving.value
 
 const saveDisabled = computed(() => openKey.value === 'name' ? !nameDirty.value
   : openKey.value === 'phone' ? (!phoneDirty.value || !phoneInput.value.trim())
-  : openKey.value === 'delete' ? deleteConfirmText.value !== 'DELETE'
+  : openKey.value === 'delete' ? (Boolean(deletionScheduledAt.value) || deleteConfirmText.value !== 'DELETE')
   : true)
 
 const saveLabel = computed(() => openKey.value === 'phone' ? 'Verify and save'
-  : openKey.value === 'delete' ? 'Delete account'
+  : openKey.value === 'delete' ? 'Schedule deletion'
   : undefined)
 
 async function saveDetail() {
@@ -396,29 +409,45 @@ function getDeleteErrorBody(error: unknown): DeleteErrorBody {
   return {}
 }
 
+// Deletion is scheduled, never immediate: the account and the organizations it
+// owns alone carry a due instant, and the deletion-sweep task performs the
+// deletion when it passes. Until then this row is the way back out.
+const graceDays = ref(30)
+const deletionScheduledAt = computed(() => {
+  const scheduled = (sessionData.value?.user as { deletionScheduledAt?: string | Date | null } | undefined)?.deletionScheduledAt
+  if (!scheduled) return null
+  const at = new Date(scheduled)
+  return Number.isNaN(at.getTime()) ? null : at
+})
+const deletionDateLabel = computed(() => deletionScheduledAt.value
+  ? deletionScheduledAt.value.toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' })
+  : '')
+
 async function confirmDeleteAccount() {
   if (deleteConfirmText.value !== 'DELETE') return
   deleting.value = true
   deleteError.value = ''
 
   try {
-    const res = await applicationFetch<{ success?: boolean }>('/api/user/delete-account', {
+    const res = await applicationFetch<{ success?: boolean; scheduled_at?: string; grace_days?: number }>('/api/user/delete-account', {
       method: 'POST',
-      validate: (value): value is { success?: boolean } =>
+      validate: (value): value is { success?: boolean; scheduled_at?: string; grace_days?: number } =>
         isRecord(value) && (value.success === undefined || typeof value.success === 'boolean'),
     })
     if (res?.success) {
-      try { await authClient.signOut() } catch (_err) { /* ignore */ }
-      try {
-        await navigateTo('/')
-      } catch (_err) {
-        // The account is gone and the session is signed out; only the redirect
-        // failed. Cancel returns to the profile level, not home, so it is not
-        // the way out of here.
-        deleteError.value = 'Your account was deleted, but this page could not move you on. Reload to sign out fully.'
-      }
+      if (typeof res.grace_days === 'number') graceDays.value = res.grace_days
+      await refreshSession()
+      deleteConfirmText.value = ''
+      toast.add({
+        title: 'Deletion scheduled',
+        description: res.scheduled_at
+          ? `Everything is deleted on ${new Date(res.scheduled_at).toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' })}. Cancel here any time before then.`
+          : undefined,
+        icon: 'i-lucide-clock',
+        color: 'warning',
+      })
     } else {
-      deleteError.value = 'Account deletion failed. Please try again.'
+      deleteError.value = 'Scheduling the deletion failed. Please try again.'
     }
   } catch (_err) {
     const body = getDeleteErrorBody(_err instanceof Error ? _err : new Error(String(_err)))
@@ -427,6 +456,25 @@ async function confirmDeleteAccount() {
     } else {
       deleteError.value = body?.message ?? 'Something went wrong. Please try again.'
     }
+  } finally {
+    deleting.value = false
+  }
+}
+
+async function keepAccount() {
+  deleting.value = true
+  deleteError.value = ''
+  try {
+    await applicationFetch<{ success?: boolean }>('/api/user/delete-account', {
+      method: 'DELETE',
+      validate: (value): value is { success?: boolean } =>
+        isRecord(value) && (value.success === undefined || typeof value.success === 'boolean'),
+    })
+    await refreshSession()
+    toast.add({ title: 'Deletion cancelled', icon: 'i-lucide-circle-check', color: 'success' })
+  } catch (_err) {
+    const body = getDeleteErrorBody(_err instanceof Error ? _err : new Error(String(_err)))
+    deleteError.value = body?.message ?? 'Cancelling the deletion failed. Please try again.'
   } finally {
     deleting.value = false
   }

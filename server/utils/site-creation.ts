@@ -7,9 +7,8 @@ import { createSystemSubdomain, isSystemSubdomainSpent } from '~/server/utils/do
 import { execute, executeBatch, queryFirst } from '~/server/db'
 import { ALL_VERTICALS, type SiteVertical } from '~/utils/vertical-copy'
 import { resolvePublicTemplate } from '~/utils/template-registry'
-import { ensureSiteTeam, isOrganizationWideRole, organizationAdapter } from '~/server/utils/member-access'
+import { ensureSiteTeam, isOrganizationWideRole, organizationAdapter, type OrganizationAdapter } from '~/server/utils/member-access'
 import { createAuth, type CloudflareEnv } from '~/server/utils/auth'
-import type { getOrgAdapter } from 'better-auth/plugins'
 
 type SetupEnv = CloudflareEnv
 
@@ -19,7 +18,6 @@ interface ExistingSubdomainSiteRow {
   onboarding_status: string | null
 }
 
-type OrganizationAdapter = ReturnType<typeof getOrgAdapter>
 const SITE_CREATION_MARKER_KEY = '__krabiclaw_site_creation_marker'
 
 interface CreateOrganizationApi {
