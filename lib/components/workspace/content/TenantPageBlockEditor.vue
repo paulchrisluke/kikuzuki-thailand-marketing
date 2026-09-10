@@ -35,7 +35,9 @@
 
     <template v-else-if="block.type === 'faq'">
       <UFormField label="Section title"><UInput :model-value="stringField('title')" @update:model-value="setString('title', $event)" /></UFormField>
-      <UAlert color="neutral" variant="soft" title="Questions come from Q&amp;A" description="This block lists the published Q&amp;A records for this page. Add or edit questions in the site's Q&amp;A manager." />
+      <UFormField label="Questions" description="Which published Q&amp;A records this block lists. Add or edit questions in the site's Q&amp;A manager.">
+        <USelect :model-value="faqSource" :items="FAQ_SOURCE_OPTIONS" value-key="value" label-key="label" class="w-full" @update:model-value="setString('source', String($event))" />
+      </UFormField>
     </template>
 
     <template v-else-if="block.type === 'how_to'">
@@ -165,8 +167,11 @@
 import { computed } from 'vue'
 import MediaPicker from '~/lib/components/workspace/media/MediaPicker.vue'
 import type { TenantPageBlock, TenantPageType } from '~/utils/tenant-page-blocks'
-import { validateTenantPageBlock } from '~/utils/tenant-page-editor'
+import { FAQ_SOURCE_OPTIONS, validateTenantPageBlock } from '~/utils/tenant-page-editor'
+import { FAQ_BLOCK_SOURCES, type FaqBlockSource } from '~/shared/faq-block'
 
+/** The stored source, or nothing: an unknown value is not quietly shown as one of the two. */
+const faqSource = computed<FaqBlockSource | undefined>(() => FAQ_BLOCK_SOURCES.find(source => source === stringField('source')))
 const props = defineProps<{ block: TenantPageBlock; siteId: string; isPersisted: boolean; pageRecipe?: string | null; pageType: TenantPageType }>()
 const emit = defineEmits<{ 'update:block': [block: TenantPageBlock] }>()
 const dashboardApi = useDashboardApi()

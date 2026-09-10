@@ -1,7 +1,8 @@
 import { HTTPError } from 'nitro';
 import { queryAll, queryFirst, type DbClient } from '~/server/db'
 import { d1JsonStringSet } from '~/server/db/d1-limits'
-import { listPageQa, type QaDocument } from '~/server/utils/location-qa'
+import { faqBlockSource, faqItems, listFaqBlockQa } from '~/server/utils/location-qa'
+import type { FaqBlockSource } from '~/shared/faq-block'
 import { listSiteReviews } from '~/server/utils/site-reviews'
 import { getTenantPageForEditor, getPublishedTenantPage, listPublishedTenantPagePaths, type TenantPageDto } from '~/server/utils/content/pages'
 import type { TenantPageBlock } from '~/utils/tenant-page-blocks'
@@ -55,7 +56,6 @@ export interface PublicTenantPageOfferingRow {
 
 export interface PublicTenantPageHydrationResources {
   offerings?: Promise<PublicTenantPageOfferingRow[]>
-  qaRows?: Promise<QaDocument[]>
 }
 
 export async function listPublicTenantPageOfferingRows(
@@ -88,7 +88,7 @@ async function hydrateBlocks(
   const offeringIds = new Set<string>()
   const locationIds = new Set<string>()
   const hasOfferingSource = blocks.some(block => block.type === 'offering_grid' && block.data.source === 'site_offerings')
-  const hasQaSource = blocks.some(block => block.type === 'faq' && block.data.source === 'page_qa')
+  const qaSources = new Set(blocks.map(faqBlockSource).filter((source): source is FaqBlockSource => source !== null))
   const hasReviewSource = blocks.some(block => block.type === 'testimonial_grid' && block.data.source === 'site_reviews')
   const hasPostSource = blocks.some(block => block.type === 'feature_grid' && block.data.source === 'site_posts')
   for (const block of blocks) {
@@ -136,8 +136,8 @@ async function hydrateBlocks(
         return { ...location, slug, public_path: representation.routePath }
       })
     : sourceLocations
-  const [sourceQaRows, sourceReviewRows, sourcePostRows] = await Promise.all([
-    hasQaSource ? (locale === 'en' && resources.qaRows ? resources.qaRows : listPageQa(db, siteId, pagePath, true, locale)) : Promise.resolve([]),
+  const [qaItemsBySource, sourceReviewRows, sourcePostRows] = await Promise.all([
+    Promise.all([...qaSources].map(async source => [source, faqItems(await listFaqBlockQa(db, siteId, pagePath, source, locale))] as const)).then(entries => new Map(entries)),
     hasReviewSource ? listSiteReviews(db, siteId, { publishedOnly: true }) : Promise.resolve([]),
     hasPostSource ? queryAll<{ id: string; title: string; slug: string; excerpt: string | null; canonical_url: string | null; cover_asset_id: string | null; cover_public_url: string | null; cover_thumbnail_url: string | null; cover_kind: string | null; cover_alt_text: string | null; cover_width: number | null; cover_height: number | null }>(db, `
       SELECT p.id, p.title, p.slug, p.summary AS excerpt, p.canonical_url, ${COVER_SELECT}
@@ -147,14 +147,12 @@ async function hydrateBlocks(
        ORDER BY root.published_at IS NULL, root.published_at DESC, p.id DESC
     `, [locale, siteId]) : Promise.resolve([]),
   ])
-  const qaRows = sourceQaRows
   const reviewRows = sourceReviewRows
   const postRows = sourcePostRows
   const sourceOfferingById = new Map(sourceOfferings.map(item => [item.id, item]))
   const offeringById = new Map(offerings.map(item => [item.id, item]))
   const sourceLocationById = new Map(sourceLocations.map(item => [item.id, item]))
   const locationById = new Map(locations.map(item => [item.id, item]))
-  const qaItems = qaRows.map(row => ({ id: String(row.id), title: String(row.question), description: typeof row.answer === 'string' ? row.answer : undefined }))
   const reviewItems = (reviewRows as unknown as Array<Record<string, unknown>>).map(row => ({
     id: String(row.id),
     title: typeof row.author_name === 'string' ? row.author_name : '',
@@ -226,7 +224,8 @@ async function hydrateBlocks(
         }
       })
     }
-    if (block.type === 'faq' && data.source === 'page_qa') data.items = qaItems
+    const faqSource = faqBlockSource(block)
+    if (faqSource) data.items = qaItemsBySource.get(faqSource)
     if (block.type === 'testimonial_grid' && data.source === 'site_reviews') data.items = reviewItems
     if (block.type === 'feature_grid' && data.source === 'site_posts') {
       const limit = typeof data.limit === 'number' && Number.isInteger(data.limit) && data.limit > 0 ? data.limit : postItems.length

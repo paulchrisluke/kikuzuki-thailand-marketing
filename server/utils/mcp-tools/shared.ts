@@ -181,8 +181,8 @@ export const blogComponentInputSchema = {
         properties: {
           data: {
             type: 'object',
-            // The block lists the article's published Q&A records; it stores no questions.
-            properties: { title: { type: ['string', 'null'] }, source: { type: 'string', const: 'page_qa' } },
+            // The block stores no questions: `page_qa` lists the published Q&A records filed under this page, `site_qa` the site-wide set.
+            properties: { title: { type: ['string', 'null'] }, source: { type: 'string', enum: ['page_qa', 'site_qa'] } },
             required: ['source'],
           },
         },
