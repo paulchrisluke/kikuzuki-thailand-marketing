@@ -12,8 +12,17 @@
       icon="i-lucide-triangle-alert"
       :description="errorMessage"
     />
-    <div v-if="isNew" class="flex justify-end">
-      <UButton :label="createActionLabel" :loading="saving" @click="startOrCreate" />
+    <div class="flex justify-end gap-2">
+      <UButton v-if="isNew" :label="createActionLabel" :loading="saving" @click="startOrCreate" />
+      <DashboardResourceLocalization
+        v-else
+        :site-id="siteId"
+        resource-type="content_document"
+        :resource-id="qaId"
+        resource-label="question"
+        :fields="qaLocalizationFields"
+        :language-settings-path="siteLocalizationSettingsPath"
+      />
     </div>
     <EditorNavigationList :groups="navigationGroups" />
   </div>
@@ -23,6 +32,16 @@
       <UDashboardNavbar :title="isNew ? 'New question' : form.question || 'Question'" :toggle="false">
         <template #leading>
           <DashboardNavbarLeading :to="qaPath" label="Q&A" />
+        </template>
+        <template v-if="!isNew" #right>
+          <DashboardResourceLocalization
+            :site-id="siteId"
+            resource-type="content_document"
+            :resource-id="qaId"
+            resource-label="question"
+            :fields="qaLocalizationFields"
+            :language-settings-path="siteLocalizationSettingsPath"
+          />
         </template>
       </UDashboardNavbar>
     </template>
@@ -73,20 +92,29 @@
 <script setup lang="ts">
 import EditorPaneShell from '~/components/dashboard/EditorPaneShell.vue'
 import EditorNavigationList, { type EditorNavigationGroup } from '~/components/dashboard/EditorNavigationList.vue'
+import DashboardResourceLocalization from '~/components/dashboard/DashboardResourceLocalization.vue'
 import { getErrorMessage } from '~/utils/errors'
 import { isQaResponse, isQaCreated, isQaUpdated, qaCreateBlockers, type QaRow } from '~/utils/site-qa'
+
+/** Set when this is a location's question rather than the site's. */
+const props = defineProps<{ locationId?: string }>()
 
 const route = useRoute()
 const toast = useToast()
 const dashboardApi = useDashboardApi()
 
 const qaId = computed(() => String(route.params.qaId ?? ''))
-const qaPath = computed(() => `/dashboard/${String(route.params.orgSlug)}/sites/${String(route.params.siteSlug)}/qa`)
+const qaPath = computed(() => props.locationId
+  ? `/dashboard/${String(route.params.orgSlug)}/sites/${String(route.params.siteSlug)}/locations/${String(route.params.locationSlug)}/qa`
+  : `/dashboard/${String(route.params.orgSlug)}/sites/${String(route.params.siteSlug)}/qa`)
 const recordPath = computed(() => `${qaPath.value}/${qaId.value}`)
 const frame = useEditorFrame(recordPath)
 
 const siteId = await useDashboardSiteId()
 const isNew = computed(() => qaId.value === 'new')
+const qaEndpoint = computed(() => props.locationId
+  ? `/api/editor/sites/${siteId}/locations/${props.locationId}/qa`
+  : `/api/editor/sites/${siteId}/qa`)
 
 const SECTION_LABELS = { question: 'Question', answer: 'Answer', visibility: 'Visibility' } as const
 type SectionKey = keyof typeof SECTION_LABELS
@@ -112,17 +140,16 @@ const saving = ref(false)
 const errorMessage = ref('')
 
 /**
- * A record is read by id, not by scope. The page a question is filed under is
- * an attribute of the record rather than part of its address, so the row is
- * fetched without knowing it and reports its own `page_path` back — which is
- * what the scoped PATCH and DELETE need.
+ * A site record is read by id, not by scope: the page it is filed under is an
+ * attribute it reports back, which the scoped PATCH needs. A location's list
+ * is not scoped, so its record is found in the list.
  */
 const { data, refresh } = await useAsyncData(
-  () => `dashboard-qa-record-${siteId}-${qaId.value}`,
+  () => `dashboard-qa-record-${siteId}-${props.locationId ?? 'site'}-${qaId.value}`,
   async () => isNew.value
     ? null
-    : await dashboardApi<{ qa: QaRow[] }>(`/api/editor/sites/${siteId}/qa`, {
-      query: { id: qaId.value },
+    : await dashboardApi<{ qa: QaRow[] }>(qaEndpoint.value, {
+      query: props.locationId ? undefined : { id: qaId.value },
       validate: isQaResponse,
     }),
   { server: false, watch: [qaId] },
@@ -138,6 +165,12 @@ function loadForm(row: QaRow) {
 watch(record, (row) => { if (row) loadForm(row) }, { immediate: true })
 
 const blockers = computed(() => qaCreateBlockers(form))
+
+const qaLocalizationFields = computed(() => [
+  { key: 'title', label: 'Question', source: record.value?.question },
+  { key: 'summary', label: 'Answer', source: record.value?.answer, multiline: true, rows: 4 },
+])
+const siteLocalizationSettingsPath = computed(() => `/dashboard/${route.params.orgSlug}/sites/${route.params.siteSlug}/settings/localization`)
 
 const navigationGroups = computed<EditorNavigationGroup[]>(() => [
   {
@@ -174,21 +207,23 @@ async function commit() {
   errorMessage.value = ''
   try {
     const body = {
-      // A new question is filed under the page the list was showing; an
+      // A site question is filed under the page the list was showing, and an
       // existing one keeps the page it already carries.
-      page_path: isNew.value ? (typeof route.query.page_path === 'string' ? route.query.page_path : null) : record.value?.page_path ?? null,
+      ...(props.locationId
+        ? {}
+        : { page_path: isNew.value ? (typeof route.query.page_path === 'string' ? route.query.page_path : null) : record.value?.page_path ?? null }),
       question: form.question.trim(),
       answer: form.answer.trim() || null,
       status: form.published ? 'published' : 'hidden',
     }
     if (isNew.value) {
-      const created = await dashboardApi(`/api/editor/sites/${siteId}/qa`, { method: 'POST', body, validate: isQaCreated })
+      const created = await dashboardApi(qaEndpoint.value, { method: 'POST', body, validate: isQaCreated })
       Object.assign(form, emptyDraft())
       toast.add({ description: 'Question created', color: 'success' })
       await navigateTo(`${qaPath.value}/${created.id}`)
       return
     }
-    await dashboardApi(`/api/editor/sites/${siteId}/qa/${qaId.value}`, { method: 'PATCH', body, validate: isQaUpdated })
+    await dashboardApi(`${qaEndpoint.value}/${qaId.value}`, { method: 'PATCH', body, validate: isQaUpdated })
     await refresh()
     toast.add({ description: `${SECTION_LABELS[openKey.value]} saved`, color: 'success' })
     await navigateTo(recordPath.value)
