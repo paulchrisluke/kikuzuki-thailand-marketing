@@ -703,6 +703,53 @@ export const review_requests = sqliteTable("review_requests", {
 	index("review_requests_organization_id_idx").on(table.organization_id),
 ]);
 
+// U4/U9: durable KrabiClaw authorization and recovery record for public legal
+// (Blawby) intake requests. id is the R14 browser-generated UUID v4 request
+// reference — the row's primary key IS the idempotency key, not a separate
+// surrogate id. organization_id/site_id use "restrict" (not "cascade", unlike
+// review_requests) because this is a legal-request attribution record: the
+// data model explicitly says it "must not cascade-delete legal request
+// attribution," so an org/site delete must be blocked rather than silently
+// erasing the record — following the same "restrict" precedent already used
+// for site_transfer_requests.initiated_by_user_id below rather than inventing
+// a new FK policy. original_actor_id is likewise "restrict" (never silently
+// nulled) since R15 requires it stay immutable; current_authorized_user_id
+// stays "set null" (matching review_requests.user_id) since it is explicitly
+// the nullable, replaceable-by-linking field. blawby_intake_id and
+// checkout_session_id are separately unique so two request references can
+// never bind the same upstream identifier (R17).
+export const legal_intake_references = sqliteTable("legal_intake_references", {
+	id: text().primaryKey(),
+	organization_id: text().notNull().references(() => organization.id, { onDelete: "restrict" } ),
+	site_id: text().notNull().references(() => sites.id, { onDelete: "restrict" } ),
+	original_actor_id: text().notNull().references(() => user.id, { onDelete: "restrict" } ),
+	original_actor_kind: text().notNull(),
+	current_authorized_user_id: text().references(() => user.id, { onDelete: "set null" } ),
+	payload_digest: text().notNull(),
+	digest_key_id: text().notNull(),
+	digest_version: integer().notNull(),
+	blawby_intake_id: text().unique(),
+	checkout_session_id: text().unique(),
+	created_at: text().default(sql`(strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))`).notNull(),
+	updated_at: text().default(sql`(strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))`).notNull(),
+}, (table) => [
+	foreignKey({ columns: [table.organization_id, table.site_id], foreignColumns: [sites.organization_id, sites.id], name: "legal_intake_references_site_scope_fk" }).onDelete("restrict"),
+	check("legal_intake_references_actor_kind_check", sql`original_actor_kind IN ('human', 'anonymous')`),
+	index("idx_legal_intake_references_site_actor").on(table.site_id, table.original_actor_id),
+	index("legal_intake_references_organization_id_idx").on(table.organization_id),
+	// U9 reconciliation (task-u8-reconciliation-brief.md section 6):
+	// linkLegalIntakeAuthorizedUser's account-link query
+	// (server/utils/legal-intake-references.ts) filters on
+	// original_actor_id alone, with no site_id predicate -- it cannot use
+	// idx_legal_intake_references_site_actor's leftmost-prefix (site_id
+	// leads that index), so it was a full table scan on every Better Auth
+	// account-link event. This index leads with original_actor_id so that
+	// query can use it. The existing (site_id, original_actor_id) index is
+	// left untouched -- it still serves the more frequent per-request
+	// site+actor ownership lookup (findLegalIntakeReferenceForActor).
+	index("idx_legal_intake_references_actor").on(table.original_actor_id),
+]);
+
 export const reviews = sqliteTable("reviews", {
 	id: text().primaryKey(),
 	organization_id: text().references(() => organization.id, { onDelete: "cascade" } ),

@@ -30,15 +30,18 @@ function sourceFixture(directory) {
       VALUES ('post', 'org', 'site', 'article', 'root', 'en', 'Post', 'post', 'published', 'public', '${now}', '{"category":"News","nav_section":"Top","featured_order":1,"tags":["a"]}'),
              ('post-with-lead', 'org', 'site', 'article', 'root', 'en', 'Lead', 'lead', 'published', 'public', '${now}', '{}');
     INSERT INTO content_documents (id, organization_id, site_id, kind, row_role, locale, title, path, metadata_json)
-      VALUES ('page', 'org', 'site', 'page', 'root', 'en', 'Schedule', '/schedule', '{"page_type":"custom"}');
+      VALUES ('page', 'org', 'site', 'page', 'root', 'en', 'Schedule', '/schedule', '{"page_type":"custom"}'),
+             ('about', 'org', 'site', 'page', 'root', 'en', 'About', '/about', '{"page_type":"custom"}');
     INSERT INTO content_documents (id, organization_id, site_id, kind, row_role, locale, scope_path, title, summary, status, source, metadata_json)
-      VALUES ('qa-existing', 'org', 'site', 'qa', 'root', 'en', '/schedule', 'Existing question', 'Existing answer', 'published', 'manual', '{"is_owner_answer":1,"upvote_count":0}');
+      VALUES ('qa-existing', 'org', 'site', 'qa', 'root', 'en', '/schedule', 'Existing question', 'Existing answer', 'published', 'manual', '{"is_owner_answer":1,"upvote_count":0}'),
+             ('qa-site', 'org', 'site', 'qa', 'root', 'en', NULL, 'Site question', 'Site answer', 'published', 'import', '{"is_owner_answer":1,"upvote_count":0}');
     INSERT INTO media_assets (id, organization_id, site_id, kind, provider, source) VALUES ('asset', 'org', 'site', 'image', 'cloudflare_r2', 'uploaded');
     INSERT INTO content_blocks (id, document_id, type, position, data_json)
       VALUES ('b0', 'post', 'markdown', 0, '{"markdown":"Body"}'),
              ('faq', 'post', 'faq', 1, '{"title":"Questions","items":[{"question":"Q1","answer":"A1"},{"question":"","answer":"skip"}]}'),
              ('lead', 'post-with-lead', 'image', 0, '{"caption":""}'),
              ('page-faq', 'page', 'faq', 0, '{"source":"page_qa","items":[{"question":"Existing question","answer":"Existing answer"},{"question":"New question","answer":"New answer"}]}'),
+             ('about-faq', 'about', 'faq', 0, '{"source":"page_qa"}'),
              ('cta', 'page', 'contact_cta', 1, '{}');
     INSERT INTO media_placements (id, organization_id, site_id, owner_type, owner_id, slot, asset_id, sort_order, status)
       VALUES ('featured-post', 'org', 'site', 'content_document', 'post', 'featured', 'asset', 0, 'active'),
@@ -84,12 +87,18 @@ test('rebaseline transfers an epoch-6 export into the baseline and applies every
     assert.deepEqual(db.prepare("SELECT id, type FROM content_blocks WHERE document_id = 'post-with-lead'").all(), [{ id: 'lead', type: 'image' }])
     // FAQ items become Q&A records once; blocks keep only their title.
     assert.deepEqual(db.prepare("SELECT scope_path, title, summary FROM content_documents WHERE kind = 'qa' ORDER BY scope_path, title").all(), [
+      { scope_path: null, title: 'Site question', summary: 'Site answer' },
       { scope_path: '/article/post', title: 'Q1', summary: 'A1' },
       { scope_path: '/schedule', title: 'Existing question', summary: 'Existing answer' },
       { scope_path: '/schedule', title: 'New question', summary: 'New answer' },
     ])
-    assert.deepEqual(db.prepare("SELECT id, data_json FROM content_blocks WHERE type = 'faq' ORDER BY id").all(),
-      [{ id: 'faq', data_json: '{"title":"Questions","source":"page_qa"}' }, { id: 'page-faq', data_json: '{"source":"page_qa"}' }])
+    // A block on a page with no questions of its own, on a site with site-wide
+    // questions, declares the set it was showing through the render-time fallback.
+    assert.deepEqual(db.prepare("SELECT id, data_json FROM content_blocks WHERE type = 'faq' ORDER BY id").all(), [
+      { id: 'about-faq', data_json: '{"source":"site_qa"}' },
+      { id: 'faq', data_json: '{"title":"Questions","source":"page_qa"}' },
+      { id: 'page-faq', data_json: '{"source":"page_qa"}' },
+    ])
     // The platform split is gone from the data.
     assert.deepEqual(db.prepare('SELECT id FROM requests ORDER BY id').all(), [{ id: 'contact' }])
     assert.equal(db.prepare("SELECT scope_kind FROM activity_entries WHERE id = 'signup'").get().scope_kind, 'global')

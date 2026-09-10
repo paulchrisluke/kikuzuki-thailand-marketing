@@ -1,3 +1,4 @@
+import { FAQ_BLOCK_SOURCES, FAQ_BLOCK_SOURCE_LABELS } from '~/shared/faq-block'
 import {
   TENANT_PAGE_BLOCK_REGISTRY,
   normalizeTenantPageBlocks,
@@ -6,6 +7,8 @@ import {
 } from './tenant-page-blocks'
 
 type EditorData = Record<string, unknown>
+
+export const FAQ_SOURCE_OPTIONS = FAQ_BLOCK_SOURCES.map(value => ({ label: FAQ_BLOCK_SOURCE_LABELS[value], value }))
 
 export function createTenantPageEditorData(type: TenantPageBlockType): EditorData {
   switch (type) {
@@ -115,7 +118,7 @@ export function validateTenantPageBlock(block: TenantPageBlock): string[] {
       if (!block.media.some(item => item.slot === 'gallery')) addError(errors, 'Add at least one gallery image.')
       break
     case 'faq':
-      if (text(data.source) === 'page_qa') break
+      if (FAQ_BLOCK_SOURCES.some(source => source === text(data.source))) break
       objectArray(data, 'items').forEach((item, index) => {
         if (!itemText(item, 'title', ['question'])) addError(errors, `FAQ item ${index + 1} needs a question.`)
         if (!itemText(item, 'description', ['answer'])) addError(errors, `FAQ item ${index + 1} needs an answer.`)

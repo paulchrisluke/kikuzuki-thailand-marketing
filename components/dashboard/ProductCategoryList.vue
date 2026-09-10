@@ -32,38 +32,14 @@
     </template>
   </DashboardListEditor>
 
-  <DashboardListItemDialog
-    v-model:open="dialogOpen"
-    :title="editingId ? `Rename ${presentation.categoryLabel.toLowerCase()}` : `Add a ${presentation.categoryLabel.toLowerCase()}`"
-    :removable="false"
-    :saving="saving"
-    :save-disabled="!name.trim()"
-    @save="saveCategory"
-  >
-    <UFormField label="Name">
-      <UInput v-model="name" :placeholder="presentation.categoryLabel === 'Section' ? 'Appetizers' : 'Accessories'" autofocus class="w-full" />
-    </UFormField>
-    <template v-if="editingId" #actions>
-      <DashboardResourceLocalization
-        :site-id="siteId"
-        resource-type="product_category"
-        :resource-id="editingId"
-        :resource-label="presentation.categoryLabel.toLowerCase()"
-        :fields="categoryLocalizationFields"
-        :language-settings-path="siteLocalizationSettingsPath"
-      />
-    </template>
-  </DashboardListItemDialog>
   </div>
 </template>
 
 <script setup lang="ts">
 // The categories index. Rendered by `products.vue`, which decides whether it
 // is the whole screen, the index column of a pair, or off screen entirely.
-import DashboardResourceLocalization from '~/components/dashboard/DashboardResourceLocalization.vue'
 import DashboardListEditor from '~/components/dashboard/DashboardListEditor.vue'
 import DashboardMediaThumb from '~/components/dashboard/DashboardMediaThumb.vue'
-import DashboardListItemDialog from '~/components/dashboard/DashboardListItemDialog.vue'
 import type { ProductCategory } from '~/server/types/products'
 import type { ResolvedMediaAsset } from '~/server/utils/media-asset-manager'
 import { getErrorMessage } from '~/utils/errors'
@@ -118,61 +94,21 @@ const catalogRows = computed<CategoryRow[]>(() => {
 const localOrder = ref<CategoryRow[] | null>(null)
 const categories = computed<CategoryRow[]>(() => localOrder.value ?? catalogRows.value)
 const editing = ref(false)
-const dialogOpen = ref(false)
-const editingId = ref<string | null>(null)
-const name = ref('')
-const saving = ref(false)
 const removingId = ref<string | null>(null)
 
 const listItems = computed(() => categories.value.map(row => ({ id: row.id, title: row.name, row })))
-const editingCategory = computed(() => categories.value.find(row => row.id === editingId.value) ?? null)
-const categoryLocalizationFields = computed(() => [
-  { key: 'name', label: 'Name', source: editingCategory.value?.name },
-])
-const siteLocalizationSettingsPath = computed(() => `/dashboard/${route.params.orgSlug}/sites/${route.params.siteSlug}/settings/localization`)
-let openedLocalizationTarget = ''
-watch(categories, (rows) => {
-  const target = typeof route.query.localize === 'string' ? route.query.localize : ''
-  if (!target.startsWith('product_category:') || target === openedLocalizationTarget) return
-  const category = rows.find(row => target === `product_category:${row.id}`)
-  if (!category) return
-  openedLocalizationTarget = target
-  openExisting({ row: category })
-}, { immediate: true })
 
 const load = catalog.refresh
 
 
+// A category is a record with its own level: adding opens `new`, and renaming
+// opens its Name leaf.
 function openNew() {
-  editingId.value = null
-  name.value = ''
-  dialogOpen.value = true
+  void navigateTo(`${productsPath.value}/new`)
 }
 
 function openExisting(item: { row: CategoryRow }) {
-  editingId.value = item.row.id
-  name.value = item.row.name
-  dialogOpen.value = true
-}
-
-async function saveCategory() {
-  const id = locationId.value
-  if (!id || !name.value.trim()) return
-  saving.value = true
-  try {
-    const endpoint = `/api/editor/sites/${siteId}/locations/${id}/products/categories`
-    if (editingId.value) {
-      await dashboardApi(`${endpoint}/${editingId.value}`, { method: 'PATCH', body: { name: name.value.trim() }, validate: isRecord })
-    } else {
-      await dashboardApi(endpoint, { method: 'POST', body: { name: name.value.trim() }, validate: isRecord })
-    }
-    dialogOpen.value = false
-    await load()
-  } catch (error) {
-    toast.add({ description: getErrorMessage(error, `Failed to save ${presentation.categoryLabel.toLowerCase()}`), color: 'error' })
-  } finally {
-    saving.value = false
-  }
+  void navigateTo(`${productsPath.value}/${item.row.id}/name`)
 }
 
 async function removeCategory(item: { row: CategoryRow }) {
@@ -238,7 +174,6 @@ watch(locationId, () => {
   orderDirty.value = false
   localOrder.value = null
   editing.value = false
-  dialogOpen.value = false
   void load()
 }, { immediate: true })
 </script>

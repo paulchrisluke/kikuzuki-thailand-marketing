@@ -140,7 +140,7 @@ const frame = useEditorFrame(locationPath)
 
 const siteId = await useDashboardSiteId()
 
-const locationId = computed(() => dashboardLocation.currentLocationId.value ?? '')
+const locationId = computed(() => dashboardLocation.currentLocationId.value)
 const settingsPath = computed(() => `${locationPath.value}/settings`)
 
 // Settings and Inbox are their own screens rather than sections of this one, so
@@ -228,15 +228,16 @@ const isOverviewResponse = (value: unknown): value is LocationOverviewResource =
 const requestEvent = useRequestEvent()
 const overviewKey = computed(() => `dashboard-location-overview:${siteId}:${locationId.value}:${includeProducts.value ? 'products' : 'no-products'}`)
 const { data: overview, pending: overviewPending, error: overviewError } = await useAsyncData<LocationOverviewResource>(overviewKey, async () => {
-  if (!locationId.value) throw createError({ statusCode: 404, statusMessage: 'Location not found' })
+  const requestedLocationId = locationId.value
+  if (!requestedLocationId) throw createError({ statusCode: 404, statusMessage: 'Location not found' })
   const shouldIncludeProducts = includeProducts.value
   if (import.meta.server) {
     if (!requestEvent) throw createError({ statusCode: 500, statusMessage: 'Request context unavailable' })
     const { loadDashboardLocationOverview } = await import('~/server/utils/dashboard-editor-resources')
-    return await loadDashboardLocationOverview(requestEvent, siteId, locationId.value, { includeProducts: shouldIncludeProducts }) as LocationOverviewResource
+    return await loadDashboardLocationOverview(requestEvent, siteId, requestedLocationId, { includeProducts: shouldIncludeProducts }) as LocationOverviewResource
   }
   return await dashboardApi<LocationOverviewResource>(
-    `/api/dashboard/sites/${siteId}/locations/${locationId.value}/overview`,
+    `/api/dashboard/sites/${siteId}/locations/${requestedLocationId}/overview`,
     { query: { includeProducts: String(shouldIncludeProducts) }, validate: isOverviewResponse },
   )
 }, { lazy: import.meta.client })

@@ -244,8 +244,16 @@ test('Today uses the CMS patterns and sends one reservation change request', asy
     [guestName, guestEmail, now],
     [`Priya${now} Patel`, `priya-${now}@example.test`, now + 86_400_000],
   ] as const) {
+    // The time comes from the location's own availability for that day, not a
+    // clock time that is only open while the test happens to run before it.
+    const date = localDateAt(new Date(instant), timezone)
+    const day = await page.request.get('/api/public/sites/site-demo/reservations/availability', { params: { date, location_id: 'loc-demo' } })
+    await expectStatus(day, 200)
+    const { dates } = await day.json() as { dates: Array<{ slots: Array<{ time_slot: string; is_closed: boolean }> }> }
+    const slot = dates[0]?.slots.filter(candidate => !candidate.is_closed).at(-1)
+    expect(slot, `loc-demo offers no open slot on ${date}`).toBeTruthy()
     const response = await page.request.post('/api/public/sites/site-demo/reservations', {
-      data: { name, email, phone: '+12025550123', date: localDateAt(new Date(instant), timezone), time: '19:00', guests: '2', location_id: 'loc-demo' },
+      data: { name, email, phone: '+12025550123', date, time: slot!.time_slot, guests: '2', location_id: 'loc-demo' },
     })
     await expectStatus(response, 201)
     const { id } = await response.json() as { id: string }

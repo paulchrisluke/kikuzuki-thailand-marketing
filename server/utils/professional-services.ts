@@ -3,7 +3,6 @@ import { queryAll, queryFirst, type DbClient } from '~/server/db'
 import { HTTPError } from 'nitro';
 import type { CloudflareEnv } from '~/server/utils/auth'
 import { parseSocialImageSource } from '~/utils/social-metadata'
-import { listPageQa } from '~/server/utils/location-qa'
 import { listSiteReviews } from '~/server/utils/site-reviews'
 import { getPublishedLocalizedSiteBlogPost } from '~/server/utils/content/publishing'
 import { COVER_SELECT, attachCoverMedia, coverJoinSql } from '~/server/utils/content/cover'
@@ -560,18 +559,15 @@ const ROUTE_PAGE_PATHS: Record<PublicBlawbyRouteData['recipe'], string | null> =
   terms: '/policies/terms',
   'third-party-notices': '/third-party-notices',
 }
-function mapPublicQa(rows: Array<{
-  id: unknown
-  question: unknown
-  answer?: unknown
-  sort_order?: unknown
-}>): PublicSiteQa[] {
-  return rows.map(row => ({
-    id: String(row.id),
-    question: String(row.question),
-    answer: typeof row.answer === 'string' ? row.answer : null,
-    sort_order: Number(row.sort_order ?? 0),
-  }))
+function faqBlockQa(page: { blocks: Array<{ type: string; data: Record<string, unknown> }> } | null): PublicSiteQa[] {
+  const block = page?.blocks.find(candidate => candidate.type === 'faq')
+  if (!block || !Array.isArray(block.data.items)) return []
+  return block.data.items.flatMap((item, index) => {
+    if (!item || typeof item !== 'object' || Array.isArray(item)) return []
+    const record = item as Record<string, unknown>
+    if (typeof record.id !== 'string' || typeof record.title !== 'string') return []
+    return [{ id: record.id, question: record.title, answer: typeof record.description === 'string' ? record.description : null, sort_order: index }]
+  })
 }
 
 type SiteReviewRow = Awaited<ReturnType<typeof listSiteReviews>>[number]
@@ -641,15 +637,11 @@ export async function getPublicBlawbyRouteData(
   env: CloudflareEnv,
 ): Promise<PublicBlawbyRouteData> {
   const needsOfferings = ['home', 'services', 'offering', 'about', 'pricing'].includes(recipe)
-  const needsQa = ['home', 'services', 'about', 'pricing', 'contact', 'schedule', 'blog', 'donate'].includes(recipe)
   const needsReviews = ['home', 'offering', 'about', 'contact', 'schedule'].includes(recipe)
   const postLimit = recipe === 'home' ? 3 : recipe === 'blog' ? 50 : 0
   const pagePath = ROUTE_PAGE_PATHS[recipe]
   const offeringRowsPromise = needsOfferings
     ? listPublicTenantPageOfferingRows(db, siteId)
-    : Promise.resolve([])
-  const qaRowsPromise = needsQa && pagePath
-    ? listPageQa(db, siteId, pagePath, true, options.locale ?? 'en')
     : Promise.resolve([])
   const localized = options.locale !== undefined && options.locale !== 'en'
   const localizedOfferingId = localized && recipe === 'offering' && options.slug
@@ -660,14 +652,13 @@ export async function getPublicBlawbyRouteData(
     : null
   const offeringSlug = localized ? localizedOfferingSource?.slug ?? null : options.slug
 
-  const [page, offeringRows, offering, qaRows, reviewRows, initialPosts, postRow] = await Promise.all([
+  const [page, offeringRows, offering, reviewRows, initialPosts, postRow] = await Promise.all([
     pagePath
       ? getPublicTenantPageByPath(db, siteId, pagePath, {
           locale: options.locale,
           localizations: localized ? options.localizations ?? [] : null,
           hydrationResources: {
             offerings: needsOfferings ? offeringRowsPromise : undefined,
-            qaRows: needsQa ? qaRowsPromise : undefined,
           },
         })
       : Promise.resolve(null),
@@ -675,7 +666,6 @@ export async function getPublicBlawbyRouteData(
     recipe === 'offering' && offeringSlug
       ? getPublicOfferingBySlug(db, siteId, offeringSlug)
       : Promise.resolve(null),
-    qaRowsPromise,
     needsReviews ? listSiteReviews(db, siteId, { publishedOnly: true }) : Promise.resolve([]),
     postLimit ? listPublicBlogSummaries(db, siteId, postLimit, options.locale ?? 'en') : Promise.resolve([]),
     recipe === 'article' && options.slug
@@ -727,7 +717,9 @@ export async function getPublicBlawbyRouteData(
     }
   }
 
-  const qa = mapPublicQa(qaRows)
+  // The Blawby layouts render one FAQ section, from the page's FAQ block; the
+  // route data carries that block's items, as its declared source resolved them.
+  const qa = faqBlockQa(page)
   const resolvedPost = mapPublicBlogPost(postRow)
   return {
     recipe,

@@ -323,9 +323,6 @@ const experienceId = computed(() => String(route.params.experienceId ?? ''))
 const locationPath = computed(() => `/dashboard/${String(route.params.orgSlug)}/sites/${String(route.params.siteSlug)}/locations/${String(route.params.locationSlug)}`)
 const experiencesPath = computed(() => `${locationPath.value}/experiences`)
 const experiencePath = computed(() => `${experiencesPath.value}/${experienceId.value}`)
-// `useEditorFrame` provides and injects, so it must run while setup is still
-// synchronous. Awaiting before it binds the frame to nothing: the mode never
-// resolves and this level silently drops out of the chain.
 const frame = useEditorFrame(experiencePath)
 const isNew = computed(() => experienceId.value === 'new')
 
@@ -344,7 +341,11 @@ const calendarPath = computed(() => {
   })
   return `/dashboard/${route.params.orgSlug}/calendar?${query.toString()}`
 })
-const currency = computed(() => dashboard.site.value?.default_currency || 'USD')
+const currency = computed(() => {
+  const value = dashboard.site.value?.default_currency
+  if (!value) throw createError({ statusCode: 500, statusMessage: 'Site has no default currency' })
+  return value
+})
 
 const editor = provideExperienceEditor(useExperienceEditor(siteId, currentLocationId, currency, `${siteId}-${experienceId.value}`))
 const weekdayNames = WEEKDAY_NAMES
@@ -372,17 +373,12 @@ const sectionLabels: Record<string, string> = {
 const REQUIRED_ORDER = ['title'] as const
 const validSectionKeys = computed(() => new Set<string>(isNew.value ? REQUIRED_ORDER : Object.keys(sectionLabels)))
 
-const routeSegments = computed(() => {
-  const segments = route.params.segments
-  if (Array.isArray(segments)) return segments.filter(Boolean).map(String)
-  return segments ? [String(segments)] : []
-})
-const detailKey = computed(() => routeSegments.value[0] ?? null)
+const detailKey = computed(() => frame.childSegment.value)
 // Only read while a section is open; nothing defaults a section into the pane.
 const editorKey = computed(() => detailKey.value ?? 'details')
 
 // An unsupported route 404s rather than silently showing the first section.
-if (routeSegments.value.length > 1 || (detailKey.value && !validSectionKeys.value.has(detailKey.value))) {
+if (frame.rest.value.length > 1 || (detailKey.value && !validSectionKeys.value.has(detailKey.value))) {
   throw createError({ statusCode: 404, statusMessage: 'Page not found' })
 }
 
@@ -390,29 +386,17 @@ if (routeSegments.value.length > 1 || (detailKey.value && !validSectionKeys.valu
 const showActions = computed(() => editorKey.value !== 'photos')
 const saving = computed(() => editor.saving.value)
 
-/**
- * The sections the POST still needs, in the order it walks them. There is only
- * one, so the commit goes straight from naming the experience to creating it.
- */
-const outstanding = computed(() => REQUIRED_ORDER.filter(key => key === 'title' && !editor.form.title.trim()))
-const nextOutstanding = computed(() => outstanding.value.find(key => key !== editorKey.value) ?? null)
-
-const createActionLabel = computed(() => {
-  const next = outstanding.value[0]
-  return next ? `Start with ${sectionLabels[next]}` : 'Create experience'
-})
-
-function startOrCreate() {
-  const next = outstanding.value[0]
-  if (next) return void navigateTo(`${experiencePath.value}/${next}`)
-  void saveCurrentEditor()
-}
-
-const saveDisabled = computed(() => saving.value || (editorKey.value === 'title' && !editor.form.title.trim()))
-
-const saveLabel = computed(() => {
-  if (!isNew.value) return undefined
-  return nextOutstanding.value ? `Next: ${sectionLabels[nextOutstanding.value]}` : 'Create experience'
+const { createActionLabel, saveLabel, saveDisabled, save: saveCurrentEditor, startOrCreate } = useCreateWalk({
+  recordPath: experiencePath,
+  isNew,
+  openKey: editorKey,
+  labels: sectionLabels,
+  order: REQUIRED_ORDER,
+  missing: () => !editor.form.title.trim(),
+  noun: 'experience',
+  saving,
+  existingBlocked: () => editorKey.value === 'title' && !editor.form.title.trim(),
+  commit,
 })
 
 // ── Load ────────────────────────────────────────────────
@@ -620,13 +604,8 @@ const navigationGroups = computed<EditorNavigationGroup[]>(() => {
 })
 
 // ── Save / cancel ───────────────────────────────────────
-async function saveCurrentEditor() {
-  if (saveDisabled.value) return
+async function commit() {
   if (isNew.value) {
-    if (nextOutstanding.value) {
-      await navigateTo(`${experiencePath.value}/${nextOutstanding.value}`)
-      return
-    }
     const created = await editor.save(null)
     if (!created?.id) return
     // The draft is keyed to `new`, so it would greet the next experience with

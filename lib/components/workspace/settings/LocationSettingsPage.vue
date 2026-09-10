@@ -10,9 +10,10 @@
         </template>
         <template #right>
           <DashboardResourceLocalization
+            v-if="location"
             :site-id="siteId"
             resource-type="business_location"
-            :resource-id="locationId"
+            :resource-id="location.id"
             resource-label="location"
             :fields="locationLocalizationFields"
             :route-path="localizedLocationPath"
@@ -193,7 +194,7 @@ const settingsPath = computed(() => `${locationPath.value}/settings`)
 const frame = useEditorFrame(settingsPath)
 
 const siteId = await useDashboardSiteId()
-const locationId = computed(() => dashboardLocation.currentLocationId.value ?? '')
+const locationId = computed(() => dashboardLocation.currentLocationId.value)
 
 // Up one level: out of a section back to the settings index, out of the index
 // back to the location overview.

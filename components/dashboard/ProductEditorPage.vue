@@ -62,8 +62,8 @@
         has-detail
         :show-actions="editorKey !== 'photo'"
         :saving="saving"
-        :save-disabled="!sectionValid"
-        :save-label="isNew ? `Create ${presentation.itemLabel.toLowerCase()}` : undefined"
+        :save-disabled="saveDisabled"
+        :save-label="saveLabel"
         :detail-title="sectionLabels[editorKey]"
         :dismiss-to="itemPath"
         @cancel="cancelEditor"
@@ -263,9 +263,6 @@ const locationPath = computed(() => `/dashboard/${String(route.params.orgSlug)}/
 const productsPath = computed(() => `${locationPath.value}/products`)
 const categoryPath = computed(() => `${productsPath.value}/${categoryId.value}`)
 const itemPath = computed(() => `${categoryPath.value}/${productId.value}`)
-// `useEditorFrame` provides and injects, so it must run while setup is still
-// synchronous. Awaiting before it binds the frame to nothing: the mode never
-// resolves and this level silently drops out of the chain.
 const frame = useEditorFrame(itemPath)
 
 const siteId = await useDashboardSiteId()
@@ -298,12 +295,7 @@ const sectionLabels: Record<SectionKey, string> = {
   'availability': 'Availability',
 }
 
-const routeSegments = computed(() => {
-  const segments = route.params.segments
-  if (Array.isArray(segments)) return segments.filter(Boolean).map(String)
-  return segments ? [String(segments)] : []
-})
-const detailKey = computed(() => routeSegments.value[0] ?? null)
+const detailKey = computed(() => frame.childSegment.value)
 // Only read while a section is open; nothing defaults a section into the pane.
 const editorKey = computed<SectionKey>(() => (detailKey.value ?? 'photo') as SectionKey)
 
@@ -317,24 +309,12 @@ const isNew = computed(() => productId.value === 'new')
 const openSections = computed<readonly SectionKey[]>(() => (isNew.value ? NEW_SECTION_KEYS : SECTION_KEYS))
 
 // An unsupported route 404s rather than silently showing the first section.
-if (routeSegments.value.length > 1 || (detailKey.value && !openSections.value.some(key => key === detailKey.value))) {
+if (frame.rest.value.length > 1 || (detailKey.value && !openSections.value.some(key => key === detailKey.value))) {
   throw createError({ statusCode: 404, statusMessage: 'Page not found' })
 }
 
 // ── Load ────────────────────────────────────────────────
 const categories = ref<ProductCategory[]>([])
-
-/**
- * A record that does not exist yet has one question to answer. Adding walks it
- * the way every other record does, at a URL of its own, rather than in a sheet
- * over the list.
- */
-const createActionLabel = computed(() => form.name.trim() ? `Create ${presentation.itemLabel.toLowerCase()}` : 'Start with Name')
-
-function startOrCreate() {
-  if (!form.name.trim()) return void navigateTo(`${itemPath.value}/name`)
-  void saveCurrentEditor()
-}
 
 const product = ref<Product | null>(null)
 const loadError = ref<string | null>(null)
@@ -526,7 +506,20 @@ function payload() {
   }
 }
 
-async function saveCurrentEditor() {
+const { createActionLabel, saveLabel, saveDisabled, save: saveCurrentEditor, startOrCreate } = useCreateWalk({
+  recordPath: itemPath,
+  isNew,
+  openKey: editorKey,
+  labels: sectionLabels,
+  order: ['name'],
+  missing: () => !form.name.trim(),
+  noun: presentation.itemLabel.toLowerCase(),
+  saving,
+  existingBlocked: () => !sectionValid.value,
+  commit,
+})
+
+async function commit() {
   const id = locationId.value
   if (!id) return
   saving.value = true

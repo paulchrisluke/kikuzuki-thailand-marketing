@@ -79,7 +79,7 @@
           </section>
 
           <section v-if="billingTo" class="profile-row" :class="rowTone('billing')">
-            <div class="min-w-0"><h3 class="profile-label">Billing</h3><p class="profile-value whitespace-normal">Plan and payments for {{ organizationName }}.</p></div>
+            <div class="min-w-0"><h3 class="profile-label">Billing</h3><p class="profile-value whitespace-normal">Plan and payments for {{ organizationParent?.label }}.</p></div>
             <NuxtLink :to="billingTo" class="account-action shrink-0">Open</NuxtLink>
           </section>
 
@@ -188,7 +188,6 @@ const frame = useEditorFrame(profilePath)
 const { data: sessionData, refreshSession } = useAuth()
 
 const organizationParent = inject(dashboardOrganizationParentKey, null)
-const organizationName = computed(() => organizationParent?.value?.label ?? 'your organization')
 const billingTo = computed(() => organizationParent?.value ? `${organizationParent.value.to}/settings/billing` : null)
 const { signOut } = useAuth()
 

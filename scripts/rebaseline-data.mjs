@@ -105,7 +105,17 @@ export const TRANSFORMS = [
   { name: 'faq_blocks_read_page_qa', sql: `UPDATE content_blocks SET data_json = CASE
       WHEN json_type(data_json, '$.title') = 'text' AND trim(data_json ->> '$.title') <> '' THEN json_object('title', data_json ->> '$.title', 'source', 'page_qa')
       ELSE json_object('source', 'page_qa') END
-    WHERE type = 'faq' AND (json_type(data_json, '$.items') IS NOT NULL OR COALESCE(data_json ->> '$.source', '') <> 'page_qa')` },
+    WHERE type = 'faq' AND (json_type(data_json, '$.items') IS NOT NULL OR COALESCE(data_json ->> '$.source', '') NOT IN ('page_qa', 'site_qa'))` },
+  // --- a FAQ block names the set it lists. Until now a page_qa block on a page with
+  // no questions of its own fell through to the site-wide set at render time; the
+  // blocks that showed the site-wide set that way now say so.
+  { name: 'faq_blocks_declare_site_qa', sql: `UPDATE content_blocks SET data_json = json_set(data_json, '$.source', 'site_qa')
+    WHERE type = 'faq' AND data_json ->> '$.source' = 'page_qa'
+      AND document_id IN (
+        SELECT d.id FROM content_documents d
+         WHERE d.kind = 'page' AND d.row_role = 'root' AND d.path IS NOT NULL
+           AND NOT EXISTS (SELECT 1 FROM content_documents q WHERE q.kind = 'qa' AND q.row_role = 'root' AND q.site_id = d.site_id AND q.location_id IS NULL AND q.scope_path = d.path AND q.status = 'published')
+           AND EXISTS (SELECT 1 FROM content_documents q WHERE q.kind = 'qa' AND q.row_role = 'root' AND q.site_id = d.site_id AND q.location_id IS NULL AND q.scope_path IS NULL AND q.status = 'published'))` },
 ]
 
 const LOCALIZED_OWNER_TABLES = {

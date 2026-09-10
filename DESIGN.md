@@ -156,10 +156,18 @@ Adding a record asks only for what names it, or what the contract will not
 accept it without — nothing more. Everything else is a section of the record
 once it exists and has an id to hang media, prices and translations on.
 
-It is a sheet on the list, not a route: `Add` opens `DashboardListItemDialog`,
-the commit creates the record, and the surface then navigates to the record's
-own hub. A dedicated `/new` screen with its own panel and navbar is not a level
-of the chain, and rendering one inside a detail column draws two headers.
+It is a level, not a sheet: `Add` navigates to `new` in the record's own slot,
+which renders the record's hub with only the sections the contract needs. Its
+commit names where it is going — `Start with Title`, then `Next: <section>`
+while any remain, and `Create <record>` on the last one — so the tenant reads
+what is left rather than a banner listing it. The commit creates the record and
+navigates to its real id. `useCreateWalk` is the one implementation of that
+walk; an editor supplies its sections, their order and what blocks each.
+
+A create level is the record's own level, so it draws no second panel or
+navbar of its own. The draft belongs to the record, not to the leaf: moving
+between sections remounts the level, so it lives in `useState` keyed to the
+record, never in a plain `reactive`.
 
 ## Committing
 
