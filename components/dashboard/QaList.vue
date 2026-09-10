@@ -140,7 +140,6 @@ const qaAsyncData = useAsyncData(
       },
     )
   },
-  { watch: [selectedPagePath] },
 )
 
 const [
