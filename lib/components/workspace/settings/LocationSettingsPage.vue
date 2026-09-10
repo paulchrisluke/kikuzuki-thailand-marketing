@@ -170,11 +170,16 @@ const router = useRouter()
 const toast = useToast()
 const dashboard = useDashboardSite()
 const dashboardLocation = useDashboardLocation()
-const siteId = await useDashboardSiteId()
-const locationId = computed(() => dashboardLocation.currentLocationId.value ?? '')
 const sitePath = computed(() => `/dashboard/${String(route.params.orgSlug)}/sites/${String(route.params.siteSlug)}`)
 const locationPath = computed(() => `${sitePath.value}/locations/${String(route.params.locationSlug)}`)
 const settingsPath = computed(() => `${locationPath.value}/settings`)
+// `useEditorFrame` provides and injects, so it runs before any `await`, and it
+// owns the split of the route below this level. The `route.params.segments`
+// derivation this replaces was a second copy of the composable's `rest`.
+const frame = useEditorFrame(settingsPath)
+
+const siteId = await useDashboardSiteId()
+const locationId = computed(() => dashboardLocation.currentLocationId.value ?? '')
 
 // Up one level: out of a section back to the settings index, out of the index
 // back to the location overview.
@@ -182,11 +187,7 @@ const settingsPath = computed(() => `${locationPath.value}/settings`)
 // way out is the sheet's close control, which lands on the settings index — the
 // index that is already beside it at `lg`.
 const levelBackTo = computed(() => locationPath.value)
-const routeSegments = computed(() => {
-  const raw = route.params.segments
-  if (Array.isArray(raw)) return raw.map(String)
-  return raw ? [String(raw)] : []
-})
+const routeSegments = frame.rest
 const detailKey = computed(() => routeSegments.value[0] ?? null)
 const editorKey = computed(() => detailKey.value ?? 'profile')
 const validDetailKeys = new Set(['profile', 'hours', 'content', 'discovery', 'notifications', 'features'])
@@ -400,7 +401,7 @@ const detailTitles: Record<string, string> = {
   notifications: 'Notifications',
   features: 'Available features',
 }
-const hasDetail = computed(() => detailKey.value !== null)
+const hasDetail = computed(() => routeSegments.value.length > 0)
 // Names the level, not the open section: at `lg` the section's title is a
 // heading on its own pane with the index still beside it.
 const navbarTitle = computed(() => location.value?.title || 'Location')
