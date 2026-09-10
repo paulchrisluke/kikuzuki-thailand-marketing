@@ -148,11 +148,11 @@
                   {{ invitation.email }}
                 </p>
                 <p class="truncate text-sm text-muted">
-                  Invited by {{ invitation.inviterName || 'team member' }} · Expires {{ formatDate(invitation.expiresAt) }}
+                  <template v-if="invitation.inviterName">Invited by {{ invitation.inviterName }} · </template>Expires {{ formatDate(invitation.expiresAt) }}
                 </p>
               </div>
               <div class="flex items-center gap-2">
-                <UBadge :label="invitation.role || 'member'" color="neutral" variant="soft" class="capitalize" />
+                <UBadge v-if="invitation.role" :label="invitation.role" color="neutral" variant="soft" class="capitalize" />
                 <UButton
                   icon="i-lucide-x"
                   color="neutral"
