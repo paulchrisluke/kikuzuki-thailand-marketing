@@ -59,7 +59,19 @@ export const useSiteShellState = () => {
               failureMessage: 'Public shell failed',
               signal,
             }),
-          { server: true, dedupe: 'cancel' },
+          {
+            server: true,
+            dedupe: 'cancel',
+            // Reuse what SSR already resolved. Without this the shell can be
+            // fetched a second time during hydration, and that fetch carries
+            // different authorization than the server render did (the preview
+            // cookie is a third-party cookie inside the onboarding preview
+            // frame), which renders a different shell than the one being
+            // hydrated. The page loader does the same for the same reason.
+            getCachedData(cacheKey) {
+              return useNuxtApp().payload.data[cacheKey] as SiteShellPayload | undefined
+            },
+          },
         );
     data = asyncData.data
     error = asyncData.error as Ref<Error | null>
