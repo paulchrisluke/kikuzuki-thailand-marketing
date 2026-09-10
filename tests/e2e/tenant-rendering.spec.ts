@@ -88,9 +88,12 @@ test('KrabiClaw home retains its billing plans after hydration', async ({ page }
   const failures = collectFirstPartyFailures(page, baseURL)
   const response = await openTenantPage(page, `${baseURL}/`, {})
   expect(response?.status()).toBe(200)
-  await page.waitForFunction(() => Boolean(
-    (document.querySelector('#__nuxt') as (Element & { __vue_app__?: unknown }) | null)?.__vue_app__,
-  ))
+  await page.waitForFunction(() => {
+    const root = document.querySelector('#__nuxt') as (Element & {
+      __vue_app__?: { $nuxt?: { isHydrating: boolean } }
+    }) | null
+    return root?.__vue_app__?.$nuxt?.isHydrating === false
+  })
   await expect(page.getByRole('heading', { name: 'Starter', exact: true })).toBeVisible()
   await expect(page.getByRole('heading', { name: 'Growth', exact: true })).toBeVisible()
   await expect(page.getByRole('link', { name: 'Get Growth', exact: true })).toHaveAttribute('href', '/signup?plan=growth')
