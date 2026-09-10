@@ -75,11 +75,18 @@ export function useExperienceEditor(
   siteId: string,
   locationId: Ref<string | null>,
   defaultCurrency: Ref<string>,
+  /**
+   * Keys the draft to the record it belongs to. Moving between an experience's
+   * leaves remounts the level that owns this editor, so the draft cannot live
+   * in a plain `reactive` — a title typed on the way to creating an experience
+   * would be gone by the next section.
+   */
+  draftKey: string,
 ) {
   const dashboardApi = useDashboardApi()
   const toast = useToast()
 
-  const form = reactive(emptyForm())
+  const form = useState(`experience-draft-${draftKey}`, emptyForm).value
   const recurringSlots = ref<RecurringSlots>(null)
 
   const bookingPolicyDraft = ref<BookingPolicyPatch>({})

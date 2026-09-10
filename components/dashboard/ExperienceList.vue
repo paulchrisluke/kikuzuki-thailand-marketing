@@ -58,38 +58,12 @@
       </button>
     </template>
   </DashboardListEditor>
-
-  <!--
-    Adding asks only for what names the experience. Photos, pricing, times and
-    policy each need a saved id anyway, so they are sections of the experience
-    once it exists rather than a wall of fields up front.
-  -->
-  <DashboardListItemDialog
-    v-model:open="createOpen"
-    title="Add an experience"
-    :removable="false"
-    :saving="editor.saving.value"
-    :save-disabled="!editor.form.title.trim()"
-    save-label="Create"
-    @save="createExperience"
-  >
-    <UFormField label="Title" required>
-      <UInput v-model="editor.form.title" size="xl" autofocus class="w-full" @keydown.enter="createExperience" />
-    </UFormField>
-    <p class="text-sm text-muted">
-      You'll land on this experience's own page, where photos, pricing, duration and capacity,
-      time slots, its booking policy and translations are each a section you can fill in. It
-      goes on your site straight away — set its status to Inactive under Details if you'd
-      rather finish it first.
-    </p>
-  </DashboardListItemDialog>
   </div>
 </template>
 
 <script setup lang="ts">
 // The experiences index. Rendered by `experiences.vue`, which owns the frame.
 import DashboardListEditor from '~/components/dashboard/DashboardListEditor.vue'
-import DashboardListItemDialog from '~/components/dashboard/DashboardListItemDialog.vue'
 import type { Experience } from '~/server/utils/experiences'
 import { formatMinorAmount } from '~/shared/prices'
 import { getErrorMessage } from '~/utils/errors'
@@ -105,7 +79,9 @@ const dashboard = useDashboardSite()
 const currentLocationId = computed(() => dashboardLocation.currentLocationId.value)
 const experiencesPath = computed(() => locationPaths.value?.experiences ?? '')
 const editing = ref(false)
-const editor = useExperienceEditor(siteId, currentLocationId, computed(() => dashboard.site.value?.default_currency || 'USD'))
+// The list only deletes; naming and creating an experience is the `new` level's
+// work, so this draft is never written to.
+const editor = useExperienceEditor(siteId, currentLocationId, computed(() => dashboard.site.value?.default_currency || 'USD'), `${siteId}-list`)
 const removingId = ref<string | null>(null)
 
 const isExperiencesResponse = (value: unknown): value is { experiences: Experience[] } =>
@@ -148,18 +124,9 @@ async function removeExperience(item: { row: Experience }) {
   }
 }
 
-const createOpen = ref(false)
-
+/** Adding is a level of the chain: the `new` record asks for its title there. */
 function openCreate() {
-  editor.reset()
-  createOpen.value = true
-}
-
-async function createExperience() {
-  const experience = await editor.save(null)
-  if (!experience?.id) return
-  createOpen.value = false
-  await navigateTo(`${experiencesPath.value}/${experience.id}`)
+  return navigateTo(`${experiencesPath.value}/new`)
 }
 
 function openExperience(item: { row: Experience }) {

@@ -4,7 +4,7 @@
     renders its rows and nothing else. It becomes the index column only once a
     section is open.
   -->
-  <div v-if="frame.mode.value === 'index'">
+  <div v-if="frame.mode.value === 'index'" class="space-y-6">
     <UAlert
       v-if="loadError"
       color="error"
@@ -13,17 +13,23 @@
       title="Could not load this experience"
       :description="loadError"
     />
-    <EditorNavigationList v-else :groups="navigationGroups" />
+    <template v-else>
+      <div v-if="isNew" class="flex justify-end">
+        <UButton :label="createActionLabel" :loading="saving" @click="startOrCreate" />
+      </div>
+      <EditorNavigationList :groups="navigationGroups" />
+    </template>
   </div>
 
   <UDashboardPanel v-else id="location-experience-detail">
     <template #header>
-      <UDashboardNavbar :title="editor.form.title || 'Experience'" :toggle="false">
+      <UDashboardNavbar :title="isNew ? 'New experience' : editor.form.title || 'Experience'" :toggle="false">
         <template #leading>
           <DashboardNavbarLeading :to="experiencesPath" label="Experiences" />
         </template>
         <template #right>
           <DashboardResourceLocalization
+            v-if="!isNew"
             :site-id="siteId"
             resource-type="product"
             :resource-id="experienceId"
@@ -52,6 +58,7 @@
         :show-actions="showActions"
         :saving="saving"
         :save-disabled="saveDisabled"
+        :save-label="saveLabel"
         :detail-title="sectionLabels[editorKey]"
         :dismiss-to="experiencePath"
         @cancel="cancelEditor"
@@ -317,6 +324,7 @@ const experiencePath = computed(() => `${experiencesPath.value}/${experienceId.v
 // synchronous. Awaiting before it binds the frame to nothing: the mode never
 // resolves and this level silently drops out of the chain.
 const frame = useEditorFrame(experiencePath)
+const isNew = computed(() => experienceId.value === 'new')
 
 const siteId = await useDashboardSiteId()
 const dashboard = useDashboardSite()
@@ -335,7 +343,7 @@ const calendarPath = computed(() => {
 })
 const currency = computed(() => dashboard.site.value?.default_currency || 'USD')
 
-const editor = provideExperienceEditor(useExperienceEditor(siteId, currentLocationId, currency))
+const editor = provideExperienceEditor(useExperienceEditor(siteId, currentLocationId, currency, `${siteId}-${experienceId.value}`))
 const weekdayNames = WEEKDAY_NAMES
 
 // ── Which leaf is open ──────────────────────────────────
@@ -353,7 +361,13 @@ const sectionLabels: Record<string, string> = {
   included: "What's included",
   policies: 'Policies',
 }
-const validSectionKeys = new Set(Object.keys(sectionLabels))
+/**
+ * Creating shows only what the POST will not accept empty. Photos, pricing,
+ * times and policy each need a saved id anyway, so they arrive as sections of
+ * the experience once it exists.
+ */
+const REQUIRED_ORDER = ['title'] as const
+const validSectionKeys = computed(() => new Set<string>(isNew.value ? REQUIRED_ORDER : Object.keys(sectionLabels)))
 
 const routeSegments = computed(() => {
   const segments = route.params.segments
@@ -365,14 +379,38 @@ const detailKey = computed(() => routeSegments.value[0] ?? null)
 const editorKey = computed(() => detailKey.value ?? 'details')
 
 // An unsupported route 404s rather than silently showing the first section.
-if (routeSegments.value.length > 1 || (detailKey.value && !validSectionKeys.has(detailKey.value))) {
+if (routeSegments.value.length > 1 || (detailKey.value && !validSectionKeys.value.has(detailKey.value))) {
   throw createError({ statusCode: 404, statusMessage: 'Page not found' })
 }
 
 // Photos commit as you act, so there is no pending draft for a footer to save.
 const showActions = computed(() => editorKey.value !== 'photos')
-const saveDisabled = computed(() => editorKey.value === 'title' && !editor.form.title.trim())
 const saving = computed(() => editor.saving.value)
+
+/**
+ * The sections the POST still needs, in the order it walks them. There is only
+ * one, so the commit goes straight from naming the experience to creating it.
+ */
+const outstanding = computed(() => REQUIRED_ORDER.filter(key => key === 'title' && !editor.form.title.trim()))
+const nextOutstanding = computed(() => outstanding.value.find(key => key !== editorKey.value) ?? null)
+
+const createActionLabel = computed(() => {
+  const next = outstanding.value[0]
+  return next ? `Start with ${sectionLabels[next]}` : 'Create experience'
+})
+
+function startOrCreate() {
+  const next = outstanding.value[0]
+  if (next) return void navigateTo(`${experiencePath.value}/${next}`)
+  void saveCurrentEditor()
+}
+
+const saveDisabled = computed(() => saving.value || (editorKey.value === 'title' && !editor.form.title.trim()))
+
+const saveLabel = computed(() => {
+  if (!isNew.value) return undefined
+  return nextOutstanding.value ? `Next: ${sectionLabels[nextOutstanding.value]}` : 'Create experience'
+})
 
 // ── Load ────────────────────────────────────────────────
 const isExperiencesResponse = (value: unknown): value is { experiences: Experience[] } =>
@@ -385,6 +423,8 @@ const isExperiencesResponse = (value: unknown): value is { experiences: Experien
 const { data, error, refresh } = await useAsyncData(
   computed(() => `dashboard-location-experience-${siteId}-${currentLocationId.value ?? 'missing'}-${experienceId.value}`),
   async () => {
+    // Nothing to read until the POST has run: `new` is an address, not a row.
+    if (isNew.value) return null
     const locationId = currentLocationId.value
     if (!locationId) throw createError({ statusCode: 404, statusMessage: 'Location not found' })
     const response = await dashboardApi(`/api/editor/sites/${siteId}/experiences`, {
@@ -533,46 +573,83 @@ const discountSummary = computed(() => {
   return `Was ${editor.form.compare_at_major}, ${window}`
 })
 
-const navigationGroups = computed<EditorNavigationGroup[]>(() => [
-  {
-    id: 'content',
-    label: 'Content',
-    items: [
-      { id: 'title', label: 'Title', summary: editor.form.title || 'Not named yet', icon: 'i-lucide-type', to: `${experiencePath.value}/title` },
-      { id: 'tagline', label: 'Tagline', summary: editor.form.tagline || 'Not set', icon: 'i-lucide-align-left', to: `${experiencePath.value}/tagline` },
-      { id: 'description', label: 'Description', summary: editor.form.body ? 'Written' : 'Nothing written yet', icon: 'i-lucide-text', to: `${experiencePath.value}/description` },
-      { id: 'visibility', label: 'Visibility', summary: visibilitySummary.value, icon: 'i-lucide-eye', to: `${experiencePath.value}/visibility` },
-      { id: 'photos', label: 'Photos', summary: editor.form.media.length ? `${editor.form.media.length} photos` : 'No photos yet', icon: 'i-lucide-images', to: `${experiencePath.value}/photos` },
-      { id: 'location', label: 'Location', summary: editor.form.meeting_point || 'No meeting point set', icon: 'i-lucide-map-pin', to: `${experiencePath.value}/location` },
-      { id: 'itinerary', label: 'Itinerary', summary: itinerarySummary.value, icon: 'i-lucide-clock-3', to: `${experiencePath.value}/itinerary` },
-      { id: 'included', label: "What's included", summary: listSummary(editor.form.included_items, 'Nothing listed yet'), icon: 'i-lucide-list-checks', to: `${experiencePath.value}/included` },
-    ],
-  },
-  {
-    id: 'booking',
-    label: 'Booking',
-    items: [
-      { id: 'guests', label: 'Guests', summary: guestsSummary.value, icon: 'i-lucide-users', to: `${experiencePath.value}/guests` },
-      { id: 'pricing', label: 'Pricing', summary: priceSummary.value, icon: 'i-lucide-tag', to: `${experiencePath.value}/pricing` },
-      { id: 'discounts', label: 'Discounts', summary: discountSummary.value, icon: 'i-lucide-percent', to: `${experiencePath.value}/discounts` },
-      { id: 'policies', label: 'Policies', summary: policySummary.value, icon: 'i-lucide-shield-check', to: `${experiencePath.value}/policies` },
-      // Closing a time on a date is calendar work, not configuration, so this
-      // row leaves the editor rather than duplicating the calendar inside it.
-      { id: 'calendar', label: 'Dates and availability', summary: 'Close times or change capacity on the calendar', icon: 'i-lucide-calendar-days', to: calendarPath.value },
-    ],
-  },
-])
+const titleItem = computed(() => ({
+  id: 'title',
+  label: 'Title',
+  summary: editor.form.title || 'Not named yet',
+  icon: 'i-lucide-type',
+  to: `${experiencePath.value}/title`,
+}))
+
+const navigationGroups = computed<EditorNavigationGroup[]>(() => {
+  // Creating lists only the section the POST needs; the rest each want a saved
+  // id, so they arrive once the experience exists.
+  if (isNew.value) return [{ id: 'content', items: [titleItem.value] }]
+  return [
+    {
+      id: 'content',
+      label: 'Content',
+      items: [
+        titleItem.value,
+        { id: 'tagline', label: 'Tagline', summary: editor.form.tagline || 'Not set', icon: 'i-lucide-align-left', to: `${experiencePath.value}/tagline` },
+        { id: 'description', label: 'Description', summary: editor.form.body ? 'Written' : 'Nothing written yet', icon: 'i-lucide-text', to: `${experiencePath.value}/description` },
+        { id: 'visibility', label: 'Visibility', summary: visibilitySummary.value, icon: 'i-lucide-eye', to: `${experiencePath.value}/visibility` },
+        { id: 'photos', label: 'Photos', summary: editor.form.media.length ? `${editor.form.media.length} photos` : 'No photos yet', icon: 'i-lucide-images', to: `${experiencePath.value}/photos` },
+        { id: 'location', label: 'Location', summary: editor.form.meeting_point || 'No meeting point set', icon: 'i-lucide-map-pin', to: `${experiencePath.value}/location` },
+        { id: 'itinerary', label: 'Itinerary', summary: itinerarySummary.value, icon: 'i-lucide-clock-3', to: `${experiencePath.value}/itinerary` },
+        { id: 'included', label: "What's included", summary: listSummary(editor.form.included_items, 'Nothing listed yet'), icon: 'i-lucide-list-checks', to: `${experiencePath.value}/included` },
+      ],
+    },
+    {
+      id: 'booking',
+      label: 'Booking',
+      items: [
+        { id: 'guests', label: 'Guests', summary: guestsSummary.value, icon: 'i-lucide-users', to: `${experiencePath.value}/guests` },
+        { id: 'pricing', label: 'Pricing', summary: priceSummary.value, icon: 'i-lucide-tag', to: `${experiencePath.value}/pricing` },
+        { id: 'discounts', label: 'Discounts', summary: discountSummary.value, icon: 'i-lucide-percent', to: `${experiencePath.value}/discounts` },
+        { id: 'policies', label: 'Policies', summary: policySummary.value, icon: 'i-lucide-shield-check', to: `${experiencePath.value}/policies` },
+        // Closing a time on a date is calendar work, not configuration, so this
+        // row leaves the editor rather than duplicating the calendar inside it.
+        { id: 'calendar', label: 'Dates and availability', summary: 'Close times or change capacity on the calendar', icon: 'i-lucide-calendar-days', to: calendarPath.value },
+      ],
+    },
+  ]
+})
 
 // ── Save / cancel ───────────────────────────────────────
 async function saveCurrentEditor() {
+  if (saveDisabled.value) return
+  if (isNew.value) {
+    if (nextOutstanding.value) {
+      await navigateTo(`${experiencePath.value}/${nextOutstanding.value}`)
+      return
+    }
+    const created = await editor.save(null)
+    if (!created?.id) return
+    // The draft is keyed to `new`, so it would greet the next experience with
+    // this one's title if it were left behind.
+    editor.reset()
+    await navigateTo(`${experiencesPath.value}/${created.id}`)
+    return
+  }
   await editor.save(experienceId.value)
 }
 
 /** Dismissing a leaf discards its draft, matching the settings sheets. */
 async function cancelEditor() {
-  if (data.value) editor.loadFrom(data.value.experience)
+  // A new experience has no record to reload from, so discarding means
+  // emptying the draft — otherwise a dismissed title comes back and creates
+  // the experience the tenant just cancelled.
+  if (isNew.value) editor.reset()
+  else if (data.value) editor.loadFrom(data.value.experience)
   await navigateTo(experiencePath.value)
 }
+
+// An experience is created under whichever location is current, so a draft
+// started under one location is not the draft for another.
+watch(currentLocationId, () => {
+  if (isNew.value) editor.reset()
+})
 
 // ── Options ─────────────────────────────────────────────
 const statusOptions = [
