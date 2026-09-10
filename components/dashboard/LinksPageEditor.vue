@@ -400,7 +400,12 @@ const emptyItemDraft = () => ({
   destination: '',
   status: 'active' as ItemStatus,
 })
-const itemForm = useState(`links-item-draft-${siteId}-${itemId.value}`, emptyItemDraft).value
+/**
+ * One draft, not one per link: moving between records reuses this component
+ * without running setup again, so an id read into the key here would pin every
+ * record to whichever one was open first.
+ */
+const itemForm = useState(`links-item-draft-${siteId}`, emptyItemDraft).value
 
 /**
  * `new` is one key for every link ever added here, so leaving that screen has
@@ -534,6 +539,19 @@ function loadItemForm(row: LinkItem) {
 watch(itemRecord, (row) => {
   if (row) loadItemForm(row)
 }, { immediate: true })
+
+/**
+ * Which record is open changes without a remount, so the draft is seeded from
+ * whatever the route now names: the record's own values, or nothing at all for
+ * `new`. Creating and cancelling already cleared it, but a link edited and left
+ * through the browser's own back button greeted the next Add pre-filled and
+ * reporting nothing outstanding — one click from a duplicate.
+ */
+watch(itemId, () => {
+  const row = itemRecord.value
+  if (row) loadItemForm(row)
+  else clearItemDraft()
+})
 
 // `pending` is the only signal needed: the fetch is client-only, so it is true
 // through SSR and the first paint and false once the rows have data.
