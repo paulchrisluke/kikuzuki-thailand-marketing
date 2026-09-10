@@ -39,10 +39,11 @@ import QaList from '~/components/dashboard/QaList.vue'
 definePageMeta({ layout: 'dashboard', cmsCapabilityKey: 'site.qa' })
 
 const route = useRoute()
-const { sitePaths } = useDashboardSiteLinks()
 
-const sitePath = computed(() => sitePaths.value?.site ?? '')
-const qaPath = computed(() => `/dashboard/${String(route.params.orgSlug)}/sites/${String(route.params.siteSlug)}/qa`)
+// Both paths come from the route this page is mounted on, so the back link
+// cannot end up pointing nowhere while the page itself renders.
+const sitePath = computed(() => `/dashboard/${String(route.params.orgSlug)}/sites/${String(route.params.siteSlug)}`)
+const qaPath = computed(() => `${sitePath.value}/qa`)
 const frame = useEditorFrame(qaPath)
 
 useSeoMeta({ title: 'Site Q&A | KrabiClaw Dashboard', robots: 'noindex, nofollow' })

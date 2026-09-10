@@ -194,6 +194,13 @@ async function saveOpenSection() {
     await navigateTo(`${recordPath.value}/${nextOutstanding.value}`)
     return
   }
+  // The PATCH sends the whole record, and the form holds the row it was loaded
+  // from. With no row — a load that failed — it holds its own blank defaults,
+  // and saving would write those over the stored question.
+  if (!isNew.value && !record.value) {
+    errorMessage.value = 'This question could not be loaded, so it cannot be saved.'
+    return
+  }
   saving.value = true
   errorMessage.value = ''
   try {

@@ -39,10 +39,11 @@ import TestimonialList from '~/components/dashboard/TestimonialList.vue'
 definePageMeta({ layout: 'dashboard', cmsCapabilityKey: 'site.testimonials' })
 
 const route = useRoute()
-const { sitePaths } = useDashboardSiteLinks()
 
-const sitePath = computed(() => sitePaths.value?.site ?? '')
-const testimonialsPath = computed(() => `/dashboard/${String(route.params.orgSlug)}/sites/${String(route.params.siteSlug)}/testimonials`)
+// Both paths come from the route this page is mounted on, so the back link
+// cannot end up pointing nowhere while the page itself renders.
+const sitePath = computed(() => `/dashboard/${String(route.params.orgSlug)}/sites/${String(route.params.siteSlug)}`)
+const testimonialsPath = computed(() => `${sitePath.value}/testimonials`)
 const frame = useEditorFrame(testimonialsPath)
 
 useSeoMeta({ title: 'Testimonials | KrabiClaw Dashboard', robots: 'noindex, nofollow' })

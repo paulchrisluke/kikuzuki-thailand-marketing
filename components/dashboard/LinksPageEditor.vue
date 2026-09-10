@@ -291,12 +291,14 @@ const frame = useEditorFrame(linksPath)
 
 const siteId = await useDashboardSiteId()
 const dashboard = useDashboardSite()
-const { sitePaths } = useDashboardSiteLinks()
 const toast = useToast()
 const saving = ref(false)
 const errorMessage = ref('')
 
-const sitePath = computed(() => sitePaths.value?.site ?? '')
+// The path comes from the route this screen is mounted on, not from the
+// location selector: an unresolved selector left it empty, and an empty path is
+// a link to nowhere and, where it roots the editor frame, a frame rooted at ''.
+const sitePath = computed(() => `/dashboard/${String(route.params.orgSlug)}/sites/${String(route.params.siteSlug)}`)
 
 // ── Which leaf is open ──────────────────────────────────
 // One leaf per field: a leaf edits one concern, and the hub is read by scanning

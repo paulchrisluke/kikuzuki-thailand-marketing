@@ -71,13 +71,17 @@ import { useExperienceEditor } from '~/composables/useExperienceEditor'
 
 
 const dashboardApi = useDashboardApi()
-const { locationPaths } = useDashboardSiteLinks()
 const siteId = await useDashboardSiteId()
 const dashboardLocation = useDashboardLocation()
 const dashboard = useDashboardSite()
 
 const currentLocationId = computed(() => dashboardLocation.currentLocationId.value)
-const experiencesPath = computed(() => locationPaths.value?.experiences ?? '')
+const route = useRoute()
+// The path comes from the route this screen is mounted on, not from the
+// location selector: an unresolved selector left it empty, and an empty path is
+// a link to nowhere and, where it roots the editor frame, a frame rooted at ''.
+const locationPath = computed(() => `/dashboard/${String(route.params.orgSlug)}/sites/${String(route.params.siteSlug)}/locations/${String(route.params.locationSlug)}`)
+const experiencesPath = computed(() => `${locationPath.value}/experiences`)
 const editing = ref(false)
 // The list only deletes; naming and creating an experience is the `new` level's
 // work, so this draft is never written to.

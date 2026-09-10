@@ -73,7 +73,6 @@ import { requireProductPresentation } from '~/utils/product-presentation'
 const dashboardApi = useDashboardApi()
 const route = useRoute()
 const toast = useToast()
-const { locationPaths } = useDashboardSiteLinks()
 const siteId = await useDashboardSiteId()
 const dashboard = useDashboardSite()
 const dashboardLocation = useDashboardLocation()
@@ -84,7 +83,11 @@ const presentation = requireProductPresentation(vertical)
 useSeoMeta({ title: `${presentation.collectionLabel} | KrabiClaw Dashboard`, robots: 'noindex, nofollow' })
 
 const locationId = computed(() => dashboardLocation.currentLocation.value?.id ?? null)
-const productsPath = computed(() => locationPaths.value?.products ?? '')
+// The path comes from the route this screen is mounted on, not from the
+// location selector: an unresolved selector left it empty, and an empty path is
+// a link to nowhere and, where it roots the editor frame, a frame rooted at ''.
+const locationPath = computed(() => `/dashboard/${String(route.params.orgSlug)}/sites/${String(route.params.siteSlug)}/locations/${String(route.params.locationSlug)}`)
+const productsPath = computed(() => `${locationPath.value}/products`)
 
 // The cover is the first Product in the category that has a photo, which is how
 // the category reads on the public site too.

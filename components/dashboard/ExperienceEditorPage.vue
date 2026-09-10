@@ -316,9 +316,12 @@ import { getErrorMessage, isNotFoundError } from '~/utils/errors'
 const route = useRoute()
 const dashboardApi = useDashboardApi()
 const toast = useToast()
-const { locationPaths } = useDashboardSiteLinks()
 const experienceId = computed(() => String(route.params.experienceId ?? ''))
-const experiencesPath = computed(() => locationPaths.value?.experiences ?? '')
+// The path comes from the route this screen is mounted on, not from the
+// location selector: an unresolved selector left it empty, and an empty path is
+// a link to nowhere and, where it roots the editor frame, a frame rooted at ''.
+const locationPath = computed(() => `/dashboard/${String(route.params.orgSlug)}/sites/${String(route.params.siteSlug)}/locations/${String(route.params.locationSlug)}`)
+const experiencesPath = computed(() => `${locationPath.value}/experiences`)
 const experiencePath = computed(() => `${experiencesPath.value}/${experienceId.value}`)
 // `useEditorFrame` provides and injects, so it must run while setup is still
 // synchronous. Awaiting before it binds the frame to nothing: the mode never

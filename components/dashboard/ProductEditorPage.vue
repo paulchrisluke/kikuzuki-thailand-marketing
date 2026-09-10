@@ -254,10 +254,13 @@ import { getErrorMessage, isNotFoundError } from '~/utils/errors'
 const route = useRoute()
 const dashboardApi = useDashboardApi()
 const toast = useToast()
-const { locationPaths } = useDashboardSiteLinks()
 const categoryId = computed(() => String(route.params.categoryId ?? ''))
 const productId = computed(() => String(route.params.productId ?? ''))
-const productsPath = computed(() => locationPaths.value?.products ?? '')
+// The path comes from the route this screen is mounted on, not from the
+// location selector: an unresolved selector left it empty, and an empty path is
+// a link to nowhere and, where it roots the editor frame, a frame rooted at ''.
+const locationPath = computed(() => `/dashboard/${String(route.params.orgSlug)}/sites/${String(route.params.siteSlug)}/locations/${String(route.params.locationSlug)}`)
+const productsPath = computed(() => `${locationPath.value}/products`)
 const categoryPath = computed(() => `${productsPath.value}/${categoryId.value}`)
 const itemPath = computed(() => `${categoryPath.value}/${productId.value}`)
 // `useEditorFrame` provides and injects, so it must run while setup is still

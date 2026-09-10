@@ -89,7 +89,6 @@ import { requireProductPresentation } from '~/utils/product-presentation'
 const route = useRoute()
 const dashboardApi = useDashboardApi()
 const toast = useToast()
-const { locationPaths } = useDashboardSiteLinks()
 const siteId = await useDashboardSiteId()
 const dashboard = useDashboardSite()
 const dashboardLocation = useDashboardLocation()
@@ -99,7 +98,11 @@ if (!vertical) throw createError({ statusCode: 500, statusMessage: 'Site vertica
 const presentation = requireProductPresentation(vertical)
 const categoryId = computed(() => String(route.params.categoryId ?? ''))
 const locationId = computed(() => dashboardLocation.currentLocation.value?.id ?? null)
-const productsPath = computed(() => locationPaths.value?.products ?? '')
+// The path comes from the route this screen is mounted on, not from the
+// location selector: an unresolved selector left it empty, and an empty path is
+// a link to nowhere and, where it roots the editor frame, a frame rooted at ''.
+const locationPath = computed(() => `/dashboard/${String(route.params.orgSlug)}/sites/${String(route.params.siteSlug)}/locations/${String(route.params.locationSlug)}`)
+const productsPath = computed(() => `${locationPath.value}/products`)
 const categoryPath = computed(() => `${productsPath.value}/${categoryId.value}`)
 
 const catalog = useLocationProductCatalog(siteId, locationId)

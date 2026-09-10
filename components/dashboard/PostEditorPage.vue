@@ -251,9 +251,12 @@ import { getErrorMessage, isNotFoundError } from '~/utils/errors'
 
 const route = useRoute()
 const dashboardApi = useDashboardApi()
-const { locationPaths } = useDashboardSiteLinks()
 const postId = computed(() => String(route.params.postId ?? ''))
-const postsPath = computed(() => locationPaths.value?.posts ?? '')
+// The path comes from the route this screen is mounted on, not from the
+// location selector: an unresolved selector left it empty, and an empty path is
+// a link to nowhere and, where it roots the editor frame, a frame rooted at ''.
+const locationPath = computed(() => `/dashboard/${String(route.params.orgSlug)}/sites/${String(route.params.siteSlug)}/locations/${String(route.params.locationSlug)}`)
+const postsPath = computed(() => `${locationPath.value}/posts`)
 const postPath = computed(() => `${postsPath.value}/${postId.value}`)
 // `useEditorFrame` provides and injects, so it must run while setup is still
 // synchronous. Awaiting before it binds the frame to nothing: the mode never
@@ -396,16 +399,25 @@ function seedTopic(type: NewPostType): PostMutation {
  * component, so the editor's own `reactive` lost the body the moment you
  * navigated from Post to the event schedule. `useState` is keyed to the
  * record, so a half-written new post survives the walk between its own
- * sections and is discarded once the post exists. The location is part of the
- * key because a post belongs to one: a draft started for one location must not
- * reappear — and save — under another.
+ * sections and is discarded once the post exists.
+ *
+ * The draft carries the location it was written for rather than naming it in
+ * the key, which is only read once during setup: keyed by location, a change in
+ * the selector left the draft filed under the location it started in while the
+ * commit went to the new one. It is the same entry either way, and it is reset
+ * whenever it does not belong to the location now selected.
  */
-const draft = useState(`location-post-draft-${siteId}-${currentLocationId.value ?? 'missing'}-${postId.value}`, () => ({
-  topic: seedTopic('standard'),
-  body: '',
-}))
+const blankDraft = () => ({ location_id: currentLocationId.value, topic: seedTopic('standard'), body: '' })
+const draft = useState(`location-post-draft-${siteId}-${postId.value}`, blankDraft)
 
 if (isNew.value) {
+  if (draft.value.location_id !== currentLocationId.value) draft.value = blankDraft()
+  watch(currentLocationId, () => {
+    if (draft.value.location_id === currentLocationId.value) return
+    draft.value = blankDraft()
+    editor.form.topic = draft.value.topic
+    editor.form.body = draft.value.body
+  })
   editor.form.topic = draft.value.topic
   editor.form.body = draft.value.body
   // Synchronous so the draft is already written when a commit navigates away
@@ -610,7 +622,7 @@ async function saveCurrentEditor() {
     await navigateTo(`${postsPath.value}/${String(created.id)}`)
     // Once the post exists the draft is spent. Cleared after the navigation so
     // the watchers above, which stop with this component, cannot write it back.
-    draft.value = { topic: seedTopic('standard'), body: '' }
+    draft.value = blankDraft()
     return
   }
   if (await editor.save(postId.value)) await navigateTo(postPath.value)

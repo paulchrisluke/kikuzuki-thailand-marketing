@@ -39,9 +39,12 @@ import { requireProductPresentation } from '~/utils/product-presentation'
 definePageMeta({ layout: 'dashboard', cmsCapabilityKey: 'location.products' })
 
 const route = useRoute()
-const { locationPaths } = useDashboardSiteLinks()
 const categoryId = computed(() => String(route.params.categoryId ?? ''))
-const productsPath = computed(() => locationPaths.value?.products ?? '')
+// The path comes from the route this screen is mounted on, not from the
+// location selector: an unresolved selector left it empty, and an empty path is
+// a link to nowhere and, where it roots the editor frame, a frame rooted at ''.
+const locationPath = computed(() => `/dashboard/${String(route.params.orgSlug)}/sites/${String(route.params.siteSlug)}/locations/${String(route.params.locationSlug)}`)
+const productsPath = computed(() => `${locationPath.value}/products`)
 const categoryPath = computed(() => `${productsPath.value}/${categoryId.value}`)
 // `useEditorFrame` provides and injects, so it must run while setup is still
 // synchronous. Awaiting before it binds the frame to nothing: the mode never
