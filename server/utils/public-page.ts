@@ -72,7 +72,6 @@ interface SiteContent {
   hero_title?: string | null
   hero_subtitle?: string | null
   media?: Array<{ asset_id: string; slot: string; public_url?: string | null; thumbnail_url?: string | null; kind?: string | null }>
-  component?: string | null
   updated_at: string
 }
 
@@ -83,7 +82,6 @@ function groupContentBlocks(rows: SiteContent[]): Array<SiteContent & { _section
     if (!groups[section]) {
       groups[section] = { ...row, field: section, _section: section }
     } else {
-      if (row.component) groups[section].component = row.component
       for (const key of Object.keys(row) as Array<keyof SiteContent>) {
         if (groups[section][key] == null) (groups[section] as unknown as Record<string, unknown>)[key] = row[key]
       }
@@ -157,7 +155,6 @@ function tenantPageToContentRows(page: PublicTenantPage): SiteContent[] {
       type: block.type === 'image' || block.type === 'gallery' ? 'media' : 'text',
       source: 'tenant-pages',
       updated_at: page.updated_at,
-      component: null,
       media: block.media,
     } satisfies SiteContent
     if (block.type === 'hero') {

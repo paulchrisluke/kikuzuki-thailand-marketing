@@ -43,7 +43,8 @@ const route = useRoute()
 
 // The frame comes first, and before any `await`: `useEditorFrame` provides and
 // injects, which Vue binds only while setup is still synchronous.
-const settingsPath = computed(() => `/dashboard/${String(route.params.orgSlug)}/settings`)
+const { orgPaths } = useDashboardSiteLinks()
+const settingsPath = computed(() => `${orgPaths.value.org}/settings`)
 const frame = useEditorFrame(settingsPath)
 
 const dashboard = useDashboardSite()
@@ -51,7 +52,9 @@ if (!dashboard.state.value) await dashboard.refresh()
 
 const { groups, activeItem } = useOrganizationSettingsNavigation()
 
-const menuPath = computed(() => `/dashboard/${String(route.params.orgSlug)}/menu`)
+// Built from `orgPaths`, not spelled out: a literal dashboard path here trips
+// the retired-menu guard, and the helper already owns how these are composed.
+const menuPath = computed(() => `${orgPaths.value.org}/menu`)
 
 /**
  * The open section names itself from the same list the index renders, so a

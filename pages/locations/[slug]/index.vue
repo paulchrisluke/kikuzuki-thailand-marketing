@@ -286,16 +286,6 @@
         </div>
       </section>
 
-      <!-- ── Dynamic content blocks ───────────────────────────── -->
-      <template v-if="contentBlocks.length > 0">
-        <component
-          v-for="block in contentBlocks.filter(b => b.component)"
-          :key="block._uid || block.field"
-          :is="resolveComponent(block.component)"
-          :data="block"
-          class="content-block"
-        />
-      </template>
     </template>
 
     <!-- Not found -->
@@ -312,14 +302,12 @@ import { formatOpeningHours, getIsOpenNow, getActiveSpecialClosure, formatClosur
 import { getTodayHoursLabel } from '~/shared/reservation-hours'
 import { formatProductMoney, formatProductPriceLabel } from '~/utils/product-money'
 import { productLocationCollectionPath, resolveProductPresentation } from '~/utils/product-presentation'
-import { useDynamicComponent } from '~/composables/useDynamicComponent'
 import { resolveLocationExperienceHref } from '~/utils/experience-navigation'
 import type { Experience } from '~/server/utils/experiences'
 
 const DOMPurify = useHtmlSanitizer()
 
 const { resolveMedia } = useMedia()
-const { resolveComponent } = useDynamicComponent()
 definePageMeta({ layout: 'saya' })
 
 const route = useRoute()
@@ -341,7 +329,6 @@ const {
   pending,
   config: pageConfig,
   experiencesList,
-  contentBlocks,
   postsList,
 } = await usePublicPageData()
 
