@@ -167,6 +167,7 @@ test('Kikuzuki Localize preserves its translated address', async ({ browser, pla
       const payload = saveResponse.request().postDataJSON() as { values: { address: unknown } }
       expect(payload.values.address).toBe('325 ตำบลอ่าวนาง กระบี่ 81180 ประเทศไทย')
     } finally {
+      await cms.close()
       await dashboardContext.close()
     }
   } finally {

@@ -195,7 +195,7 @@ export const OG_IMAGE_WIDTH = 1200
 export const OG_IMAGE_HEIGHT = 630
 
 const TITLE_MAX_LENGTH = 70
-const DESCRIPTION_MAX_LENGTH = 160
+export const DESCRIPTION_MAX_LENGTH = 160
 
 /** Truncate text to fit social/SERP preview limits, breaking on a word boundary. */
 export function truncateForSeo(text: string | null | undefined, maxLength: number): string | undefined {

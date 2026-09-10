@@ -4,6 +4,7 @@ import { defineHandler } from 'nitro'
 import { getRouterParam } from 'nitro/h3'
 import { getQuery } from 'nitro/h3'
 import { assertExactCanonicalLocale } from '~/server/utils/localization'
+import { selectProductCategorySiblings } from '~/utils/product-seo'
 
 export default defineHandler(async (event) => {
   const siteId = getRouterParam(event, 'siteId')
@@ -24,6 +25,7 @@ export default defineHandler(async (event) => {
       vertical: result.site.vertical,
       brandName: result.site.brand_name,
       reviews,
+      categorySiblings: selectProductCategorySiblings(result.products, result.product),
       localeRepresentations: result.localeRepresentations,
     })
   } catch (error) {
