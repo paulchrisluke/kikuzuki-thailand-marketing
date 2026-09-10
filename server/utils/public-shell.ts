@@ -9,7 +9,7 @@ import { getCloudflareWaitUntil } from '~/server/utils/mcp-route-helpers'
 import { loadPublicBase } from '~/server/utils/public-base'
 import { appendPublicShellQueries, buildPublicShellPayload } from '~/server/utils/public-shell-query'
 import { previewSecretOf, resolvePreviewAuthorization } from '~/server/utils/preview-token'
-import { isPreviewContext } from '~/server/utils/tenant-hosts'
+import { isNonProductionHost } from '~/server/utils/tenant-hosts'
 import { recordRequestPhase } from '~/server/utils/request-metrics'
 import { isPublicShellPayload } from '~/utils/public-resource-contracts'
 import { assertExactCanonicalLocale, assertPublicSiteLanguageEntitlement } from '~/server/utils/localization'
@@ -43,7 +43,7 @@ export async function loadPublicShellSource(
   if (locale !== undefined) assertExactCanonicalLocale(locale)
   const previewAuthorized = await resolvePreviewAuthorization(event, siteId, previewSecretOf(env))
   const host = (event.req.headers.get('host')) ?? ''
-  const useCache = !previewAuthorized && !isPreviewContext(host)
+  const useCache = !previewAuthorized && !isNonProductionHost(host)
   const cacheKey = buildPublicResourceCacheKey(siteId, {
     contract: 'shell',
     page: null,

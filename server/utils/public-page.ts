@@ -39,7 +39,7 @@ import {
   resolveBookingPolicyIndex,
 } from "~/server/utils/booking-policies";
 import { getCloudflareWaitUntil } from "~/server/utils/mcp-route-helpers";
-import { isPreviewContext } from "~/server/utils/tenant-hosts";
+import { isNonProductionHost } from "~/server/utils/tenant-hosts";
 import { getPublishedPosts } from "~/server/utils/post-management";
 import { loadPublicBase } from "~/server/utils/public-base";
 import { appendPublicShellQueries, buildPublicShellPayload } from "~/server/utils/public-shell-query";
@@ -323,7 +323,7 @@ async function loadPublicPageSource(
   // a 60s-old cached response could serve pre-reseed content into a fresh E2E run.
   // Also skipped if any query input is invalid to prevent unbounded cache entries.
   const host = (event.req.headers.get("host")) ?? "";
-  const usePageCache = !isPreviewAuthorized && !isPreviewContext(host) && allInputsValid;
+  const usePageCache = !isPreviewAuthorized && !isNonProductionHost(host) && allInputsValid;
   const cacheKey = buildPublicResourceCacheKey(siteId, {
     contract: 'page',
     page,

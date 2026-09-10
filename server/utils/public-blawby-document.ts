@@ -9,7 +9,7 @@ import {
   putPublicResourceCache,
 } from '~/server/utils/public-resource-cache'
 import { recordRequestPhase } from '~/server/utils/request-metrics'
-import { isPreviewContext } from '~/server/utils/tenant-hosts'
+import { isNonProductionHost } from '~/server/utils/tenant-hosts'
 import { assertExactCanonicalLocale } from '~/server/utils/localization'
 import { BLAWBY_ROUTE_RECIPES, type BlawbyRouteRecipe } from '~/types/blawby'
 import {
@@ -62,7 +62,7 @@ export async function loadPublicBlawbyDocument(
 
   const host = event.req.headers.get('host') ?? ''
   const cache = env.SITE_CACHE
-  const useCache = !options.previewAuthorized && !isPreviewContext(host) && Boolean(cache)
+  const useCache = !options.previewAuthorized && !isNonProductionHost(host) && Boolean(cache)
   const cacheKey = buildPublicBlawbyDocumentCacheKey(siteId, recipe, slug, locale)
   const mutateResponseHeaders = options.mutateResponseHeaders ?? true
 

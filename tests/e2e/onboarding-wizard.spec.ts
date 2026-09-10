@@ -33,6 +33,14 @@ test('a new owner builds a draft and creates a site through the wizard', async (
   await expect(preview.locator('body')).toContainText(name)
   await expect(preview.locator('body')).not.toContainText('did not match its contract')
 
+  // The token authorized the first load and became a cookie, so navigating
+  // inside the preview keeps working without it. This is the whole point of the
+  // mechanism: the pending site is the real site, and its own links resolve.
+  const frame = page.frame({ url: /preview_token=/ })
+  expect(frame).not.toBeNull()
+  await frame!.evaluate(() => { window.location.href = window.location.pathname })
+  await expect(preview.locator('body')).toContainText(name)
+
   // Location: the country is asked once, as a picker that arrives on the product
   // default (United States) and is changed here.
   const locationCard = page.locator('.onboarding-step-widget').last()

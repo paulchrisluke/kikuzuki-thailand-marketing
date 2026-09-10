@@ -251,7 +251,6 @@ export default defineNuxtConfig({
           '/dashboard',
           '/dev',
           '/oauth',
-          '/preview',
           '/transfer',
           '/accept-invitation',
           '/contact/confirmed',
