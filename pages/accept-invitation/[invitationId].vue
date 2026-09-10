@@ -5,8 +5,13 @@
       <p class="mt-2 text-sm text-muted">Sign in with the email address that received this invitation.</p>
     </div>
 
-    <div v-if="sessionLoading || accepting" class="text-sm text-muted">
-      {{ accepting ? 'Accepting invitation…' : 'Loading…' }}
+    <!-- Not keyed on sessionLoading: the client reports pending for the tick
+         it hydrates on, so the server rendered the signed-out buttons where
+         the client wanted this node, and every load logged a hydration
+         mismatch. The session is awaited in setup, so by render time both
+         sides agree on isAuthenticated. -->
+    <div v-if="accepting" class="text-sm text-muted">
+      Accepting invitation…
     </div>
 
     <template v-else-if="!isAuthenticated">
