@@ -234,15 +234,19 @@ import { getErrorMessage, isNotFoundError } from '~/utils/errors'
 const route = useRoute()
 const dashboardApi = useDashboardApi()
 const { locationPaths } = useDashboardSiteLinks()
+const postId = computed(() => String(route.params.postId ?? ''))
+const postsPath = computed(() => locationPaths.value?.posts ?? '')
+const postPath = computed(() => `${postsPath.value}/${postId.value}`)
+// `useEditorFrame` provides and injects, so it must run while setup is still
+// synchronous. Awaiting before it binds the frame to nothing: the mode never
+// resolves and this level silently drops out of the chain.
+const frame = useEditorFrame(postPath)
+
 const siteId = await useDashboardSiteId()
 const dashboardLocation = useDashboardLocation()
 
-const postId = computed(() => String(route.params.postId ?? ''))
 const currentLocationId = computed(() => dashboardLocation.currentLocationId.value)
-const postsPath = computed(() => locationPaths.value?.posts ?? '')
-const postPath = computed(() => `${postsPath.value}/${postId.value}`)
 const editor = useLocationPostEditor(siteId, currentLocationId)
-const frame = useEditorFrame(postPath)
 
 const TYPE_LABELS: Record<string, string> = {
   standard: 'Update',

@@ -131,18 +131,22 @@ const dashboardApi = useDashboardApi()
 const route = useRoute()
 const dashboard = useDashboardSite()
 const dashboardLocation = useDashboardLocation()
-const siteId = await useDashboardSiteId()
-
-const locationId = computed(() => dashboardLocation.currentLocationId.value ?? '')
 const sitePath = computed(() => `/dashboard/${String(route.params.orgSlug)}/sites/${String(route.params.siteSlug)}`)
 const locationsPath = computed(() => `${sitePath.value}/locations`)
 const locationPath = computed(() => `${locationsPath.value}/${String(route.params.locationSlug)}`)
+// `useEditorFrame` provides and injects, so it must run while setup is still
+// synchronous. Awaiting before it binds the frame to nothing: the mode never
+// resolves and this level silently drops out of the chain.
+const frame = useEditorFrame(locationPath)
+
+const siteId = await useDashboardSiteId()
+
+const locationId = computed(() => dashboardLocation.currentLocationId.value ?? '')
 const settingsPath = computed(() => `${locationPath.value}/settings`)
 
 // Settings and Inbox are their own screens rather than sections of this one, so
 // they leave the chain entirely rather than taking a column in it.
 const STANDALONE_SECTIONS = ['settings', 'inbox']
-const frame = useEditorFrame(locationPath)
 const sectionSegment = computed(() => frame.childSegment.value ?? '')
 const rendersStandalone = computed(() => STANDALONE_SECTIONS.includes(sectionSegment.value))
 const hasDetail = computed(() => frame.mode.value === 'pair')

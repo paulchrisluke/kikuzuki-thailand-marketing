@@ -41,6 +41,14 @@ definePageMeta({ layout: 'dashboard', cmsCapabilityKey: 'location.products' })
 
 const route = useRoute()
 const { locationPaths } = useDashboardSiteLinks()
+const categoryId = computed(() => String(route.params.categoryId ?? ''))
+const productsPath = computed(() => locationPaths.value?.products ?? '')
+const categoryPath = computed(() => `${productsPath.value}/${categoryId.value}`)
+// `useEditorFrame` provides and injects, so it must run while setup is still
+// synchronous. Awaiting before it binds the frame to nothing: the mode never
+// resolves and this level silently drops out of the chain.
+const frame = useEditorFrame(categoryPath)
+
 const siteId = await useDashboardSiteId()
 const dashboard = useDashboardSite()
 const dashboardLocation = useDashboardLocation()
@@ -49,11 +57,7 @@ const vertical = dashboard.site.value?.vertical
 if (!vertical) throw createError({ statusCode: 500, statusMessage: 'Site vertical is not configured' })
 const presentation = requireProductPresentation(vertical)
 
-const categoryId = computed(() => String(route.params.categoryId ?? ''))
 const locationId = computed(() => dashboardLocation.currentLocation.value?.id ?? null)
-const productsPath = computed(() => locationPaths.value?.products ?? '')
-const categoryPath = computed(() => `${productsPath.value}/${categoryId.value}`)
-const frame = useEditorFrame(categoryPath)
 
 // The same catalog the two lists read, so titling this column costs no request.
 const catalog = useLocationProductCatalog(siteId, locationId)

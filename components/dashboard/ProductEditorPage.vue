@@ -250,6 +250,16 @@ const route = useRoute()
 const dashboardApi = useDashboardApi()
 const toast = useToast()
 const { locationPaths } = useDashboardSiteLinks()
+const categoryId = computed(() => String(route.params.categoryId ?? ''))
+const productId = computed(() => String(route.params.productId ?? ''))
+const productsPath = computed(() => locationPaths.value?.products ?? '')
+const categoryPath = computed(() => `${productsPath.value}/${categoryId.value}`)
+const itemPath = computed(() => `${categoryPath.value}/${productId.value}`)
+// `useEditorFrame` provides and injects, so it must run while setup is still
+// synchronous. Awaiting before it binds the frame to nothing: the mode never
+// resolves and this level silently drops out of the chain.
+const frame = useEditorFrame(itemPath)
+
 const siteId = await useDashboardSiteId()
 const dashboard = useDashboardSite()
 const dashboardLocation = useDashboardLocation()
@@ -261,12 +271,7 @@ const rawCurrency = dashboard.site.value?.default_currency
 if (!isCurrencyCode(rawCurrency)) throw createError({ statusCode: 500, statusMessage: 'Unsupported site currency' })
 const currency = rawCurrency
 
-const categoryId = computed(() => String(route.params.categoryId ?? ''))
-const productId = computed(() => String(route.params.productId ?? ''))
 const locationId = computed(() => dashboardLocation.currentLocation.value?.id ?? null)
-const productsPath = computed(() => locationPaths.value?.products ?? '')
-const categoryPath = computed(() => `${productsPath.value}/${categoryId.value}`)
-const itemPath = computed(() => `${categoryPath.value}/${productId.value}`)
 
 // ── Which leaf is open ──────────────────────────────────
 // A plain list, not derived from loaded data: the route is checked at setup,
@@ -293,7 +298,6 @@ const routeSegments = computed(() => {
 const detailKey = computed(() => routeSegments.value[0] ?? null)
 // Only read while a section is open; nothing defaults a section into the pane.
 const editorKey = computed<SectionKey>(() => (detailKey.value ?? 'photo') as SectionKey)
-const frame = useEditorFrame(itemPath)
 
 const isSectionKey = (value: string): value is SectionKey => SECTION_KEYS.some(key => key === value)
 // An unsupported route 404s rather than silently showing the first section.

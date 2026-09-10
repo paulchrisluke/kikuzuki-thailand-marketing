@@ -225,7 +225,9 @@ test.describe.serial('published Thai content saves through the CMS and renders w
         console.error('[e2e-localization-cms]', JSON.stringify({ event: 'transport_failed', method: request.method(),
           path: new URL(request.url()).pathname, durationMs: Date.now() - startedAt }))
       })
-      await openTenantPage(cms, `${baseURL}/dashboard/north-carolina-legal-services/sites/ncls/links`, {})
+      // The links leaf, where the list of links and its item sheets live. The
+      // page's own Localize control is in the level's navbar beside it.
+      await openTenantPage(cms, `${baseURL}/dashboard/north-carolina-legal-services/sites/ncls/links/links`, {})
     })
 
     test('loads and saves one representative Thai link translation through Localize', async () => {

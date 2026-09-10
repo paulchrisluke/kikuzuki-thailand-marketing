@@ -304,14 +304,19 @@ const route = useRoute()
 const dashboardApi = useDashboardApi()
 const toast = useToast()
 const { locationPaths } = useDashboardSiteLinks()
+const experienceId = computed(() => String(route.params.experienceId ?? ''))
+const experiencesPath = computed(() => locationPaths.value?.experiences ?? '')
+const experiencePath = computed(() => `${experiencesPath.value}/${experienceId.value}`)
+// `useEditorFrame` provides and injects, so it must run while setup is still
+// synchronous. Awaiting before it binds the frame to nothing: the mode never
+// resolves and this level silently drops out of the chain.
+const frame = useEditorFrame(experiencePath)
+
 const siteId = await useDashboardSiteId()
 const dashboard = useDashboardSite()
 const dashboardLocation = useDashboardLocation()
 
-const experienceId = computed(() => String(route.params.experienceId ?? ''))
 const currentLocationId = computed(() => dashboardLocation.currentLocationId.value)
-const experiencesPath = computed(() => locationPaths.value?.experiences ?? '')
-const experiencePath = computed(() => `${experiencesPath.value}/${experienceId.value}`)
 const calendarPath = computed(() => {
   const query = new URLSearchParams({
     view: 'availability',
@@ -349,7 +354,6 @@ const routeSegments = computed(() => {
 const detailKey = computed(() => routeSegments.value[0] ?? null)
 // Only read while a section is open; nothing defaults a section into the pane.
 const editorKey = computed(() => detailKey.value ?? 'details')
-const frame = useEditorFrame(experiencePath)
 
 // An unsupported route 404s rather than silently showing the first section.
 if (routeSegments.value.length > 1 || (detailKey.value && !validSectionKeys.has(detailKey.value))) {
