@@ -11,7 +11,7 @@
     <EditorNavigationList v-else :groups="navigationGroups" />
   </div>
 
-  <UDashboardPanel v-else id="site-links">
+  <UDashboardPanel v-else-if="!itemId" id="site-links">
     <template #header>
       <UDashboardNavbar title="Links page" :toggle="false">
         <template #leading>
@@ -119,8 +119,8 @@
             empty-icon="i-lucide-link"
             add-label="Add a link"
             reorderable
-            @add="openNew"
-            @open="openExisting"
+            @add="openNewItem"
+            @open="openItem"
             @remove="removeItem"
             @move="move"
           >
@@ -138,40 +138,98 @@
   </UDashboardPanel>
 
   <!--
-    The item sheet lives outside both renderings: a `?localize=content_block:…`
-    link opens one link's translations straight from the site hub's rail, before
-    any section has been opened.
+    A link is a record of its own, at `links/links/<id>`, with one leaf per
+    field. Adding is the same screen at `links/links/new`, so there is nothing
+    a sheet did that a URL does not.
   -->
-  <DashboardListItemDialog
-    v-model:open="dialogOpen"
-    :title="editingId ? 'Edit link' : 'Add a link'"
-    :removable="Boolean(editingId)"
-    :save-disabled="!itemForm.label.trim() || !itemForm.destination.trim()"
-    @save="applyItem"
-    @remove="removeEditing"
-  >
-    <UFormField label="Label" required>
-      <UInput v-model="itemForm.label" maxlength="120" autofocus class="w-full" />
-    </UFormField>
-    <UFormField label="Destination" required>
-      <UInput v-model="itemForm.destination" placeholder="/reservations or https://example.com" maxlength="2048" class="w-full" />
-    </UFormField>
-    <UFormField label="Status">
-      <USelect v-model="itemForm.status" :items="ITEM_STATUS_OPTIONS" class="w-full" />
-    </UFormField>
-    <template v-if="persistedEditingItem" #actions>
-      <DashboardResourceLocalization
-        :site-id="siteId"
-        resource-type="content_block"
-        :resource-id="persistedEditingItem.id"
-        resource-label="link"
-        :fields="linkItemLocalizationFields"
-        :load-values="locale => loadLinksLocalization(locale, persistedEditingItem!.id)"
-        :save-values="(locale, values) => saveLinksLocalization(locale, values, persistedEditingItem!.id)"
-        :language-settings-path="siteLocalizationSettingsPath"
-      />
+  <UDashboardPanel v-else id="site-links-item">
+    <template #header>
+      <UDashboardNavbar :title="isNewItem ? 'New link' : itemForm.label || 'Link'" :toggle="false">
+        <template #leading>
+          <DashboardNavbarLeading :to="itemsPath" label="Links" />
+        </template>
+        <template #right>
+          <DashboardResourceLocalization
+            v-if="itemRecord"
+            :site-id="siteId"
+            resource-type="content_block"
+            :resource-id="itemRecord.id"
+            resource-label="link"
+            :fields="linkItemLocalizationFields"
+            :load-values="locale => loadLinksLocalization(locale, itemId)"
+            :save-values="(locale, values) => saveLinksLocalization(locale, values, itemId)"
+            :language-settings-path="siteLocalizationSettingsPath"
+          />
+        </template>
+      </UDashboardNavbar>
     </template>
-  </DashboardListItemDialog>
+
+    <template #body>
+      <EditorPaneShell
+        :has-detail="Boolean(itemLeaf)"
+        :show-actions="Boolean(itemLeaf)"
+        :saving="saving"
+        :save-disabled="itemSaveDisabled"
+        :save-label="itemSaveLabel"
+        :detail-title="ITEM_SECTION_LABELS[openItemKey]"
+        :dismiss-to="itemPath"
+        @cancel="cancelItemEditor"
+        @save="saveItemSection"
+      >
+        <template #index>
+          <UAlert
+            v-if="errorMessage"
+            class="mb-6"
+            color="error"
+            variant="soft"
+            icon="i-lucide-triangle-alert"
+            :description="errorMessage"
+          />
+          <div v-if="!editorReady" class="space-y-3">
+            <USkeleton v-for="index in 3" :key="index" class="h-20 rounded-2xl" />
+          </div>
+          <template v-else>
+            <div v-if="isNewItem" class="mb-6 flex justify-end">
+              <UButton :label="createItemActionLabel" :loading="saving" @click="startOrCreateItem" />
+            </div>
+            <EditorNavigationList :groups="itemNavigationGroups" :active-item="itemLeaf" />
+          </template>
+        </template>
+
+        <template #detail>
+          <!-- The record's own values are still in flight; an input bound to the
+               empty draft would take a keystroke and then lose it. -->
+          <div v-if="!editorReady" class="space-y-4">
+            <USkeleton class="h-10" />
+            <USkeleton class="h-14" />
+          </div>
+
+          <UFormField v-else-if="openItemKey === 'label'" label="Label" required>
+            <UInput v-model="itemForm.label" maxlength="120" size="xl" autofocus class="w-full" />
+          </UFormField>
+
+          <UFormField v-else-if="openItemKey === 'destination'" label="Destination" required>
+            <UInput
+              v-model="itemForm.destination"
+              placeholder="/reservations or https://example.com"
+              maxlength="2048"
+              size="xl"
+              autofocus
+              class="w-full"
+            />
+          </UFormField>
+
+          <UFormField
+            v-else-if="openItemKey === 'status'"
+            label="Status"
+            description="A hidden link stays on the page's list and off the public page."
+          >
+            <USelect v-model="itemForm.status" :items="ITEM_STATUS_OPTIONS" size="xl" class="w-full" />
+          </UFormField>
+        </template>
+      </EditorPaneShell>
+    </template>
+  </UDashboardPanel>
 </template>
 
 <script setup lang="ts">
@@ -179,7 +237,6 @@ import EditorPaneShell from '~/components/dashboard/EditorPaneShell.vue'
 import EditorNavigationList, { type EditorNavigationGroup } from '~/components/dashboard/EditorNavigationList.vue'
 import DashboardListEditor from '~/components/dashboard/DashboardListEditor.vue'
 import DashboardResourceLocalization from '~/components/dashboard/DashboardResourceLocalization.vue'
-import DashboardListItemDialog from '~/components/dashboard/DashboardListItemDialog.vue'
 
 const dashboardApi = useDashboardApi()
 const route = useRoute()
@@ -255,16 +312,38 @@ const SECTION_LABELS: Record<SectionKey, string> = {
   'links': 'Links',
 }
 
+const ITEM_SECTION_LABELS = { label: 'Label', destination: 'Destination', status: 'Status' } as const
+type ItemSectionKey = keyof typeof ITEM_SECTION_LABELS
+
 const isSectionKey = (value: string): value is SectionKey => SECTION_KEYS.some(key => key === value)
+const isItemSectionKey = (value: string): value is ItemSectionKey => value in ITEM_SECTION_LABELS
 const detailKey = computed(() => frame.childSegment.value)
 // Only read while a section is open; nothing defaults a section into the pane.
 const editorKey = computed<SectionKey>(() => (detailKey.value ?? 'title') as SectionKey)
+
+// ── The link record below the links leaf ────────────────
+// `links/links/<id>` and `links/links/<id>/<field>` are two more levels of the
+// same chain. This level owns the chrome for both: the leaf above it has
+// yielded, so nothing else is drawing a panel around them.
+const itemsPath = computed(() => `${linksPath.value}/links`)
+const itemId = computed(() => (frame.rest.value[0] === 'links' && frame.rest.value.length > 1 ? String(frame.rest.value[1]) : ''))
+const itemLeaf = computed(() => (frame.rest.value.length > 2 ? String(frame.rest.value[2]) : null))
+const itemPath = computed(() => `${itemsPath.value}/${itemId.value}`)
+const isNewItem = computed(() => itemId.value === 'new')
+/** With nothing open the pane still shows the first field rather than empty space. */
+const openItemKey = computed<ItemSectionKey>(() => (itemLeaf.value ?? 'label') as ItemSectionKey)
 
 // An unsupported route 404s rather than silently showing the first section. A
 // watcher rather than a setup-time check, because moving between leaves reuses
 // this component without running setup again.
 watchEffect(() => {
-  if (frame.rest.value.length > 1 || (detailKey.value && !isSectionKey(detailKey.value))) {
+  const rest = frame.rest.value
+  if (rest.length === 0) return
+  if (rest.length === 1) {
+    if (!isSectionKey(rest[0]!)) throw createError({ statusCode: 404, statusMessage: 'Page not found' })
+    return
+  }
+  if (rest[0] !== 'links' || rest.length > 3 || (rest.length === 3 && !isItemSectionKey(rest[2]!))) {
     throw createError({ statusCode: 404, statusMessage: 'Page not found' })
   }
 })
@@ -292,9 +371,9 @@ const linksPageLocalizationFields = computed(() => [
   { key: 'seo_title', label: 'SEO title', source: data.value?.page.seo_title },
   { key: 'seo_description', label: 'SEO description', source: data.value?.page.seo_description, multiline: true },
 ])
-const persistedEditingItem = computed(() => data.value?.items.find(item => item.id === editingId.value) ?? null)
+const itemRecord = computed(() => data.value?.items.find(item => item.id === itemId.value) ?? null)
 const linkItemLocalizationFields = computed(() => [
-  { key: 'label', label: 'Label', source: persistedEditingItem.value?.label },
+  { key: 'label', label: 'Label', source: itemRecord.value?.label },
 ])
 const siteLocalizationSettingsPath = computed(() => `/dashboard/${route.params.orgSlug}/sites/${route.params.siteSlug}/settings/localization`)
 function localizedLinksPath(locale: string): string {
@@ -307,45 +386,47 @@ const listItems = computed(() => items.value.map(row => ({
   row,
 })))
 
-const itemForm = reactive({ label: '', destination: '', status: 'active' as ItemStatus })
+const editing = ref(false)
 
-// The dialog edits the draft, not the server: this page saves its details and its
-// links together through one endpoint, so "Save" here means "apply to the
-// document" and the leaf's Save is what persists it.
-const { editing, dialogOpen, editingId, openNew, openExisting, close, removeItem, removeEditing } = useListEditor<LinkItem>({
-  find: id => items.value.find(item => item.id === id) ?? null,
-  fill: (row) => {
-    itemForm.label = row.label
-    itemForm.destination = row.destination
-    itemForm.status = row.status
-  },
-  clear: () => {
-    itemForm.label = ''
-    itemForm.destination = ''
-    itemForm.status = 'active'
-  },
-  destroy: async (id) => {
-    items.value = items.value
-      .filter(item => item.id !== id)
-      .map((entry, sortOrder) => ({ ...entry, sort_order: sortOrder }))
-  },
+/**
+ * The record's draft outlives any one leaf: moving between leaves remounts this
+ * component, so a plain `reactive` would lose the label on the way to the
+ * destination — which is the whole of the create walk.
+ */
+const emptyItemDraft = () => ({
+  label: '',
+  destination: '',
+  status: 'active' as ItemStatus,
 })
+const itemForm = useState(`links-item-draft-${siteId}-${itemId.value}`, emptyItemDraft).value
 
-function applyItem() {
-  if (editingId.value) {
-    items.value = items.value.map(item => item.id === editingId.value
-      ? { ...item, label: itemForm.label, destination: itemForm.destination, status: itemForm.status }
-      : item)
-  } else {
-    items.value = [...items.value, {
-      id: `tmp_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
-      label: itemForm.label,
-      destination: itemForm.destination,
-      sort_order: items.value.length,
-      status: itemForm.status,
-    }]
-  }
-  close()
+/**
+ * `new` is one key for every link ever added here, so leaving that screen has
+ * to empty it. Left behind, the next Add opened pre-filled with the last link
+ * and reported nothing outstanding, which created a duplicate on one click.
+ */
+function clearItemDraft() {
+  Object.assign(itemForm, emptyItemDraft())
+}
+
+// A row and the add control go to the record rather than opening a sheet over
+// the list, so a link has an address and adding and editing are one screen.
+function openNewItem() {
+  void navigateTo(`${itemsPath.value}/new`)
+}
+
+function openItem(item: { id: string }) {
+  void navigateTo(`${itemsPath.value}/${item.id}`)
+}
+
+/**
+ * Removing and reordering stay draft edits applied by the Links leaf's own
+ * Save, which is what this list has always meant by an edit.
+ */
+function removeItem(item: { id: string }) {
+  items.value = items.value
+    .filter(entry => entry.id !== item.id)
+    .map((entry, sortOrder) => ({ ...entry, sort_order: sortOrder }))
 }
 
 function move(item: { id: string }, direction: -1 | 1) {
@@ -380,8 +461,8 @@ const linkLocalizationGenerations = new Map<string, number>()
 function isLinksTranslation(value: unknown): value is { localization: LinksTranslation } {
   return isRecord(value) && isRecord(value.localization) && typeof value.localization.updated_at === 'string' && Array.isArray(value.localization.content_blocks)
 }
-async function loadLinksLocalization(locale: string, itemId?: string): Promise<Record<string, unknown>> {
-  const key = itemId ?? form.id
+async function loadLinksLocalization(locale: string, linkItemId?: string): Promise<Record<string, unknown>> {
+  const key = linkItemId ?? form.id
   const generation = (linkLocalizationGenerations.get(key) ?? 0) + 1
   linkLocalizationGenerations.set(key, generation)
   let translation: LinksTranslation | null = null
@@ -394,20 +475,20 @@ async function loadLinksLocalization(locale: string, itemId?: string): Promise<R
   }
   if (generation !== linkLocalizationGenerations.get(key)) return {}
   linkLocalizationStates.set(key, { locale, translation })
-  if (itemId) return { label: translation?.content_blocks.find(block => block.source_block_id === itemId)?.data.label }
+  if (linkItemId) return { label: translation?.content_blocks.find(block => block.source_block_id === linkItemId)?.data.label }
   return { title: translation?.title, seo_title: translation?.seo_title, seo_description: translation?.seo_description }
 }
-async function saveLinksLocalization(locale: string, submitted: Record<string, unknown>, itemId?: string): Promise<void> {
-  const key = itemId ?? form.id
+async function saveLinksLocalization(locale: string, submitted: Record<string, unknown>, linkItemId?: string): Promise<void> {
+  const key = linkItemId ?? form.id
   const state = linkLocalizationStates.get(key)
   if (!state || state.locale !== locale) throw new Error('Choose the language again before saving.')
   const values = { title: state.translation?.title ?? null, seo_title: state.translation?.seo_title ?? null, seo_description: state.translation?.seo_description ?? null }
   let blocks = structuredClone(state.translation?.content_blocks ?? [])
-  if (itemId) {
-    const existing = blocks.find(block => block.source_block_id === itemId)
+  if (linkItemId) {
+    const existing = blocks.find(block => block.source_block_id === linkItemId)
     const label = typeof submitted.label === 'string' ? submitted.label.trim() : ''
-    blocks = blocks.filter(block => block.source_block_id !== itemId)
-    if (label) blocks.push({ id: existing?.id, source_block_id: itemId, type: 'cta', data: { label } })
+    blocks = blocks.filter(block => block.source_block_id !== linkItemId)
+    if (label) blocks.push({ id: existing?.id, source_block_id: linkItemId, type: 'cta', data: { label } })
   } else {
     for (const field of ['title', 'seo_title', 'seo_description'] as const) values[field] = typeof submitted[field] === 'string' ? submitted[field] : null
   }
@@ -437,9 +518,19 @@ watch(data, (value) => {
     const item = value.items.find(row => target === `content_block:${row.id}`)
     if (item) {
       openedLocalizationTarget = target
-      openExisting({ id: item.id })
+      void navigateTo(`${itemsPath.value}/${item.id}`)
     }
   }
+}, { immediate: true })
+
+function loadItemForm(row: LinkItem) {
+  itemForm.label = row.label
+  itemForm.destination = row.destination
+  itemForm.status = row.status
+}
+
+watch(itemRecord, (row) => {
+  if (row) loadItemForm(row)
 }, { immediate: true })
 
 // `pending` is the only signal needed: the fetch is client-only, so it is true
@@ -488,6 +579,49 @@ const navigationGroups = computed<EditorNavigationGroup[]>(() => [
   },
 ])
 
+const itemNavigationGroups = computed<EditorNavigationGroup[]>(() => [
+  {
+    id: 'link',
+    items: [
+      { id: 'label', label: 'Label', summary: itemForm.label.trim() || 'Not named yet', placeholder: !itemForm.label.trim(), to: `${itemPath.value}/label` },
+      { id: 'destination', label: 'Destination', summary: itemForm.destination.trim() || 'No destination yet', placeholder: !itemForm.destination.trim(), to: `${itemPath.value}/destination` },
+      { id: 'status', label: 'Status', summary: itemForm.status === 'hidden' ? 'Hidden' : 'Active', to: `${itemPath.value}/status` },
+    ],
+  },
+])
+
+/**
+ * Creating walks the fields the endpoint will not accept empty, naming where it
+ * is going, and saves once nothing is outstanding. Status has a default, so the
+ * walk never stops on it.
+ */
+const REQUIRED_ORDER: ItemSectionKey[] = ['label', 'destination']
+const outstanding = computed(() => REQUIRED_ORDER.filter(key => !itemForm[key].trim()))
+const nextOutstanding = computed(() => outstanding.value.find(key => key !== openItemKey.value) ?? null)
+
+const createItemActionLabel = computed(() => {
+  const next = outstanding.value[0]
+  return next ? `Start with ${ITEM_SECTION_LABELS[next]}` : 'Create link'
+})
+
+function startOrCreateItem() {
+  const next = outstanding.value[0]
+  if (next) return void navigateTo(`${itemPath.value}/${next}`)
+  void saveItemSection()
+}
+
+const openItemSectionIncomplete = computed(() => outstanding.value.includes(openItemKey.value))
+// A new record's Save advances the walk, so only the open field has to be
+// filled in. An existing one is being saved outright: a required field cleared
+// on another leaf would otherwise go back empty and read as "Untitled link".
+const itemSaveDisabled = computed(() => saving.value || !editorReady.value
+  || (isNewItem.value ? openItemSectionIncomplete.value : outstanding.value.length > 0))
+
+const itemSaveLabel = computed(() => {
+  if (!isNewItem.value) return undefined
+  return nextOutstanding.value ? `Next: ${ITEM_SECTION_LABELS[nextOutstanding.value]}` : 'Create link'
+})
+
 // ── Save / cancel ───────────────────────────────────────
 async function copyPublicUrl() {
   if (!publicLinksUrl.value) return
@@ -499,30 +633,40 @@ async function copyPublicUrl() {
   }
 }
 
+/**
+ * The page and its links are one document behind one endpoint, so a link's own
+ * Save sends the page beside it. The response is the document as stored, which
+ * is where a newly created link picks up its id.
+ */
+async function persist(nextItems: LinkItem[]) {
+  const response = await dashboardApi<{ page: ApiLinksPage; items: ApiLinkItem[] }>(`/api/editor/sites/${siteId}/links-page`, {
+    method: 'PATCH',
+    body: {
+      page: {
+        title: form.title,
+        robots: form.robots,
+        seo_title: form.seo_title,
+        seo_description: form.seo_description,
+      },
+      items: nextItems.map((item, index) => ({
+        id: item.id,
+        label: item.label,
+        destination: item.destination,
+        sort_order: index,
+        status: item.status,
+      })),
+    },
+    validate: isLinksResponse,
+  })
+  data.value = response
+  return response
+}
+
 async function save() {
   saving.value = true
   errorMessage.value = ''
   try {
-    const response = await dashboardApi<{ page: ApiLinksPage; items: ApiLinkItem[] }>(`/api/editor/sites/${siteId}/links-page`, {
-      method: 'PATCH',
-      body: {
-        page: {
-          title: form.title,
-          robots: form.robots,
-          seo_title: form.seo_title,
-          seo_description: form.seo_description,
-        },
-        items: items.value.map((item, index) => ({
-          id: item.id,
-          label: item.label,
-          destination: item.destination,
-          sort_order: index,
-          status: item.status,
-        })),
-      },
-      validate: isLinksResponse,
-    })
-    data.value = response
+    await persist(items.value)
     toast.add({ description: 'Links page saved', color: 'success' })
     await navigateTo(linksPath.value)
   } catch (error) {
@@ -535,6 +679,46 @@ async function save() {
   }
 }
 
+async function saveItemSection() {
+  if (itemSaveDisabled.value) return
+  if (isNewItem.value && nextOutstanding.value) {
+    await navigateTo(`${itemPath.value}/${nextOutstanding.value}`)
+    return
+  }
+  saving.value = true
+  errorMessage.value = ''
+  try {
+    const known = new Set(items.value.map(item => item.id))
+    const nextItems: LinkItem[] = isNewItem.value
+      ? [...items.value, {
+          id: `tmp_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+          label: itemForm.label,
+          destination: itemForm.destination,
+          sort_order: items.value.length,
+          status: itemForm.status,
+        }]
+      : items.value.map(item => item.id === itemId.value
+        ? { ...item, label: itemForm.label, destination: itemForm.destination, status: itemForm.status }
+        : item)
+    const response = await persist(nextItems)
+    if (isNewItem.value) {
+      const created = response.items.find(item => !known.has(item.id))
+      clearItemDraft()
+      toast.add({ description: 'Link created', color: 'success' })
+      await navigateTo(created ? `${itemsPath.value}/${created.id}` : itemsPath.value)
+      return
+    }
+    toast.add({ description: `${ITEM_SECTION_LABELS[openItemKey.value]} saved`, color: 'success' })
+    await navigateTo(itemPath.value)
+  } catch (error) {
+    errorMessage.value = error instanceof ApiClientError
+      ? error.message
+      : error instanceof Error ? error.message : 'Unable to save link'
+  } finally {
+    saving.value = false
+  }
+}
+
 /** Dismissing a leaf discards its draft, matching the settings sheets. */
 async function cancelEditor() {
   errorMessage.value = ''
@@ -542,6 +726,17 @@ async function cancelEditor() {
   await navigateTo(linksPath.value)
 }
 
+function cancelItemEditor() {
+  errorMessage.value = ''
+  if (isNewItem.value) {
+    clearItemDraft()
+    void navigateTo(itemsPath.value)
+    return
+  }
+  const row = itemRecord.value
+  if (row) loadItemForm(row)
+  void navigateTo(itemPath.value)
+}
 
 useSeoMeta({ title: 'Links page | KrabiClaw Dashboard', robots: 'noindex, nofollow' })
 </script>

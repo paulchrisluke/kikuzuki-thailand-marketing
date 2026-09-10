@@ -225,8 +225,9 @@ test.describe.serial('published Thai content saves through the CMS and renders w
         console.error('[e2e-localization-cms]', JSON.stringify({ event: 'transport_failed', method: request.method(),
           path: new URL(request.url()).pathname, durationMs: Date.now() - startedAt }))
       })
-      // The links leaf, where the list of links and its item sheets live. The
-      // page's own Localize control is in the level's navbar beside it.
+      // The links leaf, where the list of links lives. The page's own Localize
+      // control is in the level's navbar beside it; a link's own Localize is in
+      // the navbar of the record the row opens.
       await openTenantPage(cms, `${baseURL}/dashboard/north-carolina-legal-services/sites/ncls/links/links`, {})
     })
 
@@ -239,9 +240,12 @@ test.describe.serial('published Thai content saves through the CMS and renders w
       await expect(cms.getByTestId('localize-field-title')).toHaveValue('ลิงก์กฎหมายภาษาไทย')
       await cms.getByRole('button', { name: 'Cancel' }).click()
 
+      // A row opens the link's own level rather than a sheet, so the Localize
+      // that follows is the record's, in that level's navbar.
       await cms.getByTestId('list-editor-toggle').click()
       await cms.getByRole('button', { name: 'Edit Family law services' }).click()
-      await cms.getByRole('button', { name: 'Localize' }).last().click()
+      await expect(cms).toHaveURL(new RegExp(`/links/links/${links.items[0]!.id}$`))
+      await cms.getByTestId('localize-resource').click()
       await cms.getByTestId('localize-language').click()
       await cms.getByRole('option', { name: /ไทย \(th\)/ }).click()
       await expect(cms.getByTestId('localize-field-label')).toHaveValue('บริการกฎหมายครอบครัวเก่า')
@@ -255,7 +259,9 @@ test.describe.serial('published Thai content saves through the CMS and renders w
   })
 
   test('keeps dirty Thai Localize state after a rejected save', async () => {
-    await cms.getByRole('button', { name: 'Close Edit link' }).click()
+    // Back out of the link's level to the links leaf, whose navbar carries the
+    // page's own Localize.
+    await cms.getByTestId('dashboard-navbar-back').click()
     await cms.getByTestId('localize-resource').first().click()
     await cms.getByTestId('localize-language').click()
     await cms.getByRole('option', { name: /ไทย \(th\)/ }).click()
