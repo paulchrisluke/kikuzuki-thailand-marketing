@@ -84,9 +84,9 @@
   </div>
 </template>
 
-<script setup>
-import { $fetch } from 'ofetch'
-import { oauthContinuationDestination } from '~/shared/auth/oauth-login'
+<script setup lang="ts">
+import { authClient } from '~/lib/auth-client'
+import { fetchOAuthClientPrelogin, oauthContinuationDestination } from '~/shared/auth/oauth-login'
 
 definePageMeta({ layout: 'access', auth: false })
 
@@ -102,27 +102,17 @@ const isSelectAccountFlow = computed(() =>
 const oauthAuthorizeUrl = computed(() => `/api/auth/oauth2/authorize${route.fullPath.slice(route.path.length)}`)
 
 // ── Client metadata ───────────────────────────────────────────────────────────
-const clientName = ref('')
-const clientIcon = ref(null)
+const clientName = ref<string | null>(null)
+const clientIcon = ref<string | null>(null)
 const { user: sessionUser } = await useAuthSession()
 const existingSession = ref(sessionUser.value)
 
 onMounted(async () => {
-  // 1. Fetch registered client name / icon for the banner
-  const clientId = route.query.client_id
-  if (clientId && typeof clientId === 'string') {
-    try {
-      const data = await $fetch('/api/auth/oauth2/public-client-prelogin', {
-        method: 'POST',
-        body: { client_id: clientId, oauth_query: window.location.search.slice(1) },
-      })
-      if (data?.client_name) clientName.value = data.client_name
-      if (data?.logo_uri) clientIcon.value = data.logo_uri
-    } catch {
-      // Non-fatal — fall back to generic copy
-    }
-  }
-
+  // The banner names the app requesting access. With no client to look up, or
+  // a lookup that fails, the banner is omitted and the generic copy stands.
+  const client = await fetchOAuthClientPrelogin(route.query.client_id, window.location.search.slice(1))
+  clientName.value = client?.clientName ?? null
+  clientIcon.value = client?.logoUri ?? null
 })
 
 // ── Existing session state ────────────────────────────────────────────────────
@@ -162,14 +152,15 @@ async function continueWithSession() {
 async function switchAccount() {
   try {
     await authClient.signOut()
-  } catch {
-    // Ignore sign-out errors
+  } catch (cause) {
+    error.value = getErrorMessage(cause, 'Could not sign out. Please try again.')
+    return
   }
   existingSession.value = null
 }
 
 // ── Sign-in options (no existing session) ────────────────────────────────────
-const error = ref(null)
+const error = ref<string | null>(null)
 
 const { loading: authLoading, error: authError, signInWithGoogle } = useAuthOperation()
 watch(authError, value => { error.value = value })
@@ -187,7 +178,7 @@ const verificationEmail = ref('')
 const resendingVerification = ref(false)
 const verificationResent = ref(false)
 
-function showVerification(email) {
+function showVerification(email: string) {
   verificationEmail.value = email
   verificationResent.value = false
 }
@@ -204,8 +195,8 @@ async function resendVerification() {
     })
     if (result?.error) error.value = result.error.message || 'Could not resend verification email.'
     else verificationResent.value = true
-  } catch (err) {
-    error.value = err instanceof Error ? err.message : 'Could not resend verification email.'
+  } catch (cause) {
+    error.value = getErrorMessage(cause, 'Could not resend verification email.')
   } finally {
     resendingVerification.value = false
   }

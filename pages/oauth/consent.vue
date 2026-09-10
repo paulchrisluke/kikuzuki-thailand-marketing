@@ -12,8 +12,9 @@
       <!-- Signed-in account -->
       <div v-if="currentUser" class="mb-6">
         <p class="text-sm text-muted">
-          Logged in as <span class="text-default font-medium">{{ currentUser.name || currentUser.email }}</span>
-          <span v-if="currentUser.name" class="text-dimmed"> · {{ currentUser.email }}</span>.
+          Logged in as
+          <span v-if="currentUser.name" class="text-default font-medium">{{ currentUser.name }} · </span>
+          <span class="text-default font-medium">{{ currentUser.email }}</span>.
           <button
             type="button"
             class="text-primary hover:underline ml-1"
@@ -80,9 +81,12 @@
   </div>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { $fetch } from 'ofetch'
+import type { PlatformIconName } from '~/components/platform/PlatformIcon.vue'
 import { authClient } from '~/lib/auth-client'
+import { fetchOAuthClientPrelogin, oauthContinuationDestination } from '~/shared/auth/oauth-login'
+
 definePageMeta({ layout: 'access', auth: false })
 
 useSeoMeta({ robots: 'noindex, nofollow' })
@@ -90,26 +94,12 @@ useSeoMeta({ robots: 'noindex, nofollow' })
 const route = useRoute()
 
 // ── Client metadata ───────────────────────────────────────────────────────────
-const clientName = ref('')
-const currentUser = ref(null)
+const clientName = ref<string | null>(null)
+const { user: currentUser } = await useAuthSession()
 
 onMounted(async () => {
-  const clientId = route.query.client_id
-
-  // Check session and pre-fetch client name in parallel
-  const [sessionResult] = await Promise.allSettled([
-    authClient.getSession(),
-    clientId && typeof clientId === 'string'
-      ? $fetch('/api/auth/oauth2/public-client-prelogin', {
-          method: 'POST',
-          body: { client_id: clientId, oauth_query: window.location.search.slice(1) },
-        }).then((data) => { if (data?.client_name) clientName.value = data.client_name }).catch(() => {})
-      : Promise.resolve(),
-  ])
-
-  if (sessionResult.status === 'fulfilled' && sessionResult.value?.data?.user) {
-    currentUser.value = sessionResult.value.data.user
-  }
+  const client = await fetchOAuthClientPrelogin(route.query.client_id, window.location.search.slice(1))
+  clientName.value = client?.clientName ?? null
 })
 
 // ── Permission groups ─────────────────────────────────────────────────────────
@@ -121,7 +111,7 @@ const requestedScopes = computed(() => {
 
 const permissionGroups = computed(() => {
   const scopes = new Set(requestedScopes.value)
-  const groups = []
+  const groups: Array<{ icon: PlatformIconName, title: string, items: string[] }> = []
 
   if (scopes.has('openid')) {
     groups.push({
@@ -161,7 +151,7 @@ const permissionGroups = computed(() => {
 // ── Actions ───────────────────────────────────────────────────────────────────
 const accepting = ref(false)
 const denying = ref(false)
-const error = ref(null)
+const error = ref<string | null>(null)
 const switchingAccount = ref(false)
 
 /**
@@ -173,43 +163,43 @@ async function switchAccount() {
   switchingAccount.value = true
   try {
     await authClient.signOut()
-  } catch (err) {
-    error.value = err?.message ?? 'Could not sign out. Please try again.'
+  } catch (cause) {
+    error.value = getErrorMessage(cause, 'Could not sign out. Please try again.')
     switchingAccount.value = false
     return
   }
   window.location.href = `/oauth/login${route.fullPath.slice(route.path.length)}`
 }
 
-async function accept() {
-  if (switchingAccount.value || denying.value) return
-  accepting.value = true
+async function submitConsent(accept: boolean) {
   error.value = null
   try {
     const result = await $fetch('/api/auth/oauth2/consent', {
       method: 'POST',
-      body: { accept: true, oauth_query: window.location.search.slice(1) },
+      body: { accept, oauth_query: window.location.search.slice(1) },
     })
-    if (result?.url) window.location.href = result.url
-  } catch (err) {
-    error.value = err?.data?.message ?? err?.message ?? 'Something went wrong. Please try again.'
+    const destination = oauthContinuationDestination(result)
+    if (destination) window.location.href = destination
+  } catch (cause) {
+    error.value = getErrorMessage(cause, 'Something went wrong. Please try again.')
+  }
+}
+
+async function accept() {
+  if (switchingAccount.value || denying.value || accepting.value) return
+  accepting.value = true
+  try {
+    await submitConsent(true)
   } finally {
     accepting.value = false
   }
 }
 
 async function deny() {
-  if (switchingAccount.value || accepting.value) return
+  if (switchingAccount.value || accepting.value || denying.value) return
   denying.value = true
-  error.value = null
   try {
-    const result = await $fetch('/api/auth/oauth2/consent', {
-      method: 'POST',
-      body: { accept: false, oauth_query: window.location.search.slice(1) },
-    })
-    if (result?.url) window.location.href = result.url
-  } catch (err) {
-    error.value = err?.data?.message ?? err?.message ?? 'Something went wrong. Please try again.'
+    await submitConsent(false)
   } finally {
     denying.value = false
   }
