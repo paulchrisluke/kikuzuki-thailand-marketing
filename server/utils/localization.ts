@@ -625,7 +625,7 @@ export async function getProductCatalogLocalization(
   }
 }
 
-export async function syncProductCatalogLocalization(
+export async function replaceProductLocalizations(
   db: DbClient,
   input: {
     organizationId: string
@@ -717,7 +717,7 @@ export async function syncProductCatalogLocalization(
     params: [input.organizationId, input.siteId, locale, JSON.stringify(ids)],
   })
   try {
-    await executeBatch(db, statements, { operation: 'sync product catalog localization' })
+    await executeBatch(db, statements, { operation: 'replace product localizations' })
   } catch (error) {
     if (error instanceof Error && error.message.includes('UNIQUE constraint failed')) {
       localizationError(409, 'LOCALIZED_ROUTE_CONFLICT', 'A submitted Product route conflicts with existing localized content')

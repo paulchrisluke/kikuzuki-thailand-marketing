@@ -8,7 +8,7 @@
  */
 export const PRODUCT_LIMITS = {
   batchCreate: 400,
-  sync: 200,
+  reconcile: 200,
   category: 120,
   name: 240,
   description: 10_000,

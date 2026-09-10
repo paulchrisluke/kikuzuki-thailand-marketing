@@ -14,7 +14,7 @@ managed through it, KrabiClaw's own included.
 - OAuth2 authorization at `/api/auth/oauth2/` — ChatGPT handles auth before any tool call
 - MCP endpoint at `/api/mcp` (`server/api/mcp.post.ts`)
 - Scope: `tenant`
-- MCP capabilities cover site setup, locations, menus, experiences, posts, articles, media, locale management, Google Places, Facebook, and analytics.
+- MCP capabilities cover existing site settings, locations, menus, experiences, posts, articles, media, locale management, feature-flagged Facebook publishing, and analytics. Google Places lookup and domain setup are CMS-only.
 - Every public tool rejects unknown top-level arguments and declares explicit `readOnlyHint`, `openWorldHint`, and `destructiveHint` values. `server/utils/mcp-tools/shared.ts` contains the registry.
 - Location-scoped mutations require an explicit `location_id`. Product-by-ID mutations resolve the Product's stored owning location.
 - `chatgpt-app-submission.json` contains the review import data. Run `yarn chatgpt:submission:write` after changing the public tool catalog.
@@ -53,7 +53,7 @@ no reserved sentinel identity in code.
 
 ## Verticals
 
-KrabiClaw supports multiple business verticals. ChatGPT asks the user directly during onboarding (plain text) and passes the chosen vertical to `create_site`; the dashboard onboarding wizard and multi-site "Add a site" picker offer the same three choices.
+KrabiClaw supports multiple business verticals. Site creation happens in the dashboard onboarding wizard or multi-site "Add a site" picker, which offer these three choices; MCP manages existing sites.
 
 | Vertical (app-level) | Description | DB-stored as |
 |----------|-------------|-------------|
@@ -189,7 +189,7 @@ Both Saya and Blawby support a blog: Saya's is the shared `posts` primitive rend
 | WhatsApp Business API | ✅ Built — blocked on real number |
 | Facebook / Instagram Graph API | ✅ OAuth + Pages sync + publish built |
 | Google Places API sync | ✅ Live — hours, address, rating, reviews (up to 5) |
-| Google Places API | ✅ Live — location autocomplete + `import_from_maps` MCP tool |
+| Google Places API | ✅ Live — CMS location autocomplete and Places lookup |
 | Cloudflare R2 media host | ✅ Built — video upload/playback |
 | ChatGPT MCP app | ✅ Live — primary customer creation surface |
 | ChatGPT image generation | ✅ Live — `gpt-image-1`/`gpt-image-2` via Responses API |
@@ -294,7 +294,7 @@ The stable catalog identity and content record for a sellable offering. Product 
 _Avoid_: menu item as the combined product/price/placement model
 
 **Price**:
-The organization/site/location-scoped sellable monetary definition for a Product. A Price stores an integer minor-unit amount, ISO currency, structured unit (`item`, `person`, or `table`), tax behavior, optional compare-at amount, immutable provenance, and an ISO validity interval. Repricing closes the current interval and inserts a new Price; intervals for one Product may be scheduled but must not overlap. A site's default currency is only a creation default and never rewrites existing Prices. Order lines snapshot the Price and displayed values; changing an amount never rewrites historical order data.
+The organization/site/location-scoped sellable monetary definition for a Product. A Product may have a fixed Price, or no active Price with explicit customer-facing wording (for example “Market Price”) in its `details` entry keyed `price-note`. The two forms are mutually exclusive; zero is a real free Price, and absent wording is never invented. A Price stores an integer minor-unit amount, ISO currency, structured unit (`item`, `person`, or `table`), tax behavior, optional compare-at amount, immutable provenance, and an ISO validity interval. Repricing closes the current interval and inserts a new Price; intervals for one Product may be scheduled but must not overlap. A site's default currency is only a creation default and never rewrites existing Prices. Order lines snapshot the Price and displayed values; changing an amount never rewrites historical order data.
 _Avoid_: mutable price field on an immutable order, sale as an untracked total override
 
 **Experience**:

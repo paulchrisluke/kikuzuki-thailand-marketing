@@ -1,6 +1,6 @@
 {
   "surface": "tenant",
-  "fingerprint": "sha256:f0110a8aa994e482632a6b46eca42dd03a913cd5e602023ec119b04934e3c0c5",
+  "fingerprint": "sha256:53a9c6241244a2f6f30687fde55c9bf55ce58c5286a4c138f47e3a8cfa7e0139",
   "tools": [
     {
       "name": "attach_media",
@@ -6626,65 +6626,6 @@
       }
     },
     {
-      "name": "get_site_domains",
-      "inputSchema": {
-        "additionalProperties": false,
-        "properties": {
-          "site_id": {
-            "description": "Internal KrabiClaw site ID from get_workspace_context or list_sites, e.g. site-pottery-house. Do not pass a public URL, hostname, subdomain, custom domain, slug, or site name here.",
-            "type": "string"
-          }
-        },
-        "required": [],
-        "type": "object"
-      },
-      "outputSchema": {
-        "properties": {
-          "domains": {
-            "items": {
-              "properties": {
-                "domain": {
-                  "type": "string"
-                },
-                "id": {
-                  "type": "string"
-                },
-                "instructions": {
-                  "description": "DNS setup instructions for custom domains.",
-                  "type": "object"
-                },
-                "role": {
-                  "description": "'canonical' or 'secondary'",
-                  "type": "string"
-                },
-                "status": {
-                  "description": "'pending', 'active', 'failed', etc.",
-                  "type": "string"
-                },
-                "type": {
-                  "description": "'subdomain' or 'custom'",
-                  "type": "string"
-                }
-              },
-              "required": [
-                "id",
-                "domain",
-                "type",
-                "role",
-                "status"
-              ],
-              "type": "object"
-            },
-            "type": "array"
-          }
-        },
-        "required": [
-          "domains"
-        ],
-        "type": "object"
-      }
-    },
-    {
       "name": "get_site_media_assets",
       "inputSchema": {
         "additionalProperties": false,
@@ -7244,77 +7185,6 @@
           "organizations",
           "sites",
           "locations"
-        ],
-        "type": "object"
-      }
-    },
-    {
-      "name": "import_from_maps",
-      "inputSchema": {
-        "additionalProperties": false,
-        "properties": {
-          "maps_url": {
-            "description": "Google Maps URL or short share link (maps.app.goo.gl or google.com/maps/place/...).",
-            "type": "string"
-          }
-        },
-        "required": [
-          "maps_url"
-        ],
-        "type": "object"
-      },
-      "outputSchema": {
-        "properties": {
-          "business": {
-            "description": "Parsed business details from Google Places.",
-            "properties": {
-              "address": {
-                "type": "string"
-              },
-              "hours": {
-                "items": {
-                  "type": "string"
-                },
-                "type": "array"
-              },
-              "mapsUrl": {
-                "type": "string"
-              },
-              "name": {
-                "type": "string"
-              },
-              "phone": {
-                "type": [
-                  "string",
-                  "null"
-                ]
-              },
-              "placeId": {
-                "type": "string"
-              },
-              "rating": {
-                "type": [
-                  "number",
-                  "null"
-                ]
-              },
-              "reviewCount": {
-                "type": [
-                  "number",
-                  "null"
-                ]
-              }
-            },
-            "required": [
-              "name",
-              "address",
-              "placeId"
-            ],
-            "type": "object"
-          }
-        },
-        "required": [
-          "business"
         ],
         "type": "object"
       }
@@ -10984,6 +10854,621 @@
       }
     },
     {
+      "name": "reconcile_products",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "location_id": {
+            "type": "string"
+          },
+          "products": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "available": {
+                  "type": "boolean"
+                },
+                "canonical_url": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "category_id": {
+                  "description": "ID of a category at the selected location. Read list_product_categories first; use create_product_category when the intended section does not exist. Never send a category name in place of this ID.",
+                  "type": "string"
+                },
+                "description": {
+                  "type": "string"
+                },
+                "details": {
+                  "items": {
+                    "additionalProperties": false,
+                    "properties": {
+                      "key": {
+                        "maxLength": 80,
+                        "minLength": 1,
+                        "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+                        "type": "string"
+                      },
+                      "label": {
+                        "maxLength": 120,
+                        "minLength": 1,
+                        "type": "string"
+                      },
+                      "values": {
+                        "items": {
+                          "maxLength": 500,
+                          "minLength": 1,
+                          "type": "string"
+                        },
+                        "maxItems": 32,
+                        "minItems": 1,
+                        "type": "array"
+                      }
+                    },
+                    "required": [
+                      "key",
+                      "label",
+                      "values"
+                    ],
+                    "type": "object"
+                  },
+                  "maxItems": 24,
+                  "type": "array"
+                },
+                "featured": {
+                  "type": "boolean"
+                },
+                "featured_sort_order": {
+                  "type": "number"
+                },
+                "is_visible": {
+                  "type": "boolean"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "order_url": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "price": {
+                  "additionalProperties": false,
+                  "description": "Fixed numeric price, or null when this Product has no fixed amount. Zero means free and must not be used as a placeholder. Put explicit customer-facing wording in a details entry with key \"price-note\". Currency defaults to the site currency, unit defaults to item, and tax_behavior defaults to unspecified.",
+                  "properties": {
+                    "amount_minor": {
+                      "maximum": 9007199254740991,
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "compare_at_amount_minor": {
+                      "maximum": 9007199254740991,
+                      "minimum": 0,
+                      "type": [
+                        "integer",
+                        "null"
+                      ]
+                    },
+                    "currency": {
+                      "enum": [
+                        "THB",
+                        "USD",
+                        "EUR",
+                        "GBP",
+                        "JPY",
+                        "AUD",
+                        "CAD",
+                        "SGD",
+                        "HKD",
+                        "MYR",
+                        "IDR",
+                        "PHP",
+                        "VND",
+                        "INR"
+                      ],
+                      "type": "string"
+                    },
+                    "tax_behavior": {
+                      "enum": [
+                        "unspecified",
+                        "inclusive",
+                        "exclusive"
+                      ],
+                      "type": "string"
+                    },
+                    "unit": {
+                      "enum": [
+                        "item",
+                        "person",
+                        "table"
+                      ],
+                      "type": "string"
+                    },
+                    "valid_from": {
+                      "format": "date-time",
+                      "type": "string"
+                    },
+                    "valid_until": {
+                      "format": "date-time",
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "amount_minor"
+                  ],
+                  "type": [
+                    "object",
+                    "null"
+                  ]
+                },
+                "product_id": {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "robots": {
+                  "description": "Search engine indexing directive. Leave unset for the default index,follow.",
+                  "enum": [
+                    "index,follow",
+                    "noindex,follow",
+                    "index,nofollow",
+                    "noindex,nofollow",
+                    null
+                  ],
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "seo_description": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "seo_title": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "tags": {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                }
+              },
+              "required": [
+                "category_id",
+                "name",
+                "price"
+              ],
+              "type": "object"
+            },
+            "maxItems": 200,
+            "type": "array"
+          },
+          "set_missing_unavailable": {
+            "description": "When true, mark stored Products omitted from this complete request unavailable. At most 200 intended rows may be supplied.",
+            "type": "boolean"
+          },
+          "site_id": {
+            "description": "Internal KrabiClaw site ID from get_workspace_context or list_sites, e.g. site-pottery-house. Do not pass a public URL, hostname, subdomain, custom domain, slug, or site name here.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "location_id",
+          "products"
+        ],
+        "type": "object"
+      },
+      "outputSchema": {
+        "properties": {
+          "products": {
+            "items": {
+              "properties": {
+                "available": {
+                  "type": "boolean"
+                },
+                "canonical_url": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "category": {
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "slug": {
+                      "type": "string"
+                    },
+                    "sort_order": {
+                      "type": "number"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "name",
+                    "slug",
+                    "sort_order"
+                  ],
+                  "type": "object"
+                },
+                "category_id": {
+                  "type": "string"
+                },
+                "created_at": {
+                  "type": "string"
+                },
+                "created_by": {
+                  "type": "string"
+                },
+                "description": {
+                  "type": "string"
+                },
+                "details": {
+                  "items": {
+                    "additionalProperties": false,
+                    "properties": {
+                      "key": {
+                        "maxLength": 80,
+                        "minLength": 1,
+                        "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+                        "type": "string"
+                      },
+                      "label": {
+                        "maxLength": 120,
+                        "minLength": 1,
+                        "type": "string"
+                      },
+                      "values": {
+                        "items": {
+                          "maxLength": 500,
+                          "minLength": 1,
+                          "type": "string"
+                        },
+                        "maxItems": 32,
+                        "minItems": 1,
+                        "type": "array"
+                      }
+                    },
+                    "required": [
+                      "key",
+                      "label",
+                      "values"
+                    ],
+                    "type": "object"
+                  },
+                  "maxItems": 24,
+                  "type": "array"
+                },
+                "featured": {
+                  "type": "boolean"
+                },
+                "featured_sort_order": {
+                  "type": "number"
+                },
+                "gallery": {
+                  "items": {
+                    "properties": {
+                      "alt_text": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "asset_id": {
+                        "type": "string"
+                      },
+                      "duration": {
+                        "type": [
+                          "number",
+                          "null"
+                        ]
+                      },
+                      "height": {
+                        "type": [
+                          "number",
+                          "null"
+                        ]
+                      },
+                      "kind": {
+                        "enum": [
+                          "image",
+                          "video",
+                          "file"
+                        ],
+                        "type": "string"
+                      },
+                      "mime_type": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "provider": {
+                        "type": "string"
+                      },
+                      "public_url": {
+                        "type": "string"
+                      },
+                      "status": {
+                        "enum": [
+                          "active"
+                        ],
+                        "type": "string"
+                      },
+                      "thumbnail_url": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "width": {
+                        "type": [
+                          "number",
+                          "null"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "asset_id",
+                      "kind",
+                      "public_url",
+                      "status"
+                    ],
+                    "type": "object"
+                  },
+                  "type": "array"
+                },
+                "id": {
+                  "type": "string"
+                },
+                "image": {
+                  "properties": {
+                    "alt_text": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "asset_id": {
+                      "type": "string"
+                    },
+                    "duration": {
+                      "type": [
+                        "number",
+                        "null"
+                      ]
+                    },
+                    "height": {
+                      "type": [
+                        "number",
+                        "null"
+                      ]
+                    },
+                    "kind": {
+                      "enum": [
+                        "image",
+                        "video",
+                        "file"
+                      ],
+                      "type": "string"
+                    },
+                    "mime_type": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "provider": {
+                      "type": "string"
+                    },
+                    "public_url": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "enum": [
+                        "active"
+                      ],
+                      "type": "string"
+                    },
+                    "thumbnail_url": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "width": {
+                      "type": [
+                        "number",
+                        "null"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "asset_id",
+                    "kind",
+                    "public_url",
+                    "status"
+                  ],
+                  "type": [
+                    "object",
+                    "null"
+                  ]
+                },
+                "is_visible": {
+                  "type": "boolean"
+                },
+                "location_id": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "order_url": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "price": {
+                  "properties": {
+                    "amount_minor": {
+                      "type": "integer"
+                    },
+                    "compare_at_amount_minor": {
+                      "type": [
+                        "integer",
+                        "null"
+                      ]
+                    },
+                    "currency": {
+                      "type": "string"
+                    },
+                    "id": {
+                      "type": "string"
+                    },
+                    "provenance": {
+                      "type": "string"
+                    },
+                    "tax_behavior": {
+                      "enum": [
+                        "unspecified",
+                        "inclusive",
+                        "exclusive"
+                      ],
+                      "type": "string"
+                    },
+                    "unit": {
+                      "enum": [
+                        "item",
+                        "person",
+                        "table"
+                      ],
+                      "type": "string"
+                    },
+                    "valid_from": {
+                      "type": "string"
+                    },
+                    "valid_until": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "amount_minor",
+                    "currency",
+                    "unit",
+                    "tax_behavior",
+                    "compare_at_amount_minor",
+                    "valid_from",
+                    "valid_until",
+                    "provenance"
+                  ],
+                  "type": [
+                    "object",
+                    "null"
+                  ]
+                },
+                "robots": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "seo_description": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "seo_title": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "slug": {
+                  "type": "string"
+                },
+                "sort_order": {
+                  "type": "number"
+                },
+                "source": {
+                  "enum": [
+                    "manual",
+                    "template",
+                    "ai",
+                    "import",
+                    "copy"
+                  ],
+                  "type": "string"
+                },
+                "tags": {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                "updated_at": {
+                  "type": "string"
+                },
+                "updated_by": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "id",
+                "location_id",
+                "category_id",
+                "category",
+                "name",
+                "slug",
+                "description",
+                "price",
+                "is_visible",
+                "available",
+                "featured",
+                "featured_sort_order",
+                "sort_order",
+                "tags",
+                "details",
+                "image",
+                "gallery",
+                "source",
+                "created_at",
+                "updated_at",
+                "created_by",
+                "updated_by"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "products"
+        ],
+        "type": "object"
+      }
+    },
+    {
       "name": "remove_media",
       "inputSchema": {
         "additionalProperties": false,
@@ -12083,6 +12568,72 @@
       }
     },
     {
+      "name": "replace_product_localizations",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "items": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "product_id": {
+                  "type": "string"
+                },
+                "route_path": {
+                  "type": "string"
+                },
+                "values": {
+                  "additionalProperties": true,
+                  "description": "Localized values follow the canonical owner fields. content_document uses title, summary, slug, SEO fields and typed metadata; content_blocks edits its representation. Other allowed fields depend on resource_type. For product_category, use { name }. Product values never include category; category names are localized on the category record.",
+                  "type": "object"
+                }
+              },
+              "required": [
+                "product_id",
+                "values",
+                "route_path"
+              ],
+              "type": "object"
+            },
+            "maxItems": 250,
+            "minItems": 1,
+            "type": "array"
+          },
+          "locale": {
+            "type": "string"
+          },
+          "site_id": {
+            "description": "Internal KrabiClaw site ID from get_workspace_context or list_sites, e.g. site-pottery-house. Do not pass a public URL, hostname, subdomain, custom domain, slug, or site name here.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "locale",
+          "items"
+        ],
+        "type": "object"
+      },
+      "outputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "locale": {
+            "type": "string"
+          },
+          "updated_product_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "locale",
+          "updated_product_ids"
+        ],
+        "type": "object"
+      }
+    },
+    {
       "name": "reply_to_review",
       "inputSchema": {
         "additionalProperties": false,
@@ -12143,7 +12694,7 @@
         "additionalProperties": false,
         "properties": {
           "image_data_base64": {
-            "description": "Base64-encoded image data from image_generation_call.result, or a base64 data URL.",
+            "description": "Raw base64 image bytes or a base64 data URL already available from an external source; use save_generated_image_file for a native ChatGPT generated attachment.",
             "type": "string"
           },
           "prompt": {
@@ -12916,687 +13467,6 @@
         },
         "required": [
           "images"
-        ],
-        "type": "object"
-      }
-    },
-    {
-      "name": "sync_product_catalog_localization",
-      "inputSchema": {
-        "additionalProperties": false,
-        "properties": {
-          "items": {
-            "items": {
-              "additionalProperties": false,
-              "properties": {
-                "product_id": {
-                  "type": "string"
-                },
-                "route_path": {
-                  "type": "string"
-                },
-                "values": {
-                  "additionalProperties": true,
-                  "description": "Localized values follow the canonical owner fields. content_document uses title, summary, slug, SEO fields and typed metadata; content_blocks edits its representation. Other allowed fields depend on resource_type. For product_category, use { name }. Product values never include category; category names are localized on the category record.",
-                  "type": "object"
-                }
-              },
-              "required": [
-                "product_id",
-                "values",
-                "route_path"
-              ],
-              "type": "object"
-            },
-            "maxItems": 250,
-            "minItems": 1,
-            "type": "array"
-          },
-          "locale": {
-            "type": "string"
-          },
-          "site_id": {
-            "description": "Internal KrabiClaw site ID from get_workspace_context or list_sites, e.g. site-pottery-house. Do not pass a public URL, hostname, subdomain, custom domain, slug, or site name here.",
-            "type": "string"
-          }
-        },
-        "required": [
-          "locale",
-          "items"
-        ],
-        "type": "object"
-      },
-      "outputSchema": {
-        "additionalProperties": false,
-        "properties": {
-          "locale": {
-            "type": "string"
-          },
-          "updated_product_ids": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array"
-          }
-        },
-        "required": [
-          "locale",
-          "updated_product_ids"
-        ],
-        "type": "object"
-      }
-    },
-    {
-      "name": "sync_products",
-      "inputSchema": {
-        "additionalProperties": false,
-        "properties": {
-          "location_id": {
-            "type": "string"
-          },
-          "products": {
-            "items": {
-              "additionalProperties": false,
-              "properties": {
-                "available": {
-                  "type": "boolean"
-                },
-                "canonical_url": {
-                  "type": [
-                    "string",
-                    "null"
-                  ]
-                },
-                "category_id": {
-                  "description": "ID of a category at the selected location. Read list_product_categories first; use create_product_category when the intended section does not exist. Never send a category name in place of this ID.",
-                  "type": "string"
-                },
-                "description": {
-                  "type": "string"
-                },
-                "details": {
-                  "items": {
-                    "additionalProperties": false,
-                    "properties": {
-                      "key": {
-                        "maxLength": 80,
-                        "minLength": 1,
-                        "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
-                        "type": "string"
-                      },
-                      "label": {
-                        "maxLength": 120,
-                        "minLength": 1,
-                        "type": "string"
-                      },
-                      "values": {
-                        "items": {
-                          "maxLength": 500,
-                          "minLength": 1,
-                          "type": "string"
-                        },
-                        "maxItems": 32,
-                        "minItems": 1,
-                        "type": "array"
-                      }
-                    },
-                    "required": [
-                      "key",
-                      "label",
-                      "values"
-                    ],
-                    "type": "object"
-                  },
-                  "maxItems": 24,
-                  "type": "array"
-                },
-                "featured": {
-                  "type": "boolean"
-                },
-                "featured_sort_order": {
-                  "type": "number"
-                },
-                "is_visible": {
-                  "type": "boolean"
-                },
-                "name": {
-                  "type": "string"
-                },
-                "order_url": {
-                  "type": [
-                    "string",
-                    "null"
-                  ]
-                },
-                "price": {
-                  "additionalProperties": false,
-                  "description": "Fixed numeric price, or null when this Product has no fixed amount. Zero means free and must not be used as a placeholder. Put explicit customer-facing wording in a details entry with key \"price-note\". Currency defaults to the site currency, unit defaults to item, and tax_behavior defaults to unspecified.",
-                  "properties": {
-                    "amount_minor": {
-                      "maximum": 9007199254740991,
-                      "minimum": 0,
-                      "type": "integer"
-                    },
-                    "compare_at_amount_minor": {
-                      "maximum": 9007199254740991,
-                      "minimum": 0,
-                      "type": [
-                        "integer",
-                        "null"
-                      ]
-                    },
-                    "currency": {
-                      "enum": [
-                        "THB",
-                        "USD",
-                        "EUR",
-                        "GBP",
-                        "JPY",
-                        "AUD",
-                        "CAD",
-                        "SGD",
-                        "HKD",
-                        "MYR",
-                        "IDR",
-                        "PHP",
-                        "VND",
-                        "INR"
-                      ],
-                      "type": "string"
-                    },
-                    "tax_behavior": {
-                      "enum": [
-                        "unspecified",
-                        "inclusive",
-                        "exclusive"
-                      ],
-                      "type": "string"
-                    },
-                    "unit": {
-                      "enum": [
-                        "item",
-                        "person",
-                        "table"
-                      ],
-                      "type": "string"
-                    },
-                    "valid_from": {
-                      "format": "date-time",
-                      "type": "string"
-                    },
-                    "valid_until": {
-                      "format": "date-time",
-                      "type": [
-                        "string",
-                        "null"
-                      ]
-                    }
-                  },
-                  "required": [
-                    "amount_minor"
-                  ],
-                  "type": [
-                    "object",
-                    "null"
-                  ]
-                },
-                "product_id": {
-                  "minLength": 1,
-                  "type": "string"
-                },
-                "robots": {
-                  "description": "Search engine indexing directive. Leave unset for the default index,follow.",
-                  "enum": [
-                    "index,follow",
-                    "noindex,follow",
-                    "index,nofollow",
-                    "noindex,nofollow",
-                    null
-                  ],
-                  "type": [
-                    "string",
-                    "null"
-                  ]
-                },
-                "seo_description": {
-                  "type": [
-                    "string",
-                    "null"
-                  ]
-                },
-                "seo_title": {
-                  "type": [
-                    "string",
-                    "null"
-                  ]
-                },
-                "tags": {
-                  "items": {
-                    "type": "string"
-                  },
-                  "type": "array"
-                }
-              },
-              "required": [
-                "category_id",
-                "name",
-                "price"
-              ],
-              "type": "object"
-            },
-            "maxItems": 200,
-            "type": "array"
-          },
-          "set_missing_unavailable": {
-            "description": "When true, mark stored Products omitted from this complete request unavailable. At most 200 intended rows may be supplied.",
-            "type": "boolean"
-          },
-          "site_id": {
-            "description": "Internal KrabiClaw site ID from get_workspace_context or list_sites, e.g. site-pottery-house. Do not pass a public URL, hostname, subdomain, custom domain, slug, or site name here.",
-            "type": "string"
-          }
-        },
-        "required": [
-          "location_id",
-          "products"
-        ],
-        "type": "object"
-      },
-      "outputSchema": {
-        "properties": {
-          "products": {
-            "items": {
-              "properties": {
-                "available": {
-                  "type": "boolean"
-                },
-                "canonical_url": {
-                  "type": [
-                    "string",
-                    "null"
-                  ]
-                },
-                "category": {
-                  "properties": {
-                    "id": {
-                      "type": "string"
-                    },
-                    "name": {
-                      "type": "string"
-                    },
-                    "slug": {
-                      "type": "string"
-                    },
-                    "sort_order": {
-                      "type": "number"
-                    }
-                  },
-                  "required": [
-                    "id",
-                    "name",
-                    "slug",
-                    "sort_order"
-                  ],
-                  "type": "object"
-                },
-                "category_id": {
-                  "type": "string"
-                },
-                "created_at": {
-                  "type": "string"
-                },
-                "created_by": {
-                  "type": "string"
-                },
-                "description": {
-                  "type": "string"
-                },
-                "details": {
-                  "items": {
-                    "additionalProperties": false,
-                    "properties": {
-                      "key": {
-                        "maxLength": 80,
-                        "minLength": 1,
-                        "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
-                        "type": "string"
-                      },
-                      "label": {
-                        "maxLength": 120,
-                        "minLength": 1,
-                        "type": "string"
-                      },
-                      "values": {
-                        "items": {
-                          "maxLength": 500,
-                          "minLength": 1,
-                          "type": "string"
-                        },
-                        "maxItems": 32,
-                        "minItems": 1,
-                        "type": "array"
-                      }
-                    },
-                    "required": [
-                      "key",
-                      "label",
-                      "values"
-                    ],
-                    "type": "object"
-                  },
-                  "maxItems": 24,
-                  "type": "array"
-                },
-                "featured": {
-                  "type": "boolean"
-                },
-                "featured_sort_order": {
-                  "type": "number"
-                },
-                "gallery": {
-                  "items": {
-                    "properties": {
-                      "alt_text": {
-                        "type": [
-                          "string",
-                          "null"
-                        ]
-                      },
-                      "asset_id": {
-                        "type": "string"
-                      },
-                      "duration": {
-                        "type": [
-                          "number",
-                          "null"
-                        ]
-                      },
-                      "height": {
-                        "type": [
-                          "number",
-                          "null"
-                        ]
-                      },
-                      "kind": {
-                        "enum": [
-                          "image",
-                          "video",
-                          "file"
-                        ],
-                        "type": "string"
-                      },
-                      "mime_type": {
-                        "type": [
-                          "string",
-                          "null"
-                        ]
-                      },
-                      "provider": {
-                        "type": "string"
-                      },
-                      "public_url": {
-                        "type": "string"
-                      },
-                      "status": {
-                        "enum": [
-                          "active"
-                        ],
-                        "type": "string"
-                      },
-                      "thumbnail_url": {
-                        "type": [
-                          "string",
-                          "null"
-                        ]
-                      },
-                      "width": {
-                        "type": [
-                          "number",
-                          "null"
-                        ]
-                      }
-                    },
-                    "required": [
-                      "asset_id",
-                      "kind",
-                      "public_url",
-                      "status"
-                    ],
-                    "type": "object"
-                  },
-                  "type": "array"
-                },
-                "id": {
-                  "type": "string"
-                },
-                "image": {
-                  "properties": {
-                    "alt_text": {
-                      "type": [
-                        "string",
-                        "null"
-                      ]
-                    },
-                    "asset_id": {
-                      "type": "string"
-                    },
-                    "duration": {
-                      "type": [
-                        "number",
-                        "null"
-                      ]
-                    },
-                    "height": {
-                      "type": [
-                        "number",
-                        "null"
-                      ]
-                    },
-                    "kind": {
-                      "enum": [
-                        "image",
-                        "video",
-                        "file"
-                      ],
-                      "type": "string"
-                    },
-                    "mime_type": {
-                      "type": [
-                        "string",
-                        "null"
-                      ]
-                    },
-                    "provider": {
-                      "type": "string"
-                    },
-                    "public_url": {
-                      "type": "string"
-                    },
-                    "status": {
-                      "enum": [
-                        "active"
-                      ],
-                      "type": "string"
-                    },
-                    "thumbnail_url": {
-                      "type": [
-                        "string",
-                        "null"
-                      ]
-                    },
-                    "width": {
-                      "type": [
-                        "number",
-                        "null"
-                      ]
-                    }
-                  },
-                  "required": [
-                    "asset_id",
-                    "kind",
-                    "public_url",
-                    "status"
-                  ],
-                  "type": [
-                    "object",
-                    "null"
-                  ]
-                },
-                "is_visible": {
-                  "type": "boolean"
-                },
-                "location_id": {
-                  "type": "string"
-                },
-                "name": {
-                  "type": "string"
-                },
-                "order_url": {
-                  "type": [
-                    "string",
-                    "null"
-                  ]
-                },
-                "price": {
-                  "properties": {
-                    "amount_minor": {
-                      "type": "integer"
-                    },
-                    "compare_at_amount_minor": {
-                      "type": [
-                        "integer",
-                        "null"
-                      ]
-                    },
-                    "currency": {
-                      "type": "string"
-                    },
-                    "id": {
-                      "type": "string"
-                    },
-                    "provenance": {
-                      "type": "string"
-                    },
-                    "tax_behavior": {
-                      "enum": [
-                        "unspecified",
-                        "inclusive",
-                        "exclusive"
-                      ],
-                      "type": "string"
-                    },
-                    "unit": {
-                      "enum": [
-                        "item",
-                        "person",
-                        "table"
-                      ],
-                      "type": "string"
-                    },
-                    "valid_from": {
-                      "type": "string"
-                    },
-                    "valid_until": {
-                      "type": [
-                        "string",
-                        "null"
-                      ]
-                    }
-                  },
-                  "required": [
-                    "id",
-                    "amount_minor",
-                    "currency",
-                    "unit",
-                    "tax_behavior",
-                    "compare_at_amount_minor",
-                    "valid_from",
-                    "valid_until",
-                    "provenance"
-                  ],
-                  "type": [
-                    "object",
-                    "null"
-                  ]
-                },
-                "robots": {
-                  "type": [
-                    "string",
-                    "null"
-                  ]
-                },
-                "seo_description": {
-                  "type": [
-                    "string",
-                    "null"
-                  ]
-                },
-                "seo_title": {
-                  "type": [
-                    "string",
-                    "null"
-                  ]
-                },
-                "slug": {
-                  "type": "string"
-                },
-                "sort_order": {
-                  "type": "number"
-                },
-                "source": {
-                  "enum": [
-                    "manual",
-                    "template",
-                    "ai",
-                    "import",
-                    "copy"
-                  ],
-                  "type": "string"
-                },
-                "tags": {
-                  "items": {
-                    "type": "string"
-                  },
-                  "type": "array"
-                },
-                "updated_at": {
-                  "type": "string"
-                },
-                "updated_by": {
-                  "type": "string"
-                }
-              },
-              "required": [
-                "id",
-                "location_id",
-                "category_id",
-                "category",
-                "name",
-                "slug",
-                "description",
-                "price",
-                "is_visible",
-                "available",
-                "featured",
-                "featured_sort_order",
-                "sort_order",
-                "tags",
-                "details",
-                "image",
-                "gallery",
-                "source",
-                "created_at",
-                "updated_at",
-                "created_by",
-                "updated_by"
-              ],
-              "type": "object"
-            },
-            "type": "array"
-          }
-        },
-        "required": [
-          "products"
         ],
         "type": "object"
       }
