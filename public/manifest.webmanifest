@@ -4,7 +4,7 @@
   "short_name": "KrabiClaw",
   "description": "KrabiClaw dashboard",
   "start_url": "/dashboard",
-  "scope": "/",
+  "scope": "/dashboard",
   "display": "standalone",
   "display_override": ["fullscreen", "standalone"],
   "background_color": "#0B0D20",
