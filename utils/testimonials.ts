@@ -53,22 +53,21 @@ export const isReviewUpdatedResponse = (value: unknown): value is { updated: tru
 export const isReviewDeletedResponse = (value: unknown): value is { review_id: string; deleted: true } =>
   isRecord(value) && typeof value.review_id === 'string' && value.deleted === true
 
-/**
- * What `createOwnerEnteredSiteReview` refuses to insert without: a name, a
- * body, a rating in range, and an explicit publication consent. A record cannot
- * be posted as a blank draft, which is why the new-testimonial level holds its
- * state until all four are answered.
- */
+export type TestimonialSection = 'reviewer' | 'rating' | 'title' | 'content' | 'provenance' | 'status' | 'authorization'
+
+/** The sections `createOwnerEnteredSiteReview` refuses to insert without. */
 export function testimonialCreateBlockers(form: {
   author_name: string
   content: string
-  rating: number
+  rating: number | null
+  collection_method: CollectionMethod | undefined
   publication_authorized: boolean
-}): string[] {
-  const missing: string[] = []
-  if (!form.author_name.trim()) missing.push('Reviewer')
-  if (!form.content.trim()) missing.push('Testimonial')
-  if (!Number.isInteger(form.rating) || form.rating < 1 || form.rating > 5) missing.push('Rating')
-  if (!form.publication_authorized) missing.push('Publication authorization')
+}): TestimonialSection[] {
+  const missing: TestimonialSection[] = []
+  if (!form.author_name.trim()) missing.push('reviewer')
+  if (!form.content.trim()) missing.push('content')
+  if (form.rating === null || !Number.isInteger(form.rating) || form.rating < 1 || form.rating > 5) missing.push('rating')
+  if (!form.collection_method) missing.push('provenance')
+  if (!form.publication_authorized) missing.push('authorization')
   return missing
 }

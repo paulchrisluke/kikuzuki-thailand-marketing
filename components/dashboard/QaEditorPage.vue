@@ -80,8 +80,6 @@ const route = useRoute()
 const toast = useToast()
 const dashboardApi = useDashboardApi()
 
-// The frame comes first, and before any `await`: `useEditorFrame` provides and
-// injects, which Vue binds only while setup is still synchronous.
 const qaId = computed(() => String(route.params.qaId ?? ''))
 const qaPath = computed(() => `/dashboard/${String(route.params.orgSlug)}/sites/${String(route.params.siteSlug)}/qa`)
 const recordPath = computed(() => `${qaPath.value}/${qaId.value}`)
@@ -103,15 +101,11 @@ watchEffect(() => {
   }
 })
 
-/**
- * The draft outlives any one leaf: moving between sections remounts this
- * component, so a plain `reactive` would lose the question on the way to the
- * answer.
- */
 function emptyDraft() {
   return { question: '', answer: '', published: true }
 }
 
+// Keyed to the record so the draft survives the remount between sections.
 const form = useState(`qa-draft-${siteId}-${qaId.value}`, emptyDraft).value
 
 const saving = ref(false)
@@ -136,12 +130,12 @@ const { data, refresh } = await useAsyncData(
 
 const record = computed(() => data.value?.qa.find(row => row.id === qaId.value) ?? null)
 
-watch(record, (row) => {
-  if (!row) return
+function loadForm(row: QaRow) {
   form.question = row.question
   form.answer = row.answer ?? ''
   form.published = row.status === 'published'
-}, { immediate: true })
+}
+watch(record, (row) => { if (row) loadForm(row) }, { immediate: true })
 
 const blockers = computed(() => qaCreateBlockers(form))
 
@@ -156,43 +150,19 @@ const navigationGroups = computed<EditorNavigationGroup[]>(() => [
   },
 ])
 
-/**
- * Creating walks the sections the endpoint will not accept empty, naming where
- * it is going, and posts once nothing is outstanding. Only this level walks an
- * order, because only this level creates.
- */
-const REQUIRED_ORDER: SectionKey[] = ['question']
-const outstanding = computed(() => {
-  const names = new Set(blockers.value)
-  return REQUIRED_ORDER.filter(key => names.has(SECTION_LABELS[key]))
-})
-const nextOutstanding = computed(() => outstanding.value.find(key => key !== openKey.value) ?? null)
-
-const createActionLabel = computed(() => {
-  const next = outstanding.value[0]
-  return next ? `Start with ${SECTION_LABELS[next]}` : 'Create question'
+const { createActionLabel, saveLabel, saveDisabled, save: saveOpenSection, startOrCreate } = useCreateWalk({
+  recordPath,
+  isNew,
+  openKey,
+  labels: SECTION_LABELS,
+  order: ['question'],
+  missing: key => blockers.value.some(section => section === key),
+  noun: 'question',
+  saving,
+  commit,
 })
 
-function startOrCreate() {
-  const next = outstanding.value[0]
-  if (next) return void navigateTo(`${recordPath.value}/${next}`)
-  void saveOpenSection()
-}
-
-const openSectionIncomplete = computed(() => outstanding.value.includes(openKey.value))
-const saveDisabled = computed(() => saving.value || (isNew.value && openSectionIncomplete.value))
-
-const saveLabel = computed(() => {
-  if (!isNew.value) return undefined
-  return nextOutstanding.value ? `Next: ${SECTION_LABELS[nextOutstanding.value]}` : 'Create question'
-})
-
-async function saveOpenSection() {
-  if (saveDisabled.value) return
-  if (isNew.value && nextOutstanding.value) {
-    await navigateTo(`${recordPath.value}/${nextOutstanding.value}`)
-    return
-  }
+async function commit() {
   // The PATCH sends the whole record, and the form holds the row it was loaded
   // from. With no row — a load that failed — it holds its own blank defaults,
   // and saving would write those over the stored question.
@@ -213,10 +183,6 @@ async function saveOpenSection() {
     }
     if (isNew.value) {
       const created = await dashboardApi(`/api/editor/sites/${siteId}/qa`, { method: 'POST', body, validate: isQaCreated })
-      // `new` is one key for every question ever added here, so a successful
-      // create has to empty it. Left behind, the next Add opens pre-filled with
-      // the question just created and reports nothing outstanding, which is one
-      // click from a duplicate.
       Object.assign(form, emptyDraft())
       toast.add({ description: 'Question created', color: 'success' })
       await navigateTo(`${qaPath.value}/${created.id}`)
@@ -234,12 +200,7 @@ async function saveOpenSection() {
 }
 
 function closeDetail() {
-  const row = record.value
-  if (row) {
-    form.question = row.question
-    form.answer = row.answer ?? ''
-    form.published = row.status === 'published'
-  }
+  if (record.value) loadForm(record.value)
   void navigateTo(recordPath.value)
 }
 

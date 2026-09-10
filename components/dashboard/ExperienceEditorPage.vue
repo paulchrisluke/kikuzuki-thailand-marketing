@@ -386,29 +386,17 @@ if (frame.rest.value.length > 1 || (detailKey.value && !validSectionKeys.value.h
 const showActions = computed(() => editorKey.value !== 'photos')
 const saving = computed(() => editor.saving.value)
 
-/**
- * The sections the POST still needs, in the order it walks them. There is only
- * one, so the commit goes straight from naming the experience to creating it.
- */
-const outstanding = computed(() => REQUIRED_ORDER.filter(key => key === 'title' && !editor.form.title.trim()))
-const nextOutstanding = computed(() => outstanding.value.find(key => key !== editorKey.value) ?? null)
-
-const createActionLabel = computed(() => {
-  const next = outstanding.value[0]
-  return next ? `Start with ${sectionLabels[next]}` : 'Create experience'
-})
-
-function startOrCreate() {
-  const next = outstanding.value[0]
-  if (next) return void navigateTo(`${experiencePath.value}/${next}`)
-  void saveCurrentEditor()
-}
-
-const saveDisabled = computed(() => saving.value || (editorKey.value === 'title' && !editor.form.title.trim()))
-
-const saveLabel = computed(() => {
-  if (!isNew.value) return undefined
-  return nextOutstanding.value ? `Next: ${sectionLabels[nextOutstanding.value]}` : 'Create experience'
+const { createActionLabel, saveLabel, saveDisabled, save: saveCurrentEditor, startOrCreate } = useCreateWalk({
+  recordPath: experiencePath,
+  isNew,
+  openKey: editorKey,
+  labels: sectionLabels,
+  order: REQUIRED_ORDER,
+  missing: () => !editor.form.title.trim(),
+  noun: 'experience',
+  saving,
+  existingBlocked: () => editorKey.value === 'title' && !editor.form.title.trim(),
+  commit,
 })
 
 // ── Load ────────────────────────────────────────────────
@@ -616,13 +604,8 @@ const navigationGroups = computed<EditorNavigationGroup[]>(() => {
 })
 
 // ── Save / cancel ───────────────────────────────────────
-async function saveCurrentEditor() {
-  if (saveDisabled.value) return
+async function commit() {
   if (isNew.value) {
-    if (nextOutstanding.value) {
-      await navigateTo(`${experiencePath.value}/${nextOutstanding.value}`)
-      return
-    }
     const created = await editor.save(null)
     if (!created?.id) return
     // The draft is keyed to `new`, so it would greet the next experience with

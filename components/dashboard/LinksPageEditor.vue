@@ -617,36 +617,24 @@ const itemNavigationGroups = computed<EditorNavigationGroup[]>(() => [
   },
 ])
 
-/**
- * Creating walks the fields the endpoint will not accept empty, naming where it
- * is going, and saves once nothing is outstanding. Status has a default, so the
- * walk never stops on it.
- */
-const REQUIRED_ORDER: ItemSectionKey[] = ['label', 'destination']
-const outstanding = computed(() => REQUIRED_ORDER.filter(key => !itemForm[key].trim()))
-const nextOutstanding = computed(() => outstanding.value.find(key => key !== openItemKey.value) ?? null)
-
-const createItemActionLabel = computed(() => {
-  const next = outstanding.value[0]
-  return next ? `Start with ${ITEM_SECTION_LABELS[next]}` : 'Create link'
-})
-
-function startOrCreateItem() {
-  const next = outstanding.value[0]
-  if (next) return void navigateTo(`${itemPath.value}/${next}`)
-  void saveItemSection()
-}
-
-const openItemSectionIncomplete = computed(() => outstanding.value.includes(openItemKey.value))
-// A new record's Save advances the walk, so only the open field has to be
-// filled in. An existing one is being saved outright: a required field cleared
-// on another leaf would otherwise go back empty and read as "Untitled link".
-const itemSaveDisabled = computed(() => saving.value || !editorReady.value
-  || (isNewItem.value ? openItemSectionIncomplete.value : outstanding.value.length > 0))
-
-const itemSaveLabel = computed(() => {
-  if (!isNewItem.value) return undefined
-  return nextOutstanding.value ? `Next: ${ITEM_SECTION_LABELS[nextOutstanding.value]}` : 'Create link'
+const {
+  createActionLabel: createItemActionLabel,
+  saveLabel: itemSaveLabel,
+  saveDisabled: itemSaveDisabled,
+  save: saveItemSection,
+  startOrCreate: startOrCreateItem,
+} = useCreateWalk({
+  recordPath: itemPath,
+  isNew: isNewItem,
+  openKey: openItemKey,
+  labels: ITEM_SECTION_LABELS,
+  order: ['label', 'destination'],
+  missing: key => !itemForm[key].trim(),
+  noun: 'link',
+  saving: computed(() => saving.value || !editorReady.value),
+  // A required field cleared on another leaf would otherwise go back empty.
+  existingBlocked: outstanding => outstanding.length > 0,
+  commit: commitItem,
 })
 
 // ── Save / cancel ───────────────────────────────────────
@@ -706,12 +694,7 @@ async function save() {
   }
 }
 
-async function saveItemSection() {
-  if (itemSaveDisabled.value) return
-  if (isNewItem.value && nextOutstanding.value) {
-    await navigateTo(`${itemPath.value}/${nextOutstanding.value}`)
-    return
-  }
+async function commitItem() {
   saving.value = true
   errorMessage.value = ''
   try {

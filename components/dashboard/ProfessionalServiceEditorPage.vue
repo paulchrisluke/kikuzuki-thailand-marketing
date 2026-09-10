@@ -202,42 +202,19 @@ const navigationGroups = computed<EditorNavigationGroup[]>(() => [
   },
 ])
 
-// Creating walks the sections the endpoint will not accept empty, in this order.
-const REQUIRED_ORDER: SectionKey[] = ['name', 'slug', 'schema_type']
-const outstanding = computed(() => REQUIRED_ORDER.filter(key => blockers.value.includes(key as 'name' | 'slug' | 'schema_type')))
-const nextOutstanding = computed(() => outstanding.value.find(key => key !== openKey.value) ?? null)
-
-const createActionLabel = computed(() => {
-  const next = outstanding.value[0]
-  return next ? `Start with ${SECTION_LABELS[next]}` : 'Create service'
+const { createActionLabel, saveLabel, saveDisabled, save: saveOpenSection, startOrCreate } = useCreateWalk({
+  recordPath,
+  isNew,
+  openKey,
+  labels: SECTION_LABELS,
+  order: ['name', 'slug', 'schema_type'],
+  missing: key => blockers.value.some(section => section === key),
+  noun: 'service',
+  saving,
+  commit,
 })
 
-function startOrCreate() {
-  const next = outstanding.value[0]
-  if (next) return void navigateTo(`${recordPath.value}/${next}`)
-  void saveOpenSection()
-}
-
-/**
- * The open section's own value is the only thing that can block its commit —
- * and it blocks an existing record as well as a new one, because a name can be
- * emptied, and a slug the endpoint cannot accept can be typed, long after the
- * service was created.
- */
-const openSectionIncomplete = computed(() => outstanding.value.includes(openKey.value))
-const saveDisabled = computed(() => saving.value || openSectionIncomplete.value)
-
-const saveLabel = computed(() => {
-  if (!isNew.value) return undefined
-  return nextOutstanding.value ? `Next: ${SECTION_LABELS[nextOutstanding.value]}` : 'Create service'
-})
-
-async function saveOpenSection() {
-  if (saveDisabled.value) return
-  if (isNew.value && nextOutstanding.value) {
-    await navigateTo(`${recordPath.value}/${nextOutstanding.value}`)
-    return
-  }
+async function commit() {
   saving.value = true
   errorMessage.value = ''
   try {

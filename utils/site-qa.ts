@@ -34,10 +34,7 @@ export const isQaUpdated = (value: unknown): value is { updated: true; qa_id: st
 export const isQaDeleted = (value: unknown): value is { qa_id: string; deleted: true } =>
   isRecord(value) && typeof value.qa_id === 'string' && value.deleted === true
 
-/**
- * The question is the only field the create endpoint will not accept empty, so
- * it is the only step a new record has to answer before it can be posted.
- */
-export function qaCreateBlockers(form: { question: string }): string[] {
-  return form.question.trim() ? [] : ['Question']
+/** The question is the only field the create endpoint will not accept empty. */
+export function qaCreateBlockers(form: { question: string }): Array<'question'> {
+  return form.question.trim() ? [] : ['question']
 }

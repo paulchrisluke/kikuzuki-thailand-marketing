@@ -62,8 +62,8 @@
         has-detail
         :show-actions="editorKey !== 'photo'"
         :saving="saving"
-        :save-disabled="!sectionValid"
-        :save-label="isNew ? `Create ${presentation.itemLabel.toLowerCase()}` : undefined"
+        :save-disabled="saveDisabled"
+        :save-label="saveLabel"
         :detail-title="sectionLabels[editorKey]"
         :dismiss-to="itemPath"
         @cancel="cancelEditor"
@@ -316,18 +316,6 @@ if (frame.rest.value.length > 1 || (detailKey.value && !openSections.value.some(
 // ── Load ────────────────────────────────────────────────
 const categories = ref<ProductCategory[]>([])
 
-/**
- * A record that does not exist yet has one question to answer. Adding walks it
- * the way every other record does, at a URL of its own, rather than in a sheet
- * over the list.
- */
-const createActionLabel = computed(() => form.name.trim() ? `Create ${presentation.itemLabel.toLowerCase()}` : 'Start with Name')
-
-function startOrCreate() {
-  if (!form.name.trim()) return void navigateTo(`${itemPath.value}/name`)
-  void saveCurrentEditor()
-}
-
 const product = ref<Product | null>(null)
 const loadError = ref<string | null>(null)
 const saving = ref(false)
@@ -518,7 +506,20 @@ function payload() {
   }
 }
 
-async function saveCurrentEditor() {
+const { createActionLabel, saveLabel, saveDisabled, save: saveCurrentEditor, startOrCreate } = useCreateWalk({
+  recordPath: itemPath,
+  isNew,
+  openKey: editorKey,
+  labels: sectionLabels,
+  order: ['name'],
+  missing: () => !form.name.trim(),
+  noun: presentation.itemLabel.toLowerCase(),
+  saving,
+  existingBlocked: () => !sectionValid.value,
+  commit,
+})
+
+async function commit() {
   const id = locationId.value
   if (!id) return
   saving.value = true

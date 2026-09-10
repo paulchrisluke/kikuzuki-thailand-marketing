@@ -555,54 +555,27 @@ const sectionValid = computed(() => {
   return true
 })
 
-/**
- * Creating walks the required sections in order rather than describing what is
- * missing. The commit names where it is going — "Next: Post" — and only reads
- * "Create post" on the last one outstanding, so the owner is carried through
- * the post instead of being told to go back for a field.
- */
-const REQUIRED_ORDER: SectionKey[] = ['type', 'body', 'schedule']
-
-const outstanding = computed(() => REQUIRED_ORDER.filter((key) => {
+const { createActionLabel, saveLabel, saveDisabled, save: saveCurrentEditor, startOrCreate } = useCreateWalk<SectionKey>({
+  recordPath: postPath,
+  isNew,
+  openKey: editorKey,
+  labels: sectionLabels,
   // The type is chosen for you — a post is an update unless you say otherwise —
   // so it is walked past, and only visited when the owner opens it.
-  if (key === 'body') return !editor.form.body.trim()
-  if (key === 'schedule') return postNeedsSchedule(topic.value) && !postScheduleComplete(topic.value.event)
-  return false
-}))
-
-/** The next section still outstanding, ignoring the one already open. */
-const nextOutstanding = computed(() => outstanding.value.find(key => key !== editorKey.value) ?? null)
-
-const createActionLabel = computed(() => {
-  const next = outstanding.value[0]
-  return next ? `Start with ${sectionLabels.value[next]}` : 'Create post'
+  order: ['type', 'body', 'schedule'],
+  missing: (key) => {
+    if (key === 'body') return !editor.form.body.trim()
+    if (key === 'schedule') return postNeedsSchedule(topic.value) && !postScheduleComplete(topic.value.event)
+    return false
+  },
+  noun: 'post',
+  saving: editor.saving,
+  existingBlocked: () => !sectionValid.value,
+  commit,
 })
 
-const saveLabel = computed(() => {
-  if (!isNew.value) return undefined
-  return nextOutstanding.value ? `Next: ${sectionLabels.value[nextOutstanding.value]}` : 'Create post'
-})
-
-// The open section's own value is the only thing that can block its commit.
-const saveDisabled = computed(() => editor.saving.value
-  || (isNew.value ? outstanding.value.includes(editorKey.value) : !sectionValid.value))
-
-function startOrCreate() {
-  const next = outstanding.value[0]
-  if (next) return void navigateTo(`${postPath.value}/${next}`)
-  void saveCurrentEditor()
-}
-
-async function saveCurrentEditor() {
-  if (saveDisabled.value) return
+async function commit() {
   if (isNew.value) {
-    // Creating advances to the next outstanding section; the POST happens once
-    // nothing is left to answer.
-    if (nextOutstanding.value) {
-      await navigateTo(`${postPath.value}/${nextOutstanding.value}`)
-      return
-    }
     const created = await editor.save(null)
     if (!created?.id) return
     await navigateTo(`${postsPath.value}/${String(created.id)}`)
