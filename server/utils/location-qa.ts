@@ -71,8 +71,16 @@ function stringOrNull(value: unknown, maxLength: number) {
   return normalized ? normalized.slice(0, maxLength) : null
 }
 
-export async function listQa(db: DbClient, siteId: string, locationId: string | null, publishedOnly = false, pagePath?: string | null, locale = 'en') {
-  const scope = scopeSql(locationId, pagePath)
+/**
+ * `qaId` addresses one record whatever its scope. A dashboard record has a URL
+ * of its own — `/qa/<id>` — and cannot know the page it was filed under before
+ * it has read it, so an id lookup replaces the scope clause rather than
+ * narrowing it. Without an id this behaves exactly as before.
+ */
+export async function listQa(db: DbClient, siteId: string, locationId: string | null, publishedOnly = false, pagePath?: string | null, locale = 'en', qaId?: string | null) {
+  const scope = qaId
+    ? { clause: 'root.id = ?', params: [qaId] as unknown[] }
+    : scopeSql(locationId, pagePath)
   return queryAll<QaDocument>(db, `
     SELECT p.id, p.organization_id, p.site_id, root.location_id, root.scope_path AS page_path,
       p.title AS question, p.summary AS answer, (root.metadata_json ->> '$.question_author') AS question_author,

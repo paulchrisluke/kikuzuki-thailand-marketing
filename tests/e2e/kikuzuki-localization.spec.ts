@@ -153,7 +153,10 @@ test('Kikuzuki Localize preserves its translated address', async ({ browser, pla
     const dashboardContext = await browser.newContext({ baseURL, storageState: await owner.storageState() })
     const cms = await dashboardContext.newPage()
     try {
-      await openTenantPage(cms, `${baseURL}/dashboard/org-bVY8SxxUuG6Ctk2CQnfCk8T2cPsj4jJX/sites/kikuzuki-krabi-thailand/locations/kikuzuki-japanese-robatayaki-izakaya/settings/profile`, {})
+      // The settings level, not a `profile` section: that one leaf became
+      // name, slug, address, contact and status, and the level's own navbar is
+      // what carries Localize either way.
+      await openTenantPage(cms, `${baseURL}/dashboard/org-bVY8SxxUuG6Ctk2CQnfCk8T2cPsj4jJX/sites/kikuzuki-krabi-thailand/locations/kikuzuki-japanese-robatayaki-izakaya/settings`, {})
       await cms.getByTestId('localize-resource').click()
       await cms.getByTestId('localize-language').click()
       await cms.getByRole('option', { name: /ไทย \(th\)/ }).click()

@@ -18,7 +18,6 @@
     <template #body>
       <EditorPaneShell
         has-detail
-        show-desktop-detail
         :dismiss-to="productsPath"
         :detail-title="presentation.itemLabel"
         wide-detail
@@ -46,14 +45,16 @@ import { requireProductPresentation } from '~/utils/product-presentation'
 definePageMeta({ layout: 'dashboard', cmsCapabilityKey: 'location.products' })
 
 const route = useRoute()
-const { locationPaths } = useDashboardSiteLinks()
 const dashboard = useDashboardSite()
 
 const vertical = dashboard.site.value?.vertical
 if (!vertical) throw createError({ statusCode: 500, statusMessage: 'Site vertical is not configured' })
 const presentation = requireProductPresentation(vertical)
 
-const productsPath = computed(() => locationPaths.value?.products ?? '')
+// The path comes from the route this screen is mounted on, not from the
+// location selector: an unresolved selector left it empty, and an empty path is
+// a link to nowhere and, where it roots the editor frame, a frame rooted at ''.
 const locationPath = computed(() => `/dashboard/${String(route.params.orgSlug)}/sites/${String(route.params.siteSlug)}/locations/${String(route.params.locationSlug)}`)
+const productsPath = computed(() => `${locationPath.value}/products`)
 const frame = useEditorFrame(productsPath)
 </script>

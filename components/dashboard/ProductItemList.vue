@@ -71,24 +71,6 @@
           </div>
         </UFormField>
       </DashboardListItemDialog>
-
-      <DashboardListItemDialog
-        v-model:open="newDialogOpen"
-        :title="`Add a ${presentation.itemLabel.toLowerCase()}`"
-        :removable="false"
-        :saving="creating"
-        :save-disabled="!newName.trim()"
-        save-label="Add"
-        @save="createProduct"
-      >
-        <UFormField label="Name" required>
-          <UInput v-model="newName" size="xl" autofocus class="w-full" @keydown.enter="createProduct" />
-        </UFormField>
-        <p class="text-sm text-muted">
-          You'll land on this {{ presentation.itemLabel.toLowerCase() }}'s own page, where its photo, price,
-          description, tags and availability are each a section you can fill in.
-        </p>
-      </DashboardListItemDialog>
     </template>
   </UDashboardPanel>
 </template>
@@ -107,7 +89,6 @@ import { requireProductPresentation } from '~/utils/product-presentation'
 const route = useRoute()
 const dashboardApi = useDashboardApi()
 const toast = useToast()
-const { locationPaths } = useDashboardSiteLinks()
 const siteId = await useDashboardSiteId()
 const dashboard = useDashboardSite()
 const dashboardLocation = useDashboardLocation()
@@ -117,7 +98,11 @@ if (!vertical) throw createError({ statusCode: 500, statusMessage: 'Site vertica
 const presentation = requireProductPresentation(vertical)
 const categoryId = computed(() => String(route.params.categoryId ?? ''))
 const locationId = computed(() => dashboardLocation.currentLocation.value?.id ?? null)
-const productsPath = computed(() => locationPaths.value?.products ?? '')
+// The path comes from the route this screen is mounted on, not from the
+// location selector: an unresolved selector left it empty, and an empty path is
+// a link to nowhere and, where it roots the editor frame, a frame rooted at ''.
+const locationPath = computed(() => `/dashboard/${String(route.params.orgSlug)}/sites/${String(route.params.siteSlug)}/locations/${String(route.params.locationSlug)}`)
+const productsPath = computed(() => `${locationPath.value}/products`)
 const categoryPath = computed(() => `${productsPath.value}/${categoryId.value}`)
 
 const catalog = useLocationProductCatalog(siteId, locationId)
@@ -141,10 +126,6 @@ useSeoMeta({ title: () => `${category.value?.name ?? presentation.collectionLabe
 
 function priceLabel(product: Product) {
   return formatProductPriceLabel(product)
-}
-
-function isOne(value: unknown): value is { success: true; product: Product } {
-  return isRecord(value) && isRecord(value.product)
 }
 
 const load = catalog.refresh
@@ -224,47 +205,12 @@ async function moveSelected() {
   }
 }
 
-// Adding asks only for what names the item. Photo, price, description, tags and
-// the rest are sections of the item once it exists, so Add is not a wall of
-// fields before there is anything to attach them to.
-const newDialogOpen = ref(false)
-const newName = ref('')
-const creating = ref(false)
 
+/** Adding opens the item's own level, the same screen editing uses. */
 function openNew() {
-  newName.value = ''
-  newDialogOpen.value = true
+  void navigateTo(`${categoryPath.value}/new`)
 }
 
-async function createProduct() {
-  const id = locationId.value
-  if (!id || !newName.value.trim()) return
-  creating.value = true
-  try {
-    const response = await dashboardApi(`/api/editor/sites/${siteId}/locations/${id}/products`, {
-      method: 'POST',
-      body: {
-        name: newName.value.trim(),
-        category_id: categoryId.value,
-        description: '',
-        price: null,
-        order_url: null,
-        tags: [],
-        details: [],
-        is_visible: true,
-        available: true,
-        featured: false,
-      },
-      validate: isOne,
-    })
-    newDialogOpen.value = false
-    await navigateTo(`${categoryPath.value}/${response.product.id}`)
-  } catch (error) {
-    toast.add({ description: getErrorMessage(error, `Failed to add ${presentation.itemLabel.toLowerCase()}`), color: 'error' })
-  } finally {
-    creating.value = false
-  }
-}
 
 /** An item is its own screen now, so opening one is navigation, not a sheet. */
 function openExisting(item: { row: Product }) {

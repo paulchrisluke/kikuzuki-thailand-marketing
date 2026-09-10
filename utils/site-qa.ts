@@ -1,0 +1,43 @@
+// The site Q&A record, shared by the list and the record's own editor so
+// neither restates the other's shape.
+
+export interface QaRow {
+  id: string
+  question: string
+  answer: string | null
+  status: 'published' | 'hidden'
+  sort_order: number
+  page_path: string | null
+}
+
+export const isQaRow = (value: unknown): value is QaRow =>
+  isRecord(value)
+  && typeof value.id === 'string'
+  && typeof value.question === 'string'
+  && (value.answer === null || typeof value.answer === 'string')
+  && (value.status === 'published' || value.status === 'hidden')
+  && typeof value.sort_order === 'number'
+  && (value.page_path === null || typeof value.page_path === 'string')
+
+export const isQaResponse = (value: unknown): value is { qa: QaRow[] } =>
+  isRecord(value) && Array.isArray(value.qa) && value.qa.every(isQaRow)
+
+export const isQaCreated = (value: unknown): value is QaRow =>
+  isRecord(value)
+  && typeof value.id === 'string'
+  && typeof value.question === 'string'
+  && typeof value.sort_order === 'number'
+
+export const isQaUpdated = (value: unknown): value is { updated: true; qa_id: string } =>
+  isRecord(value) && value.updated === true && typeof value.qa_id === 'string'
+
+export const isQaDeleted = (value: unknown): value is { qa_id: string; deleted: true } =>
+  isRecord(value) && typeof value.qa_id === 'string' && value.deleted === true
+
+/**
+ * The question is the only field the create endpoint will not accept empty, so
+ * it is the only step a new record has to answer before it can be posted.
+ */
+export function qaCreateBlockers(form: { question: string }): string[] {
+  return form.question.trim() ? [] : ['Question']
+}

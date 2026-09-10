@@ -1,9 +1,9 @@
 import type { EditorNavigationGroup } from '~/components/dashboard/EditorNavigationList.vue'
 
-// Single source of truth for the organization settings index. Both the full
-// settings editor (components/dashboard/OrganizationSettingsShell.vue) and the
-// dashboard menu slideover render this same list, so an added or renamed
-// settings section shows up in both without touching either component.
+// Single source of truth for the organization settings index. The settings
+// level (pages/dashboard/[orgSlug]/settings.vue) and the dashboard menu
+// slideover render this same list, and the open section takes its title from
+// it too, so an added or renamed section shows up everywhere at once.
 export function useOrganizationSettingsNavigation() {
   const route = useRoute()
   const dashboard = useDashboardSite()

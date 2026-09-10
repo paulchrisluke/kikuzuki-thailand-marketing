@@ -13,7 +13,12 @@
       :title="`${presentation.itemLabel} could not be loaded`"
       :description="loadError"
     />
-    <EditorNavigationList v-else :groups="navigationGroups" @select="openMove" />
+    <template v-else>
+      <div v-if="isNew" class="mb-6 flex justify-end">
+        <UButton :label="createActionLabel" :loading="saving" @click="startOrCreate" />
+      </div>
+      <EditorNavigationList :groups="navigationGroups" @select="openMove" />
+    </template>
   </div>
 
   <UDashboardPanel v-else id="location-product-detail">
@@ -55,10 +60,10 @@
       <EditorPaneShell
         v-else
         has-detail
-        show-desktop-detail
         :show-actions="editorKey !== 'photo'"
         :saving="saving"
         :save-disabled="!sectionValid"
+        :save-label="isNew ? `Create ${presentation.itemLabel.toLowerCase()}` : undefined"
         :detail-title="sectionLabels[editorKey]"
         :dismiss-to="itemPath"
         @cancel="cancelEditor"
@@ -249,7 +254,20 @@ import { getErrorMessage, isNotFoundError } from '~/utils/errors'
 const route = useRoute()
 const dashboardApi = useDashboardApi()
 const toast = useToast()
-const { locationPaths } = useDashboardSiteLinks()
+const categoryId = computed(() => String(route.params.categoryId ?? ''))
+const productId = computed(() => String(route.params.productId ?? ''))
+// The path comes from the route this screen is mounted on, not from the
+// location selector: an unresolved selector left it empty, and an empty path is
+// a link to nowhere and, where it roots the editor frame, a frame rooted at ''.
+const locationPath = computed(() => `/dashboard/${String(route.params.orgSlug)}/sites/${String(route.params.siteSlug)}/locations/${String(route.params.locationSlug)}`)
+const productsPath = computed(() => `${locationPath.value}/products`)
+const categoryPath = computed(() => `${productsPath.value}/${categoryId.value}`)
+const itemPath = computed(() => `${categoryPath.value}/${productId.value}`)
+// `useEditorFrame` provides and injects, so it must run while setup is still
+// synchronous. Awaiting before it binds the frame to nothing: the mode never
+// resolves and this level silently drops out of the chain.
+const frame = useEditorFrame(itemPath)
+
 const siteId = await useDashboardSiteId()
 const dashboard = useDashboardSite()
 const dashboardLocation = useDashboardLocation()
@@ -261,12 +279,7 @@ const rawCurrency = dashboard.site.value?.default_currency
 if (!isCurrencyCode(rawCurrency)) throw createError({ statusCode: 500, statusMessage: 'Unsupported site currency' })
 const currency = rawCurrency
 
-const categoryId = computed(() => String(route.params.categoryId ?? ''))
-const productId = computed(() => String(route.params.productId ?? ''))
 const locationId = computed(() => dashboardLocation.currentLocation.value?.id ?? null)
-const productsPath = computed(() => locationPaths.value?.products ?? '')
-const categoryPath = computed(() => `${productsPath.value}/${categoryId.value}`)
-const itemPath = computed(() => `${categoryPath.value}/${productId.value}`)
 
 // ── Which leaf is open ──────────────────────────────────
 // A plain list, not derived from loaded data: the route is checked at setup,
@@ -293,16 +306,36 @@ const routeSegments = computed(() => {
 const detailKey = computed(() => routeSegments.value[0] ?? null)
 // Only read while a section is open; nothing defaults a section into the pane.
 const editorKey = computed<SectionKey>(() => (detailKey.value ?? 'photo') as SectionKey)
-const frame = useEditorFrame(itemPath)
 
-const isSectionKey = (value: string): value is SectionKey => SECTION_KEYS.some(key => key === value)
+/**
+ * Creating asks only for what the POST will not accept an item without. The
+ * photo, the price and the rest each need a saved id, so they are sections of
+ * the item once it exists — and a route naming one before then is not a page.
+ */
+const NEW_SECTION_KEYS: readonly SectionKey[] = ['name']
+const isNew = computed(() => productId.value === 'new')
+const openSections = computed<readonly SectionKey[]>(() => (isNew.value ? NEW_SECTION_KEYS : SECTION_KEYS))
+
 // An unsupported route 404s rather than silently showing the first section.
-if (routeSegments.value.length > 1 || (detailKey.value && !isSectionKey(detailKey.value))) {
+if (routeSegments.value.length > 1 || (detailKey.value && !openSections.value.some(key => key === detailKey.value))) {
   throw createError({ statusCode: 404, statusMessage: 'Page not found' })
 }
 
 // ── Load ────────────────────────────────────────────────
 const categories = ref<ProductCategory[]>([])
+
+/**
+ * A record that does not exist yet has one question to answer. Adding walks it
+ * the way every other record does, at a URL of its own, rather than in a sheet
+ * over the list.
+ */
+const createActionLabel = computed(() => form.name.trim() ? `Create ${presentation.itemLabel.toLowerCase()}` : 'Start with Name')
+
+function startOrCreate() {
+  if (!form.name.trim()) return void navigateTo(`${itemPath.value}/name`)
+  void saveCurrentEditor()
+}
+
 const product = ref<Product | null>(null)
 const loadError = ref<string | null>(null)
 const saving = ref(false)
@@ -322,7 +355,7 @@ const moveTargets = computed(() => categories.value.filter(row => row.id !== cat
 
 async function load() {
   const id = locationId.value
-  if (!id) return
+  if (!id || isNew.value) return
   loadError.value = null
   try {
     const [categoryResponse, productResponse] = await Promise.all([
@@ -402,6 +435,11 @@ function listSummary(values: readonly string[], empty: string) {
 
 const navigationGroups = computed<EditorNavigationGroup[]>(() => {
   const image = product.value?.image
+  // Photo, price, tags and the rest are sections of an item once it exists.
+  if (isNew.value) return [{
+    id: 'item',
+    items: [{ id: 'name', label: 'Name', summary: form.name || 'Not named yet', placeholder: !form.name, to: `${itemPath.value}/name` }],
+  }]
   return [
     {
       id: 'item',
@@ -463,7 +501,12 @@ function availabilitySummary(): string {
 
 // ── Save / cancel ───────────────────────────────────────
 function payload() {
-  const price = form.price_mode === 'amount'
+  // An amount mode with no amount is not an amount. Converting an empty string
+  // threw "USD amounts must use at most 2 fraction digits", which surfaced as a
+  // save that failed for a reason the owner had no way to act on — and made a
+  // brand-new item, which starts in amount mode with nothing typed,
+  // impossible to create at all.
+  const price = form.price_mode === 'amount' && form.price_major.trim()
     ? { amount_minor: majorAmountToMinor(form.price_major, currency), currency, unit: 'item' as const, tax_behavior: 'unspecified' as const }
     : null
   const details = fromProductDetailDrafts(form.details)
@@ -488,6 +531,13 @@ async function saveCurrentEditor() {
   if (!id) return
   saving.value = true
   try {
+    if (isNew.value) {
+      const created = await dashboardApi(`/api/editor/sites/${siteId}/locations/${id}/products`, {
+        method: 'POST', body: { ...payload(), category_id: categoryId.value }, validate: isOne,
+      })
+      await navigateTo(`${categoryPath.value}/${created.product.id}`)
+      return
+    }
     await dashboardApi(`/api/editor/sites/${siteId}/locations/${id}/products/${productId.value}`, {
       method: 'PATCH', body: payload(), validate: isOne,
     })
