@@ -10,7 +10,7 @@ import {
   createProductsBatch,
   getProduct,
   listLocationProducts,
-  syncProducts,
+  reconcileProducts,
   updateProduct,
 } from '../../server/utils/product-management.ts'
 
@@ -218,23 +218,23 @@ test('location-scoped Product writes require the supplied owning location', asyn
   await seedProduct(db, 'other-site-owned', 'other-site-location', true)
   assert.equal((await db.prepare("SELECT site_id FROM prices WHERE product_id = 'other-site-owned'").first<{ site_id: string }>())?.site_id, 'other-site')
   await assert.rejects(
-    syncProducts(db, 'org', 'site', 'secondary', [{ product_id: 'other-site-owned', category_id: 'cat-secondary', name: 'Wrong site', price: null }], { actorId: 'actor' }),
+    reconcileProducts(db, 'org', 'site', 'secondary', [{ product_id: 'other-site-owned', category_id: 'cat-secondary', name: 'Wrong site', price: null }], { actorId: 'actor' }),
     /not found at this location/i,
   )
   await assert.rejects(
-    syncProducts(db, 'org', 'site', 'primary', [{ product_id: 'secondary-owned', category_id: 'cat-secondary', name: 'Wrong target', price: null }], { actorId: 'actor' }),
+    reconcileProducts(db, 'org', 'site', 'primary', [{ product_id: 'secondary-owned', category_id: 'cat-secondary', name: 'Wrong target', price: null }], { actorId: 'actor' }),
     /not found at this location/i,
   )
   await assert.rejects(
-    syncProducts(db, 'org', 'site', 'missing-location', [], { actorId: 'actor' }),
+    reconcileProducts(db, 'org', 'site', 'missing-location', [], { actorId: 'actor' }),
     /Location not found/i,
   )
   await assert.rejects(
-    syncProducts(db, 'org', 'site', 'other-site-location', [], { actorId: 'actor' }),
+    reconcileProducts(db, 'org', 'site', 'other-site-location', [], { actorId: 'actor' }),
     /Location not found/i,
   )
   await assert.rejects(
-    syncProducts(db, 'org', 'site', 'secondary', [{ product_id: '   ', category_id: 'cat-secondary', name: 'Blank ID', price: null }], { actorId: 'actor' }),
+    reconcileProducts(db, 'org', 'site', 'secondary', [{ product_id: '   ', category_id: 'cat-secondary', name: 'Blank ID', price: null }], { actorId: 'actor' }),
     /non-empty string/i,
   )
 
@@ -264,7 +264,7 @@ test('Product writes preserve nullable Price semantics through D1', async (conte
   assert.equal((await listLocationProducts(db, 'org', 'site', 'secondary')).find(product => product.id === created.id)?.price, null)
   assert.equal((await db.prepare('SELECT COUNT(*) AS count FROM prices WHERE product_id = ?').bind(created.id).first<{ count: number }>())?.count, 0)
 
-  const fixed = await syncProducts(db, 'org', 'site', 'secondary', [{
+  const fixed = await reconcileProducts(db, 'org', 'site', 'secondary', [{
     product_id: created.id,
     category_id: created.category_id,
     name: created.name,
@@ -276,7 +276,7 @@ test('Product writes preserve nullable Price semantics through D1', async (conte
   assert.equal(fixed[0]?.price?.unit, 'item')
   assert.equal(fixed[0]?.price?.tax_behavior, 'unspecified')
 
-  const cleared = await syncProducts(db, 'org', 'site', 'secondary', [{
+  const cleared = await reconcileProducts(db, 'org', 'site', 'secondary', [{
     product_id: created.id,
     category_id: created.category_id,
     name: created.name,
@@ -330,8 +330,8 @@ test('concurrent Price mutations remain atomic under D1 batch semantics', async 
   let [firstDb, secondDb] = batchBarrierDatabases(db)
   let invalidationsBefore = await countCacheInvalidations(db, 'site')
   const replaceReplaceWinner = await assertOneWinner(
-    syncProducts(firstDb, 'org', 'site', 'secondary', [{ product_id: 'replace-replace', category_id: 'cat-secondary', name: 'replace-replace-A', price: fixedPrice(11000) }], { actorId: 'actor' }),
-    syncProducts(secondDb, 'org', 'site', 'secondary', [{ product_id: 'replace-replace', category_id: 'cat-secondary', name: 'replace-replace-B', price: fixedPrice(12000) }], { actorId: 'actor' }),
+    reconcileProducts(firstDb, 'org', 'site', 'secondary', [{ product_id: 'replace-replace', category_id: 'cat-secondary', name: 'replace-replace-A', price: fixedPrice(11000) }], { actorId: 'actor' }),
+    reconcileProducts(secondDb, 'org', 'site', 'secondary', [{ product_id: 'replace-replace', category_id: 'cat-secondary', name: 'replace-replace-B', price: fixedPrice(12000) }], { actorId: 'actor' }),
   )
   await assertPriceRows(db, 'replace-replace', { total: 2, active: 1, ended: 1, scheduled: 0 })
   await assertWinnerOnly(db, 'replace-replace', replaceReplaceWinner === 0 ? 'replace-replace-A' : 'replace-replace-B')
@@ -343,8 +343,8 @@ test('concurrent Price mutations remain atomic under D1 batch semantics', async 
   ;[firstDb, secondDb] = batchBarrierDatabases(db)
   invalidationsBefore = await countCacheInvalidations(db, 'site')
   const replaceClearWinner = await assertOneWinner(
-    syncProducts(firstDb, 'org', 'site', 'secondary', [{ product_id: 'replace-clear', category_id: 'cat-secondary', name: 'replace-clear-A', price: fixedPrice(11000) }], { actorId: 'actor' }),
-    syncProducts(secondDb, 'org', 'site', 'secondary', [{ product_id: 'replace-clear', category_id: 'cat-secondary', name: 'replace-clear-B', price: null }], { actorId: 'actor' }),
+    reconcileProducts(firstDb, 'org', 'site', 'secondary', [{ product_id: 'replace-clear', category_id: 'cat-secondary', name: 'replace-clear-A', price: fixedPrice(11000) }], { actorId: 'actor' }),
+    reconcileProducts(secondDb, 'org', 'site', 'secondary', [{ product_id: 'replace-clear', category_id: 'cat-secondary', name: 'replace-clear-B', price: null }], { actorId: 'actor' }),
   )
   await assertPriceRows(db, 'replace-clear', replaceClearWinner === 0
     ? { total: 2, active: 1, ended: 1, scheduled: 0 }
@@ -356,8 +356,8 @@ test('concurrent Price mutations remain atomic under D1 batch semantics', async 
   ;[firstDb, secondDb] = batchBarrierDatabases(db)
   invalidationsBefore = await countCacheInvalidations(db, 'site')
   const nullFixedWinner = await assertOneWinner(
-    syncProducts(firstDb, 'org', 'site', 'secondary', [{ product_id: 'null-fixed', category_id: 'cat-secondary', name: 'null-fixed-A', price: fixedPrice(11000) }], { actorId: 'actor' }),
-    syncProducts(secondDb, 'org', 'site', 'secondary', [{ product_id: 'null-fixed', category_id: 'cat-secondary', name: 'null-fixed-B', price: fixedPrice(12000) }], { actorId: 'actor' }),
+    reconcileProducts(firstDb, 'org', 'site', 'secondary', [{ product_id: 'null-fixed', category_id: 'cat-secondary', name: 'null-fixed-A', price: fixedPrice(11000) }], { actorId: 'actor' }),
+    reconcileProducts(secondDb, 'org', 'site', 'secondary', [{ product_id: 'null-fixed', category_id: 'cat-secondary', name: 'null-fixed-B', price: fixedPrice(12000) }], { actorId: 'actor' }),
   )
   await assertPriceRows(db, 'null-fixed', { total: 1, active: 1, ended: 0, scheduled: 0 })
   await assertWinnerOnly(db, 'null-fixed', nullFixedWinner === 0 ? 'null-fixed-A' : 'null-fixed-B')
@@ -367,8 +367,8 @@ test('concurrent Price mutations remain atomic under D1 batch semantics', async 
   ;[firstDb, secondDb] = batchBarrierDatabases(db)
   invalidationsBefore = await countCacheInvalidations(db, 'site')
   const scheduledWinner = await assertOneWinner(
-    syncProducts(firstDb, 'org', 'site', 'secondary', [{ product_id: 'scheduled', category_id: 'cat-secondary', name: 'scheduled-A', price: fixedPrice(11000, { valid_from: '2030-01-01T00:00:00.000Z', valid_until: '2030-12-01T00:00:00.000Z' }) }], { actorId: 'actor' }),
-    syncProducts(secondDb, 'org', 'site', 'secondary', [{ product_id: 'scheduled', category_id: 'cat-secondary', name: 'scheduled-B', price: fixedPrice(12000, { valid_from: '2030-06-01T00:00:00.000Z', valid_until: '2031-01-01T00:00:00.000Z' }) }], { actorId: 'actor' }),
+    reconcileProducts(firstDb, 'org', 'site', 'secondary', [{ product_id: 'scheduled', category_id: 'cat-secondary', name: 'scheduled-A', price: fixedPrice(11000, { valid_from: '2030-01-01T00:00:00.000Z', valid_until: '2030-12-01T00:00:00.000Z' }) }], { actorId: 'actor' }),
+    reconcileProducts(secondDb, 'org', 'site', 'secondary', [{ product_id: 'scheduled', category_id: 'cat-secondary', name: 'scheduled-B', price: fixedPrice(12000, { valid_from: '2030-06-01T00:00:00.000Z', valid_until: '2031-01-01T00:00:00.000Z' }) }], { actorId: 'actor' }),
   )
   await assertPriceRows(db, 'scheduled', { total: 1, active: 0, ended: 0, scheduled: 1 })
   await assertWinnerOnly(db, 'scheduled', scheduledWinner === 0 ? 'scheduled-A' : 'scheduled-B')
@@ -385,7 +385,7 @@ test('concurrent Price mutations remain atomic under D1 batch semantics', async 
   await assertWinnerOnly(db, 'update-replace', updateReplaceWinner === 0 ? 'update-replace-A' : 'update-replace-B')
   assert.equal(await countCacheInvalidations(db, 'site'), invalidationsBefore + 1)
 
-  // Verifies sync_products' complete-state contract for a row asserting
+  // Verifies reconcile_products' complete-state contract for a row asserting
   // the *same* fixed Price (no close/insert queued) raced against a
   // concurrent replacement of that Price. Unlike the races above, this
   // pair is not mutually exclusive — the no-op racer never writes to
@@ -401,8 +401,8 @@ test('concurrent Price mutations remain atomic under D1 batch semantics', async 
   let ordered = orderedBatchBarrier(db)
   invalidationsBefore = await countCacheInvalidations(db, 'site')
   const [samePriceFirstOutcome, replacementAfterOutcome] = await Promise.allSettled([
-    syncProducts(ordered.earlier, 'org', 'site', 'secondary', [{ product_id: 'same-price-first', category_id: 'cat-secondary', name: 'same-price-first-A', price: fixedPrice(10000) }], { actorId: 'actor' }),
-    syncProducts(ordered.later, 'org', 'site', 'secondary', [{ product_id: 'same-price-first', category_id: 'cat-secondary', name: 'same-price-first-B', price: fixedPrice(15000) }], { actorId: 'actor' }),
+    reconcileProducts(ordered.earlier, 'org', 'site', 'secondary', [{ product_id: 'same-price-first', category_id: 'cat-secondary', name: 'same-price-first-A', price: fixedPrice(10000) }], { actorId: 'actor' }),
+    reconcileProducts(ordered.later, 'org', 'site', 'secondary', [{ product_id: 'same-price-first', category_id: 'cat-secondary', name: 'same-price-first-B', price: fixedPrice(15000) }], { actorId: 'actor' }),
   ])
   assert.equal(samePriceFirstOutcome.status, 'fulfilled', JSON.stringify(samePriceFirstOutcome))
   assert.equal(replacementAfterOutcome.status, 'fulfilled', JSON.stringify(replacementAfterOutcome))
@@ -419,8 +419,8 @@ test('concurrent Price mutations remain atomic under D1 batch semantics', async 
   ordered = orderedBatchBarrier(db)
   invalidationsBefore = await countCacheInvalidations(db, 'site')
   const [replacementFirstOutcome, samePriceAfterOutcome] = await Promise.allSettled([
-    syncProducts(ordered.earlier, 'org', 'site', 'secondary', [{ product_id: 'replacement-first', category_id: 'cat-secondary', name: 'replacement-first-B', price: fixedPrice(15000) }], { actorId: 'actor' }),
-    syncProducts(ordered.later, 'org', 'site', 'secondary', [{ product_id: 'replacement-first', category_id: 'cat-secondary', name: 'replacement-first-A', price: fixedPrice(10000) }], { actorId: 'actor' }),
+    reconcileProducts(ordered.earlier, 'org', 'site', 'secondary', [{ product_id: 'replacement-first', category_id: 'cat-secondary', name: 'replacement-first-B', price: fixedPrice(15000) }], { actorId: 'actor' }),
+    reconcileProducts(ordered.later, 'org', 'site', 'secondary', [{ product_id: 'replacement-first', category_id: 'cat-secondary', name: 'replacement-first-A', price: fixedPrice(10000) }], { actorId: 'actor' }),
   ])
   assert.equal(replacementFirstOutcome.status, 'fulfilled', JSON.stringify(replacementFirstOutcome))
   assert.equal(samePriceAfterOutcome.status, 'rejected', JSON.stringify(samePriceAfterOutcome))
@@ -431,7 +431,7 @@ test('concurrent Price mutations remain atomic under D1 batch semantics', async 
   // cache-invalidation insert — must have rolled back.
   assert.equal(await countCacheInvalidations(db, 'site'), invalidationsBefore + 1)
 
-  // Verifies a rejected sync_products batch is atomic beyond the specific
+  // Verifies a rejected reconcile_products batch is atomic beyond the specific
   // Product/Price row it races on: the same batch also carries the dense
   // reorder write and (when requested) the omitted-products availability
   // write, both scoped to the whole location. A rejected batch must leave
@@ -444,11 +444,11 @@ test('concurrent Price mutations remain atomic under D1 batch semantics', async 
   ordered = orderedBatchBarrier(db)
   invalidationsBefore = await countCacheInvalidations(db, 'site')
   const [atomicityWinnerOutcome, atomicityLoserOutcome] = await Promise.allSettled([
-    syncProducts(ordered.earlier, 'org', 'site', 'secondary', [
+    reconcileProducts(ordered.earlier, 'org', 'site', 'secondary', [
       { product_id: 'atomicity-target', category_id: 'cat-secondary', name: 'atomicity-target-winner', price: fixedPrice(20000) },
       { product_id: 'atomicity-sibling', category_id: 'cat-secondary', name: 'atomicity-sibling', price: null },
     ], { actorId: 'actor' }),
-    syncProducts(ordered.later, 'org', 'site', 'secondary', [
+    reconcileProducts(ordered.later, 'org', 'site', 'secondary', [
       { product_id: 'atomicity-sibling', category_id: 'cat-secondary', name: 'atomicity-sibling', price: null, available: false },
       { product_id: 'atomicity-target', category_id: 'cat-secondary', name: 'atomicity-target-loser', price: fixedPrice(30000) },
     ], { actorId: 'actor' }),

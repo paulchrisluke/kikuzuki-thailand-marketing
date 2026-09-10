@@ -30,6 +30,7 @@ import { assertExactCanonicalLocale } from '~/server/utils/localization'
 import { publicResourceCacheInvalidationQuery } from '~/server/utils/public-resource-cache'
 import { buildSingleMediaPlacementQueries, insertInitialMediaPlacements, hydrateMediaAssetRefs } from '~/server/utils/media-asset-manager'
 import { isSingleMediaPlacement } from '~/shared/media-placement-contract'
+import { parseRobotsIntent, ROBOTS_INTENTS, type RobotsIntent } from '~/shared/robots-directive'
 import { getMediaPlacements } from '~/server/utils/media-placement'
 
 export interface TenantPageEditorInput {
@@ -131,6 +132,12 @@ function asString(value: unknown, field: string, required = false): string | nul
   return value.trim()
 }
 
+function asRobotsIntent(value: unknown): RobotsIntent | null {
+  const parsed = parseRobotsIntent(asString(value, 'robots'))
+  if (!parsed.ok) badRequest(`robots must be one of: ${ROBOTS_INTENTS.join(', ')}`)
+  return parsed.intent
+}
+
 function metadataForInput(input: TenantPageEditorInput, locale: string, path: string): TenantPageSnapshotMetadata {
   const pageType = input.pageType ?? 'custom'
   if (!TENANT_PAGE_TYPES.includes(pageType)) badRequest('pageType is invalid')
@@ -142,7 +149,7 @@ function metadataForInput(input: TenantPageEditorInput, locale: string, path: st
     seoTitle: asString(input.seoTitle, 'seoTitle'),
     seoDescription: asString(input.seoDescription, 'seoDescription'),
     canonicalUrl: asString(input.canonicalUrl, 'canonicalUrl'),
-    robots: asString(input.robots, 'robots'),
+    robots: asRobotsIntent(input.robots),
     pageType,
     recipe: asString(input.recipe, 'recipe'),
   }

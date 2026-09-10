@@ -273,6 +273,7 @@ import { formatProductMoney, formatProductPriceLabel } from '~/utils/product-mon
 import { resolveProductPresentation } from '~/utils/product-presentation'
 import { getActiveSpecialClosure } from '~/utils/formatters'
 import { resolveSiteExperienceHref } from '~/utils/experience-navigation'
+import { normalizeRobotsIntent } from '~/shared/robots-directive'
 
 const { siteId, draftId, site } = useTenantSite()
 const { locale, localePath, t } = useI18n()
@@ -406,7 +407,7 @@ if (siteId) {
     brand: {
       siteName: site?.brand_name || restaurantName.value,
     },
-    robots: pageConfig.value?.robots || null,
+    robots: normalizeRobotsIntent(pageConfig.value?.robots),
   }))
 }
 

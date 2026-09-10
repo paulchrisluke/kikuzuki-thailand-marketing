@@ -151,8 +151,8 @@ test('Kikuzuki Localize preserves its translated address', async ({ browser, pla
   try {
     await loginAs(owner, baseURL, 'user-e2e-kikuzuki-owner')
     const dashboardContext = await browser.newContext({ baseURL, storageState: await owner.storageState() })
+    const cms = await dashboardContext.newPage()
     try {
-      const cms = await dashboardContext.newPage()
       // The settings level, not a `profile` section: that one leaf became
       // name, slug, address, contact and status, and the level's own navbar is
       // what carries Localize either way.
@@ -170,6 +170,7 @@ test('Kikuzuki Localize preserves its translated address', async ({ browser, pla
       const payload = saveResponse.request().postDataJSON() as { values: { address: unknown } }
       expect(payload.values.address).toBe('325 ตำบลอ่าวนาง กระบี่ 81180 ประเทศไทย')
     } finally {
+      await cms.close()
       await dashboardContext.close()
     }
   } finally {

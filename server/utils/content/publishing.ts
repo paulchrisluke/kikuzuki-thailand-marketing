@@ -31,6 +31,7 @@ import { buildSingleMediaPlacementQueries, hydrateMediaPlacementRefs, insertInit
 import { COVER_SELECT, attachCoverMedia, coverJoinSql } from '~/server/utils/content/cover'
 import { attachPageQa } from '~/server/utils/location-qa'
 import { isSingleMediaPlacement } from '~/shared/media-placement-contract'
+import { parseRobotsIntent, ROBOTS_INTENTS } from '~/shared/robots-directive'
 import { getMediaPlacements } from '~/server/utils/media-placement'
 import { d1JsonStringSet } from '~/server/db/d1-limits'
 import { findAuthUsersByIds, type CloudflareEnv } from '~/server/utils/auth'
@@ -103,9 +104,6 @@ export function parseBlogEditorThemeTokens(value: string | null | undefined): Ap
 }
 
 
-export type PlatformRobotsDirective = 'index,follow' | 'noindex,follow' | 'index,nofollow' | 'noindex,nofollow'
-
-export const PLATFORM_ROBOTS_DIRECTIVES: readonly PlatformRobotsDirective[] = ['index,follow', 'noindex,follow', 'index,nofollow', 'noindex,nofollow']
 
 
 export interface BlogScope {
@@ -229,11 +227,12 @@ function assertStringLength(value: string | null | undefined, max: number, field
   }
 }
 
-function assertValidRobotsDirective(value: string | null | undefined) {
-  if (value == null) return
-  if (!PLATFORM_ROBOTS_DIRECTIVES.includes(value as PlatformRobotsDirective)) {
-    badRequest(`robots must be one of: ${PLATFORM_ROBOTS_DIRECTIVES.join(', ')}`)
-  }
+/** Canonicalizes the submitted intent in place; an unsupported value is a bad request. */
+function normalizeRobotsField(input: { robots?: string | null }) {
+  if (input.robots === undefined) return
+  const parsed = parseRobotsIntent(input.robots)
+  if (!parsed.ok) badRequest(`robots must be one of: ${ROBOTS_INTENTS.join(', ')}`)
+  input.robots = parsed.intent
 }
 
 /** KrabiClaw's own collections file every article under a fixed category that shapes its URL. */
@@ -516,9 +515,8 @@ export async function getPublishedBlogPost(db: DbClient, category: string, slug:
  * See getPublishedBlogPost above for why the page must call this
  * directly rather than doing a nested self-fetch back to the API route.
  */
-function normalizeBlankToNull(input: { canonical_url?: string | null; robots?: string | null }) {
+function normalizeBlankToNull(input: { canonical_url?: string | null }) {
   if (input.canonical_url !== undefined && input.canonical_url?.trim() === '') input.canonical_url = null
-  if (input.robots !== undefined && input.robots?.trim() === '') input.robots = null
 }
 
 // KrabiClaw's own collections have fixed category taxonomies because the category
@@ -542,7 +540,7 @@ function validateBlogCommon(input: Partial<PlatformBlogCreateInput>, isTenant: b
   if (input.seo_description !== undefined) assertStringLength(input.seo_description ?? null, BLOG_SEO_DESCRIPTION_MAX, 'seo_description')
   if (input.seo_keywords !== undefined) assertStringLength(input.seo_keywords ?? null, BLOG_SEO_KEYWORDS_MAX, 'seo_keywords')
   if (input.canonical_url !== undefined) assertValidCanonicalUrl(input.canonical_url)
-  if (input.robots !== undefined) assertValidRobotsDirective(input.robots)
+  normalizeRobotsField(input)
 }
 
 /**

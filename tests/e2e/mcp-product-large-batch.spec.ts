@@ -53,12 +53,12 @@ test('Product batches validate and commit atomically at the supported limit', as
     description: index === 0 ? 'Updated atomically' : `Original ${index + 1}`,
     price: { amount_minor: (100 + index) * 100, currency: 'USD', unit: 'item', tax_behavior: 'unspecified' },
   }))
-  const syncResponse = await mcpRequest(request, baseURL!, {
-    method: 'tools/call', toolName: 'sync_products',
+  const reconcileResponse = await mcpRequest(request, baseURL!, {
+    method: 'tools/call', toolName: 'reconcile_products',
     args: { site_id: siteId, location_id: locationId, products: desired, set_missing_unavailable: true },
   })
-  const synced = mcpData<{ products: Array<{ id: string; available: boolean; description: string }> }>(await syncResponse.json()).products
-  expect(synced).toHaveLength(100)
-  expect(synced.find(product => product.id === created[0]!.id)?.description).toBe('Updated atomically')
-  expect(synced.filter(product => !product.available)).toHaveLength(5)
+  const reconciled = mcpData<{ products: Array<{ id: string; available: boolean; description: string }> }>(await reconcileResponse.json()).products
+  expect(reconciled).toHaveLength(100)
+  expect(reconciled.find(product => product.id === created[0]!.id)?.description).toBe('Updated atomically')
+  expect(reconciled.filter(product => !product.available)).toHaveLength(5)
 })

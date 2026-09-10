@@ -8,12 +8,12 @@ import { getMediaPlacements } from '~/server/utils/media-placement'
 import { loadExactPublicLocalizations, projectExactLocalizedResource } from '~/server/utils/public-localization'
 import { listPublicLocaleRepresentations } from '~/server/utils/public-locale-representations'
 import type { PublicLocaleRepresentation } from '~/utils/public-resource-contracts'
+import { parseRobotsIntent, type RobotsIntent } from '~/shared/robots-directive'
 
-const ROBOTS_DIRECTIVES = ['index,follow', 'noindex,follow', 'index,nofollow', 'noindex,nofollow'] as const
 const LINK_ITEM_STATUSES = ['active', 'hidden'] as const
 
 export type LinkItemStatus = typeof LINK_ITEM_STATUSES[number]
-export type LinkPageRobots = typeof ROBOTS_DIRECTIVES[number]
+export type LinkPageRobots = RobotsIntent
 
 export interface SiteLinksPage {
   id: string
@@ -107,11 +107,9 @@ function normalizeItemStatus(value: unknown): LinkItemStatus {
 }
 
 function normalizeRobots(value: unknown): LinkPageRobots {
-  const robots = cleanString(value as ApiValue, 40) || 'noindex,follow'
-  if (!ROBOTS_DIRECTIVES.includes(robots as LinkPageRobots)) {
-    throw new SiteLinksValidationError('Robots must be one of the approved directives.')
-  }
-  return robots as LinkPageRobots
+  const parsed = parseRobotsIntent(cleanString(value as ApiValue, 40))
+  if (!parsed.ok) throw new SiteLinksValidationError('Robots must be one of the approved directives.')
+  return parsed.intent ?? 'noindex,follow'
 }
 
 export function validateLinkDestination(value: unknown): string {
@@ -144,15 +142,16 @@ function mapPage(row: ApiRecord): SiteLinksPage {
     if (typeof value !== 'string' || !value.trim()) throw new SiteLinksValidationError(`Stored links page ${field} is invalid.`)
     return value
   }
-  const robots = required(row.robots, 'robots')
-  if (!ROBOTS_DIRECTIVES.includes(robots as LinkPageRobots)) throw new SiteLinksValidationError('Stored links page robots directive is invalid.')
+  const parsedRobots = parseRobotsIntent(required(row.robots, 'robots'))
+  if (!parsedRobots.ok || !parsedRobots.intent) throw new SiteLinksValidationError('Stored links page robots directive is invalid.')
+  const robots = parsedRobots.intent
   return {
     id: required(row.id, 'id'),
     organization_id: required(row.organization_id, 'organization_id'),
     site_id: required(row.site_id, 'site_id'),
     path: required(row.path, 'path'),
     title: required(row.title, 'title'),
-    robots: robots as LinkPageRobots,
+    robots,
     seo_title: typeof row.seo_title === 'string' ? row.seo_title : null,
     seo_description: typeof row.seo_description === 'string' ? row.seo_description : null,
     created_at: required(row.created_at, 'created_at'),

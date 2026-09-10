@@ -464,6 +464,7 @@ import BookingRecap from '@/components/booking/BookingRecap.vue'
 import BookingTimeStep, { type RawDateAvailability, type TimeSlotSelection } from '@/components/booking/BookingTimeStep.vue'
 import { formatTime } from '~/utils/timezone'
 import BookingContactForm, { type ContactFormState } from '@/components/booking/BookingContactForm.vue'
+import { normalizeRobotsIntent } from '~/shared/robots-directive'
 
 const isBookingModalOpen = ref(false)
 const isHydrated = ref(false)
@@ -618,7 +619,7 @@ const { canonicalUrl } = useSocialMetadata(() => {
     title: seoTitle.value,
     description: seoDescription.value,
     label: t('saya.experience_detail.experience'),
-    robots: experience.value?.robots || null,
+    robots: normalizeRobotsIntent(experience.value?.robots),
     brand: {
       siteName: siteName.value,
     },

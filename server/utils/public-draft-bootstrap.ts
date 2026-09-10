@@ -6,6 +6,7 @@ import { queryFirst } from '~/server/db'
 import { getDraftMedia, parseOnboardingDraftPayload, type OnboardingDraftPayload } from '~/server/utils/onboarding-drafts'
 import { verifyScopedPreviewToken } from '~/server/utils/preview-token'
 import type { BlawbyRouteRecipe, PublicBlawbyRouteData, PublicBlawbyShellData } from '~/types/blawby'
+import { NON_INDEXABLE_ROBOTS_INTENT } from '~/shared/robots-directive'
 
 async function loadDraftPreviewSource(
   event: H3Event,
@@ -140,7 +141,7 @@ export function buildPublicDraftBlawbyDocument(
         seo_title: heroTitle,
         seo_description: heroDescription,
         canonical_url: null,
-        robots: 'noindex',
+        robots: NON_INDEXABLE_ROBOTS_INTENT,
         media: [],
         social_image: null,
         blocks: [{

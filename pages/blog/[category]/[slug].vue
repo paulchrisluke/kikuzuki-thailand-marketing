@@ -208,7 +208,6 @@ const { canonicalUrl } = useSocialMetadata(() => ({
   author: authorName.value,
   publishedAt: post.value?.published_at || null,
   robots: resolvedSeo.value.robots,
-  indexable: post.value?.visibility !== 'unlisted' && (!post.value?.robots || !/noindex/i.test(post.value.robots)),
   socialImage: post.value?.social_image ?? null,
 }))
 

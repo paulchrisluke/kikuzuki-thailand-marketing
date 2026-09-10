@@ -16,7 +16,7 @@ import { purgeSiteKvCache } from "~/server/utils/edge-cache";
 import { purgePublicResourceCacheSafe } from "~/server/utils/public-resource-cache";
 import { schedulePlatformKnowledgeIndexRebuild } from "~/server/utils/platform-search-rebuild";
 import {
-  assertConversationalToolEnabled, visibleConversationalMcpTools, } from "~/server/utils/conversational-tool-surface";
+  visibleConversationalMcpTools, } from "~/server/utils/conversational-tool-surface";
 import {
   dispatchStandardMcpMethod, respondToMcpError, resolveMissingMcpCredential, unsupportedMcpMethodError, type McpToolMeta, } from "~/server/utils/mcp-runtime";
 import { getCloudflareWaitUntil, isMcpMutatingTool } from "~/server/utils/mcp-route-helpers";
@@ -195,9 +195,9 @@ When a public-facing tool result includes \`view_url\` or \`public_url\`, includ
 
 All other tools require a site_id obtained from get_workspace_context or list_sites. Never guess, invent, derive, or pass through site IDs from URLs/domains.
 
-For every paginated read, keep calling the same tool with page_info.next_cursor (or the resource-specific next_cursor field) until has_more is false before claiming the collection is complete. Product batch and sync tools are atomic: read every list_location_products page, then send one complete intended create or reconciliation call with an explicit location_id. Never split one logical Product replacement across multiple mutation calls. Read list_product_categories and create any missing sections with create_product_category; Product writes require category_id, and Product reads return category as an object. Use move_products to change category membership. For ordering, use reorder_products with every Product ID in one category, or reorder_product_categories with every category ID at the location, each exactly once in the intended order. Category names are localized separately through put_resource_localization with resource_type product_category and values { name }.
+For every paginated read, keep calling the same tool with page_info.next_cursor (or the resource-specific next_cursor field) until has_more is false before claiming the collection is complete. batch_create_products and reconcile_products are atomic: read every list_location_products page, then send one complete intended create or reconciliation call with an explicit location_id. Never split one logical Product replacement across multiple mutation calls. Read list_product_categories and create any missing sections with create_product_category; Product writes require category_id, and Product reads return category as an object. Use move_products to change category membership. For ordering, use reorder_products with every Product ID in one category, or reorder_product_categories with every category ID at the location, each exactly once in the intended order. Category names are localized separately through put_resource_localization with resource_type product_category and values { name }.
 
-Common workflows: manage location-scoped Products, create and publish site posts, triage contact and reservation submissions, update page content directly, upload media, reply to reviews, manage experiences and bookings, and generate or replace images for any content section. Manual locale management is available through the locale tools. Social publishing, domains, and priority-support requests are shown only when connector eligibility enables them; otherwise direct the user to the dashboard.`, });
+Common workflows: manage location-scoped Products, create and publish site posts, triage contact and reservation submissions, update page content directly, upload media, reply to reviews, manage experiences and bookings, and generate or replace images for any content section. Manual locale management is available through the locale tools. Domain setup and Google Places lookup are CMS-only. Social publishing is available only when explicitly enabled; otherwise direct the user to the dashboard.`, });
     }
 
     const standardResponse = await dispatchStandardMcpMethod(event, request, runtimeDeps, {
@@ -284,7 +284,6 @@ Common workflows: manage location-scoped Products, create and publish site posts
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       let result: any;
       try {
-        assertConversationalToolEnabled(toolName, cfEnv as ApiRecord);
         result = await executeMcpToolCall(event, toolName, rawArgs, mcpUser);
       } catch (toolError) {
         recordRequestPhase(event, 'mcp_execute', executionStartedAt);
