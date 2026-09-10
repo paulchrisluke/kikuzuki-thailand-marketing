@@ -13,7 +13,12 @@
       :title="`${presentation.itemLabel} could not be loaded`"
       :description="loadError"
     />
-    <EditorNavigationList v-else :groups="navigationGroups" @select="openMove" />
+    <template v-else>
+      <div v-if="isNew" class="mb-6 flex justify-end">
+        <UButton :label="createActionLabel" :loading="saving" @click="startOrCreate" />
+      </div>
+      <EditorNavigationList :groups="navigationGroups" @select="openMove" />
+    </template>
   </div>
 
   <UDashboardPanel v-else id="location-product-detail">
@@ -58,6 +63,7 @@
         :show-actions="editorKey !== 'photo'"
         :saving="saving"
         :save-disabled="!sectionValid"
+        :save-label="isNew ? `Create ${presentation.itemLabel.toLowerCase()}` : undefined"
         :detail-title="sectionLabels[editorKey]"
         :dismiss-to="itemPath"
         @cancel="cancelEditor"
@@ -306,6 +312,20 @@ if (routeSegments.value.length > 1 || (detailKey.value && !isSectionKey(detailKe
 
 // ── Load ────────────────────────────────────────────────
 const categories = ref<ProductCategory[]>([])
+const isNew = computed(() => productId.value === 'new')
+
+/**
+ * A record that does not exist yet has one question to answer. Adding walks it
+ * the way every other record does, at a URL of its own, rather than in a sheet
+ * over the list.
+ */
+const createActionLabel = computed(() => form.name.trim() ? `Create ${presentation.itemLabel.toLowerCase()}` : 'Start with Name')
+
+function startOrCreate() {
+  if (!form.name.trim()) return void navigateTo(`${itemPath.value}/name`)
+  void saveCurrentEditor()
+}
+
 const product = ref<Product | null>(null)
 const loadError = ref<string | null>(null)
 const saving = ref(false)
@@ -325,7 +345,7 @@ const moveTargets = computed(() => categories.value.filter(row => row.id !== cat
 
 async function load() {
   const id = locationId.value
-  if (!id) return
+  if (!id || isNew.value) return
   loadError.value = null
   try {
     const [categoryResponse, productResponse] = await Promise.all([
@@ -405,6 +425,11 @@ function listSummary(values: readonly string[], empty: string) {
 
 const navigationGroups = computed<EditorNavigationGroup[]>(() => {
   const image = product.value?.image
+  // Photo, price, tags and the rest are sections of an item once it exists.
+  if (isNew.value) return [{
+    id: 'item',
+    items: [{ id: 'name', label: 'Name', summary: form.name || 'Not named yet', placeholder: !form.name, to: `${itemPath.value}/name` }],
+  }]
   return [
     {
       id: 'item',
@@ -466,7 +491,12 @@ function availabilitySummary(): string {
 
 // ── Save / cancel ───────────────────────────────────────
 function payload() {
-  const price = form.price_mode === 'amount'
+  // An amount mode with no amount is not an amount. Converting an empty string
+  // threw "USD amounts must use at most 2 fraction digits", which surfaced as a
+  // save that failed for a reason the owner had no way to act on — and made a
+  // brand-new item, which starts in amount mode with nothing typed,
+  // impossible to create at all.
+  const price = form.price_mode === 'amount' && form.price_major.trim()
     ? { amount_minor: majorAmountToMinor(form.price_major, currency), currency, unit: 'item' as const, tax_behavior: 'unspecified' as const }
     : null
   const details = fromProductDetailDrafts(form.details)
@@ -491,6 +521,13 @@ async function saveCurrentEditor() {
   if (!id) return
   saving.value = true
   try {
+    if (isNew.value) {
+      const created = await dashboardApi(`/api/editor/sites/${siteId}/locations/${id}/products`, {
+        method: 'POST', body: { ...payload(), category_id: categoryId.value }, validate: isOne,
+      })
+      await navigateTo(`${categoryPath.value}/${created.product.id}`)
+      return
+    }
     await dashboardApi(`/api/editor/sites/${siteId}/locations/${id}/products/${productId.value}`, {
       method: 'PATCH', body: payload(), validate: isOne,
     })
