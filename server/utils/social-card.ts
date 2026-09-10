@@ -216,7 +216,12 @@ export function selectSocialCardPlacements(
   const cover = coverBlockId
     ? assets.find(item => item.owner_type === 'content_block' && item.owner_id === coverBlockId && item.slot === 'media' && mediaUrl(item)) ?? null
     : null
-  const source = cover ?? firstAsset(assets, owner, SOCIAL_CARD_OWNERS[owner.owner_type].slots)
+  // Every page carries a card. An owner with nothing in its own slots falls back
+  // to the site's approved share image, so the card is still page-specific in
+  // title, description and label even when the picture is the brand's.
+  const source = cover
+    ?? firstAsset(assets, owner, SOCIAL_CARD_OWNERS[owner.owner_type].slots)
+    ?? siteAsset(assets, siteId, 'social_share')
   const logo = siteAsset(assets, siteId, 'logo')
   const current = assets.find(item => item.owner_type === owner.owner_type
     && item.owner_id === owner.owner_id && item.slot === 'social_card') ?? null
