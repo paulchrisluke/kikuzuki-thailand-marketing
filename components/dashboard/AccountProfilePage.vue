@@ -116,7 +116,6 @@
                 :description="`Your account, organization, site, locations and menu data are deleted on ${deletionDateLabel}. Everything keeps working until then, and your site stays online.`"
               />
               <UAlert v-if="deleteError" color="error" variant="soft" icon="i-lucide-triangle-alert" :description="deleteError" />
-              <UButton color="neutral" variant="solid" size="lg" :loading="deleting" @click="keepAccount">Keep my account</UButton>
             </template>
             <template v-else>
               <p class="text-base text-muted">This schedules your account, organization, site, locations and menu data for deletion in {{ graceDays }} days. Nothing is removed today, and you can cancel here until then.</p>
@@ -184,7 +183,9 @@ const route = useRoute()
 // injects, which Vue binds only while setup is still synchronous.
 const profilePath = computed(() => '/dashboard/account/profile')
 const frame = useEditorFrame(profilePath)
-const { data: sessionData } = useAuth()
+// refreshSession comes from the composable: it refetches the session store
+// every surface reads, which a bare authClient.getSession() does not.
+const { data: sessionData, refreshSession } = useAuth()
 
 const organizationParent = inject(dashboardOrganizationParentKey, null)
 const organizationName = computed(() => organizationParent?.value?.label ?? 'your organization')
@@ -217,9 +218,6 @@ async function handleSignOut() {
   const redirect = route.fullPath
   await signOut()
   await navigateTo({ path: '/login', query: { redirect } })
-}
-const refreshSession = async () => {
-  await authClient.getSession()
 }
 // Display Name
 const nameInput = ref(sessionData.value?.user?.name || '')
@@ -254,18 +252,18 @@ const saving = computed(() => openKey.value === 'name' ? nameSaving.value
 
 const saveDisabled = computed(() => openKey.value === 'name' ? !nameDirty.value
   : openKey.value === 'phone' ? (!phoneDirty.value || !phoneInput.value.trim())
-  : openKey.value === 'delete' ? (Boolean(deletionScheduledAt.value) || deleteConfirmText.value !== 'DELETE')
+  : openKey.value === 'delete' ? (!deletionScheduledAt.value && deleteConfirmText.value !== 'DELETE')
   : true)
 
 const saveLabel = computed(() => openKey.value === 'phone' ? 'Verify and save'
-  : openKey.value === 'delete' ? 'Schedule deletion'
+  : openKey.value === 'delete' ? (deletionScheduledAt.value ? 'Keep my account' : 'Schedule deletion')
   : undefined)
 
 async function saveDetail() {
   if (saveDisabled.value) return
   if (openKey.value === 'name') return void await saveNameAndClose()
   if (openKey.value === 'phone') return void await requestPhoneVerify()
-  if (openKey.value === 'delete') return void await confirmDeleteAccount()
+  if (openKey.value === 'delete') return void await (deletionScheduledAt.value ? keepAccount() : confirmDeleteAccount())
 }
 
 function closeDetail() {

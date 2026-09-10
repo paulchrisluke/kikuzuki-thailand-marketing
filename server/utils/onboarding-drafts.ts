@@ -172,6 +172,7 @@ export function getDraftMedia(payload: OnboardingDraftPayload, slot: 'logo' | 'h
 export interface OnboardingDraftUpsertResult {
   id: string
   subdomainCandidate: string
+  organizationId: string | null
   payload: OnboardingDraftPayload
 }
 
@@ -364,7 +365,7 @@ export async function upsertActiveOnboardingDraft(db: D1Database, input: {
   // so a later change of brand name renames the brand and not the site's host —
   // and every following save keeps writing to the same site. organization_id is
   // set once for the same reason.
-  const draft = await queryFirst<{ id: string; subdomain_candidate: string }>(db, `
+  const draft = await queryFirst<{ id: string; subdomain_candidate: string; organization_id: string | null }>(db, `
     INSERT INTO onboarding_drafts
       (id, user_id, organization_id, name, vertical, subdomain_candidate, source_type, status, payload_json, created_at, updated_at)
     VALUES (?, ?, ?, ?, ?, ?, ?, 'active', ?, ?, ?)
@@ -376,7 +377,7 @@ export async function upsertActiveOnboardingDraft(db: D1Database, input: {
       source_type = excluded.source_type,
       payload_json = excluded.payload_json,
       updated_at = excluded.updated_at
-    RETURNING id, subdomain_candidate
+    RETURNING id, subdomain_candidate, organization_id
   `, [
     id,
     input.userId,
@@ -396,6 +397,7 @@ export async function upsertActiveOnboardingDraft(db: D1Database, input: {
   return {
     id: draft.id,
     subdomainCandidate: draft.subdomain_candidate,
+    organizationId: draft.organization_id,
     payload: input.payload,
   }
 }

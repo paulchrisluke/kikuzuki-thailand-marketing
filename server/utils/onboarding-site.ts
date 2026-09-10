@@ -76,37 +76,63 @@ export async function ensureOnboardingSite(
       [organizationId, new Date().toISOString(), draft.id])
   }
 
-  // Idempotent: the same subdomain in the same organization resumes the pending
-  // site instead of creating a second one.
-  const result = await runSiteCreation(env as SiteEnv, db, userId, {
-    organizationId,
-    name: draft.name,
-    subdomain: draft.subdomain_candidate,
-    vertical: draft.vertical,
-    activate: false,
-  })
-  if (result.status !== 200) {
-    return {
-      status: result.status || 500,
-      error: typeof result.data.error === 'string' ? result.data.error : 'Could not create site. Please try again.',
+  // Created once, on the first save. Site creation seeds a location and the
+  // system pages; running it again after this draft has renamed that location
+  // would seed a second one, so a later save resolves the existing site
+  // instead.
+  const existing = await queryFirst<{ id: string; subdomain: string | null }>(db, `
+    SELECT id, subdomain FROM sites
+    WHERE organization_id = ? AND subdomain = ? AND onboarding_status = 'pending'
+    LIMIT 1
+  `, [organizationId, draft.subdomain_candidate])
+
+  let siteId: string
+  let subdomain: string
+  if (existing?.subdomain) {
+    siteId = existing.id
+    subdomain = existing.subdomain
+  } else {
+    const result = await runSiteCreation(env as SiteEnv, db, userId, {
+      organizationId,
+      name: draft.name,
+      subdomain: draft.subdomain_candidate,
+      vertical: draft.vertical,
+      activate: false,
+    })
+    if (result.status !== 200) {
+      return {
+        status: result.status || 500,
+        error: typeof result.data.error === 'string' ? result.data.error : 'Could not create site. Please try again.',
+      }
     }
+    siteId = result.data.siteId as string
+    subdomain = result.data.subdomain as string
   }
 
-  const siteId = result.data.siteId as string
-  const locationRow = await queryFirst<{ id: string; slug: string | null }>(db, `
+  // An onboarding site has exactly one location. More than one means something
+  // seeded a second one, which would make every later save ambiguous, so this
+  // refuses rather than picking.
+  const locations = await queryAll<{ id: string; slug: string | null }>(db, `
     SELECT id, slug FROM business_locations
-    WHERE id = ? AND site_id = ? AND organization_id = ? AND status = 'active'
-    LIMIT 1
-  `, [result.data.locationId, siteId, organizationId])
-  if (!locationRow?.id) return { status: 500, error: 'No active location found for this site.' }
+    WHERE site_id = ? AND organization_id = ? AND status = 'active'
+    ORDER BY created_at, id
+  `, [siteId, organizationId])
+  if (locations.length !== 1) {
+    return {
+      status: 500,
+      error: locations.length === 0
+        ? 'No active location found for this site.'
+        : `This site has ${locations.length} locations; onboarding expects one.`,
+    }
+  }
 
   return {
     target: {
       organizationId,
       siteId,
-      subdomain: result.data.subdomain as string,
-      locationId: locationRow.id,
-      locationSlug: locationRow.slug,
+      subdomain,
+      locationId: locations[0]!.id,
+      locationSlug: locations[0]!.slug,
     },
   }
 }
@@ -119,24 +145,31 @@ export async function applyOnboardingDraftToSite(
     userId: string
     target: OnboardingSiteTarget
     payload: OnboardingDraftPayload
-    defaultCurrency: CurrencyCode
-    timezone: string
+    // Both are the owner's answers and arrive part-way through the wizard.
+    // Until they do the site keeps what site creation gave it, rather than
+    // being written with a currency or a zone nobody chose.
+    defaultCurrency: CurrencyCode | null
+    timezone: string | null
   },
 ): Promise<{ locationSlug: string | null }> {
   const { userId, payload, defaultCurrency, timezone } = input
   const { organizationId, siteId } = input.target
   const locationRow = { id: input.target.locationId }
 
-  await execute(db, `
-    UPDATE sites
-    SET default_currency = ?, updated_at = ?
-    WHERE id = ? AND organization_id = ?
-  `, [defaultCurrency, new Date().toISOString(), siteId, organizationId])
+  if (defaultCurrency) {
+    await execute(db, `
+      UPDATE sites
+      SET default_currency = ?, updated_at = ?
+      WHERE id = ? AND organization_id = ?
+    `, [defaultCurrency, new Date().toISOString(), siteId, organizationId])
+  }
 
-  await execute(db, `
-    UPDATE sites SET settings_json = json_set(settings_json, '$.config.default_timezone', ?)
-    WHERE organization_id = ? AND id = ?
-  `, [timezone, organizationId, siteId])
+  if (timezone) {
+    await execute(db, `
+      UPDATE sites SET settings_json = json_set(settings_json, '$.config.default_timezone', ?)
+      WHERE organization_id = ? AND id = ?
+    `, [timezone, organizationId, siteId])
+  }
 
   const logoDraftImage = getDraftMedia(payload, 'logo')
   const heroDraftImage = getDraftMedia(payload, 'hero')

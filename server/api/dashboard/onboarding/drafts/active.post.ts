@@ -149,31 +149,26 @@ export default defineHandler(async (event) => {
   // subdomain, previewable with its preview token and invisible to the public
   // until POST /api/dashboard/onboarding/activate. There is no separate draft
   // renderer — the preview is the site.
-  const existing = await queryFirst<{ organization_id: string | null }>(db, `
-    SELECT organization_id FROM onboarding_drafts WHERE id = ? LIMIT 1
-  `, [draft.id])
   const site = await ensureOnboardingSite(env, db, session.user.id, {
     id: draft.id,
-    organization_id: existing?.organization_id ?? null,
+    organization_id: draft.organizationId,
     name: payload.preview.brandName,
     vertical,
     subdomain_candidate: draft.subdomainCandidate,
   })
   if ('error' in site) return jsonResponse({ error: site.error }, { status: site.status })
 
-  // Currency and timezone are the owner's answers and arrive part-way through
-  // the wizard. Until they do, the site keeps what site creation gave it.
-  const answeredCurrency = payload.source.details.currency
+  // Every save writes the owner's answers onto that site, so the preview is
+  // never behind the conversation. Currency and timezone are only written once
+  // they have actually been answered.
   const answeredTimezone = payload.source.details.timezone
-  if (answeredCurrency && isValidTimezone(answeredTimezone)) {
-    await applyOnboardingDraftToSite(env, db, {
-      userId: session.user.id,
-      target: site.target,
-      payload,
-      defaultCurrency: answeredCurrency,
-      timezone: answeredTimezone,
-    })
-  }
+  await applyOnboardingDraftToSite(env, db, {
+    userId: session.user.id,
+    target: site.target,
+    payload,
+    defaultCurrency: payload.source.details.currency,
+    timezone: isValidTimezone(answeredTimezone) ? answeredTimezone : null,
+  })
 
   const previewToken = await createPreviewToken(previewSecret, site.target.siteId, Date.now() + PREVIEW_TOKEN_TTL_MS)
 

@@ -1,6 +1,7 @@
 import { expect, test } from '@playwright/test'
 import { collectPageErrors, dismissPreviewToolbar } from './helpers'
 import { loginAs } from './helpers/auth'
+import { tenantHostIsAddressable } from './test-env'
 
 // The manual-name path of the new-site wizard, driven the way an owner drives
 // it: every step through the real UI, the preview pane framing the owner's own
@@ -29,17 +30,20 @@ test('a new owner builds a draft and creates a site through the wizard', async (
   // pane frames that site itself, carrying the preview token that authorizes it.
   const previewFrame = page.locator('iframe[title="Site preview"]')
   await expect(previewFrame).toHaveAttribute('src', /preview_token=/)
-  const preview = page.frameLocator('iframe[title="Site preview"]')
-  await expect(preview.locator('body')).toContainText(name)
-  await expect(preview.locator('body')).not.toContainText('did not match its contract')
+  if (tenantHostIsAddressable()) {
+    const preview = page.frameLocator('iframe[title="Site preview"]')
+    await expect(preview.locator('body')).toContainText(name)
+    await expect(preview.locator('body')).not.toContainText('did not match its contract')
 
-  // The token authorized the first load and became a cookie, so navigating
-  // inside the preview keeps working without it. This is the whole point of the
-  // mechanism: the pending site is the real site, and its own links resolve.
-  const frame = page.frame({ url: /preview_token=/ })
-  expect(frame).not.toBeNull()
-  await frame!.evaluate(() => { window.location.href = window.location.pathname })
-  await expect(preview.locator('body')).toContainText(name)
+    // The token authorized the first load and became a cookie, so navigating
+    // inside the preview keeps working without it. This is the whole point of
+    // the mechanism: the pending site is the real site, and its own links
+    // resolve.
+    const frame = page.frame({ url: /preview_token=/ })
+    expect(frame).not.toBeNull()
+    await frame!.evaluate(() => { window.location.href = window.location.pathname })
+    await expect(preview.locator('body')).toContainText(name)
+  }
 
   // Location: the country is asked once, as a picker that arrives on the product
   // default (United States) and is changed here.
@@ -92,6 +96,7 @@ test('a new owner builds a draft and creates a site through the wizard', async (
   const liveHost = liveAt!.trim()
   await expect(previewFrame).toHaveAttribute('src', new RegExp(`^https?://${liveHost.replace(/\./g, '\\.')}/`))
   await expect(previewFrame).not.toHaveAttribute('src', /preview_token=/)
+  if (tenantHostIsAddressable()) await expect(page.frameLocator('iframe[title="Site preview"]').locator('body')).toContainText(name)
   const site = await (await page.request.get('/api/dashboard/context', { params: { orgSlug: created!.slug } })).json() as { sites?: Array<{ subdomain: string | null }> }
   const subdomain = site.sites?.[0]?.subdomain
   expect(typeof subdomain).toBe('string')

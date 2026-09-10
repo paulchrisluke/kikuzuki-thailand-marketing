@@ -555,10 +555,23 @@ function choiceColor(message: WizardMessage, choice: QuickReply) {
   return isSelectedChoice(message, choice) ? 'primary' : 'neutral'
 }
 
+// Rewinding past the business name abandons the draft on the server too: the
+// pending site it created holds an address derived from a name the owner has
+// just replaced, so it is deleted rather than carried into the new answer.
 function clearDraftPreview() {
+  const hadDraft = Boolean(onboardingDraftId.value)
   onboardingDraftId.value = null
   draftPreviewPayload.value = null
   emit('draft-cleared')
+  if (!hadDraft) return
+  void applicationFetch<{ success?: boolean }>('/api/dashboard/onboarding/drafts/active', {
+    method: 'DELETE',
+    validate: (value): value is { success?: boolean } => isRecord(value),
+  }).catch((error: unknown) => {
+    importError.value = error instanceof Error
+      ? error.message
+      : 'Could not clear your previous draft. Reload and try again.'
+  })
 }
 
 function rewindToChoiceMessage(index: number) {

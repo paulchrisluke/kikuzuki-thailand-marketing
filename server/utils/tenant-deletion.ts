@@ -22,7 +22,7 @@
 // only path — a raw call to that route would skip the grace period and leak
 // every external resource above.
 
-import { queryAll, queryFirst, type DbClient } from '~/server/db'
+import { execute, queryAll, queryFirst, type DbClient } from '~/server/db'
 import { d1JsonStringSet } from '~/server/db/d1-limits'
 import { createAuth, type CloudflareEnv } from '~/server/utils/auth'
 import { deleteImage } from '~/server/utils/cloudflare-images'
@@ -203,6 +203,57 @@ export async function deleteAccountNow(env: CloudflareEnv, userId: string): Prom
   const context = await createAuth(env).$context
   await context.internalAdapter.deleteUser(userId)
   await context.internalAdapter.deleteUserSessions(userId)
+}
+
+/**
+ * Abandoning a wizard draft: delete the pending site it created, now.
+ *
+ * There is no grace period because nothing was ever public — the site has not
+ * finished onboarding, so tenant resolution has only ever served it to the
+ * holder of its preview token. Deleting it immediately also gives the owner
+ * their address back straight away, which matters when they abandoned the
+ * draft precisely because they typed the wrong business name.
+ *
+ * Refuses anything that is not a pending site, and only removes the
+ * organization when this was the only site in it and the owner is its only
+ * member — the organization may be an existing workspace the site was being
+ * added to.
+ */
+export async function deletePendingSiteNow(
+  env: CloudflareEnv,
+  siteId: string,
+  userId: string,
+): Promise<{ deleted: boolean; reason?: string }> {
+  const db = env.DB
+  const site = await queryFirst<{ id: string; organization_id: string; onboarding_status: string }>(db, `
+    SELECT id, organization_id, onboarding_status FROM sites WHERE id = ? LIMIT 1
+  `, [siteId])
+  if (!site) return { deleted: false, reason: 'not_found' }
+  if (site.onboarding_status !== 'pending') return { deleted: false, reason: 'site_is_live' }
+
+  const membership = await resolveOrganizationMembership(env, { organizationId: site.organization_id, userId })
+  if (membership?.role !== 'owner') return { deleted: false, reason: 'not_owner' }
+
+  const siblings = await queryFirst<{ n: number }>(db, `
+    SELECT count(*) AS n FROM sites WHERE organization_id = ? AND id <> ?
+  `, [site.organization_id, siteId])
+  const members = await listOrganizationMembers(env, site.organization_id)
+
+  if ((siblings?.n ?? 0) === 0 && members.length === 1) {
+    await deleteOrganizationNow(env, site.organization_id)
+    return { deleted: true }
+  }
+
+  for (const imageId of await organizationOwnedImageIds(db, site.organization_id)) {
+    await deleteImage(env, imageId).catch((error: unknown) => {
+      console.error('tenant_deletion_image_release_failed', {
+        siteId, imageId, error: error instanceof Error ? error.message : String(error),
+      })
+    })
+  }
+  await deleteOrganizationCustomDomains(env, db, site.organization_id)
+  await execute(db, 'DELETE FROM sites WHERE id = ?', [siteId])
+  return { deleted: true }
 }
 
 export interface DeletionSweepResult {
