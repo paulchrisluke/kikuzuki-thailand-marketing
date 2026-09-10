@@ -113,7 +113,7 @@ const { data, pending, error, refresh } = await useAsyncData(
     })
     return { posts: response.posts }
   },
-  { lazy: import.meta.client, watch: [currentLocationId] },
+  { lazy: import.meta.client },
 )
 
 const loadError = computed(() => (error.value ? getErrorMessage(error.value, 'Failed to load posts') : null))

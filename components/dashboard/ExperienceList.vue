@@ -116,7 +116,7 @@ const { data, pending, error, refresh } = await useAsyncData(
       validate: isExperiencesResponse,
     })
   },
-  { lazy: import.meta.client, watch: [currentLocationId] },
+  { lazy: import.meta.client },
 )
 
 const loadError = computed(() => (error.value ? getErrorMessage(error.value, 'Could not load experiences') : null))
