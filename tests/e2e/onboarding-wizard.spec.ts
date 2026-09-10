@@ -26,13 +26,17 @@ test('a new owner builds a draft and creates a site through the wizard', async (
   await page.getByPlaceholder('Your business name…').fill(name)
   await page.keyboard.press('Enter')
 
-  // The first save creates the site — pending, on its own subdomain — and the
-  // pane frames that site itself, carrying the preview token that authorizes it.
+  // The first save does the most work of any step in the wizard: it creates the
+  // organization through Better Auth and then the site itself — seeded pages, a
+  // location, a team and the system subdomain — before the pane has anything to
+  // frame. That is dozens of statements against a D1 in APAC from a US runner
+  // (~194ms each), so it is given room rather than the default 10s.
+  const firstSaveTimeout = 90_000
   const previewFrame = page.locator('iframe[title="Site preview"]')
-  await expect(previewFrame).toHaveAttribute('src', /preview_token=/)
+  await expect(previewFrame).toHaveAttribute('src', /preview_token=/, { timeout: firstSaveTimeout })
   if (tenantHostIsAddressable()) {
     const preview = page.frameLocator('iframe[title="Site preview"]')
-    await expect(preview.locator('body')).toContainText(name)
+    await expect(preview.locator('body')).toContainText(name, { timeout: firstSaveTimeout })
     await expect(preview.locator('body')).not.toContainText('did not match its contract')
 
     // The token authorized the first load and became a cookie, so navigating
