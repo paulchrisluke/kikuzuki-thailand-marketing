@@ -264,11 +264,9 @@ interface ApiLinksPage extends Omit<LinksPage, 'seo_title' | 'seo_description'> 
   seo_description: string | null
 }
 
-type ApiLinkItem = LinkItem
-
 const isLinksResponse = (
   value: unknown,
-): value is { page: ApiLinksPage; items: ApiLinkItem[] } =>
+): value is { page: ApiLinksPage; items: LinkItem[] } =>
   isRecord(value)
   && isRecord(value.page)
   && typeof value.page.title === 'string'
@@ -281,6 +279,13 @@ const isLinksResponse = (
     && typeof item.sort_order === 'number'
     && typeof item.status === 'string',
   )
+
+const isLinksWriteResponse = (
+  value: unknown,
+): value is { page: ApiLinksPage; items: LinkItem[]; created_item_ids: string[] } =>
+  isLinksResponse(value)
+  && Array.isArray((value as Record<string, unknown>).created_item_ids)
+  && ((value as Record<string, unknown>).created_item_ids as unknown[]).every(id => typeof id === 'string')
 
 // The frame comes first, and before any `await`. `useEditorFrame` provides and
 // injects, which Vue only binds to this instance while setup is still
@@ -457,7 +462,7 @@ function move(item: { id: string }, direction: -1 | 1) {
 
 const { data, pending } = await useAsyncData(
   `links-page-editor-${siteId}`,
-  () => dashboardApi<{ page: ApiLinksPage; items: ApiLinkItem[] }>(
+  () => dashboardApi<{ page: ApiLinksPage; items: LinkItem[] }>(
     `/api/editor/sites/${siteId}/links-page`,
     { validate: isLinksResponse },
   ),
@@ -515,7 +520,7 @@ async function saveLinksLocalization(locale: string, submitted: Record<string, u
   linkLocalizationStates.set(key, { locale, translation: response.localization })
 }
 
-function loadForm(value: { page: ApiLinksPage; items: ApiLinkItem[] }) {
+function loadForm(value: { page: ApiLinksPage; items: LinkItem[] }) {
   Object.assign(form, {
     ...value.page,
     seo_title: value.page.seo_title ?? '',
@@ -660,8 +665,8 @@ async function copyPublicUrl() {
  * Save sends the page beside it. The response is the document as stored, which
  * is where a newly created link picks up its id.
  */
-async function persist(nextItems: LinkItem[]) {
-  const response = await dashboardApi<{ page: ApiLinksPage; items: ApiLinkItem[] }>(`/api/editor/sites/${siteId}/links-page`, {
+async function persist(nextItems: Array<Omit<LinkItem, 'id'> & { id?: string }>) {
+  const response = await dashboardApi(`/api/editor/sites/${siteId}/links-page`, {
     method: 'PATCH',
     body: {
       page: {
@@ -671,16 +676,16 @@ async function persist(nextItems: LinkItem[]) {
         seo_description: form.seo_description,
       },
       items: nextItems.map((item, index) => ({
-        id: item.id,
+        ...(item.id ? { id: item.id } : {}),
         label: item.label,
         destination: item.destination,
         sort_order: index,
         status: item.status,
       })),
     },
-    validate: isLinksResponse,
+    validate: isLinksWriteResponse,
   })
-  data.value = response
+  data.value = { page: response.page, items: response.items }
   return response
 }
 
@@ -710,10 +715,8 @@ async function saveItemSection() {
   saving.value = true
   errorMessage.value = ''
   try {
-    const known = new Set(items.value.map(item => item.id))
-    const nextItems: LinkItem[] = isNewItem.value
+    const nextItems = isNewItem.value
       ? [...items.value, {
-          id: `tmp_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
           label: itemForm.label,
           destination: itemForm.destination,
           sort_order: items.value.length,
@@ -724,10 +727,11 @@ async function saveItemSection() {
         : item)
     const response = await persist(nextItems)
     if (isNewItem.value) {
-      const created = response.items.find(item => !known.has(item.id))
+      const [createdId] = response.created_item_ids
+      if (!createdId) throw new Error('The link was not created.')
       clearItemDraft()
       toast.add({ description: 'Link created', color: 'success' })
-      await navigateTo(created ? `${itemsPath.value}/${created.id}` : itemsPath.value)
+      await navigateTo(`${itemsPath.value}/${createdId}`)
       return
     }
     toast.add({ description: `${ITEM_SECTION_LABELS[openItemKey.value]} saved`, color: 'success' })

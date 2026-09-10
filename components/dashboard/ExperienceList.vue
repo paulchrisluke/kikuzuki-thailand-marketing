@@ -85,7 +85,12 @@ const experiencesPath = computed(() => `${locationPath.value}/experiences`)
 const editing = ref(false)
 // The list only deletes; naming and creating an experience is the `new` level's
 // work, so this draft is never written to.
-const editor = useExperienceEditor(siteId, currentLocationId, computed(() => dashboard.site.value?.default_currency || 'USD'), `${siteId}-list`)
+const currency = computed(() => {
+  const value = dashboard.site.value?.default_currency
+  if (!value) throw createError({ statusCode: 500, statusMessage: 'Site has no default currency' })
+  return value
+})
+const editor = useExperienceEditor(siteId, currentLocationId, currency, `${siteId}-list`)
 const removingId = ref<string | null>(null)
 
 const isExperiencesResponse = (value: unknown): value is { experiences: Experience[] } =>

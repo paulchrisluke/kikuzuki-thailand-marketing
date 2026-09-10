@@ -30,7 +30,6 @@
     <template #body>
       <EditorPaneShell
         :has-detail="frame.mode.value === 'pair'"
-        show-desktop-detail
         :detail-title="SECTION_LABELS[openKey]"
         :dismiss-to="recordPath"
         show-actions

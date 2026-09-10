@@ -258,9 +258,6 @@ const postId = computed(() => String(route.params.postId ?? ''))
 const locationPath = computed(() => `/dashboard/${String(route.params.orgSlug)}/sites/${String(route.params.siteSlug)}/locations/${String(route.params.locationSlug)}`)
 const postsPath = computed(() => `${locationPath.value}/posts`)
 const postPath = computed(() => `${postsPath.value}/${postId.value}`)
-// `useEditorFrame` provides and injects, so it must run while setup is still
-// synchronous. Awaiting before it binds the frame to nothing: the mode never
-// resolves and this level silently drops out of the chain.
 const frame = useEditorFrame(postPath)
 
 const siteId = await useDashboardSiteId()
@@ -308,17 +305,12 @@ const sectionLabels = computed<Record<SectionKey, string>>(() => ({
   publishing: 'Publishing',
 }))
 
-const routeSegments = computed(() => {
-  const segments = route.params.segments
-  if (Array.isArray(segments)) return segments.filter(Boolean).map(String)
-  return segments ? [String(segments)] : []
-})
-const detailKey = computed(() => routeSegments.value[0] ?? null)
+const detailKey = computed(() => frame.childSegment.value)
 const editorKey = computed<SectionKey>(() => (detailKey.value ?? (isNew.value ? 'type' : 'photo')) as SectionKey)
 
 const openSections = computed(() => (isNew.value ? NEW_SECTION_KEYS : EXISTING_SECTION_KEYS))
 // An unsupported route 404s rather than silently showing the first section.
-if (routeSegments.value.length > 1 || (detailKey.value && !openSections.value.some(key => key === detailKey.value))) {
+if (frame.rest.value.length > 1 || (detailKey.value && !openSections.value.some(key => key === detailKey.value))) {
   throw createError({ statusCode: 404, statusMessage: 'Page not found' })
 }
 

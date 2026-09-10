@@ -21,7 +21,7 @@ interface DashboardSite {
   status: string
   onboarding_status: string
   effective_plan: string
-  default_currency: string | null
+  default_currency: string
   feature_overrides: string | null
 }
 
