@@ -2,6 +2,7 @@ import type { Product } from '~/server/types/products'
 import type { PublicProductReview } from '~/server/utils/public-products'
 import { isCurrencyCode, type CurrencyCode } from '~/shared/currencies'
 import { isRecord, publicApiRequest } from '~/utils/api-clients'
+import type { ProductCategorySibling } from '~/utils/product-seo'
 import { isPublicProduct, type PublicLocaleRepresentation } from '~/utils/public-resource-contracts'
 
 export interface PublicProductDetailPayload {
@@ -11,6 +12,8 @@ export interface PublicProductDetailPayload {
   vertical: string
   brandName: string
   reviews: PublicProductReview[]
+  /** Other priced items in this product's own category at this location. */
+  categorySiblings: ProductCategorySibling[]
   localeRepresentations: PublicLocaleRepresentation[]
 }
 
@@ -33,6 +36,11 @@ function isPublicProductDetailPayload(value: unknown): value is PublicProductDet
       && typeof review.title === 'string'
       && typeof review.content === 'string'
       && typeof review.createdAt === 'string')
+    && Array.isArray(value.categorySiblings)
+    && value.categorySiblings.every(sibling => isRecord(sibling)
+      && typeof sibling.id === 'string'
+      && typeof sibling.name === 'string'
+      && typeof sibling.slug === 'string')
     && Array.isArray(value.localeRepresentations)
     && value.localeRepresentations.every(item => isRecord(item)
       && typeof item.locale === 'string'
@@ -56,9 +64,10 @@ export async function usePublicProductDetail(routeKind: 'menu' | 'products') {
     async (_nuxtApp, { signal }) => {
       if (import.meta.server) {
         if (!requestEvent) throw createError({ statusCode: 500, statusMessage: 'Request context unavailable' })
-        const [{ cloudflareEnv }, { loadPublicProductDetail, loadPublicProductReviews }] = await Promise.all([
+        const [{ cloudflareEnv }, { loadPublicProductDetail, loadPublicProductReviews }, { selectProductCategorySiblings }] = await Promise.all([
           import('~/server/utils/api-response'),
           import('~/server/utils/public-products'),
+          import('~/utils/product-seo'),
         ])
         const db = cloudflareEnv(requestEvent).DB
         if (!db) throw createError({ statusCode: 500, statusMessage: 'Database not available' })
@@ -71,6 +80,7 @@ export async function usePublicProductDetail(routeKind: 'menu' | 'products') {
           vertical: detail.site.vertical,
           brandName: detail.site.brand_name,
           reviews: locale === 'en' ? await loadPublicProductReviews(db, detail) : [],
+          categorySiblings: selectProductCategorySiblings(detail.products, detail.product),
           localeRepresentations: detail.localeRepresentations,
         }
       }
