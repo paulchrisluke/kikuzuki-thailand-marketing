@@ -267,7 +267,11 @@ export async function upsertProfessionalServiceContent(
     if (incomingOfferingSlugs.has(slug)) validationError(`Duplicate offering slug: ${slug}.`)
     incomingOfferingSlugs.add(slug)
     const existingOfferingId = offeringIdBySlug.get(slug)
-    const id = existingOfferingId ?? cleanString(item.id, 80) ?? idWith('offering')
+    // `cleanString` returns '' for an absent value, never nullish, so the `??`
+    // this replaces never reached `idWith`: every offering created here — from
+    // the dashboard or the MCP — was inserted with an empty primary key, and
+    // the second one would have collided with the first.
+    const id = existingOfferingId || cleanString(item.id, 80) || idWith('offering')
     writtenOfferingIds.push(id)
     validateOfferingContent(item, slug)
     const offeringMedia = strictMediaRefs(item.media, `offerings.${slug}.media`, ['thumbnail', 'hero', 'gallery'])

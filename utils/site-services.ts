@@ -6,6 +6,14 @@ export interface ProfessionalServiceMediaRef {
   slot: string
 }
 
+/**
+ * Every column the upsert writes, because there is no per-record endpoint: the
+ * list is read whole and written whole, and `ON CONFLICT DO UPDATE SET ... =
+ * excluded.*` writes each of these from what was sent. A field the dashboard
+ * leaves out of its payload is therefore not left alone — it is emptied. The
+ * screen edits five of them and carries the rest back exactly as they were
+ * read.
+ */
 export interface ProfessionalServiceRow {
   id: string
   name: string
@@ -15,21 +23,30 @@ export interface ProfessionalServiceRow {
   sort_order: number
   featured: boolean
   /**
-   * The upsert requires these three and the dashboard never sent them, so
-   * saving this screen has always failed with
-   * "offerings.<slug>.schema_type is required." They belong to the record and
-   * are carried back unchanged; `schema_type` is the site's schema.org type
-   * (LegalService, AccountingService) and has no default to reach for, so a new
-   * service asks for it.
+   * Required by the upsert and never sent, which is why saving this screen has
+   * always failed with "offerings.<slug>.schema_type is required."
+   * `schema_type` is the offering's schema.org type (LegalService,
+   * AccountingService) and has no default to reach for, so a new service asks.
    */
   schema_type: string | null
   canonical_path: string | null
   source: string | null
+  /** Carried, not edited here: the importer, the MCP and the page editor own these. */
+  label?: string | null
+  body?: string | null
+  features?: unknown[]
+  faqs?: unknown[]
+  cta_label?: string | null
+  cta_url?: string | null
+  seo_title?: string | null
+  seo_description?: string | null
+  location_id?: string | null
+  source_ref?: string | null
   /**
-   * Omitting media is not neutral: the upsert compares what it is given against
-   * what is stored per slot, and an empty list clears `thumbnail`/`hero` and
-   * refuses a `gallery` outright. Sending the stored placements back unchanged
-   * makes each slot compare equal and be skipped.
+   * Omitting media is not neutral either: the upsert compares what it is given
+   * against what is stored per slot, and an empty list clears `thumbnail`/`hero`
+   * and refuses a `gallery` outright. Sending the stored placements back
+   * unchanged makes each slot compare equal and be skipped.
    */
   media?: ProfessionalServiceMediaRef[]
 }
@@ -62,9 +79,11 @@ export function slugifyServiceName(value: string): string {
  * entirely reduces to '', and every such service would then collide on the
  * same empty slug and overwrite the last one through the upsert.
  */
-export function professionalServiceCreateBlockers(form: { name: string; slug: string }): string[] {
+export function professionalServiceCreateBlockers(form: { name: string; slug: string; schema_type: string }): string[] {
   if (!form.name.trim()) return ['Name']
-  return form.slug.trim() || slugifyServiceName(form.name) ? [] : ['Slug']
+  const missing = form.slug.trim() || slugifyServiceName(form.name) ? [] : ['Slug']
+  if (!form.schema_type.trim()) missing.push('Schema type')
+  return missing
 }
 
 /** Existing offerings are all `/services/<slug>`; a new one follows them. */
@@ -78,10 +97,38 @@ export function serviceCanonicalPath(slug: string): string {
  * included. Sending those back is rejected, so the round-trip carries only the
  * slots the write side owns, in their stored order.
  */
-export const SERVICE_WRITABLE_MEDIA_SLOTS = ['thumbnail', 'hero', 'gallery'] as const
+const WRITABLE_MEDIA_SLOTS = new Set(['thumbnail', 'hero', 'gallery'])
 
-export function serviceWritableMedia(media: ProfessionalServiceMediaRef[] | undefined): ProfessionalServiceMediaRef[] {
-  return (media ?? [])
-    .filter(item => (SERVICE_WRITABLE_MEDIA_SLOTS as readonly string[]).includes(item.slot))
-    .map(item => ({ asset_id: item.asset_id, slot: item.slot }))
+/**
+ * One row of the upsert body. A row that already exists carries its id; a new
+ * one does not, and the endpoint mints one for an unseen slug. Nothing is
+ * reached for on the row's behalf: `canonical_path` follows the shape every
+ * existing offering has, and `source` names this screen only when the row has
+ * never had one.
+ */
+export function serviceUpsertRow(row: ProfessionalServiceRow): Record<string, unknown> {
+  const media = (row.media ?? []).filter(item => WRITABLE_MEDIA_SLOTS.has(item.slot))
+  return {
+    ...(row.id ? { id: row.id } : {}),
+    name: row.name,
+    slug: row.slug,
+    summary: row.summary,
+    short_description: row.short_description,
+    sort_order: row.sort_order,
+    featured: row.featured,
+    schema_type: row.schema_type,
+    canonical_path: row.canonical_path ?? serviceCanonicalPath(row.slug),
+    source: row.source ?? 'dashboard',
+    label: row.label ?? null,
+    body: row.body ?? null,
+    features: row.features ?? [],
+    faqs: row.faqs ?? [],
+    cta_label: row.cta_label ?? null,
+    cta_url: row.cta_url ?? null,
+    seo_title: row.seo_title ?? null,
+    seo_description: row.seo_description ?? null,
+    location_id: row.location_id ?? null,
+    source_ref: row.source_ref ?? null,
+    ...(media.length ? { media: media.map(item => ({ asset_id: item.asset_id, slot: item.slot })) } : {}),
+  }
 }

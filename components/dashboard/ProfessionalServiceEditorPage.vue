@@ -73,6 +73,15 @@
             <UTextarea v-model="form.short_description" :rows="10" maxlength="1000" autoresize autofocus class="w-full" />
           </UFormField>
 
+          <UFormField
+            v-else-if="openKey === 'schema_type'"
+            label="Schema.org type"
+            description="The type search engines are told this service is, written as schema.org spells it — LegalService, AccountingService, MedicalBusiness."
+            required
+          >
+            <UInput v-model="form.schema_type" size="xl" maxlength="120" autofocus class="w-full" />
+          </UFormField>
+
           <div v-else-if="openKey === 'ordering'" class="space-y-6">
             <p class="text-base text-muted">Where this service sits among the others, and whether it is singled out.</p>
             <UFormField label="Sort order" description="Lower numbers appear first.">
@@ -95,8 +104,7 @@ import { getErrorMessage } from '~/utils/errors'
 import {
   isProfessionalServicesResponse,
   professionalServiceCreateBlockers,
-  serviceCanonicalPath,
-  serviceWritableMedia,
+  serviceUpsertRow,
   slugifyServiceName,
   type ProfessionalServiceRow,
 } from '~/utils/site-services'
@@ -121,6 +129,7 @@ const SECTION_LABELS = {
   slug: 'Slug',
   summary: 'Summary',
   description: 'Description',
+  schema_type: 'Schema type',
   ordering: 'Ordering',
 } as const
 type SectionKey = keyof typeof SECTION_LABELS
@@ -147,6 +156,7 @@ const form = useState(`professional-service-draft-${siteId}-${serviceId.value}`,
   slug: '',
   summary: '',
   short_description: '',
+  schema_type: '',
   sort_order: 0,
   featured: false,
 })).value
@@ -182,6 +192,7 @@ watch(record, (row) => {
     slug: row.slug,
     summary: row.summary ?? '',
     short_description: row.short_description ?? '',
+    schema_type: row.schema_type ?? '',
     sort_order: row.sort_order,
     featured: row.featured,
   })
@@ -220,6 +231,7 @@ const navigationGroups = computed<EditorNavigationGroup[]>(() => [
     id: 'placement',
     label: 'Placement',
     items: [
+      { id: 'schema_type', label: 'Schema type', summary: summaryOf(form.schema_type, 'Not set'), icon: 'i-lucide-tag', to: `${recordPath.value}/schema_type` },
       { id: 'ordering', label: 'Ordering', summary: `${form.featured ? 'Featured' : 'Not featured'} · position ${form.sort_order}`, icon: 'i-lucide-arrow-up-down', to: `${recordPath.value}/ordering` },
     ],
   },
@@ -232,7 +244,7 @@ const navigationGroups = computed<EditorNavigationGroup[]>(() => [
  * and it is asked for only when there is nothing to derive. Only this level
  * walks an order, because only this level creates.
  */
-const REQUIRED_ORDER: SectionKey[] = ['name', 'slug']
+const REQUIRED_ORDER: SectionKey[] = ['name', 'slug', 'schema_type']
 const outstanding = computed(() => {
   const names = new Set(blockers.value)
   return REQUIRED_ORDER.filter(key => names.has(SECTION_LABELS[key]))
@@ -286,6 +298,7 @@ async function saveOpenSection() {
       slug,
       summary: form.summary,
       short_description: form.short_description,
+      schema_type: form.schema_type.trim(),
       sort_order: form.sort_order,
       featured: form.featured,
     }
@@ -294,26 +307,11 @@ async function saveOpenSection() {
       : offerings.value.map(row => row.id === serviceId.value ? { ...row, ...edited } : row)
     await dashboardApi(`/api/editor/sites/${siteId}/professional-services`, {
       method: 'PATCH',
-      body: {
-        // A new row carries no id; the upsert mints one for an unseen slug.
-        // `schema_type`, `canonical_path` and `source` are required by the upsert
-        // and belong to the record, so every row carries its own back unchanged
-        // — including the rows this screen did not touch. Media rides along for
-        // the same reason: omitting it clears an offering's placements.
-        offerings: next.map(row => ({
-          ...(row.id ? { id: row.id } : {}),
-          name: row.name,
-          slug: row.slug,
-          summary: row.summary,
-          short_description: row.short_description,
-          sort_order: row.sort_order,
-          featured: row.featured,
-          schema_type: row.schema_type,
-          canonical_path: row.canonical_path ?? serviceCanonicalPath(row.slug),
-          source: row.source ?? 'dashboard',
-          ...(serviceWritableMedia(row.media).length ? { media: serviceWritableMedia(row.media) } : {}),
-        })),
-      },
+      // The upsert writes every column from what it is sent, so every row goes
+      // back whole — the rows this screen never opened included. Sending the
+      // five edited fields alone emptied each row's body, features, FAQs,
+      // label, CTA and SEO.
+      body: { offerings: next.map(serviceUpsertRow) },
       validate: (value): value is Record<string, unknown> => isRecord(value),
     })
     if (isNew.value) {
@@ -321,7 +319,7 @@ async function saveOpenSection() {
       const created = offerings.value.find(row => row.slug === slug)
       // The draft is keyed to `new`, so it would greet the next service with
       // this one's answers if it were left behind.
-      Object.assign(form, { name: '', slug: '', summary: '', short_description: '', sort_order: 0, featured: false })
+      Object.assign(form, { name: '', slug: '', summary: '', short_description: '', schema_type: '', sort_order: 0, featured: false })
       orderSeeded.value = false
       toast.add({ description: 'Service created', color: 'success' })
       await navigateTo(created ? `${servicesPath.value}/${created.id}` : servicesPath.value)
@@ -345,6 +343,7 @@ function closeDetail() {
       slug: row.slug,
       summary: row.summary ?? '',
       short_description: row.short_description ?? '',
+      schema_type: row.schema_type ?? '',
       sort_order: row.sort_order,
       featured: row.featured,
     })
