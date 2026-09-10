@@ -27,18 +27,14 @@
 <script setup lang="ts">
 import DashboardListEditor from '~/components/dashboard/DashboardListEditor.vue'
 import { getErrorMessage } from '~/utils/errors'
-import { isProfessionalServicesResponse, type ProfessionalServiceRow } from '~/utils/site-services'
+import { isProfessionalServicesResponse, professionalServicesKey, type ProfessionalServiceRow } from '~/utils/site-services'
 
 const route = useRoute()
 const dashboardApi = useDashboardApi()
 const siteId = await useDashboardSiteId()
 
-// The key is shared with the record editor, which reads the same whole-list
-// endpoint. One request serves both columns in pair mode, and the record's
-// save refreshes this list through the same entry rather than leaving it
-// showing the name and summary that were just replaced.
 const { data, pending, error: loadRequestError } = await useAsyncData(
-  `dashboard-professional-services-${siteId}`,
+  professionalServicesKey(siteId),
   () => dashboardApi(`/api/editor/sites/${siteId}/professional-services`, { validate: isProfessionalServicesResponse }),
   { server: false },
 )

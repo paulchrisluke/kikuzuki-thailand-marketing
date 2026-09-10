@@ -30,7 +30,6 @@
     <template #body>
       <EditorPaneShell
         :has-detail="frame.mode.value === 'pair'"
-        show-desktop-detail
         :detail-title="SECTION_LABELS[openKey]"
         :dismiss-to="recordPath"
         show-actions
@@ -84,7 +83,7 @@
 
           <div v-else-if="openKey === 'ordering'" class="space-y-6">
             <p class="text-base text-muted">Where this service sits among the others, and whether it is singled out.</p>
-            <UFormField label="Sort order" description="Lower numbers appear first.">
+            <UFormField v-if="!isNew" label="Sort order" description="Lower numbers appear first.">
               <UInputNumber v-model="form.sort_order" :min="0" size="xl" class="w-full" />
             </UFormField>
             <UFormField label="Featured">
@@ -102,10 +101,11 @@ import EditorPaneShell from '~/components/dashboard/EditorPaneShell.vue'
 import EditorNavigationList, { type EditorNavigationGroup } from '~/components/dashboard/EditorNavigationList.vue'
 import { getErrorMessage } from '~/utils/errors'
 import {
+  derivedServiceSlug,
   isProfessionalServicesResponse,
+  isProfessionalServiceWriteResponse,
+  professionalServicesKey,
   professionalServiceCreateBlockers,
-  serviceUpsertRow,
-  slugifyServiceName,
   type ProfessionalServiceRow,
 } from '~/utils/site-services'
 
@@ -113,8 +113,6 @@ const route = useRoute()
 const toast = useToast()
 const dashboardApi = useDashboardApi()
 
-// The frame comes first, and before any `await`: `useEditorFrame` provides and
-// injects, which Vue binds only while setup is still synchronous.
 const serviceId = computed(() => String(route.params.serviceId ?? ''))
 const servicesPath = computed(() =>
   `/dashboard/${String(route.params.orgSlug)}/sites/${String(route.params.siteSlug)}/professional-services`)
@@ -139,54 +137,33 @@ const detailKey = computed(() => frame.childSegment.value)
 const openKey = computed<SectionKey>(() => (detailKey.value ?? 'name') as SectionKey)
 
 watchEffect(() => {
-  if (frame.rest.value.length > 1 || (detailKey.value && !(detailKey.value in SECTION_LABELS))) {
+  if (frame.rest.value.length > 1 || (detailKey.value && !(detailKey.value in SECTION_LABELS)) || (isNew.value && detailKey.value === 'ordering')) {
     throw createError({ statusCode: 404, statusMessage: 'Page not found' })
   }
 })
 
-/**
- * The draft outlives any one leaf. Moving between sections remounts this
- * component, so a plain `reactive` here loses the name on the way to the
- * summary. `useState` is keyed to the record, so a half-filled new service
- * survives the walk between its own sections and is discarded when a different
- * record is opened.
- */
-const form = useState(`professional-service-draft-${siteId}-${serviceId.value}`, () => ({
-  name: '',
-  slug: '',
-  summary: '',
-  short_description: '',
-  schema_type: '',
-  sort_order: 0,
-  featured: false,
-})).value
+function emptyDraft() {
+  return { name: '', slug: '', summary: '', short_description: '', schema_type: '', sort_order: 0, featured: false }
+}
+
+// Keyed to the record so the draft survives the remount between sections.
+const form = useState(`professional-service-draft-${siteId}-${serviceId.value}`, emptyDraft).value
 
 const saving = ref(false)
 const errorMessage = ref('')
 
-/**
- * There is no per-record endpoint: the list is read whole and written whole.
- * The record shares the list's cache key, not a key of its own — in pair mode
- * both are mounted at once, so a second key would leave the index column
- * showing the name and summary this screen has just replaced.
- */
+// Its own key: two useAsyncData on one key leave the second's `pending` stuck.
+// A save refreshes the list's entry as well, so the index column follows.
 const { data, refresh } = await useAsyncData(
-  `dashboard-professional-services-${siteId}`,
+  () => `dashboard-professional-service-${siteId}-${serviceId.value}`,
   () => dashboardApi(`/api/editor/sites/${siteId}/professional-services`, { validate: isProfessionalServicesResponse }),
   { server: false },
 )
 
-/**
- * The API representation is kept exactly as loaded. Saving sends every row
- * back, so coercing null to '' here would rewrite the untouched rows' nulls as
- * empty strings the first time any one service is saved. Only the row this
- * screen has open is coerced, and only onto its own form.
- */
 const offerings = computed<ProfessionalServiceRow[]>(() => data.value?.offerings ?? [])
 const record = computed(() => offerings.value.find(row => row.id === serviceId.value) ?? null)
 
-watch(record, (row) => {
-  if (!row) return
+function loadForm(row: ProfessionalServiceRow) {
   Object.assign(form, {
     name: row.name,
     slug: row.slug,
@@ -196,19 +173,8 @@ watch(record, (row) => {
     sort_order: row.sort_order,
     featured: row.featured,
   })
-}, { immediate: true })
-
-/**
- * A new service lands after the ones already filed rather than at the top. It
- * is seeded once, when the list arrives, so a position the owner then chose is
- * not overwritten by the next refresh.
- */
-const orderSeeded = useState(`professional-service-order-${siteId}-${serviceId.value}`, () => false)
-watch(data, (loaded) => {
-  if (!isNew.value || orderSeeded.value || !loaded) return
-  form.sort_order = loaded.offerings.length
-  orderSeeded.value = true
-}, { immediate: true })
+}
+watch(record, (row) => { if (row) loadForm(row) }, { immediate: true })
 
 const blockers = computed(() => professionalServiceCreateBlockers(form))
 
@@ -222,7 +188,7 @@ const navigationGroups = computed<EditorNavigationGroup[]>(() => [
     label: 'Service',
     items: [
       { id: 'name', label: 'Name', summary: summaryOf(form.name, 'Not named yet'), icon: 'i-lucide-briefcase', to: `${recordPath.value}/name` },
-      { id: 'slug', label: 'Slug', summary: summaryOf(form.slug, `Derived from the name${form.name.trim() ? `: ${slugifyServiceName(form.name)}` : ''}`), icon: 'i-lucide-link', to: `${recordPath.value}/slug` },
+      { id: 'slug', label: 'Slug', summary: summaryOf(form.slug, `Derived from the name${form.name.trim() ? `: ${derivedServiceSlug(form.name)}` : ''}`), icon: 'i-lucide-link', to: `${recordPath.value}/slug` },
       { id: 'summary', label: 'Summary', summary: summaryOf(form.summary, 'No summary yet'), icon: 'i-lucide-text', to: `${recordPath.value}/summary` },
       { id: 'description', label: 'Description', summary: summaryOf(form.short_description, 'Nothing written yet'), icon: 'i-lucide-align-left', to: `${recordPath.value}/description` },
     ],
@@ -232,100 +198,59 @@ const navigationGroups = computed<EditorNavigationGroup[]>(() => [
     label: 'Placement',
     items: [
       { id: 'schema_type', label: 'Schema type', summary: summaryOf(form.schema_type, 'Not set'), icon: 'i-lucide-tag', to: `${recordPath.value}/schema_type` },
-      { id: 'ordering', label: 'Ordering', summary: `${form.featured ? 'Featured' : 'Not featured'} · position ${form.sort_order}`, icon: 'i-lucide-arrow-up-down', to: `${recordPath.value}/ordering` },
+      // A new service is filed after the existing ones by the endpoint; its position is a section once it exists.
+      ...(isNew.value ? [] : [{ id: 'ordering', label: 'Ordering', summary: `${form.featured ? 'Featured' : 'Not featured'} · position ${form.sort_order}`, icon: 'i-lucide-arrow-up-down', to: `${recordPath.value}/ordering` }]),
     ],
   },
 ])
 
-/**
- * Creating walks the sections the endpoint will not accept empty, naming where
- * it is going, and writes once nothing is outstanding. Slug is in the order but
- * is usually walked straight through: an empty one is derived from the name,
- * and it is asked for only when there is nothing to derive. Only this level
- * walks an order, because only this level creates.
- */
-const REQUIRED_ORDER: SectionKey[] = ['name', 'slug', 'schema_type']
-const outstanding = computed(() => {
-  const names = new Set(blockers.value)
-  return REQUIRED_ORDER.filter(key => names.has(SECTION_LABELS[key]))
-})
-const nextOutstanding = computed(() => outstanding.value.find(key => key !== openKey.value) ?? null)
-
-const createActionLabel = computed(() => {
-  const next = outstanding.value[0]
-  return next ? `Start with ${SECTION_LABELS[next]}` : 'Create service'
+const { createActionLabel, saveLabel, saveDisabled, save: saveOpenSection, startOrCreate } = useCreateWalk({
+  recordPath,
+  isNew,
+  openKey,
+  labels: SECTION_LABELS,
+  order: ['name', 'slug', 'schema_type'],
+  missing: key => blockers.value.some(section => section === key),
+  noun: 'service',
+  saving,
+  commit,
 })
 
-function startOrCreate() {
-  const next = outstanding.value[0]
-  if (next) return void navigateTo(`${recordPath.value}/${next}`)
-  void saveOpenSection()
-}
-
-/**
- * The open section's own value is the only thing that can block its commit —
- * and it blocks an existing record as well as a new one, because a name can be
- * emptied, and a slug the endpoint cannot accept can be typed, long after the
- * service was created.
- */
-const openSectionIncomplete = computed(() => outstanding.value.includes(openKey.value))
-const saveDisabled = computed(() => saving.value || openSectionIncomplete.value)
-
-const saveLabel = computed(() => {
-  if (!isNew.value) return undefined
-  return nextOutstanding.value ? `Next: ${SECTION_LABELS[nextOutstanding.value]}` : 'Create service'
-})
-
-/**
- * The endpoint takes the whole list and upserts it, so the edited row is merged
- * back into it and the rest is sent exactly as it was loaded — same fields,
- * same nulls. A row whose slug does not exist yet is inserted, which is how
- * creating here needs no second endpoint.
- */
-async function saveOpenSection() {
-  if (saveDisabled.value) return
-  if (isNew.value && nextOutstanding.value) {
-    await navigateTo(`${recordPath.value}/${nextOutstanding.value}`)
+async function commit() {
+  // The form holds the row it was loaded from; with no row it holds blank
+  // defaults, and saving would write those over the stored service.
+  if (!isNew.value && !record.value) {
+    errorMessage.value = 'This service could not be loaded, so it cannot be saved.'
     return
   }
   saving.value = true
   errorMessage.value = ''
   try {
-    const name = form.name.trim()
-    const slug = form.slug.trim() || slugifyServiceName(name)
-    const edited = {
-      name,
-      slug,
-      summary: form.summary,
-      short_description: form.short_description,
-      schema_type: form.schema_type.trim(),
-      sort_order: form.sort_order,
-      featured: form.featured,
-    }
-    const next = isNew.value
-      ? [...offerings.value, { ...edited, id: '' } as ProfessionalServiceRow]
-      : offerings.value.map(row => row.id === serviceId.value ? { ...row, ...edited } : row)
-    await dashboardApi(`/api/editor/sites/${siteId}/professional-services`, {
+    // Only the fields this screen edits; the endpoint keeps every other column.
+    const written = await dashboardApi(`/api/editor/sites/${siteId}/professional-services`, {
       method: 'PATCH',
-      // The upsert writes every column from what it is sent, so every row goes
-      // back whole — the rows this screen never opened included. Sending the
-      // five edited fields alone emptied each row's body, features, FAQs,
-      // label, CTA and SEO.
-      body: { offerings: next.map(serviceUpsertRow) },
-      validate: (value): value is Record<string, unknown> => isRecord(value),
+      body: {
+        offerings: [{
+          ...(isNew.value ? {} : { id: serviceId.value }),
+          name: form.name.trim(),
+          ...(form.slug.trim() ? { slug: form.slug.trim() } : {}),
+          summary: form.summary,
+          short_description: form.short_description,
+          schema_type: form.schema_type.trim(),
+          ...(isNew.value ? {} : { featured: form.featured, sort_order: form.sort_order }),
+        }],
+      },
+      validate: isProfessionalServiceWriteResponse,
     })
+    await Promise.all([refresh(), refreshNuxtData(professionalServicesKey(siteId))])
     if (isNew.value) {
-      await refresh()
-      const created = offerings.value.find(row => row.slug === slug)
-      // The draft is keyed to `new`, so it would greet the next service with
-      // this one's answers if it were left behind.
-      Object.assign(form, { name: '', slug: '', summary: '', short_description: '', schema_type: '', sort_order: 0, featured: false })
-      orderSeeded.value = false
+      const [createdId] = written.offering_ids
+      if (!createdId) throw new Error('The service was not created.')
+      Object.assign(form, emptyDraft())
       toast.add({ description: 'Service created', color: 'success' })
-      await navigateTo(created ? `${servicesPath.value}/${created.id}` : servicesPath.value)
+      await navigateTo(`${servicesPath.value}/${createdId}`)
       return
     }
-    await refresh()
     toast.add({ description: `${SECTION_LABELS[openKey.value]} saved`, color: 'success' })
     await navigateTo(recordPath.value)
   } catch (error) {
@@ -336,18 +261,7 @@ async function saveOpenSection() {
 }
 
 function closeDetail() {
-  const row = record.value
-  if (row) {
-    Object.assign(form, {
-      name: row.name,
-      slug: row.slug,
-      summary: row.summary ?? '',
-      short_description: row.short_description ?? '',
-      schema_type: row.schema_type ?? '',
-      sort_order: row.sort_order,
-      featured: row.featured,
-    })
-  }
+  if (record.value) loadForm(record.value)
   void navigateTo(recordPath.value)
 }
 

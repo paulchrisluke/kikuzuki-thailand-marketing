@@ -217,15 +217,6 @@ function openExisting(item: { row: Product }) {
   return navigateTo(`${categoryPath.value}/${item.row.id}`)
 }
 
-// A ?localize= deep link names an item, and the item's translations live on its
-// own page, so the link resolves to that page rather than opening anything here.
-watch(products, (rows) => {
-  const target = typeof route.query.localize === 'string' ? route.query.localize : ''
-  if (!target.startsWith('product:')) return
-  const product = rows.find(row => target === `product:${row.id}`)
-  if (product) void navigateTo(`${categoryPath.value}/${product.id}`)
-}, { immediate: true })
-
 watch([locationId, categoryId], () => {
   orderDirty.value = false
   localOrder.value = null

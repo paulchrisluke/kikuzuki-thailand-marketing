@@ -1,6 +1,6 @@
 {
   "surface": "tenant",
-  "fingerprint": "sha256:53a9c6241244a2f6f30687fde55c9bf55ce58c5286a4c138f47e3a8cfa7e0139",
+  "fingerprint": "sha256:e70fbde48923db11bc763cc73c06184310fffa4e03ddd66d1a9371858bc02b24",
   "tools": [
     {
       "name": "attach_media",
@@ -5829,6 +5829,123 @@
           },
           "offerings": {
             "items": {
+              "description": "One offering. Name an existing row by id (or slug) and send only the fields to change; every field left out keeps its stored value. A row matching no id or slug is created: it needs name and schema_type, and its slug, canonical_path and sort_order are derived when left out.",
+              "properties": {
+                "body": {
+                  "description": "Markdown body.",
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "canonical_path": {
+                  "description": "Site-relative path, e.g. /services/family.",
+                  "type": "string"
+                },
+                "cta_label": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "cta_url": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "faqs": {
+                  "items": {
+                    "type": "object"
+                  },
+                  "type": "array"
+                },
+                "featured": {
+                  "type": "boolean"
+                },
+                "features": {
+                  "items": {
+                    "type": "object"
+                  },
+                  "type": "array"
+                },
+                "id": {
+                  "type": "string"
+                },
+                "label": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "location_id": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "media": {
+                  "description": "Replaces the thumbnail and hero placements when sent. An existing gallery is changed through the media tools, not here.",
+                  "items": {
+                    "properties": {
+                      "asset_id": {
+                        "type": "string"
+                      },
+                      "slot": {
+                        "enum": [
+                          "thumbnail",
+                          "hero",
+                          "gallery"
+                        ],
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "asset_id",
+                      "slot"
+                    ],
+                    "type": "object"
+                  },
+                  "type": "array"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "schema_type": {
+                  "description": "Schema.org type name such as LegalService or AccountingService.",
+                  "type": "string"
+                },
+                "seo_description": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "seo_title": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "short_description": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "slug": {
+                  "type": "string"
+                },
+                "sort_order": {
+                  "type": "integer"
+                },
+                "summary": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              },
               "type": "object"
             },
             "type": "array"
@@ -16845,6 +16962,123 @@
           },
           "offerings": {
             "items": {
+              "description": "One offering. Name an existing row by id (or slug) and send only the fields to change; every field left out keeps its stored value. A row matching no id or slug is created: it needs name and schema_type, and its slug, canonical_path and sort_order are derived when left out.",
+              "properties": {
+                "body": {
+                  "description": "Markdown body.",
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "canonical_path": {
+                  "description": "Site-relative path, e.g. /services/family.",
+                  "type": "string"
+                },
+                "cta_label": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "cta_url": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "faqs": {
+                  "items": {
+                    "type": "object"
+                  },
+                  "type": "array"
+                },
+                "featured": {
+                  "type": "boolean"
+                },
+                "features": {
+                  "items": {
+                    "type": "object"
+                  },
+                  "type": "array"
+                },
+                "id": {
+                  "type": "string"
+                },
+                "label": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "location_id": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "media": {
+                  "description": "Replaces the thumbnail and hero placements when sent. An existing gallery is changed through the media tools, not here.",
+                  "items": {
+                    "properties": {
+                      "asset_id": {
+                        "type": "string"
+                      },
+                      "slot": {
+                        "enum": [
+                          "thumbnail",
+                          "hero",
+                          "gallery"
+                        ],
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "asset_id",
+                      "slot"
+                    ],
+                    "type": "object"
+                  },
+                  "type": "array"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "schema_type": {
+                  "description": "Schema.org type name such as LegalService or AccountingService.",
+                  "type": "string"
+                },
+                "seo_description": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "seo_title": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "short_description": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "slug": {
+                  "type": "string"
+                },
+                "sort_order": {
+                  "type": "integer"
+                },
+                "summary": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              },
               "type": "object"
             },
             "type": "array"
@@ -16862,6 +17096,13 @@
       },
       "outputSchema": {
         "properties": {
+          "offering_ids": {
+            "description": "The id of every offering written by this call, in payload order.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
           "success": {
             "type": "boolean"
           },
@@ -16871,7 +17112,8 @@
         },
         "required": [
           "success",
-          "written"
+          "written",
+          "offering_ids"
         ],
         "type": "object"
       }
