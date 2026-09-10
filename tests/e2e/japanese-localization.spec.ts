@@ -17,6 +17,10 @@ test('Japanese is a second secondary language and keeps its public shell through
   const before = await owner.get(localePath)
   await expectStatus(before, 200)
   const original = await before.json() as { languages: Array<{ locale: string; status: string }> }
+  const settingsUrl = `/api/sites/${siteId}/settings`
+  const originalSettingsResponse = await owner.get(settingsUrl)
+  await expectStatus(originalSettingsResponse, 200)
+  const originalFontPreset = (await originalSettingsResponse.json() as { settings: { font_preset: 'default' | 'mali' } }).settings.font_preset
   const hadJapanese = original.languages.some(language => language.locale === 'ja' && language.status === 'published')
   const hydrationErrors: string[] = []
   page.on('console', message => {
@@ -27,6 +31,7 @@ test('Japanese is a second secondary language and keeps its public shell through
   try {
     await expectStatus(await owner.post(`${localePath}/th/enable`), 200)
     await expectStatus(await owner.post(`${localePath}/ja/enable`), 200)
+    await expectStatus(await owner.patch(settingsUrl, { data: { font_preset: 'mali' } }), 200)
     // Re-enabling an already published language does not consume another slot.
     await expectStatus(await owner.post(`${localePath}/ja/enable`), 200)
     const enabled = await owner.get(localePath)
@@ -56,6 +61,7 @@ test('Japanese is a second secondary language and keeps its public shell through
       expect(html).not.toContain('Reserve a table')
       await expect(page.locator('html')).toHaveAttribute('lang', 'ja')
       await expect(page.locator('.tenant-layout')).toHaveAttribute('data-hydrated', 'true')
+      await expect(page.locator('.tenant-layout')).toHaveAttribute('data-font-preset', 'mali')
       await expect(page.getByRole('navigation', { name: 'メインナビゲーション' }).first()).toBeVisible()
       await expect(page.getByRole('link', { name: '席を予約する' }).first()).toBeVisible()
       if (path === '/ja/contact') {
@@ -77,6 +83,7 @@ test('Japanese is a second secondary language and keeps its public shell through
     await expect(page.getByRole('link', { name: 'Reserve a table' }).first()).toBeVisible()
   } finally {
     await expectStatus(await owner.post(`${localePath}/ja/${hadJapanese ? 'enable' : 'disable'}`), 200)
+    await expectStatus(await owner.patch(settingsUrl, { data: { font_preset: originalFontPreset } }), 200)
     await owner.dispose()
   }
 })

@@ -9,7 +9,7 @@ async function expectStatus(response: APIResponse, status: number) {
   expect(response.status(), await response.text()).toBe(status)
 }
 
-async function coldMobileSample(browser: Browser, url: string): Promise<Metrics> {
+async function coldMobileSample(browser: Browser, url: string, preset: 'default' | 'mali'): Promise<Metrics> {
   const context = await browser.newContext({
     viewport: { width: 390, height: 844 }, deviceScaleFactor: 1,
     isMobile: true, hasTouch: true, serviceWorkers: 'block',
@@ -50,6 +50,8 @@ async function coldMobileSample(browser: Browser, url: string): Promise<Metrics>
     })
     const response = await page.goto(url, { waitUntil: 'load' })
     expect(response?.status()).toBe(200)
+    await expect(page.locator('.tenant-layout')).toHaveAttribute('data-font-preset', preset)
+    await expect(page.locator('.tenant-layout')).toHaveCSS('font-family', preset === 'mali' ? /Mali/ : /Instrument Serif/)
     await expect(page.locator('.tenant-layout')).toHaveAttribute('data-hydrated', 'true')
     await page.evaluate(() => document.fonts.ready.then(() => undefined))
     // Observe post-font layout without clicking consent, scrolling, or ending LCP.
@@ -82,7 +84,16 @@ test('Mali saves through Brand, renders before hydration, and stays within the c
   const initial = await owner.get(settingsUrl)
   await expectStatus(initial, 200)
   const original = (await initial.json() as { settings: { font_preset: 'default' | 'mali'; brand_color: string } }).settings
-  const measurements: Record<'default' | 'mali', Metrics[]> = { default: [], mali: [] }
+    const performanceRoutes = {
+      home: `${kikuzukiTestBaseUrl()}/`,
+      menu: `${kikuzukiTestBaseUrl()}/menu`,
+      reservations: `${kikuzukiTestBaseUrl()}/th/reservations`,
+    } as const
+    const measurements: Record<keyof typeof performanceRoutes, Record<'default' | 'mali', Metrics[]>> = {
+      home: { default: [], mali: [] },
+      menu: { default: [], mali: [] },
+      reservations: { default: [], mali: [] },
+    }
   const patch = async (data: Record<string, unknown>) => expectStatus(await owner.patch(settingsUrl, { data }), 200)
   const dashboard = await browser.newContext({ baseURL, storageState: await owner.storageState(), viewport: { width: 1280, height: 900 } })
   try {
@@ -160,21 +171,27 @@ test('Mali saves through Brand, renders before hydration, and stays within the c
     for (let run = 0; run < 3; run++) {
       for (const preset of (run % 2 ? ['mali', 'default'] : ['default', 'mali']) as Array<'default' | 'mali'>) {
         await patch({ font_preset: preset })
-        measurements[preset].push(await coldMobileSample(browser, `${kikuzukiTestBaseUrl()}/th/reservations`))
+        for (const [route, url] of Object.entries(performanceRoutes) as Array<[keyof typeof performanceRoutes, string]>) {
+          measurements[route][preset].push(await coldMobileSample(browser, url, preset))
+        }
       }
     }
     const report = {
       samples: measurements,
-      medianDefaultLcp: median(measurements.default.map(value => value.lcp)),
-      medianMaliLcp: median(measurements.mali.map(value => value.lcp)),
-      medianDefaultCls: median(measurements.default.map(value => value.cls)),
-      medianMaliCls: median(measurements.mali.map(value => value.cls)),
+      routes: Object.fromEntries(Object.entries(measurements).map(([route, samples]) => [route, {
+        medianDefaultLcp: median(samples.default.map(value => value.lcp)),
+        medianMaliLcp: median(samples.mali.map(value => value.lcp)),
+        medianDefaultCls: median(samples.default.map(value => value.cls)),
+        medianMaliCls: median(samples.mali.map(value => value.cls)),
+      }])),
     }
     console.info('[font-performance]', JSON.stringify(report))
     await testInfo.attach('cold-mobile-fonts.json', { body: JSON.stringify(report, null, 2), contentType: 'application/json' })
-    expect(report.medianMaliLcp - report.medianDefaultLcp).toBeLessThanOrEqual(Math.max(250, report.medianDefaultLcp * 0.1))
-    expect(report.medianMaliCls).toBeLessThanOrEqual(0.1)
-    expect(report.medianMaliCls - report.medianDefaultCls).toBeLessThanOrEqual(0.02)
+    for (const route of Object.values(report.routes)) {
+      expect(route.medianMaliLcp - route.medianDefaultLcp).toBeLessThanOrEqual(Math.max(250, route.medianDefaultLcp * 0.1))
+      expect(route.medianMaliCls).toBeLessThanOrEqual(0.1)
+      expect(route.medianMaliCls - route.medianDefaultCls).toBeLessThanOrEqual(0.02)
+    }
 
     await patch({ font_preset: 'default' })
     const reset = await playwright.request.newContext({ extraHTTPHeaders: kikuzukiTestExtraHeaders() })
