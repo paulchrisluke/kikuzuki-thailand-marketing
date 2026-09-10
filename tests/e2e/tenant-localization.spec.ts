@@ -228,7 +228,7 @@ test.describe.serial('published Thai content saves through the CMS and renders w
       // The links leaf, where the list of links lives. The page's own Localize
       // control is in the level's navbar beside it; a link's own Localize is in
       // the navbar of the record the row opens.
-      await openTenantPage(cms, `${baseURL}/dashboard/north-carolina-legal-services/sites/ncls/links/links`, {})
+      await openTenantPage(cms, `${baseURL}/dashboard/north-carolina-legal-services/sites/ncls/links/items`, {})
     })
 
     test('loads and saves one representative Thai link translation through Localize', async () => {
@@ -244,7 +244,7 @@ test.describe.serial('published Thai content saves through the CMS and renders w
       // that follows is the record's, in that level's navbar.
       await cms.getByTestId('list-editor-toggle').click()
       await cms.getByRole('button', { name: 'Edit Family law services' }).click()
-      await expect(cms).toHaveURL(new RegExp(`/links/links/${links.items[0]!.id}$`))
+      await expect(cms).toHaveURL(new RegExp(`/links/items/${links.items[0]!.id}$`))
       await cms.getByTestId('localize-resource').click()
       await cms.getByTestId('localize-language').click()
       await cms.getByRole('option', { name: /ไทย \(th\)/ }).click()
@@ -267,7 +267,7 @@ test.describe.serial('published Thai content saves through the CMS and renders w
     // to settle first: mid-transition both are mounted, and the click landed on
     // the record's as it detached.
     await cms.getByTestId('dashboard-navbar-back').click()
-    await expect(cms).toHaveURL(/\/links\/links$/)
+    await expect(cms).toHaveURL(/\/links\/items$/)
     await cms.getByTestId('localize-resource').first().click()
     await expect(cms.getByTestId('localize-language')).toBeEnabled()
     await cms.getByTestId('localize-language').click()

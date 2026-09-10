@@ -60,7 +60,7 @@
         :saving="saving"
         :save-disabled="!editorReady || !sectionValid"
         :detail-title="SECTION_LABELS[editorKey]"
-        :hide-detail-heading="editorKey === 'links'"
+        :hide-detail-heading="editorKey === 'items'"
         :dismiss-to="linksPath"
         @cancel="cancelEditor"
         @save="save"
@@ -110,7 +110,7 @@
 
           <!-- Links -->
           <DashboardListEditor
-            v-else-if="editorKey === 'links'"
+            v-else-if="editorKey === 'items'"
             v-model:editing="editing"
             title="Links"
             description="Add, hide, and reorder the buttons shown on /links."
@@ -138,8 +138,8 @@
   </UDashboardPanel>
 
   <!--
-    A link is a record of its own, at `links/links/<id>`, with one leaf per
-    field. Adding is the same screen at `links/links/new`, so there is nothing
+    A link is a record of its own, at `links/items/<id>`, with one leaf per
+    field. Adding is the same screen at `links/items/new`, so there is nothing
     a sheet did that a URL does not.
   -->
   <UDashboardPanel v-else id="site-links-item">
@@ -308,7 +308,7 @@ const sitePath = computed(() => `/dashboard/${String(route.params.orgSlug)}/site
 // ── Which leaf is open ──────────────────────────────────
 // One leaf per field: a leaf edits one concern, and the hub is read by scanning
 // what each row currently holds.
-const SECTION_KEYS = ['title', 'robots', 'seo-title', 'seo-description', 'links'] as const
+const SECTION_KEYS = ['title', 'robots', 'seo-title', 'seo-description', 'items'] as const
 type SectionKey = typeof SECTION_KEYS[number]
 
 const SECTION_LABELS: Record<SectionKey, string> = {
@@ -316,7 +316,7 @@ const SECTION_LABELS: Record<SectionKey, string> = {
   'robots': 'Robots',
   'seo-title': 'SEO title',
   'seo-description': 'SEO description',
-  'links': 'Links',
+  'items': 'Links',
 }
 
 const ITEM_SECTION_LABELS = { label: 'Label', destination: 'Destination', status: 'Status' } as const
@@ -329,11 +329,11 @@ const detailKey = computed(() => frame.childSegment.value)
 const editorKey = computed<SectionKey>(() => (detailKey.value ?? 'title') as SectionKey)
 
 // ── The link record below the links leaf ────────────────
-// `links/links/<id>` and `links/links/<id>/<field>` are two more levels of the
+// `links/items/<id>` and `links/items/<id>/<field>` are two more levels of the
 // same chain. This level owns the chrome for both: the leaf above it has
 // yielded, so nothing else is drawing a panel around them.
-const itemsPath = computed(() => `${linksPath.value}/links`)
-const itemId = computed(() => (frame.rest.value[0] === 'links' && frame.rest.value.length > 1 ? String(frame.rest.value[1]) : ''))
+const itemsPath = computed(() => `${linksPath.value}/items`)
+const itemId = computed(() => (frame.rest.value[0] === 'items' && frame.rest.value.length > 1 ? String(frame.rest.value[1]) : ''))
 const itemLeaf = computed(() => (frame.rest.value.length > 2 ? String(frame.rest.value[2]) : null))
 const itemPath = computed(() => `${itemsPath.value}/${itemId.value}`)
 const isNewItem = computed(() => itemId.value === 'new')
@@ -350,7 +350,7 @@ watchEffect(() => {
     if (!isSectionKey(rest[0]!)) throw createError({ statusCode: 404, statusMessage: 'Page not found' })
     return
   }
-  if (rest[0] !== 'links' || rest.length > 3 || (rest.length === 3 && !isItemSectionKey(rest[2]!))) {
+  if (rest[0] !== 'items' || rest.length > 3 || (rest.length === 3 && !isItemSectionKey(rest[2]!))) {
     throw createError({ statusCode: 404, statusMessage: 'Page not found' })
   }
 })
@@ -586,7 +586,7 @@ const navigationGroups = computed<EditorNavigationGroup[]>(() => [
     id: 'page',
     items: [
       { id: 'title', label: 'Title', summary: form.title || 'Not named yet', placeholder: !form.title, to: `${linksPath.value}/title` },
-      { id: 'links', label: 'Links', summary: linksSummary(), placeholder: !items.value.length, to: `${linksPath.value}/links` },
+      { id: 'items', label: 'Links', summary: linksSummary(), placeholder: !items.value.length, to: `${linksPath.value}/items` },
     ],
   },
   {
