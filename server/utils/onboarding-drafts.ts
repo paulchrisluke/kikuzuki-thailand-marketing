@@ -98,7 +98,6 @@ export interface DraftContentRecord {
   type: string
   hero_title: string | null
   hero_subtitle: string | null
-  component: string | null
   updated_at: string
   // Not populated by this module's own parser today (no draft content record
   // carries a resolved media asset yet) — declared so commit.post.ts's
@@ -246,7 +245,6 @@ function buildDraftContent(
     type: 'text',
     hero_title: heroHeadline,
     hero_subtitle: heroDescription,
-    component: null,
     updated_at: nowIso(),
   }]
 }

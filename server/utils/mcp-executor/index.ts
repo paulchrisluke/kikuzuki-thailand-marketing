@@ -23,7 +23,6 @@ import { handleOnboardingTools } from './onboarding'
 import { handlePostsTools } from './posts'
 import { handleQaTools } from './qa'
 import { handleReviewsTools } from './reviews'
-import { handleSettingsTools } from './settings'
 import { handleSitesTools } from './sites'
 import { handleSubmissionsTools } from './submissions'
 import {
@@ -55,7 +54,6 @@ export const DOMAIN_HANDLERS: Record<string, (_ctx: McpExecutorContext) => Promi
   posts: handlePostsTools,
   qa: handleQaTools,
   reviews: handleReviewsTools,
-  settings: handleSettingsTools,
   sites: handleSitesTools,
   submissions: handleSubmissionsTools,
 }
@@ -193,50 +191,6 @@ export async function executeMcpToolCall(
       sites: workspaceSitesPayload(refreshed),
       locations: workspaceLocationsPayload(refreshed),
     };
-  }
-
-  if (toolName === "import_from_maps") {
-    const user = authenticatedUser ?? await requireMcpUser(event);
-    const apiKey = (user.env as Record<string, unknown>)
-      .GOOGLE_PLACES_API_KEY as string | undefined;
-    if (!apiKey)
-      throw mcpProtocolError(
-        MCP_ERROR.internal,
-        "Google Places API not configured.",
-      );
-
-    const rawUrl = requiredString(normalizedArguments, "maps_url");
-
-    let details;
-    try {
-      details = await getPlaceDetailsByUrl(apiKey, rawUrl);
-    } catch (error) {
-      if (error instanceof PlaceDetailsError && error.statusCode !== 502) {
-        throw mcpProtocolError(MCP_ERROR.invalidParams, error.message);
-      }
-      throw new HTTPError({
-        statusCode: 502,
-        statusMessage: error instanceof Error ? error.message : "Google Places detail lookup failed.",
-      });
-    }
-
-    const structuredContent = {
-      business: {
-        name: details.name,
-        address: details.formattedAddress,
-        phone: details.phone,
-        hours: details.openingHours ?? [],
-        rating: details.rating,
-        reviewCount: details.ratingCount,
-        placeId: details.placeId,
-        mapsUrl: details.mapsUrl ?? rawUrl,
-      },
-    };
-
-    return renderStructuredResponse(
-      structuredContent,
-      `Imported: ${details.name} — ${details.formattedAddress}.`,
-    );
   }
 
   if (toolName === "show_generated_images") {

@@ -238,7 +238,8 @@ export function createAuth(env: CloudflareEnv) {
   } as const
   const authBaseUrl = env.BETTER_AUTH_URL?.replace(/\/$/, '')
   if (!authBaseUrl) throw new Error('BETTER_AUTH_URL is required')
-  const stripeClient = createStripeClient(env.STRIPE_SECRET_KEY ?? 'sk_test_placeholder')
+  if (!env.STRIPE_SECRET_KEY) throw new Error('STRIPE_SECRET_KEY is required')
+  const stripeClient = createStripeClient(env.STRIPE_SECRET_KEY)
   const loadStripePlans = createStripePlanLoader(stripeClient, env)
 
   const instance = betterAuth({

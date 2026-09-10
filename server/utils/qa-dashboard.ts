@@ -27,6 +27,7 @@ export async function getSiteQa(
   db: DbClient,
   siteId: string,
   pagePath: string | null,
+  qaId: string | null = null,
 ): Promise<Array<{
   id: string
   question: string
@@ -35,6 +36,6 @@ export async function getSiteQa(
   sort_order: number
   page_path: string | null
 }>> {
-  const rows = await listQa(db, siteId, null, false, pagePath)
+  const rows = await listQa(db, siteId, null, false, pagePath, 'en', qaId)
   return rows.map(({ id, question, answer, status, sort_order, page_path }) => ({ id, question, answer, status, sort_order, page_path }))
 }

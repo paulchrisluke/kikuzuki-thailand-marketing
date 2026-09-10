@@ -220,6 +220,15 @@ const route = useRoute()
 const router = useRouter()
 const toast = useToast()
 const dashboard = useDashboardSite()
+const siteDashboardPath = computed(() => `/dashboard/${String(route.params.orgSlug)}/sites/${String(route.params.siteSlug)}`)
+const brandPath = computed(() => `${siteDashboardPath.value}/brand`)
+const settingsPath = computed(() => `${siteDashboardPath.value}/settings`)
+// `useEditorFrame` provides and injects, so it runs before any `await`, and it
+// is the only place the route below this level is split into segments. This
+// component used to re-derive them from `route.params.segments`, a second copy
+// of the composable's own `rest`.
+const frame = useEditorFrame(computed(() => surface.value === 'brand' ? brandPath.value : settingsPath.value))
+
 if (!dashboard.state.value) await dashboard.refresh()
 const siteId = await useDashboardSiteId()
 
@@ -262,9 +271,6 @@ const isNotificationsResponse = (value: unknown): value is { success: boolean; n
 const isFacebookStatus = (value: unknown): value is FacebookConnectionStatus =>
   isRecord(value) && typeof value.connected === 'boolean' && (value.facebook_page_name === undefined || typeof value.facebook_page_name === 'string')
 
-const siteDashboardPath = computed(() => `/dashboard/${String(route.params.orgSlug)}/sites/${String(route.params.siteSlug)}`)
-const brandPath = computed(() => `${siteDashboardPath.value}/brand`)
-const settingsPath = computed(() => `${siteDashboardPath.value}/settings`)
 
 // Two different "up"s, and they are not the same destination.
 //
@@ -283,11 +289,7 @@ const dismissTo = computed(() => {
   if (isSearchLevel.value) return `${settingsPath.value}/search`
   return surface.value === 'brand' ? brandPath.value : settingsPath.value
 })
-const routeSegments = computed(() => {
-  const raw = route.params.segments
-  if (Array.isArray(raw)) return raw.map(String)
-  return raw ? [String(raw)] : []
-})
+const routeSegments = frame.rest
 const firstSegment = computed(() => routeSegments.value[0] ?? null)
 const secondSegment = computed(() => routeSegments.value[1] ?? null)
 const detailKey = computed(() => surface.value === 'brand' ? firstSegment.value : firstSegment.value === 'search' ? secondSegment.value ?? 'search-index' : firstSegment.value)
@@ -402,7 +404,7 @@ const navigationGroups = computed(() => {
   ]
 })
 const activeNavigationId = computed(() => surface.value === 'brand' || isSearchLevel.value ? detailKey.value : firstSegment.value)
-const hasDetail = computed(() => detailKey.value !== null)
+const hasDetail = computed(() => routeSegments.value.length > 0)
 const detailTitles: Record<string, string> = { 'search-index': 'Search and analytics', name: 'Brand name', logo: 'Logo', 'sharing-image': 'Social sharing image', description: 'Description', color: 'Brand color', contact: 'Contact details', social: 'Social profiles', currency: 'Currency', notifications: 'Notifications', analytics: 'Google Analytics', verification: 'Search verification', visibility: 'Search visibility', publishing: 'Facebook publishing', localization: 'Localization' }
 const detailTitle = computed(() => detailKey.value ? detailTitles[detailKey.value] : undefined)
 

@@ -299,7 +299,6 @@
 </template>
 
 <script setup lang="ts">
-import type { SayaIconName } from '~/components/saya/SayaIcon.vue'
 import { $fetch } from 'ofetch'
 import { setBookingConfirmation } from '~/composables/useBookingHandoff'
 import { getActiveSpecialClosure, formatClosureMessage } from '~/utils/formatters'
@@ -401,7 +400,7 @@ const sanitizedBody = computed(() => {
 const thingsToKnow = computed(() => {
   const exp = experience.value
   if (!exp) return []
-  const groups: Array<{ id: string; title: string; icon: SayaIconName; lines: string[] }> = []
+  const groups: Array<{ id: string; title: string; icon: string; lines: string[] }> = []
 
   if (exp.included_items?.length) {
     groups.push({
@@ -465,6 +464,7 @@ import BookingRecap from '@/components/booking/BookingRecap.vue'
 import BookingTimeStep, { type RawDateAvailability, type TimeSlotSelection } from '@/components/booking/BookingTimeStep.vue'
 import { formatTime } from '~/utils/timezone'
 import BookingContactForm, { type ContactFormState } from '@/components/booking/BookingContactForm.vue'
+import { normalizeRobotsIntent } from '~/shared/robots-directive'
 
 const isBookingModalOpen = ref(false)
 const isHydrated = ref(false)
@@ -619,7 +619,7 @@ const { canonicalUrl } = useSocialMetadata(() => {
     title: seoTitle.value,
     description: seoDescription.value,
     label: t('saya.experience_detail.experience'),
-    robots: experience.value?.robots || null,
+    robots: normalizeRobotsIntent(experience.value?.robots),
     brand: {
       siteName: siteName.value,
     },

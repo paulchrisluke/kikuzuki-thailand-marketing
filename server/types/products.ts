@@ -127,7 +127,7 @@ export interface RenameProductCategoryInput {
   name: string
 }
 
-export type SyncProductInput = CreateProductInput & { product_id?: string }
+export type ReconcileProductInput = CreateProductInput & { product_id?: string }
 
 export interface ProductPresentation {
   feature: 'products'

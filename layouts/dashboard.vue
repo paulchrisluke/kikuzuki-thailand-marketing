@@ -60,10 +60,6 @@
       case; only an element that deliberately spans the viewport reaches them.
     -->
     <UDashboardGroup
-      unit="rem"
-      :min-size="14"
-      :default-size="18"
-      :max-size="24"
       :ui="{ base: [showDashboardChrome ? 'z-40' : '', showNavChrome ? 'md:top-(--kc-dashboard-top-nav) max-md:bottom-(--kc-dashboard-bottom-nav)' : showDashboardChrome ? 'top-(--kc-dashboard-top-nav)' : ''].filter(Boolean).join(' ') }"
     >
       <UDashboardSearch v-model:search-term="dashboardSearchTerm" :groups="dashboardSearchGroups" :loading="dashboardSearchLoading" :color-mode="false" />

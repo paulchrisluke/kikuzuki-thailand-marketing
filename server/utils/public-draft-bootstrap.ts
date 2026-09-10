@@ -5,11 +5,12 @@ import { cloudflareEnv } from '~/server/utils/api-response'
 import { queryFirst } from '~/server/db'
 import { getDraftMedia, onboardingPageBlocks, onboardingPagePath, onboardingPageType, parseOnboardingDraftPayload, type OnboardingDraftPayload } from '~/server/utils/onboarding-drafts'
 import { verifyScopedPreviewToken } from '~/server/utils/preview-token'
-import { groupContentBlocks, tenantPageToContentRows } from '~/server/utils/public-page'
+import { groupContentBlocks, tenantPageToContentRows } from '~/server/utils/public-draft-content'
 import type { PublicTenantPage } from '~/server/utils/public-tenant-pages'
 import { platformLocale } from '~/shared/platform-locales'
 import { isPublicPagePayload } from '~/utils/public-resource-contracts'
 import type { BlawbyRouteRecipe, PublicBlawbyRouteData, PublicBlawbyShellData } from '~/types/blawby'
+import { NON_INDEXABLE_ROBOTS_INTENT } from '~/shared/robots-directive'
 
 async function loadDraftPreviewSource(
   event: H3Event,
@@ -150,7 +151,7 @@ export function buildPublicDraftBlawbyDocument(
         seo_title: heroTitle,
         seo_description: heroDescription,
         canonical_url: null,
-        robots: 'noindex',
+        robots: NON_INDEXABLE_ROBOTS_INTENT,
         media: [],
         social_image: null,
         blocks: [{
@@ -235,7 +236,7 @@ function buildDraftTenantPage(
     seo_title: null,
     seo_description: null,
     canonical_url: null,
-    robots: 'noindex',
+    robots: NON_INDEXABLE_ROBOTS_INTENT,
     page_type: onboardingPageType(page),
     recipe: page,
     sort_order: 0,

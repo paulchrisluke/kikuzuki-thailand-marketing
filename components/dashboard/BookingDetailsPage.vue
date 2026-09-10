@@ -342,7 +342,11 @@ const toast = useToast()
 const orgSlug = computed(() => String(route.params.orgSlug || ''))
 const todayPath = computed(() => `/dashboard/${orgSlug.value}`)
 const bookingPath = computed(() => `${todayPath.value}/bookings/${props.bookingType}/${encodeURIComponent(props.bookingId)}`)
-const editorSegments = computed(() => Array.isArray(route.params.editor) ? route.params.editor : route.params.editor ? [route.params.editor] : [])
+// `useEditorFrame` provides and injects, so it runs before any `await`, and it
+// owns the split of the route below this booking. The `route.params.editor`
+// derivation this replaces was a second copy of the composable's `rest`.
+const frame = useEditorFrame(bookingPath)
+const editorSegments = frame.rest
 const editorKey = computed(() => editorSegments.value[0] || '')
 const editorField = computed(() => editorSegments.value[1] || '')
 const isChangeMode = computed(() => editorKey.value === 'change')

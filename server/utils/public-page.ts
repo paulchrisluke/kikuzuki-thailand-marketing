@@ -58,7 +58,7 @@ import {
   type ExactPublicLocalization,
 } from '~/server/utils/public-localization'
 
-export interface SiteContent {
+interface SiteContent {
   id: string
   organization_id: string
   site_id: string
@@ -72,18 +72,16 @@ export interface SiteContent {
   hero_title?: string | null
   hero_subtitle?: string | null
   media?: Array<{ asset_id: string; slot: string; public_url?: string | null; thumbnail_url?: string | null; kind?: string | null }>
-  component?: string | null
   updated_at: string
 }
 
-export function groupContentBlocks(rows: SiteContent[]): Array<SiteContent & { _section: string }> {
+function groupContentBlocks(rows: SiteContent[]): Array<SiteContent & { _section: string }> {
   const groups = Object.create(null) as Record<string, SiteContent & { _section: string }>
   for (const row of rows) {
     const section = row.field?.split('.')[0] || 'unknown'
     if (!groups[section]) {
       groups[section] = { ...row, field: section, _section: section }
     } else {
-      if (row.component) groups[section].component = row.component
       for (const key of Object.keys(row) as Array<keyof SiteContent>) {
         if (groups[section][key] == null) (groups[section] as unknown as Record<string, unknown>)[key] = row[key]
       }
@@ -141,7 +139,7 @@ function canonicalTenantPagePath(page: string | null): string | null {
   return null
 }
 
-export function tenantPageToContentRows(page: PublicTenantPage): SiteContent[] {
+function tenantPageToContentRows(page: PublicTenantPage): SiteContent[] {
   const rows: SiteContent[] = []
   for (const block of page.blocks) {
     const data = block.data
@@ -157,7 +155,6 @@ export function tenantPageToContentRows(page: PublicTenantPage): SiteContent[] {
       type: block.type === 'image' || block.type === 'gallery' ? 'media' : 'text',
       source: 'tenant-pages',
       updated_at: page.updated_at,
-      component: null,
       media: block.media,
     } satisfies SiteContent
     if (block.type === 'hero') {

@@ -291,9 +291,9 @@
         "destructiveHint": false
       },
       "justifications": {
-        "read_only_justification": "Reads the selected site or location booking policy.",
-        "open_world_justification": "Reads the selected site or location booking policy. It does not publish content or write to an external service.",
-        "destructive_justification": "Reads the selected site or location booking policy. Existing content is not deleted or overwritten."
+        "read_only_justification": "Reads the selected site, location, or individual experience booking policy and its resolved terms.",
+        "open_world_justification": "Reads the selected site, location, or individual experience booking policy and its resolved terms. It does not publish content or write to an external service.",
+        "destructive_justification": "Reads the selected site, location, or individual experience booking policy and its resolved terms. Existing content is not deleted or overwritten."
       }
     },
     "get_contact_inquiries": {
@@ -474,18 +474,6 @@
         "read_only_justification": "Reads the authenticated user workspace selection and available context.",
         "open_world_justification": "Reads the authenticated user workspace selection and available context. It does not publish content or write to an external service.",
         "destructive_justification": "Reads the authenticated user workspace selection and available context. Existing content is not deleted or overwritten."
-      }
-    },
-    "import_from_maps": {
-      "annotations": {
-        "readOnlyHint": true,
-        "openWorldHint": true,
-        "destructiveHint": false
-      },
-      "justifications": {
-        "read_only_justification": "Queries Google Places without creating or updating a site or location.",
-        "open_world_justification": "The requested business lookup is sent to Google Places.",
-        "destructive_justification": "Queries Google Places without creating or updating a site or location. Existing content is not deleted or overwritten."
       }
     },
     "list_all_experience_bookings": {
@@ -728,6 +716,18 @@
         "destructive_justification": "Creates or overwrites translated resource values and supplied translated content. Existing state is deleted, replaced or overwritten rather than only appended."
       }
     },
+    "reconcile_products": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": true,
+        "destructiveHint": true
+      },
+      "justifications": {
+        "read_only_justification": "Creates and updates products at one location, and marks omitted products unavailable only when explicitly requested.",
+        "open_world_justification": "Creates and updates products at one location, and marks omitted products unavailable only when explicitly requested. Its effects can change content or behavior on the public website.",
+        "destructive_justification": "Creates and updates products at one location, and marks omitted products unavailable only when explicitly requested. Existing state is deleted, replaced or overwritten rather than only appended."
+      }
+    },
     "remove_media": {
       "annotations": {
         "readOnlyHint": false,
@@ -822,6 +822,18 @@
         "read_only_justification": "Replaces the selected blog article content document after version and removal checks.",
         "open_world_justification": "Replaces the selected blog article content document after version and removal checks. Its effects can change content or behavior on the public website.",
         "destructive_justification": "Replaces the selected blog article content document after version and removal checks. Existing state is deleted, replaced or overwritten rather than only appended."
+      }
+    },
+    "replace_product_localizations": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": true,
+        "destructiveHint": true
+      },
+      "justifications": {
+        "read_only_justification": "Replaces the submitted product translations for one locale; omitted products remain untouched.",
+        "open_world_justification": "Replaces the submitted product translations for one locale; omitted products remain untouched. Its effects can change content or behavior on the public website.",
+        "destructive_justification": "Replaces the submitted product translations for one locale; omitted products remain untouched. Existing state is deleted, replaced or overwritten rather than only appended."
       }
     },
     "reply_to_review": {
@@ -920,30 +932,6 @@
         "destructive_justification": "Formats supplied image references for display without saving or generating images. Existing content is not deleted or overwritten."
       }
     },
-    "sync_product_catalog_localization": {
-      "annotations": {
-        "readOnlyHint": false,
-        "openWorldHint": true,
-        "destructiveHint": true
-      },
-      "justifications": {
-        "read_only_justification": "Reconciles translated product catalog values for the selected site and locale.",
-        "open_world_justification": "Reconciles translated product catalog values for the selected site and locale. Its effects can change content or behavior on the public website.",
-        "destructive_justification": "Reconciles translated product catalog values for the selected site and locale. Existing state is deleted, replaced or overwritten rather than only appended."
-      }
-    },
-    "sync_products": {
-      "annotations": {
-        "readOnlyHint": false,
-        "openWorldHint": true,
-        "destructiveHint": true
-      },
-      "justifications": {
-        "read_only_justification": "Creates and updates products at one location, and marks omitted products unavailable only when explicitly requested.",
-        "open_world_justification": "Creates and updates products at one location, and marks omitted products unavailable only when explicitly requested. Its effects can change content or behavior on the public website.",
-        "destructive_justification": "Creates and updates products at one location, and marks omitted products unavailable only when explicitly requested. Existing state is deleted, replaced or overwritten rather than only appended."
-      }
-    },
     "update_blog_metadata": {
       "annotations": {
         "readOnlyHint": false,
@@ -975,9 +963,9 @@
         "destructiveHint": true
       },
       "justifications": {
-        "read_only_justification": "Overwrites booking rules, including cancellation and deposit terms, for the selected site or location.",
-        "open_world_justification": "Overwrites booking rules, including cancellation and deposit terms, for the selected site or location. Its effects can change content or behavior on the public website.",
-        "destructive_justification": "Overwrites booking rules, including cancellation and deposit terms, for the selected site or location. Existing state is deleted, replaced or overwritten rather than only appended."
+        "read_only_justification": "Overwrites booking rules, including cancellation and deposit terms, for the selected site, location, or individual experience.",
+        "open_world_justification": "Overwrites booking rules, including cancellation and deposit terms, for the selected site, location, or individual experience. Its effects can change content or behavior on the public website.",
+        "destructive_justification": "Overwrites booking rules, including cancellation and deposit terms, for the selected site, location, or individual experience. Existing state is deleted, replaced or overwritten rather than only appended."
       }
     },
     "update_experience": {
@@ -1155,27 +1143,27 @@
       "expected_output_url": null
     },
     {
-      "description": "Mark a menu item unavailable without deleting it.",
-      "user_prompt": "At Ember & Slice, West Village, mark Tea in Submission Drinks unavailable because it is sold out. Keep the item, price, and description so I can make it available again later.",
+      "description": "Create a wording-only price without inventing a numeric amount.",
+      "user_prompt": "At Ember & Slice, West Village, in Submission Drinks, add Submission Seasonal Drink with description “Ask about today’s selection” and price wording “Market Price”. Do not assign a fixed amount; if the exact item exists, ask before duplicating it.",
       "file_attachment_urls": null,
-      "tools_triggered": "list_location_products, get_product, update_product",
-      "expected_output": "Sets available to false on the explicitly identified Tea product. The product remains stored with its price and description unchanged; no product is deleted.",
+      "tools_triggered": "list_sites, list_locations, list_product_categories, list_location_products, create_product",
+      "expected_output": "Creates the explicitly located product with price null and an explicit price-note detail reading Market Price; does not substitute zero or an estimated amount.",
       "expected_output_url": null
     },
     {
-      "description": "Change an existing experience description.",
-      "user_prompt": "At Ember & Slice, West Village, update Submission cooking class with tagline “Cook, taste, and learn together” and description “A hands-on cooking class with guided preparation and a shared meal.” Keep its price and duration unchanged.",
+      "description": "Preview and save a location reservation policy without inventing other terms.",
+      "user_prompt": "For Ember & Slice, West Village table reservations, show the current policy and preview a 48-hour free-cancellation window. Show the proposed result before asking me to save it; preserve all other stored terms.",
       "file_attachment_urls": null,
-      "tools_triggered": "list_experiences, get_experience, update_experience",
-      "expected_output": "Updates only the selected experience tagline and description, preserving price, duration, and scheduling.",
+      "tools_triggered": "list_sites, list_locations, get_booking_policy, preview_booking_policy, update_booking_policy",
+      "expected_output": "Reads the explicit location policy and previews free_cancellation_until_minutes 2880 without saving. Only after the user confirms, saves that field and reads it back; unspecified terms stay unspecified.",
       "expected_output_url": null
     },
     {
-      "description": "Change experience pricing and duration.",
-      "user_prompt": "At Ember & Slice, West Village, change Submission cooking class to 90 minutes and 1,200 THB per person excluding tax. Keep its description and booking schedule unchanged.",
+      "description": "Publish a website announcement and return its canonical public URL.",
+      "user_prompt": "On Ember & Slice, publish a website-only announcement titled Submission Welcome with text “Welcome to our updated website.” Show me the final public link. If that exact announcement exists, ask before creating another.",
       "file_attachment_urls": null,
-      "tools_triggered": "list_experiences, get_experience, update_experience",
-      "expected_output": "Updates the selected experience to duration_minutes 90 and price amount_minor 120000, currency THB, unit person, tax_behavior exclusive; preserves content and booking schedule.",
+      "tools_triggered": "list_sites, get_site, list_posts, create_post, publish_post",
+      "expected_output": "Creates the requested announcement and publishes it to the site channel after any required confirmation; returns the public URL supplied by the tool and does not claim Facebook or Instagram publication.",
       "expected_output_url": null
     }
   ],
@@ -1197,11 +1185,11 @@
       "expected_output_url": null
     },
     {
-      "description": "Deleting a location belongs in the CMS.",
-      "user_prompt": "Delete my business location permanently.",
+      "description": "Maps import and domain management belong in the CMS.",
+      "user_prompt": "Import my business from Google Maps and configure its custom domain DNS.",
       "file_attachment_urls": null,
       "tools_triggered": null,
-      "expected_output": "Explain that location deletion is managed in the CMS; do not approximate it by deleting the location’s products, experiences, or media.",
+      "expected_output": "Direct the user to Maps import and domain management in the CMS; do not invoke unrelated content tools to approximate these operations.",
       "expected_output_url": null
     }
   ]

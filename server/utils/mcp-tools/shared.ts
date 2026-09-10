@@ -6,6 +6,7 @@ import { EXPERIENCE_STATUSES } from '~/server/utils/experiences'
 import { SUPPORTED_CURRENCIES } from '~/shared/currencies'
 import { PUBLICATION_CONTENT_BLOCK_TYPES } from '~/shared/content-registries'
 import { PRODUCT_DETAILS_INPUT_SCHEMA } from '~/server/utils/product-validation'
+import { ROBOTS_INTENTS } from '~/shared/robots-directive'
 
 export interface McpToolDefinition {
   name: string
@@ -54,7 +55,7 @@ export const pageInfoObject = {
 
 // --- reusable schema fragments ---
 
-export const ROBOTS_DIRECTIVE_ENUM = ['index,follow', 'noindex,follow', 'index,nofollow', 'noindex,nofollow']
+export const ROBOTS_DIRECTIVE_ENUM = [...ROBOTS_INTENTS]
 
 /** SEO override fields shared across location/Product/experience/site tools. */
 export function seoOverrideFieldsSchema() {
@@ -993,12 +994,10 @@ export const EXPECTED_TOOL_ANNOTATIONS = {
   get_resource_localization: R,
   get_site: R,
   get_site_analytics: R,
-  get_site_domains: R,
   get_site_media_assets: R,
   get_site_settings: R,
   get_tenant_page: R,
   get_workspace_context: R,
-  import_from_maps: { readOnlyHint: true, openWorldHint: true, destructiveHint: false },
   list_all_experience_bookings: R,
   list_blog_posts: R,
   list_experience_bookings: R,
@@ -1033,8 +1032,8 @@ export const EXPECTED_TOOL_ANNOTATIONS = {
   set_media: D,
   set_workspace_context: BD,
   show_generated_images: R,
-  sync_product_catalog_localization: D,
-  sync_products: D,
+  replace_product_localizations: D,
+  reconcile_products: D,
   update_blog_metadata: D,
   update_blog_post: D,
   update_booking_policy: D,
