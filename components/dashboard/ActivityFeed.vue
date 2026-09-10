@@ -1,79 +1,59 @@
 <template>
-  <UDashboardPanel id="org-activity">
-    <template #header>
-      <UDashboardNavbar title="Activity">
-        <template #leading>
-          <DashboardNavbarLeading :to="orgPaths.org" label="Organization" />
-        </template>
-      </UDashboardNavbar>
-    </template>
+  <div class="space-y-4">
+  <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
+    <UFormField label="Site">
+      <USelect v-model="filters.siteId" :items="siteOptions" class="w-full" />
+    </UFormField>
+    <UFormField label="Location">
+      <USelect v-model="filters.locationId" :items="locationOptions" :disabled="filters.siteId === FILTER_ALL" class="w-full" />
+    </UFormField>
+    <UFormField label="Type">
+      <USelect v-model="filters.eventType" :items="eventTypeOptions" class="w-full" />
+    </UFormField>
+    <UFormField label="Actor">
+      <USelect v-model="filters.actorId" :items="actorOptions" class="w-full" />
+    </UFormField>
+  </div>
 
-    <template #body>
-      <div class="max-w-3xl space-y-6">
+    <UAlert
+      v-if="eventsError"
+      color="error"
+      variant="soft"
+      title="Activity could not be loaded"
+      :description="getErrorMessage(eventsError, 'Activity request failed')"
+    />
+    <div v-if="pending && groups.length === 0" class="space-y-3">
+      <USkeleton v-for="i in 5" :key="i" class="h-12 w-full" />
+    </div>
 
-        <UCard>
-          <template #header>
-            <h2 class="font-semibold text-highlighted">Activity</h2>
-          </template>
+    <div v-else-if="!eventsError && groups.length === 0" class="py-16 text-center">
+      <UIcon name="i-lucide-activity" class="size-8 text-muted mx-auto mb-3" />
+      <p class="text-sm font-medium text-highlighted">No activity yet</p>
+      <p class="mt-1 text-xs text-muted">Actions across your sites will show up here.</p>
+    </div>
 
-          <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
-            <UFormField label="Site">
-              <USelect v-model="filters.siteId" :items="siteOptions" class="w-full" />
-            </UFormField>
-            <UFormField label="Location">
-              <USelect v-model="filters.locationId" :items="locationOptions" :disabled="filters.siteId === FILTER_ALL" class="w-full" />
-            </UFormField>
-            <UFormField label="Type">
-              <USelect v-model="filters.eventType" :items="eventTypeOptions" class="w-full" />
-            </UFormField>
-            <UFormField label="Actor">
-              <USelect v-model="filters.actorId" :items="actorOptions" class="w-full" />
-            </UFormField>
-          </div>
-
-            <UAlert
-              v-if="eventsError"
-              color="error"
-              variant="soft"
-              title="Activity could not be loaded"
-              :description="getErrorMessage(eventsError, 'Activity request failed')"
-            />
-            <div v-if="pending && groups.length === 0" class="space-y-3">
-              <USkeleton v-for="i in 5" :key="i" class="h-12 w-full" />
+    <div v-else class="space-y-6">
+      <div v-for="group in groups" :key="group.label">
+        <p class="text-xs font-semibold text-muted uppercase tracking-wide mb-2">{{ group.label }}</p>
+        <ul class="-mx-4">
+          <li v-for="ev in group.events" :key="ev.id" class="flex items-start gap-3 px-4 py-3 border-b border-default last:border-0">
+            <div class="min-w-0 flex-1">
+              <p class="text-sm text-highlighted leading-snug">
+                <span class="font-medium">{{ ev.actor_id ? 'Team member' : 'System' }}</span>
+                {{ eventLabel(ev.event_type) }}
+                <span v-if="ev.location_title" class="text-muted"> · {{ ev.location_title }}</span>
+              </p>
+              <p class="text-xs text-muted mt-0.5">{{ timeAgo(ev.created_at) }}</p>
             </div>
-
-            <div v-else-if="!eventsError && groups.length === 0" class="py-16 text-center">
-              <UIcon name="i-lucide-activity" class="size-8 text-muted mx-auto mb-3" />
-              <p class="text-sm font-medium text-highlighted">No activity yet</p>
-              <p class="mt-1 text-xs text-muted">Actions across your sites will show up here.</p>
-            </div>
-
-            <div v-else class="space-y-6">
-              <div v-for="group in groups" :key="group.label">
-                <p class="text-xs font-semibold text-muted uppercase tracking-wide mb-2">{{ group.label }}</p>
-                <ul class="-mx-4">
-                  <li v-for="ev in group.events" :key="ev.id" class="flex items-start gap-3 px-4 py-3 border-b border-default last:border-0">
-                    <div class="min-w-0 flex-1">
-                      <p class="text-sm text-highlighted leading-snug">
-                        <span class="font-medium">{{ ev.actor_id ? 'Team member' : 'System' }}</span>
-                        {{ eventLabel(ev.event_type) }}
-                        <span v-if="ev.location_title" class="text-muted"> · {{ ev.location_title }}</span>
-                      </p>
-                      <p class="text-xs text-muted mt-0.5">{{ timeAgo(ev.created_at) }}</p>
-                    </div>
-                  </li>
-                </ul>
-              </div>
-
-              <div v-if="nextCursor" class="text-center">
-                <UButton label="Load more" color="neutral" variant="soft" :loading="loadingMore" @click="loadMore" />
-              </div>
-            </div>
-        </UCard>
-
+          </li>
+        </ul>
       </div>
-    </template>
-  </UDashboardPanel>
+
+      <div v-if="nextCursor" class="text-center">
+        <UButton label="Load more" color="neutral" variant="soft" :loading="loadingMore" @click="loadMore" />
+      </div>
+    </div>
+  </div>
 </template>
 
 <script setup lang="ts">
@@ -81,10 +61,6 @@ import { localDateAt, instantDate, formatCalendarDate, addLocalDays } from '~/ut
 import { getErrorMessage } from '~/utils/errors'
 const dashboardApi = useDashboardApi()
 const route = useRoute()
-definePageMeta({ layout: 'dashboard' })
-
-const { orgPaths } = useDashboardSiteLinks()
-useSeoMeta({ title: 'Activity | KrabiClaw Dashboard', robots: 'noindex, nofollow' })
 
 const { eventLabel } = useSiteEventLabels()
 const { formatRelativeTime: timeAgo } = useHumanTime()
