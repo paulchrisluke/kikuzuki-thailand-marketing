@@ -1,106 +1,94 @@
 <template>
-  <main class="min-h-screen flex items-center justify-center bg-(--ui-bg) px-4 py-12">
-    <div class="w-full max-w-sm">
+  <div>
 
-      <!-- App connecting banner -->
-      <div v-if="clientName" class="flex items-center justify-center gap-3 mb-8">
-        <div class="w-9 h-9 rounded-xl overflow-hidden bg-elevated border border-default flex items-center justify-center shrink-0">
-          <img v-if="clientIcon" :src="clientIcon" :alt="clientName" class="w-full h-full object-cover" />
-          <SayaIcon v-else name="link" class="w-4 h-4 text-muted" />
-        </div>
-        <SayaIcon name="arrow-right-left" class="w-4 h-4 text-dimmed" />
-        <div class="w-9 h-9 rounded-xl overflow-hidden bg-elevated border border-default flex items-center justify-center shrink-0">
-          <img src="/platform/apple-touch-icon.png" alt="KrabiClaw" class="w-full h-full object-cover" />
-        </div>
+    <!-- App connecting banner -->
+    <div v-if="clientName" class="flex items-center justify-center gap-3 mb-8">
+      <div class="w-9 h-9 rounded-xl overflow-hidden bg-elevated border border-default flex items-center justify-center shrink-0">
+        <img v-if="clientIcon" :src="clientIcon" :alt="clientName" class="w-full h-full object-cover" />
+        <SayaIcon v-else name="link" class="w-4 h-4 text-muted" />
       </div>
+      <SayaIcon name="arrow-right-left" class="w-4 h-4 text-dimmed" />
+      <div class="w-9 h-9 rounded-xl overflow-hidden bg-elevated border border-default flex items-center justify-center shrink-0">
+        <img src="/platform/apple-touch-icon.png" alt="KrabiClaw" class="w-full h-full object-cover" />
+      </div>
+    </div>
 
-      <div class="rounded-lg border border-default bg-default shadow-xl">
-        <div class="border-b border-default px-6 py-5">
-          <div class="text-center py-1">
-            <h1 class="text-xl font-bold text-default">
-              {{ existingSession ? 'Connect your account' : 'Sign in to connect' }}
-            </h1>
-            <p class="text-sm text-muted mt-1">
-              <span v-if="clientName">
-                <span class="font-semibold text-default">{{ clientName }}</span> is requesting access to KrabiClaw
-              </span>
-              <span v-else>Sign in to grant access to an external application.</span>
-            </p>
-          </div>
-        </div>
-
-        <div class="px-6 py-5">
-          <!-- Already signed in — confirm account or switch -->
-          <div v-if="existingSession" class="space-y-4 py-1">
-            <div class="flex items-center gap-3 rounded-xl border border-default bg-elevated px-4 py-3">
-              <div class="flex size-8 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-semibold text-default">
-                {{ accountInitial }}
-              </div>
-              <div class="min-w-0 flex-1">
-                <p class="text-sm font-semibold text-default truncate">{{ existingSession.name || 'Your account' }}</p>
-                <p class="text-xs text-muted truncate">{{ existingSession.email }}</p>
-              </div>
-              <SayaIcon name="check-circle" class="w-4 h-4 text-green-500 shrink-0" />
-            </div>
-
-            <PlatformButton block :loading="loading" @click="continueWithSession">
-              Continue as {{ existingSession.name?.split(' ')[0] || 'this account' }}
-            </PlatformButton>
-
-            <div class="flex items-center gap-3">
-              <div class="flex-1 h-px bg-default" />
-              <span class="text-[11px] text-dimmed uppercase tracking-widest">or</span>
-              <div class="flex-1 h-px bg-default" />
-            </div>
-
-            <PlatformButton variant="ghost" size="sm" block @click="switchAccount">
-              Sign in with a different account
-            </PlatformButton>
-          </div>
-
-          <!-- No session / switch mode — show sign-in options -->
-          <div v-else class="space-y-3 py-1">
-            <div v-if="error" role="alert" class="rounded-lg border border-red-500/30 bg-red-500/5 px-4 py-3 text-sm text-red-500">{{ error }}</div>
-
-            <AuthGoogleAuthButton label="Sign in with Google" :loading="loading || authLoading" @activate="handleGoogleSignIn" />
-            <WhatsAppAuthButton label="Sign in with WhatsApp" :disabled="loading || authLoading" @activate="showPhone = !showPhone" />
-            <AuthPhoneOtpForm v-if="showPhone" verify-label="Verify and sign in" @verified="finishOAuthPhoneSignIn" />
-
-            <!-- Divider -->
-            <div class="flex items-center gap-3 py-1">
-              <div class="flex-1 h-px bg-default" />
-              <span class="text-[12px] text-dimmed uppercase tracking-[0.18em]">or</span>
-              <div class="flex-1 h-px bg-default" />
-            </div>
-
-            <AuthEmailSignInForm :callback-url="oauthAuthorizeUrl" @verification-required="showVerification" />
-
-            <div v-if="verificationEmail" class="rounded-xl border border-default p-3 space-y-2">
-              <p class="text-sm text-muted">Verify your email before signing in.</p>
-              <p v-if="verificationResent" role="status" class="text-sm text-green-600">Verification email sent to {{ verificationEmail }}.</p>
-              <PlatformButton variant="outline" block :loading="resendingVerification" @click="resendVerification">Resend verification</PlatformButton>
-            </div>
-
-          </div>
-        </div>
-
-        <div class="border-t border-default px-6 py-4">
-          <p class="text-center text-xs text-dimmed">
-            You can remove this access at any time from your account settings.
+    <div class="rounded-lg border border-default bg-default shadow-xl">
+      <div class="border-b border-default px-6 py-5">
+        <div class="text-center py-1">
+          <h1 class="text-xl font-bold text-default">
+            {{ existingSession ? 'Connect your account' : 'Sign in to connect' }}
+          </h1>
+          <p class="text-sm text-muted mt-1">
+            <span v-if="clientName">
+              <span class="font-semibold text-default">{{ clientName }}</span> is requesting access to KrabiClaw
+            </span>
+            <span v-else>Sign in to grant access to an external application.</span>
           </p>
         </div>
       </div>
 
+      <div class="px-6 py-5">
+        <!-- Already signed in — confirm account or switch -->
+        <div v-if="existingSession" class="space-y-4 py-1">
+          <div class="flex items-center gap-3 rounded-xl border border-default bg-elevated px-4 py-3">
+            <div class="flex size-8 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-semibold text-default">
+              {{ accountInitial }}
+            </div>
+            <div class="min-w-0 flex-1">
+              <p class="text-sm font-semibold text-default truncate">{{ existingSession.name || 'Your account' }}</p>
+              <p class="text-xs text-muted truncate">{{ existingSession.email }}</p>
+            </div>
+            <SayaIcon name="check-circle" class="w-4 h-4 text-green-500 shrink-0" />
+          </div>
+
+          <UButton block size="lg" :loading="loading" @click="continueWithSession">
+            Continue as {{ existingSession.name?.split(' ')[0] || 'this account' }}
+          </UButton>
+
+          <USeparator label="or" />
+
+          <UButton color="neutral" variant="ghost" size="sm" block @click="switchAccount">
+            Sign in with a different account
+          </UButton>
+        </div>
+
+        <!-- No session / switch mode — show sign-in options -->
+        <div v-else class="space-y-3 py-1">
+          <UAlert v-if="error" color="error" variant="soft" :description="error" />
+
+          <AuthGoogleButton label="Sign in with Google" :loading="loading || authLoading" @activate="handleGoogleSignIn" />
+          <AuthWhatsAppButton label="Sign in with WhatsApp" :disabled="loading || authLoading" @activate="showPhone = !showPhone" />
+          <AuthPhoneOtpForm v-if="showPhone" verify-label="Verify and sign in" @verified="finishOAuthPhoneSignIn" />
+
+          <USeparator label="or" />
+
+          <AuthEmailSignInForm :callback-url="oauthAuthorizeUrl" @verification-required="showVerification" />
+
+          <div v-if="verificationEmail" class="rounded-xl border border-default p-3 space-y-2">
+            <p class="text-sm text-muted">Verify your email before signing in.</p>
+            <p v-if="verificationResent" role="status" class="text-sm text-green-600">Verification email sent to {{ verificationEmail }}.</p>
+            <UButton color="neutral" variant="outline" block :loading="resendingVerification" @click="resendVerification">Resend verification</UButton>
+          </div>
+
+        </div>
+      </div>
+
+      <div class="border-t border-default px-6 py-4">
+        <p class="text-center text-xs text-dimmed">
+          You can remove this access at any time from your account settings.
+        </p>
+      </div>
     </div>
-  </main>
+
+  </div>
 </template>
 
 <script setup>
 import { $fetch } from 'ofetch'
-import WhatsAppAuthButton from '~/components/auth/WhatsAppAuthButton.vue'
 import { oauthContinuationDestination } from '~/shared/auth/oauth-login'
 
-definePageMeta({ layout: 'standalone', auth: false })
+definePageMeta({ layout: 'access', auth: false })
 
 useSeoMeta({ robots: 'noindex, nofollow' })
 

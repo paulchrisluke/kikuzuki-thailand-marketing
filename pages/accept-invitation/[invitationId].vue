@@ -1,28 +1,26 @@
 <template>
-  <div class="min-h-screen bg-default flex items-center justify-center px-4">
-    <div class="w-full max-w-md space-y-6">
-      <div>
-        <h1 class="text-3xl font-extrabold tracking-tight text-default">Accept invitation</h1>
-        <p class="mt-2 text-sm text-muted">Sign in with the email address that received this invitation.</p>
-      </div>
-
-      <div v-if="sessionLoading || accepting" class="text-sm text-muted">
-        {{ accepting ? 'Accepting invitation…' : 'Loading…' }}
-      </div>
-
-      <template v-else-if="!isAuthenticated">
-        <AuthGoogleAuthButton @activate="continueWithGoogle" />
-        <NuxtLink :to="emailLoginUrl" class="w-full flex items-center justify-center border border-default text-default py-3 px-4 rounded-[10px] font-semibold text-[15px] hover:bg-muted/10 transition-all">
-          Sign in with email
-        </NuxtLink>
-      </template>
-
-      <template v-else>
-        <UAlert v-if="acceptError" color="error" variant="soft" :description="acceptError" />
-        <UButton v-if="acceptError" block :loading="accepting" @click="acceptInvitation">Try again</UButton>
-        <UButton v-if="acceptError" block color="neutral" variant="ghost" @click="switchAccount">Sign in with a different account</UButton>
-      </template>
+  <div class="space-y-6">
+    <div>
+      <h1 class="text-2xl font-semibold tracking-tight text-highlighted">Accept invitation</h1>
+      <p class="mt-2 text-sm text-muted">Sign in with the email address that received this invitation.</p>
     </div>
+
+    <div v-if="sessionLoading || accepting" class="text-sm text-muted">
+      {{ accepting ? 'Accepting invitation…' : 'Loading…' }}
+    </div>
+
+    <template v-else-if="!isAuthenticated">
+      <AuthGoogleButton @activate="continueWithGoogle" />
+      <UButton :to="emailLoginUrl" color="neutral" variant="outline" size="lg" block :ui="{ base: 'justify-start' }">
+        Sign in with email
+      </UButton>
+    </template>
+
+    <template v-else>
+      <UAlert v-if="acceptError" color="error" variant="soft" :description="acceptError" />
+      <UButton v-if="acceptError" block size="lg" :loading="accepting" @click="acceptInvitation">Try again</UButton>
+      <UButton v-if="acceptError" block size="lg" color="neutral" variant="ghost" @click="switchAccount">Sign in with a different account</UButton>
+    </template>
   </div>
 </template>
 
@@ -30,7 +28,7 @@
 import { authClient } from '~/lib/auth-client'
 import { buildLoginUrl } from '~/shared/auth/return-target'
 
-definePageMeta({ layout: 'standalone' })
+definePageMeta({ layout: 'access' })
 
 const route = useRoute()
 const invitationId = String(route.params.invitationId || '')
