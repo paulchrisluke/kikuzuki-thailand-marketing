@@ -5,6 +5,7 @@
 <script setup lang="ts">
 import ProductDetailPage from '~/components/products/ProductDetailPage.vue'
 import { requireProductPresentation } from '~/utils/product-presentation'
+import { normalizeRobotsIntent } from '~/shared/robots-directive'
 
 definePageMeta({ layout: 'saya' })
 const resolved = await usePublicProductDetail('products')
@@ -12,5 +13,5 @@ const siteId = resolved.siteId
 const detail = computed(() => resolved.detail.value)
 const presentation = requireProductPresentation(detail.value.vertical)
 if (presentation.locationCollectionSegment !== 'products') throw createError({ statusCode: 404 })
-useSocialMetadata(() => ({ path: presentation.productPath(detail.value.location.slug, detail.value.product.slug), title: detail.value.product.seo_title || detail.value.product.name, description: detail.value.product.seo_description || detail.value.product.description, robots: detail.value.product.robots, socialImage: detail.value.product.social_image, brand: { siteName: detail.value.brandName } }))
+useSocialMetadata(() => ({ path: presentation.productPath(detail.value.location.slug, detail.value.product.slug), title: detail.value.product.seo_title || detail.value.product.name, description: detail.value.product.seo_description || detail.value.product.description, robots: normalizeRobotsIntent(detail.value.product.robots), socialImage: detail.value.product.social_image, brand: { siteName: detail.value.brandName } }))
 </script>

@@ -188,13 +188,6 @@ watch(isExperienceSite, (isExp) => {
   }
 }, { immediate: true })
 
-// Belt-and-suspenders: prevent this page from being indexed on experience sites
-// while the async bootstrap resolves on the client (server redirect above already
-// handles SSR, but client-side navigation hydration can briefly render the page).
-useSeoMeta({
-  robots: computed(() => isExperienceSite.value ? 'noindex,follow' : 'index,follow')
-})
-
 const activeReservationPolicySummary = computed(() => {
   const locationId = selectedLocation.value?.id ? String(selectedLocation.value.id) : null
   if (!locationId) return null
@@ -433,6 +426,10 @@ useSocialMetadata(() => ({
   brand: {
     siteName: brandName.value,
   },
+  // An experience site has no reservations page: the server redirects to
+  // /experiences, but a client-side navigation can render this briefly during
+  // hydration, so the intent says noindex rather than relying on the redirect.
+  robots: isExperienceSite.value ? 'noindex,follow' : 'index,follow',
 }))
 
 useSchemaOrg([

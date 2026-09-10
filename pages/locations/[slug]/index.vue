@@ -315,6 +315,7 @@ import { productLocationCollectionPath, resolveProductPresentation } from '~/uti
 import { useDynamicComponent } from '~/composables/useDynamicComponent'
 import { resolveLocationExperienceHref } from '~/utils/experience-navigation'
 import type { Experience } from '~/server/utils/experiences'
+import { normalizeRobotsIntent } from '~/shared/robots-directive'
 
 const DOMPurify = useHtmlSanitizer()
 
@@ -517,7 +518,7 @@ useSocialMetadata(() => ({
   path: location.value?.canonical_url || `/locations/${slug.value}`,
   title: location.value?.seo_title || location.value?.title || '',
   description: location.value?.seo_description || '',
-  robots: location.value?.robots || null,
+  robots: normalizeRobotsIntent(location.value?.robots),
   socialImage: locationSocialCard.value,
   brand: {
     siteName: siteName.value,
