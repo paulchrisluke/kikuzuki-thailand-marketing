@@ -1,6 +1,6 @@
 import { queryFirst } from '~/server/db'
-import type { CreateProductInput, Product, SyncProductInput, UpdateProductInput } from '~/server/types/products'
-import { createProduct, createProductCategory, createProductsBatch, deleteProduct, deleteProductCategory, getProduct, listLocationProducts, listProductCategories, moveProductsToCategory, renameProductCategory, reorderProductCategories, reorderProducts, syncProducts, updateProduct } from '~/server/utils/product-management'
+import type { CreateProductInput, Product, ReconcileProductInput, UpdateProductInput } from '~/server/types/products'
+import { createProduct, createProductCategory, createProductsBatch, deleteProduct, deleteProductCategory, getProduct, listLocationProducts, listProductCategories, moveProductsToCategory, renameProductCategory, reorderProductCategories, reorderProducts, reconcileProducts, updateProduct } from '~/server/utils/product-management'
 import { assertResourceAccess } from '~/server/utils/member-access'
 import { paginateMcpCollection } from '~/server/utils/mcp-pagination'
 import { MCP_ERROR, mcpProtocolError } from '~/server/utils/mcp-protocol'
@@ -132,10 +132,10 @@ export async function handleProductsTools(ctx: McpExecutorContext): Promise<unkn
       await authorizeLocation(ctx, locationId)
       return { products: await createProductsBatch(site.db, site.organizationId, site.siteId, locationId, objectArray(args.products, 'products') as unknown as CreateProductInput[], { actorId: site.userId }) }
     }
-    case 'sync_products': {
+    case 'reconcile_products': {
       const locationId = requiredString(args, 'location_id')
       await authorizeLocation(ctx, locationId)
-      return { products: await syncProducts(site.db, site.organizationId, site.siteId, locationId, objectArray(args.products, 'products') as unknown as SyncProductInput[], { actorId: site.userId }, args.set_missing_unavailable === true) }
+      return { products: await reconcileProducts(site.db, site.organizationId, site.siteId, locationId, objectArray(args.products, 'products') as unknown as ReconcileProductInput[], { actorId: site.userId }, args.set_missing_unavailable === true) }
     }
     default: return NOT_HANDLED
   }

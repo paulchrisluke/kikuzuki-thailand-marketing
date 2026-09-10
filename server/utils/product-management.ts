@@ -8,7 +8,7 @@ import type {
   Product,
   ProductDetail,
   ProductSource,
-  SyncProductInput,
+  ReconcileProductInput,
   UpdateProductInput,
 } from '~/server/types/products'
 import { refreshSocialCard } from '~/server/utils/social-card'
@@ -195,7 +195,7 @@ async function siteDefaultCurrency(db: DbClient, organizationId: string, siteId:
   return site.default_currency
 }
 
-// Shared by updateProduct and syncProducts, which both batch their writes
+// Shared by updateProduct and reconcileProducts, which both batch their writes
 // through one executeBatch — this must return a query, never execute
 // anything itself, or the two writes would no longer be atomic.
 function closeActivePriceQuery(priceId: string, at: string): BatchQuery {
@@ -219,7 +219,7 @@ function closeActivePriceQuery(priceId: string, at: string): BatchQuery {
 // state read earlier is still the current one). `valid_until IS ?` gives
 // null-safe comparison so an active (NULL valid_until) Price compares
 // correctly. Feeding this into the Price snapshot guard (see the guarded
-// updated_at expression in updateProduct and syncProducts) turns a
+// updated_at expression in updateProduct and reconcileProducts) turns a
 // concurrent close/replace into a real batch failure instead of a lost
 // update.
 function priceSnapshotMatchesPredicate(productId: string, price: Pick<Price, 'id' | 'valid_from' | 'valid_until'>): { sql: string; params: SqlValue[] } {
@@ -256,7 +256,7 @@ function noActivePricePredicate(productId: string): { sql: string; params: SqlVa
 }
 
 // True only if no *other* Price row for this Product overlaps [validFrom, validUntil).
-// Same shape as the pre-read conflict queries in updateProduct/syncProducts —
+// Same shape as the pre-read conflict queries in updateProduct/reconcileProducts —
 // reused here so it can also feed the Price snapshot guard, not just serve as
 // an early user-facing validation error.
 function priceOverlapAbsentPredicate(productId: string, excludePriceId: string | null, validFrom: string, validUntil: string | null): { sql: string; params: SqlValue[] } {
@@ -629,18 +629,18 @@ export async function createProductsBatch(
   return hydrateProductMedia(db, siteId, created.map(mapProduct))
 }
 
-export async function syncProducts(
+export async function reconcileProducts(
   db: DbClient,
   organizationId: string,
   siteId: string,
   locationId: string,
-  inputs: SyncProductInput[],
+  inputs: ReconcileProductInput[],
   attribution: ProductWriteAttribution,
   setMissingUnavailable = false,
 ): Promise<Product[]> {
   const { actorId: actor } = attribution
   await assertLocationOwnership(db, organizationId, siteId, locationId)
-  if (!Array.isArray(inputs) || inputs.length > PRODUCT_LIMITS.sync) throw new HTTPError({ statusCode: 400, statusMessage: `products may contain at most ${PRODUCT_LIMITS.sync} rows` })
+  if (!Array.isArray(inputs) || inputs.length > PRODUCT_LIMITS.reconcile) throw new HTTPError({ statusCode: 400, statusMessage: `products may contain at most ${PRODUCT_LIMITS.reconcile} rows` })
   for (const [index, input] of inputs.entries()) {
     if (Object.hasOwn(input, 'product_id') && (typeof input.product_id !== 'string' || input.product_id.trim().length === 0)) {
       throw new HTTPError({ statusCode: 400, statusMessage: `products[${index}].product_id must be a non-empty string when provided` })
@@ -657,7 +657,7 @@ export async function syncProducts(
   }
   const now = new Date().toISOString()
   const usedSlugs = new Set(existing.map(product => product.slug))
-  // Order is per category, so sync accumulates one intended order per category.
+  // Order is per category, so reconciliation accumulates one intended order per category.
   const orderedIds: string[] = []
   const orderByCategory = new Map<string, string[]>()
   const writes: BatchQuery[] = []
@@ -684,7 +684,7 @@ export async function syncProducts(
       assertNoPriceNoteContradiction(price !== null, effectiveDetails)
 
       // Resolve this row's Price mutation (if any) first, so its guard can
-      // also gate this row's own updated_at expression below. sync_products
+      // also gate this row's own updated_at expression below. reconcile_products
       // asserts a complete Price state for every row it touches, so every
       // row gets a guard — including "same fixed Price, nothing to write"
       // and "no Price, staying that way" — not only rows with an actual
@@ -737,7 +737,7 @@ export async function syncProducts(
       // when this row's Price context is being mutated, updated_at only
       // takes its real value if that context still holds; otherwise it
       // computes to NULL, which products.updated_at's NOT NULL constraint
-      // rejects, rolling back the entire sync batch.
+      // rejects, rolling back the entire reconciliation batch.
       const updatedAtClause = guardParts.length
         ? `CASE WHEN ${guardParts.map(part => part.sql).join(' AND ')} THEN ? ELSE NULL END`
         : '?'
@@ -812,14 +812,14 @@ export async function syncProducts(
       params: [organizationId, siteId, locationId, categoryId],
     }, actor, now))
   }
-  writes.push(publicResourceCacheInvalidationQuery(siteId, 'product.synced'))
+  writes.push(publicResourceCacheInvalidationQuery(siteId, 'product.reconciled'))
   try {
-    await executeBatch(db, writes, { operation: 'sync Products' })
+    await executeBatch(db, writes, { operation: 'reconcile Products' })
   } catch (error) {
     if (isPriceSnapshotConflict(error)) throw new HTTPError({ statusCode: 409, statusMessage: 'A Product Price changed concurrently; re-read the location and retry' })
     throw error
   }
-  await productEvent(db, 'product.reordered', { organizationId, siteId, locationId, actor, metadata: { product_count: inputs.length, omitted_count: omitted.length, set_missing_unavailable: setMissingUnavailable, mutation_type: 'sync_products', requested_location_id: locationId, resolved_location_id: locationId } })
+  await productEvent(db, 'product.reordered', { organizationId, siteId, locationId, actor, metadata: { product_count: inputs.length, omitted_count: omitted.length, set_missing_unavailable: setMissingUnavailable, mutation_type: 'reconcile_products', requested_location_id: locationId, resolved_location_id: locationId } })
   return listLocationProducts(db, organizationId, siteId, locationId)
 }
 
