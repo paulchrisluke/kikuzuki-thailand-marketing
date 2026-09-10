@@ -3,7 +3,7 @@ import {
   blawbyBaseURL, blawbyExtraHeaders, collectPageErrors,
   openTenantPage, potteryHouseBaseURL, potteryHouseExtraHeaders,
 } from './helpers'
-import { kikuzukiTestBaseUrl, kikuzukiTestExtraHeaders } from './test-env'
+import { kikuzukiTestBaseUrl, kikuzukiTestExtraHeaders, testBaseUrl } from './test-env'
 
 type Tenant = {
   name: string
@@ -82,6 +82,20 @@ async function expectTenantDocument(page: Page, tenant: Tenant) {
     (document.querySelector('#__nuxt') as (Element & { __vue_app__?: unknown }) | null)?.__vue_app__,
   ))
 }
+
+test('KrabiClaw home retains its billing plans after hydration', async ({ page }) => {
+  const baseURL = testBaseUrl()
+  const failures = collectFirstPartyFailures(page, baseURL)
+  const response = await openTenantPage(page, `${baseURL}/`, {})
+  expect(response?.status()).toBe(200)
+  await page.waitForFunction(() => Boolean(
+    (document.querySelector('#__nuxt') as (Element & { __vue_app__?: unknown }) | null)?.__vue_app__,
+  ))
+  await expect(page.getByRole('heading', { name: 'Starter', exact: true })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Growth', exact: true })).toBeVisible()
+  await expect(page.getByRole('link', { name: 'Get Growth', exact: true })).toHaveAttribute('href', '/signup?plan=growth')
+  expect(failures).toEqual([])
+})
 
 for (const tenant of tenants) {
   test(`${tenant.name} renders home and detail routes on desktop`, async ({ page }) => {
