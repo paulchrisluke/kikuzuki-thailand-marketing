@@ -217,6 +217,12 @@ const { createActionLabel, saveLabel, saveDisabled, save: saveOpenSection, start
 })
 
 async function commit() {
+  // The form holds the row it was loaded from; with no row it holds blank
+  // defaults, and saving would write those over the stored service.
+  if (!isNew.value && !record.value) {
+    errorMessage.value = 'This service could not be loaded, so it cannot be saved.'
+    return
+  }
   saving.value = true
   errorMessage.value = ''
   try {

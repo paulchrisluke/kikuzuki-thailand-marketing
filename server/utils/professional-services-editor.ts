@@ -314,10 +314,11 @@ export async function upsertProfessionalServiceContent(
     const slugChanged = existing ? String(existing.slug) !== slug : true
     const canonicalPath = Object.hasOwn(incoming, 'canonical_path')
       ? requiredStoredPath(incoming.canonical_path, `offerings.${slug}.canonical_path`, 300)
-      : slugChanged
+      : slugChanged || !safeStoredPath(item.canonical_path, 300)
         ? `/services/${slug}`
         : requiredStoredPath(item.canonical_path, `offerings.${slug}.canonical_path`, 300)
     const sortOrder = item.sort_order == null ? nextSortOrder++ : Number(item.sort_order)
+    if (!Number.isInteger(sortOrder)) validationError(`offerings.${slug}.sort_order must be an integer.`)
     const source = cleanString(item.source, 80) || 'manual'
     validateOfferingContent(item, slug)
     // Media is reconciled only when the caller speaks to it. A stored row

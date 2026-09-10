@@ -139,6 +139,8 @@ watchEffect(() => {
 // Keyed to the record so the draft survives the remount between sections.
 const form = useState(`product-category-draft-${siteId}-${categoryId.value}`, () => ({ name: '' })).value
 watch(category, (row) => { if (row) form.name = row.name }, { immediate: true })
+// Nuxt reuses this page across categories; a record that has not arrived leaves nothing behind.
+watch(categoryId, () => { form.name = category.value?.name ?? '' })
 
 const saving = ref(false)
 const errorMessage = ref('')
