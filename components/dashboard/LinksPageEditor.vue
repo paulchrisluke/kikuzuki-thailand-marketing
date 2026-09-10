@@ -56,7 +56,6 @@
     <template #body>
       <EditorPaneShell
         has-detail
-        show-desktop-detail
         show-actions
         :saving="saving"
         :save-disabled="!sectionValid"

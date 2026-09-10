@@ -55,7 +55,6 @@
       <EditorPaneShell
         v-else
         has-detail
-        show-desktop-detail
         :show-actions="editorKey !== 'photo'"
         :saving="saving"
         :save-disabled="!sectionValid"

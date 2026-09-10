@@ -49,7 +49,6 @@
       <EditorPaneShell
         v-else
         has-detail
-        show-desktop-detail
         :show-actions="showActions"
         :saving="saving"
         :save-disabled="saveDisabled"

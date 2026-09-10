@@ -18,7 +18,6 @@
     <template #body>
       <EditorPaneShell
         has-detail
-        show-desktop-detail
         :dismiss-to="productsPath"
         :detail-title="presentation.itemLabel"
         wide-detail

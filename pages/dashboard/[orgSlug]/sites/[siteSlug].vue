@@ -29,7 +29,6 @@
     <template #body>
       <EditorPaneShell
         :has-detail="hasDetail"
-        :show-desktop-detail="hasDetail"
         :detail-title="detailTitle"
         :dismiss-to="sitePath"
         wide-detail

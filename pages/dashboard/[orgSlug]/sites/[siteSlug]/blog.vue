@@ -14,7 +14,6 @@
     <template #body>
       <EditorPaneShell
         has-detail
-        show-desktop-detail
         :dismiss-to="blogPath"
         detail-title="Post"
         wide-detail

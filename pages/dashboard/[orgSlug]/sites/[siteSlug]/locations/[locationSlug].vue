@@ -34,7 +34,6 @@
     <template #body>
       <EditorPaneShell
         :has-detail="hasDetail"
-        :show-desktop-detail="hasDetail"
         :detail-title="detailTitle"
         :dismiss-to="locationPath"
         wide-detail
