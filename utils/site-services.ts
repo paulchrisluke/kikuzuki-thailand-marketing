@@ -24,6 +24,9 @@ const isProfessionalServiceRow = (value: unknown): value is ProfessionalServiceR
   && typeof value.sort_order === 'number'
   && typeof value.featured === 'boolean'
 
+/** The list's cache key; the record refreshes it after a save so the index column follows. */
+export const professionalServicesKey = (siteId: string) => `dashboard-professional-services-${siteId}`
+
 export const isProfessionalServicesResponse = (value: unknown): value is { offerings: ProfessionalServiceRow[] } =>
   isRecord(value) && Array.isArray(value.offerings) && value.offerings.every(isProfessionalServiceRow)
 

@@ -104,6 +104,7 @@ import {
   derivedServiceSlug,
   isProfessionalServicesResponse,
   isProfessionalServiceWriteResponse,
+  professionalServicesKey,
   professionalServiceCreateBlockers,
   type ProfessionalServiceRow,
 } from '~/utils/site-services'
@@ -151,10 +152,10 @@ const form = useState(`professional-service-draft-${siteId}-${serviceId.value}`,
 const saving = ref(false)
 const errorMessage = ref('')
 
-// The record shares the list's cache key: in pair mode both are mounted, and
-// a save here refreshes the index column through the same entry.
+// Its own key: two useAsyncData on one key leave the second's `pending` stuck.
+// A save refreshes the list's entry as well, so the index column follows.
 const { data, refresh } = await useAsyncData(
-  `dashboard-professional-services-${siteId}`,
+  () => `dashboard-professional-service-${siteId}-${serviceId.value}`,
   () => dashboardApi(`/api/editor/sites/${siteId}/professional-services`, { validate: isProfessionalServicesResponse }),
   { server: false },
 )
@@ -235,7 +236,7 @@ async function commit() {
       },
       validate: isProfessionalServiceWriteResponse,
     })
-    await refresh()
+    await Promise.all([refresh(), refreshNuxtData(professionalServicesKey(siteId))])
     if (isNew.value) {
       const [createdId] = written.offering_ids
       if (!createdId) throw new Error('The service was not created.')
