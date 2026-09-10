@@ -151,16 +151,10 @@ export default defineNuxtConfig({
         'lucide:menu',
         'lucide:panel-left-close',
         'lucide:panel-left-open',
-        // Named at runtime by the OAuth consent screen's permission groups, so
-        // the scanner cannot see them.
-        'lucide:fingerprint',
-        'lucide:layout-dashboard',
-        'lucide:key',
       ],
     },
     customCollections: [
       pickIcons('simple-icons', ['facebook', 'google', 'googlemaps']),
-      pickIcons('logos', ['google-icon', 'whatsapp-icon']),
     ],
   },
   runtimeConfig: {

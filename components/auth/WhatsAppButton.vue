@@ -1,6 +1,6 @@
 <template>
   <UButton color="neutral" variant="outline" size="lg" block :ui="{ base: 'justify-start' }" :disabled="disabled" @click="$emit('activate')">
-    <UIcon name="i-logos-whatsapp-icon" class="size-5 shrink-0" />
+    <AuthWhatsAppMark class="size-5 shrink-0" />
     {{ label }}
     <UBadge v-if="lastUsed" color="primary" variant="soft" size="sm" class="ml-auto shrink-0">Last used</UBadge>
   </UButton>

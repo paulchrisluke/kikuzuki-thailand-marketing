@@ -37,7 +37,7 @@
             :key="group.title"
             class="flex items-start gap-3"
           >
-            <UIcon :name="group.icon" class="size-5 text-default shrink-0 mt-0.5" />
+            <PlatformIcon :name="group.icon" class="size-5 text-default shrink-0 mt-0.5" />
             <div>
               <p class="text-sm font-bold text-default">{{ group.title }}</p>
               <ul class="mt-1 space-y-0.5">
@@ -55,15 +55,15 @@
       </div>
 
       <!-- Actions -->
-      <UAlert v-if="error" color="error" variant="soft" :description="error" class="mb-4" />
+      <div v-if="error" role="alert" class="mb-4 rounded-lg border border-red-500/30 bg-red-500/5 px-4 py-3 text-sm text-red-500">{{ error }}</div>
 
-      <UButton id="oauth-consent-agree" color="neutral" size="lg" block :loading="accepting" :disabled="denying || switchingAccount" @click="accept">
+      <PlatformButton id="oauth-consent-agree" size="lg" block :loading="accepting" :disabled="denying || switchingAccount" @click="accept">
         Agree
-      </UButton>
+      </PlatformButton>
 
-      <UButton id="oauth-consent-cancel" color="neutral" variant="ghost" size="sm" block class="mt-3" :loading="denying" :disabled="accepting || switchingAccount" @click="deny">
+      <PlatformButton id="oauth-consent-cancel" variant="ghost" size="sm" block class="mt-3" :loading="denying" :disabled="accepting || switchingAccount" @click="deny">
         Cancel
-      </UButton>
+      </PlatformButton>
 
       <!-- Legal footnotes -->
       <div class="mt-6 space-y-2">
@@ -125,7 +125,7 @@ const permissionGroups = computed(() => {
 
   if (scopes.has('openid')) {
     groups.push({
-      icon: 'i-lucide-fingerprint',
+      icon: 'fingerprint',
       title: 'Verify your identity',
       items: ['Confirm you are who you say you are'],
     })
@@ -133,7 +133,7 @@ const permissionGroups = computed(() => {
 
   if (scopes.has('tenant')) {
     groups.push({
-      icon: 'i-lucide-layout-dashboard',
+      icon: 'layout-dashboard',
       title: 'Access your KrabiClaw workspace',
       items: [
         'Read and update your site content, menus, and media',
@@ -149,7 +149,7 @@ const permissionGroups = computed(() => {
   const unknown = [...scopes].filter(s => !known.has(s))
   if (unknown.length) {
     groups.push({
-      icon: 'i-lucide-key',
+      icon: 'key',
       title: 'Additional permissions',
       items: unknown,
     })
