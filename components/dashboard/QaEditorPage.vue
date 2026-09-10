@@ -134,7 +134,7 @@ function emptyDraft() {
 }
 
 // Keyed to the record so the draft survives the remount between sections.
-const form = useState(`qa-draft-${siteId}-${qaId.value}`, emptyDraft).value
+const form = useState(`qa-draft-${siteId}-${props.locationId ?? 'site'}-${qaId.value}`, emptyDraft).value
 
 const saving = ref(false)
 const errorMessage = ref('')
