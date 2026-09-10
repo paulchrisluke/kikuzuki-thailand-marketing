@@ -179,7 +179,11 @@ async function submitConsent(accept: boolean) {
       body: { accept, oauth_query: window.location.search.slice(1) },
     })
     const destination = oauthContinuationDestination(result)
-    if (destination) window.location.href = destination
+    if (!destination) {
+      error.value = 'The authorization server did not send us anywhere to continue. Start the connection again from the app.'
+      return
+    }
+    window.location.href = destination
   } catch (cause) {
     error.value = getErrorMessage(cause, 'Something went wrong. Please try again.')
   }

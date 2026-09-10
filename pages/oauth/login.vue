@@ -29,6 +29,11 @@
       </div>
 
       <div class="px-6 py-5">
+        <!-- Above the branch: continueWithSession and switchAccount both fail
+             while the signed-in branch is showing, and an alert inside the
+             signed-out branch would never render those. -->
+        <UAlert v-if="error" color="error" variant="soft" :description="error" class="mb-3" />
+
         <!-- Already signed in — confirm account or switch -->
         <div v-if="existingSession" class="space-y-4 py-1">
           <div class="flex items-center gap-3 rounded-xl border border-default bg-elevated px-4 py-3">
@@ -55,8 +60,6 @@
 
         <!-- No session / switch mode — show sign-in options -->
         <div v-else class="space-y-3 py-1">
-          <UAlert v-if="error" color="error" variant="soft" :description="error" />
-
           <AuthGoogleButton label="Sign in with Google" :loading="loading || authLoading" @activate="handleGoogleSignIn" />
           <AuthWhatsAppButton label="Sign in with WhatsApp" :disabled="loading || authLoading" @activate="showPhone = !showPhone" />
           <AuthPhoneOtpForm v-if="showPhone" verify-label="Verify and sign in" @verified="finishOAuthPhoneSignIn" />
@@ -150,6 +153,7 @@ async function continueWithSession() {
  * the sign-in form.
  */
 async function switchAccount() {
+  error.value = null
   try {
     await authClient.signOut()
   } catch (cause) {

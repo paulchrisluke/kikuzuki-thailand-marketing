@@ -30,6 +30,10 @@ export interface OAuthClientPrelogin {
 }
 
 export async function fetchOAuthClientPrelogin(clientId: unknown, oauthQuery: string): Promise<OAuthClientPrelogin | null> {
+  // ofetch resolves no base URL, so the relative path only works in a browser.
+  // Saying that here beats a server caller getting "Failed to parse URL" back
+  // through the catch below as an indistinguishable null.
+  if (!import.meta.client) throw new Error('fetchOAuthClientPrelogin runs in the browser only')
   if (typeof clientId !== 'string' || !clientId) return null
   let data: unknown
   try {
