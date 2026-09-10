@@ -46,6 +46,21 @@
         </div>
       </div>
 
+      <!-- Siblings in this product's own category at this location. Derived
+           entirely from the catalogue, so every page's body text varies by real
+           data and every item in a category is reachable by internal link. -->
+      <section v-if="categorySiblings.length" class="mt-16 border-t border-default pt-12">
+        <h2 class="saya-display saya-italic text-3xl sm:text-4xl">{{ t('saya.product_detail.more_in_category', { category: product.category.name }) }}</h2>
+        <ul class="mt-6 grid gap-x-10 gap-y-3 sm:grid-cols-2 lg:grid-cols-3">
+          <li v-for="sibling in categorySiblings" :key="sibling.id">
+            <NuxtLink
+              :to="localePath(presentation.productPath(location.slug, sibling.slug))"
+              class="text-base text-default no-underline transition hover:opacity-60"
+            >{{ sibling.name }}</NuxtLink>
+          </li>
+        </ul>
+      </section>
+
       <section v-if="product.gallery.length" class="mt-16">
         <h2 class="saya-display saya-italic text-4xl">{{ t('saya.footer.gallery') }}</h2>
         <div class="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -83,6 +98,7 @@ import type { CurrencyCode } from '~/shared/currencies'
 import { minorAmountToMajor } from '~/shared/prices'
 import { formatProductMoney, formatProductPriceLabel } from '~/utils/product-money'
 import { productLocationCollectionPath } from '~/utils/product-presentation'
+import type { ProductCategorySibling } from '~/utils/product-seo'
 
 interface LocationSummary { id: string; slug: string; title: string }
 interface ProductReview { id: string; author: string; rating: number; title: string; content: string; createdAt: string }
@@ -93,6 +109,7 @@ const props = defineProps<{
   product: Product
   location: LocationSummary
   reviews: ProductReview[]
+  categorySiblings: ProductCategorySibling[]
   currency: CurrencyCode
   presentation: ProductPresentation
   analyticsEnabled?: boolean

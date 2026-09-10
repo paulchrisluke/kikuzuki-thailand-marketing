@@ -1,6 +1,7 @@
 import { HTTPError } from 'nitro'
 import type { ProductDetail } from '~/server/types/products'
 import { PRODUCT_DETAIL_KEY, PRODUCT_LIMITS } from '~/shared/product-limits'
+import { parseRobotsIntent, type RobotsIntent } from '~/shared/robots-directive'
 
 export { PRODUCT_LIMITS }
 
@@ -20,13 +21,6 @@ export const PRODUCT_DETAILS_INPUT_SCHEMA = {
   maxItems: PRODUCT_LIMITS.detailGroups,
   items: PRODUCT_DETAIL_INPUT_SCHEMA,
 } as const
-
-const PRODUCT_ROBOTS_DIRECTIVES = new Set([
-  'index,follow',
-  'noindex,follow',
-  'index,nofollow',
-  'noindex,nofollow',
-])
 
 function invalid(message: string): never {
   throw new HTTPError({ statusCode: 400, statusMessage: message })
@@ -133,12 +127,11 @@ export function validateProductOrderUrl(value: unknown): string | null {
   return url.toString()
 }
 
-export function validateProductRobots(value: unknown): string | null {
+export function validateProductRobots(value: unknown): RobotsIntent | null {
   const normalized = normalizeOptionalProductString(value, 'robots', PRODUCT_LIMITS.robots)
-  if (normalized !== null && !PRODUCT_ROBOTS_DIRECTIVES.has(normalized)) {
-    invalid('robots must be a supported directive')
-  }
-  return normalized
+  const parsed = parseRobotsIntent(normalized)
+  if (!parsed.ok) invalid('robots must be a supported directive')
+  return parsed.ok ? parsed.intent : null
 }
 
 export function validateProductCanonicalUrl(value: unknown): string | null {

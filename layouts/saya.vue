@@ -27,7 +27,7 @@
     <LazySayaFooter
       :site="resolvedSite"
       :is-platform="isPlatform"
-      :locations="locations"
+      :locations="footerLocations"
       :locales="locales"
       :error="bootstrapError"
       :config="config"
@@ -41,6 +41,7 @@
 import { getPreviewSubpath } from '~/composables/usePublicPageRequest'
 import sayaCriticalCss from '~/assets/css/saya-critical.css?raw'
 import '~/assets/css/saya-entry.css'
+import { NON_INDEXABLE_ROBOTS_INTENT, normalizeRobotsIntent, type RobotsIntent } from '~/shared/robots-directive'
 
 const route = useRoute()
 const hydrated = ref(false)
@@ -98,6 +99,29 @@ const themeStyles = computed(() => {
   }
 })
 
+// A page under /locations/<slug> is about exactly one location: the location
+// itself, its menu, or a single dish. Printing every location's address, phone
+// and today's hours in the footer of those pages was the single largest source
+// of duplicate text on Kikuzuki's 896 dish pages — that block was roughly half
+// of each page's ~124 visible words and byte-identical across all of them. The
+// footer now carries the location the page is actually about, which also makes
+// the 84 dishes sold at two locations genuinely distinct pages.
+//
+// Slug matching works in every locale because the shell's locations are fetched
+// per locale and carry the same localized slugs the route does.
+const scopedLocationSlug = computed(() => {
+  const path = getPreviewSubpath(route.path) ?? route.path
+  const localePrefix = `/${activeLocale.value}`
+  const sourcePath = activeLocale.value !== 'en' && path.startsWith(localePrefix)
+    ? path.slice(localePrefix.length)
+    : path
+  const matched = sourcePath.match(/^\/locations\/([^/]+)/)?.[1]
+  return matched === undefined ? null : decodeURIComponent(matched)
+})
+const footerLocations = computed(() => (scopedLocationSlug.value === null
+  ? locations.value
+  : locations.value.filter(location => location.slug === scopedLocationSlug.value)))
+
 const googleSiteVerification = computed(() => config.value?.google_site_verification || null)
 
 // Request-scoped URL state must be captured eagerly during setup. Tenant routing
@@ -137,11 +161,9 @@ const isDemoHost = DEMO_HOSTS.has(requestHostname)
 
 // Site-wide default only — individual pages set their own robots directive
 // when they have one; this covers pages without a page-specific directive.
-const siteRobots = computed(() => {
-  if (isDemoHost) {
-    return 'noindex, nofollow'
-  }
-  return config.value?.robots || null
+const siteRobots = computed<RobotsIntent | null>(() => {
+  if (isDemoHost) return NON_INDEXABLE_ROBOTS_INTENT
+  return normalizeRobotsIntent(config.value?.robots)
 })
 
 useSocialMetadata(() => ({

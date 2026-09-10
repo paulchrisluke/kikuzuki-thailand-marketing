@@ -6,6 +6,7 @@ import { EXPERIENCE_STATUSES } from '~/server/utils/experiences'
 import { SUPPORTED_CURRENCIES } from '~/shared/currencies'
 import { PUBLICATION_CONTENT_BLOCK_TYPES } from '~/shared/content-registries'
 import { PRODUCT_DETAILS_INPUT_SCHEMA } from '~/server/utils/product-validation'
+import { ROBOTS_INTENTS } from '~/shared/robots-directive'
 
 export interface McpToolDefinition {
   name: string
@@ -54,7 +55,7 @@ export const pageInfoObject = {
 
 // --- reusable schema fragments ---
 
-export const ROBOTS_DIRECTIVE_ENUM = ['index,follow', 'noindex,follow', 'index,nofollow', 'noindex,nofollow']
+export const ROBOTS_DIRECTIVE_ENUM = [...ROBOTS_INTENTS]
 
 /** SEO override fields shared across location/Product/experience/site tools. */
 export function seoOverrideFieldsSchema() {
