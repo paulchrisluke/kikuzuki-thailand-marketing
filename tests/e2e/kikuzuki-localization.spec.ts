@@ -151,8 +151,8 @@ test('Kikuzuki Localize preserves its translated address', async ({ browser, pla
   try {
     await loginAs(owner, baseURL, 'user-e2e-kikuzuki-owner')
     const dashboardContext = await browser.newContext({ baseURL, storageState: await owner.storageState() })
+    const cms = await dashboardContext.newPage()
     try {
-      const cms = await dashboardContext.newPage()
       await openTenantPage(cms, `${baseURL}/dashboard/org-bVY8SxxUuG6Ctk2CQnfCk8T2cPsj4jJX/sites/kikuzuki-krabi-thailand/locations/kikuzuki-japanese-robatayaki-izakaya/settings/profile`, {})
       await cms.getByTestId('localize-resource').click()
       await cms.getByTestId('localize-language').click()
