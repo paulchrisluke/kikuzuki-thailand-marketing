@@ -33,10 +33,10 @@ const route = useRoute()
 const dashboardApi = useDashboardApi()
 const siteId = await useDashboardSiteId()
 
-// `useAsyncData`, not `onMounted(load)`. The hook this replaces was registered
-// after the `await` above, so Vue never bound it to this instance: it never
-// fired, `pending` stayed true, and the page showed its skeletons forever while
-// the tenant's offerings sat one request away.
+// The key is shared with the record editor, which reads the same whole-list
+// endpoint. One request serves both columns in pair mode, and the record's
+// save refreshes this list through the same entry rather than leaving it
+// showing the name and summary that were just replaced.
 const { data, pending, error: loadRequestError } = await useAsyncData(
   `dashboard-professional-services-${siteId}`,
   () => dashboardApi(`/api/editor/sites/${siteId}/professional-services`, { validate: isProfessionalServicesResponse }),
