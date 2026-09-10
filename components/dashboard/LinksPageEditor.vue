@@ -58,7 +58,7 @@
         has-detail
         show-actions
         :saving="saving"
-        :save-disabled="!sectionValid"
+        :save-disabled="!editorReady || !sectionValid"
         :detail-title="SECTION_LABELS[editorKey]"
         :hide-detail-heading="editorKey === 'links'"
         :dismiss-to="linksPath"
@@ -400,12 +400,14 @@ const emptyItemDraft = () => ({
   destination: '',
   status: 'active' as ItemStatus,
 })
-/**
- * One draft, not one per link: moving between records reuses this component
- * without running setup again, so an id read into the key here would pin every
- * record to whichever one was open first.
+/** One draft per record, because the key is re-read on every mount: this
+ * component is replaced on each path change, measured by its instance uid
+ * changing (244 → 411 → 527) across a leaf move and a level move. An earlier
+ * commit on this branch claimed the opposite and collapsed this to one shared
+ * draft; that was wrong, and a shared draft carried an unsaved edit from one
+ * link into the next.
  */
-const itemForm = useState(`links-item-draft-${siteId}`, emptyItemDraft).value
+const itemForm = useState(`links-item-draft-${siteId}-${itemId.value}`, emptyItemDraft).value
 
 /**
  * `new` is one key for every link ever added here, so leaving that screen has
@@ -415,6 +417,17 @@ const itemForm = useState(`links-item-draft-${siteId}`, emptyItemDraft).value
 function clearItemDraft() {
   Object.assign(itemForm, emptyItemDraft())
 }
+
+/**
+ * Leaving the record empties it. Moving between its leaves is what the draft
+ * outlives; the list, the page above it and the rest of the dashboard are not
+ * part of that walk, and a draft carried out of the links area greeted the next
+ * Add pre-filled and reporting nothing outstanding — one click from a duplicate.
+ */
+onBeforeRouteLeave((to) => {
+  if (to.path === itemPath.value || to.path.startsWith(`${itemPath.value}/`)) return
+  clearItemDraft()
+})
 
 // A row and the add control go to the record rather than opening a sheet over
 // the list, so a link has an address and adding and editing are one screen.
@@ -547,12 +560,6 @@ watch(itemRecord, (row) => {
  * through the browser's own back button greeted the next Add pre-filled and
  * reporting nothing outstanding — one click from a duplicate.
  */
-watch(itemId, () => {
-  const row = itemRecord.value
-  if (row) loadItemForm(row)
-  else clearItemDraft()
-})
-
 // `pending` is the only signal needed: the fetch is client-only, so it is true
 // through SSR and the first paint and false once the rows have data.
 const editorReady = computed(() => !pending.value)

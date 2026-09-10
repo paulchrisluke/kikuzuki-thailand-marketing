@@ -307,15 +307,22 @@ const detailKey = computed(() => routeSegments.value[0] ?? null)
 // Only read while a section is open; nothing defaults a section into the pane.
 const editorKey = computed<SectionKey>(() => (detailKey.value ?? 'photo') as SectionKey)
 
-const isSectionKey = (value: string): value is SectionKey => SECTION_KEYS.some(key => key === value)
+/**
+ * Creating asks only for what the POST will not accept an item without. The
+ * photo, the price and the rest each need a saved id, so they are sections of
+ * the item once it exists — and a route naming one before then is not a page.
+ */
+const NEW_SECTION_KEYS: readonly SectionKey[] = ['name']
+const isNew = computed(() => productId.value === 'new')
+const openSections = computed<readonly SectionKey[]>(() => (isNew.value ? NEW_SECTION_KEYS : SECTION_KEYS))
+
 // An unsupported route 404s rather than silently showing the first section.
-if (routeSegments.value.length > 1 || (detailKey.value && !isSectionKey(detailKey.value))) {
+if (routeSegments.value.length > 1 || (detailKey.value && !openSections.value.some(key => key === detailKey.value))) {
   throw createError({ statusCode: 404, statusMessage: 'Page not found' })
 }
 
 // ── Load ────────────────────────────────────────────────
 const categories = ref<ProductCategory[]>([])
-const isNew = computed(() => productId.value === 'new')
 
 /**
  * A record that does not exist yet has one question to answer. Adding walks it

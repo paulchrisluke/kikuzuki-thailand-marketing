@@ -370,12 +370,11 @@ interface InsightsResponse {
   setup: InsightsSetup[]
 }
 
-type InsightsTab = 'views' | 'reviews' | 'opportunities'
-
 // Reviews and Opportunities read what we actually hold. There is no Superhost
 // equivalent, and a review carries one overall rating rather than per-category
 // scores, so neither is invented here.
 const TAB_VALUES = ['views', 'reviews', 'opportunities', 'activity'] as const
+type InsightsTab = typeof TAB_VALUES[number]
 const isTab = (value: unknown): value is InsightsTab => TAB_VALUES.some(candidate => candidate === value)
 const tab = ref<InsightsTab>(isTab(route.query.tab) ? route.query.tab : 'views')
 // Back and forward change the query without touching the ref, so the URL is

@@ -160,17 +160,21 @@ watchEffect(() => {
  * a half-filled new testimonial survives the walk between its own sections and
  * is discarded when a different record is opened.
  */
-const form = useState(`testimonial-draft-${siteId}-${testimonialId.value}`, () => ({
-  author_name: '',
-  rating: 5,
-  title: '',
-  content: '',
-  collection_method: 'in_person' as CollectionMethod,
-  original_review_date: '',
-  original_reference: '',
-  publication_authorized: false,
-  status: 'pending' as TestimonialStatus,
-})).value
+function emptyDraft() {
+  return {
+    author_name: '',
+    rating: 5,
+    title: '',
+    content: '',
+    collection_method: 'in_person' as CollectionMethod,
+    original_review_date: '',
+    original_reference: '',
+    publication_authorized: false,
+    status: 'pending' as TestimonialStatus,
+  }
+}
+
+const form = useState(`testimonial-draft-${siteId}-${testimonialId.value}`, emptyDraft).value
 
 const saving = ref(false)
 const errorMessage = ref('')
@@ -306,6 +310,14 @@ async function saveOpenSection() {
     await navigateTo(`${recordPath.value}/${nextOutstanding.value}`)
     return
   }
+  // The PATCH sends the open section's fields from the form, and the form holds
+  // the row it was loaded from. With no row — a load that has not arrived or
+  // that failed — it holds its own blank defaults, and saving would write those
+  // over the stored testimonial.
+  if (!isNew.value && !record.value) {
+    errorMessage.value = 'This testimonial could not be loaded, so it cannot be saved.'
+    return
+  }
   saving.value = true
   errorMessage.value = ''
   try {
@@ -315,6 +327,11 @@ async function saveOpenSection() {
         body: body.value,
         validate: isReviewCreatedResponse,
       })
+      // `new` is one key for every testimonial ever added here, so a successful
+      // create has to empty it. Left behind, the next Add opens pre-filled with
+      // the testimonial just created and reports nothing outstanding, which is
+      // one click from a duplicate.
+      Object.assign(form, emptyDraft())
       toast.add({ description: 'Testimonial created', color: 'success' })
       await navigateTo(`${testimonialsPath.value}/${created.id}`)
       return

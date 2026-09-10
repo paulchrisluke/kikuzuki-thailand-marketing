@@ -246,6 +246,7 @@ export async function upsertProfessionalServiceContent(
   const statements: BatchQuery[] = []
   const existingOfferings = await queryAll<{ id: string; slug: string }>(db, 'SELECT id, slug FROM offerings WHERE site_id = ?', [siteId])
   const offeringIdBySlug = new Map(existingOfferings.map(offering => [offering.slug, offering.id]))
+  const offeringIdsInSite = new Set(existingOfferings.map(offering => offering.id))
   const writtenOfferingIds: string[] = []
   const existingOfferingMedia = await getMediaPlacements(db, {
     siteId,
@@ -266,12 +267,33 @@ export async function upsertProfessionalServiceContent(
     if (!name || !slug) validationError('Each offering needs name and slug.')
     if (incomingOfferingSlugs.has(slug)) validationError(`Duplicate offering slug: ${slug}.`)
     incomingOfferingSlugs.add(slug)
-    const existingOfferingId = offeringIdBySlug.get(slug)
-    // `cleanString` returns '' for an absent value, never nullish, so the `??`
-    // this replaces never reached `idWith`: every offering created here — from
-    // the dashboard or the MCP — was inserted with an empty primary key, and
-    // the second one would have collided with the first.
-    const id = existingOfferingId || cleanString(item.id, 80) || idWith('offering')
+    // Identity is the row's own id whenever the payload carries one. Resolving
+    // by slug alone made a rename an INSERT of a primary key the site already
+    // held, and the whole batch died on `UNIQUE constraint failed:
+    // offerings.id` — a slug could never be changed. An id this site does not
+    // own is refused rather than inserted: `cleanString` returns '' for an
+    // absent value, so a new row is minted an id here, and no caller can
+    // choose a primary key or update an offering belonging to another site.
+    const incomingId = cleanString(item.id, 80)
+    if (incomingId && !offeringIdsInSite.has(incomingId)) {
+      validationError(`offerings.${slug}.id is not an offering on this site.`)
+    }
+    const slugOwnerId = offeringIdBySlug.get(slug)
+    // A row carrying one offering's id under another's slug would reach the
+    // slug's unique index and fail the batch with a raw D1 error; name it here
+    // instead, the way safeStoredPath names a path the CHECK would reject.
+    if (incomingId && slugOwnerId && slugOwnerId !== incomingId) {
+      validationError(`offerings.${slug}.slug already belongs to another offering.`)
+    }
+    const existingOfferingId = incomingId || slugOwnerId
+    const id = existingOfferingId || idWith('offering')
+    // Two rows resolving to one primary key would both target it and the last
+    // would win silently — renaming one offering's slug in the same request
+    // that adds a new one under the freed slug is enough, because the slug map
+    // is read once before the batch.
+    if (writtenOfferingIds.includes(id)) {
+      validationError(`offerings.${slug} resolves to an offering already written in this request.`)
+    }
     writtenOfferingIds.push(id)
     validateOfferingContent(item, slug)
     const offeringMedia = strictMediaRefs(item.media, `offerings.${slug}.media`, ['thumbnail', 'hero', 'gallery'])
@@ -289,7 +311,8 @@ export async function upsertProfessionalServiceContent(
          features, faqs, cta_label, cta_url, schema_type, seo_title, seo_description, canonical_path,
          sort_order, featured, source, source_ref, updated_at, updated_by)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), ?)
-      ON CONFLICT(organization_id, site_id, slug) DO UPDATE SET
+      ON CONFLICT(id) DO UPDATE SET
+        slug = excluded.slug,
         location_id = excluded.location_id, name = excluded.name, label = excluded.label,
         summary = excluded.summary, short_description = excluded.short_description, body = excluded.body,
         features = excluded.features, faqs = excluded.faqs, cta_label = excluded.cta_label,

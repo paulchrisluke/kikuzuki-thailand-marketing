@@ -118,53 +118,6 @@
     </template>
   </UDashboardPanel>
 
-  <!-- Delete Account Modal -->
-  <UModal v-model:open="deleteModalOpen" :dismissible="!deleting" :ui="{ content: 'max-w-md' }">
-    <template #content>
-      <div class="p-6 space-y-4">
-        <div>
-          <h3 class="text-lg font-semibold text-highlighted">Delete your account?</h3>
-          <p class="mt-1 text-sm text-muted">This will permanently delete your account, organization, site, locations, and menu data. This action cannot be undone.</p>
-        </div>
-
-        <UAlert
-          v-if="deleteError"
-          color="error"
-          variant="soft"
-          icon="i-lucide-triangle-alert"
-          :description="deleteError"
-        />
-
-        <div class="space-y-2">
-          <p id="delete-confirm-instruction" class="text-sm text-muted">
-            Type <span class="font-mono font-semibold text-highlighted">DELETE</span> to confirm.
-          </p>
-          <UInput
-            v-model="deleteConfirmText"
-            placeholder="DELETE"
-            aria-describedby="delete-confirm-instruction"
-            :disabled="deleting"
-            @keydown.enter="confirmDeleteAccount"
-          />
-        </div>
-
-        <div class="flex justify-end gap-2 pt-2">
-          <UButton variant="ghost" color="neutral" :disabled="deleting" @click="resetDeleteModal">
-            Cancel
-          </UButton>
-          <UButton
-            color="error"
-            :loading="deleting"
-            :disabled="deleteConfirmText !== 'DELETE'"
-            @click="confirmDeleteAccount"
-          >
-            Delete Account
-          </UButton>
-        </div>
-      </div>
-    </template>
-  </UModal>
-
   <!-- OTP Verification Modal -->
   <UModal v-model:open="verifyModalOpen" :ui="{ content: 'max-w-sm' }">
     <template #content>
@@ -312,6 +265,8 @@ function cancelEdit() {
   phoneInput.value = sessionData.value?.user?.phoneNumber || ''
   nameTouched.value = false
   phoneTouched.value = false
+  deleteConfirmText.value = ''
+  deleteError.value = ''
 }
 
 async function saveName() {
@@ -413,7 +368,6 @@ async function copyUserId() {
 }
 
 // Danger Zone
-const deleteModalOpen = ref(false)
 const deleteConfirmText = ref('')
 const deleting = ref(false)
 const deleteError = ref('')
@@ -442,16 +396,6 @@ function getDeleteErrorBody(error: unknown): DeleteErrorBody {
   return {}
 }
 
-function resetDeleteModal() {
-  deleteModalOpen.value = false
-}
-
-watch(deleteModalOpen, (open) => {
-  if (open) return
-  deleteConfirmText.value = ''
-  deleteError.value = ''
-})
-
 async function confirmDeleteAccount() {
   if (deleteConfirmText.value !== 'DELETE') return
   deleting.value = true
@@ -467,9 +411,11 @@ async function confirmDeleteAccount() {
       try { await authClient.signOut() } catch (_err) { /* ignore */ }
       try {
         await navigateTo('/')
-        resetDeleteModal()
       } catch (_err) {
-        deleteError.value = 'Account deleted successfully! Automatic redirect failed. Please refresh the page or click Cancel to return home.'
+        // The account is gone and the session is signed out; only the redirect
+        // failed. Cancel returns to the profile level, not home, so it is not
+        // the way out of here.
+        deleteError.value = 'Your account was deleted, but this page could not move you on. Reload to sign out fully.'
       }
     } else {
       deleteError.value = 'Account deletion failed. Please try again.'

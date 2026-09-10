@@ -259,10 +259,17 @@ test.describe.serial('published Thai content saves through the CMS and renders w
   })
 
   test('keeps dirty Thai Localize state after a rejected save', async () => {
+    // This test opens a Localize dialog of its own, and preview spends upwards
+    // of 11s on each one, which is why its sibling above also buys headroom.
+    test.setTimeout(60_000)
     // Back out of the link's level to the links leaf, whose navbar carries the
-    // page's own Localize.
+    // page's own Localize. The record's navbar carries one too, so the URL has
+    // to settle first: mid-transition both are mounted, and the click landed on
+    // the record's as it detached.
     await cms.getByTestId('dashboard-navbar-back').click()
+    await expect(cms).toHaveURL(/\/links\/links$/)
     await cms.getByTestId('localize-resource').first().click()
+    await expect(cms.getByTestId('localize-language')).toBeEnabled()
     await cms.getByTestId('localize-language').click()
     await cms.getByRole('option', { name: /ไทย \(th\)/ }).click()
     await expect(cms.getByTestId('localize-field-title')).toHaveValue('ลิงก์กฎหมายภาษาไทย')

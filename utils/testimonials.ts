@@ -27,13 +27,20 @@ export const COLLECTION_METHODS: Array<{ label: string; value: CollectionMethod 
 
 export const TESTIMONIAL_STATUSES: TestimonialStatus[] = ['pending', 'approved', 'rejected']
 
+const isStringOrNull = (value: unknown): value is string | null => value === null || typeof value === 'string'
+
 export const isSiteTestimonial = (value: unknown): value is SiteTestimonial =>
   isRecord(value)
   && typeof value.id === 'string'
   && typeof value.author_name === 'string'
   && typeof value.rating === 'number'
   && typeof value.content === 'string'
-  && typeof value.status === 'string'
+  && isStringOrNull(value.title)
+  && COLLECTION_METHODS.some(method => method.value === value.collection_method)
+  && isStringOrNull(value.original_review_date)
+  && isStringOrNull(value.original_reference)
+  && typeof value.publication_authorized === 'boolean'
+  && TESTIMONIAL_STATUSES.some(status => status === value.status)
 
 export const isTestimonialsResponse = (value: unknown): value is { reviews: SiteTestimonial[] } =>
   isRecord(value) && Array.isArray(value.reviews) && value.reviews.every(isSiteTestimonial)

@@ -109,11 +109,11 @@ watchEffect(() => {
  * component, so a plain `reactive` would lose the question on the way to the
  * answer.
  */
-const form = useState(`qa-draft-${siteId}-${qaId.value}`, () => ({
-  question: '',
-  answer: '',
-  published: true,
-})).value
+function emptyDraft() {
+  return { question: '', answer: '', published: true }
+}
+
+const form = useState(`qa-draft-${siteId}-${qaId.value}`, emptyDraft).value
 
 const saving = ref(false)
 const errorMessage = ref('')
@@ -214,6 +214,11 @@ async function saveOpenSection() {
     }
     if (isNew.value) {
       const created = await dashboardApi(`/api/editor/sites/${siteId}/qa`, { method: 'POST', body, validate: isQaCreated })
+      // `new` is one key for every question ever added here, so a successful
+      // create has to empty it. Left behind, the next Add opens pre-filled with
+      // the question just created and reports nothing outstanding, which is one
+      // click from a duplicate.
+      Object.assign(form, emptyDraft())
       toast.add({ description: 'Question created', color: 'success' })
       await navigateTo(`${qaPath.value}/${created.id}`)
       return
