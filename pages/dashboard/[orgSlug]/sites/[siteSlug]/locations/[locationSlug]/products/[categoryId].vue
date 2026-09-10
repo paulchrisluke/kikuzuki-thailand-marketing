@@ -185,7 +185,9 @@ async function commit() {
     toast.add({ description: 'Name saved', color: 'success' })
     await navigateTo(categoryPath.value)
   } catch (error) {
+    // The index column, where the alert lives, is under the detail sheet on narrow screens.
     errorMessage.value = getErrorMessage(error, `Failed to save ${presentation.categoryLabel.toLowerCase()}`)
+    toast.add({ description: errorMessage.value, color: 'error' })
   } finally {
     saving.value = false
   }

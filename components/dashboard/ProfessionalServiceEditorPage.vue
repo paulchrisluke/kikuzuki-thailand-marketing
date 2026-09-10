@@ -137,7 +137,7 @@ const detailKey = computed(() => frame.childSegment.value)
 const openKey = computed<SectionKey>(() => (detailKey.value ?? 'name') as SectionKey)
 
 watchEffect(() => {
-  if (frame.rest.value.length > 1 || (detailKey.value && !(detailKey.value in SECTION_LABELS))) {
+  if (frame.rest.value.length > 1 || (detailKey.value && !(detailKey.value in SECTION_LABELS)) || (isNew.value && detailKey.value === 'ordering')) {
     throw createError({ statusCode: 404, statusMessage: 'Page not found' })
   }
 })
@@ -198,7 +198,8 @@ const navigationGroups = computed<EditorNavigationGroup[]>(() => [
     label: 'Placement',
     items: [
       { id: 'schema_type', label: 'Schema type', summary: summaryOf(form.schema_type, 'Not set'), icon: 'i-lucide-tag', to: `${recordPath.value}/schema_type` },
-      { id: 'ordering', label: 'Ordering', summary: `${form.featured ? 'Featured' : 'Not featured'} · position ${form.sort_order}`, icon: 'i-lucide-arrow-up-down', to: `${recordPath.value}/ordering` },
+      // A new service is filed after the existing ones by the endpoint; its position is a section once it exists.
+      ...(isNew.value ? [] : [{ id: 'ordering', label: 'Ordering', summary: `${form.featured ? 'Featured' : 'Not featured'} · position ${form.sort_order}`, icon: 'i-lucide-arrow-up-down', to: `${recordPath.value}/ordering` }]),
     ],
   },
 ])
@@ -230,8 +231,7 @@ async function commit() {
           summary: form.summary,
           short_description: form.short_description,
           schema_type: form.schema_type.trim(),
-          featured: form.featured,
-          ...(isNew.value ? {} : { sort_order: form.sort_order }),
+          ...(isNew.value ? {} : { featured: form.featured, sort_order: form.sort_order }),
         }],
       },
       validate: isProfessionalServiceWriteResponse,

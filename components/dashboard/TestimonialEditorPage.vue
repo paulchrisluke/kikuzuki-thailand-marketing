@@ -247,7 +247,7 @@ const { createActionLabel, saveLabel, saveDisabled, save: saveOpenSection, start
   isNew,
   openKey,
   labels: SECTION_LABELS,
-  order: ['reviewer', 'content', 'rating', 'authorization'],
+  order: ['reviewer', 'content', 'rating', 'provenance', 'authorization'],
   missing: key => blockers.value.includes(key),
   noun: 'testimonial',
   saving,

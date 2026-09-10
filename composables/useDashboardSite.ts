@@ -80,6 +80,7 @@ const isDashboardSite = (value: unknown): value is DashboardSite =>
   && (value.public_url === null || typeof value.public_url === 'string')
   && typeof value.status === 'string'
   && typeof value.onboarding_status === 'string'
+  && typeof value.default_currency === 'string'
   && isSocialImage(value.social_image)
 
 const isDashboardLocation = (value: unknown): value is DashboardLocation =>

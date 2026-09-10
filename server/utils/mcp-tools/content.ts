@@ -207,8 +207,9 @@ export const CONTENT_TOOLS: McpToolDefinition[] = [
         properties: {
           success: { type: 'boolean' },
           written: { type: 'object' },
+          offering_ids: { type: 'array', items: { type: 'string' }, description: 'The id of every offering written by this call, in payload order.' },
         },
-        required: ['success', 'written'],
+        required: ['success', 'written', 'offering_ids'],
       },
     }),
   siteTool({

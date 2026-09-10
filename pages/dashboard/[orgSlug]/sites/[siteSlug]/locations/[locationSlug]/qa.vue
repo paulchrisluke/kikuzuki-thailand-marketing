@@ -44,8 +44,12 @@ const qaPath = computed(() => `${locationPath.value}/qa`)
 const frame = useEditorFrame(qaPath)
 
 const dashboardLocation = useDashboardLocation()
-const locationId = dashboardLocation.currentLocationId.value
-if (!locationId) throw createError({ statusCode: 404, statusMessage: 'Location not found' })
+// Reactive: Nuxt reuses this component when only the location slug changes.
+const locationId = computed(() => {
+  const id = dashboardLocation.currentLocationId.value
+  if (!id) throw createError({ statusCode: 404, statusMessage: 'Location not found' })
+  return id
+})
 
 useSeoMeta({ title: 'Q&A | KrabiClaw Dashboard', robots: 'noindex, nofollow' })
 </script>

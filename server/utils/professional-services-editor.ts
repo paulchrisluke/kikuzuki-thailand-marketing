@@ -21,6 +21,9 @@ function json(value: unknown) {
   return JSON.stringify(value ?? null)
 }
 
+// The public route accepts these slugs (server/utils/public-blawby-document.ts).
+const OFFERING_SLUG_PATTERN = /^[a-z0-9_-]+$/
+
 function idWith(prefix: string) {
   return `${prefix}_${crypto.randomUUID().replace(/-/g, '').slice(0, 24)}`
 }
@@ -288,6 +291,7 @@ export async function upsertProfessionalServiceContent(
     if (!name) validationError('Each offering needs a name.')
     const slug = cleanString(item.slug, 180) || slugifyTitle(name).slice(0, 180)
     if (!slug) validationError(`offerings[${name}] needs a slug: none can be derived from its name.`)
+    if (!OFFERING_SLUG_PATTERN.test(slug)) validationError(`offerings.${slug}.slug may contain only lowercase letters, digits, - and _.`)
     if (incomingOfferingSlugs.has(slug)) validationError(`Duplicate offering slug: ${slug}.`)
     incomingOfferingSlugs.add(slug)
     const slugTaken = offeringIdBySlug.get(slug)
@@ -303,11 +307,16 @@ export async function upsertProfessionalServiceContent(
       validationError(`offerings.${slug} resolves to an offering already written in this request.`)
     }
     writtenOfferingIds.push(id)
-    // A new offering that names no path lives where every offering lives, and
-    // files after the ones already there; its source is the column's default.
-    const canonicalPath = existing || item.canonical_path != null
-      ? requiredStoredPath(item.canonical_path, `offerings.${slug}.canonical_path`, 300)
-      : `/services/${slug}`
+    // A path the caller sends is kept as sent. Otherwise a stored row keeps its
+    // path until its slug changes, and a new or renamed offering lives where
+    // every offering lives. A new row files after the ones already there, and
+    // its source is the column's default.
+    const slugChanged = existing ? String(existing.slug) !== slug : true
+    const canonicalPath = Object.hasOwn(incoming, 'canonical_path')
+      ? requiredStoredPath(incoming.canonical_path, `offerings.${slug}.canonical_path`, 300)
+      : slugChanged
+        ? `/services/${slug}`
+        : requiredStoredPath(item.canonical_path, `offerings.${slug}.canonical_path`, 300)
     const sortOrder = item.sort_order == null ? nextSortOrder++ : Number(item.sort_order)
     const source = cleanString(item.source, 80) || 'manual'
     validateOfferingContent(item, slug)

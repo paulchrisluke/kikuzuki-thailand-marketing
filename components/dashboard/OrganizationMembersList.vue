@@ -303,6 +303,7 @@ const { siteOptions, sitesPending } = scope
 const memberRoleLocations = scope.locationsFor(computed(() => memberRoleForm.siteId))
 const memberRoleLocationOptions = memberRoleLocations.options
 const memberRoleLocationsPending = memberRoleLocations.pending
+watch(() => memberRoleForm.siteId, () => { memberRoleForm.locationId = '' })
 watch(memberRoleLocations.error, (message) => {
   if (!message) return
   roleUpdateError.value = message
