@@ -102,7 +102,12 @@ export async function resolvePreviewAuthorization(
   return await verifyPreviewToken(previewSecret, siteId, cookieToken)
 }
 
+/**
+ * The signing key, exactly as configured. Never trimmed: createPreviewToken is
+ * also called with env.PREVIEW_SECRET directly, and a trimmed copy here would
+ * verify against a different HMAC key than the one that signed.
+ */
 export function previewSecretOf(env: object): string | null {
   const secret = (env as { PREVIEW_SECRET?: unknown }).PREVIEW_SECRET
-  return typeof secret === 'string' && secret.trim() ? secret.trim() : null
+  return typeof secret === 'string' && secret.trim() ? secret : null
 }

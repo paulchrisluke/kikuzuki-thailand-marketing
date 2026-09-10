@@ -313,9 +313,15 @@ interface GoogleMapsPlaceResolverDependencies {
   ) => Promise<GoogleMapsPlaceCandidate[]>
 }
 
+// Google Maps links arrive on whichever Google domain the owner's browser was
+// on: google.com, google.de, google.co.uk, maps.google.fr. All of them are
+// Google; anything that merely ends in a Google-looking string is not.
+const GOOGLE_DOMAIN_PATTERN = /^(?:[a-z0-9-]+\.)*google(?:\.[a-z]{2,3})?\.[a-z]{2,3}$/
+
 export function isAllowedGoogleMapsHost(hostname: string): boolean {
   const h = hostname.toLowerCase()
-  return SHORT_LINK_HOSTS.includes(h) || h === 'google.com' || h.endsWith('.google.com')
+  if (SHORT_LINK_HOSTS.includes(h)) return true
+  return GOOGLE_DOMAIN_PATTERN.test(h)
 }
 
 export function haversineKm(lat1: number, lng1: number, lat2: number, lng2: number): number {
@@ -351,7 +357,9 @@ export function extractGoogleMapsSignals(resolvedUrl: string): GoogleMapsSignals
     placeId = new URL(resolvedUrl).searchParams.get('query_place_id')
   } catch { placeId = null }
   if (!placeId) {
-    const rawIdMatch = resolvedUrl.match(/!1s([^!&]+)/)
+    // A Maps URL carries several !1s segments; only the canonical place id
+    // starts with ChIJ, and it is not always the first one.
+    const rawIdMatch = resolvedUrl.match(/!1s(ChIJ[^!&]*)/)
     if (rawIdMatch?.[1]) {
       try { placeId = decodeURIComponent(rawIdMatch[1]) } catch { placeId = null }
     }

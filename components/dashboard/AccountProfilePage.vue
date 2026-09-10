@@ -463,11 +463,12 @@ async function keepAccount() {
   deleting.value = true
   deleteError.value = ''
   try {
-    await applicationFetch<{ success?: boolean }>('/api/user/delete-account', {
+    const res = await applicationFetch<{ success?: boolean }>('/api/user/delete-account', {
       method: 'DELETE',
       validate: (value): value is { success?: boolean } =>
         isRecord(value) && (value.success === undefined || typeof value.success === 'boolean'),
     })
+    if (res?.success !== true) throw new Error('Cancelling the deletion failed. Please try again.')
     await refreshSession()
     toast.add({ title: 'Deletion cancelled', icon: 'i-lucide-circle-check', color: 'success' })
   } catch (_err) {

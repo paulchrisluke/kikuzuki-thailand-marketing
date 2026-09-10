@@ -71,9 +71,19 @@ export async function ensureOnboardingSite(
   let organizationId = draft.organization_id
   if (!organizationId) {
     const created = await createOrganizationForSite(env, userId, draft.name)
-    organizationId = created.organizationId
-    await execute(db, `UPDATE onboarding_drafts SET organization_id = ?, updated_at = ? WHERE id = ?`,
-      [organizationId, new Date().toISOString(), draft.id])
+    // Two saves can race here. The claim only lands while the draft still has
+    // no organization, and the re-read decides which one won, so overlapping
+    // saves converge on one organization instead of the later one silently
+    // replacing the earlier.
+    await execute(db, `
+      UPDATE onboarding_drafts SET organization_id = ?, updated_at = ?
+      WHERE id = ? AND organization_id IS NULL
+    `, [created.organizationId, new Date().toISOString(), draft.id])
+    const claimed = await queryFirst<{ organization_id: string | null }>(db, `
+      SELECT organization_id FROM onboarding_drafts WHERE id = ? LIMIT 1
+    `, [draft.id])
+    if (!claimed?.organization_id) return { status: 500, error: 'Could not record the new organization.' }
+    organizationId = claimed.organization_id
   }
 
   // Created once, on the first save. Site creation seeds a location and the

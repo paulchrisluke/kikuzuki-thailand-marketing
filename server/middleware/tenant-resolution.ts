@@ -132,14 +132,13 @@ async function resolveRegisteredSubdomainSite(
  * Returns false when the request may not see this site at all.
  */
 async function authorizeTenantSite(event: H3Event, site: TenantSiteRow): Promise<boolean> {
-  if (site.onboarding_status === 'active') {
-    event.context.previewAuthorized = false
-    return true
-  }
   const previewSecret = previewSecretOf(cloudflareEnv(event))
   const authorized = await resolvePreviewAuthorization(event, site.id, previewSecret)
   event.context.previewAuthorized = authorized
-  return authorized
+  // A live site is public either way; the flag still travels, because preview
+  // also means "show me the drafts" — an unpublished article on a site that is
+  // already live is previewed the same way.
+  return site.onboarding_status === 'active' || authorized
 }
 
 function setResolvedTenantContext(

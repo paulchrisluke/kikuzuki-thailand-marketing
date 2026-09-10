@@ -26,7 +26,7 @@ import { execute, queryAll, queryFirst, type DbClient } from '~/server/db'
 import { d1JsonStringSet } from '~/server/db/d1-limits'
 import { createAuth, type CloudflareEnv } from '~/server/utils/auth'
 import { deleteImage } from '~/server/utils/cloudflare-images'
-import { deleteOrganizationCustomDomains } from '~/server/utils/domains'
+import { deleteOrganizationCustomDomains, deleteSiteCustomDomains } from '~/server/utils/domains'
 import { listOrganizationMembers, listUserOrganizations, organizationAdapter, resolveOrganizationMembership, type OrganizationAdapter } from '~/server/utils/member-access'
 
 /** How long an owner has to change their mind. */
@@ -126,10 +126,12 @@ export async function cancelOrganizationDeletion(env: CloudflareEnv, organizatio
 export async function scheduleAccountDeletion(
   env: CloudflareEnv,
   userId: string,
+  // The caller has already resolved and checked these; scheduling the same
+  // rows it checked is what keeps the two from disagreeing.
+  organizationIds: string[],
   requestedAt = new Date(),
 ): Promise<ScheduledDeletion> {
   const scheduledAt = deletionDueAt(requestedAt)
-  const organizationIds = await listSoleOwnedOrganizationIds(env, userId)
   for (const organizationId of organizationIds) {
     await setOrganizationDeletionScheduledAt(env, organizationId, scheduledAt)
   }
@@ -148,19 +150,22 @@ export async function cancelAccountDeletion(env: CloudflareEnv, userId: string):
  * Cloudflare Images the organization is the last holder of. An image id shared
  * with another organization (an import can reuse one) stays.
  */
-async function organizationOwnedImageIds(db: DbClient, organizationId: string): Promise<string[]> {
+async function ownedImageIds(
+  db: DbClient,
+  scope: { column: 'organization_id' | 'site_id'; value: string },
+): Promise<string[]> {
   const owned = await queryAll<{ cloudflare_image_id: string }>(db, `
     SELECT DISTINCT cloudflare_image_id FROM media_assets
-    WHERE organization_id = ? AND cloudflare_image_id IS NOT NULL
-  `, [organizationId])
+    WHERE ${scope.column} = ? AND cloudflare_image_id IS NOT NULL
+  `, [scope.value])
   const imageIds = (owned || []).map(row => row.cloudflare_image_id)
   if (imageIds.length === 0) return []
 
   const shared = await queryAll<{ cloudflare_image_id: string }>(db, `
     SELECT DISTINCT cloudflare_image_id FROM media_assets
-    WHERE organization_id <> ?
+    WHERE ${scope.column} <> ?
       AND cloudflare_image_id IN (SELECT value FROM json_each(?))
-  `, [organizationId, d1JsonStringSet(imageIds)])
+  `, [scope.value, d1JsonStringSet(imageIds)])
   const sharedIds = new Set((shared || []).map(row => row.cloudflare_image_id))
   return imageIds.filter(imageId => !sharedIds.has(imageId))
 }
@@ -177,7 +182,7 @@ export async function deleteOrganizationNow(env: CloudflareEnv, organizationId: 
   const db = env.DB
   await deleteOrganizationCustomDomains(env, db, organizationId)
 
-  for (const imageId of await organizationOwnedImageIds(db, organizationId)) {
+  for (const imageId of await ownedImageIds(db, { column: 'organization_id', value: organizationId })) {
     await deleteImage(env, imageId).catch((error: unknown) => {
       console.error('tenant_deletion_image_release_failed', {
         organizationId,
@@ -244,14 +249,15 @@ export async function deletePendingSiteNow(
     return { deleted: true }
   }
 
-  for (const imageId of await organizationOwnedImageIds(db, site.organization_id)) {
+  // Only this site's resources: the organization keeps its other sites.
+  for (const imageId of await ownedImageIds(db, { column: 'site_id', value: siteId })) {
     await deleteImage(env, imageId).catch((error: unknown) => {
       console.error('tenant_deletion_image_release_failed', {
         siteId, imageId, error: error instanceof Error ? error.message : String(error),
       })
     })
   }
-  await deleteOrganizationCustomDomains(env, db, site.organization_id)
+  await deleteSiteCustomDomains(env, db, siteId)
   await execute(db, 'DELETE FROM sites WHERE id = ?', [siteId])
   return { deleted: true }
 }

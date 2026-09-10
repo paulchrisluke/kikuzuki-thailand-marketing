@@ -93,6 +93,7 @@ export default defineHandler(async (event) => {
   }
 
   const { organizationId, siteId, subdomain } = site.target
+  let committed = false
 
   try {
     const { locationSlug } = await applyOnboardingDraftToSite(env, db, {
@@ -110,6 +111,7 @@ export default defineHandler(async (event) => {
       SET status = 'committed', committed_site_id = ?, committed_at = ?, updated_at = ?
       WHERE id = ?
     `, [siteId, now, now, draftId])
+    committed = true
 
     // Activation must not fail the launch: the site is live either way, and the
     // dashboard resolves an organization for the session on its next request.
@@ -142,11 +144,20 @@ export default defineHandler(async (event) => {
       success: true, siteId, orgSlug: orgRow.slug, siteSlug: subdomain, locationSlug,
     })
   } catch (error) {
-    // The site exists and is still pending. Reopen the draft so the owner can
-    // try again from where they were rather than losing their answers.
+    console.error('onboarding_activate_failed', { draftId, siteId, committed, error })
+    if (committed) {
+      // The site is live and the draft is closed. Only the tail — the social
+      // card, the cache purge, the organization read-back — failed, and
+      // reopening the draft here would offer to create the site a second time.
+      return jsonResponse({
+        error: 'Your site is live, but finishing touches failed. Open your dashboard to continue.',
+        siteId,
+      }, { status: 500 })
+    }
+    // Still pending: reopen the draft so the owner can try again from where
+    // they were rather than losing their answers.
     await execute(db, `UPDATE onboarding_drafts SET status = 'active', updated_at = ? WHERE id = ?`,
       [new Date().toISOString(), draftId])
-    console.error('onboarding_activate_failed', { draftId, siteId, error })
     return jsonResponse({ error: 'Could not finish creating your site. Please try again.' }, { status: 500 })
   }
 })

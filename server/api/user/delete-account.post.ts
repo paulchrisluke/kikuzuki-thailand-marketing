@@ -28,7 +28,7 @@ export default defineHandler(async (event) => {
     }, { status: 409 })
   }
 
-  const { scheduledAt, organizationIds } = await scheduleAccountDeletion(env, userId)
+  const { scheduledAt, organizationIds } = await scheduleAccountDeletion(env, userId, soleOwnedOrganizationIds)
 
   return jsonResponse({
     success: true,

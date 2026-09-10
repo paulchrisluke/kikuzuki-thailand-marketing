@@ -558,23 +558,27 @@ function choiceColor(message: WizardMessage, choice: QuickReply) {
 // Rewinding past the business name abandons the draft on the server too: the
 // pending site it created holds an address derived from a name the owner has
 // just replaced, so it is deleted rather than carried into the new answer.
-function clearDraftPreview() {
+async function clearDraftPreview() {
   const hadDraft = Boolean(onboardingDraftId.value)
   onboardingDraftId.value = null
   draftPreviewPayload.value = null
   emit('draft-cleared')
   if (!hadDraft) return
-  void applicationFetch<{ success?: boolean }>('/api/dashboard/onboarding/drafts/active', {
-    method: 'DELETE',
-    validate: (value): value is { success?: boolean } => isRecord(value),
-  }).catch((error: unknown) => {
+  // Awaited: the next answer saves a new draft, and a late DELETE would take
+  // that one instead of the abandoned one.
+  try {
+    await applicationFetch<{ success?: boolean }>('/api/dashboard/onboarding/drafts/active', {
+      method: 'DELETE',
+      validate: (value): value is { success?: boolean } => isRecord(value),
+    })
+  } catch (error) {
     importError.value = error instanceof Error
       ? error.message
       : 'Could not clear your previous draft. Reload and try again.'
-  })
+  }
 }
 
-function rewindToChoiceMessage(index: number) {
+async function rewindToChoiceMessage(index: number) {
   const message = messages.value[index]
   if (!message?.choiceCard || !isPastMessage(index)) return
   messages.value = messages.value.slice(0, index + 1)
@@ -582,7 +586,7 @@ function rewindToChoiceMessage(index: number) {
   awaitingInput.value = false
   importError.value = null
   if (message.step === 'vertical' || message.step === 'source' || message.step === 'confirm') {
-    clearDraftPreview()
+    await clearDraftPreview()
   }
 }
 
@@ -1314,7 +1318,9 @@ function composeAddress() {
   const street = detailsForm.streetAddress.trim()
   const alreadyInStreet = (segment: string) => street.toLowerCase().includes(segment.toLowerCase())
   const localityParts = [detailsForm.city, detailsForm.region, detailsForm.postalCode].map(part => part.trim()).filter(Boolean)
-  const locality = localityParts.length && !localityParts.every(alreadyInStreet) ? localityParts.join(', ') : ''
+  // Per segment, not all-or-nothing: a Google-imported street line often
+  // already contains the city but not the postal code.
+  const locality = localityParts.filter(part => !alreadyInStreet(part)).join(', ')
   const countryName = getPhoneCountry(detailsForm.country)?.name ?? ''
   const country = countryName && !alreadyInStreet(countryName) ? countryName : ''
   return [street, detailsForm.addressLine2, locality, country]

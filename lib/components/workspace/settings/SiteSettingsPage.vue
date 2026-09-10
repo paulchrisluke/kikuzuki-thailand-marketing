@@ -283,6 +283,7 @@ async function scheduleWorkspaceDeletion() {
       method: 'POST',
       validate: (value): value is { success?: boolean; scheduled_at?: string; grace_days?: number } => isRecord(value),
     })
+    if (response?.success !== true) throw new Error('Scheduling the deletion failed. Please try again.')
     if (typeof response?.grace_days === 'number') deletionGraceDays.value = response.grace_days
     deletionConfirmText.value = ''
     await dashboard.refresh()
@@ -298,10 +299,11 @@ async function keepWorkspace() {
   deletionSaving.value = true
   deletionError.value = ''
   try {
-    await dashboardApi<{ success?: boolean }>('/api/dashboard/organizations/deletion', {
+    const response = await dashboardApi<{ success?: boolean }>('/api/dashboard/organizations/deletion', {
       method: 'DELETE',
       validate: (value): value is { success?: boolean } => isRecord(value),
     })
+    if (response?.success !== true) throw new Error('Cancelling the deletion failed. Please try again.')
     await dashboard.refresh()
     toast.add({ title: 'Deletion cancelled', icon: 'i-lucide-circle-check', color: 'success' })
   } catch (error) {
