@@ -63,6 +63,7 @@ export function useOrganizationScopeOptions() {
         return
       }
       pending.value = true
+      error.value = null
       try {
         const response = await dashboardApi(`/api/sites/${site}/locations`, { validate: isLocationsResponse })
         if (!isCurrent(id, site)) return

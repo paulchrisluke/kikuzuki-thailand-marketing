@@ -10,6 +10,8 @@ import { assertNoEmbeddedMediaFields } from '~/utils/tenant-page-blocks'
 import type { CloudflareEnv } from '~/server/utils/auth'
 import { refreshSocialCard } from '~/server/utils/social-card'
 
+const SLUG_PATTERN = /^[a-z0-9_-]+$/
+
 export class ProfessionalServiceValidationError extends Error {
   constructor(message: string) {
     super(message)
@@ -288,6 +290,7 @@ export async function upsertProfessionalServiceContent(
     if (!name) validationError('Each offering needs a name.')
     const slug = cleanString(item.slug, 180) || slugifyTitle(name).slice(0, 180)
     if (!slug) validationError(`offerings[${name}] needs a slug: none can be derived from its name.`)
+    if (!SLUG_PATTERN.test(slug)) validationError(`offerings.${slug}.slug contains invalid characters.`)
     if (incomingOfferingSlugs.has(slug)) validationError(`Duplicate offering slug: ${slug}.`)
     incomingOfferingSlugs.add(slug)
     const slugTaken = offeringIdBySlug.get(slug)
@@ -305,7 +308,7 @@ export async function upsertProfessionalServiceContent(
     writtenOfferingIds.push(id)
     // A new offering that names no path lives where every offering lives, and
     // files after the ones already there; its source is the column's default.
-    const canonicalPath = existing || item.canonical_path != null
+    const canonicalPath = item.canonical_path != null
       ? requiredStoredPath(item.canonical_path, `offerings.${slug}.canonical_path`, 300)
       : `/services/${slug}`
     const sortOrder = item.sort_order == null ? nextSortOrder++ : Number(item.sort_order)

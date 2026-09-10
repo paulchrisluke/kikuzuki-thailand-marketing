@@ -83,7 +83,7 @@
 
           <div v-else-if="openKey === 'ordering'" class="space-y-6">
             <p class="text-base text-muted">Where this service sits among the others, and whether it is singled out.</p>
-            <UFormField label="Sort order" description="Lower numbers appear first.">
+            <UFormField v-if="!isNew" label="Sort order" description="Lower numbers appear first.">
               <UInputNumber v-model="form.sort_order" :min="0" size="xl" class="w-full" />
             </UFormField>
             <UFormField label="Featured">

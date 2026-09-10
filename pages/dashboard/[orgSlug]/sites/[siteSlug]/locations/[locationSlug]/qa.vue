@@ -44,8 +44,11 @@ const qaPath = computed(() => `${locationPath.value}/qa`)
 const frame = useEditorFrame(qaPath)
 
 const dashboardLocation = useDashboardLocation()
-const locationId = dashboardLocation.currentLocationId.value
-if (!locationId) throw createError({ statusCode: 404, statusMessage: 'Location not found' })
+const locationId = computed(() => {
+  const value = dashboardLocation.currentLocationId.value
+  if (!value) throw createError({ statusCode: 404, statusMessage: 'Location not found' })
+  return value
+})
 
 useSeoMeta({ title: 'Q&A | KrabiClaw Dashboard', robots: 'noindex, nofollow' })
 </script>

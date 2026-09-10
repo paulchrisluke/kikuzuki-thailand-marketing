@@ -185,7 +185,9 @@ async function commit() {
     toast.add({ description: 'Name saved', color: 'success' })
     await navigateTo(categoryPath.value)
   } catch (error) {
-    errorMessage.value = getErrorMessage(error, `Failed to save ${presentation.categoryLabel.toLowerCase()}`)
+    const message = getErrorMessage(error, `Failed to save ${presentation.categoryLabel.toLowerCase()}`)
+    errorMessage.value = message
+    toast.add({ description: message, color: 'error' })
   } finally {
     saving.value = false
   }
