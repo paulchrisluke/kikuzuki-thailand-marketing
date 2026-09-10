@@ -240,7 +240,7 @@ import PostScheduleFields from '~/components/dashboard/PostScheduleFields.vue'
 import { useLocationPostEditor } from '~/composables/useLocationPostEditor'
 import { instantDate, formatTimestamp } from '~/utils/timezone'
 import { scheduledLifecycleValue } from '~/utils/blog-editor'
-import { POST_ACTIONS, postEventDescription, type PostMutation } from '~/shared/posts'
+import { CREATABLE_POST_TYPES, POST_ACTIONS, postEventDescription, type PostMutation } from '~/shared/posts'
 import {
   postActionComplete,
   postNeedsSchedule,
@@ -361,19 +361,13 @@ const facebookConnected = computed(() => facebookData.value?.connected ?? false)
 watch(post, value => { if (value) editor.loadFrom(value) }, { immediate: true })
 
 // ── The new post's draft ────────────────────────────────
-/**
- * `alert` is deliberately absent. The contract accepts exactly one alert —
- * `covid_19` — so offering it would be a dead choice; an existing alert post
- * still opens and edits here.
- */
-const NEW_POST_TYPES = ['standard', 'event', 'offer'] as const
-type NewPostType = typeof NEW_POST_TYPES[number]
+type NewPostType = typeof CREATABLE_POST_TYPES[number]
 const TYPE_DESCRIPTIONS: Record<NewPostType, string> = {
   standard: 'News from the location.',
   event: 'Something at a set date and time.',
   offer: 'A deal that runs between two dates.',
 }
-const typeOptions: Array<{ value: string, label: string, description: string }> = NEW_POST_TYPES.map(value => ({
+const typeOptions: Array<{ value: string, label: string, description: string }> = CREATABLE_POST_TYPES.map(value => ({
   value,
   label: TYPE_LABELS[value] ?? value,
   description: TYPE_DESCRIPTIONS[value],
@@ -427,7 +421,7 @@ if (isNew.value) {
 }
 
 function setType(value: string) {
-  const type = NEW_POST_TYPES.find(option => option === value)
+  const type = CREATABLE_POST_TYPES.find(option => option === value)
   if (!type) return
   editor.form.topic = seedTopic(type)
 }

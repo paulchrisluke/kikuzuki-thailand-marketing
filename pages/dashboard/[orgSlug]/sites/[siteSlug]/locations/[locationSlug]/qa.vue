@@ -69,7 +69,7 @@ const route = useRoute()
 definePageMeta({ layout: 'dashboard', cmsCapabilityKey: 'location.qa' })
 
 
-interface QaRow {
+interface LocationQaRow {
   id: string
   question: string
   answer: string | null
@@ -83,7 +83,7 @@ const siteId = await useDashboardSiteId()
 const dashboardLocation = useDashboardLocation()
 const toast = useToast()
 const locationId = computed(() => dashboardLocation.currentLocationId.value)
-const qaRows = ref<QaRow[]>([])
+const qaRows = ref<LocationQaRow[]>([])
 const loading = ref(true)
 const loadError = ref<string | null>(null)
 const saving = ref(false)
@@ -91,7 +91,7 @@ const form = reactive({ question: '', answer: '', published: true })
 
 const listItems = computed(() => qaRows.value.map(row => ({ id: row.id, title: row.question, row })))
 
-const { editing, dialogOpen, editingId, removingId, openNew, openExisting, close, removeItem, removeEditing } = useListEditor<QaRow>({
+const { editing, dialogOpen, editingId, removingId, openNew, openExisting, close, removeItem, removeEditing } = useListEditor<LocationQaRow>({
   find: id => qaRows.value.find(row => row.id === id) ?? null,
   fill: (row) => {
     form.question = row.question
@@ -135,10 +135,10 @@ const {
       const { loadDashboardLocationQa } = await import('~/server/utils/dashboard-editor-resources')
       return await loadDashboardLocationQa(requestEvent, siteId, locationId.value)
     }
-    return await dashboardApi<{ qa: QaRow[] }>(
+    return await dashboardApi<{ qa: LocationQaRow[] }>(
       `/api/editor/sites/${siteId}/locations/${locationId.value}/qa`,
       {
-        validate: (value): value is { qa: QaRow[] } =>
+        validate: (value): value is { qa: LocationQaRow[] } =>
           isRecord(value)
           && Array.isArray(value.qa)
           && value.qa.every(row => isRecord(row) && typeof row.id === 'string'),
@@ -208,7 +208,7 @@ async function saveQa() {
       await dashboardApi(`/api/editor/sites/${siteId}/locations/${locationId.value}/qa`, {
         method: 'POST',
         body: { question: form.question, answer: form.answer || null, is_owner_answer: 1 },
-        validate: (value): value is QaRow =>
+        validate: (value): value is LocationQaRow =>
           isRecord(value)
           && typeof value.id === 'string'
           && typeof value.question === 'string'

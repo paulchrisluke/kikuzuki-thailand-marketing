@@ -1,8 +1,13 @@
-// The owner-entered testimonial shape, shared by the list and the record's own
-// editor so neither restates the other's validators.
+// The owner-entered testimonial as the editor endpoint returns it.
+import {
+  OWNER_REVIEW_COLLECTION_METHODS,
+  OWNER_REVIEW_COLLECTION_METHOD_LABELS,
+  OWNER_REVIEW_STATUSES,
+  type OwnerReviewCollectionMethod as CollectionMethod,
+  type OwnerReviewStatus as TestimonialStatus,
+} from '~/shared/site-reviews'
 
-export type CollectionMethod = 'in_person' | 'email' | 'phone' | 'migration' | 'other'
-export type TestimonialStatus = 'pending' | 'approved' | 'rejected'
+export type { CollectionMethod, TestimonialStatus }
 
 export interface SiteTestimonial {
   id: string
@@ -17,15 +22,9 @@ export interface SiteTestimonial {
   status: TestimonialStatus
 }
 
-export const COLLECTION_METHODS: Array<{ label: string; value: CollectionMethod }> = [
-  { label: 'In person', value: 'in_person' },
-  { label: 'Email', value: 'email' },
-  { label: 'Phone', value: 'phone' },
-  { label: 'Migration', value: 'migration' },
-  { label: 'Other', value: 'other' },
-]
-
-export const TESTIMONIAL_STATUSES: TestimonialStatus[] = ['pending', 'approved', 'rejected']
+export const COLLECTION_METHOD_LABELS = OWNER_REVIEW_COLLECTION_METHOD_LABELS
+export const COLLECTION_METHODS = OWNER_REVIEW_COLLECTION_METHODS.map(value => ({ label: COLLECTION_METHOD_LABELS[value], value }))
+export const TESTIMONIAL_STATUSES: TestimonialStatus[] = [...OWNER_REVIEW_STATUSES]
 
 const isStringOrNull = (value: unknown): value is string | null => value === null || typeof value === 'string'
 
@@ -36,11 +35,11 @@ export const isSiteTestimonial = (value: unknown): value is SiteTestimonial =>
   && typeof value.rating === 'number'
   && typeof value.content === 'string'
   && isStringOrNull(value.title)
-  && COLLECTION_METHODS.some(method => method.value === value.collection_method)
+  && OWNER_REVIEW_COLLECTION_METHODS.some(method => method === value.collection_method)
   && isStringOrNull(value.original_review_date)
   && isStringOrNull(value.original_reference)
   && typeof value.publication_authorized === 'boolean'
-  && TESTIMONIAL_STATUSES.some(status => status === value.status)
+  && OWNER_REVIEW_STATUSES.some(status => status === value.status)
 
 export const isTestimonialsResponse = (value: unknown): value is { reviews: SiteTestimonial[] } =>
   isRecord(value) && Array.isArray(value.reviews) && value.reviews.every(isSiteTestimonial)

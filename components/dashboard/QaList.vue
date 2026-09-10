@@ -44,7 +44,6 @@ const siteId = await useDashboardSiteId()
 const toast = useToast()
 const selectedPagePath = ref('general')
 
-const STANDARD_ROUTES = ['/', '/about', '/services', '/pricing', '/contact', '/schedule', '/blog', '/donate'] as const
 
 const requestEvent = useRequestEvent()
 // tenantPages, existingQaScopes, and the main qa query below are independent of
@@ -125,18 +124,7 @@ const qaAsyncData = useAsyncData(
       `/api/editor/sites/${siteId}/qa`,
       {
         query: pagePath.value ? { page_path: pagePath.value } : undefined,
-        validate: (value): value is { qa: QaRow[] } =>
-          isRecord(value)
-          && Array.isArray(value.qa)
-          && value.qa.every(item =>
-            isRecord(item)
-            && typeof item.id === 'string'
-            && typeof item.question === 'string'
-            && (item.answer === null || typeof item.answer === 'string')
-            && (item.status === 'published' || item.status === 'hidden')
-            && typeof item.sort_order === 'number'
-            && (item.page_path === null || typeof item.page_path === 'string'),
-          ),
+        validate: isQaResponse,
       },
     )
   },
@@ -151,11 +139,7 @@ const [
 
 const pageScopes = computed(() => {
   const scopes = new Map<string, string>()
-  scopes.set('general', 'General fallback')
-
-  for (const path of STANDARD_ROUTES) {
-    scopes.set(path, path === '/' ? 'Home' : path)
-  }
+  scopes.set('general', 'Whole site')
 
   for (const page of tenantPages.value ?? []) {
     if (page.path && !scopes.has(page.path)) {

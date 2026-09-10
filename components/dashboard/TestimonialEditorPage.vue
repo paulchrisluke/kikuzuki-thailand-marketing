@@ -108,6 +108,7 @@ import EditorNavigationList, { type EditorNavigationGroup } from '~/components/d
 import { getErrorMessage } from '~/utils/errors'
 import {
   COLLECTION_METHODS,
+  COLLECTION_METHOD_LABELS,
   TESTIMONIAL_STATUSES,
   testimonialCreateBlockers,
   isTestimonialsResponse,
@@ -227,7 +228,7 @@ const navigationGroups = computed<EditorNavigationGroup[]>(() => [
     id: 'record',
     label: 'Record',
     items: [
-      { id: 'provenance', label: 'Provenance', summary: COLLECTION_METHODS.find(m => m.value === form.collection_method)?.label ?? form.collection_method, icon: 'i-lucide-file-clock', to: `${recordPath.value}/provenance` },
+      { id: 'provenance', label: 'Provenance', summary: COLLECTION_METHOD_LABELS[form.collection_method], icon: 'i-lucide-file-clock', to: `${recordPath.value}/provenance` },
       { id: 'status', label: 'Status', summary: form.status, icon: 'i-lucide-eye', to: `${recordPath.value}/status` },
       { id: 'authorization', label: 'Publication authorization', summary: form.publication_authorized ? 'Confirmed' : 'Not confirmed', placeholder: !form.publication_authorized, icon: 'i-lucide-shield-check', to: `${recordPath.value}/authorization` },
     ],

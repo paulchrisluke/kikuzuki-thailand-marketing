@@ -237,16 +237,16 @@ import EditorPaneShell from '~/components/dashboard/EditorPaneShell.vue'
 import EditorNavigationList, { type EditorNavigationGroup } from '~/components/dashboard/EditorNavigationList.vue'
 import DashboardListEditor from '~/components/dashboard/DashboardListEditor.vue'
 import DashboardResourceLocalization from '~/components/dashboard/DashboardResourceLocalization.vue'
+import { ROBOTS_INTENTS, ROBOTS_INTENT_LABELS, type RobotsIntent } from '~/shared/robots-directive'
+import type { LinkItemStatus } from '~/server/utils/site-links'
 
 const dashboardApi = useDashboardApi()
 const route = useRoute()
 
-type ItemStatus = 'active' | 'hidden'
-
 interface LinksPage {
   id: string
   title: string
-  robots: string
+  robots: RobotsIntent
   seo_title: string
   seo_description: string
 }
@@ -256,7 +256,7 @@ interface LinkItem {
   label: string
   destination: string
   sort_order: number
-  status: ItemStatus
+  status: LinkItemStatus
 }
 
 interface ApiLinksPage extends Omit<LinksPage, 'seo_title' | 'seo_description'> {
@@ -354,12 +354,7 @@ const ITEM_STATUS_OPTIONS = [
   { label: 'Active', value: 'active' },
   { label: 'Hidden', value: 'hidden' },
 ]
-const ROBOTS_OPTIONS = [
-  { label: 'No index, follow', value: 'noindex,follow' },
-  { label: 'Index, follow', value: 'index,follow' },
-  { label: 'Index, no follow', value: 'index,nofollow' },
-  { label: 'No index, no follow', value: 'noindex,nofollow' },
-]
+const ROBOTS_OPTIONS = ROBOTS_INTENTS.map(value => ({ label: ROBOTS_INTENT_LABELS[value], value }))
 const form = reactive<LinksPage>({
   id: '',
   title: '',
@@ -398,7 +393,7 @@ const editing = ref(false)
 const emptyItemDraft = () => ({
   label: '',
   destination: '',
-  status: 'active' as ItemStatus,
+  status: 'active' as LinkItemStatus,
 })
 /** One draft per record, because the key is re-read on every mount: this
  * component is replaced on each path change, measured by its instance uid
@@ -570,7 +565,7 @@ const publicLinksUrl = computed(() => {
 })
 
 // ── The hub ─────────────────────────────────────────────
-const robotsLabel = computed(() => ROBOTS_OPTIONS.find(option => option.value === form.robots)?.label ?? form.robots)
+const robotsLabel = computed(() => ROBOTS_INTENT_LABELS[form.robots])
 
 function linksSummary(): string {
   if (!items.value.length) return 'No links yet'
