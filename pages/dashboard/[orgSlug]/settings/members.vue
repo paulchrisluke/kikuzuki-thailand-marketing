@@ -7,7 +7,10 @@
               <h2 class="font-semibold text-highlighted">Team</h2>
               <p class="mt-1 text-sm text-muted">People with access to this organization.</p>
             </div>
-            <UBadge :label="`${members.length} member${members.length === 1 ? '' : 's'}`" color="neutral" variant="soft" />
+            <div class="flex items-center gap-2">
+              <UBadge :label="`${members.length} member${members.length === 1 ? '' : 's'}`" color="neutral" variant="soft" />
+              <UButton icon="i-lucide-plus" color="neutral" variant="soft" square aria-label="Invite a team member" @click="openInvite" />
+            </div>
           </div>
         </template>
 
@@ -182,90 +185,62 @@
         />
       </UCard>
 
-      <UCard>
-        <template #header>
-          <h2 class="font-semibold text-highlighted">Invite a team member</h2>
-        </template>
 
-        <UForm :state="inviteForm" class="flex flex-col gap-4 sm:flex-row sm:items-end" @submit="sendInvite">
-          <UFormField label="Email address" class="flex-1">
-            <UInput
-              v-model="inviteForm.email"
-              type="email"
-              placeholder="teammate@example.com"
-              class="w-full"
-              required
-            />
-          </UFormField>
-          <UFormField label="Role" class="w-36">
-            <USelect
-              v-model="inviteForm.role"
-              :items="roleOptions"
-              class="w-full"
-            />
-          </UFormField>
-          <UButton
-            type="submit"
-            icon="i-lucide-send"
-            :loading="inviting"
-            label="Send invite"
+    <!--
+      Inviting is an action taken about the list, not a form that lives beside
+      it: the fields open in the same sheet every other list item uses, so the
+      page shows the team and nothing half-filled.
+    -->
+    <DashboardListItemDialog
+      v-model:open="inviteOpen"
+      title="Invite a team member"
+      save-label="Send invite"
+      :saving="inviting"
+      :save-disabled="!inviteForm.email.trim() || (inviteForm.role === 'editor' && !inviteForm.siteId)"
+      @save="sendInvite"
+    >
+      <UFormField label="Email address" required>
+        <UInput v-model="inviteForm.email" type="email" placeholder="teammate@example.com" autofocus class="w-full" />
+      </UFormField>
+      <UFormField label="Role">
+        <USelect v-model="inviteForm.role" :items="roleOptions" class="w-full" />
+      </UFormField>
+      <template v-if="inviteForm.role === 'editor'">
+        <UFormField label="Site" description="Which site can this editor access?">
+          <USelect
+            v-model="inviteForm.siteId"
+            :items="siteOptions"
+            :loading="sitesPending"
+            placeholder="Select a site"
+            class="w-full"
           />
-        </UForm>
-
-        <div v-if="inviteForm.role === 'editor'" class="mt-4 flex flex-col gap-4 sm:flex-row sm:items-end">
-          <UFormField label="Site" description="Which site can this editor access?" class="flex-1">
-            <USelect
-              v-model="inviteForm.siteId"
-              :items="siteOptions"
-              :loading="sitesPending"
-              placeholder="Select a site"
-              class="w-full"
-            />
-          </UFormField>
-          <UFormField label="Location" description="Leave unset for the whole site (site manager)." class="flex-1">
-            <USelect
-              v-model="inviteForm.locationId"
-              :items="locationOptions"
-              :loading="locationsPending"
-              :disabled="!inviteForm.siteId"
-              placeholder="Whole site"
-              class="w-full"
-            />
-          </UFormField>
-        </div>
-
-        <UAlert
-          v-if="inviteForm.role === 'editor' && !inviteForm.siteId"
-          class="mt-4"
-          color="warning"
-          variant="soft"
-          icon="i-lucide-triangle-alert"
-          description="Editors are always scoped to a site — pick one above before sending."
-        />
-
-        <UAlert
-          v-if="inviteError"
-          class="mt-4"
-          color="error"
-          variant="soft"
-          icon="i-lucide-circle-alert"
-          :description="inviteError"
-        />
-        <UAlert
-          v-if="inviteSuccess"
-          class="mt-4"
-          color="success"
-          variant="soft"
-          icon="i-lucide-circle-check"
-          description="Invitation sent."
-        />
-      </UCard>
+        </UFormField>
+        <UFormField label="Location" description="Leave unset for the whole site (site manager).">
+          <USelect
+            v-model="inviteForm.locationId"
+            :items="locationOptions"
+            :loading="locationsPending"
+            :disabled="!inviteForm.siteId"
+            placeholder="Whole site"
+            class="w-full"
+          />
+        </UFormField>
+      </template>
+      <UAlert
+        v-if="inviteError"
+        color="error"
+        variant="soft"
+        icon="i-lucide-circle-alert"
+        :description="inviteError"
+      />
+    </DashboardListItemDialog>
   </div>
 
 </template>
 
 <script setup lang="ts">
 import { formatTimestamp } from '~/utils/timezone'
+import DashboardListItemDialog from '~/components/dashboard/DashboardListItemDialog.vue'
 
 const dashboardApi = useDashboardApi()
 import { authClient } from '~/lib/auth-client'
@@ -367,10 +342,16 @@ function canEditMemberRole(member: MemberRow): boolean {
 }
 
 const inviteForm = reactive({ email: '', role: 'member', siteId: '', locationId: '' })
+const inviteOpen = ref(false)
+const toast = useToast()
+
+function openInvite() {
+  Object.assign(inviteForm, { email: '', role: 'member', siteId: '', locationId: '' })
+  inviteError.value = ''
+  inviteOpen.value = true
+}
 const inviting = ref(false)
 const inviteError = ref<string | null>(null)
-const inviteSuccess = ref(false)
-const inviteSuccessTimeout = ref<ReturnType<typeof setTimeout> | null>(null)
 
 // Editor invites are always scoped to a site team (and optionally a single
 // location team), so the invite form must collect that scope up front rather
@@ -593,7 +574,6 @@ async function sendInvite() {
   }
   inviting.value = true
   inviteError.value = null
-  inviteSuccess.value = false
 
   try {
     const organizationId = dashboard.organization.value?.id
@@ -616,11 +596,8 @@ async function sendInvite() {
     inviteForm.role = 'member'
     inviteForm.siteId = ''
     inviteForm.locationId = ''
-    inviteSuccess.value = true
-    if (inviteSuccessTimeout.value !== null) {
-      clearTimeout(inviteSuccessTimeout.value)
-    }
-    inviteSuccessTimeout.value = setTimeout(() => { inviteSuccess.value = false }, 4000)
+    inviteOpen.value = false
+    toast.add({ description: 'Invitation sent.', color: 'success' })
     await refresh()
   } catch (err) {
     inviteError.value = err instanceof Error ? err.message : 'Failed to send invite.'
@@ -673,11 +650,6 @@ function formatDate(value: string) {
   return formatTimestamp(value, 'en', 'UTC', { dateStyle: 'medium' })
 }
 
-onBeforeUnmount(() => {
-  if (inviteSuccessTimeout.value !== null) {
-    clearTimeout(inviteSuccessTimeout.value)
-  }
-})
 
 useSeoMeta({ title: 'Members | KrabiClaw Dashboard', robots: 'noindex, nofollow' })
 </script>
