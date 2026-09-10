@@ -378,6 +378,12 @@ type InsightsTab = 'views' | 'reviews' | 'opportunities'
 const TAB_VALUES = ['views', 'reviews', 'opportunities', 'activity'] as const
 const isTab = (value: unknown): value is InsightsTab => TAB_VALUES.some(candidate => candidate === value)
 const tab = ref<InsightsTab>(isTab(route.query.tab) ? route.query.tab : 'views')
+// Back and forward change the query without touching the ref, so the URL is
+// read as well as written or the rendered tab drifts from the address bar.
+watch(() => route.query.tab, (value) => {
+  const next = isTab(value) ? value : 'views'
+  if (tab.value !== next) tab.value = next
+})
 watch(tab, (next) => {
   void navigateTo({ query: next === 'views' ? { ...route.query, tab: undefined } : { ...route.query, tab: next } }, { replace: true })
 })

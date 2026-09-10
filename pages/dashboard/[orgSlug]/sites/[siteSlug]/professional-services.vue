@@ -97,11 +97,10 @@ const editingId = ref<string | null>(null)
 const loadError = computed(() => saveError.value
   || (loadRequestError.value ? getErrorMessage(loadRequestError.value, 'Unable to load services') : ''))
 
-const offerings = computed<Offering[]>(() => (data.value?.offerings ?? []).map(item => ({
-  ...item,
-  summary: item.summary ?? '',
-  short_description: item.short_description ?? '',
-})))
+// The API representation is kept exactly as loaded. `saveItem` sends every row
+// back, so coercing null to '' here would rewrite the untouched rows' nulls as
+// empty strings the first time any one service is edited.
+const offerings = computed<Offering[]>(() => data.value?.offerings ?? [])
 
 const listItems = computed(() => offerings.value.map(row => ({ id: row.id, title: row.name, row })))
 
@@ -131,8 +130,8 @@ function openExisting(item: { id: string; row: Offering }) {
   Object.assign(itemForm, {
     name: row.name,
     slug: row.slug,
-    summary: row.summary,
-    short_description: row.short_description,
+    summary: row.summary ?? '',
+    short_description: row.short_description ?? '',
     sort_order: row.sort_order,
     featured: row.featured,
   })

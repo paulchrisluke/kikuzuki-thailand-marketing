@@ -146,6 +146,8 @@ watch(() => filters.siteId, async (siteId) => {
           && typeof location.title === 'string',
         ),
     })
+    // A slower earlier request must not land after the filter moved on.
+    if (filters.siteId !== siteId) return
     locationsForSite.value = res.locations
   } catch (err) {
     toast.add({ title: 'Failed to load locations', description: err instanceof Error ? err.message : 'Please try again.', color: 'error' })
