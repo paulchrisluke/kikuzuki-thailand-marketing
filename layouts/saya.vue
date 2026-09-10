@@ -84,7 +84,10 @@ if (import.meta.dev) useDebugLCP()
 // Persistent chrome uses the minimal shell contract. Route-specific Product and
 // experience data comes from the keyed page loader and changes independently.
 const shell = useSiteShellState()
-if (import.meta.server && isHome.value) await shell.ready
+// The layout's root attributes are serialized before its children render.
+// Await the existing keyed shell on every SSR route, not only the homepage,
+// so a direct menu/contact visit cannot serialize Default and hydrate as Mali.
+if (import.meta.server) await shell.ready
 const { config, locations, hasExperiences, locales, error: bootstrapError, site: shellSite } = shell
 const { isPlatform, site } = useTenantSite()
 const resolvedSite = computed(() => shellSite.value || site)
