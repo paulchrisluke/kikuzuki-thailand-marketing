@@ -4,6 +4,7 @@ import { queryFirst } from '~/server/db'
 import type { PlaceDetails, PlaceReview } from '~/server/utils/google-places'
 import type { CurrencyCode } from '~/shared/currencies'
 import type { PriceInput } from '~/shared/prices'
+import type { TenantPageBlock, TenantPageType } from '~/utils/tenant-page-blocks'
 
 type DraftSourceType = 'google_places' | 'manual'
 
@@ -129,6 +130,40 @@ export interface OnboardingDraftPayload {
     locales: Array<{ code: string; label: string; is_source: boolean }>
     hasExperiences: boolean
   }
+}
+
+export function onboardingPagePath(page: string): string {
+  if (page === 'home') return '/'
+  if (page === 'privacy') return '/policies/privacy'
+  if (page === 'terms') return '/policies/terms'
+  return `/${page}`
+}
+
+export function onboardingPageType(page: string): TenantPageType {
+  if (page === 'privacy' || page === 'terms') return 'legal'
+  if (page === 'home' || page === 'about' || page === 'contact') return 'system'
+  return 'recipe'
+}
+
+// One mapping from draft content rows to tenant-page blocks. The draft preview
+// renders these blocks and commit persists them, so the preview is exactly the
+// page the tenant will get.
+export function onboardingPageBlocks(rows: DraftContentRecord[]): TenantPageBlock[] {
+  const blocks: TenantPageBlock[] = []
+  for (const row of rows) {
+    if (row.field === 'hero') {
+      blocks.push({ id: row.id ?? crypto.randomUUID(), type: 'hero', position: blocks.length, data: { title: row.hero_title ?? row.content, subtitle: row.hero_subtitle }, media: [] })
+    } else if (row.type === 'media' || row.field.endsWith('.image')) {
+      if (row.asset_id) {
+        const type = row.field.endsWith('.image') ? 'image' : 'gallery'
+        blocks.push({ id: row.id ?? crypto.randomUUID(), type, position: blocks.length, data: { field: row.field }, media: [] })
+      }
+    } else if (row.content?.trim()) {
+      const type = row.field.endsWith('.title') || row.field.endsWith('.headline') ? 'heading' : 'markdown'
+      blocks.push({ id: row.id ?? crypto.randomUUID(), type, position: blocks.length, data: type === 'heading' ? { field: row.field, text: row.content, level: 2 } : { field: row.field, markdown: row.content }, media: [] })
+    }
+  }
+  return blocks
 }
 
 export function getDraftMedia(payload: OnboardingDraftPayload, slot: 'logo' | 'hero') {

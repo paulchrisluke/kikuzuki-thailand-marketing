@@ -23,7 +23,6 @@
     >
       <OnboardingWizard
         mode="add-location"
-        :site-id="null"
         :existing-org-slug="orgSlug"
         :existing-site-slug="siteSlug"
         @site-created="onLocationCreated"
@@ -159,7 +158,7 @@ const loadContext = async () => {
 }
 
 // Called by OnboardingWizard after the location is created — reload locations and preview the new one
-const onLocationCreated = async (_orgSlug: string | null, locationSlug: string | null | undefined) => {
+const onLocationCreated = async ({ locationSlug }: { locationSlug: string | null }) => {
   contextError.value = null
   try {
     await dashboard.refresh()

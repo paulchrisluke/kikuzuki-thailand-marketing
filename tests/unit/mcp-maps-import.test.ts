@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 
-import { resolveGoogleMapsPlace } from '../../server/utils/mcp-executor/shared.ts'
+import { PlaceDetailsError, resolveGoogleMapsPlace } from '../../server/utils/google-places.ts'
 import { MCP_ERROR } from '../../server/utils/mcp-protocol.ts'
 import { validateArguments } from '../../server/utils/mcp-tool-validation.ts'
 import { ONBOARDING_TOOLS } from '../../server/utils/mcp-tools/onboarding.ts'
@@ -31,6 +31,14 @@ function isInvalidParamsContaining(message: string) {
     error instanceof Error
     && error.message.includes(message)
     && (error as Error & { mcp?: { code?: number } }).mcp?.code === MCP_ERROR.invalidParams
+  )
+}
+
+function isPlaceLinkError(statusCode: number, message: string) {
+  return (error: unknown) => (
+    error instanceof PlaceDetailsError
+    && error.statusCode === statusCode
+    && error.message.includes(message)
   )
 }
 
@@ -66,9 +74,9 @@ test('short-link resolution failure is explicit after one attempt and never sear
       },
     }),
     (error: unknown) => (
-      error instanceof Error
-      && error.message === 'Google Maps link resolution failed.'
-      && (error as Error & { statusCode?: number }).statusCode === 502
+      error instanceof PlaceDetailsError
+      && error.message === "We couldn't open that Google Maps share link. Try again in a moment."
+      && error.statusCode === 502
     ),
   )
 
@@ -87,7 +95,7 @@ test('a full URL without valid coordinates fails before a Places search', async 
         return []
       },
     }),
-    isInvalidParamsContaining('does not contain valid location coordinates'),
+    isPlaceLinkError(422, 'doesn\'t include where "Pottery House" is on the map'),
   )
 
   assert.equal(searchAttempts, 0)
@@ -104,7 +112,7 @@ test('an out-of-range URL coordinate fails before a Places search', async () => 
         return []
       },
     }),
-    isInvalidParamsContaining('does not contain valid location coordinates'),
+    isPlaceLinkError(422, 'doesn\'t include where "Pottery House" is on the map'),
   )
 
   assert.equal(searchAttempts, 0)
@@ -121,7 +129,7 @@ test('a Places candidate without valid coordinates fails after exactly one searc
         return [{ placeId: 'ChIJCandidateWithoutCoordinates' }]
       },
     }),
-    isInvalidParamsContaining('did not include valid coordinates'),
+    isPlaceLinkError(422, 'without a location'),
   )
 
   assert.equal(searchAttempts, 1)

@@ -3,8 +3,12 @@ import { HTTPError } from 'nitro';
 import type { H3Event } from 'nitro'
 import { cloudflareEnv } from '~/server/utils/api-response'
 import { queryFirst } from '~/server/db'
-import { getDraftMedia, parseOnboardingDraftPayload, type OnboardingDraftPayload } from '~/server/utils/onboarding-drafts'
+import { getDraftMedia, onboardingPageBlocks, onboardingPagePath, onboardingPageType, parseOnboardingDraftPayload, type OnboardingDraftPayload } from '~/server/utils/onboarding-drafts'
 import { verifyScopedPreviewToken } from '~/server/utils/preview-token'
+import { groupContentBlocks, tenantPageToContentRows } from '~/server/utils/public-page'
+import type { PublicTenantPage } from '~/server/utils/public-tenant-pages'
+import { platformLocale } from '~/shared/platform-locales'
+import { isPublicPagePayload } from '~/utils/public-resource-contracts'
 import type { BlawbyRouteRecipe, PublicBlawbyRouteData, PublicBlawbyShellData } from '~/types/blawby'
 
 async function loadDraftPreviewSource(
@@ -48,18 +52,24 @@ export function buildDraftShellPayload(payload: Awaited<ReturnType<typeof loadDr
     ...payload.preview.config,
     brand_name: payload.preview.brandName,
   }
-  const config = Object.fromEntries(
-    Object.entries(rawConfig).map(([key, value]) => [key, value ?? '']),
+  const config: Record<string, string> = Object.fromEntries(
+    Object.entries(rawConfig).map(([key, value]) => [key, value == null ? '' : String(value)]),
   )
+  // The owner's currency answer; commit writes this same value to sites.default_currency.
+  // Absent until chosen, so currency-bound surfaces report it missing instead of inventing one.
+  if (payload.source.details.currency) config.default_currency = payload.source.details.currency
   const draftPhone = typeof payload.preview.config.phone === 'string'
     ? payload.preview.config.phone
     : null
 
   return {
+    platformMessages: null,
     site: {
       brand_name: payload.preview.brandName,
       brand_description: null,
       media: logo ? [{ asset_id: logo.draftAssetId, slot: 'logo', public_url: logo.publicUrl, thumbnail_url: logo.thumbnailUrl, kind: 'image' }] : [],
+      // Drafts have no generated social card yet; the site shell reports null in the same case.
+      social_image: null,
       vertical: payload.preview.vertical,
       config: { phone: draftPhone },
     },
@@ -187,6 +197,62 @@ export async function loadPublicDraftBlawbyDocument(
   return buildPublicDraftBlawbyDocument(payload, recipe)
 }
 
+// The draft preview page is the tenant page commit.post.ts will persist, built
+// from the same draft content rows through the same block mapping.
+function buildDraftTenantPage(
+  payload: OnboardingDraftPayload,
+  page: string,
+  routePath: string,
+): PublicTenantPage | null {
+  const rows = payload.preview.content.filter(item => item.page === page)
+  if (!rows.length) return null
+  const sourceLocale = payload.preview.locales.find(locale => locale.is_source)
+  if (!sourceLocale) throw new HTTPError({ statusCode: 500, statusMessage: 'Draft source locale is missing' })
+  const localeCatalog = platformLocale(sourceLocale.code)
+  if (!localeCatalog) throw new HTTPError({ statusCode: 500, statusMessage: 'Draft source locale catalog is unavailable' })
+
+  const blocks = onboardingPageBlocks(rows)
+  const heroMedia = page === 'home' ? getDraftMedia(payload, 'hero') : null
+  const heroBlock = heroMedia ? blocks.find(block => block.type === 'hero') : null
+  if (heroMedia && heroBlock) {
+    heroBlock.media = [{
+      asset_id: heroMedia.draftAssetId,
+      slot: 'media',
+      public_url: heroMedia.publicUrl,
+      thumbnail_url: heroMedia.thumbnailUrl,
+      kind: 'image',
+    }]
+  }
+  const hero = rows.find(row => row.field === 'hero') ?? null
+  const path = onboardingPagePath(page)
+  const updatedAt = rows.map(row => row.updated_at).sort().at(-1) ?? ''
+  return {
+    id: `draft-${page}`,
+    page_id: `draft-${page}`,
+    path,
+    title: hero?.hero_title ?? page,
+    summary: hero?.hero_subtitle ?? null,
+    seo_title: null,
+    seo_description: null,
+    canonical_url: null,
+    robots: 'noindex',
+    page_type: onboardingPageType(page),
+    recipe: page,
+    sort_order: 0,
+    locale: sourceLocale.code,
+    blocks,
+    media: [],
+    social_image: null,
+    localeRepresentations: [{
+      locale: sourceLocale.code,
+      label: localeCatalog.label,
+      route_path: routePath,
+      source: 'source',
+    }],
+    updated_at: updatedAt,
+  }
+}
+
 export async function loadPublicDraftPage(
   event: H3Event,
   draftId: string,
@@ -222,7 +288,10 @@ export async function loadPublicDraftPage(
   if (page === 'experiences' || experienceSlug) {
     throw new HTTPError({ statusCode: 422, statusMessage: 'Draft preview does not contain experience records' })
   }
-  if (page === 'blog' || requestedDatasets.has('blog') || requestedDatasets.has('blogPost')) {
+  // A draft has no blog yet, so the blog datasets the home page requests
+  // alongside posts/reviews resolve to the same empty lists a new site returns.
+  // Only a request for the blog page itself, or for one post, is unanswerable.
+  if (page === 'blog' || requestedDatasets.has('blogPost')) {
     throw new HTTPError({ statusCode: 422, statusMessage: 'Draft preview does not contain blog records' })
   }
 
@@ -235,7 +304,18 @@ export async function loadPublicDraftPage(
 
   const shell = buildDraftShellPayload(payload)
 
-  const content = payload.preview.content.filter((item) => item.page === page)
+  const routePath = resolvedLocation
+    ? `/locations/${resolvedLocation.slug}${page !== 'location' ? `/${page}` : ''}`
+    : onboardingPagePath(page)
+  const tenantPage = requestedDatasets.has('content') ? buildDraftTenantPage(payload, page, routePath) : null
+  const content = tenantPage ? tenantPageToContentRows(tenantPage) : []
+  const sourceLocale = payload.preview.locales.find(locale => locale.is_source)
+  if (!sourceLocale) throw new HTTPError({ statusCode: 500, statusMessage: 'Draft source locale is missing' })
+  const localeCatalog = platformLocale(sourceLocale.code)
+  if (!localeCatalog) throw new HTTPError({ statusCode: 500, statusMessage: 'Draft source locale catalog is unavailable' })
+  const localeRepresentations = tenantPage
+    ? tenantPage.localeRepresentations
+    : [{ locale: sourceLocale.code, label: localeCatalog.label, route_path: routePath, source: 'source' as const }]
   const reviewsList = requestedDatasets.has('reviews') ? payload.preview.reviews : []
   const heroMedia = getDraftMedia(payload, 'hero')
   const media = requestedDatasets.has('photos') && heroMedia
@@ -252,7 +332,7 @@ export async function loadPublicDraftPage(
       }
     : null
 
-  return {
+  const pagePayload = {
     kind: page,
     shell,
     site: {
@@ -262,6 +342,9 @@ export async function loadPublicDraftPage(
     },
     locations: payload.preview.locations,
     content,
+    content_blocks: groupContentBlocks(content),
+    tenant_page: tenantPage,
+    localeRepresentations,
     products: includeProducts
       ? payload.preview.products.filter(product => !resolvedLocation || product.location_id === resolvedLocation.id)
       : [],
@@ -284,6 +367,10 @@ export async function loadPublicDraftPage(
     experienceDetail: null,
     location: resolvedLocation,
   }
+  if (!isPublicPagePayload(pagePayload, page)) {
+    throw new HTTPError({ statusCode: 500, statusMessage: 'Draft page payload violates the public page contract' })
+  }
+  return pagePayload
 }
 
 export async function loadPublicDraftShell(

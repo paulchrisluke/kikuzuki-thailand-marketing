@@ -30,7 +30,6 @@ import {
   NOT_HANDLED,
   humanizeEntitlement,
   normalizeWorkspaceArguments,
-  resolveGoogleMapsPlace,
   resolveSitePublicOrigin,
   validateRequiredArguments,
   workspaceContextPayload,
@@ -208,29 +207,16 @@ export async function executeMcpToolCall(
 
     const rawUrl = requiredString(normalizedArguments, "maps_url");
 
-    const { placeId } = await resolveGoogleMapsPlace(rawUrl, {
-      resolveShortLink: async (url) => {
-        const response = await fetch(url, {
-          method: "GET",
-          redirect: "follow",
-          signal: AbortSignal.timeout(8000),
-          headers: { "User-Agent": "Mozilla/5.0" },
-        });
-        return { ok: response.ok, url: response.url };
-      },
-      searchPlaces: (query, locationBias) => searchPlaces(apiKey, query, locationBias),
-    });
     let details;
     try {
-      details = await getPlaceDetails(apiKey, placeId);
+      details = await getPlaceDetailsByUrl(apiKey, rawUrl);
     } catch (error) {
-      const message =
-        error instanceof PlaceDetailsError || error instanceof Error
-          ? error.message
-          : "Google Places detail lookup failed.";
+      if (error instanceof PlaceDetailsError && error.statusCode !== 502) {
+        throw mcpProtocolError(MCP_ERROR.invalidParams, error.message);
+      }
       throw new HTTPError({
         statusCode: 502,
-        statusMessage: message,
+        statusMessage: error instanceof Error ? error.message : "Google Places detail lookup failed.",
       });
     }
 

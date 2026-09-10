@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import { expect, type APIRequestContext } from '@playwright/test'
-import { loginAs } from './auth'
+import { authRequestHeaders, loginAs } from './auth'
 
 export const MCP_VERSION = '2025-06-18'
 // Fixed fixture sites retained in the production snapshot with the matching plan already
@@ -97,8 +97,25 @@ export function mcpData<T>(body: { error?: unknown; result?: { isError?: boolean
 
 export async function ensureSite(request: APIRequestContext, baseURL: string) {
   const suffix = `${Date.now()}-${Math.random().toString(36).substring(2, 8)}`
+  // POST /api/sites requires the target organization explicitly. loginAs() made the
+  // fixture's membership the active organization; a fixture with no organization
+  // (user-e2e-growth-service-owner) gets one through Better Auth's organization
+  // API, which also makes it the session's active organization.
+  const sessionRes = await request.get(`${baseURL}/api/auth/get-session`)
+  expect(sessionRes.ok(), await sessionRes.text()).toBe(true)
+  const body = await sessionRes.json() as { session?: { activeOrganizationId?: string | null } } | null
+  expect(body?.session, 'ensureSite requires an authenticated session').toBeTruthy()
+  let organizationId = body!.session!.activeOrganizationId ?? null
+  if (!organizationId) {
+    const created = await request.post(`${baseURL}/api/auth/organization/create`, {
+      headers: authRequestHeaders(baseURL),
+      data: { name: `MCP E2E Org ${suffix}`, slug: `e2e-mcp-org-${suffix}` },
+    })
+    expect(created.ok(), await created.text()).toBe(true)
+    organizationId = (await created.json() as { id: string }).id
+  }
   const res = await request.post(`${baseURL}/api/sites`, {
-    data: { name: `MCP E2E ${suffix}`, subdomain: `e2e-mcp-${suffix}`, vertical: 'restaurant' },
+    data: { name: `MCP E2E ${suffix}`, subdomain: `e2e-mcp-${suffix}`, vertical: 'restaurant', organizationId },
   })
   expect(res.ok(), await res.text()).toBe(true)
   const { siteId } = await res.json() as { siteId: string }

@@ -58,7 +58,7 @@ import {
   type ExactPublicLocalization,
 } from '~/server/utils/public-localization'
 
-interface SiteContent {
+export interface SiteContent {
   id: string
   organization_id: string
   site_id: string
@@ -76,7 +76,7 @@ interface SiteContent {
   updated_at: string
 }
 
-function groupContentBlocks(rows: SiteContent[]): Array<SiteContent & { _section: string }> {
+export function groupContentBlocks(rows: SiteContent[]): Array<SiteContent & { _section: string }> {
   const groups = Object.create(null) as Record<string, SiteContent & { _section: string }>
   for (const row of rows) {
     const section = row.field?.split('.')[0] || 'unknown'
@@ -141,7 +141,7 @@ function canonicalTenantPagePath(page: string | null): string | null {
   return null
 }
 
-function tenantPageToContentRows(page: PublicTenantPage): SiteContent[] {
+export function tenantPageToContentRows(page: PublicTenantPage): SiteContent[] {
   const rows: SiteContent[] = []
   for (const block of page.blocks) {
     const data = block.data

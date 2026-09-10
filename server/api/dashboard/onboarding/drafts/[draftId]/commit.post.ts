@@ -9,8 +9,9 @@ import { execute, executeBatch, queryFirst, queryAll, type BatchQuery } from '~/
 import { resourceLocalizationDeletionQueries } from '~/server/utils/localization'
 import { planProductCategories } from '~/server/utils/product-management'
 import { updateLocation } from '~/server/utils/location-management'
-import { getDraftMedia, parseOnboardingDraftPayload } from '~/server/utils/onboarding-drafts'
-import { runSiteCreation } from '~/server/utils/site-creation'
+import { getDraftMedia, onboardingPageBlocks, onboardingPagePath, onboardingPageType, parseOnboardingDraftPayload } from '~/server/utils/onboarding-drafts'
+import { createOrganizationForSite, runSiteCreation } from '~/server/utils/site-creation'
+import { activateSessionOrganization } from '~/server/utils/session-organization'
 import { refreshSocialCard } from '~/server/utils/social-card'
 import { purgePublicResourceCacheSafe } from '~/server/utils/public-resource-cache'
 import { createMediaAsset, insertInitialMediaPlacements } from '~/server/utils/media-asset-manager'
@@ -21,38 +22,9 @@ import { isValidTimezone } from '~/utils/timezone'
 
 type SiteEnv = Parameters<typeof runSiteCreation>[0]
 
-function slugify(value: string) {
-  return value.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'site'
-}
-
 function summarizeBatchQueries(batchQueries: BatchQuery[]) {
   return batchQueries.map((entry, index) => ({
     index, statement: entry.query.trim().split(/\s+/).slice(0, 12).join(' '), params: Array.isArray(entry.params) ? entry.params.length : 0, }))
-}
-
-function onboardingPagePath(page: string): string {
-  if (page === 'home') return '/'
-  if (page === 'privacy') return '/policies/privacy'
-  if (page === 'terms') return '/policies/terms'
-  return `/${page}`
-}
-
-function onboardingPageBlocks(rows: Array<{ id?: string; field: string; content: string | null; hero_title: string | null; hero_subtitle: string | null; type: string; asset_id?: string | null }>) {
-  const blocks: Array<{ id: string; type: string; position: number; data: Record<string, unknown> }> = []
-  for (const row of rows) {
-    if (row.field === 'hero') {
-      blocks.push({ id: row.id ?? crypto.randomUUID(), type: 'hero', position: blocks.length, data: { title: row.hero_title ?? row.content, subtitle: row.hero_subtitle } })
-    } else if (row.type === 'media' || row.field.endsWith('.image')) {
-      if (row.asset_id) {
-        const type = row.field.endsWith('.image') ? 'image' : 'gallery'
-        blocks.push({ id: row.id ?? crypto.randomUUID(), type, position: blocks.length, data: { field: row.field } })
-      }
-    } else if (row.content?.trim()) {
-      const type = row.field.endsWith('.title') || row.field.endsWith('.headline') ? 'heading' : 'markdown'
-      blocks.push({ id: row.id ?? crypto.randomUUID(), type, position: blocks.length, data: type === 'heading' ? { field: row.field, text: row.content, level: 2 } : { field: row.field, markdown: row.content } })
-    }
-  }
-  return blocks
 }
 
 export default defineHandler(async (event) => {
@@ -69,13 +41,14 @@ export default defineHandler(async (event) => {
   const draft = await queryFirst<{
     id: string
     user_id: string
+    organization_id: string | null
     name: string
     vertical: SiteVertical
     subdomain_candidate: string
     status: string
     payload_json: string
   }>(db, `
-    SELECT id, user_id, name, vertical, subdomain_candidate, status, payload_json
+    SELECT id, user_id, organization_id, name, vertical, subdomain_candidate, status, payload_json
     FROM onboarding_drafts
     WHERE id = ?
     LIMIT 1
@@ -94,6 +67,11 @@ export default defineHandler(async (event) => {
     return jsonResponse({ error: 'Choose a currency before creating your site.' }, { status: 400 })
   }
   const timezone = payload.source.details.timezone
+  // upsertActiveOnboardingDraft always derives the subdomain candidate from the
+  // brand name; a draft without one is corrupt, not something to re-derive here.
+  if (!draft.subdomain_candidate) {
+    return jsonResponse({ error: 'This draft has no site address. Start the draft again.' }, { status: 400 })
+  }
   if (!isValidTimezone(timezone)) {
     return jsonResponse({ error: 'Choose a valid location timezone before creating your site.' }, { status: 400 })
   }
@@ -113,8 +91,24 @@ export default defineHandler(async (event) => {
   let draftCommitted = false
 
   try {
+    // The organization is explicit, never inferred from the user's memberships.
+    // A draft started inside a dashboard organization (drafts/active.post.ts records
+    // it) adds the site there; a draft started from "New Organization" has none, so
+    // a new organization is created for the brand and persisted on the draft so a
+    // retried commit reuses it instead of creating a second one.
+    let targetOrganizationId = draft.organization_id
+    if (!targetOrganizationId) {
+      const created = await createOrganizationForSite(env, session.user.id, draft.name)
+      targetOrganizationId = created.organizationId
+      await execute(db, `
+        UPDATE onboarding_drafts
+        SET organization_id = ?, updated_at = ?
+        WHERE id = ?
+      `, [targetOrganizationId, new Date().toISOString(), draftId])
+    }
+
     const result = await runSiteCreation(env as SiteEnv, db, session.user.id, {
-      name: draft.name, subdomain: draft.subdomain_candidate || slugify(draft.name).slice(0, 40), vertical: draft.vertical, })
+      organizationId: targetOrganizationId, name: draft.name, subdomain: draft.subdomain_candidate, vertical: draft.vertical, })
 
     if (result.status !== 200) {
       // Reset draft status to active on failure so it can be retried
@@ -129,6 +123,7 @@ export default defineHandler(async (event) => {
 
     const organizationId = result.data.organizationId as string
     siteId = result.data.siteId as string
+    await activateSessionOrganization(event, env, organizationId)
     const siteSlug = result.data.subdomain as string | null
     await execute(db, `
       UPDATE sites
@@ -170,7 +165,8 @@ export default defineHandler(async (event) => {
     const draftLocation = payload.preview.locations.find(location => location.id === 'draft-location-main')
     let updatedSlug: string | null = locationRow.slug ?? null
     if (draftLocation) {
-      updatedSlug = draftLocation.slug || locationRow.slug || slugify(draftLocation.title)
+      // buildOnboardingDraftPayload always derives the location slug from the brand name.
+      updatedSlug = draftLocation.slug
       const updateResult = await updateLocation(db, organizationId, siteId, locationRow.id, {
         title: draftLocation.title, slug: updatedSlug, city: draftLocation.city, address: draftLocation.address, description: draftLocation.description, phone: draftLocation.phone, website_url: draftLocation.website_url, opening_hours: parseOpeningHours(draftLocation.opening_hours), special_hours: parseSpecialHours(draftLocation.special_hours), rating: draftLocation.rating, review_count: draftLocation.review_count, notification_phone: payload.source.details.notificationPhone, timezone: payload.source.details.timezone, status: 'active', maps_url: payload.source.place?.mapsUrl, google_place_id: payload.source.place?.placeId, }, session.user.id, env)
 
@@ -190,7 +186,7 @@ export default defineHandler(async (event) => {
     }
     await applyOnboardingTenantPages(db, {
       organizationId, siteId, userId: session.user.id, pages: [...contentByPage].map(([pageName, rows]) => {
-        const pageType = pageName === 'privacy' || pageName === 'terms' ? 'legal' : pageName === 'home' || pageName === 'about' || pageName === 'contact' ? 'system' : 'recipe'
+        const pageType = onboardingPageType(pageName)
         return {
           path: onboardingPagePath(pageName), title: rows.find(row => row.field === 'hero')?.hero_title ?? pageName, pageType, recipe: pageName, blocks: onboardingPageBlocks(rows), trustedSystemPage: pageType === 'system', }
       }), })

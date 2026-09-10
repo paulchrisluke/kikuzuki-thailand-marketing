@@ -18,7 +18,7 @@
       <p class="text-[14.5px] leading-relaxed text-muted">
         {{ isAddingLocation
           ? "Answer a few questions and this location is added to your site — you decide what to keep."
-          : "Answer a few questions and your site preview builds on the right — you decide what to keep." }}
+          : "Answer a few questions and your site preview builds as you answer — you decide what to keep." }}
       </p>
       <div class="flex flex-col gap-2.5">
         <div
@@ -139,8 +139,8 @@
                   v-for="choice in messages[index]?.choiceCard?.choices"
                   :key="choice.action"
                   block
-                  :color="choice.primary ? 'primary' : 'neutral'"
-                  :variant="isSelectedChoice(messages[index]!, choice) ? 'soft' : choice.ghost ? 'ghost' : choice.primary ? 'solid' : 'outline'"
+                  :color="choiceColor(messages[index]!, choice)"
+                  :variant="choiceVariant(messages[index]!, choice)"
                   :aria-pressed="isSelectedChoice(messages[index]!, choice)"
                   :disabled="importing || Boolean(selectedChoiceAction)"
                   @click="selectChoice(choice, index)"
@@ -272,7 +272,8 @@
 import { parseOpeningHours, parseSpecialHours, type OpeningHours } from '~/shared/reservation-hours'
 import type { HoursTimezoneForm } from './HoursTimezoneCard.vue'
 import { marked } from 'marked'
-import { parsePhone } from '~/utils/phone'
+import { getPhoneCountry, parsePhone } from '~/utils/phone'
+import { singleTimezoneForCountry } from '~/utils/timezone'
 import type { CurrencyCode } from '~/shared/currencies'
 import ConversationShell from '~/components/conversation/ConversationShell.vue'
 import { loadDomPurify } from '~/utils/dom-purify-loader'
@@ -286,7 +287,8 @@ interface WizardMessage {
   text?: string
   tools?: { label: string; done: boolean }[]
   draftReadyCard?: boolean
-  choiceCard?: { choices: QuickReply[] }
+  // `chosen` is the action the owner picked from this card; unset until they do.
+  choiceCard?: { choices: QuickReply[]; chosen?: string }
   placePreview?: { name: string; address: string; phone?: string | null; mapsUrl?: string | null }
   hoursCard?: {
     actionLabel?: string
@@ -326,13 +328,12 @@ type WizardMode = 'new-site' | 'add-location'
 
 const props = defineProps<{
   mode: WizardMode
-  siteId: string | null
   existingOrgSlug?: string | null
   existingSiteSlug?: string | null
 }>()
 
 const emit = defineEmits<{
-  'site-created': [orgSlug: string | null, locationSlug?: string | null]
+  'site-created': [created: { orgSlug: string | null; siteSlug: string | null; locationSlug: string | null }]
   'draft-saved': [draft: DraftSavedPayload]
   'preview-requested': []
   'draft-cleared': []
@@ -406,9 +407,13 @@ const detailsForm = reactive({
   addressLine2: '',
   region: '',
   postalCode: '',
-  country: '',
+  // United States is the product default (as USD is for currency); the owner
+  // confirms or changes it on the Location step.
+  country: 'US',
   phone: '',
-  currency: undefined as CurrencyCode | undefined,
+  // USD is the product default; the currency step shows it selected and the owner
+  // confirms or changes it before the draft can be created.
+  currency: 'USD' as CurrencyCode | undefined,
 })
 const hoursForm = reactive<HoursTimezoneForm>({ timezone: '', hours: null, specialHours: null })
 const brandDraftForm = reactive({
@@ -477,7 +482,7 @@ const detailsRequireBasics = computed(() => detailsSource.value === 'manual')
 watch(selectedVertical, vertical => emit('vertical-selected', vertical), { immediate: true })
 watch(step, value => emit('step-changed', value), { immediate: true })
 
-const importedSiteId = ref<string | null>(props.siteId ?? null)
+const importedSiteId = ref<string | null>(null)
 const importedOrgSlug = ref<string | null>(null)
 const importedSiteSlug = ref<string | null>(null)
 const importedLocationSlug = ref<string | null>(null)
@@ -494,18 +499,6 @@ onMounted(async () => {
   if (import.meta.client) {
     _dompurify = await loadDomPurify()
     _dompurifyLoaded = true
-  }
-  // If the user already has a site (returning to onboarding workspace), skip to imported state
-  if (props.siteId && props.existingOrgSlug) {
-    step.value = 'imported'
-    messages.value.push({
-      id: crypto.randomUUID(),
-      from: 'bot',
-      text: "Welcome back. Your workspace is live — the preview is on the right.",
-  })
-    replies.value = [
-      { label: 'Open my dashboard', icon: 'i-lucide-arrow-right', primary: true, action: 'dashboard' },
-    ]
   }
 })
 
@@ -541,16 +534,24 @@ function activeActionLabel(message: WizardMessage) {
     ?? 'Save'
 }
 
+// Selection is what the owner clicked on this card, not the wizard's current
+// state: `selectedVertical` and `detailsSource` have defaults, so deriving from
+// them marked an option as chosen before anyone chose.
 function isSelectedChoice(message: WizardMessage, choice: QuickReply) {
-  const messageStep = message.step
-  if (messageStep === 'vertical') {
-    return choice.action === `set_vertical_${selectedVertical.value}`
-  }
-  if (messageStep === 'source') {
-    return detailsSource.value === 'manual' ? choice.action === 'ask_manual' : choice.action === 'ask_url'
-  }
-  if (messageStep === 'confirm') return choice.action === 'confirm_yes' && detailsSource.value === 'imported'
-  return false
+  const chosen = message.choiceCard?.chosen
+  return chosen !== undefined && chosen === choice.action
+}
+
+// Before a choice: the card's suggested option is solid, the rest outline.
+// After a choice: the chosen option is the only emphasized one; the rest drop to ghost.
+function choiceVariant(message: WizardMessage, choice: QuickReply) {
+  if (message.choiceCard?.chosen === undefined) return choice.ghost ? 'ghost' : choice.primary ? 'solid' : 'outline'
+  return isSelectedChoice(message, choice) ? 'soft' : 'ghost'
+}
+
+function choiceColor(message: WizardMessage, choice: QuickReply) {
+  if (message.choiceCard?.chosen === undefined) return choice.primary ? 'primary' : 'neutral'
+  return isSelectedChoice(message, choice) ? 'primary' : 'neutral'
 }
 
 function clearDraftPreview() {
@@ -698,6 +699,14 @@ async function advance(target: WizardStep) {
   }
 
   if (target === 'hours') {
+    // The owner named their country on the location step. When that country has
+    // exactly one IANA zone, that is their timezone; when it has several, the
+    // field stays empty and they search the list. Never overwrite a zone the
+    // owner or the Google import already set.
+    if (!hoursForm.timezone) {
+      const zone = singleTimezoneForCountry(detailsForm.country)
+      if (zone) hoursForm.timezone = zone
+    }
     pushBot('Add your weekly hours so bookings and visit details line up.', {
       hoursCard: {
         actionLabel: 'Save hours',
@@ -763,6 +772,10 @@ async function goBack() {
   }
   if (step.value === 'location') {
     if (pendingPreview.value) {
+      // showConfirm re-attaches the Yes/No card to the place-preview message,
+      // which must be the last one again — drop the location card after it.
+      const previewIndex = messages.value.findLastIndex(message => Boolean(message.placePreview))
+      if (previewIndex >= 0) messages.value = messages.value.slice(0, previewIndex + 1)
       showConfirm(pendingPreview.value, preConfirmStep.value)
     } else {
       await advance('awaiting_manual_name')
@@ -853,7 +866,7 @@ async function handleReply(reply: QuickReply) {
 
   if (reply.action === 'dashboard') {
     if (workspaceEntryPath.value) {
-      await markOnboardingComplete()
+      if (importedSiteId.value) trackOnboardingCompleted(importedSiteId.value)
       await router.push(workspaceEntryPath.value)
     }
     return
@@ -862,7 +875,7 @@ async function handleReply(reply: QuickReply) {
   if (reply.action === 'add_location') {
     const slug = importedOrgSlug.value ?? props.existingOrgSlug
     const siteSlugForLocation = importedSiteSlug.value ?? props.existingSiteSlug
-    await markOnboardingComplete()
+    if (importedSiteId.value) trackOnboardingCompleted(importedSiteId.value)
     await router.push(slug && siteSlugForLocation ? `/dashboard/${slug}/sites/${siteSlugForLocation}/locations/new` : '/dashboard')
     return
   }
@@ -882,7 +895,11 @@ async function handleReply(reply: QuickReply) {
 
 async function selectChoice(choice: QuickReply, messageIndex?: number) {
   if (selectedChoiceAction.value || importing.value) return
-  if (typeof messageIndex === 'number') rewindToChoiceMessage(messageIndex)
+  if (typeof messageIndex === 'number') {
+    rewindToChoiceMessage(messageIndex)
+    const card = messages.value[messageIndex]?.choiceCard
+    if (card) card.chosen = choice.action
+  }
   selectedChoiceAction.value = choice.action ?? choice.label
   try {
     await handleReply(choice)
@@ -915,6 +932,10 @@ async function submitDetailsCard(section: 'location' | 'contact' | 'currency') {
   }
   if (section === 'contact') {
     await submitContact()
+    return
+  }
+  if (!detailsForm.currency) {
+    importError.value = 'Choose a currency before continuing.'
     return
   }
   if (await saveActiveDraft()) await advance('hours')
@@ -1156,7 +1177,7 @@ async function submitDetails() {
     }
 
     tools[0]!.done = true
-    importedSiteId.value = res.siteId ?? props.siteId ?? null
+    importedSiteId.value = res.siteId ?? null
     importedOrgSlug.value = res.orgSlug ?? null
     importedSiteSlug.value = res.siteSlug ?? props.existingSiteSlug ?? null
     await finishCreation(res.orgSlug, res.siteSlug ?? importedSiteSlug.value ?? props.existingSiteSlug ?? null, res.locationSlug)
@@ -1227,7 +1248,7 @@ async function commitDraft() {
     }
 
     tools[0]!.done = true
-    importedSiteId.value = res.siteId ?? props.siteId ?? null
+    importedSiteId.value = res.siteId ?? null
     importedOrgSlug.value = res.orgSlug ?? null
     importedSiteSlug.value = res.siteSlug ?? props.existingSiteSlug ?? null
     await finishCreation(res.orgSlug, res.siteSlug ?? importedSiteSlug.value ?? props.existingSiteSlug ?? null, res.locationSlug)
@@ -1272,13 +1293,17 @@ function serializeBrandDraft() {
   }
 }
 
+// detailsForm.country holds an ISO code; the address carries the country's name.
+// A Google-imported street address is already the full formatted address, so a
+// line whose every segment it already contains is not appended a second time.
 function composeAddress() {
-  return [
-    detailsForm.streetAddress,
-    detailsForm.addressLine2,
-    [detailsForm.city, detailsForm.region, detailsForm.postalCode].filter(Boolean).join(', '),
-    detailsForm.country,
-  ]
+  const street = detailsForm.streetAddress.trim()
+  const alreadyInStreet = (segment: string) => street.toLowerCase().includes(segment.toLowerCase())
+  const localityParts = [detailsForm.city, detailsForm.region, detailsForm.postalCode].map(part => part.trim()).filter(Boolean)
+  const locality = localityParts.length && !localityParts.every(alreadyInStreet) ? localityParts.join(', ') : ''
+  const countryName = getPhoneCountry(detailsForm.country)?.name ?? ''
+  const country = countryName && !alreadyInStreet(countryName) ? countryName : ''
+  return [street, detailsForm.addressLine2, locality, country]
     .map(part => part.trim())
     .filter(Boolean)
     .join('\n')
@@ -1297,7 +1322,7 @@ function seedDetailsFromPreview(preview: NonNullable<typeof pendingPreview.value
   // on its own; otherwise leave the field empty so the owner picks the country and
   // enters the number, rather than staring at a value the form has to throw away.
   detailsForm.phone = parsePhone(preview.phone ?? '').e164 ?? ''
-  detailsForm.currency = undefined
+  detailsForm.currency = 'USD'
   seedHoursFromPreview(preview.openingHours)
   hoursForm.timezone = preview.timezone ?? ''
 }
@@ -1309,9 +1334,9 @@ function seedDetailsFromManual(name: string) {
   detailsForm.addressLine2 = ''
   detailsForm.region = ''
   detailsForm.postalCode = ''
-  detailsForm.country = ''
+  detailsForm.country = 'US'
   detailsForm.phone = ''
-  detailsForm.currency = undefined
+  detailsForm.currency = 'USD'
   seedHoursFromPreview(null)
 }
 
@@ -1322,7 +1347,7 @@ function seedHoursFromPreview(openingHours: OpeningHours | undefined) {
 }
 
 async function finishCreation(orgSlug: string | null | undefined, siteSlug: string | null | undefined, locationSlug?: string | null) {
-  emit('site-created', orgSlug ?? null, locationSlug ?? null)
+  emit('site-created', { orgSlug: orgSlug ?? null, siteSlug: siteSlug ?? null, locationSlug: locationSlug ?? null })
   importedLocationSlug.value = locationSlug ?? null
 
   if (importedSiteId.value && !isAddingLocation.value) {
@@ -1357,16 +1382,6 @@ function retryFailedStep() {
   else if (failedStep === 'hero') void submitDetails()
 }
 
-async function markOnboardingComplete() {
-  const siteId = importedSiteId.value ?? props.siteId ?? null
-  if (!siteId) return
-  await applicationFetch<{ success: true }>('/api/dashboard/onboarding/complete', {
-    method: 'POST',
-    body: { siteId },
-    validate: (value): value is { success: true } => isRecord(value) && value.success === true,
-  })
-  trackOnboardingCompleted(siteId)
-}
 
 </script>
 

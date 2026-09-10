@@ -102,6 +102,22 @@ export const IMPACT_GROUPS = [
     ],
   },
   {
+    id: 'onboarding',
+    patterns: [
+      'pages/dashboard/onboarding.vue', 'lib/components/workspace/onboarding/**',
+      'pages/dashboard/**/locations/new.vue', 'server/api/dashboard/locations/add.post.ts',
+      'server/api/dashboard/onboarding/**', 'server/api/sites.post.ts',
+      'server/utils/onboarding-*.ts', 'server/utils/public-draft-bootstrap.ts',
+      'server/utils/site-creation.ts', 'server/utils/session-organization.ts',
+      'server/utils/google-places.ts', 'server/utils/post-login-routing.ts',
+      'utils/phone.ts', 'utils/timezone.ts',
+    ],
+    specs: [
+      'tests/e2e/onboarding-wizard.spec.ts',
+      'tests/e2e/post-login.spec.ts',
+    ],
+  },
+  {
     id: 'billing-and-session',
     patterns: [
       'server/api/webhooks/**', 'server/utils/stripe*.ts', 'server/utils/billing*.ts',

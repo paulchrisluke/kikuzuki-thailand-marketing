@@ -1,7 +1,6 @@
 import { parseOpeningHours, parseSpecialHours } from '~/shared/reservation-hours'
 import { cloudflareEnv, jsonResponse } from '~/server/utils/api-response'
 import { getAuthSession } from '~/server/utils/auth'
-import { getDashboardContext } from '~/server/utils/dashboard-context'
 import { getPlaceDetails, PlaceDetailsError } from '~/server/utils/google-places'
 import { queryFirst } from '~/server/db'
 import {
@@ -123,13 +122,6 @@ export default defineHandler(async (event) => {
     }
   }
 
-  let dashboard: Awaited<ReturnType<typeof getDashboardContext>> | null
-  try {
-    dashboard = await getDashboardContext(event, { requireSite: false })
-  } catch {
-    dashboard = null
-  }
-
   const rawDetails = body.details && typeof body.details === 'object' ? body.details : null
   const bodyName = stringOrNull(rawDetails?.name) ?? stringOrNull(body.name)
   const name = bodyName
@@ -145,7 +137,11 @@ export default defineHandler(async (event) => {
     name, vertical, place, details, brandDraft, })
 
   const draft = await upsertActiveOnboardingDraft(db, {
-    userId: session.user.id, organizationId: dashboard?.organization?.id ?? null, name: payload.preview.brandName, vertical, sourceType, payload, })
+    // /dashboard/onboarding is the "New Organization" entry point, so a draft
+    // never carries the session's active organization: commit creates a new one
+    // and records it here. Adding a site to an existing organization is
+    // POST /api/sites from that organization's dashboard.
+    userId: session.user.id, organizationId: null, name: payload.preview.brandName, vertical, sourceType, payload, })
 
   const expiresAt = Date.now() + (1000 * 60 * 60 * 12)
   const previewToken = await createScopedPreviewToken(previewSecret, 'draft', draft.id, expiresAt)

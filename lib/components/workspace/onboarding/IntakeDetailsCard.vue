@@ -3,24 +3,41 @@
       <div class="grid gap-4">
         <template v-if="section === 'location'">
           <UFormField label="Street address" :required="requireLocationBasics">
-            <UInput v-model="form.streetAddress" class="w-full" size="xl" placeholder="123 Beach Road" />
+            <UInput v-model="form.streetAddress" class="w-full" size="xl" placeholder="123 Main Street" />
           </UFormField>
           <UFormField label="Unit, floor, or neighborhood">
-            <UInput v-model="form.addressLine2" class="w-full" size="xl" placeholder="Suite, village, landmark" />
+            <UInput v-model="form.addressLine2" class="w-full" size="xl" placeholder="Suite, building, landmark" />
           </UFormField>
           <div class="@container">
             <div class="grid gap-4 @sm:grid-cols-2">
               <UFormField label="City or town" :required="requireLocationBasics">
-                <UInput v-model="form.city" class="w-full" size="xl" placeholder="Ao Nang" />
+                <UInput v-model="form.city" class="w-full" size="xl" placeholder="City" />
               </UFormField>
               <UFormField label="Province or region">
-                <UInput v-model="form.region" class="w-full" size="xl" placeholder="Krabi" />
+                <UInput v-model="form.region" class="w-full" size="xl" placeholder="State or province" />
               </UFormField>
               <UFormField label="Postal code">
-                <UInput v-model="form.postalCode" class="w-full" size="xl" inputmode="numeric" placeholder="81000" />
+                <UInput v-model="form.postalCode" class="w-full" size="xl" inputmode="numeric" placeholder="ZIP or postal code" />
               </UFormField>
               <UFormField label="Country">
-                <UInput v-model="form.country" class="w-full" size="xl" placeholder="Thailand" />
+                <USelectMenu
+                  v-model="countryCode"
+                  :items="countries"
+                  value-key="code"
+                  label-key="name"
+                  class="w-full"
+                  size="xl"
+                  placeholder="Select country"
+                  :search-input="{ placeholder: 'Search country...', icon: 'i-lucide-search' }"
+                  :filter-fields="['name', 'code', 'dialCode']"
+                >
+                  <template #leading>
+                    <span v-if="country" class="flex size-5 items-center text-lg">{{ country.emoji }}</span>
+                  </template>
+                  <template #item-leading="{ item }">
+                    <span class="flex size-5 items-center text-lg">{{ item.emoji }}</span>
+                  </template>
+                </USelectMenu>
               </UFormField>
             </div>
           </div>
@@ -34,13 +51,9 @@
           <UFieldGroup class="w-full gap-2">
             <USelectMenu
               v-model="countryCode"
-              :items="phoneCodes"
+              :items="countries"
               value-key="code"
-              :search-input="{
-                placeholder: 'Search country...',
-                icon: 'i-lucide-search',
-                loading: status === 'pending',
-              }"
+              :search-input="{ placeholder: 'Search country...', icon: 'i-lucide-search' }"
               :filter-fields="['name', 'code', 'dialCode']"
               :content="{ align: 'start' }"
               class="shrink-0"
@@ -71,22 +84,22 @@
             </USelectMenu>
 
             <UInput
-              v-model="phone"
-              v-maska="mask"
+              :model-value="phone"
               class="min-w-0 flex-1"
               size="xl"
               type="tel"
+              autocomplete="tel-national"
               :disabled="!countryCode"
-              :placeholder="mask ? mask.replaceAll('#', '_') : 'Choose a country first'"
-              :style="{ '--dial-code-length': `${dialCode.length + 1.5}ch` }"
+              :placeholder="countryCode ? 'Phone number' : 'Choose a country first'"
+              :style="{ '--dial-code-length': `${showDialCode ? dialCode.length + 1.5 : 0}ch` }"
               :ui="{
-                base: 'ps-(--dial-code-length)',
+                base: showDialCode ? 'ps-(--dial-code-length)' : '',
                 leading: 'pointer-events-none text-base sm:text-sm text-muted',
               }"
               @update:model-value="syncPhoneValue"
               @blur="phoneTouched = true"
             >
-              <template #leading>
+              <template v-if="showDialCode" #leading>
                 {{ dialCode }}
               </template>
             </UInput>
@@ -123,17 +136,14 @@
 </template>
 
 <script setup lang="ts">
-import { vMaska } from 'maska/vue'
-import { parsePhone, type CountryCode } from '~/utils/phone'
+import {
+  formatPhoneAsTyped,
+  getPhoneCountry,
+  listPhoneCountries,
+  parsePhone,
+  type CountryCode,
+} from '~/utils/phone'
 import { CURRENCY_OPTIONS, type CurrencyCode } from '~/shared/currencies'
-
-type PhoneCode = {
-  name: string
-  code: string
-  emoji: string
-  dialCode: string
-  mask: string
-}
 
 type IntakeForm = {
   name: string
@@ -142,6 +152,7 @@ type IntakeForm = {
   addressLine2: string
   region: string
   postalCode: string
+  /** ISO 3166-1 alpha-2 code from `listPhoneCountries()`, or '' until the owner picks one. */
   country: string
   phone: string
   currency: CurrencyCode | undefined
@@ -160,58 +171,78 @@ const props = defineProps<{
 const emit = defineEmits<{ submit: [] }>()
 
 const currencyOptions = CURRENCY_OPTIONS
+const countries = listPhoneCountries()
 const phone = ref('')
 const phoneTouched = ref(false)
-// No default country: a US/+1 prefill would be persisted as the owner's own
-// answer. The dial code, mask and phone input stay inert until one is chosen.
-const countryCode = ref<string | undefined>()
 const hydratingStoredPhone = ref(false)
 
-const { data: phoneCodes, status, execute } = useLazyFetch<PhoneCode[], unknown, string>('/api/phone-codes.json', {
-  key: 'api-phone-codes',
-  immediate: false,
+// One country for the whole intake: the Location step's "Country" and the phone
+// picker on the Contact step read and write the same `form.country`, so the
+// owner answers once and the phone picker arrives seeded with that answer.
+// The wizard seeds `form.country` with the product default (US); the owner
+// confirms or changes it on the Location step. The dial code and phone input
+// stay inert while no country is set.
+const countryCode = computed<CountryCode | undefined>({
+  get: () => getPhoneCountry(form.value.country)?.code,
+  set: value => {
+    form.value.country = value ? value : ''
+  },
 })
-
-const country = computed(() => phoneCodes.value?.find((c: PhoneCode) => c.code === countryCode.value) ?? null)
+const country = computed(() => getPhoneCountry(countryCode.value))
 const dialCode = computed(() => country.value?.dialCode ?? '')
-const mask = computed(() => country.value?.mask ?? '')
+// International input ("+1 415…") already carries its own code; showing the
+// picker's dial code in front of it would read as two prefixes.
+const showDialCode = computed(() => !!dialCode.value && !phone.value.trimStart().startsWith('+'))
 const parsedPhone = computed(() =>
   countryCode.value
-    ? parsePhone(`${dialCode.value} ${phone.value}`, { defaultCountry: countryCode.value as CountryCode })
+    ? parsePhone(phone.value, { defaultCountry: countryCode.value })
     : parsePhone(phone.value)
 )
 
-// The country has to be picked before anything can be typed, so the list is
-// loaded as soon as the contact step renders rather than on first open.
-onMounted(() => {
-  if (props.section === 'contact' && !phoneCodes.value?.length) execute()
-})
-
+// Picking a different country on the Contact step discards the number typed for
+// the previous one; a national number is meaningless under another dial code.
 watch(countryCode, () => {
-  if (hydratingStoredPhone.value) return
+  if (props.section !== 'contact' || hydratingStoredPhone.value) return
   phone.value = ''
   form.value.phone = ''
 })
 
+const digitsOf = (value: string) => value.replace(/\D/g, '')
+
 function syncPhoneValue(value?: string | number) {
-  if (value !== undefined) phone.value = String(value)
+  if (value !== undefined) {
+    let next = String(value)
+    if (countryCode.value) {
+      // Backspacing over a formatting character ("081 234|") would otherwise be
+      // undone by the formatter re-inserting it: drop the digit before it instead.
+      if (next.length < phone.value.length && digitsOf(next) === digitsOf(phone.value)) {
+        let deletedAt = 0
+        while (deletedAt < next.length && next[deletedAt] === phone.value[deletedAt]) deletedAt += 1
+        next = next.slice(0, deletedAt).replace(/\d(?=\D*$)/, '') + next.slice(deletedAt)
+      }
+      next = formatPhoneAsTyped(next, countryCode.value)
+    }
+    phone.value = next
+  }
   phoneTouched.value = true
   form.value.phone = phone.value.trim() && parsedPhone.value.valid && parsedPhone.value.e164
     ? parsedPhone.value.e164
     : ''
 }
 
-// Re-normalize the stored number when the dial code changes. Passing the watcher's
-// own argument through would write the dial code itself into the phone field.
-watch(dialCode, () => syncPhoneValue())
-
+// A stored E.164 value (imported from Google, or carried between steps) is shown
+// as the owner would type it. Its country seeds `form.country` only when the
+// owner has not answered the country yet; an owner's answer is never overwritten
+// by imported data, and a number from another country is shown international.
 watch(() => form.value.phone, value => {
   if (!value || value === parsedPhone.value.e164) return
   const parsed = parsePhone(value)
-  if (parsed.valid && parsed.country) {
+  if (parsed.valid && parsed.country && parsed.e164) {
     hydratingStoredPhone.value = true
-    countryCode.value = parsed.country
-    phone.value = parsed.nationalFormat ?? value
+    if (!form.value.country) form.value.country = parsed.country
+    phone.value = parsed.country === countryCode.value
+      ? formatPhoneAsTyped(parsed.nationalFormat ?? parsed.e164, parsed.country)
+      : formatPhoneAsTyped(parsed.e164, parsed.country)
     nextTick(() => {
       hydratingStoredPhone.value = false
     })
@@ -234,7 +265,7 @@ const phoneError = computed(() => {
   if (props.section !== 'contact' || !phoneTouched.value) return undefined
   if (!phone.value.trim()) return props.requireLocationBasics ? 'Enter a phone number.' : undefined
   if (parsedPhone.value.valid) return undefined
-  return `Enter a valid ${country.value?.name ?? countryCode.value ?? ''} phone number.`.replace(/\s{2,}/g, ' ')
+  return `Enter a valid ${country.value?.name ?? ''} phone number.`.replace(/\s{2,}/g, ' ')
 })
 
 function submitAfterSelection() {

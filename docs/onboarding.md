@@ -6,18 +6,17 @@ Global first, local second, persistent after that.
 
 - **Site/org level** (once per site): brand, currency, timezone default, team, ChatGPT app, socials, core offering.
 - **Location level** (once per location, repeats on every new location): hours, contact, notification destination, location hero/media, location-specific copy.
-- Onboarding is not a single linear wizard that ends at "Create site." The wizard collects the first handful of critical steps; everything else surfaces as a **persistent adaptive checklist** in the onboarding surface until the site is complete.
+- Onboarding is not a single linear wizard that ends at "Create site." The wizard collects the first handful of critical steps; everything else is done from the dashboard after the site exists. The wizard itself loads no checklist; `server/utils/onboarding-checklist.ts` feeds the organization analytics report only.
 
 ## Current flow
 
 The flow is draft-first, and this is the one and only new-site creation path:
 
-`OnboardingWizard.vue`: `welcome → vertical → source → url/manual name → confirm → location → contact → currency → hours → brand → hero → draft_ready → create → imported`, then optional post-creation handoff cards (manager alerts, brand essentials, social/polish/MCP — all skippable where the cards allow).
+`OnboardingWizard.vue`: `welcome → vertical → source → url/manual name → confirm → location → contact → currency → hours → brand → hero → draft_ready → create → imported`. The `imported` step offers one action, "Open my dashboard"; there are no post-creation handoff cards.
 
 - The first real business identity creates an active draft through `POST /api/dashboard/onboarding/drafts/active`: manual name entry creates a manual draft, and confirming a Google listing creates a Google Places draft. Completed onboarding sections patch that same active draft, and the preview renders from `/preview/draft/:draftId` until commit.
-- `commitDraft()` turns that draft into a real site via `POST /api/dashboard/onboarding/drafts/[draftId]/commit`, which calls the same `runSiteCreation()` used everywhere else a site gets created (`POST /api/sites`, the MCP `create_site` tool).
+- `commitDraft()` turns that draft into a real site via `POST /api/dashboard/onboarding/drafts/[draftId]/commit`, which calls the same `runSiteCreation()` used by the only other site-creation entry point, `POST /api/sites` (the dashboard's "add a site to this organization" form). Both pass the target organization explicitly: `/dashboard/onboarding` is the "New Organization" entry point, so a draft never carries an organization and the commit creates a new one named after the brand (recorded on the draft so a retried commit reuses it) and makes it the session's active organization; `POST /api/sites` takes the organization from the dashboard route's `org` query or an explicit `organizationId`.
 - Adding a location to an *existing* site is a separate mode of the same `OnboardingWizard.vue` component (`mode="add-location"`), and creates exclusively through `POST /api/dashboard/locations/add` — that endpoint owns both the Places-preview lookup and the mutation for add-location.
-- The onboarding context tracks 5 items (`business_info`, `hero_image`, `core_offering`, `story`, `post`). The dashboard home does not load this resource.
 
 ## Content state model
 
@@ -35,10 +34,10 @@ Generated placeholder rows are no longer part of onboarding or site creation. Te
 | 4 | Homepage hero — hero photo, headline, and description | Optional (skippable) | Wizard active draft |
 | 5 | Operations — timezone, currency, notification phone | Required | Wizard |
 | 6 | Core offering — menu (restaurant), experiences (experience vertical); professional-service offerings | Required, most prominent step | Wizard, deep-linkable to dashboard CMS later |
-| 7 | Story — about, founder story, FAQ seeds | Optional but prompted | Wizard or checklist |
-| 8 | Channels — Facebook/Instagram, ChatGPT app install, ChowBot intro | Optional | Wizard handoff cards |
-| 9 | Team — invite admins/editors | Optional, explicitly skippable | Wizard or checklist |
-| 10 | Launch readiness — domain, final review, publish | Required to go live, not required to keep working in draft | Checklist + `/dashboard/[orgSlug]/sites/[siteSlug]/domains` |
+| 7 | Story — about, founder story, FAQ seeds | Optional | Dashboard CMS |
+| 8 | Channels — Facebook/Instagram, ChatGPT app install, ChowBot intro | Optional | Dashboard (not part of the wizard) |
+| 9 | Team — invite admins/editors | Optional, explicitly skippable | Dashboard settings |
+| 10 | Launch readiness — domain, final review, publish | Required to go live, not required to keep working in draft | `/dashboard/[orgSlug]/sites/[siteSlug]/domains` |
 
 ### Location-level (once per location, including the first)
 
@@ -48,7 +47,3 @@ Only asked again on **add-location** (`OnboardingWizard.vue` `mode="add-location
 - Notification routing for this location
 - Location hero/media (uses location media only; it remains empty until supplied)
 - Optional location-specific notes/social
-
-## Canonical checklist
-
-The canonical checklist is loaded by `server/utils/onboarding-checklist.ts` through the onboarding context. The dashboard home does not prefetch it.

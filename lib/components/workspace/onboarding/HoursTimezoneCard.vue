@@ -1,7 +1,7 @@
 <template>
   <div class="space-y-6">
     <UFormField label="Timezone" required>
-      <USelectMenu v-model="form.timezone" :items="TIMEZONE_OPTIONS" placeholder="Select timezone" class="w-full" size="xl" />
+      <USelectMenu v-model="form.timezone" :items="TIMEZONE_OPTIONS" placeholder="Select timezone" :search-input="{ placeholder: 'Search by city, e.g. Bangkok' }" class="w-full" size="xl" />
     </UFormField>
     <UFormField label="Regular opening hours">
       <USelect :model-value="mode" :items="modes" class="w-full" @update:model-value="setMode" />
@@ -47,7 +47,7 @@
       </div>
     </div>
     <p v-if="validationError" class="text-sm text-error">{{ validationError }}</p>
-    <UButton v-if="actionLabel" :label="actionLabel" :loading="loading" :disabled="disabled || Boolean(validationError)" block size="xl" @click="$emit('submit')" />
+    <UButton v-if="actionLabel" :label="mode === 'unknown' ? 'Continue without hours' : actionLabel" :loading="loading" :disabled="disabled || Boolean(validationError)" block size="xl" @click="$emit('submit')" />
   </div>
 </template>
 

@@ -5,7 +5,7 @@ import { parseOpeningHours, parseSpecialHours } from '~/shared/reservation-hours
 import { cloudflareEnv, jsonResponse } from '~/server/utils/api-response'
 import { getAuthSession } from '~/server/utils/auth'
 import { getDashboardContext } from '~/server/utils/dashboard-context'
-import { getPlaceDetailsByUrl, getPlaceDetails, searchPlaces, googleReviewUpserts } from '~/server/utils/google-places'
+import { getPlaceDetailsByUrl, getPlaceDetails, searchPlaces, googleReviewUpserts, PlaceDetailsError } from '~/server/utils/google-places'
 import { createLocation } from '~/server/utils/location-management'
 import { purgePublicResourceCacheSafe } from '~/server/utils/public-resource-cache'
 import { executeBatch, queryFirst, type DbClient } from '~/server/db'
@@ -25,9 +25,12 @@ function normalizeNotificationPhone(raw: unknown): { ok: true; value: string | n
   if (typeof raw !== 'string') return { ok: false, error: 'Phone number must be a string' }
   const trimmed = raw.trim()
   if (!trimmed) return { ok: true, value: null }
-  const parsed = parsePhone(trimmed, { defaultCountry: 'TH' })
+  // No default country: the wizard sends E.164 for the country the owner picked,
+  // so a number that only parses with an assumed country is a number we would
+  // be guessing a country for.
+  const parsed = parsePhone(trimmed)
   if (!parsed.valid || !parsed.e164) {
-    return { ok: false, error: 'Enter a valid notification phone number, including country code' }
+    return { ok: false, error: 'The notification phone number must include its country code, for example +66 81 234 5678.' }
   }
   return { ok: true, value: parsed.e164 }
 }
@@ -121,8 +124,9 @@ export default defineHandler(async (event) => {
       place = await getPlaceDetails(apiKey, top.placeId)
     }
   } catch (err) {
+    const statusCode = err instanceof PlaceDetailsError ? err.statusCode : 502
     return jsonResponse({
-      error: err instanceof Error ? err.message : 'Could not fetch place details. Try again.', }, { status: 502 })
+      error: err instanceof Error ? err.message : 'Could not fetch place details. Try again.', }, { status: statusCode })
   }
 
   if (previewOnly) {
