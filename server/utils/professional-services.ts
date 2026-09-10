@@ -717,7 +717,8 @@ export async function getPublicBlawbyRouteData(
     }
   }
 
-  // The page's FAQ block lists the records its declared source names; the route data carries the same items.
+  // The Blawby layouts render one FAQ section, from the page's FAQ block; the
+  // route data carries that block's items, as its declared source resolved them.
   const qa = faqBlockQa(page)
   const resolvedPost = mapPublicBlogPost(postRow)
   return {
