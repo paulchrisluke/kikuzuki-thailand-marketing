@@ -106,11 +106,8 @@ test('a new owner builds a draft and creates a site through the wizard', async (
   expect(typeof subdomain).toBe('string')
   await page.getByRole('button', { name: 'Open my dashboard' }).click()
   await expect(page).toHaveURL(new RegExp(`/dashboard/${created!.slug}/sites/${subdomain}$`))
-  // The preview pane frames a different site on a different origin, so its
-  // console belongs to that site rather than to the wizard; the frame is
-  // asserted by what it renders instead, and tenant-rendering.spec.ts is what
-  // holds the tenant surfaces to a clean hydration. #914 tracks the
-  // frame-only hydration warning this exposed.
-  const dashboardErrors = errors.filter(entry => !entry.includes(`${subdomain}.`) && !entry.includes(`${subdomain}-`))
-  expect(dashboardErrors).toEqual([])
+  // The collector sees the framed site's console as well as the wizard's, and
+  // both have to be clean: the pane frames the owner's own site, so a mismatch
+  // in there is this flow's defect too.
+  expect(errors).toEqual([])
 })
