@@ -28,11 +28,19 @@ export default defineNuxtModule({
             throw new Error('Invalid Mali font license')
           }
         }
+        let cachedBytes: Uint8Array | undefined
         try {
-          validate(await readFile(path))
-          return
+          cachedBytes = await readFile(path)
         } catch (error) {
           if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
+        }
+        if (cachedBytes) {
+          try {
+            validate(cachedBytes)
+            return
+          } catch {
+            // Invalid cached assets are replaced by the download below.
+          }
         }
         const response = await fetch(`${SOURCE}/${sourcePath}`, { signal: AbortSignal.timeout(30_000) })
         if (!response.ok) throw new Error(`Mali asset download failed (${response.status}): ${filename}`)
