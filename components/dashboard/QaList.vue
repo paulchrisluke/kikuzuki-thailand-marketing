@@ -134,7 +134,6 @@ const qaAsyncData = useAsyncData(
       validate: isQaResponse,
     })
   },
-  { watch: [selectedPagePath] },
 )
 
 const [

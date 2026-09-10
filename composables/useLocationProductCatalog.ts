@@ -30,7 +30,6 @@ export function useLocationProductCatalog(siteId: string, locationId: Ref<string
       ])
       return { categories: categoryResponse.categories, products: productResponse.products }
     },
-    { watch: [locationId] },
   )
 
   const categories = computed(() => data.value?.categories ?? [])
