@@ -132,7 +132,7 @@ const { data, refresh } = await useAsyncData(
       query: { id: qaId.value },
       validate: isQaResponse,
     }),
-  { server: false, watch: [qaId] },
+  { server: false },
 )
 
 const record = computed(() => data.value?.qa.find(row => row.id === qaId.value) ?? null)
