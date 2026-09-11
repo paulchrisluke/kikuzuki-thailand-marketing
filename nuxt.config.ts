@@ -350,6 +350,10 @@ export default defineNuxtConfig({
       pathPrefix: false,
     },
     {
+      path: '~/lib/components/workspace/location',
+      pathPrefix: false,
+    },
+    {
       path: '~/lib/components/workspace/onboarding',
       pathPrefix: false,
     },

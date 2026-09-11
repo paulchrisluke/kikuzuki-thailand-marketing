@@ -117,8 +117,8 @@
 <script setup lang="ts">
 import { TIMEZONE_OPTIONS, localNow, timezoneLabel } from '~/utils/timezone'
 import { WEEKDAYS, parseOpeningHours, parseSpecialHours, toTimeString, toMinutes, type OpeningHours, type SpecialHours, type WeekPoint } from '~/shared/reservation-hours'
-export type HoursTimezoneForm = { timezone: string; hours: OpeningHours; specialHours: SpecialHours }
-const form = defineModel<HoursTimezoneForm>('form', { required: true })
+export type LocationHoursForm = { timezone: string; hours: OpeningHours; specialHours: SpecialHours }
+const form = defineModel<LocationHoursForm>('form', { required: true })
 // Closures and one-off date hours are a running-a-business job, not a
 // launch-your-site job: the dashboard's location settings own them, and asking
 // a brand-new owner to think about next Songkran before their site exists was

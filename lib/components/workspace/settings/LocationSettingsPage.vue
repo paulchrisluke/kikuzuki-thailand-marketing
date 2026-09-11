@@ -81,7 +81,7 @@
 
           <div v-else-if="editorKey === 'hours'" class="space-y-6">
             <p class="text-base text-muted">Set the regular hours shown to guests. A Google Places sync replaces these hours with Google's current record.</p>
-            <HoursTimezoneCard v-model:form="hoursForm" exceptions />
+            <LocationHoursCard v-model:form="hoursForm" exceptions />
           </div>
 
           <div v-else-if="editorKey === 'content'" class="space-y-6">
@@ -143,7 +143,7 @@
   </UDashboardPanel>
 </template>
 <script setup lang="ts">
-import HoursTimezoneCard, { type HoursTimezoneForm } from '~/lib/components/workspace/onboarding/HoursTimezoneCard.vue'
+import LocationHoursCard, { type LocationHoursForm } from '~/lib/components/workspace/location/LocationHoursCard.vue'
 import { parseOpeningHours, parseSpecialHours, type OpeningHours, type SpecialHours } from '~/shared/reservation-hours'
 import DashboardResourceLocalization from '~/components/dashboard/DashboardResourceLocalization.vue'
 
@@ -361,7 +361,7 @@ function localizedLocationPath(locale: string): string {
 
 const timezoneOptions = TIMEZONE_OPTIONS
 
-const hoursForm = ref<HoursTimezoneForm>({ timezone: '', hours: null, specialHours: null })
+const hoursForm = ref<LocationHoursForm>({ timezone: '', hours: null, specialHours: null })
 
 function fillDetailsForm(loc: BusinessLocation) {
   detailsForm.title = loc.title

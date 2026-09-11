@@ -168,7 +168,7 @@
                   :disabled="!isActiveStepMessage(messages[index]!)"
                   @submit="submitDetailsCard(messages[index]!.detailsCard!.section)"
                 />
-                <HoursTimezoneCard
+                <LocationHoursCard
                   v-if="messages[index]?.hoursCard"
                   v-model:form="hoursForm"
                   :action-label="activeActionLabel(messages[index]!)"
@@ -274,7 +274,7 @@
 
 <script setup lang="ts">
 import { parseOpeningHours, parseSpecialHours, type OpeningHours } from '~/shared/reservation-hours'
-import type { HoursTimezoneForm } from './HoursTimezoneCard.vue'
+import type { LocationHoursForm } from '~/lib/components/workspace/location/LocationHoursCard.vue'
 import { marked } from 'marked'
 import { getPhoneCountry, parsePhone } from '~/utils/phone'
 import { singleTimezoneForCountry } from '~/utils/timezone'
@@ -444,7 +444,7 @@ const detailsForm = reactive({
   // confirms or changes it before the draft can be created.
   currency: 'USD' as CurrencyCode | undefined,
 })
-const hoursForm = reactive<HoursTimezoneForm>({ timezone: '', hours: null, specialHours: null })
+const hoursForm = reactive<LocationHoursForm>({ timezone: '', hours: null, specialHours: null })
 const brandDraftForm = reactive({
   brandColor: '',
   logoNote: '',
