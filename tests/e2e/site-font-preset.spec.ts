@@ -86,11 +86,11 @@ function median(values: number[]) {
   return [...values].sort((a, b) => a - b)[Math.floor(values.length / 2)]!
 }
 
-// Eighteen cold samples (3 runs x 2 presets x 3 routes) at 200 KB/s with a 4x CPU
+// Twelve cold samples (3 runs x 2 presets x 2 routes) at 200 KB/s with a 4x CPU
 // throttle. The Kikuzuki preview home is 823 KB over 128 requests, so a sample
-// costs 15-25s and the full matrix plus the CMS save and delivery checks needs
-// 9-12 minutes. The previous 600_000 cap sat inside that range and the test timed
-// out rather than reporting a budget result.
+// costs 15-25s; with the CMS save, the delivery checks and the isolation check the
+// test needs roughly 7 minutes. The previous 600_000 cap sat inside the old
+// 9-12 minute range, so the run ended in a timeout carrying no budget numbers.
 test('Mali saves through Brand, renders before hydration, and stays within the cold-mobile regression budget', async ({ browser, playwright }, testInfo) => {
   test.setTimeout(1_200_000)
   const siteId = 'site-kikuzuki'
@@ -106,14 +106,15 @@ test('Mali saves through Brand, renders before hydration, and stays within the c
   await expectStatus(localesBefore, 200)
   const hadThai = (await localesBefore.json() as { languages: Array<{ locale: string; status: string }> })
     .languages.some(language => language.locale === 'th' && language.status === 'published')
+    // Home is the LCP-critical English route and /th/reservations is the one that
+    // pulls the Thai subset. /menu rendered the same latin faces as home, so its
+    // six samples cost about two minutes and measured nothing the other two did not.
     const performanceRoutes = {
       home: `${kikuzukiTestBaseUrl()}/`,
-      menu: `${kikuzukiTestBaseUrl()}/menu`,
       reservations: `${kikuzukiTestBaseUrl()}/th/reservations`,
     } as const
     const measurements: Record<keyof typeof performanceRoutes, Record<'default' | 'mali', Metrics[]>> = {
       home: { default: [], mali: [] },
-      menu: { default: [], mali: [] },
       reservations: { default: [], mali: [] },
     }
   const patch = async (data: Record<string, unknown>) => expectStatus(await owner.patch(settingsUrl, { data }), 200)
