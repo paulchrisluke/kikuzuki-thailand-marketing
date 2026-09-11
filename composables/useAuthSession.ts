@@ -2,33 +2,55 @@ import { authClient } from '~/lib/auth-client'
 
 type Session = typeof authClient.$Infer.Session
 
+/**
+ * The session, on the server and the client, through Better Auth's own Nuxt
+ * support: its Vue client's `useSession` takes Nuxt's `useFetch` and does the
+ * SSR fetch, the hydration and the re-fetch on session change itself
+ * (better-auth/dist/client/vue/index.mjs — it calls
+ * `useFetch(baseURL + '/get-session', { ref: $sessionSignal })`).
+ *
+ * This used to be hand-rolled: a server middleware that hung a session provider
+ * on the request context, a useAsyncData around it, and a manual
+ * hydrateSession() on the client. That was a second implementation of a
+ * documented API.
+ */
 export async function useAuthSession() {
-  const nuxtApp = useNuxtApp()
-  if (import.meta.client) {
-    const { data } = useNuxtData<{ session: Session | null }>('auth-session')
-    if (nuxtApp.isHydrating && data.value) authClient.hydrateSession(data.value.session)
-    const session = authClient.useSession()
-    return {
-      sessionData: computed(() => session.value.data),
-      user: computed(() => session.value.data?.user ?? null),
-      isAuthenticated: computed(() => Boolean(session.value.data?.user)),
-      sessionLoading: computed(() => session.value.isPending),
-      sessionError: computed(() => session.value.error),
-    }
+  // The server render has to carry the browser's cookie. BETTER_AUTH_URL is
+  // absolute, so Better Auth asks for an absolute /get-session, and Nuxt only
+  // forwards request headers to internal (relative) calls — without this the
+  // session resolved to null on the server and every signed-in field appeared
+  // only after hydration.
+  // useFetch is called through a narrowed signature: inferring its own types
+  // against Better Auth's session shape and Nitro's typed route table together
+  // hits "type instantiation is excessively deep".
+  // Better Auth still owns the request — its own URL, its own session signal.
+  // This only wraps useFetch to add the cookie, and narrows useFetch's type on
+  // the way through: inferring its generics against Better Auth's session shape
+  // and Nitro's typed route table together hits "type instantiation is
+  // excessively deep".
+  const cookieAwareFetch = ((url: string, options?: Record<string, unknown>) =>
+    (useFetch as unknown as (u: string, o: Record<string, unknown>) => unknown)(url, {
+      ...options,
+      // An explicit key, because useFetch derives one from the url *and the
+      // options*: the cookie header is only present on the server, so the
+      // generated keys differed and the client missed the SSR payload and
+      // hydrated against an empty session.
+      key: 'auth-session',
+      headers: import.meta.server ? useRequestHeaders(['cookie']) : undefined,
+    })) as never
+
+  const { data, error, isPending } = await authClient.useSession(cookieAwareFetch) as {
+    data: Ref<Session | null>
+    error: Ref<unknown>
+    isPending: boolean
   }
-  const event = useRequestEvent()
-  const result = await useAsyncData('auth-session', async () => {
-    const provider = event?.context.authSessionProvider as (() => Promise<Session | null>) | undefined
-    if (!provider) throw createError({ statusCode: 500, statusMessage: 'Auth session provider unavailable' })
-    return { session: await provider() }
-  })
-  const sessionData = computed(() => result.data.value?.session ?? null)
+  const sessionData = computed(() => data.value ?? null)
   const user = computed(() => sessionData.value?.user ?? null)
   return {
     sessionData,
     user,
     isAuthenticated: computed(() => Boolean(user.value)),
-    sessionLoading: computed(() => result.status.value === 'pending'),
-    sessionError: computed(() => result.error.value ?? null),
+    sessionLoading: computed(() => isPending),
+    sessionError: computed(() => error.value ?? null),
   }
 }
