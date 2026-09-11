@@ -4,6 +4,7 @@ import { queryFirst } from '~/server/db'
 import type { PlaceDetails, PlaceReview } from '~/server/utils/google-places'
 import type { CurrencyCode } from '~/shared/currencies'
 import type { PriceInput } from '~/shared/prices'
+import type { TenantPageBlock, TenantPageType } from '~/utils/tenant-page-blocks'
 
 type DraftSourceType = 'google_places' | 'manual'
 
@@ -130,6 +131,40 @@ export interface OnboardingDraftPayload {
   }
 }
 
+export function onboardingPagePath(page: string): string {
+  if (page === 'home') return '/'
+  if (page === 'privacy') return '/policies/privacy'
+  if (page === 'terms') return '/policies/terms'
+  return `/${page}`
+}
+
+export function onboardingPageType(page: string): TenantPageType {
+  if (page === 'privacy' || page === 'terms') return 'legal'
+  if (page === 'home' || page === 'about' || page === 'contact') return 'system'
+  return 'recipe'
+}
+
+// One mapping from draft content rows to tenant-page blocks. The draft preview
+// renders these blocks and commit persists them, so the preview is exactly the
+// page the tenant will get.
+export function onboardingPageBlocks(rows: DraftContentRecord[]): TenantPageBlock[] {
+  const blocks: TenantPageBlock[] = []
+  for (const row of rows) {
+    if (row.field === 'hero') {
+      blocks.push({ id: row.id ?? crypto.randomUUID(), type: 'hero', position: blocks.length, data: { title: row.hero_title ?? row.content, subtitle: row.hero_subtitle }, media: [] })
+    } else if (row.type === 'media' || row.field.endsWith('.image')) {
+      if (row.asset_id) {
+        const type = row.field.endsWith('.image') ? 'image' : 'gallery'
+        blocks.push({ id: row.id ?? crypto.randomUUID(), type, position: blocks.length, data: { field: row.field }, media: [] })
+      }
+    } else if (row.content?.trim()) {
+      const type = row.field.endsWith('.title') || row.field.endsWith('.headline') ? 'heading' : 'markdown'
+      blocks.push({ id: row.id ?? crypto.randomUUID(), type, position: blocks.length, data: type === 'heading' ? { field: row.field, text: row.content, level: 2 } : { field: row.field, markdown: row.content }, media: [] })
+    }
+  }
+  return blocks
+}
+
 export function getDraftMedia(payload: OnboardingDraftPayload, slot: 'logo' | 'hero') {
   return payload.preview.media.find(item => item.slot === slot)?.asset ?? null
 }
@@ -137,6 +172,7 @@ export function getDraftMedia(payload: OnboardingDraftPayload, slot: 'logo' | 'h
 export interface OnboardingDraftUpsertResult {
   id: string
   subdomainCandidate: string
+  organizationId: string | null
   payload: OnboardingDraftPayload
 }
 
@@ -144,6 +180,14 @@ export interface DraftDetailsInput {
   name: string
   city: string | null
   address: string | null
+  /**
+   * ISO 3166-1 alpha-2, as the owner answered it on the location step. Stored
+   * in its own right rather than read back off the phone number: the location
+   * step saves before the contact step, so a resumed draft would otherwise fall
+   * back to the product default and validate a non-US number against the US
+   * numbering plan.
+   */
+  country: string | null
   phone: string | null
   websiteUrl: string | null
   openingHours: OpeningHours
@@ -322,31 +366,33 @@ export async function upsertActiveOnboardingDraft(db: D1Database, input: {
   payload: OnboardingDraftPayload
 }): Promise<OnboardingDraftUpsertResult> {
   const payloadJson = JSON.stringify(input.payload)
-  const subdomainCandidate = input.payload.preview.subdomainCandidate
   const now = nowIso()
 
   const id = crypto.randomUUID()
-  const draft = await queryFirst<{ id: string }>(db, `
+  // The address is claimed at the first save, when the pending site is created,
+  // so a later change of brand name renames the brand and not the site's host —
+  // and every following save keeps writing to the same site. organization_id is
+  // set once for the same reason.
+  const draft = await queryFirst<{ id: string; subdomain_candidate: string; organization_id: string | null }>(db, `
     INSERT INTO onboarding_drafts
       (id, user_id, organization_id, name, vertical, subdomain_candidate, source_type, status, payload_json, created_at, updated_at)
     VALUES (?, ?, ?, ?, ?, ?, ?, 'active', ?, ?, ?)
     ON CONFLICT(user_id) WHERE status = 'active'
     DO UPDATE SET
-      organization_id = excluded.organization_id,
+      organization_id = COALESCE(onboarding_drafts.organization_id, excluded.organization_id),
       name = excluded.name,
       vertical = excluded.vertical,
-      subdomain_candidate = excluded.subdomain_candidate,
       source_type = excluded.source_type,
       payload_json = excluded.payload_json,
       updated_at = excluded.updated_at
-    RETURNING id
+    RETURNING id, subdomain_candidate, organization_id
   `, [
     id,
     input.userId,
     input.organizationId ?? null,
     input.name,
     input.vertical,
-    subdomainCandidate,
+    input.payload.preview.subdomainCandidate,
     input.sourceType,
     payloadJson,
     now,
@@ -358,7 +404,8 @@ export async function upsertActiveOnboardingDraft(db: D1Database, input: {
 
   return {
     id: draft.id,
-    subdomainCandidate,
+    subdomainCandidate: draft.subdomain_candidate,
+    organizationId: draft.organization_id,
     payload: input.payload,
   }
 }

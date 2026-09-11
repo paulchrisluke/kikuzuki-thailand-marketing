@@ -76,13 +76,14 @@
 
     <Transition name="onboarding-preview" mode="out-in">
       <iframe
-        v-if="iframeSrc"
+        v-if="loadedIframeSrc"
         :data-preview-frame-id="previewFrameId"
         key="iframe"
-        :src="iframeSrc"
+        :src="loadedIframeSrc"
         title="Site preview"
         sandbox="allow-same-origin allow-scripts allow-forms"
         class="size-full min-h-0 flex-1 border-0 bg-default"
+        @load="onFrameLoad"
       />
       <div v-else-if="currentTabIsLocationScoped && !selectedLocationId" class="flex flex-1 items-center justify-center p-6 text-muted">
         Select a location to preview this page.
@@ -139,6 +140,26 @@ defineEmits<{
   'select-page': [page: string]
   'select-location': [id: string]
 }>()
+// Every wizard answer saves the draft and asks for a fresh preview. Swapping
+// the iframe's src while the previous document is still hydrating tears that
+// document down mid-hydration — Vue reports a hydration mismatch for it, and
+// the round trip is wasted anyway. So a newer URL waits for the current load to
+// finish, and only the newest one is applied.
+const loadedIframeSrc = ref(props.iframeSrc)
+const frameLoading = ref(Boolean(props.iframeSrc))
+const onFrameLoad = () => {
+  frameLoading.value = false
+  if (loadedIframeSrc.value !== props.iframeSrc) {
+    frameLoading.value = true
+    loadedIframeSrc.value = props.iframeSrc
+  }
+}
+watch(() => props.iframeSrc, (next) => {
+  if (frameLoading.value && next && loadedIframeSrc.value) return
+  frameLoading.value = Boolean(next)
+  loadedIframeSrc.value = next
+})
+
 const previewFrameId = useId()
 
 const secondaryTab = computed(() => {

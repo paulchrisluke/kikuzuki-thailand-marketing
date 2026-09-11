@@ -1,14 +1,16 @@
 import { parseOpeningHours, parseSpecialHours } from '~/shared/reservation-hours'
 import { cloudflareEnv, jsonResponse } from '~/server/utils/api-response'
 import { getAuthSession } from '~/server/utils/auth'
-import { getDashboardContext } from '~/server/utils/dashboard-context'
 import { getPlaceDetails, PlaceDetailsError } from '~/server/utils/google-places'
 import { queryFirst } from '~/server/db'
 import {
   buildOnboardingDraftPayload, getDraftMedia, parseOnboardingDraftPayload, upsertActiveOnboardingDraft, type DraftBrandInput, type DraftDetailsInput, type DraftUploadedImage, type OnboardingDraftPayload, type PlaceDetailsSnapshot, } from '~/server/utils/onboarding-drafts'
-import { createScopedPreviewToken } from '~/server/utils/preview-token'
+import { createPreviewToken, PREVIEW_TOKEN_TTL_MS, previewSecretOf } from '~/server/utils/preview-token'
 import { VALID_VERTICALS } from '~/server/utils/site-creation'
+import { applyOnboardingDraftToSite, ensureOnboardingSite } from '~/server/utils/onboarding-site'
+import { isValidTimezone } from '~/utils/timezone'
 import { isCurrencyCode, type CurrencyCode } from '~/shared/currencies'
+import { getPhoneCountry } from '~/utils/phone'
 import type { SiteVertical } from '~/utils/vertical-copy'
 
 type DraftSourceType = 'manual' | 'google_places'
@@ -25,10 +27,19 @@ function parseCurrency(value: unknown): CurrencyCode | null {
   return isCurrencyCode(currency) ? currency : null
 }
 
+// The same list the wizard's country picker is built from, so the endpoint
+// accepts exactly what the UI can produce. A two-letter shape check would take
+// "AA" and "UK", neither of which is an assigned ISO 3166-1 alpha-2 code.
+function parseCountry(value: unknown): string | null {
+  if (typeof value !== 'string') return null
+  const country = value.trim().toUpperCase()
+  return getPhoneCountry(country) ? country : null
+}
+
 function detailsFromBody(
   raw: Record<string, unknown> | null, existing: DraftDetailsInput | null, name: string, place: PlaceDetailsSnapshot | Awaited<ReturnType<typeof getPlaceDetails>> | null, ): DraftDetailsInput {
   return {
-    name, city: stringOrNull(raw?.city) ?? existing?.city ?? null, address: stringOrNull(raw?.address) ?? existing?.address ?? null, phone: stringOrNull(raw?.phone) ?? existing?.phone ?? null, websiteUrl: stringOrNull(raw?.websiteUrl) ?? existing?.websiteUrl ?? null, openingHours: parseOpeningHours(raw?.openingHours === undefined ? (existing ? existing.openingHours : place?.openingHours ?? null) : raw.openingHours), specialHours: parseSpecialHours(raw?.specialHours === undefined ? existing?.specialHours ?? null : raw.specialHours), notificationPhone: stringOrNull(raw?.notificationPhone) ?? existing?.notificationPhone ?? null, timezone: stringOrNull(raw?.timezone) ?? (existing ? existing.timezone : place?.timezone ?? null), currency: raw?.currency === undefined ? existing?.currency ?? null : parseCurrency(raw.currency), }
+    name, country: raw?.country === undefined ? existing?.country ?? null : parseCountry(raw.country), city: stringOrNull(raw?.city) ?? existing?.city ?? null, address: stringOrNull(raw?.address) ?? existing?.address ?? null, phone: stringOrNull(raw?.phone) ?? existing?.phone ?? null, websiteUrl: stringOrNull(raw?.websiteUrl) ?? existing?.websiteUrl ?? null, openingHours: parseOpeningHours(raw?.openingHours === undefined ? (existing ? existing.openingHours : place?.openingHours ?? null) : raw.openingHours), specialHours: parseSpecialHours(raw?.specialHours === undefined ? existing?.specialHours ?? null : raw.specialHours), notificationPhone: stringOrNull(raw?.notificationPhone) ?? existing?.notificationPhone ?? null, timezone: stringOrNull(raw?.timezone) ?? (existing ? existing.timezone : place?.timezone ?? null), currency: raw?.currency === undefined ? existing?.currency ?? null : parseCurrency(raw.currency), }
 }
 
 function imageFromBody(raw: unknown, existing: DraftUploadedImage | null): DraftUploadedImage | null {
@@ -67,7 +78,7 @@ export default defineHandler(async (event) => {
   const session = await getAuthSession(event, env)
   if (!session?.user?.id) return jsonResponse({ error: 'Authentication required' }, { status: 401 })
 
-  const previewSecret = env.PREVIEW_SECRET as string | undefined
+  const previewSecret = previewSecretOf(env)
   if (!previewSecret) return jsonResponse({ error: 'Preview secret not configured' }, { status: 503 })
 
   const body = await readBody(event) as {
@@ -123,13 +134,6 @@ export default defineHandler(async (event) => {
     }
   }
 
-  let dashboard: Awaited<ReturnType<typeof getDashboardContext>> | null
-  try {
-    dashboard = await getDashboardContext(event, { requireSite: false })
-  } catch {
-    dashboard = null
-  }
-
   const rawDetails = body.details && typeof body.details === 'object' ? body.details : null
   const bodyName = stringOrNull(rawDetails?.name) ?? stringOrNull(body.name)
   const name = bodyName
@@ -139,19 +143,59 @@ export default defineHandler(async (event) => {
     ?? ''
   if (!name) return jsonResponse({ error: 'name is required' }, { status: 400 })
 
+  // An omitted country keeps the stored answer; a present but unrecognised one
+  // is a bad request, not a reason to quietly keep the old value.
+  if (rawDetails?.country !== undefined && rawDetails.country !== null && parseCountry(rawDetails.country) === null) {
+    return jsonResponse({ error: 'country must be an ISO 3166-1 alpha-2 code' }, { status: 400 })
+  }
+
   const details = detailsFromBody(rawDetails, existingPayload?.source.details ?? null, name, place)
   const brandDraft = brandFromBody(body.brandDraft && typeof body.brandDraft === 'object' ? body.brandDraft : null, existingPayload)
   const payload = buildOnboardingDraftPayload({
     name, vertical, place, details, brandDraft, })
 
   const draft = await upsertActiveOnboardingDraft(db, {
-    userId: session.user.id, organizationId: dashboard?.organization?.id ?? null, name: payload.preview.brandName, vertical, sourceType, payload, })
+    // /dashboard/onboarding is the "New Organization" entry point, so a draft
+    // never carries the session's active organization: the first save creates a
+    // new one and records it here. Adding a site to an existing organization is
+    // POST /api/sites from that organization's dashboard.
+    userId: session.user.id, organizationId: null, name: payload.preview.brandName, vertical, sourceType, payload, })
 
-  const expiresAt = Date.now() + (1000 * 60 * 60 * 12)
-  const previewToken = await createScopedPreviewToken(previewSecret, 'draft', draft.id, expiresAt)
+  // The site is real from this first save: pending, on its own reserved
+  // subdomain, previewable with its preview token and invisible to the public
+  // until POST /api/dashboard/onboarding/activate. There is no separate draft
+  // renderer — the preview is the site.
+  const site = await ensureOnboardingSite(env, db, session.user.id, {
+    id: draft.id,
+    organization_id: draft.organizationId,
+    name: payload.preview.brandName,
+    vertical,
+    subdomain_candidate: draft.subdomainCandidate,
+  })
+  if ('error' in site) return jsonResponse({ error: site.error }, { status: site.status })
+
+  // Every save writes the owner's answers onto that site, so the preview is
+  // never behind the conversation. Currency and timezone are only written once
+  // they have actually been answered.
+  const answeredTimezone = payload.source.details.timezone
+  await applyOnboardingDraftToSite(env, db, {
+    userId: session.user.id,
+    target: site.target,
+    payload,
+    defaultCurrency: payload.source.details.currency,
+    timezone: isValidTimezone(answeredTimezone) ? answeredTimezone : null,
+  })
+
+  const previewToken = await createPreviewToken(previewSecret, site.target.siteId, Date.now() + PREVIEW_TOKEN_TTL_MS)
 
   return jsonResponse({
-    success: true, draftId: draft.id, draftName: payload.preview.brandName, subdomainCandidate: draft.subdomainCandidate, previewToken, })
+    success: true,
+    draftId: draft.id,
+    draftName: payload.preview.brandName,
+    siteId: site.target.siteId,
+    subdomainCandidate: site.target.subdomain,
+    previewToken,
+  })
 })
 import { defineHandler } from 'nitro';
 import { readBody } from 'nitro/h3';

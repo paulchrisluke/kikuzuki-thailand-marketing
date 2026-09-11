@@ -18,7 +18,7 @@
       <p class="text-[14.5px] leading-relaxed text-muted">
         {{ isAddingLocation
           ? "Answer a few questions and this location is added to your site — you decide what to keep."
-          : "Answer a few questions and your site preview builds on the right — you decide what to keep." }}
+          : "Answer a few questions and your site preview builds as you answer — you decide what to keep." }}
       </p>
       <div class="flex flex-col gap-2.5">
         <div
@@ -67,16 +67,6 @@
             />
           </div>
         </div>
-        <UButton
-          v-if="draftPreviewPayload"
-          icon="i-lucide-eye"
-          color="neutral"
-          variant="soft"
-          size="sm"
-          square
-          aria-label="Preview draft"
-          @click="requestPreview"
-        />
       </div>
 
       <ConversationShell
@@ -139,8 +129,8 @@
                   v-for="choice in messages[index]?.choiceCard?.choices"
                   :key="choice.action"
                   block
-                  :color="choice.primary ? 'primary' : 'neutral'"
-                  :variant="isSelectedChoice(messages[index]!, choice) ? 'soft' : choice.ghost ? 'ghost' : choice.primary ? 'solid' : 'outline'"
+                  :color="choiceColor(messages[index]!, choice)"
+                  :variant="choiceVariant(messages[index]!, choice)"
                   :aria-pressed="isSelectedChoice(messages[index]!, choice)"
                   :disabled="importing || Boolean(selectedChoiceAction)"
                   @click="selectChoice(choice, index)"
@@ -148,9 +138,8 @@
                   <UIcon :name="choice.icon || 'i-lucide-circle'" class="size-4" />
                   <span class="min-w-0 flex-1">
                     <span class="block text-[13px] font-semibold leading-5 text-highlighted">{{ choice.label }}</span>
-                    <span v-if="choice.sub" class="mt-0.5 block text-[12px] leading-5 text-muted">{{ choice.sub }}</span>
+                    <span v-if="choice.sub" class="mt-0.5 block text-[12px] leading-5 text-toned">{{ choice.sub }}</span>
                   </span>
-                  <UIcon name="i-lucide-chevron-right" class="size-4 shrink-0 text-dimmed" />
                 </UButton>
               </div>
               <div v-if="messages[index]?.detailsCard || messages[index]?.hoursCard || messages[index]?.brandDraftCard" class="onboarding-step-widget">
@@ -164,7 +153,7 @@
                   :disabled="!isActiveStepMessage(messages[index]!)"
                   @submit="submitDetailsCard(messages[index]!.detailsCard!.section)"
                 />
-                <HoursTimezoneCard
+                <LocationHoursCard
                   v-if="messages[index]?.hoursCard"
                   v-model:form="hoursForm"
                   :action-label="activeActionLabel(messages[index]!)"
@@ -270,12 +259,14 @@
 
 <script setup lang="ts">
 import { parseOpeningHours, parseSpecialHours, type OpeningHours } from '~/shared/reservation-hours'
-import type { HoursTimezoneForm } from './HoursTimezoneCard.vue'
+import type { LocationHoursForm } from '~/lib/components/workspace/location/LocationHoursCard.vue'
 import { marked } from 'marked'
-import { parsePhone } from '~/utils/phone'
+import { getPhoneCountry, parsePhone } from '~/utils/phone'
+import { singleTimezoneForCountry } from '~/utils/timezone'
 import type { CurrencyCode } from '~/shared/currencies'
 import ConversationShell from '~/components/conversation/ConversationShell.vue'
 import { loadDomPurify } from '~/utils/dom-purify-loader'
+import { useDashboardTopNavAction } from '~/composables/useDashboardTopNavActions'
 import type { DraftBrandForm } from '~/lib/components/workspace/onboarding/DraftBrandCard.vue'
 import type { SiteVertical } from '~/utils/vertical-copy'
 
@@ -286,7 +277,8 @@ interface WizardMessage {
   text?: string
   tools?: { label: string; done: boolean }[]
   draftReadyCard?: boolean
-  choiceCard?: { choices: QuickReply[] }
+  // `chosen` is the action the owner picked from this card; unset until they do.
+  choiceCard?: { choices: QuickReply[]; chosen?: string }
   placePreview?: { name: string; address: string; phone?: string | null; mapsUrl?: string | null }
   hoursCard?: {
     actionLabel?: string
@@ -311,8 +303,34 @@ interface QuickReply {
   action?: string
 }
 
+// What GET /api/dashboard/onboarding/drafts/active returns for an unfinished
+// draft. `siteId`/`previewToken` are absent only before the first save created
+// the site.
+interface ResumableDraft {
+  draftId: string
+  draftName: string
+  sourceType: DraftSourceType
+  vertical: SiteVertical
+  details: {
+    name: string
+    country: string | null
+    city: string | null
+    address: string | null
+    phone: string | null
+    openingHours: unknown
+    specialHours: unknown
+    timezone: string | null
+    currency: CurrencyCode | null
+  }
+  config: Record<string, string | null>
+  siteId: string | null
+  subdomainCandidate: string | null
+  previewToken: string | null
+}
+
 interface DraftSavedPayload {
   draftId: string
+  siteId: string
   previewToken: string
   draftName: string
   subdomainCandidate: string
@@ -326,13 +344,12 @@ type WizardMode = 'new-site' | 'add-location'
 
 const props = defineProps<{
   mode: WizardMode
-  siteId: string | null
   existingOrgSlug?: string | null
   existingSiteSlug?: string | null
 }>()
 
 const emit = defineEmits<{
-  'site-created': [orgSlug: string | null, locationSlug?: string | null]
+  'site-created': [created: { orgSlug: string | null; siteSlug: string | null; locationSlug: string | null }]
   'draft-saved': [draft: DraftSavedPayload]
   'preview-requested': []
   'draft-cleared': []
@@ -406,11 +423,15 @@ const detailsForm = reactive({
   addressLine2: '',
   region: '',
   postalCode: '',
-  country: '',
+  // United States is the product default (as USD is for currency); the owner
+  // confirms or changes it on the Location step.
+  country: 'US',
   phone: '',
-  currency: undefined as CurrencyCode | undefined,
+  // USD is the product default; the currency step shows it selected and the owner
+  // confirms or changes it before the draft can be created.
+  currency: 'USD' as CurrencyCode | undefined,
 })
-const hoursForm = reactive<HoursTimezoneForm>({ timezone: '', hours: null, specialHours: null })
+const hoursForm = reactive<LocationHoursForm>({ timezone: '', hours: null, specialHours: null })
 const brandDraftForm = reactive({
   brandColor: '',
   logoNote: '',
@@ -477,7 +498,7 @@ const detailsRequireBasics = computed(() => detailsSource.value === 'manual')
 watch(selectedVertical, vertical => emit('vertical-selected', vertical), { immediate: true })
 watch(step, value => emit('step-changed', value), { immediate: true })
 
-const importedSiteId = ref<string | null>(props.siteId ?? null)
+const importedSiteId = ref<string | null>(null)
 const importedOrgSlug = ref<string | null>(null)
 const importedSiteSlug = ref<string | null>(null)
 const importedLocationSlug = ref<string | null>(null)
@@ -495,19 +516,85 @@ onMounted(async () => {
     _dompurify = await loadDomPurify()
     _dompurifyLoaded = true
   }
-  // If the user already has a site (returning to onboarding workspace), skip to imported state
-  if (props.siteId && props.existingOrgSlug) {
-    step.value = 'imported'
-    messages.value.push({
-      id: crypto.randomUUID(),
-      from: 'bot',
-      text: "Welcome back. Your workspace is live — the preview is on the right.",
-  })
-    replies.value = [
-      { label: 'Open my dashboard', icon: 'i-lucide-arrow-right', primary: true, action: 'dashboard' },
-    ]
-  }
+  await resumeActiveDraft()
 })
+
+/**
+ * An owner who reloads mid-answer, or comes back tomorrow, has an active draft
+ * on the server holding every answer and a real pending site behind it. Without
+ * this they were shown the welcome screen and had to type all of it again.
+ *
+ * The resume point is the first *required* answer still missing. Past those,
+ * every remaining step is optional and quick, so the owner lands on hours and
+ * walks the short tail rather than being dropped at the end with no way to see
+ * what they skipped.
+ */
+async function resumeActiveDraft() {
+  if (props.mode !== 'new-site') return
+  let draft: ResumableDraft | null = null
+  try {
+    const res = await applicationFetch<{ success?: boolean; draft?: ResumableDraft | null }>(
+      '/api/dashboard/onboarding/drafts/active',
+      { validate: (value): value is { success?: boolean; draft?: ResumableDraft | null } => isRecord(value) },
+    )
+    draft = res.draft ?? null
+  } catch {
+    // A draft that cannot be read is not worth blocking the wizard for: the
+    // owner starts from the welcome screen, exactly as before.
+    return
+  }
+  if (!draft?.draftId) return
+  // The welcome CTA stays live while this request is in flight. An owner who
+  // starts answering before it lands has made a newer decision than the draft:
+  // restoring it now would mix their new transcript with old answers.
+  if (step.value !== 'welcome') return
+
+  const details = draft.details
+  onboardingDraftId.value = draft.draftId
+  selectedVertical.value = draft.vertical
+  emit('vertical-selected', draft.vertical)
+  detailsSource.value = draft.sourceType === 'google_places' ? 'imported' : 'manual'
+
+  detailsForm.name = details.name ?? ''
+  detailsForm.city = details.city ?? ''
+  detailsForm.streetAddress = details.address ?? ''
+  detailsForm.phone = details.phone ?? ''
+  if (details.currency) detailsForm.currency = details.currency
+  if (details.country) detailsForm.country = details.country
+
+  hoursForm.timezone = details.timezone ?? ''
+  hoursForm.hours = parseOpeningHours(details.openingHours)
+  hoursForm.specialHours = parseSpecialHours(details.specialHours)
+
+  const config = draft.config ?? {}
+  brandDraftForm.brandColor = config.brand_color ?? ''
+  brandDraftForm.logoNote = config.draft_logo_note ?? ''
+  brandDraftForm.heroPhotoNote = config.draft_hero_photo_note ?? ''
+  brandDraftForm.heroHeadline = config.draft_hero_headline ?? ''
+  brandDraftForm.heroDescription = config.draft_hero_description ?? ''
+
+  if (draft.siteId && draft.previewToken && draft.subdomainCandidate) {
+    draftPreviewPayload.value = {
+      draftId: draft.draftId,
+      siteId: draft.siteId,
+      previewToken: draft.previewToken,
+      draftName: draft.draftName,
+      subdomainCandidate: draft.subdomainCandidate,
+    }
+    emit('draft-saved', draftPreviewPayload.value)
+  }
+
+  pushBot(`Welcome back. Picking up ${draft.draftName} where you left off.`, { step: 'welcome' })
+  await advance(resumeStep(details))
+}
+
+function resumeStep(details: ResumableDraft['details']): WizardStep {
+  if (!details.name) return 'awaiting_manual_name'
+  if (!details.address || !details.city) return 'location'
+  if (!details.phone) return 'contact'
+  if (!details.currency) return 'currency'
+  return 'hours'
+}
 
 function renderMarkdown(text: string): string {
   if (!_dompurifyLoaded) {
@@ -541,25 +628,50 @@ function activeActionLabel(message: WizardMessage) {
     ?? 'Save'
 }
 
+// Selection is what the owner clicked on this card, not the wizard's current
+// state: `selectedVertical` and `detailsSource` have defaults, so deriving from
+// them marked an option as chosen before anyone chose.
 function isSelectedChoice(message: WizardMessage, choice: QuickReply) {
-  const messageStep = message.step
-  if (messageStep === 'vertical') {
-    return choice.action === `set_vertical_${selectedVertical.value}`
-  }
-  if (messageStep === 'source') {
-    return detailsSource.value === 'manual' ? choice.action === 'ask_manual' : choice.action === 'ask_url'
-  }
-  if (messageStep === 'confirm') return choice.action === 'confirm_yes' && detailsSource.value === 'imported'
-  return false
+  const chosen = message.choiceCard?.chosen
+  return chosen !== undefined && chosen === choice.action
 }
 
-function clearDraftPreview() {
+// Before a choice: the card's suggested option is solid, the rest outline.
+// After a choice: the chosen option is the only emphasized one; the rest drop to ghost.
+function choiceVariant(message: WizardMessage, choice: QuickReply) {
+  if (message.choiceCard?.chosen === undefined) return choice.ghost ? 'ghost' : choice.primary ? 'solid' : 'outline'
+  return isSelectedChoice(message, choice) ? 'soft' : 'ghost'
+}
+
+function choiceColor(message: WizardMessage, choice: QuickReply) {
+  if (message.choiceCard?.chosen === undefined) return choice.primary ? 'primary' : 'neutral'
+  return isSelectedChoice(message, choice) ? 'primary' : 'neutral'
+}
+
+// Rewinding past the business name abandons the draft on the server too: the
+// pending site it created holds an address derived from a name the owner has
+// just replaced, so it is deleted rather than carried into the new answer.
+async function clearDraftPreview() {
+  const hadDraft = Boolean(onboardingDraftId.value)
   onboardingDraftId.value = null
   draftPreviewPayload.value = null
   emit('draft-cleared')
+  if (!hadDraft) return
+  // Awaited: the next answer saves a new draft, and a late DELETE would take
+  // that one instead of the abandoned one.
+  try {
+    await applicationFetch<{ success?: boolean }>('/api/dashboard/onboarding/drafts/active', {
+      method: 'DELETE',
+      validate: (value): value is { success?: boolean } => isRecord(value),
+    })
+  } catch (error) {
+    importError.value = error instanceof Error
+      ? error.message
+      : 'Could not clear your previous draft. Reload and try again.'
+  }
 }
 
-function rewindToChoiceMessage(index: number) {
+async function rewindToChoiceMessage(index: number) {
   const message = messages.value[index]
   if (!message?.choiceCard || !isPastMessage(index)) return
   messages.value = messages.value.slice(0, index + 1)
@@ -567,7 +679,7 @@ function rewindToChoiceMessage(index: number) {
   awaitingInput.value = false
   importError.value = null
   if (message.step === 'vertical' || message.step === 'source' || message.step === 'confirm') {
-    clearDraftPreview()
+    await clearDraftPreview()
   }
 }
 
@@ -578,18 +690,14 @@ const workspaceEntryPath = computed(() => {
   return siteSlug ? `/dashboard/${slug}/sites/${siteSlug}` : `/dashboard/${slug}`
 })
 
-const freeSiteHost = computed(() => {
-  const raw = String(config.public.freeSiteDomain || '').trim()
-  if (!raw) return ''
-  try {
-    return new URL(/^https?:\/\//i.test(raw) ? raw : `https://${raw}`).host.replace(/\/$/, '')
-  } catch {
-    return raw.replace(/^https?:\/\//i, '').replace(/\/.*$/, '').replace(/\/$/, '')
-  }
-})
+const siteHostFor = (subdomain: string) => tenantSiteOrigin({
+  platformDomain: String(config.public.platformDomain),
+  freeSiteDomain: String(config.public.freeSiteDomain),
+  subdomain,
+}).replace(/^https?:\/\//, '')
 const draftReadyDomain = computed(() => {
   const candidate = draftPreviewPayload.value?.subdomainCandidate
-  return candidate && freeSiteHost.value ? `${candidate}.${freeSiteHost.value}` : ''
+  return candidate ? siteHostFor(candidate) : ''
 })
 const draftReadyThumbnailUrl = computed(() => brandDraftForm.heroPreviewUrl || brandDraftForm.logoPreviewUrl || '')
 const draftReadyBackground = computed(() => draftReadyThumbnailUrl.value || !brandDraftForm.brandColor
@@ -626,6 +734,18 @@ function requestPreview() {
   if (draftPreviewPayload.value) emit('preview-requested')
 }
 
+// The preview toggle belongs in the app header, beside the account avatar, and
+// only below lg — at lg and up the pane is already on screen beside the wizard.
+useDashboardTopNavAction(() => draftPreviewPayload.value
+  ? {
+      key: 'onboarding-preview',
+      icon: 'i-lucide-eye',
+      ariaLabel: 'Preview draft',
+      class: 'lg:hidden',
+      onSelect: requestPreview,
+    }
+  : null)
+
 // ─── State machine ────────────────────────────────────────────────────────────
 
 async function advance(target: WizardStep) {
@@ -640,7 +760,7 @@ async function advance(target: WizardStep) {
         choices: [
           { label: 'Restaurant, café or bar', icon: 'i-lucide-flame', primary: true, action: 'set_vertical_restaurant' },
           { label: 'Experience, class or activity', icon: 'i-lucide-graduation-cap', action: 'set_vertical_experience' },
-          { label: 'Legal or professional services', sub: 'Law firms, consultancies, and similar practices', icon: 'i-lucide-briefcase', action: 'set_vertical_service' },
+          { label: 'Legal or professional services', icon: 'i-lucide-briefcase', action: 'set_vertical_service' },
         ],
     },
     })
@@ -678,7 +798,7 @@ async function advance(target: WizardStep) {
   }
 
   if (target === 'contact') {
-    pushBot('Add the number guests should use first.', {
+    pushBot('What is your business contact number?', {
       detailsCard: {
         actionLabel: 'Save contact',
         requireLocationBasics: detailsRequireBasics.value,
@@ -698,6 +818,14 @@ async function advance(target: WizardStep) {
   }
 
   if (target === 'hours') {
+    // The owner named their country on the location step. When that country has
+    // exactly one IANA zone, that is their timezone; when it has several, the
+    // field stays empty and they search the list. Never overwrite a zone the
+    // owner or the Google import already set.
+    if (!hoursForm.timezone) {
+      const zone = singleTimezoneForCountry(detailsForm.country)
+      if (zone) hoursForm.timezone = zone
+    }
     pushBot('Add your weekly hours so bookings and visit details line up.', {
       hoursCard: {
         actionLabel: 'Save hours',
@@ -763,6 +891,10 @@ async function goBack() {
   }
   if (step.value === 'location') {
     if (pendingPreview.value) {
+      // showConfirm re-attaches the Yes/No card to the place-preview message,
+      // which must be the last one again — drop the location card after it.
+      const previewIndex = messages.value.findLastIndex(message => Boolean(message.placePreview))
+      if (previewIndex >= 0) messages.value = messages.value.slice(0, previewIndex + 1)
       showConfirm(pendingPreview.value, preConfirmStep.value)
     } else {
       await advance('awaiting_manual_name')
@@ -853,7 +985,7 @@ async function handleReply(reply: QuickReply) {
 
   if (reply.action === 'dashboard') {
     if (workspaceEntryPath.value) {
-      await markOnboardingComplete()
+      if (importedSiteId.value) trackOnboardingCompleted(importedSiteId.value)
       await router.push(workspaceEntryPath.value)
     }
     return
@@ -862,7 +994,7 @@ async function handleReply(reply: QuickReply) {
   if (reply.action === 'add_location') {
     const slug = importedOrgSlug.value ?? props.existingOrgSlug
     const siteSlugForLocation = importedSiteSlug.value ?? props.existingSiteSlug
-    await markOnboardingComplete()
+    if (importedSiteId.value) trackOnboardingCompleted(importedSiteId.value)
     await router.push(slug && siteSlugForLocation ? `/dashboard/${slug}/sites/${siteSlugForLocation}/locations/new` : '/dashboard')
     return
   }
@@ -882,7 +1014,11 @@ async function handleReply(reply: QuickReply) {
 
 async function selectChoice(choice: QuickReply, messageIndex?: number) {
   if (selectedChoiceAction.value || importing.value) return
-  if (typeof messageIndex === 'number') rewindToChoiceMessage(messageIndex)
+  if (typeof messageIndex === 'number') {
+    rewindToChoiceMessage(messageIndex)
+    const card = messages.value[messageIndex]?.choiceCard
+    if (card) card.chosen = choice.action
+  }
   selectedChoiceAction.value = choice.action ?? choice.label
   try {
     await handleReply(choice)
@@ -915,6 +1051,10 @@ async function submitDetailsCard(section: 'location' | 'contact' | 'currency') {
   }
   if (section === 'contact') {
     await submitContact()
+    return
+  }
+  if (!detailsForm.currency) {
+    importError.value = 'Choose a currency before continuing.'
     return
   }
   if (await saveActiveDraft()) await advance('hours')
@@ -1049,6 +1189,7 @@ async function saveActiveDraft(options: { silent?: boolean } = {}) {
     const res = await applicationFetch<{
       success: boolean
       draftId?: string
+      siteId?: string
       previewToken?: string
       draftName?: string
       subdomainCandidate?: string
@@ -1066,6 +1207,7 @@ async function saveActiveDraft(options: { silent?: boolean } = {}) {
       validate: (value): value is {
         success: boolean
         draftId?: string
+        siteId?: string
         previewToken?: string
         draftName?: string
         subdomainCandidate?: string
@@ -1073,18 +1215,20 @@ async function saveActiveDraft(options: { silent?: boolean } = {}) {
       } => isRecord(value)
         && typeof value.success === 'boolean'
         && (value.draftId === undefined || typeof value.draftId === 'string')
+        && (value.siteId === undefined || typeof value.siteId === 'string')
         && (value.previewToken === undefined || typeof value.previewToken === 'string')
         && (value.draftName === undefined || typeof value.draftName === 'string')
         && (value.subdomainCandidate === undefined || typeof value.subdomainCandidate === 'string'),
     })
 
-    if (!res.success || !res.draftId || !res.previewToken || !res.draftName || !res.subdomainCandidate) {
+    if (!res.success || !res.draftId || !res.siteId || !res.previewToken || !res.draftName || !res.subdomainCandidate) {
       throw new Error(res.error ?? 'Failed to save your preview draft. Please try again.')
     }
 
     onboardingDraftId.value = res.draftId
     draftPreviewPayload.value = {
       draftId: res.draftId,
+      siteId: res.siteId,
       previewToken: res.previewToken,
       draftName: res.draftName,
       subdomainCandidate: res.subdomainCandidate,
@@ -1156,7 +1300,7 @@ async function submitDetails() {
     }
 
     tools[0]!.done = true
-    importedSiteId.value = res.siteId ?? props.siteId ?? null
+    importedSiteId.value = res.siteId ?? null
     importedOrgSlug.value = res.orgSlug ?? null
     importedSiteSlug.value = res.siteSlug ?? props.existingSiteSlug ?? null
     await finishCreation(res.orgSlug, res.siteSlug ?? importedSiteSlug.value ?? props.existingSiteSlug ?? null, res.locationSlug)
@@ -1205,7 +1349,7 @@ async function commitDraft() {
       siteSlug?: string | null
       locationSlug?: string | null
       error?: string
-    }>(`/api/dashboard/onboarding/drafts/${onboardingDraftId.value}/commit`, {
+    }>(`/api/dashboard/onboarding/drafts/${onboardingDraftId.value}/activate`, {
       method: 'POST',
       validate: (value): value is {
         success: boolean
@@ -1227,7 +1371,7 @@ async function commitDraft() {
     }
 
     tools[0]!.done = true
-    importedSiteId.value = res.siteId ?? props.siteId ?? null
+    importedSiteId.value = res.siteId ?? null
     importedOrgSlug.value = res.orgSlug ?? null
     importedSiteSlug.value = res.siteSlug ?? props.existingSiteSlug ?? null
     await finishCreation(res.orgSlug, res.siteSlug ?? importedSiteSlug.value ?? props.existingSiteSlug ?? null, res.locationSlug)
@@ -1247,6 +1391,7 @@ async function commitDraft() {
 function serializeDetails() {
   return {
     name: detailsForm.name.trim(),
+    country: detailsForm.country.trim().toUpperCase() || null,
     city: detailsForm.city.trim() || null,
     address: composeAddress() || null,
     phone: detailsForm.phone.trim() || null,
@@ -1272,13 +1417,19 @@ function serializeBrandDraft() {
   }
 }
 
+// detailsForm.country holds an ISO code; the address carries the country's name.
+// A Google-imported street address is already the full formatted address, so a
+// line whose every segment it already contains is not appended a second time.
 function composeAddress() {
-  return [
-    detailsForm.streetAddress,
-    detailsForm.addressLine2,
-    [detailsForm.city, detailsForm.region, detailsForm.postalCode].filter(Boolean).join(', '),
-    detailsForm.country,
-  ]
+  const street = detailsForm.streetAddress.trim()
+  const alreadyInStreet = (segment: string) => street.toLowerCase().includes(segment.toLowerCase())
+  const localityParts = [detailsForm.city, detailsForm.region, detailsForm.postalCode].map(part => part.trim()).filter(Boolean)
+  // Per segment, not all-or-nothing: a Google-imported street line often
+  // already contains the city but not the postal code.
+  const locality = localityParts.filter(part => !alreadyInStreet(part)).join(', ')
+  const countryName = getPhoneCountry(detailsForm.country)?.name ?? ''
+  const country = countryName && !alreadyInStreet(countryName) ? countryName : ''
+  return [street, detailsForm.addressLine2, locality, country]
     .map(part => part.trim())
     .filter(Boolean)
     .join('\n')
@@ -1297,7 +1448,7 @@ function seedDetailsFromPreview(preview: NonNullable<typeof pendingPreview.value
   // on its own; otherwise leave the field empty so the owner picks the country and
   // enters the number, rather than staring at a value the form has to throw away.
   detailsForm.phone = parsePhone(preview.phone ?? '').e164 ?? ''
-  detailsForm.currency = undefined
+  detailsForm.currency = 'USD'
   seedHoursFromPreview(preview.openingHours)
   hoursForm.timezone = preview.timezone ?? ''
 }
@@ -1309,9 +1460,9 @@ function seedDetailsFromManual(name: string) {
   detailsForm.addressLine2 = ''
   detailsForm.region = ''
   detailsForm.postalCode = ''
-  detailsForm.country = ''
+  detailsForm.country = 'US'
   detailsForm.phone = ''
-  detailsForm.currency = undefined
+  detailsForm.currency = 'USD'
   seedHoursFromPreview(null)
 }
 
@@ -1322,7 +1473,7 @@ function seedHoursFromPreview(openingHours: OpeningHours | undefined) {
 }
 
 async function finishCreation(orgSlug: string | null | undefined, siteSlug: string | null | undefined, locationSlug?: string | null) {
-  emit('site-created', orgSlug ?? null, locationSlug ?? null)
+  emit('site-created', { orgSlug: orgSlug ?? null, siteSlug: siteSlug ?? null, locationSlug: locationSlug ?? null })
   importedLocationSlug.value = locationSlug ?? null
 
   if (importedSiteId.value && !isAddingLocation.value) {
@@ -1330,7 +1481,8 @@ async function finishCreation(orgSlug: string | null | undefined, siteSlug: stri
   }
 
   const domainSlug = siteSlug ?? orgSlug
-  const domain = domainSlug && freeSiteHost.value ? `**${domainSlug}.${freeSiteHost.value}**` : 'your new workspace'
+  const domainHost = domainSlug ? siteHostFor(domainSlug) : ''
+  const domain = domainHost ? `**${domainHost}**` : 'your new workspace'
   pushBot(`Done. Your workspace is live at ${domain}.`)
   pushBot(
     "From here, head to your dashboard to keep building — chat with ChowBot, use the structured editor, or pick it back up in ChatGPT. Connect Facebook whenever you're ready and posts you publish there will sync to your site too.",
@@ -1357,16 +1509,6 @@ function retryFailedStep() {
   else if (failedStep === 'hero') void submitDetails()
 }
 
-async function markOnboardingComplete() {
-  const siteId = importedSiteId.value ?? props.siteId ?? null
-  if (!siteId) return
-  await applicationFetch<{ success: true }>('/api/dashboard/onboarding/complete', {
-    method: 'POST',
-    body: { siteId },
-    validate: (value): value is { success: true } => isRecord(value) && value.success === true,
-  })
-  trackOnboardingCompleted(siteId)
-}
 
 </script>
 

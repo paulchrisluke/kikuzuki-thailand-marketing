@@ -23,7 +23,6 @@
     >
       <OnboardingWizard
         mode="add-location"
-        :site-id="null"
         :existing-org-slug="orgSlug"
         :existing-site-slug="siteSlug"
         @site-created="onLocationCreated"
@@ -100,11 +99,15 @@ const siteDomain = computed(() =>
   siteData.value?.subdomain ? `${siteData.value.subdomain}.${platformHostname.value}` : ''
 )
 
-const sitePreviewBaseUrl = computed(() => {
-  if (!siteData.value?.id) return ''
-  const platformBase = ((config.public.platformDomain || config.public.freeSiteDomain) as string).replace(/\/$/, '')
-  return `${platformBase}/preview/site/${siteData.value.id}`
-})
+// The preview is the live site on its own host, so this pane shows exactly
+// what a visitor sees.
+const sitePreviewBaseUrl = computed(() => siteData.value?.subdomain
+  ? tenantSiteOrigin({
+      platformDomain: String(config.public.platformDomain),
+      freeSiteDomain: String(config.public.freeSiteDomain),
+      subdomain: siteData.value.subdomain,
+    })
+  : '')
 
 const selectedLocation = computed(() =>
   siteLocations.value.find(l => l.id === selectedLocationId.value) ?? null
@@ -159,7 +162,7 @@ const loadContext = async () => {
 }
 
 // Called by OnboardingWizard after the location is created — reload locations and preview the new one
-const onLocationCreated = async (_orgSlug: string | null, locationSlug: string | null | undefined) => {
+const onLocationCreated = async ({ locationSlug }: { locationSlug: string | null }) => {
   contextError.value = null
   try {
     await dashboard.refresh()

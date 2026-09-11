@@ -81,7 +81,7 @@
 
           <div v-else-if="editorKey === 'hours'" class="space-y-6">
             <p class="text-base text-muted">Set the regular hours shown to guests. A Google Places sync replaces these hours with Google's current record.</p>
-            <HoursTimezoneCard v-model:form="hoursForm" />
+            <LocationHoursCard v-model:form="hoursForm" exceptions />
           </div>
 
           <div v-else-if="editorKey === 'content'" class="space-y-6">
@@ -119,7 +119,10 @@
               <UInput v-model="detailsForm.notification_phone" type="tel" placeholder="+66..." size="xl" class="w-full" />
             </UFormField>
             <UFormField label="Timezone">
-              <USelectMenu v-model="detailsForm.timezone" :items="timezoneOptions" placeholder="Select timezone" size="xl" class="w-full" />
+              <USelectMenu v-model="detailsForm.timezone" :items="timezoneOptions" placeholder="Select timezone" size="xl" class="w-full">
+                <template #default="{ modelValue }">{{ modelValue ? timezoneLabel(modelValue as string) : 'Select timezone' }}</template>
+                <template #item-label="{ item }">{{ timezoneLabel(item as string) }}</template>
+              </USelectMenu>
             </UFormField>
           </div>
 
@@ -140,14 +143,14 @@
   </UDashboardPanel>
 </template>
 <script setup lang="ts">
-import HoursTimezoneCard, { type HoursTimezoneForm } from '~/lib/components/workspace/onboarding/HoursTimezoneCard.vue'
+import LocationHoursCard, { type LocationHoursForm } from '~/lib/components/workspace/location/LocationHoursCard.vue'
 import { parseOpeningHours, parseSpecialHours, type OpeningHours, type SpecialHours } from '~/shared/reservation-hours'
 import DashboardResourceLocalization from '~/components/dashboard/DashboardResourceLocalization.vue'
 
 import EditorPaneShell from '~/components/dashboard/EditorPaneShell.vue'
 import EditorNavigationList from '~/components/dashboard/EditorNavigationList.vue'
 const dashboardApi = useDashboardApi()
-import { TIMEZONE_OPTIONS } from '~/utils/timezone'
+import { TIMEZONE_OPTIONS, timezoneLabel } from '~/utils/timezone'
 import { getErrorMessage } from '~/utils/errors'
 import { defaultModuleFeaturesForVertical, resolveCmsCapabilities, toggleableModulesForScope, type ProductFeature } from '~/config/cms-registry'
 import { resolvePublicTemplate } from '~/utils/template-registry'
@@ -358,7 +361,7 @@ function localizedLocationPath(locale: string): string {
 
 const timezoneOptions = TIMEZONE_OPTIONS
 
-const hoursForm = ref<HoursTimezoneForm>({ timezone: '', hours: null, specialHours: null })
+const hoursForm = ref<LocationHoursForm>({ timezone: '', hours: null, specialHours: null })
 
 function fillDetailsForm(loc: BusinessLocation) {
   detailsForm.title = loc.title
