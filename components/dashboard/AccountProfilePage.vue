@@ -172,7 +172,6 @@
 // -nocheck
 import EditorPaneShell from '~/components/dashboard/EditorPaneShell.vue'
 import { authClient } from '~/lib/auth-client'
-import { useAuth } from '~/composables/useAuth'
 import { dashboardOrganizationParentKey } from '~/lib/components/workspace/dashboard/dashboardScopeHeaderContext'
 
 
@@ -183,19 +182,11 @@ const route = useRoute()
 // injects, which Vue binds only while setup is still synchronous.
 const profilePath = computed(() => '/dashboard/account/profile')
 const frame = useEditorFrame(profilePath)
-// The session is read through useAuthSession, which resolves it on the server
-// too and hydrates the client store from that payload. useAuth's own session
-// state is Better Auth's client store alone, so every field on this page
-// rendered empty on the server and filled in on the client — "Not set" against
-// "Local Developer", an empty email, a name input whose value attribute
-// disagreed with itself. refreshSession still comes from useAuth: it refetches
-// the store every surface reads, which a bare authClient.getSession() does not.
-const { sessionData } = await useAuthSession()
-const { refreshSession } = useAuth()
+const { sessionData, refresh: refreshSession } = await useAuthSession()
 
 const organizationParent = inject(dashboardOrganizationParentKey, null)
 const billingTo = computed(() => organizationParent?.value ? `${organizationParent.value.to}/settings/billing` : null)
-const { signOut } = useAuth()
+const { signOut } = authClient
 
 // listAccounts() doesn't expose a per-account email (only providerId/accountId/
 // scopes) — there's no Google-specific email to show, so "connected" renders a
@@ -306,7 +297,7 @@ async function saveNameAndClose() {
   if (await saveName()) await navigateTo(profilePath.value)
 }
 
-// useAuth()'s session resolves asynchronously, so nameInput starts as '' before
+// The session resolves asynchronously, so nameInput starts as '' before
 // the real name arrives. Gating the sync on nameDirty breaks the moment that
 // happens: dirty is computed against sessionData too, so populating the name
 // alone (no user input at all) flips '' !== 'RealName' to dirty and the sync

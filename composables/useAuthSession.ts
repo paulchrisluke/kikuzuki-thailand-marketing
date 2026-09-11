@@ -2,6 +2,9 @@ import { authClient } from '~/lib/auth-client'
 
 type Session = typeof authClient.$Infer.Session
 
+/** The payload key the session is fetched under, so it can be refetched by name. */
+const AUTH_SESSION_KEY = 'auth-session'
+
 /**
  * The session, on the server and the client, through Better Auth's own Nuxt
  * support: its Vue client's `useSession` takes Nuxt's `useFetch` and does the
@@ -35,7 +38,7 @@ export async function useAuthSession() {
       // options*: the cookie header is only present on the server, so the
       // generated keys differed and the client missed the SSR payload and
       // hydrated against an empty session.
-      key: 'auth-session',
+      key: AUTH_SESSION_KEY,
       headers: import.meta.server ? useRequestHeaders(['cookie']) : undefined,
     })) as never
 
@@ -52,5 +55,11 @@ export async function useAuthSession() {
     isAuthenticated: computed(() => Boolean(user.value)),
     sessionLoading: computed(() => isPending),
     sessionError: computed(() => error.value ?? null),
+    /**
+     * Re-read the session after an operation that changed it — signing in,
+     * switching organization, starting or stopping impersonation. Nuxt refetches
+     * the keyed payload; nothing here watches or polls for the change.
+     */
+    refresh: () => refreshNuxtData(AUTH_SESSION_KEY),
   }
 }

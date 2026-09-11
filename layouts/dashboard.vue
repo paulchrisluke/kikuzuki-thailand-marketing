@@ -110,7 +110,6 @@ import DashboardMenuSlideover from '~/lib/components/workspace/dashboard/Dashboa
 import type { DashboardScopeHeaderModel } from '~/lib/components/workspace/dashboard/DashboardScopeHeader.vue'
 import { dashboardOrganizationParentKey, dashboardScopeHeaderModelKey } from '~/lib/components/workspace/dashboard/dashboardScopeHeaderContext'
 import { authClient } from '~/lib/auth-client'
-import { useAuth } from '~/composables/useAuth'
 import { useAnalytics } from '~/composables/useAnalytics'
 import { parseCmsFeatureOverrideDelta, resolveCmsCapabilities } from '~/config/cms-registry'
 import { resolvePublicTemplate } from '~/utils/template-registry'
@@ -148,7 +147,7 @@ interface AuthOrganization {
 
 const route = useRoute()
 const router = useRouter()
-const { data: sessionData, waitForSession } = useAuth()
+const { sessionData, refresh: refreshSession } = await useAuthSession()
 const { trackDashboardVisited, setUserId } = useAnalytics()
 const toast = useToast()
 const stoppingImpersonation = ref(false)
@@ -549,7 +548,7 @@ async function stopImpersonating() {
   try {
     const result = await authClient.admin.stopImpersonating()
     if (result.error) throw new Error(result.error.message)
-    await waitForSession(result.data.session.id)
+    await refreshSession()
     await navigateTo('/dashboard')
   } catch (error) {
     console.error('Failed to stop impersonation:', error)
