@@ -4,7 +4,7 @@ import { loginAs } from './helpers/auth'
 import { acquireTenantMutationLock } from './helpers/tenant-mutation-lock'
 import { kikuzukiTestBaseUrl, kikuzukiTestExtraHeaders, testBaseUrl } from './test-env'
 
-type Metrics = { lcp: number; cls: number; fontBytes: number; fontRequests: number }
+type Metrics = { lcp: number; cls: number; fontBytes: number; fontRequests: number; lcpElement: string }
 
 async function expectStatus(response: APIResponse, status: number) {
   expect(response.status(), await response.text()).toBe(status)
@@ -41,10 +41,19 @@ async function coldMobileSample(browser: Browser, url: string, preset: 'default'
     })
     await session.send('Emulation.setCPUThrottlingRate', { rate: 4 })
     await page.addInitScript(() => {
-      const metrics = { lcp: 0, cls: 0 }
+      // Record what the LCP element actually is, not just when it paints. A number
+      // alone cannot tell you whether a font is on the LCP path or merely competing
+      // with it for bandwidth, which is the difference between preloading the font
+      // and preloading the image.
+      const metrics = { lcp: 0, cls: 0, lcpElement: '' }
       ;(window as Window & { fontMetrics?: typeof metrics }).fontMetrics = metrics
       new PerformanceObserver(list => {
-        for (const entry of list.getEntries()) metrics.lcp = entry.startTime
+        for (const entry of list.getEntries()) {
+          metrics.lcp = entry.startTime
+          const element = (entry as LargestContentfulPaint).element
+          const url = (entry as LargestContentfulPaint).url
+          metrics.lcpElement = element ? `${element.tagName}${url ? ` ${new URL(url, location.href).pathname}` : ''}` : 'unknown'
+        }
       }).observe({ type: 'largest-contentful-paint', buffered: true })
       let sessionValue = 0
       let sessionStart = 0
@@ -69,7 +78,7 @@ async function coldMobileSample(browser: Browser, url: string, preset: 'default'
     // Observe post-font layout without clicking consent, scrolling, or ending LCP.
     await page.waitForTimeout(1500)
     const metrics = await page.evaluate(() => {
-      const value = (window as Window & { fontMetrics?: { lcp: number; cls: number } }).fontMetrics
+      const value = (window as Window & { fontMetrics?: { lcp: number; cls: number; lcpElement: string } }).fontMetrics
       if (!value) throw new Error('Font performance observers were not installed')
       const fonts = performance.getEntriesByType('resource')
         .filter(entry => /\.woff2(?:\?|$)/.test(entry.name)) as PerformanceResourceTiming[]
@@ -129,12 +138,14 @@ test('Mali saves through Brand, renders before hydration, and stays within the c
     await patch({ font_preset: 'default', brand_color: '' })
     const cms = await dashboard.newPage()
     const brandPath = `${baseURL}/dashboard/org-bVY8SxxUuG6Ctk2CQnfCk8T2cPsj4jJX/sites/kikuzuki-krabi-thailand/brand/font`
-    // The dashboard is not a tenant surface and carries no Zaraz consent gate.
-    await cms.goto(brandPath, { waitUntil: 'load', timeout: 60_000 })
-    // 'load' fires before Nuxt hydrates, and an unhydrated Select trigger swallows
-    // the click silently: measured 0 options opened without this wait, 2 with it,
-    // three runs each. The config sets no actionTimeout, so that swallowed click
-    // used to hang the whole test rather than fail.
+    // The deployed dashboard DOES serve the Zaraz consent modal, whose
+    // .cf_modal_container overlay intercepts pointer events until it is dismissed.
+    // openTenantPage accepts it; plain goto left every click on this page blocked
+    // in CI while passing locally, where Zaraz is absent.
+    await openTenantPage(cms, brandPath, {})
+    // 'load' and consent both resolve before Nuxt hydrates, and an unhydrated
+    // Select trigger swallows the click silently: measured 0 options opened
+    // without this wait, 2 with it, three runs each.
     await cms.waitForLoadState('networkidle')
     phase('cms loaded')
     // The config sets no actionTimeout or navigationTimeout, so an unbounded click
@@ -232,10 +243,16 @@ test('Mali saves through Brand, renders before hydration, and stays within the c
     }
     console.info('[font-performance]', JSON.stringify(report))
     await testInfo.attach('cold-mobile-fonts.json', { body: JSON.stringify(report, null, 2), contentType: 'application/json' })
-    for (const route of Object.values(report.routes)) {
-      expect(route.medianMaliLcp - route.medianDefaultLcp).toBeLessThanOrEqual(Math.max(250, route.medianDefaultLcp * 0.1))
-      expect(route.medianMaliCls).toBeLessThanOrEqual(0.1)
-      expect(route.medianMaliCls - route.medianDefaultCls).toBeLessThanOrEqual(0.02)
+    // Every assertion names the route, both medians and what painted the LCP, so a
+    // CI failure is diagnosable from the log alone.
+    for (const [name, route] of Object.entries(report.routes)) {
+      const lcpElements = [...new Set(measurements[name as keyof typeof performanceRoutes].mali.map(sample => sample.lcpElement))].join(', ')
+      const context = `${name}: default ${route.medianDefaultLcp}ms / mali ${route.medianMaliLcp}ms, LCP painted by ${lcpElements}`
+      expect(route.medianMaliLcp - route.medianDefaultLcp, `LCP regression on ${context}`)
+        .toBeLessThanOrEqual(Math.max(250, route.medianDefaultLcp * 0.1))
+      expect(route.medianMaliCls, `CLS budget on ${name}: mali ${route.medianMaliCls}`).toBeLessThanOrEqual(0.1)
+      expect(route.medianMaliCls - route.medianDefaultCls, `CLS regression on ${name}: default ${route.medianDefaultCls} / mali ${route.medianMaliCls}`)
+        .toBeLessThanOrEqual(0.02)
     }
 
     await patch({ font_preset: 'default' })
