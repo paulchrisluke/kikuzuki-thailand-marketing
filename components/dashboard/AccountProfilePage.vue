@@ -183,9 +183,15 @@ const route = useRoute()
 // injects, which Vue binds only while setup is still synchronous.
 const profilePath = computed(() => '/dashboard/account/profile')
 const frame = useEditorFrame(profilePath)
-// refreshSession comes from the composable: it refetches the session store
-// every surface reads, which a bare authClient.getSession() does not.
-const { data: sessionData, refreshSession } = useAuth()
+// The session is read through useAuthSession, which resolves it on the server
+// too and hydrates the client store from that payload. useAuth's own session
+// state is Better Auth's client store alone, so every field on this page
+// rendered empty on the server and filled in on the client — "Not set" against
+// "Local Developer", an empty email, a name input whose value attribute
+// disagreed with itself. refreshSession still comes from useAuth: it refetches
+// the store every surface reads, which a bare authClient.getSession() does not.
+const { sessionData } = await useAuthSession()
+const { refreshSession } = useAuth()
 
 const organizationParent = inject(dashboardOrganizationParentKey, null)
 const billingTo = computed(() => organizationParent?.value ? `${organizationParent.value.to}/settings/billing` : null)
