@@ -86,8 +86,13 @@ function median(values: number[]) {
   return [...values].sort((a, b) => a - b)[Math.floor(values.length / 2)]!
 }
 
+// Eighteen cold samples (3 runs x 2 presets x 3 routes) at 200 KB/s with a 4x CPU
+// throttle. The Kikuzuki preview home is 823 KB over 128 requests, so a sample
+// costs 15-25s and the full matrix plus the CMS save and delivery checks needs
+// 9-12 minutes. The previous 600_000 cap sat inside that range and the test timed
+// out rather than reporting a budget result.
 test('Mali saves through Brand, renders before hydration, and stays within the cold-mobile regression budget', async ({ browser, playwright }, testInfo) => {
-  test.setTimeout(600_000)
+  test.setTimeout(1_200_000)
   const siteId = 'site-kikuzuki'
   const baseURL = testBaseUrl()
   const owner = await playwright.request.newContext({ baseURL })
