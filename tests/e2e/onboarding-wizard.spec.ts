@@ -72,8 +72,9 @@ test('a new owner builds a draft and creates a site through the wizard', async (
   await expect(currencyCard).toContainText('US Dollar (USD)')
   await page.getByRole('button', { name: 'Use this currency' }).click()
 
-  // Hours: the timezone follows the single-zone country the owner named.
-  await expect(page.locator('.onboarding-step-widget').last()).toContainText('Asia/Bangkok')
+  // Hours: the timezone follows the single-zone country the owner named. Zones
+  // read as the city and its current offset, not the IANA identifier.
+  await expect(page.locator('.onboarding-step-widget').last()).toContainText('Bangkok · GMT+7')
   await page.getByRole('button', { name: 'Continue without hours' }).click()
   await page.getByRole('button', { name: 'Save brand' }).click()
   await page.getByRole('button', { name: 'Save hero' }).click()
