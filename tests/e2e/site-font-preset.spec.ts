@@ -2,6 +2,7 @@ import { expect, test, type APIResponse, type Browser } from '@playwright/test'
 import { openTenantPage, potteryHouseBaseURL, potteryHouseExtraHeaders } from './helpers'
 import { loginAs } from './helpers/auth'
 import { acquireTenantMutationLock } from './helpers/tenant-mutation-lock'
+import { MALI_PRELOAD_FILES } from '../../shared/site-fonts'
 import { kikuzukiTestBaseUrl, kikuzukiTestExtraHeaders, testBaseUrl } from './test-env'
 
 type Metrics = { lcp: number; cls: number; fontBytes: number; fontRequests: number; lcpElement: string }
@@ -215,6 +216,15 @@ test('Mali saves through Brand, renders before hydration, and stays within the c
         expect(html).toContain('data-font-preset="mali"')
         expect(html).toContain('--font-saya:')
         expect(html).toContain('@font-face{font-family:"Mali"')
+        // `optional` is what keeps the swap from reflowing the page, and the
+        // preloads are what keep `optional` from dropping Mali entirely. Both
+        // are load-bearing, so both are asserted in the served HTML rather than
+        // only inferred from the five-minute cold-mobile matrix below.
+        expect(html).toContain('font-display:optional;src:url("/assets/fonts/mali-')
+        for (const preloaded of MALI_PRELOAD_FILES) {
+          expect(html, `${path} preloads ${preloaded}`)
+            .toMatch(new RegExp(`<link[^>]*rel="preload"[^>]*href="${preloaded}"`))
+        }
         await expect(page.locator('.tenant-layout')).toHaveAttribute('data-hydrated', 'true')
         await expect(page.locator('.tenant-layout')).toHaveCSS('font-family', /Mali/)
         await page.evaluate(() => document.fonts.ready.then(() => undefined))
@@ -270,21 +280,25 @@ test('Mali saves through Brand, renders before hydration, and stays within the c
     }
     console.info('[font-performance]', JSON.stringify(report))
     await testInfo.attach('cold-mobile-fonts.json', { body: JSON.stringify(report, null, 2), contentType: 'application/json' })
-    // CLS is the font's own risk: Mali's metrics differ from the generic fallback,
-    // so text reflows when it swaps in. It is attributable to the font, stable
-    // across runs, and it earned its place -- it caught a 0.0616 shift on the Thai
-    // home page that a chained fallback stack was causing.
+    // What choosing Mali costs the tenant's visitors, and nothing else. The faces
+    // are declared `font-display: optional`, so a face that misses its block
+    // period is never applied and no text reflows: measured 0 CLS on three cold
+    // samples of the Thai home page, against 0.023-0.045 with `swap` and the same
+    // preloads, and 0.1239 with `swap` and no preloads.
     //
-    // LCP is deliberately not asserted. This tenant puts hero media above the fold,
-    // and which of the H1 or the video poster wins LCP flips between runs on the
-    // same route, so the number measures whichever element happened to paint last,
-    // not the font. The medians and the LCP element are still logged and attached
-    // below as evidence; nothing reads them as a pass or fail.
+    // The absolute CLS of these pages is not asserted here. It is a property of
+    // the tenant's own hero media -- the default preset alone measured 0.0042 and
+    // 0.0749 on the same route across two runs -- so a budget on it fails for
+    // reasons that have nothing to do with the font under test.
+    //
+    // LCP is deliberately not asserted either. This tenant puts hero media above
+    // the fold, and which of the H1 or the video poster wins LCP flips between
+    // runs on the same route, so the number measures whichever element happened
+    // to paint last. The medians and the LCP element are logged and attached
+    // above as evidence; nothing reads them as a pass or fail.
     for (const [name, route] of Object.entries(report.routes)) {
       const lcpElements = [...new Set(measurements[name as keyof typeof performanceRoutes].mali.map(sample => sample.lcpElement))].join(', ')
-      expect(route.medianMaliCls, `CLS budget on ${name}: mali ${route.medianMaliCls}, LCP painted by ${lcpElements}`)
-        .toBeLessThanOrEqual(0.1)
-      expect(route.medianMaliCls - route.medianDefaultCls, `CLS regression on ${name}: default ${route.medianDefaultCls} / mali ${route.medianMaliCls}`)
+      expect(route.medianMaliCls - route.medianDefaultCls, `CLS regression on ${name}: default ${route.medianDefaultCls} / mali ${route.medianMaliCls}, LCP painted by ${lcpElements}`)
         .toBeLessThanOrEqual(0.02)
     }
 

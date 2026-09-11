@@ -19,9 +19,9 @@ export function resolveSiteFontPreset(value: unknown): SiteFontPreset {
 }
 
 export const MALI_ASSET_BASE = '/assets/fonts/mali-aead5de0'
-// One webfont, then the generic category. A chain of named system faces is a
-// fallback chain: each named face has different metrics, so which one paints
-// during the swap period changes how far the text reflows when Mali arrives.
+// One webfont, then the generic category. Which face backs the generic differs
+// per platform, and so does its metrics, so the stack cannot be tuned to make a
+// swap cheap -- see MALI_FONT_CSS, which removes the swap instead.
 export const MALI_FONT_FAMILY = '"Mali", sans-serif'
 
 // Same manifest drives build-time asset copying and the SSR font declarations.
@@ -44,10 +44,23 @@ export const MALI_FONT_FILES = MALI_FACES.flatMap(face => Object.entries(MALI_SU
   filename: `mali-${subset}-${face.weight}-${face.style}.woff2`,
 })))
 
-// Injected only on a Mali-selected Saya surface. Not a global stylesheet or a
-// second render-blocking CSS request; the browser selects used faces/subsets.
-export const MALI_FONT_CSS = MALI_FONT_FILES.map(face => `@font-face{font-family:"Mali";font-style:${face.style};font-weight:${face.weight};font-display:swap;src:url("${MALI_ASSET_BASE}/${face.filename}") format("woff2");unicode-range:${face.unicodeRange};}`).join('\n')
-  + '\n.saya-theme[data-font-preset="mali"] :is(.saya-display,.saya-display-lg,.saya-display-md,.saya-display-sm,[data-saya-critical-title]){letter-spacing:normal;line-height:1.3;}'
+// `optional`, not `swap`. Mali's line box is 1.30em (ascent 105%, descent 25%
+// measured from the shipped files); a generic sans-serif's is about 1.15em on
+// macOS and taller again on the Linux fallbacks, so a swap reflows every line of
+// text by a different amount on every platform. Measured on the Thai home page:
+// 0.0616 CLS with `Tahoma` in the stack, 0.1239 without it, 0.0052-0.0349 on
+// macOS -- the number tracks the platform's fallback, not anything we control.
+// `optional` gives the face a block period and then declines to swap, so no
+// platform reflows. The preload below is what gets Mali inside that period.
+export const MALI_FONT_CSS = MALI_FONT_FILES.map(face => `@font-face{font-family:"Mali";font-style:${face.style};font-weight:${face.weight};font-display:optional;src:url("${MALI_ASSET_BASE}/${face.filename}") format("woff2");unicode-range:${face.unicodeRange};}`).join('\n')
+
+// `optional` renders the fallback for the whole page view when the face misses
+// its block period, so the faces that carry the page have to be discoverable in
+// the document head rather than at first layout. Body copy is 400; 500, 600 and
+// italic are a handful of nodes that the browser fetches on demand.
+export const MALI_PRELOAD_FILES = MALI_FONT_FILES
+  .filter(face => face.weight === 400 && face.style === 'normal')
+  .map(face => `${MALI_ASSET_BASE}/${face.filename}`)
 
 export function siteFontStyles(preset: SiteFontPreset): Record<string, string> {
   if (preset === 'default') return {}
