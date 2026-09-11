@@ -255,6 +255,12 @@ export function createAuth(env: CloudflareEnv) {
         '/sign-in/*': (request, currentRule) => shouldBypassE2eAuthRateLimit(env, request)
           ? false
           : currentRule,
+        // oauthProvider() ships its own tight per-endpoint defaults (e.g. 20
+        // token exchanges per 60s) that the E2E OAuth/CIMD suite legitimately
+        // exceeds running many authorize/token round-trips in one CI job.
+        '/oauth2/*': (request, currentRule) => shouldBypassE2eAuthRateLimit(env, request)
+          ? false
+          : currentRule,
       },
     },
     database: drizzleAdapter(db, {
