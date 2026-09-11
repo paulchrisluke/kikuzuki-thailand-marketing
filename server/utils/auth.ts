@@ -64,35 +64,13 @@ const organizationOptions = {
   },
 } as const
 
-async function normalizeCimdClientAuthentication(event: {
+async function configureCimdTenantScopes(event: {
   client: SchemaClient<Scope[]>
   clientMetadataDocument: Record<string, unknown>
   context: GenericEndpointContext
 }) {
-  const { client, clientMetadataDocument: metadata, context: ctx } = event
-  const advertisedMethods = metadata.token_endpoint_auth_methods_supported
-  const jwksUri = metadata.jwks_uri
-  const supportsPrivateKeyJwt = Array.isArray(advertisedMethods)
-    && advertisedMethods.includes('private_key_jwt')
-    && typeof jwksUri === 'string'
-    && jwksUri.length > 0
-
+  const { client, context: ctx } = event
   const update: Record<string, unknown> = { scopes: [...CIMD_TENANT_SCOPES] }
-  if (supportsPrivateKeyJwt) {
-    // @better-auth/cimd@1.7.4's convertDocToClient only reads the
-    // singular doc.token_endpoint_auth_method (node_modules/@better-auth/cimd/
-    // dist/index.mjs lines ~114-123, ~243) — it never checks the plural
-    // capability field, token_endpoint_auth_methods_supported, that
-    // ChatGPT-shaped CIMD documents advertise private_key_jwt through.
-    // Confirmed against the installed package source; remove this once a
-    // newer @better-auth/cimd release maps that field itself. Covered by
-    // tests/e2e/oauth-discovery.spec.ts's "ChatGPT-shaped CIMD uses
-    // private_key_jwt" test — removing this hook without an upstream fix
-    // breaks that flow.
-    update.tokenEndpointAuthMethod = 'private_key_jwt'
-    update.public = false
-    update.jwksUri = jwksUri
-  }
 
   Object.assign(client, update)
   await ctx.context.adapter.update({
@@ -470,8 +448,8 @@ export function createAuth(env: CloudflareEnv) {
         // Required: @better-auth/cimd hands the network boundary to the
         // application. See server/utils/cimd-metadata-fetch.ts.
         fetchClientMetadataResource: fetchCimdMetadataResource,
-        onClientCreated: normalizeCimdClientAuthentication,
-        onClientRefreshed: normalizeCimdClientAuthentication,
+        onClientCreated: configureCimdTenantScopes,
+        onClientRefreshed: configureCimdTenantScopes,
       }),
       organization(configuredOrganizationOptions),
       betterAuthStripe({
