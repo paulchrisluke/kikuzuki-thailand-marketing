@@ -131,6 +131,11 @@ test('Mali saves through Brand, renders before hydration, and stays within the c
     const brandPath = `${baseURL}/dashboard/org-bVY8SxxUuG6Ctk2CQnfCk8T2cPsj4jJX/sites/kikuzuki-krabi-thailand/brand/font`
     // The dashboard is not a tenant surface and carries no Zaraz consent gate.
     await cms.goto(brandPath, { waitUntil: 'load', timeout: 60_000 })
+    // 'load' fires before Nuxt hydrates, and an unhydrated Select trigger swallows
+    // the click silently: measured 0 options opened without this wait, 2 with it,
+    // three runs each. The config sets no actionTimeout, so that swallowed click
+    // used to hang the whole test rather than fail.
+    await cms.waitForLoadState('networkidle')
     phase('cms loaded')
     // The config sets no actionTimeout or navigationTimeout, so an unbounded click
     // on a control the page never rendered burns the whole test cap and reports
