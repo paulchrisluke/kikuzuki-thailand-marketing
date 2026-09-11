@@ -34,12 +34,15 @@ export function useDashboardTopNavActions() {
 export function useDashboardTopNavAction(action: MaybeRefOrGetter<DashboardTopNavAction | null>) {
   if (import.meta.server) return
 
-  let registeredKey: string | null = null
+  // Identity, not key: during a route change the arriving page can register
+  // the same key before the leaving page disposes, and releasing by key would
+  // delete the new page's action.
+  let registeredAction: DashboardTopNavAction | null = null
 
   const release = () => {
-    if (!registeredKey) return
-    registered.value = registered.value.filter(entry => entry.key !== registeredKey)
-    registeredKey = null
+    if (!registeredAction) return
+    registered.value = registered.value.filter(entry => entry !== registeredAction)
+    registeredAction = null
   }
 
   watch(() => toValue(action), (next) => {
@@ -47,8 +50,8 @@ export function useDashboardTopNavAction(action: MaybeRefOrGetter<DashboardTopNa
       release()
       return
     }
-    if (registeredKey && registeredKey !== next.key) release()
-    registeredKey = next.key
+    if (registeredAction && registeredAction.key !== next.key) release()
+    registeredAction = next
     registered.value = [...registered.value.filter(entry => entry.key !== next.key), next]
   }, { immediate: true })
 

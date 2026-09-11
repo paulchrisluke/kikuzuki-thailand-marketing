@@ -34,12 +34,24 @@
               :key="period.index"
               class="flex items-end gap-2"
             >
+              <template v-if="!period.value.close">
+                <p class="flex-1 py-2 font-medium text-highlighted">Open 24 hours</p>
+                <UButton
+                  icon="i-lucide-trash-2"
+                  color="neutral"
+                  variant="ghost"
+                  square
+                  aria-label="Remove open 24 hours"
+                  @click="removePeriod(period.index)"
+                />
+              </template>
+              <template v-else>
               <UFormField label="Opens at" class="flex-1">
                 <UInput
                   :model-value="pointTime(period.value.open)"
                   type="time"
                   class="w-full"
-                  @update:model-value="setOpenTime(period.value, String($event))"
+                  @update:model-value="setOpenTime(period.value as EditablePeriod, String($event))"
                 />
               </UFormField>
               <UFormField label="Closes at" class="flex-1">
@@ -47,11 +59,11 @@
                   :model-value="pointTime(period.value.close!)"
                   type="time"
                   class="w-full"
-                  @update:model-value="setCloseTime(period.value, String($event))"
+                  @update:model-value="setCloseTime(period.value as EditablePeriod, String($event))"
                 />
               </UFormField>
               <UButton
-                v-if="period.first"
+                v-if="period.first && !hasAllDay(day.value)"
                 icon="i-lucide-plus"
                 color="neutral"
                 variant="ghost"
@@ -68,6 +80,7 @@
                 aria-label="Remove this opening period"
                 @click="removePeriod(period.index)"
               />
+              </template>
             </div>
             <UButton
               v-if="!periodsFor(day.value).length"
@@ -134,7 +147,7 @@ const weekRows = weekRowValues.map(value => ({
   label: WEEKDAYS[value]![0]!.toUpperCase() + WEEKDAYS[value]!.slice(1),
 }))
 
-type EditablePeriod = { open: WeekPoint; close: WeekPoint }
+export type EditablePeriod = { open: WeekPoint; close: WeekPoint }
 
 const periods = computed(() => form.value.hours?.periods ?? [])
 
@@ -144,8 +157,12 @@ const periods = computed(() => form.value.hours?.periods ?? [])
 function periodsFor(day: number) {
   return periods.value
     .map((value, index) => ({ value, index }))
-    .filter(entry => entry.value.open.day === day && entry.value.close)
-    .map((entry, position) => ({ ...entry, value: entry.value as EditablePeriod, first: position === 0 }))
+    .filter(entry => entry.value.open.day === day)
+    .map((entry, position) => ({
+      ...entry,
+      value: entry.value as { open: WeekPoint; close?: WeekPoint },
+      first: position === 0,
+    }))
 }
 
 // Closed is an answer the owner gives, not something inferred from an empty
@@ -190,7 +207,14 @@ function addPeriod(day: number) {
 }
 
 function removePeriod(index: number) {
-  form.value.hours?.periods.splice(index, 1)
+  const hours = form.value.hours
+  const day = hours?.periods[index]?.open.day
+  hours?.periods.splice(index, 1)
+  // An empty day saves as closed, so the checkbox has to say so. Leaving it
+  // unchecked let an owner save a closed day while the row still read as open.
+  if (day !== undefined && !hours?.periods.some(period => period.open.day === day)) {
+    closedDays.value = new Set(closedDays.value).add(day)
+  }
 }
 
 const pointTime = (point: WeekPoint) => toTimeString(point.hour * 60 + point.minute)
@@ -220,7 +244,12 @@ function syncCloseDay(period: EditablePeriod) {
 }
 
 function overnight(day: number) {
-  return periodsFor(day).some(period => period.value.close.day !== period.value.open.day)
+  return periodsFor(day).some(period => period.value.close && period.value.close.day !== period.value.open.day)
+}
+
+/** A day already open around the clock; a second period would overlap it. */
+function hasAllDay(day: number) {
+  return periodsFor(day).some(period => !period.value.close)
 }
 
 function addException(kind: 'closure' | 'hours') {

@@ -313,6 +313,7 @@ interface ResumableDraft {
   vertical: SiteVertical
   details: {
     name: string
+    country: string | null
     city: string | null
     address: string | null
     phone: string | null
@@ -543,6 +544,10 @@ async function resumeActiveDraft() {
     return
   }
   if (!draft?.draftId) return
+  // The welcome CTA stays live while this request is in flight. An owner who
+  // starts answering before it lands has made a newer decision than the draft:
+  // restoring it now would mix their new transcript with old answers.
+  if (step.value !== 'welcome') return
 
   const details = draft.details
   onboardingDraftId.value = draft.draftId
@@ -555,10 +560,7 @@ async function resumeActiveDraft() {
   detailsForm.streetAddress = details.address ?? ''
   detailsForm.phone = details.phone ?? ''
   if (details.currency) detailsForm.currency = details.currency
-  // The draft stores the number in E.164, which carries its own country; the
-  // country picker is seeded from it rather than left on the product default.
-  const parsedPhone = details.phone ? parsePhone(details.phone) : null
-  if (parsedPhone?.country) detailsForm.country = parsedPhone.country
+  if (details.country) detailsForm.country = details.country
 
   hoursForm.timezone = details.timezone ?? ''
   hoursForm.hours = parseOpeningHours(details.openingHours)
@@ -1389,6 +1391,7 @@ async function commitDraft() {
 function serializeDetails() {
   return {
     name: detailsForm.name.trim(),
+    country: detailsForm.country.trim().toUpperCase() || null,
     city: detailsForm.city.trim() || null,
     address: composeAddress() || null,
     phone: detailsForm.phone.trim() || null,

@@ -180,6 +180,14 @@ export interface DraftDetailsInput {
   name: string
   city: string | null
   address: string | null
+  /**
+   * ISO 3166-1 alpha-2, as the owner answered it on the location step. Stored
+   * in its own right rather than read back off the phone number: the location
+   * step saves before the contact step, so a resumed draft would otherwise fall
+   * back to the product default and validate a non-US number against the US
+   * numbering plan.
+   */
+  country: string | null
   phone: string | null
   websiteUrl: string | null
   openingHours: OpeningHours
