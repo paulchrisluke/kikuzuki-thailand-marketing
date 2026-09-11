@@ -60,7 +60,7 @@ async function coldMobileSample(browser: Browser, url: string, preset: 'default'
         }
       }).observe({ type: 'layout-shift', buffered: true })
     })
-    const response = await page.goto(url, { waitUntil: 'load' })
+    const response = await page.goto(url, { waitUntil: 'load', timeout: 120_000 })
     expect(response?.status()).toBe(200)
     await expect(page.locator('.tenant-layout')).toHaveAttribute('data-font-preset', preset)
     await expect(page.locator('.tenant-layout')).toHaveCSS('font-family', preset === 'mali' ? /Mali/ : /Poppins/)
@@ -86,13 +86,19 @@ function median(values: number[]) {
   return [...values].sort((a, b) => a - b)[Math.floor(values.length / 2)]!
 }
 
+// A timeout in this test used to report only the cap it hit. Name each phase so a
+// failure says which one never finished.
+const started = Date.now()
+function phase(name: string) {
+  console.info('[font-phase]', JSON.stringify({ name, elapsedMs: Date.now() - started }))
+}
+
 // Twelve cold samples (3 runs x 2 presets x 2 routes) at 200 KB/s with a 4x CPU
-// throttle. The Kikuzuki preview home is 823 KB over 128 requests, so a sample
-// costs 15-25s; with the CMS save, the delivery checks and the isolation check the
-// test needs roughly 7 minutes. The previous 600_000 cap sat inside the old
-// 9-12 minute range, so the run ended in a timeout carrying no budget numbers.
+// throttle. Measured against the preview tenant a sample costs 11s, so the matrix
+// is about 2.2 minutes and the whole test well under this cap. A run that
+// approaches it is hung, not slow: check the [font-phase] markers.
 test('Mali saves through Brand, renders before hydration, and stays within the cold-mobile regression budget', async ({ browser, playwright }, testInfo) => {
-  test.setTimeout(1_200_000)
+  test.setTimeout(600_000)
   const siteId = 'site-kikuzuki'
   const baseURL = testBaseUrl()
   const owner = await playwright.request.newContext({ baseURL })
@@ -124,14 +130,20 @@ test('Mali saves through Brand, renders before hydration, and stays within the c
     const cms = await dashboard.newPage()
     const brandPath = `${baseURL}/dashboard/org-bVY8SxxUuG6Ctk2CQnfCk8T2cPsj4jJX/sites/kikuzuki-krabi-thailand/brand/font`
     // The dashboard is not a tenant surface and carries no Zaraz consent gate.
-    await cms.goto(brandPath, { waitUntil: 'load' })
-    await cms.getByRole('combobox').click()
-    await cms.getByRole('option', { name: 'Mali (Thai and English)', exact: true }).click()
+    await cms.goto(brandPath, { waitUntil: 'load', timeout: 60_000 })
+    phase('cms loaded')
+    // The config sets no actionTimeout or navigationTimeout, so an unbounded click
+    // on a control the page never rendered burns the whole test cap and reports
+    // nothing. Every wait below names what it was waiting for instead.
+    await cms.getByRole('combobox').click({ timeout: 30_000 })
+    await cms.getByRole('option', { name: 'Mali (Thai and English)', exact: true }).click({ timeout: 30_000 })
     await expect(cms.getByTestId('site-font-preview')).toHaveCSS('font-family', /Mali/)
+    phase('preset selected')
     const saved = await Promise.all([
-      cms.waitForResponse(response => response.request().method() === 'PATCH' && new URL(response.url()).pathname === '/api/dashboard/settings'),
-      cms.getByRole('button', { name: 'Save', exact: true }).click(),
+      cms.waitForResponse(response => response.request().method() === 'PATCH' && new URL(response.url()).pathname === '/api/dashboard/settings', { timeout: 60_000 }),
+      cms.getByRole('button', { name: 'Save', exact: true }).click({ timeout: 30_000 }),
     ]).then(([response]) => response)
+    phase('saved')
     expect(saved.status(), await saved.text()).toBe(200)
     await expect(cms.getByRole('button', { name: 'Save', exact: true })).toBeDisabled()
     const persisted = await owner.get(settingsUrl)
@@ -139,6 +151,7 @@ test('Mali saves through Brand, renders before hydration, and stays within the c
     expect(await persisted.json()).toMatchObject({ settings: { font_preset: 'mali', brand_color: '' } })
     await expectStatus(await owner.patch(settingsUrl, { data: { font_preset: 'https://example.com/font.css' } }), 400)
     await expectStatus(await owner.post(`${localePath}/th/enable`), 200)
+    phase('thai enabled')
 
     for (const path of ['/', '/menu', '/th/reservations', '/contact']) {
       const guest = await browser.newContext({ viewport: { width: 390, height: 844 }, serviceWorkers: 'block' })
@@ -175,6 +188,7 @@ test('Mali saves through Brand, renders before hydration, and stays within the c
         }
         expect(errors).toEqual([])
       } finally { await guest.close() }
+      phase(`delivery ${path}`)
     }
 
     const other = await browser.newContext()
@@ -189,6 +203,7 @@ test('Mali saves through Brand, renders before hydration, and stays within the c
       await page.evaluate(() => document.fonts.ready.then(() => undefined))
       expect(fonts).toEqual([])
     } finally { await other.close() }
+    phase('isolation checked')
 
     // Alternate presets to reduce ordering bias. Every sample has a new browser
     // context, disabled browser cache, 4x CPU slowdown and 1.6 Mbps / 150 ms RTT.
@@ -197,6 +212,7 @@ test('Mali saves through Brand, renders before hydration, and stays within the c
         await patch({ font_preset: preset })
         for (const [route, url] of Object.entries(performanceRoutes) as Array<[keyof typeof performanceRoutes, string]>) {
           measurements[route][preset].push(await coldMobileSample(browser, url, preset))
+          phase(`sample run=${run} preset=${preset} route=${route}`)
         }
       }
     }
