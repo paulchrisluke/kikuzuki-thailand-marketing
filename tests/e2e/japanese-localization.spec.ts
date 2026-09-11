@@ -19,6 +19,29 @@ test.afterAll(async () => {
   await releaseTenantMutationLock?.()
 })
 
+// A restore that fails must not skip the restores after it, or the context
+// disposal. These specs mutate shared preview state, so a half-restored tenant
+// breaks the next run rather than this one; report the failure after cleanup.
+async function restoreAll(steps: Array<[string, () => Promise<APIResponse>]>) {
+  // Read status and body now: disposing the request context invalidates every
+  // response it produced, and disposal has to happen before these are asserted.
+  const results: Array<{ name: string; status?: number; body?: string; error?: unknown }> = []
+  for (const [name, run] of steps) {
+    try {
+      const response = await run()
+      results.push({ name, status: response.status(), body: await response.text() })
+    } catch (error) {
+      results.push({ name, error })
+    }
+  }
+  return () => {
+    for (const result of results) {
+      expect(result.error, `restoring ${result.name} threw`).toBeUndefined()
+      if (result.status !== undefined) expect(result.status, `restoring ${result.name}: ${result.body}`).toBe(200)
+    }
+  }
+}
+
 test('Japanese is a second secondary language and keeps its public shell through hydration', async ({ playwright, page }) => {
   test.setTimeout(180_000)
   const siteId = 'site-kikuzuki'
@@ -96,9 +119,14 @@ test('Japanese is a second secondary language and keeps its public shell through
     await expect(page.locator('html')).toHaveAttribute('lang', 'en')
     await expect(page.getByRole('link', { name: 'Reserve a table' }).first()).toBeVisible()
   } finally {
-    await expectStatus(await owner.post(`${localePath}/ja/${hadJapanese ? 'enable' : 'disable'}`), 200)
-    await expectStatus(await owner.post(`${localePath}/th/${hadThai ? 'enable' : 'disable'}`), 200)
-    await expectStatus(await owner.patch(settingsUrl, { data: { font_preset: originalFontPreset } }), 200)
+    // Sequential, and ja before th: each enable is refused while two secondary
+    // locales are already published, so the order the test relied on must hold.
+    const assertRestored = await restoreAll([
+      ['the ja locale', () => owner.post(`${localePath}/ja/${hadJapanese ? 'enable' : 'disable'}`)],
+      ['the th locale', () => owner.post(`${localePath}/th/${hadThai ? 'enable' : 'disable'}`)],
+      ['font_preset', () => owner.patch(settingsUrl, { data: { font_preset: originalFontPreset } })],
+    ])
     await owner.dispose()
+    assertRestored()
   }
 })
