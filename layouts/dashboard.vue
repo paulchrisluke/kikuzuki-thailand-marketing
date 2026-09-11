@@ -46,7 +46,7 @@
     <div v-else>
     <DashboardTopNav
       v-if="showDashboardChrome"
-      :items="primaryNavItems"
+      :items="showNavChrome ? primaryNavItems : []"
       :home-to="topNavHomeTo"
       @menu="menuOpen = true"
     />
@@ -465,7 +465,11 @@ const primaryNavItems = computed(() => mobileNavItems.value)
 // exist until there is one. Gating both together is what left an owner who
 // abandoned onboarding with no way to reach account settings or log out.
 const showNavChrome = computed(() => primaryNavItems.value.length > 0 && !isAccountRoute.value)
-const showDashboardChrome = computed(() => showNavChrome.value || skipDashboardContext.value)
+// The bar itself is user-scoped, so it stays on an account route; only its
+// links go, because they are organization-scoped and the account pages are not.
+// Dropping the whole bar there left the profile page with no wordmark, no way
+// back, and no place for a page's own header control to land.
+const showDashboardChrome = computed(() => primaryNavItems.value.length > 0 || skipDashboardContext.value || isAccountRoute.value)
 const topNavHomeTo = computed(() => {
   const routeOrgSlug = typeof route.params.orgSlug === 'string' ? route.params.orgSlug : null
   return routeOrgSlug ? `/dashboard/${encodeURIComponent(routeOrgSlug)}` : '/dashboard'

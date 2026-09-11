@@ -69,21 +69,6 @@
         </div>
       </div>
 
-      <ClientOnly>
-        <Teleport to="#kc-top-nav-actions" defer>
-          <UButton
-            v-if="draftPreviewPayload"
-            icon="i-lucide-eye"
-            color="neutral"
-            variant="soft"
-            square
-            class="lg:hidden"
-            aria-label="Preview draft"
-            @click="requestPreview"
-          />
-        </Teleport>
-      </ClientOnly>
-
       <ConversationShell
         v-model:input="textInput"
         :messages="conversationMessages"
@@ -281,6 +266,7 @@ import { singleTimezoneForCountry } from '~/utils/timezone'
 import type { CurrencyCode } from '~/shared/currencies'
 import ConversationShell from '~/components/conversation/ConversationShell.vue'
 import { loadDomPurify } from '~/utils/dom-purify-loader'
+import { useDashboardTopNavAction } from '~/composables/useDashboardTopNavActions'
 import type { DraftBrandForm } from '~/lib/components/workspace/onboarding/DraftBrandCard.vue'
 import type { SiteVertical } from '~/utils/vertical-copy'
 
@@ -745,6 +731,18 @@ function pushBot(text: string, extra?: {
 function requestPreview() {
   if (draftPreviewPayload.value) emit('preview-requested')
 }
+
+// The preview toggle belongs in the app header, beside the account avatar, and
+// only below lg — at lg and up the pane is already on screen beside the wizard.
+useDashboardTopNavAction(() => draftPreviewPayload.value
+  ? {
+      key: 'onboarding-preview',
+      icon: 'i-lucide-eye',
+      ariaLabel: 'Preview draft',
+      class: 'lg:hidden',
+      onSelect: requestPreview,
+    }
+  : null)
 
 // ─── State machine ────────────────────────────────────────────────────────────
 
