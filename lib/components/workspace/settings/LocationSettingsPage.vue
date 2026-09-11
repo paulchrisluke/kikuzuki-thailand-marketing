@@ -81,7 +81,7 @@
 
           <div v-else-if="editorKey === 'hours'" class="space-y-6">
             <p class="text-base text-muted">Set the regular hours shown to guests. A Google Places sync replaces these hours with Google's current record.</p>
-            <HoursTimezoneCard v-model:form="hoursForm" />
+            <HoursTimezoneCard v-model:form="hoursForm" exceptions />
           </div>
 
           <div v-else-if="editorKey === 'content'" class="space-y-6">

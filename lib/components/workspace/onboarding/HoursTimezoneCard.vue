@@ -1,29 +1,89 @@
 <template>
   <div class="space-y-6">
     <UFormField label="Timezone" required>
-      <USelectMenu v-model="form.timezone" :items="TIMEZONE_OPTIONS" placeholder="Select timezone" :search-input="{ placeholder: 'Search by city, e.g. Bangkok' }" class="w-full" size="xl">
+      <USelectMenu v-model="form.timezone" :items="TIMEZONE_OPTIONS" placeholder="Select timezone" :search-input="{ placeholder: 'Search by city, e.g. Bangkok' }" class="w-full">
         <template #default="{ modelValue }">{{ modelValue ? timezoneLabel(modelValue as string) : 'Select timezone' }}</template>
         <template #item-label="{ item }">{{ timezoneLabel(item as string) }}</template>
       </USelectMenu>
     </UFormField>
-    <UFormField label="Regular opening hours">
-      <USelect :model-value="mode" :items="modes" class="w-full" @update:model-value="setMode" />
-    </UFormField>
-    <template v-if="mode === 'periods'">
-      <div v-for="(period, index) in form.hours?.periods" :key="index" class="space-y-3 rounded-xl border border-default p-4">
-        <template v-if="period.close">
-          <div class="grid grid-cols-2 gap-3">
-            <UFormField label="Opening day"><USelect v-model="period.open.day" :items="days" class="w-full" /></UFormField>
-            <UFormField label="Opening time"><UInput :model-value="pointTime(period.open)" type="time" class="w-full" @update:model-value="setPointTime(period.open, String($event))" /></UFormField>
-            <UFormField label="Closing day"><USelect v-model="period.close.day" :items="days" class="w-full" /></UFormField>
-            <UFormField label="Closing time"><UInput :model-value="pointTime(period.close)" type="time" class="w-full" @update:model-value="setPointTime(period.close, String($event))" /></UFormField>
+
+    <!-- One row per day: the day and whether it is closed on the left, its
+         opening periods on the right. A day with no periods is closed; the
+         whole week with no periods at all is "not answered yet", which is what
+         "Continue without hours" saves. -->
+    <div class="space-y-4">
+      <p class="font-semibold">Regular opening hours</p>
+      <div class="space-y-4">
+        <div
+          v-for="day in weekRows"
+          :key="day.value"
+          class="grid gap-3 border-b border-default pb-4 last:border-b-0 last:pb-0 sm:grid-cols-[10rem_minmax(0,1fr)] sm:items-start"
+        >
+          <div class="space-y-2">
+            <p class="font-medium text-highlighted">{{ day.label }}</p>
+            <UCheckbox
+              :model-value="isClosed(day.value)"
+              label="Closed"
+              @update:model-value="setClosed(day.value, $event === true)"
+            />
           </div>
-          <UButton color="neutral" variant="ghost" label="Remove period" @click="form.hours?.periods.splice(index, 1)" />
-        </template>
+
+          <div v-if="!isClosed(day.value)" class="space-y-2">
+            <div
+              v-for="period in periodsFor(day.value)"
+              :key="period.index"
+              class="flex items-end gap-2"
+            >
+              <UFormField label="Opens at" class="flex-1">
+                <UInput
+                  :model-value="pointTime(period.value.open)"
+                  type="time"
+                  class="w-full"
+                  @update:model-value="setOpenTime(period.value, String($event))"
+                />
+              </UFormField>
+              <UFormField label="Closes at" class="flex-1">
+                <UInput
+                  :model-value="pointTime(period.value.close!)"
+                  type="time"
+                  class="w-full"
+                  @update:model-value="setCloseTime(period.value, String($event))"
+                />
+              </UFormField>
+              <UButton
+                v-if="period.first"
+                icon="i-lucide-plus"
+                color="neutral"
+                variant="ghost"
+                square
+                aria-label="Add another opening period"
+                @click="addPeriod(day.value)"
+              />
+              <UButton
+                v-else
+                icon="i-lucide-trash-2"
+                color="neutral"
+                variant="ghost"
+                square
+                aria-label="Remove this opening period"
+                @click="removePeriod(period.index)"
+              />
+            </div>
+            <UButton
+              v-if="!periodsFor(day.value).length"
+              icon="i-lucide-plus"
+              color="neutral"
+              variant="outline"
+              label="Add hours"
+              @click="addPeriod(day.value)"
+            />
+            <p v-if="overnight(day.value)" class="text-sm text-muted">Closes after midnight, the following day.</p>
+          </div>
+        </div>
       </div>
-      <UButton color="neutral" variant="outline" label="Add opening period" @click="addPeriod" />
-    </template>
-    <div class="space-y-4 border-t border-default pt-6">
+    </div>
+
+    <div v-if="exceptions" class="space-y-4 border-t border-default pt-6">
       <p class="font-semibold">Closures and date exceptions</p>
       <div v-for="(entry, index) in form.specialHours" :key="index" class="space-y-3 rounded-xl border border-default p-4">
         <template v-if="entry.kind === 'closure'">
@@ -50,7 +110,7 @@
       </div>
     </div>
     <p v-if="validationError" class="text-sm text-error">{{ validationError }}</p>
-    <UButton v-if="actionLabel" :label="mode === 'unknown' ? 'Continue without hours' : actionLabel" :loading="loading" :disabled="disabled || Boolean(validationError)" block size="xl" @click="$emit('submit')" />
+    <UButton v-if="actionLabel" :label="form.hours === null ? 'Continue without hours' : actionLabel" :loading="loading" :disabled="disabled || Boolean(validationError)" block size="xl" @click="$emit('submit')" />
   </div>
 </template>
 
@@ -59,19 +119,110 @@ import { TIMEZONE_OPTIONS, localNow, timezoneLabel } from '~/utils/timezone'
 import { WEEKDAYS, parseOpeningHours, parseSpecialHours, toTimeString, toMinutes, type OpeningHours, type SpecialHours, type WeekPoint } from '~/shared/reservation-hours'
 export type HoursTimezoneForm = { timezone: string; hours: OpeningHours; specialHours: SpecialHours }
 const form = defineModel<HoursTimezoneForm>('form', { required: true })
-defineProps<{ actionLabel?: string; loading?: boolean; disabled?: boolean }>()
+// Closures and one-off date hours are a running-a-business job, not a
+// launch-your-site job: the dashboard's location settings own them, and asking
+// a brand-new owner to think about next Songkran before their site exists was
+// four concepts in one step.
+const props = defineProps<{ actionLabel?: string; loading?: boolean; disabled?: boolean; exceptions?: boolean }>()
+const exceptions = computed(() => props.exceptions === true)
 defineEmits<{ submit: [] }>()
-const modes = [{ value: 'unknown', label: 'Hours not set' }, { value: 'closed', label: 'Closed all week' }, { value: 'always', label: 'Open 24 hours every day' }, { value: 'periods', label: 'Set opening periods' }]
-const mode = computed(() => form.value.hours === null ? 'unknown' : form.value.hours.periods.some(p => !p.close) ? 'always' : form.value.hours.periods.length ? 'periods' : editingPeriods.value ? 'periods' : 'closed')
-const editingPeriods = ref(false)
-const days = WEEKDAYS.map((day, value) => ({ value, label: day[0]!.toUpperCase() + day.slice(1) }))
-function setMode(value: string) {
-  editingPeriods.value = value === 'periods'
-  form.value.hours = value === 'unknown' ? null : value === 'always' ? { periods: [{ open: { day: 0, hour: 0, minute: 0 } }] } : { periods: [] }
+// Monday first, the way a week reads on a sign in a window. WEEKDAYS is indexed
+// from Sunday because that is what the stored WeekPoint.day means.
+const weekRowValues = [1, 2, 3, 4, 5, 6, 0]
+const weekRows = weekRowValues.map(value => ({
+  value,
+  label: WEEKDAYS[value]![0]!.toUpperCase() + WEEKDAYS[value]!.slice(1),
+}))
+
+type EditablePeriod = { open: WeekPoint; close: WeekPoint }
+
+const periods = computed(() => form.value.hours?.periods ?? [])
+
+// A period is a day's period when it opens on that day. `close` is optional in
+// the stored shape (a period with no close is the open-24-hours marker), and
+// the grid only edits periods that close.
+function periodsFor(day: number) {
+  return periods.value
+    .map((value, index) => ({ value, index }))
+    .filter(entry => entry.value.open.day === day && entry.value.close)
+    .map((entry, position) => ({ ...entry, value: entry.value as EditablePeriod, first: position === 0 }))
 }
-function addPeriod() { form.value.hours?.periods.push({ open: { day: 1, hour: 9, minute: 0 }, close: { day: 1, hour: 17, minute: 0 } }) }
+
+// Closed is an answer the owner gives, not something inferred from an empty
+// day. Inferring it meant the first day they filled in marked the other six
+// closed and hid their fields — the opposite of what they said. A day with no
+// periods still saves as closed; this only decides whether the row offers its
+// times or reads as deliberately shut.
+const closedDays = ref(new Set<number>(
+  form.value.hours === null
+    ? []
+    : weekRowValues.filter(day => !form.value.hours!.periods.some(period => period.open.day === day)),
+))
+
+function isClosed(day: number) {
+  return closedDays.value.has(day)
+}
+
+function ensureHours() {
+  form.value.hours ??= { periods: [] }
+  return form.value.hours
+}
+
+function setClosed(day: number, closed: boolean) {
+  const next = new Set(closedDays.value)
+  if (closed) {
+    const hours = ensureHours()
+    hours.periods = hours.periods.filter(period => period.open.day !== day)
+    next.add(day)
+  } else {
+    next.delete(day)
+    addPeriod(day)
+  }
+  closedDays.value = next
+}
+
+function addPeriod(day: number) {
+  const hours = ensureHours()
+  const previous = periodsFor(day).at(-1)?.value
+  const open = previous ? { day, hour: 18, minute: 0 } : { day, hour: 9, minute: 0 }
+  const close = previous ? { day, hour: 22, minute: 0 } : { day, hour: 17, minute: 0 }
+  hours.periods.push({ open, close })
+}
+
+function removePeriod(index: number) {
+  form.value.hours?.periods.splice(index, 1)
+}
+
 const pointTime = (point: WeekPoint) => toTimeString(point.hour * 60 + point.minute)
-function setPointTime(point: WeekPoint, value: string) { const minutes = toMinutes(value); point.hour = Math.floor(minutes / 60); point.minute = minutes % 60 }
+
+function applyTime(point: WeekPoint, value: string) {
+  const minutes = toMinutes(value)
+  point.hour = Math.floor(minutes / 60)
+  point.minute = minutes % 60
+}
+
+function setOpenTime(period: EditablePeriod, value: string) {
+  applyTime(period.open, value)
+  syncCloseDay(period)
+}
+
+function setCloseTime(period: EditablePeriod, value: string) {
+  applyTime(period.close, value)
+  syncCloseDay(period)
+}
+
+// A bar that opens at 18:00 and closes at 01:00 closes on the next day. The
+// owner should not have to say so: the stored close day follows the times.
+function syncCloseDay(period: EditablePeriod) {
+  const opens = period.open.hour * 60 + period.open.minute
+  const closes = period.close.hour * 60 + period.close.minute
+  period.close.day = closes <= opens ? (period.open.day + 1) % 7 : period.open.day
+}
+
+function overnight(day: number) {
+  return periodsFor(day).some(period => period.value.close.day !== period.value.open.day)
+}
+
 function addException(kind: 'closure' | 'hours') {
   const date = form.value.timezone ? localNow(form.value.timezone).date : ''
   form.value.specialHours ??= []

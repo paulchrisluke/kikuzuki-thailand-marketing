@@ -19,6 +19,7 @@ export default defineAppConfig({
     // why fields drifted: a surface that wanted a bigger field set `size="xl"`
     // by hand and its neighbour did not. Set the default once here and pass the
     // prop only where a control genuinely differs.
+    checkbox: { defaultVariants: { size: 'xl' } },
     inputMenu: { defaultVariants: { size: 'xl' } },
     inputNumber: { defaultVariants: { size: 'xl' } },
     inputDate: { defaultVariants: { size: 'xl' } },

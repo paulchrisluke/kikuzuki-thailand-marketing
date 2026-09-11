@@ -67,18 +67,22 @@
             />
           </div>
         </div>
-        <UButton
-          v-if="draftPreviewPayload"
-          icon="i-lucide-eye"
-          color="neutral"
-          variant="soft"
-          size="sm"
-          square
-          class="lg:hidden"
-          aria-label="Preview draft"
-          @click="requestPreview"
-        />
       </div>
+
+      <ClientOnly>
+        <Teleport to="#kc-top-nav-actions" defer>
+          <UButton
+            v-if="draftPreviewPayload"
+            icon="i-lucide-eye"
+            color="neutral"
+            variant="soft"
+            square
+            class="lg:hidden"
+            aria-label="Preview draft"
+            @click="requestPreview"
+          />
+        </Teleport>
+      </ClientOnly>
 
       <ConversationShell
         v-model:input="textInput"
@@ -313,6 +317,30 @@ interface QuickReply {
   action?: string
 }
 
+// What GET /api/dashboard/onboarding/drafts/active returns for an unfinished
+// draft. `siteId`/`previewToken` are absent only before the first save created
+// the site.
+interface ResumableDraft {
+  draftId: string
+  draftName: string
+  sourceType: DraftSourceType
+  vertical: SiteVertical
+  details: {
+    name: string
+    city: string | null
+    address: string | null
+    phone: string | null
+    openingHours: unknown
+    specialHours: unknown
+    timezone: string | null
+    currency: CurrencyCode | null
+  }
+  config: Record<string, string | null>
+  siteId: string | null
+  subdomainCandidate: string | null
+  previewToken: string | null
+}
+
 interface DraftSavedPayload {
   draftId: string
   siteId: string
@@ -501,7 +529,84 @@ onMounted(async () => {
     _dompurify = await loadDomPurify()
     _dompurifyLoaded = true
   }
+  await resumeActiveDraft()
 })
+
+/**
+ * An owner who reloads mid-answer, or comes back tomorrow, has an active draft
+ * on the server holding every answer and a real pending site behind it. Without
+ * this they were shown the welcome screen and had to type all of it again.
+ *
+ * The resume point is the first *required* answer still missing. Past those,
+ * every remaining step is optional and quick, so the owner lands on hours and
+ * walks the short tail rather than being dropped at the end with no way to see
+ * what they skipped.
+ */
+async function resumeActiveDraft() {
+  if (props.mode !== 'new-site') return
+  let draft: ResumableDraft | null = null
+  try {
+    const res = await applicationFetch<{ success?: boolean; draft?: ResumableDraft | null }>(
+      '/api/dashboard/onboarding/drafts/active',
+      { validate: (value): value is { success?: boolean; draft?: ResumableDraft | null } => isRecord(value) },
+    )
+    draft = res.draft ?? null
+  } catch {
+    // A draft that cannot be read is not worth blocking the wizard for: the
+    // owner starts from the welcome screen, exactly as before.
+    return
+  }
+  if (!draft?.draftId) return
+
+  const details = draft.details
+  onboardingDraftId.value = draft.draftId
+  selectedVertical.value = draft.vertical
+  emit('vertical-selected', draft.vertical)
+  detailsSource.value = draft.sourceType === 'google_places' ? 'imported' : 'manual'
+
+  detailsForm.name = details.name ?? ''
+  detailsForm.city = details.city ?? ''
+  detailsForm.streetAddress = details.address ?? ''
+  detailsForm.phone = details.phone ?? ''
+  if (details.currency) detailsForm.currency = details.currency
+  // The draft stores the number in E.164, which carries its own country; the
+  // country picker is seeded from it rather than left on the product default.
+  const parsedPhone = details.phone ? parsePhone(details.phone) : null
+  if (parsedPhone?.country) detailsForm.country = parsedPhone.country
+
+  hoursForm.timezone = details.timezone ?? ''
+  hoursForm.hours = parseOpeningHours(details.openingHours)
+  hoursForm.specialHours = parseSpecialHours(details.specialHours)
+
+  const config = draft.config ?? {}
+  brandDraftForm.brandColor = config.brand_color ?? ''
+  brandDraftForm.logoNote = config.draft_logo_note ?? ''
+  brandDraftForm.heroPhotoNote = config.draft_hero_photo_note ?? ''
+  brandDraftForm.heroHeadline = config.draft_hero_headline ?? ''
+  brandDraftForm.heroDescription = config.draft_hero_description ?? ''
+
+  if (draft.siteId && draft.previewToken && draft.subdomainCandidate) {
+    draftPreviewPayload.value = {
+      draftId: draft.draftId,
+      siteId: draft.siteId,
+      previewToken: draft.previewToken,
+      draftName: draft.draftName,
+      subdomainCandidate: draft.subdomainCandidate,
+    }
+    emit('draft-saved', draftPreviewPayload.value)
+  }
+
+  pushBot(`Welcome back. Picking up ${draft.draftName} where you left off.`, { step: 'welcome' })
+  await advance(resumeStep(details))
+}
+
+function resumeStep(details: ResumableDraft['details']): WizardStep {
+  if (!details.name) return 'awaiting_manual_name'
+  if (!details.address || !details.city) return 'location'
+  if (!details.phone) return 'contact'
+  if (!details.currency) return 'currency'
+  return 'hours'
+}
 
 function renderMarkdown(text: string): string {
   if (!_dompurifyLoaded) {

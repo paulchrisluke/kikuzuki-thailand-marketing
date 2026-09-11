@@ -35,6 +35,10 @@
     </nav>
 
     <div class="flex items-center justify-end gap-3">
+      <!-- Page-level actions sit to the left of the account menu. The onboarding
+           wizard's preview toggle teleports in here so the control the owner
+           reaches for lives in the app header rather than inside the step. -->
+      <div id="kc-top-nav-actions" class="flex items-center gap-2" />
       <DashboardAccountMenu />
       <UButton
         v-if="items.length"
