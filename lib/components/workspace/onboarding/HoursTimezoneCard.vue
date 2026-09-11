@@ -1,7 +1,10 @@
 <template>
   <div class="space-y-6">
     <UFormField label="Timezone" required>
-      <USelectMenu v-model="form.timezone" :items="TIMEZONE_OPTIONS" placeholder="Select timezone" :search-input="{ placeholder: 'Search by city, e.g. Bangkok' }" class="w-full" size="xl" />
+      <USelectMenu v-model="form.timezone" :items="TIMEZONE_OPTIONS" placeholder="Select timezone" :search-input="{ placeholder: 'Search by city, e.g. Bangkok' }" class="w-full" size="xl">
+        <template #default="{ modelValue }">{{ modelValue ? timezoneLabel(modelValue as string) : 'Select timezone' }}</template>
+        <template #item-label="{ item }">{{ timezoneLabel(item as string) }}</template>
+      </USelectMenu>
     </UFormField>
     <UFormField label="Regular opening hours">
       <USelect :model-value="mode" :items="modes" class="w-full" @update:model-value="setMode" />
@@ -52,7 +55,7 @@
 </template>
 
 <script setup lang="ts">
-import { TIMEZONE_OPTIONS, localNow } from '~/utils/timezone'
+import { TIMEZONE_OPTIONS, localNow, timezoneLabel } from '~/utils/timezone'
 import { WEEKDAYS, parseOpeningHours, parseSpecialHours, toTimeString, toMinutes, type OpeningHours, type SpecialHours, type WeekPoint } from '~/shared/reservation-hours'
 export type HoursTimezoneForm = { timezone: string; hours: OpeningHours; specialHours: SpecialHours }
 const form = defineModel<HoursTimezoneForm>('form', { required: true })

@@ -119,7 +119,10 @@
               <UInput v-model="detailsForm.notification_phone" type="tel" placeholder="+66..." size="xl" class="w-full" />
             </UFormField>
             <UFormField label="Timezone">
-              <USelectMenu v-model="detailsForm.timezone" :items="timezoneOptions" placeholder="Select timezone" size="xl" class="w-full" />
+              <USelectMenu v-model="detailsForm.timezone" :items="timezoneOptions" placeholder="Select timezone" size="xl" class="w-full">
+                <template #default="{ modelValue }">{{ modelValue ? timezoneLabel(modelValue as string) : 'Select timezone' }}</template>
+                <template #item-label="{ item }">{{ timezoneLabel(item as string) }}</template>
+              </USelectMenu>
             </UFormField>
           </div>
 
@@ -147,7 +150,7 @@ import DashboardResourceLocalization from '~/components/dashboard/DashboardResou
 import EditorPaneShell from '~/components/dashboard/EditorPaneShell.vue'
 import EditorNavigationList from '~/components/dashboard/EditorNavigationList.vue'
 const dashboardApi = useDashboardApi()
-import { TIMEZONE_OPTIONS } from '~/utils/timezone'
+import { TIMEZONE_OPTIONS, timezoneLabel } from '~/utils/timezone'
 import { getErrorMessage } from '~/utils/errors'
 import { defaultModuleFeaturesForVertical, resolveCmsCapabilities, toggleableModulesForScope, type ProductFeature } from '~/config/cms-registry'
 import { resolvePublicTemplate } from '~/utils/template-registry'

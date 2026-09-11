@@ -2,12 +2,33 @@ import { parseDateTime } from '@internationalized/date'
 
 const UTC_ALIASES = new Set(['UTC', 'Etc/UTC', 'Etc/GMT', 'GMT'])
 
+// Zones a business can actually be in. UTC and the Etc/* zones are coordinate
+// systems, not places: nobody opens at 9am UTC, and offering them invites an
+// owner to pick one and have every opening hour render an hour or seven off.
 export const TIMEZONE_OPTIONS = (() => {
   const options = typeof Intl.supportedValuesOf === 'function'
     ? Intl.supportedValuesOf('timeZone')
     : []
-  return options.includes('UTC') ? options : ['UTC', ...options]
+  return options.filter(zone => !UTC_ALIASES.has(zone) && !zone.startsWith('Etc/'))
 })()
+
+/**
+ * A zone named the way an owner thinks of it — "Bangkok · GMT+7" rather than
+ * "Asia/Bangkok". The offset comes from the current date so it follows DST,
+ * and carries no clock time: a live time would differ between the server
+ * render and hydration.
+ */
+export function timezoneLabel(zone: string): string {
+  const city = zone.split('/').pop()?.replace(/_/g, ' ') ?? zone
+  try {
+    const offset = new Intl.DateTimeFormat('en-US', { timeZone: zone, timeZoneName: 'shortOffset' })
+      .formatToParts(new Date())
+      .find(part => part.type === 'timeZoneName')?.value
+    return offset ? `${city} · ${offset}` : city
+  } catch {
+    return city
+  }
+}
 
 export function normalizeTimezone(value: string | null | undefined): string | null {
   if (typeof value !== 'string') return null

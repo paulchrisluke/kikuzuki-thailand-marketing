@@ -74,6 +74,7 @@
           variant="soft"
           size="sm"
           square
+          class="lg:hidden"
           aria-label="Preview draft"
           @click="requestPreview"
         />
@@ -148,9 +149,8 @@
                   <UIcon :name="choice.icon || 'i-lucide-circle'" class="size-4" />
                   <span class="min-w-0 flex-1">
                     <span class="block text-[13px] font-semibold leading-5 text-highlighted">{{ choice.label }}</span>
-                    <span v-if="choice.sub" class="mt-0.5 block text-[12px] leading-5 text-muted">{{ choice.sub }}</span>
+                    <span v-if="choice.sub" class="mt-0.5 block text-[12px] leading-5 text-toned">{{ choice.sub }}</span>
                   </span>
-                  <UIcon name="i-lucide-chevron-right" class="size-4 shrink-0 text-dimmed" />
                 </UButton>
               </div>
               <div v-if="messages[index]?.detailsCard || messages[index]?.hoursCard || messages[index]?.brandDraftCard" class="onboarding-step-widget">
@@ -655,7 +655,7 @@ async function advance(target: WizardStep) {
         choices: [
           { label: 'Restaurant, café or bar', icon: 'i-lucide-flame', primary: true, action: 'set_vertical_restaurant' },
           { label: 'Experience, class or activity', icon: 'i-lucide-graduation-cap', action: 'set_vertical_experience' },
-          { label: 'Legal or professional services', sub: 'Law firms, consultancies, and similar practices', icon: 'i-lucide-briefcase', action: 'set_vertical_service' },
+          { label: 'Legal or professional services', icon: 'i-lucide-briefcase', action: 'set_vertical_service' },
         ],
     },
     })
@@ -693,7 +693,7 @@ async function advance(target: WizardStep) {
   }
 
   if (target === 'contact') {
-    pushBot('Add the number guests should use first.', {
+    pushBot('What is your business contact number?', {
       detailsCard: {
         actionLabel: 'Save contact',
         requireLocationBasics: detailsRequireBasics.value,

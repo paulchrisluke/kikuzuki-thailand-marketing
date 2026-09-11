@@ -186,6 +186,11 @@ useHead(() => {
 <style>
 /* Saya theme CSS variables */
 .saya-theme {
-  --brand-color: #16a34a;
+  /* A site that has not chosen a colour yet wears the platform's, so the first
+     preview in onboarding already looks like KrabiClaw rather than a green
+     nobody picked. themeStyles above replaces both values the moment the owner
+     answers the brand step. */
+  --brand-color: var(--kc-coral);
+  --brand-color-foreground: #fff;
 }
 </style>

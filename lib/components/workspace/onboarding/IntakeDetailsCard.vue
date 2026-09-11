@@ -91,18 +91,10 @@
               autocomplete="tel-national"
               :disabled="!countryCode"
               :placeholder="countryCode ? 'Phone number' : 'Choose a country first'"
-              :style="{ '--dial-code-length': `${showDialCode ? dialCode.length + 1.5 : 0}ch` }"
-              :ui="{
-                base: showDialCode ? 'ps-(--dial-code-length)' : '',
-                leading: 'pointer-events-none text-base sm:text-sm text-muted',
-              }"
+              @beforeinput="refusePhoneOverflow"
               @update:model-value="syncPhoneValue"
               @blur="phoneTouched = true"
-            >
-              <template v-if="showDialCode" #leading>
-                {{ dialCode }}
-              </template>
-            </UInput>
+            />
           </UFieldGroup>
         </UFormField>
         <UFormField v-if="section === 'currency'" label="Currency" required>
@@ -137,6 +129,7 @@
 
 <script setup lang="ts">
 import {
+  exceedsPhoneLength,
   formatPhoneAsTyped,
   getPhoneCountry,
   listPhoneCountries,
@@ -189,10 +182,6 @@ const countryCode = computed<CountryCode | undefined>({
   },
 })
 const country = computed(() => getPhoneCountry(countryCode.value))
-const dialCode = computed(() => country.value?.dialCode ?? '')
-// International input ("+1 415…") already carries its own code; showing the
-// picker's dial code in front of it would read as two prefixes.
-const showDialCode = computed(() => !!dialCode.value && !phone.value.trimStart().startsWith('+'))
 const parsedPhone = computed(() =>
   countryCode.value
     ? parsePhone(phone.value, { defaultCountry: countryCode.value })
@@ -208,6 +197,24 @@ watch(countryCode, () => {
 })
 
 const digitsOf = (value: string) => value.replace(/\D/g, '')
+
+/**
+ * Refuse a keystroke that would take the number past the end of the country's
+ * numbering plan. It has to happen here rather than in the change handler:
+ * correcting the value afterwards leaves `phone` unchanged, Vue patches
+ * nothing, and the character the owner typed stays in the field.
+ */
+function refusePhoneOverflow(event: InputEvent) {
+  if (!countryCode.value) return
+  const target = event.target as HTMLInputElement | null
+  if (!target) return
+  const inserted = event.data ?? (event.dataTransfer?.getData('text') || '')
+  if (!inserted) return
+  const start = target.selectionStart ?? target.value.length
+  const end = target.selectionEnd ?? start
+  const candidate = target.value.slice(0, start) + inserted + target.value.slice(end)
+  if (exceedsPhoneLength(candidate, countryCode.value)) event.preventDefault()
+}
 
 function syncPhoneValue(value?: string | number) {
   if (value !== undefined) {

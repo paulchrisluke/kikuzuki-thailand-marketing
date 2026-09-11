@@ -9,6 +9,7 @@ import {
   getCountries,
   getCountryCallingCode,
   parsePhoneNumberFromString,
+  validatePhoneNumberLength,
   type CountryCode,
 } from 'libphonenumber-js/min'
 
@@ -63,6 +64,22 @@ export function getPhoneCountry(code: string | null | undefined): PhoneCountry |
  */
 export function formatPhoneAsTyped(input: string, country: CountryCode): string {
   return new AsYouType(country).input(input)
+}
+
+/**
+ * True when `input` already holds more digits than `country`'s numbering plan
+ * allows. The formatter happily keeps appending digits past the end of a valid
+ * number, which lets an owner type a number no carrier could route and only
+ * learn about it from the error under the field; callers use this to refuse
+ * the keystroke instead.
+ */
+export function exceedsPhoneLength(input: string, country: CountryCode): boolean {
+  if (validatePhoneNumberLength(input, country) === 'TOO_LONG') return true
+  // E.164's hard ceiling: 15 digits including the country calling code. Some
+  // countries' metadata still calls longer strings "possible" (Thailand reports
+  // possible at 14 national digits), and no such number exists.
+  const nationalDigits = input.replace(/\D/g, '').length
+  return nationalDigits + getCountryCallingCode(country).length > 15
 }
 
 export interface PhoneParseResult {
