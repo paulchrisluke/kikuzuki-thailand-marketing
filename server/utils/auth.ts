@@ -79,7 +79,7 @@ async function normalizeCimdClientAuthentication(event: {
 
   const update: Record<string, unknown> = { scopes: [...CIMD_TENANT_SCOPES] }
   if (supportsPrivateKeyJwt) {
-    // @better-auth/cimd@1.7.2's convertDocToClient only reads the
+    // @better-auth/cimd@1.7.4's convertDocToClient only reads the
     // singular doc.token_endpoint_auth_method (node_modules/@better-auth/cimd/
     // dist/index.mjs lines ~114-123, ~243) — it never checks the plural
     // capability field, token_endpoint_auth_methods_supported, that
