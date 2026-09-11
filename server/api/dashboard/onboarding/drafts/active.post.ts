@@ -10,6 +10,7 @@ import { VALID_VERTICALS } from '~/server/utils/site-creation'
 import { applyOnboardingDraftToSite, ensureOnboardingSite } from '~/server/utils/onboarding-site'
 import { isValidTimezone } from '~/utils/timezone'
 import { isCurrencyCode, type CurrencyCode } from '~/shared/currencies'
+import { getPhoneCountry } from '~/utils/phone'
 import type { SiteVertical } from '~/utils/vertical-copy'
 
 type DraftSourceType = 'manual' | 'google_places'
@@ -26,18 +27,19 @@ function parseCurrency(value: unknown): CurrencyCode | null {
   return isCurrencyCode(currency) ? currency : null
 }
 
-// ISO 3166-1 alpha-2 and nothing else; an unrecognised value stays unknown
-// rather than being stored as if the owner had chosen it.
+// The same list the wizard's country picker is built from, so the endpoint
+// accepts exactly what the UI can produce. A two-letter shape check would take
+// "AA" and "UK", neither of which is an assigned ISO 3166-1 alpha-2 code.
 function parseCountry(value: unknown): string | null {
   if (typeof value !== 'string') return null
   const country = value.trim().toUpperCase()
-  return /^[A-Z]{2}$/.test(country) ? country : null
+  return getPhoneCountry(country) ? country : null
 }
 
 function detailsFromBody(
   raw: Record<string, unknown> | null, existing: DraftDetailsInput | null, name: string, place: PlaceDetailsSnapshot | Awaited<ReturnType<typeof getPlaceDetails>> | null, ): DraftDetailsInput {
   return {
-    name, country: parseCountry(raw?.country) ?? existing?.country ?? null, city: stringOrNull(raw?.city) ?? existing?.city ?? null, address: stringOrNull(raw?.address) ?? existing?.address ?? null, phone: stringOrNull(raw?.phone) ?? existing?.phone ?? null, websiteUrl: stringOrNull(raw?.websiteUrl) ?? existing?.websiteUrl ?? null, openingHours: parseOpeningHours(raw?.openingHours === undefined ? (existing ? existing.openingHours : place?.openingHours ?? null) : raw.openingHours), specialHours: parseSpecialHours(raw?.specialHours === undefined ? existing?.specialHours ?? null : raw.specialHours), notificationPhone: stringOrNull(raw?.notificationPhone) ?? existing?.notificationPhone ?? null, timezone: stringOrNull(raw?.timezone) ?? (existing ? existing.timezone : place?.timezone ?? null), currency: raw?.currency === undefined ? existing?.currency ?? null : parseCurrency(raw.currency), }
+    name, country: raw?.country === undefined ? existing?.country ?? null : parseCountry(raw.country), city: stringOrNull(raw?.city) ?? existing?.city ?? null, address: stringOrNull(raw?.address) ?? existing?.address ?? null, phone: stringOrNull(raw?.phone) ?? existing?.phone ?? null, websiteUrl: stringOrNull(raw?.websiteUrl) ?? existing?.websiteUrl ?? null, openingHours: parseOpeningHours(raw?.openingHours === undefined ? (existing ? existing.openingHours : place?.openingHours ?? null) : raw.openingHours), specialHours: parseSpecialHours(raw?.specialHours === undefined ? existing?.specialHours ?? null : raw.specialHours), notificationPhone: stringOrNull(raw?.notificationPhone) ?? existing?.notificationPhone ?? null, timezone: stringOrNull(raw?.timezone) ?? (existing ? existing.timezone : place?.timezone ?? null), currency: raw?.currency === undefined ? existing?.currency ?? null : parseCurrency(raw.currency), }
 }
 
 function imageFromBody(raw: unknown, existing: DraftUploadedImage | null): DraftUploadedImage | null {
@@ -140,6 +142,12 @@ export default defineHandler(async (event) => {
     ?? existingPayload?.preview.brandName
     ?? ''
   if (!name) return jsonResponse({ error: 'name is required' }, { status: 400 })
+
+  // An omitted country keeps the stored answer; a present but unrecognised one
+  // is a bad request, not a reason to quietly keep the old value.
+  if (rawDetails?.country !== undefined && rawDetails.country !== null && parseCountry(rawDetails.country) === null) {
+    return jsonResponse({ error: 'country must be an ISO 3166-1 alpha-2 code' }, { status: 400 })
+  }
 
   const details = detailsFromBody(rawDetails, existingPayload?.source.details ?? null, name, place)
   const brandDraft = brandFromBody(body.brandDraft && typeof body.brandDraft === 'object' ? body.brandDraft : null, existingPayload)
