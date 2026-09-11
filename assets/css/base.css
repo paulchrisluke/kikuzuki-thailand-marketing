@@ -5,7 +5,7 @@
 @theme static {
   --font-sans: "Poppins", sans-serif;
   --font-poppins: "Poppins", sans-serif;
-  --font-display: "Fredoka", "Poppins", ui-rounded, system-ui, sans-serif;
+  --font-display: "Fredoka", sans-serif;
 
   --breakpoint-xs: 375px;
   --breakpoint-sm: 576px;

@@ -19,7 +19,10 @@ export function resolveSiteFontPreset(value: unknown): SiteFontPreset {
 }
 
 export const MALI_ASSET_BASE = '/assets/fonts/mali-aead5de0'
-export const MALI_FONT_FAMILY = '"Mali", Tahoma, system-ui, sans-serif'
+// One webfont, then the generic category. A chain of named system faces is a
+// fallback chain: each named face has different metrics, so which one paints
+// during the swap period changes how far the text reflows when Mali arrives.
+export const MALI_FONT_FAMILY = '"Mali", sans-serif'
 
 // Same manifest drives build-time asset copying and the SSR font declarations.
 // No locale gating: an English page can contain Thai names and vice versa.
