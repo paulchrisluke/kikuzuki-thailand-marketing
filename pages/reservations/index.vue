@@ -176,20 +176,10 @@ const { locale, t } = useI18n()
 const resCopy = computed(() => getVerticalCopy((site as ApiValue)?.vertical, locale.value))
 const { locations, config, getField, reservationPolicyByLocation } = await usePublicPageData()
 
-// Measured on this route: the LCP element is the first location card's hero video
-// poster, painting at ~1.7s on a throttled mobile load. Without this hint the
-// browser discovers it only after parsing the card, so any stylesheet-driven font
-// the tenant selects is fetched ahead of it and pushes LCP out. This is the first
-// card in document order, not a chosen row: it is the one above the fold.
-const lcpHeroPoster = computed(() => {
+// The first location card's hero is this route's LCP element.
+useHeroLcpPreload(computed(() => {
   const first = locations.value[0]
-  if (!first || getLocationMediaKind(first) !== 'video') return null
-  return getLocationPoster(first)
-})
-useHead(() => ({
-  link: lcpHeroPoster.value
-    ? [{ key: 'saya-lcp-hero', rel: 'preload', as: 'image', href: lcpHeroPoster.value, fetchpriority: 'high' }]
-    : [],
+  return first ? getLocationPoster(first) : null
 }))
 
 const isExperienceSite = computed(() => (site as { vertical?: string | null } | null)?.vertical === 'experience')
